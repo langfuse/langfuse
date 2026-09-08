@@ -212,12 +212,13 @@ langfuse/
 - Use Linear's git branch name (`lfe-XXXX-short-title`). Never create a
   `cursor/` branch, even if a Cursor Cloud prompt suggests that prefix.
   Repo guidance wins.
-- After opening a PR, leave a short last comment on what a reviewer should
-  doubt — the curious, questionable parts — not a changelog. For user-visible
-  work, put proof of the fix in that comment and the PR body, not only in
-  chat. Post that comment only when GitHub will attribute it to Cursor, not
-  to a human author. Claude Code and other tools that comment as the user
-  must skip it; see `cursor-agents-workflow`.
+- After opening a PR, apply the `cursor` GitHub label, then leave a short
+  last comment on what a reviewer should doubt — the curious, questionable
+  parts — not a changelog. For user-visible work, put proof of the fix in
+  that comment and the PR body, not only in chat. Post that comment only
+  when GitHub will attribute it to Cursor, not to a human author. Claude
+  Code and other tools that comment as the user must skip it; see
+  `cursor-agents-workflow`.
 
 ## Local Data Inspection
 

@@ -1,12 +1,13 @@
 ---
 name: cursor-agents-workflow
 description: |
-  Human handoff, Linear branch names, reviewable (non-draft) PRs, Claude,
-  Greptile, and Codex review comments, preview test steps, proof of work
-  posted on the GitHub PR, and review-doubt notes for Cursor agents. Use
-  when a Cursor Cloud or Cursor desktop agent implements a Linear issue,
-  opens a GitHub PR, asks a human to test, posts screenshots or videos,
-  or handles Claude, Greptile, or Codex code-review comments.
+  Human handoff, Linear branch names, reviewable (non-draft) PRs, the
+  `cursor` GitHub label, Claude, Greptile, and Codex review comments,
+  preview test steps, proof of work posted on the GitHub PR, and
+  review-doubt notes for Cursor agents. Use when a Cursor Cloud or
+  Cursor desktop agent implements a Linear issue, opens a GitHub PR,
+  asks a human to test, posts screenshots or videos, or handles Claude,
+  Greptile, or Codex code-review comments.
 ---
 
 # Cursor Agents Workflow
@@ -51,11 +52,20 @@ Open the GitHub PR as reviewable, not as a draft. Draft PRs hide the work
 from reviewers and skip Claude/Greptile review workflows. Use a draft only
 when a human asks for one.
 
-Cursor Cloud PRs are opened as the Langfuse user who launched the agent. On
-a non-draft same-repo PR from a write-access user, github-actions posts
-`@claude review` automatically. Do not post that comment yourself on open.
-Do not post `@claude review` again after addressing comments unless a human
-asks for another pass.
+After the PR exists, apply the `cursor` GitHub label. That is a standing
+requirement, not an inferred extra — same role as Codex applying `codex`.
+Use the PR labels tool with `add_labels: ["cursor"]`. Do not add any other
+label unless a human asked for it. `.github/workflows/cursor-autolabel.yml`
+also applies the label when the author is the Cursor app, the branch starts
+with `cursor/`, or the body carries Cursor Cloud PR markers; still apply it
+yourself so a desktop session or a missed auto-label is not left unmarked.
+
+Cursor Cloud PRs are often authored by the Cursor GitHub App
+(`cursor[bot]` / `app/cursor`). Desktop sessions that open the PR as the
+human still need the explicit label step. On a non-draft same-repo PR from
+a write-access user, github-actions posts `@claude review` automatically.
+Do not post that comment yourself on open. Do not post `@claude review`
+again after addressing comments unless a human asks for another pass.
 
 ## Bot review comments
 
