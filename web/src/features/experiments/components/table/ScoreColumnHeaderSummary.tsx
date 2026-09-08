@@ -91,6 +91,21 @@ export const ScoreColumnHeaderSummary = ({
 }) => {
   const { baseline, comparison, delta, movement } = summary;
   const { icon, label: nameLabel } = splitScoreDataTypeIcon(label);
+  // A zero delta says nothing a reader cannot see from the two aggregates, so
+  // it does not earn a line; the movement counts still might.
+  const deltaToShow = delta !== null && delta !== 0 ? delta : null;
+  const hasMovementCounts = Boolean(
+    movement && (movement.improved || movement.regressed || movement.changed),
+  );
+  // The counts are the part a narrow column clips, so they say the same thing
+  // in words on hover.
+  const movementCountsTitle = [
+    movement?.improved ? `${movement.improved} improved` : null,
+    movement?.regressed ? `${movement.regressed} regressed` : null,
+    movement?.changed ? `${movement.changed} changed` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   return (
     // The filter menu sits outside the hover-card trigger so its own popover is
@@ -105,49 +120,85 @@ export const ScoreColumnHeaderSummary = ({
                 {nameLabel}
               </span>
             </span>
+            {/* The values: this column's aggregate, and the one it moved from.
+              The item count is deliberately NOT here — of the numbers competing
+              for these two lines it is the least valuable, it already has a
+              labelled row in the hover, and giving it up is what leaves the
+              movement counts room to stay beside their delta. */}
             <span className="text-muted-foreground flex flex-wrap items-center gap-x-1 text-[10px] leading-tight font-normal tabular-nums">
+              {/* `truncate`: each aggregate is one value, so it moves to the
+                next line whole rather than breaking in the middle of itself —
+                a categorical's `mostly-grounded 9/11` is long enough to do
+                that. And if one value alone is wider than the column, it ends
+                in an ellipsis: a value that stops with no mark reads as the
+                whole value. */}
               {baseline ? (
-                <>
-                  <span className="text-foreground font-bold">
-                    {formatScoreColumnAggregate(baseline)}
-                  </span>
-                  {baseline.kind !== "distribution" && (
-                    <span>· {baseline.count}</span>
-                  )}
-                </>
+                <span
+                  className="text-foreground min-w-0 truncate font-bold"
+                  title={formatScoreColumnAggregate(baseline)}
+                >
+                  {formatScoreColumnAggregate(baseline)}
+                </span>
               ) : (
                 <span>no values</span>
               )}
+              {/* Independent of the baseline's own aggregate: a score the
+                comparison recorded and this run has not yet is exactly the
+                case worth seeing. */}
+              {comparison && (
+                <span
+                  className="min-w-0 truncate"
+                  title={`vs ${formatScoreColumnAggregate(comparison)}`}
+                >
+                  vs {formatScoreColumnAggregate(comparison)}
+                </span>
+              )}
             </span>
-            {movement && (
-              <span className="text-muted-foreground flex flex-wrap items-center gap-x-1 text-[10px] leading-tight font-normal tabular-nums">
-                {comparison && (
-                  <span>vs {formatScoreColumnAggregate(comparison)}</span>
-                )}
-                {delta !== null && delta !== 0 && (
+            {/* The movement: how far, and how many items moved which way.
+              One line that does not wrap — a count is only readable as a
+              movement next to the delta it belongs to. The delta keeps its
+              full width; the counts are what give way, whole and marked with
+              an ellipsis, so a narrow column drops them here instead of
+              bleeding over the header beside it — the hover card carries every
+              count in full.
+
+              The not-scored count is deliberately not here either — it is
+              accounted for in the hover card. */}
+            {(deltaToShow !== null || hasMovementCounts) && (
+              <span className="text-muted-foreground flex min-w-0 items-center gap-x-1 overflow-hidden text-[10px] leading-tight font-normal tabular-nums">
+                {deltaToShow !== null && (
                   <DiffLabel
                     diff={{
                       type: "NUMERIC",
-                      absoluteDifference: Math.abs(delta),
-                      direction: delta > 0 ? "+" : "-",
+                      absoluteDifference: Math.abs(deltaToShow),
+                      direction: deltaToShow > 0 ? "+" : "-",
                     }}
                     formatValue={formatScoreValue}
                   />
                 )}
-                {movement.improved > 0 && (
-                  <span className="text-dark-green font-bold">
-                    ↗{movement.improved}
+                {hasMovementCounts && (
+                  // Not a flex row: `text-overflow` only applies to a block
+                  // box's inline content, and it is what drops a count whole
+                  // and marks it, instead of clipping `↘141` into `↘1`.
+                  <span
+                    className="min-w-0 truncate"
+                    title={movementCountsTitle}
+                  >
+                    {movement && movement.improved > 0 && (
+                      <span className="text-dark-green pr-1 font-bold">
+                        ↗{movement.improved}
+                      </span>
+                    )}
+                    {movement && movement.regressed > 0 && (
+                      <span className="text-dark-red pr-1 font-bold">
+                        ↘{movement.regressed}
+                      </span>
+                    )}
+                    {movement && movement.changed > 0 && (
+                      <span className="pr-1">↻{movement.changed}</span>
+                    )}
                   </span>
                 )}
-                {movement.regressed > 0 && (
-                  <span className="text-dark-red font-bold">
-                    ↘{movement.regressed}
-                  </span>
-                )}
-                {movement.changed > 0 && <span>↻{movement.changed}</span>}
-                {/* The not-scored count is deliberately NOT here: it is the
-                  least-used of these numbers and the line only holds three.
-                  It stays accounted for, in the hover. */}
               </span>
             )}
           </div>
