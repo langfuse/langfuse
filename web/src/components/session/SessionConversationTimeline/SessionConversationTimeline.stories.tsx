@@ -2266,3 +2266,29 @@ export const ExpandNestedObservations = meta.story({
     ).toBeInTheDocument();
   },
 });
+
+export const ExpandEmptyTopLevelObservation = meta.story({
+  name: "(Test) Expands Empty Top-Level Observation",
+  args: {
+    ...loadedArgs,
+    idleGapSeconds: null,
+    state: {
+      type: "loaded",
+      observations: nestedObservations.map((observation) =>
+        observation.id === "opencode.turn"
+          ? { ...observation, input: null, output: null }
+          : observation,
+      ),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByText("generation-1")).toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", {
+        name: "Hide 2 generations and 5 tools",
+      }),
+    ).toBeInTheDocument();
+  },
+});
