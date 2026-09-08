@@ -81,9 +81,11 @@
   `@langfuse/shared/src/server/clickhouse/clickhouseIdentifiers`,
   `@langfuse/shared/src/server/ee/ingestionMasking`,
   `@langfuse/shared/src/server/llm/llmText`, and
-  `@langfuse/shared/src/utils/chatml`. The experimental
-  `@langfuse/shared/src/utils/normalized-io` parser is client-safe but **do not
-  use it yet**; its public contract is still being validated.
+  `@langfuse/shared/src/utils/chatml`. The
+  `@langfuse/shared/src/utils/normalized-io` parser is client-safe and powers
+  the web "Improved Message Rendering" feature preview (the normalized Formatted
+  trace/observation view). Its public contract is still settling, so treat other
+  consumers as experimental until it stabilizes.
 
 When changing export surfaces, keep `package.json#exports`, the relevant barrel
 file (`src/index.ts`, `src/server/index.ts`, etc.), and this guide aligned in
