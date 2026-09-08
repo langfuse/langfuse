@@ -5,7 +5,7 @@
  */
 export function containsNode(
   container: Node | null | undefined,
-  node: EventTarget | Node | null | undefined,
+  node: unknown,
 ): boolean {
   if (!container || !(node instanceof Node)) {
     return false;
