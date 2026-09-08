@@ -13,6 +13,8 @@ export const OBSERVATION_TYPE_COLOR: Record<string, string> = {
   RETRIEVER: "bg-teal-600",
   EMBEDDING: "bg-amber-600",
   GUARDRAIL: "bg-red-600",
+  // Same hue ItemBadge uses for evaluator items (text-primary-accent).
+  EVALUATOR: "bg-primary-accent",
 };
 
 export const OBSERVATION_TYPE_FALLBACK_COLOR = "bg-muted-gray";

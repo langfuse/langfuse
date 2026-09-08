@@ -64,6 +64,24 @@ export function hasRenderableUsage({
   );
 }
 
+/**
+ * The single number the compact `UsageBadge` shows. `totalUsage` can be 0
+ * while the in→out split still carries real numbers (e.g. usage recorded
+ * only per-direction) — fall back to their sum rather than showing a
+ * misleadingly empty total for a generation that does have usage.
+ */
+export function getCompactUsageTotal({
+  inputUsage,
+  outputUsage,
+  totalUsage,
+}: {
+  inputUsage: number;
+  outputUsage: number;
+  totalUsage: number;
+}): number {
+  return totalUsage > 0 ? totalUsage : inputUsage + outputUsage;
+}
+
 export function UsageBadge({
   inputUsage,
   outputUsage,
@@ -79,11 +97,30 @@ export function UsageBadge({
       lives in the breakdown tooltip. */
   compact?: boolean;
 }) {
-  const tokenText = compact
-    ? totalUsage > 0
-      ? `∑ ${numberFormatter(totalUsage, 0)}`
-      : ""
-    : formatTokenCounts(inputUsage, outputUsage, totalUsage, true);
+  if (compact) {
+    // Callers gate compact rendering on getCompactUsageTotal(...) > 0, same
+    // as this — see TraceSummaryStrip.
+    const compactTotal = getCompactUsageTotal({
+      inputUsage,
+      outputUsage,
+      totalUsage,
+    });
+
+    return (
+      <BreakdownTooltip details={usageDetails} isCost={false}>
+        <span className={METRIC_TEXT_CLASSES} title="Usage breakdown on hover">
+          {`∑ ${numberFormatter(compactTotal, 0)}`}
+        </span>
+      </BreakdownTooltip>
+    );
+  }
+
+  const tokenText = formatTokenCounts(
+    inputUsage,
+    outputUsage,
+    totalUsage,
+    true,
+  );
 
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>
