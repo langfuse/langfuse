@@ -8722,6 +8722,14 @@ components:
           $ref: '#/components/schemas/AnnotationQueueStatus'
           nullable: true
           description: Defaults to PENDING for new queue items
+        objectStartTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            The start time of the referenced observation. When provided,
+            Langfuse resolves the referenced object more efficiently when the
+            item is read.
       required:
         - objectId
         - objectType

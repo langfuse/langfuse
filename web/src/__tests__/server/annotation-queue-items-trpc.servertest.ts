@@ -2,7 +2,11 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { AnnotationQueueObjectType, type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createEvent,
+  createEventsCh,
+  createOrgProjectAndApiKey,
+} from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 
@@ -134,6 +138,60 @@ describe("annotation queues trpc", () => {
           itemId: item.id,
         }),
       ).rejects.toThrow("User does not have access to this resource or action");
+    });
+  });
+
+  describe("annotationQueueItems.byId", () => {
+    it("resolves an observation item using the persisted objectStartTime", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+      const { caller } = createCallerForProjectRole(setup, "ADMIN");
+
+      const queue = await prisma.annotationQueue.create({
+        data: {
+          name: "Test Queue",
+          description: "Test Queue Description",
+          scoreConfigIds: [],
+          projectId: setup.project.id,
+        },
+      });
+
+      const observationId = uuidv4();
+      const traceId = uuidv4();
+      const startTime = new Date("2024-05-15T12:00:00.000Z");
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          trace_id: traceId,
+          project_id: setup.project.id,
+          start_time: startTime,
+          type: "GENERATION",
+        }),
+      ]);
+
+      const item = await prisma.annotationQueueItem.create({
+        data: {
+          queueId: queue.id,
+          objectId: observationId,
+          objectType: AnnotationQueueObjectType.OBSERVATION,
+          objectStartTime: startTime,
+          projectId: setup.project.id,
+        },
+      });
+
+      const result = await caller.annotationQueueItems.byId({
+        projectId: setup.project.id,
+        itemId: item.id,
+      });
+
+      expect(result).not.toBeNull();
+      expect(result && "parentTraceId" in result && result.parentTraceId).toBe(
+        traceId,
+      );
+      expect(result?.objectStartTime?.toISOString()).toBe(
+        startTime.toISOString(),
+      );
     });
   });
 

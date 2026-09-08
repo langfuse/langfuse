@@ -668,10 +668,24 @@ export default function ObservationsTable({
       selectedPageRowIds: selectedGenerationIds,
     } = observationsTableStore.getState();
 
+    // Persist each selected observation's start_time (from the loaded rows) so
+    // the queue-item by-id lookups can bound the events_full scan. Only the
+    // non-batch path uses this; selectAll goes through the worker stream.
+    const startTimeByObjectId = new Map(
+      (generations.data?.generations ?? []).map((g) => [g.id, g.startTime]),
+    );
+    const objectStartTimes = Object.fromEntries(
+      selectedGenerationIds.flatMap((id) => {
+        const startTime = startTimeByObjectId.get(id);
+        return startTime ? [[id, startTime.toISOString()]] : [];
+      }),
+    );
+
     await addToQueueMutation.mutateAsync({
       projectId,
       objectIds: selectedGenerationIds,
       objectType: AnnotationQueueObjectType.OBSERVATION,
+      objectStartTimes,
       queueId: targetId,
       isBatchAction: selectAll,
       query: {

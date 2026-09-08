@@ -6,11 +6,14 @@ const addToQueue = async ({
   objectIds,
   objectType,
   targetId,
+  objectStartTimes,
 }: {
   projectId: string;
   objectIds: string[];
   objectType: AnnotationQueueObjectType;
   targetId: string;
+  // start_time per objectId, persisted so later by-id lookups stay bounded
+  objectStartTimes?: Map<string, Date>;
 }) => {
   // cannot use prisma `createMany` operation as we do not have unique constraint enforced on schema level
   // conflict must be handled on query level by reading existing items and filtering out traces that already exist
@@ -37,6 +40,7 @@ const addToQueue = async ({
         queueId: targetId,
         objectId,
         objectType,
+        objectStartTime: objectStartTimes?.get(objectId) ?? null,
       })),
     });
   }
@@ -97,6 +101,7 @@ export const processAddObservationsToQueue = async (
   projectId: string,
   observationIds: string[],
   targetId: string,
+  objectStartTimes?: Map<string, Date>,
 ) => {
   logger.info(
     `Adding observations ${JSON.stringify(observationIds)} to annotation queue ${targetId} in project ${projectId}`,
@@ -108,6 +113,7 @@ export const processAddObservationsToQueue = async (
       objectIds: observationIds,
       objectType: AnnotationQueueObjectType.OBSERVATION,
       targetId,
+      objectStartTimes,
     });
   } catch (e) {
     logger.error(

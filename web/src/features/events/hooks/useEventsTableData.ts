@@ -272,8 +272,9 @@ export function useEventsTableData({
     projectId: string;
     targetId: string;
   }) => {
+    const loadedObservations = activeObservations.data?.observations ?? [];
     const visibleObservationIds = new Set(
-      (activeObservations.data?.observations ?? [])
+      loadedObservations
         .map((observation) => observation.id)
         .filter((id): id is string => Boolean(id)),
     );
@@ -282,10 +283,28 @@ export function useEventsTableData({
       (observationId) => visibleObservationIds.has(observationId),
     );
 
+    // Persist each selected observation's start_time (from the loaded rows) so
+    // the queue-item by-id lookups can bound the events_full scan. Only the
+    // non-batch path uses this; selectAll goes through the worker stream.
+    const startTimeByObjectId = new Map(
+      loadedObservations.flatMap((observation) =>
+        observation.id && observation.startTime
+          ? [[observation.id, observation.startTime] as const]
+          : [],
+      ),
+    );
+    const objectStartTimes = Object.fromEntries(
+      selectedObservationIds.flatMap((id) => {
+        const startTime = startTimeByObjectId.get(id);
+        return startTime ? [[id, startTime.toISOString()]] : [];
+      }),
+    );
+
     await addToQueueMutation.mutateAsync({
       projectId,
       objectIds: selectedObservationIds,
       objectType: AnnotationQueueObjectType.OBSERVATION,
+      objectStartTimes,
       queueId: targetId,
       isBatchAction: selectAll,
       query: {

@@ -504,6 +504,7 @@ model AnnotationQueueItem {
   queue           AnnotationQueue           @relation(fields: [queueId], references: [id], onDelete: Cascade)
   objectId        String                    @map("object_id")
   objectType      AnnotationQueueObjectType @map("object_type")
+  objectStartTime DateTime?                 @map("object_start_time")
   status          AnnotationQueueStatus     @default(PENDING)
   lockedAt        DateTime?                 @map("locked_at")
   lockedByUserId  String?                   @map("locked_by_user_id")

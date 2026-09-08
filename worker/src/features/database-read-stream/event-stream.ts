@@ -17,6 +17,7 @@ import {
   buildEventsBlobExportStreamQuery,
   buildEventsStreamQuery,
   getDistinctScoreNames,
+  parseClickhouseUTCDateTimeFormat,
   queryClickhouseStream,
   logger,
 } from "@langfuse/shared/src/server";
@@ -369,7 +370,7 @@ export const getEventsStreamForDataset = async (props: {
 /**
  * Lightweight event stream for batch add-to-annotation-queue.
  * Only fetches the fields needed for annotation queue item creation:
- * id, traceId.
+ * id, traceId, startTime (persisted so later by-id lookups stay bounded).
  */
 export const getEventsStreamForAnnotationQueue = async (props: {
   projectId: string;
@@ -403,6 +404,7 @@ export const getEventsStreamForAnnotationQueue = async (props: {
   type AnnotationQueueEventRow = {
     id: string;
     trace_id: string;
+    start_time: string;
   };
 
   const asyncGenerator = queryClickhouseStream<AnnotationQueueEventRow>({
@@ -425,6 +427,7 @@ export const getEventsStreamForAnnotationQueue = async (props: {
         yield {
           id: row.id,
           traceId: row.trace_id,
+          startTime: parseClickhouseUTCDateTimeFormat(row.start_time),
         };
       }
     })(),

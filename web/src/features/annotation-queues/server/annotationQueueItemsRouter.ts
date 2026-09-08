@@ -142,11 +142,13 @@ export const queueItemRouter = createTRPCRouter({
             ? await getObservationByIdFromEventsTable({
                 id: item.objectId,
                 projectId: input.projectId,
+                startTime: item.objectStartTime ?? undefined,
               })
             : // eslint-disable-next-line @typescript-eslint/no-deprecated
               await getObservationById({
                 id: item.objectId,
                 projectId: input.projectId,
+                startTime: item.objectStartTime ?? undefined,
               });
 
         if (!clickhouseObservation) {
@@ -286,6 +288,9 @@ export const queueItemRouter = createTRPCRouter({
           .array(z.string())
           .min(1, "Minimum 1 object_id is required."),
         objectType: z.enum(AnnotationQueueObjectType),
+        // start_time per objectId (observations only), persisted so later by-id
+        // lookups can bound the events_full scan.
+        objectStartTimes: z.record(z.string(), z.coerce.date()).optional(),
         query: BatchActionQuerySchema.optional(),
         isBatchAction: z.boolean().default(false),
       }),
@@ -324,6 +329,7 @@ export const queueItemRouter = createTRPCRouter({
             queueId: input.queueId,
             objectId,
             objectType: input.objectType,
+            objectStartTime: input.objectStartTimes?.[objectId] ?? null,
           })),
           skipDuplicates: true,
         });

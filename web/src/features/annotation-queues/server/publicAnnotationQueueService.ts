@@ -413,6 +413,7 @@ export const createAnnotationQueueItemForApi = async ({
       queueId,
       objectId: input.objectId,
       objectType: input.objectType,
+      objectStartTime: input.objectStartTime ?? null,
       status,
       completedAt,
       projectId,

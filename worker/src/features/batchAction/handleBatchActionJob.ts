@@ -98,6 +98,9 @@ async function processActionChunk(
   chunkIds: string[],
   projectId: string,
   targetId?: string,
+  // start_time per chunk id; only used for observation add-to-queue so the
+  // referenced observation's timestamp is persisted on the queue item
+  objectStartTimes?: Map<string, Date>,
 ): Promise<void> {
   try {
     switch (actionId) {
@@ -124,6 +127,7 @@ async function processActionChunk(
           projectId,
           chunkIds,
           targetId as string,
+          objectStartTimes,
         );
         break;
 
@@ -274,11 +278,21 @@ export const handleBatchActionJob = async (
     for (let i = 0; i < records.length; i += CHUNK_SIZE) {
       const batch = records.slice(i, i + CHUNK_SIZE);
 
+      // Observation streams carry startTime; persist it on the queue item so
+      // later by-id lookups bound the events_full scan. Other record shapes
+      // have no startTime and the map is simply empty.
+      const objectStartTimes = new Map<string, Date>(
+        batch
+          .filter((r) => r.startTime instanceof Date)
+          .map((r) => [r.id, r.startTime as Date]),
+      );
+
       await processActionChunk(
         actionId,
         batch.map((r) => r.id),
         projectId,
         targetId,
+        objectStartTimes,
       );
     }
   } else if (actionId === "eval-create") {

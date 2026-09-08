@@ -580,11 +580,13 @@ export const queueRouter = createTRPCRouter({
             ? await getObservationByIdFromEventsTable({
                 id: item.objectId,
                 projectId: input.projectId,
+                startTime: item.objectStartTime ?? undefined,
               })
             : // eslint-disable-next-line @typescript-eslint/no-deprecated
               await getObservationById({
                 id: item.objectId,
                 projectId: input.projectId,
+                startTime: item.objectStartTime ?? undefined,
               });
         return {
           ...inflatedUpdatedItem,

@@ -585,6 +585,32 @@ describe("Annotation Queues API Endpoints", () => {
       expect(response.body.status).toBe(AnnotationQueueStatus.PENDING);
     });
 
+    it("should persist objectStartTime when provided", async () => {
+      const objectId = uuidv4();
+      const objectStartTime = new Date("2024-05-15T12:00:00.000Z");
+
+      const response = await makeZodVerifiedAPICall(
+        CreateAnnotationQueueItemResponse,
+        "POST",
+        `/api/public/annotation-queues/${queueId}/items`,
+        {
+          objectId,
+          objectType: AnnotationQueueObjectType.OBSERVATION,
+          objectStartTime: objectStartTime.toISOString(),
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+
+      const persisted = await prisma.annotationQueueItem.findFirstOrThrow({
+        where: { queueId, objectId, projectId },
+      });
+      expect(persisted.objectStartTime?.toISOString()).toBe(
+        objectStartTime.toISOString(),
+      );
+    });
+
     it("should create queue items with different object types and statuses", async () => {
       const traceObjectId = uuidv4();
       const observationObjectId = uuidv4();

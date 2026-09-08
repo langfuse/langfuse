@@ -113,6 +113,7 @@ export const CreateAnnotationQueueItemBody = z
       .enum(AnnotationQueueStatus)
       .optional()
       .default(AnnotationQueueStatus.PENDING),
+    objectStartTime: z.coerce.date().nullish(),
   })
   .strict();
 

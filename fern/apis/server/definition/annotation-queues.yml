@@ -189,6 +189,11 @@ types:
       status:
         type: optional<AnnotationQueueStatus>
         docs: Defaults to PENDING for new queue items
+      objectStartTime:
+        type: optional<datetime>
+        docs: >-
+          The start time of the referenced observation. When provided, Langfuse
+          resolves the referenced object more efficiently when the item is read.
 
   UpdateAnnotationQueueItemRequest:
     properties:
