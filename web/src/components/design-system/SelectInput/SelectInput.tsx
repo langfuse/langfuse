@@ -175,7 +175,7 @@ function SelectInputInner<V extends string>(
             ref={register}
             onScroll={recompute}
             className={cn(
-              "before:from-popover after:from-popover max-h-96 overflow-auto p-1.5 before:pointer-events-none before:sticky before:top-0 before:z-2 before:-mx-1.5 before:-mb-6 before:block before:h-6 before:bg-linear-to-b before:to-transparent before:content-[''] after:pointer-events-none after:sticky after:bottom-0 after:z-2 after:-mx-1.5 after:-mt-6 after:block after:h-6 after:bg-linear-to-t after:to-transparent after:content-['']",
+              "before:from-popover after:from-popover max-h-96 overflow-auto p-1.5 before:pointer-events-none before:sticky before:-top-1.5 before:z-2 before:-mx-1.5 before:-mb-6 before:block before:h-6 before:bg-linear-to-b before:to-transparent before:content-[''] after:pointer-events-none after:sticky after:-bottom-1.5 after:z-2 after:-mx-1.5 after:-mt-6 after:block after:h-6 after:bg-linear-to-t after:to-transparent after:content-['']",
               top ? "before:opacity-100" : "before:opacity-0",
               bottom ? "after:opacity-100" : "after:opacity-0",
             )}
