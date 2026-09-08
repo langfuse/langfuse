@@ -253,7 +253,7 @@ describe("gateway mutation local error handling", () => {
     fireEvent.change(screen.getByLabelText("Secret key"), {
       target: { value: "sk-test-only" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Test only" }));
+    fireEvent.click(screen.getByRole("button", { name: "Test" }));
 
     await waitFor(() => {
       expect(testConnectionMutateAsync).toHaveBeenCalledWith({

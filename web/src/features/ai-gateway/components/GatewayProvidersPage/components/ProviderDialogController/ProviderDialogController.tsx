@@ -166,7 +166,7 @@ export function ProviderDialogController({
               loading={test.isPending}
               onClick={testCredential}
             >
-              Test only
+              Test
             </Button>
             <Button
               disabled={

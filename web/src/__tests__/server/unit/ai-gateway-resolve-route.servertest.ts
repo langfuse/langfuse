@@ -65,6 +65,17 @@ describe("POST /api/internal/ai-gateway/v1/resolve", () => {
     expect((await post({ api_format: format })).statusCode).toBe(401);
   });
 
+  it("accepts a model without using it for resolution", async () => {
+    expect(
+      (
+        await post({
+          api_format: "openai.responses",
+          model: "gpt-4o-mini",
+        })
+      ).statusCode,
+    ).toBe(401);
+  });
+
   it("rejects a body that is not valid JSON", async () => {
     const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
       method: "POST",

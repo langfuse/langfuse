@@ -15,7 +15,10 @@ const MODELS_METHOD = "GET";
 const SIGNATURE_DOMAIN = "gateway-web-v1";
 const SIGNATURE_MAX_AGE_SECONDS = 5 * 60;
 const resolveBodySchema = z
-  .object({ api_format: GatewayApiFormatSchema })
+  .object({
+    api_format: GatewayApiFormatSchema,
+    model: z.string().min(1).optional(),
+  })
   .strict();
 const modelsQuerySchema = z
   .object({ api_format: GatewayApiFormatSchema })
