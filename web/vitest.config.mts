@@ -280,6 +280,11 @@ export default defineConfig({
           globalSetup: ["./src/__tests__/vitest-test-db-setup.ts"],
         },
       },
+      serverProject(
+        "gateway-e2e-server",
+        ["src/__e2e__/**/*.gatewaye2e.{ts,tsx}"],
+        { isolate: true },
+      ),
     ],
   },
 });

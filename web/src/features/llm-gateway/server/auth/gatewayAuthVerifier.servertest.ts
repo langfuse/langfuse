@@ -7,7 +7,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { signHmacSha256 } from "@/src/server/utils/hmac";
 import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
-import { withGatewayResolveAuth } from "./gatewayAuthVerifier";
+import {
+  withGatewayModelsAuth,
+  withGatewayResolveAuth,
+} from "./gatewayAuthVerifier";
 
 vi.mock("@/src/env.mjs", () => ({
   env: {
@@ -55,6 +58,7 @@ function gatewayAuthorization(input: {
   body: string;
   secret: string;
   timestamp?: number;
+  path?: string;
 }) {
   const timestamp = input.timestamp ?? Math.floor(now.getTime() / 1000);
   const sha256 = (value: string) =>
@@ -62,7 +66,7 @@ function gatewayAuthorization(input: {
   const canonicalMessage = [
     timestamp.toString(),
     sha256("sk-gateway"),
-    "/api/internal/ai-gateway/v1/resolve",
+    input.path ?? "/api/internal/ai-gateway/v1/resolve",
     "POST",
     sha256(input.body),
   ].join("\n");
@@ -120,6 +124,50 @@ describe("withGatewayResolveAuth", () => {
       });
     },
   );
+
+  it("accepts models signatures only for the models path", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const body = '{"api_format":"anthropic.messages","limit":10}';
+    const modelsHeader = gatewayAuthorization({
+      body,
+      secret: "current-service-secret",
+      path: "/api/internal/ai-gateway/v1/models",
+    });
+    const handler = vi.fn().mockResolvedValue(undefined);
+    const req = request({
+      authorization: "Bearer sk-gateway",
+      gatewayAuthorization: modelsHeader,
+      body,
+    });
+    const res = response();
+
+    await withGatewayModelsAuth(handler)(req, res);
+
+    expect(handler).toHaveBeenCalledWith({
+      req,
+      res,
+      fastHashedSecretKey: createShaHash("sk-gateway", "test-salt"),
+      apiFormat: "anthropic.messages",
+      limit: 10,
+    });
+
+    const crossPathHandler = vi.fn();
+    const crossPathResponse = response();
+    await withGatewayModelsAuth(crossPathHandler)(
+      request({
+        authorization: "Bearer sk-gateway",
+        gatewayAuthorization: gatewayAuthorization({
+          body,
+          secret: "current-service-secret",
+        }),
+        body,
+      }),
+      crossPathResponse,
+    );
+    expect(crossPathResponse.status).toHaveBeenCalledWith(401);
+    expect(crossPathHandler).not.toHaveBeenCalled();
+  });
 
   it("hashes the exact raw request body", async () => {
     vi.useFakeTimers();

@@ -207,24 +207,30 @@ export function GatewayModelsView({
               updateQuery: setSearchQuery,
             }}
           />
-          <ResizableFilterLayout>
-            <DataTableControls queryFilter={queryFilter} />
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <DataTable
-                tableName={TABLE_NAME}
-                columns={columns}
-                data={
-                  isLoading
-                    ? { isLoading: true, isError: false }
-                    : { isLoading: false, isError: false, data: filteredModels }
-                }
-                hidePagination
-                className="min-h-0"
-                noResultsMessage={emptyMessage}
-                cellPadding="comfortable"
-              />
-            </div>
-          </ResizableFilterLayout>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <ResizableFilterLayout>
+              <DataTableControls queryFilter={queryFilter} />
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <DataTable
+                  tableName={TABLE_NAME}
+                  columns={columns}
+                  data={
+                    isLoading
+                      ? { isLoading: true, isError: false }
+                      : {
+                          isLoading: false,
+                          isError: false,
+                          data: filteredModels,
+                        }
+                  }
+                  hidePagination
+                  className="min-h-0"
+                  noResultsMessage={emptyMessage}
+                  cellPadding="comfortable"
+                />
+              </div>
+            </ResizableFilterLayout>
+          </div>
         </div>
       </DataTableControlsProvider>
 

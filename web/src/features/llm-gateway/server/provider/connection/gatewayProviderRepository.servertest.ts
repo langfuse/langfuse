@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
+import { GatewayModelCatalogService } from "../models/gatewayModelCatalogService";
 import { GatewayProviderRepository } from "./gatewayProviderRepository";
 import { GatewayProviderService } from "./gatewayProviderService";
 
@@ -117,7 +118,7 @@ describe("GatewayProviderRepository pagination", () => {
 
   it("fetches only enabled connections for model refresh", async () => {
     const findMany = vi.fn().mockResolvedValue([]);
-    const service = new GatewayProviderService({
+    const service = new GatewayModelCatalogService({
       gatewayAiConnection: { findMany },
     } as unknown as PrismaClient);
 

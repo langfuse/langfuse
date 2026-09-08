@@ -98,7 +98,10 @@ export const PagedSettingsContainer = ({
           </Select>
         </nav>
         <nav
-          className="text-muted-foreground hidden gap-4 text-sm md:sticky md:top-5 md:grid"
+          className={cn(
+            "text-muted-foreground hidden gap-4 text-sm md:sticky md:top-5 md:grid",
+            fullHeight && "md:top-0",
+          )}
           x-chunk="dashboard-04-chunk-0"
         >
           {availablePages.map((page, index) => (

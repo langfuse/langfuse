@@ -23,9 +23,13 @@ import {
   type GatewayResolveError,
   GatewayResolveService,
 } from "@/src/features/llm-gateway/server/resolve/resolveService";
+import { GatewayModelsService } from "@/src/features/llm-gateway/server/provider/models/gatewayModelsService";
 import { GatewayApiKeyService } from "@/src/features/llm-gateway/server/apiKey/gatewayApiKeyService";
 import { GatewayConfigService } from "@/src/features/llm-gateway/server/config/gatewayConfigService";
-import { GatewayProviderService } from "@/src/features/llm-gateway/server/provider";
+import {
+  GatewayModelCatalogService,
+  GatewayProviderService,
+} from "@/src/features/llm-gateway/server/provider";
 import {
   createEd25519JwtSigner,
   createEd25519JwtVerifier,
@@ -402,7 +406,6 @@ describe("LLM gateway control plane", () => {
 
     const failingProviderService = new GatewayProviderService(
       prisma,
-      fetch,
       vi.fn().mockRejectedValue(new Error("invalid credential")),
     );
     await expect(
@@ -573,7 +576,10 @@ describe("LLM gateway control plane", () => {
     const unauthorizedFetch = vi
       .fn<typeof fetch>()
       .mockResolvedValue(new Response(null, { status: 401 }));
-    const unauthorized = new GatewayProviderService(prisma, unauthorizedFetch);
+    const unauthorized = new GatewayModelCatalogService(
+      prisma,
+      unauthorizedFetch,
+    );
     await unauthorized.refreshModels({
       organizationId: org.id,
       connectionId: connection.id,
@@ -592,15 +598,16 @@ describe("LLM gateway control plane", () => {
       }),
     ).rejects.toThrow("credential update or successful retry");
     const automaticRefresh = vi.fn<typeof fetch>();
-    await new GatewayProviderService(prisma, automaticRefresh).refreshAllModels(
-      org.id,
-    );
+    await new GatewayModelCatalogService(
+      prisma,
+      automaticRefresh,
+    ).refreshAllModels(org.id);
     expect(automaticRefresh).not.toHaveBeenCalled();
 
     const failingFetch = vi
       .fn<typeof fetch>()
       .mockResolvedValue(new Response(null, { status: 500 }));
-    const failedRetry = await new GatewayProviderService(
+    const failedRetry = await new GatewayModelCatalogService(
       prisma,
       failingFetch,
     ).retryConnection({
@@ -623,8 +630,13 @@ describe("LLM gateway control plane", () => {
 
     const successfulFetch = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(Response.json({ data: [{ id: "claude-test" }] }));
-    await new GatewayProviderService(prisma, successfulFetch).retryConnection({
+      .mockResolvedValue(
+        Response.json({ data: [{ id: "claude-test" }], has_more: false }),
+      );
+    await new GatewayModelCatalogService(
+      prisma,
+      successfulFetch,
+    ).retryConnection({
       organizationId: org.id,
       connectionId: connection.id,
       session,
@@ -671,6 +683,202 @@ describe("LLM gateway control plane", () => {
       }),
     ).rejects.toEqual(
       expect.objectContaining<Partial<GatewayResolveError>>({ status: 403 }),
+    );
+  });
+
+  it("returns a native model catalog across enabled compatible connections", async () => {
+    const { caller, org } = await prepare();
+    await caller.llmGateway.createConnection({
+      orgId: org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-openai",
+    });
+    await caller.llmGateway.createConnection({
+      orgId: org.id,
+      name: "OpenRouter",
+      provider: "OPENROUTER",
+      credential: "sk-openrouter",
+    });
+    await caller.llmGateway.createConnection({
+      orgId: org.id,
+      name: "Anthropic",
+      provider: "ANTHROPIC",
+      credential: "sk-anthropic",
+    });
+    const key = await caller.llmGateway.createApiKey({
+      orgId: org.id,
+      metadata: {},
+    });
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+      const value = String(url);
+      if (value.includes("openrouter")) {
+        return Response.json({
+          data: [
+            {
+              id: "shared-model",
+              name: "Shared Model",
+              created: 20,
+              owned_by: "openrouter",
+              context_length: 200000,
+              architecture: { input_modalities: ["text", "image"] },
+              supported_parameters: ["reasoning", "structured_outputs"],
+              top_provider: { max_completion_tokens: 64000 },
+            },
+            { id: "z-model", created: 30, owned_by: "openrouter" },
+          ],
+        });
+      }
+      if (value.includes("openai.com")) {
+        return Response.json({
+          data: [
+            {
+              id: "a-model",
+              created: 10,
+              owned_by: "openai",
+              shutdown_date: "2027-01-01",
+            },
+            { id: "shared-model", created: 15, owned_by: "openai" },
+          ],
+        });
+      }
+      if (value.includes("anthropic.com")) {
+        return Response.json({
+          data: [
+            {
+              id: "claude-a",
+              display_name: "Claude A",
+              created_at: "2026-01-01T00:00:00.000Z",
+              capabilities: { image_input: { supported: true } },
+              max_input_tokens: 200000,
+              max_tokens: 64000,
+              type: "model",
+            },
+            {
+              id: "claude-b",
+              display_name: "Claude B",
+              created_at: "2026-02-01T00:00:00.000Z",
+              capabilities: null,
+              max_input_tokens: 100000,
+              max_tokens: 32000,
+              type: "model",
+            },
+          ],
+          has_more: false,
+        });
+      }
+      throw new Error(`Unexpected provider request: ${value}`);
+    });
+
+    const service = new GatewayModelsService(prisma, fetcher, null);
+    const result = await service.list({
+      fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
+      apiFormat: "openai.responses",
+    });
+
+    expect(result).toEqual({
+      object: "list",
+      data: [
+        {
+          id: "a-model",
+          object: "model",
+          created: 10,
+          owned_by: "openai",
+          shutdown_date: "2027-01-01",
+        },
+        {
+          id: "shared-model",
+          object: "model",
+          created: 15,
+          owned_by: "openai",
+        },
+        {
+          id: "z-model",
+          object: "model",
+          created: 30,
+          owned_by: "openrouter",
+        },
+      ],
+    });
+    const anthropicResult = await service.list({
+      fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
+      apiFormat: "anthropic.messages",
+      limit: 3,
+    });
+    expect(anthropicResult).toEqual({
+      data: [
+        {
+          type: "model",
+          id: "claude-a",
+          display_name: "Claude A",
+          created_at: "2026-01-01T00:00:00.000Z",
+          capabilities: { image_input: { supported: true } },
+          max_input_tokens: 200000,
+          max_tokens: 64000,
+        },
+        {
+          type: "model",
+          id: "claude-b",
+          display_name: "Claude B",
+          created_at: "2026-02-01T00:00:00.000Z",
+          capabilities: null,
+          max_input_tokens: 100000,
+          max_tokens: 32000,
+        },
+        {
+          type: "model",
+          id: "shared-model",
+          display_name: "Shared Model",
+          created_at: "1970-01-01T00:00:20.000Z",
+          capabilities: expect.objectContaining({
+            image_input: { supported: true },
+            structured_outputs: { supported: true },
+            thinking: expect.objectContaining({ supported: true }),
+          }),
+          max_input_tokens: 200000,
+          max_tokens: 64000,
+        },
+      ],
+      has_more: true,
+      first_id: "claude-a",
+      last_id: "shared-model",
+    });
+    expect(fetcher).toHaveBeenCalledTimes(4);
+  });
+
+  it("fails model discovery instead of returning a partial catalog", async () => {
+    const { caller, org } = await prepare();
+    await caller.llmGateway.createConnection({
+      orgId: org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-openai",
+    });
+    await caller.llmGateway.createConnection({
+      orgId: org.id,
+      name: "OpenRouter",
+      provider: "OPENROUTER",
+      credential: "sk-openrouter",
+    });
+    const key = await caller.llmGateway.createApiKey({
+      orgId: org.id,
+      metadata: {},
+    });
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async (url) =>
+        String(url).includes("openrouter")
+          ? new Response(null, { status: 500 })
+          : Response.json({ data: [{ id: "available-model" }] }),
+      );
+
+    await expect(
+      new GatewayModelsService(prisma, fetcher, null).list({
+        fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
+        apiFormat: "openai.chat-completions",
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<GatewayResolveError>>({ status: 503 }),
     );
   });
 });

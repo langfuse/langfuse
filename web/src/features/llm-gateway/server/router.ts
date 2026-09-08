@@ -18,7 +18,11 @@ import { redis } from "@langfuse/shared/src/server";
 import { GatewayApiKeyService } from "./apiKey/gatewayApiKeyService";
 import { requireGatewayEnabledForOrganization } from "./availability";
 import { GatewayConfigService } from "./config/gatewayConfigService";
-import { GatewayMetadataSchema, GatewayProviderService } from "./provider";
+import {
+  GatewayMetadataSchema,
+  GatewayModelCatalogService,
+  GatewayProviderService,
+} from "./provider";
 
 const organizationInput = z.object({ orgId: z.string() });
 const paginatedOrganizationInput = organizationInput.extend({
@@ -159,7 +163,7 @@ export const llmGatewayRouter = createTRPCRouter({
     .input(organizationInput)
     .query(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      return new GatewayProviderService(ctx.prisma).refreshAllModels(
+      return new GatewayModelCatalogService(ctx.prisma).refreshAllModels(
         input.orgId,
       );
     }),
@@ -168,7 +172,7 @@ export const llmGatewayRouter = createTRPCRouter({
     .input(organizationInput)
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      return new GatewayProviderService(ctx.prisma).refreshAllModels(
+      return new GatewayModelCatalogService(ctx.prisma).refreshAllModels(
         input.orgId,
         true,
       );
@@ -178,7 +182,7 @@ export const llmGatewayRouter = createTRPCRouter({
     .input(organizationInput.extend({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      return new GatewayProviderService(ctx.prisma).retryConnection({
+      return new GatewayModelCatalogService(ctx.prisma).retryConnection({
         organizationId: input.orgId,
         connectionId: input.id,
         session: ctx.session,

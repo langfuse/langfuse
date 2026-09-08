@@ -9,6 +9,7 @@ import type { Ed25519JwtSigner } from "@/src/server/utils/jwt";
 
 import { GATEWAY_INGESTION_TOKEN_TTL_SECONDS } from "@/src/features/llm-gateway/server/auth/ingestionTokenVerifier";
 import { isGatewayEnabledForOrganization } from "@/src/features/llm-gateway/server/availability";
+import { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/llm-gateway/server/gatewayControlPlaneError";
 import {
   type GatewayApiFormat,
   gatewayProviders,
@@ -17,14 +18,7 @@ import {
 } from "@/src/features/llm-gateway/server/provider";
 import { GatewayResolveRepository } from "./gatewayResolveRepository";
 
-export class GatewayResolveError extends Error {
-  constructor(
-    message: string,
-    readonly status: 400 | 401 | 403 | 404 | 503,
-  ) {
-    super(message);
-  }
-}
+export { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/llm-gateway/server/gatewayControlPlaneError";
 
 type ResolveConfig = {
   jwtSigner?: Ed25519JwtSigner;

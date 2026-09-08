@@ -41,6 +41,49 @@ export const GatewayResolveResponseSchema = z
   })
   .strict();
 
+const OpenAiGatewayModelsResponseSchema = z
+  .object({
+    object: z.literal("list"),
+    data: z.array(
+      z
+        .object({
+          id: z.string(),
+          object: z.literal("model"),
+          created: z.number().int().nonnegative(),
+          owned_by: z.string(),
+          shutdown_date: z.string().nullable().optional(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
+const AnthropicGatewayModelsResponseSchema = z
+  .object({
+    data: z.array(
+      z
+        .object({
+          type: z.literal("model"),
+          id: z.string(),
+          display_name: z.string(),
+          created_at: z.iso.datetime(),
+          capabilities: z.record(z.string(), z.unknown()).nullable(),
+          max_input_tokens: z.number().nullable(),
+          max_tokens: z.number().nullable(),
+        })
+        .strict(),
+    ),
+    has_more: z.boolean(),
+    first_id: z.string().nullable(),
+    last_id: z.string().nullable(),
+  })
+  .strict();
+
+export const GatewayModelsResponseSchema = z.union([
+  OpenAiGatewayModelsResponseSchema,
+  AnthropicGatewayModelsResponseSchema,
+]);
+
 const metadataValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 export const GatewayMetadataSchema = z.record(z.string(), metadataValueSchema);
 export type GatewayMetadata = z.infer<typeof GatewayMetadataSchema>;
@@ -73,7 +116,11 @@ const PROVIDER_REGISTRY: Record<GatewayProviderName, ProviderDefinition> = {
     modelsPath: "/models",
     authType: "bearer",
     validationModel: "openai/gpt-4o-mini",
-    apiFormats: ["openai.responses", "openai.chat-completions"],
+    apiFormats: [
+      "openai.responses",
+      "openai.chat-completions",
+      "anthropic.messages",
+    ],
   },
 };
 

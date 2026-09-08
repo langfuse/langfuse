@@ -296,7 +296,7 @@ const OrgSettingsPage = () => {
       headerProps={{
         title: "Organization Settings",
       }}
-      fullWidth={router.query.page === "llm-gateway-models"}
+      extendRight={router.query.page === "llm-gateway-models"}
       fullHeight={router.query.page === "llm-gateway-models"}
     >
       <PagedSettingsContainer

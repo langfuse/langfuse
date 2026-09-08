@@ -8,29 +8,79 @@ import { verifyHmacSha256 } from "@/src/server/utils/hmac";
 import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
-import { GatewayResolveError } from "@/src/features/llm-gateway/server/resolve/resolveService";
+import { GatewayControlPlaneError } from "@/src/features/llm-gateway/server/gatewayControlPlaneError";
 
-const RESOLVE_METHOD = "POST";
+const CONTROL_PLANE_METHOD = "POST";
 const RESOLVE_PATH = "/api/internal/ai-gateway/v1/resolve";
+const MODELS_PATH = "/api/internal/ai-gateway/v1/models";
 const SIGNATURE_MAX_AGE_SECONDS = 5 * 60;
-const bodySchema = z.object({ api_format: GatewayApiFormatSchema }).strict();
+const resolveBodySchema = z
+  .object({ api_format: GatewayApiFormatSchema })
+  .strict();
+const modelsBodySchema = z
+  .discriminatedUnion("api_format", [
+    z
+      .object({
+        api_format: z.literal("anthropic.messages"),
+        before_id: z.string().min(1).optional(),
+        after_id: z.string().min(1).optional(),
+        limit: z.number().int().min(1).max(1000).optional(),
+      })
+      .strict(),
+    z
+      .object({
+        api_format: z.enum(["openai.responses", "openai.chat-completions"]),
+      })
+      .strict(),
+  ])
+  .refine((body) => {
+    return !(
+      body.api_format === "anthropic.messages" &&
+      body.before_id &&
+      body.after_id
+    );
+  });
 const gatewayAuthorizationSchema =
   /^HMAC timestamp=(\d+),signature=([A-Za-z0-9_-]{43})$/;
 
-type GatewayResolveHandler = (params: {
+type GatewayControlPlaneHandlerParams = {
   req: NextApiRequest;
   res: NextApiResponse;
   fastHashedSecretKey: string;
-  apiFormat: GatewayApiFormat;
-}) => Promise<unknown>;
+};
 
-function verifyGatewayResolveRequest(input: {
+type GatewayResolveHandler = (
+  params: GatewayControlPlaneHandlerParams & {
+    apiFormat: GatewayApiFormat;
+  },
+) => Promise<unknown>;
+
+type GatewayModelsHandler = (
+  params: GatewayControlPlaneHandlerParams &
+    (
+      | {
+          apiFormat: "anthropic.messages";
+          beforeId?: string;
+          afterId?: string;
+          limit?: number;
+        }
+      | {
+          apiFormat: "openai.responses" | "openai.chat-completions";
+        }
+    ),
+) => Promise<unknown>;
+
+function verifyGatewayControlPlaneRequest(input: {
   virtualSecretKey: string;
   requestBody: string;
   gatewayAuthorization: string | undefined;
+  path: string;
 }): string {
   if (!env.LANGFUSE_GATEWAY_SERVICE_KEY) {
-    throw new GatewayResolveError("Gateway service is not configured", 503);
+    throw new GatewayControlPlaneError(
+      "Gateway service is not configured",
+      503,
+    );
   }
   const serviceKeys = [
     { secret: env.LANGFUSE_GATEWAY_SERVICE_KEY },
@@ -40,19 +90,52 @@ function verifyGatewayResolveRequest(input: {
   ];
 
   if (!verifyGatewayAuthorization(input, serviceKeys)) {
-    throw new GatewayResolveError("Invalid gateway authorization", 401);
+    throw new GatewayControlPlaneError("Invalid gateway authorization", 401);
   }
 
   return createShaHash(input.virtualSecretKey, env.SALT);
 }
 
 export function withGatewayResolveAuth(handler: GatewayResolveHandler) {
+  return withGatewayControlPlaneAuth(
+    ({ body, ...params }) => handler({ ...params, apiFormat: body.api_format }),
+    RESOLVE_PATH,
+    resolveBodySchema,
+  );
+}
+
+export function withGatewayModelsAuth(handler: GatewayModelsHandler) {
+  return withGatewayControlPlaneAuth(
+    ({ body, ...params }) =>
+      body.api_format === "anthropic.messages"
+        ? handler({
+            ...params,
+            apiFormat: body.api_format,
+            beforeId: body.before_id,
+            afterId: body.after_id,
+            limit: body.limit,
+          })
+        : handler({ ...params, apiFormat: body.api_format }),
+    MODELS_PATH,
+    modelsBodySchema,
+  );
+}
+
+function withGatewayControlPlaneAuth<
+  Body extends { api_format: GatewayApiFormat },
+>(
+  handler: (
+    params: GatewayControlPlaneHandlerParams & { body: Body },
+  ) => Promise<unknown>,
+  path: string,
+  schema: z.ZodType<Body>,
+) {
   return async (req: NextApiRequest, res: NextApiResponse) => {
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("Pragma", "no-cache");
 
-    if (req.method !== "POST") {
-      res.setHeader("Allow", "POST");
+    if (req.method !== CONTROL_PLANE_METHOD) {
+      res.setHeader("Allow", CONTROL_PLANE_METHOD);
       return res.status(405).json({ error: "Method not allowed" });
     }
 
@@ -72,28 +155,29 @@ export function withGatewayResolveAuth(handler: GatewayResolveHandler) {
       return res.status(400).json({ error: "Invalid request" });
     }
 
-    const body = bodySchema.safeParse(parseJson(requestBody));
+    const body = schema.safeParse(parseJson(requestBody));
     if (!body.success) {
       return res.status(400).json({ error: "Invalid request" });
     }
 
     try {
-      const fastHashedSecretKey = verifyGatewayResolveRequest({
+      const fastHashedSecretKey = verifyGatewayControlPlaneRequest({
         virtualSecretKey: token,
         requestBody,
         gatewayAuthorization: singleHeader(
           req.headers["langfuse-gateway-authorization"],
         ),
+        path,
       });
 
       return await handler({
         req,
         res,
         fastHashedSecretKey,
-        apiFormat: body.data.api_format,
+        body: body.data,
       });
     } catch (error) {
-      if (error instanceof GatewayResolveError) {
+      if (error instanceof GatewayControlPlaneError) {
         return res.status(error.status).json({ error: error.message });
       }
       return res.status(500).json({ error: "Internal server error" });
@@ -106,6 +190,7 @@ function verifyGatewayAuthorization(
     virtualSecretKey: string;
     requestBody: string;
     gatewayAuthorization: string | undefined;
+    path: string;
   },
   serviceKeys: Array<{ secret: string }>,
 ): boolean {
@@ -128,8 +213,8 @@ function verifyGatewayAuthorization(
     message: [
       timestamp.toString(),
       sha256(input.virtualSecretKey),
-      RESOLVE_PATH,
-      RESOLVE_METHOD,
+      input.path,
+      CONTROL_PLANE_METHOD,
       sha256(input.requestBody),
     ].join("\n"),
     signature,
@@ -155,7 +240,7 @@ async function readRequestBody(req: NextApiRequest): Promise<string> {
   for await (const chunk of req) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += buffer.length;
-    if (size > 1024) throw new Error("Gateway resolve body is too large");
+    if (size > 1024) throw new Error("Gateway request body is too large");
     chunks.push(buffer);
   }
   return Buffer.concat(chunks).toString("utf8");

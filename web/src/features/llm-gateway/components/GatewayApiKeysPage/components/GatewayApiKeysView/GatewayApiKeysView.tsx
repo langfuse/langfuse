@@ -4,8 +4,14 @@ import Header from "@/src/components/layouts/header";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { DataTable } from "@/src/components/table/data-table";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { Button } from "@/src/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 
 type GatewayApiKey = {
   metadata: unknown;
@@ -60,20 +66,7 @@ export function GatewayApiKeysView({
     {
       accessorKey: "metadata",
       header: "Metadata",
-      cell: ({ row }) => {
-        const metadata = getMetadataEntries(row.original.metadata);
-        return metadata.length > 0 ? (
-          <div className="ph-no-capture flex flex-wrap gap-1">
-            {metadata.map(([key, value]) => (
-              <Badge key={key} variant="outline-solid">
-                {key}: {value}
-              </Badge>
-            ))}
-          </div>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        );
-      },
+      cell: ({ row }) => <MetadataCell metadata={row.original.metadata} />,
     },
     {
       accessorKey: "apiKey.id",
@@ -118,6 +111,42 @@ export function GatewayApiKeysView({
         </Button>
       ) : null}
     </div>
+  );
+}
+
+function MetadataCell({ metadata }: { metadata: unknown }) {
+  const entries = getMetadataEntries(metadata);
+
+  if (entries.length === 0) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+
+  // Rendered without a wrapper element: the list measures against its own
+  // width, so it has to stretch inside the table cell's flex row rather than
+  // shrink to the width of the badges it is measuring.
+  return (
+    <SingleLineOverflowList
+      items={entries}
+      additionalOverflowCount={0}
+      getKey={([key]) => key}
+      renderItem={([key, value]) => (
+        <span className="ph-no-capture inline-flex min-w-0">
+          <Badge size="sm" text={`${key}: ${value}`} />
+        </span>
+      )}
+      renderOverflow={({ hiddenItems, overflowItemCount }) => (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex" tabIndex={0}>
+              <Badge size="sm" text={`+${overflowItemCount}`} />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent className="ph-no-capture max-w-xs">
+            {hiddenItems.map(([key, value]) => `${key}: ${value}`).join(", ")}
+          </TooltipContent>
+        </Tooltip>
+      )}
+    />
   );
 }
 

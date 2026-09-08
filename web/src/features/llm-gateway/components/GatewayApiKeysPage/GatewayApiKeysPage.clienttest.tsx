@@ -79,7 +79,17 @@ vi.mock("@/src/components/ui/InfoTooltip/InfoTooltip", () => ({
   }) => <span aria-label={label}>{children}</span>,
 }));
 
+import { TooltipProvider } from "@/src/components/ui/tooltip";
+
 import { GatewayApiKeysPage } from "./GatewayApiKeysPage";
+
+// The page renders tooltips for overflowing metadata badges, which Radix only
+// allows inside a provider (the app supplies one globally in `_app`).
+const page = () => (
+  <TooltipProvider>
+    <GatewayApiKeysPage organizationId="org-1" />
+  </TooltipProvider>
+);
 
 describe("GatewayApiKeysPage", () => {
   beforeEach(() => {
@@ -91,14 +101,14 @@ describe("GatewayApiKeysPage", () => {
   });
 
   it("lists only the masked gateway key", () => {
-    render(<GatewayApiKeysPage organizationId="org-1" />);
+    render(page());
 
     expect(screen.getByText("sk-lf-...cdef")).toBeInTheDocument();
     expect(screen.queryByText("pk-lf-gateway")).not.toBeInTheDocument();
   });
 
   it("adds metadata entries in the expandable editor", () => {
-    render(<GatewayApiKeysPage organizationId="org-1" />);
+    render(page());
 
     fireEvent.click(screen.getByRole("button", { name: "Create gateway key" }));
 
@@ -125,13 +135,13 @@ describe("GatewayApiKeysPage", () => {
   });
 
   it("loads the next page and exposes its pending state", () => {
-    const { rerender } = render(<GatewayApiKeysPage organizationId="org-1" />);
+    const { rerender } = render(page());
 
     fireEvent.click(screen.getByRole("button", { name: "Load more" }));
     expect(fetchNextPage).toHaveBeenCalledOnce();
 
     queryState.isFetchingNextPage = true;
-    rerender(<GatewayApiKeysPage organizationId="org-1" />);
+    rerender(page());
     expect(screen.getByRole("button", { name: "Load more" })).toBeDisabled();
   });
 });

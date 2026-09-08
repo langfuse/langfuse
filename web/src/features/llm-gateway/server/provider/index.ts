@@ -1,11 +1,13 @@
-export { GatewayProviderService } from "./gatewayProviderService";
+export { GatewayProviderService } from "./connection/gatewayProviderService";
+export { GatewayModelCatalogService } from "./models/gatewayModelCatalogService";
 export {
   GatewayApiFormatSchema,
   GatewayMetadataSchema,
+  GatewayModelsResponseSchema,
   GatewayResolveResponseSchema,
   gatewayProviders,
   getGatewayProviderDefinition,
   providerSupportsApiFormat,
   type GatewayApiFormat,
   type GatewayMetadata,
-} from "./providerRegistry";
+} from "./registry";
