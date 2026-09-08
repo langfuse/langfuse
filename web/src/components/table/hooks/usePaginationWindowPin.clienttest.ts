@@ -1,11 +1,36 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
 
-import { usePaginationWindowPin } from "./usePaginationWindowPin";
+import {
+  isLiveTailTimeSort,
+  usePaginationWindowPin,
+} from "./usePaginationWindowPin";
 
 const START = new Date("2026-08-12T12:00:00.000Z");
 const LIVE = { from: new Date("2026-08-11T12:00:00.000Z"), to: undefined };
 const NEWEST_ON_PAGE_1 = new Date("2026-08-12T11:59:58.000Z");
+const OLDEST_ON_PAGE_1 = new Date("2026-08-11T12:05:00.000Z");
+
+describe("isLiveTailTimeSort", () => {
+  it("is true for the default time-DESC sort and false for ASC or other columns", () => {
+    expect(isLiveTailTimeSort(null, "timestamp")).toBe(true);
+    expect(
+      isLiveTailTimeSort({ column: "timestamp", order: "DESC" }, "timestamp"),
+    ).toBe(true);
+    expect(
+      isLiveTailTimeSort({ column: "startTime", order: "DESC" }, "startTime"),
+    ).toBe(true);
+    expect(
+      isLiveTailTimeSort({ column: "timestamp", order: "ASC" }, "timestamp"),
+    ).toBe(false);
+    expect(
+      isLiveTailTimeSort({ column: "startTime", order: "ASC" }, "startTime"),
+    ).toBe(false);
+    expect(
+      isLiveTailTimeSort({ column: "name", order: "DESC" }, "timestamp"),
+    ).toBe(false);
+  });
+});
 
 describe("usePaginationWindowPin", () => {
   beforeEach(() => {
@@ -59,5 +84,34 @@ describe("usePaginationWindowPin", () => {
     };
     const closed = renderHook(() => usePaginationWindowPin(absolute, 2));
     expect(closed.result.current.range).toBe(absolute);
+  });
+
+  it("does not pin a live window when the sort has no live tail", () => {
+    const { result, rerender } = renderHook(
+      ({ pageIndex }: { pageIndex: number }) =>
+        usePaginationWindowPin(LIVE, pageIndex, { enabled: false }),
+      { initialProps: { pageIndex: 0 } },
+    );
+
+    act(() => result.current.pinOnLeavingFirstPage(1, OLDEST_ON_PAGE_1));
+    rerender({ pageIndex: 1 });
+
+    expect(result.current.range?.to).toBeUndefined();
+    expect(result.current.range).toBe(LIVE);
+  });
+
+  it("releases an existing pin when the sort stops being a live tail", () => {
+    const { result, rerender } = renderHook(
+      ({ pageIndex, enabled }: { pageIndex: number; enabled: boolean }) =>
+        usePaginationWindowPin(LIVE, pageIndex, { enabled }),
+      { initialProps: { pageIndex: 0, enabled: true } },
+    );
+
+    act(() => result.current.pinOnLeavingFirstPage(1, NEWEST_ON_PAGE_1));
+    rerender({ pageIndex: 1, enabled: true });
+    expect(result.current.range?.to).toEqual(NEWEST_ON_PAGE_1);
+
+    rerender({ pageIndex: 1, enabled: false });
+    expect(result.current.range?.to).toBeUndefined();
   });
 });

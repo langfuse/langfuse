@@ -56,7 +56,10 @@ import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCel
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
 import { usePendingRowIds } from "@/src/components/table/hooks/usePendingRowIds";
-import { usePaginationWindowPin } from "@/src/components/table/hooks/usePaginationWindowPin";
+import {
+  isLiveTailTimeSort,
+  usePaginationWindowPin,
+} from "@/src/components/table/hooks/usePaginationWindowPin";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
@@ -279,6 +282,7 @@ function TracesTableInternal({
     usePaginationWindowPin(
       dateRange,
       limitRows ? 0 : paginationState.pageIndex,
+      { enabled: isLiveTailTimeSort(orderByState, "timestamp") },
     );
   const rowsDateRangeFilter: FilterState = toTimestampFilter(rowsDateRange);
   const userIdFilter: FilterState = userId
@@ -1454,6 +1458,9 @@ function TracesTableInternal({
                   : {
                       totalCount,
                       isTotalCountLoading: totalCountQuery.isPending,
+                      hasNextPage:
+                        (traces.data?.traces.length ?? 0) ===
+                        paginationState.pageSize,
                       onChange: (updater) => {
                         const next =
                           typeof updater === "function"
