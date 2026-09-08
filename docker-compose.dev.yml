@@ -1,4 +1,31 @@
 services:
+  ai-gateway:
+    profiles: [gateway]
+    build:
+      context: ./ai-gateway
+      target: development
+    environment:
+      AI_GATEWAY_LISTEN_ADDRESS: 0.0.0.0:8080
+      AI_GATEWAY_LOG_LEVEL: ${AI_GATEWAY_LOG_LEVEL:-info}
+      AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS: ${AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS:-10}
+    ports:
+      - "${HOST_IP:-127.0.0.1}:${AI_GATEWAY_PORT:-8080}:8080"
+    stop_grace_period: 15s
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./ai-gateway/src
+          target: /app/src
+          initial_sync: true
+        - action: rebuild
+          path: ./ai-gateway/Cargo.toml
+        - action: rebuild
+          path: ./ai-gateway/Cargo.lock
+        - action: rebuild
+          path: ./ai-gateway/rust-toolchain.toml
+        - action: rebuild
+          path: ./ai-gateway/Dockerfile
+
   clickhouse:
     # ClickHouse 25.12 is the Langfuse v4 minimum (events tables require the
     # >=25.x text indexes / enable_full_text_index). All dev and CI deploy-mode

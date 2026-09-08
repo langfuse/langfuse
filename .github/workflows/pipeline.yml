@@ -118,6 +118,32 @@ jobs:
               - 'packages/shared/src/server/llm/**'
               - 'worker/src/__tests__/llmConnections.test.ts'
 
+  tests-ai-gateway:
+    timeout-minutes: 20
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs:
+      - pre-job
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    defaults:
+      run:
+        working-directory: ai-gateway
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup show
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+      - name: Lint Rust targets
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Run Rust tests
+        run: cargo test --locked
+      - name: Build runtime image
+        run: docker build --target runtime -t langfuse-ai-gateway:test .
+      - name: Smoke test runtime image
+        run: bash scripts/smoke-image.sh langfuse-ai-gateway:test
+
   lint:
     timeout-minutes: 12
     runs-on: blacksmith-16vcpu-ubuntu-2404
@@ -1247,6 +1273,7 @@ jobs:
         lint,
         knip,
         prettier-check,
+        tests-ai-gateway,
         tests-eslint-plugin,
         tests-in-app-agent-sandbox-runtime,
         tests-storybook,

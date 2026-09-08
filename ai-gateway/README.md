@@ -1,0 +1,123 @@
+# AI Gateway service foundation
+
+A standalone Rust HTTP process with health probes, bounded shutdown, structured
+logs and a container. Inference, Web resolution and customer telemetry are not
+implemented yet; inference paths return 404. No Web, database or provider
+credentials are needed to build, start or test this package.
+
+## Run locally
+
+Install Rust through rustup; `rust-toolchain.toml` pins the toolchain and required
+components. Run Cargo from this directory so rustup selects that toolchain:
+
+```sh
+cd ai-gateway
+cargo run --locked
+```
+
+In another terminal:
+
+```sh
+curl --fail http://localhost:8080/health
+# {"status":"ok"}
+curl --fail http://localhost:8080/ready
+# {"status":"ready"}
+```
+
+Configuration is read from the process environment (no automatic dotenv loading).
+See `.env.dev.example`. All settings have defaults:
+
+| Variable | Default | Validation |
+| --- | --- | --- |
+| `AI_GATEWAY_LISTEN_ADDRESS` | `0.0.0.0:8080` | IP address and port; IPv6 uses `[::]:8080` |
+| `AI_GATEWAY_LOG_LEVEL` | `info` | `off`, `error`, `warn`, `info`, `debug`, `trace` |
+| `AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10` | Integer from 1 to 300 |
+
+Invalid values fail startup without echoing their contents. Logs are JSON and
+contain service lifecycle events, not request bodies or headers. For direct
+host-only development, set `AI_GATEWAY_LISTEN_ADDRESS=127.0.0.1:8080`.
+
+## Process lifecycle
+
+- `/health` returns 200 while HTTP is serving. It never probes dependencies.
+- `/ready` returns 200 after initialization. On shutdown, readiness changes to
+  503 with `{"status":"draining"}` and the listener stops accepting connections.
+  An external probe may see a closed connection instead of the brief 503 state.
+- SIGTERM or Ctrl-C starts graceful shutdown. In-flight requests may finish
+  within the configured timeout. Deadline expiry exits nonzero and terminates
+  remaining runtime tasks; ordinary shutdown exits zero.
+- The deadline starts on the shutdown signal, not at process startup. Future
+  stream/export slices must integrate their own work into this lifecycle.
+
+## Container
+
+From the repository root:
+
+```sh
+docker build --target runtime -t langfuse-ai-gateway:dev ./ai-gateway
+docker run --rm --name langfuse-ai-gateway-dev \
+  -p 127.0.0.1:8080:8080 langfuse-ai-gateway:dev
+# In another terminal:
+docker stop --time 15 langfuse-ai-gateway-dev
+bash ai-gateway/scripts/smoke-image.sh langfuse-ai-gateway:dev
+```
+
+The runtime image runs as UID/GID 10001, includes CA certificates, and executes
+the binary directly so it receives signals. Set the container/orchestrator stop
+grace period longer than the gateway shutdown timeout. The smoke test uses an
+isolated container and an ephemeral host port, checks read-only/non-root startup,
+probes, missing inference routes and a clean SIGTERM exit, then removes it.
+
+## Optional Compose Watch
+
+From the repository root, using Docker Compose with `develop.watch` and
+`sync+restart` support:
+
+```sh
+docker compose -f docker-compose.dev.yml --profile gateway watch ai-gateway
+```
+
+This starts only the gateway. Ordinary `pnpm run infra:dev:up` remains unchanged.
+`AI_GATEWAY_PORT` selects its host port (default 8080); `HOST_IP` defaults to
+127.0.0.1. The container listener remains `0.0.0.0:8080`.
+
+Source edits sync into the development container and restart its command, which
+runs `cargo build --locked` then `exec`s the binary. Compilation errors remain
+visible in container logs. After fixing one, use `docker compose -f
+docker-compose.dev.yml --profile gateway up --build -d ai-gateway` if the watcher cannot
+sync into the stopped container, then resume Watch. Changes to Cargo manifests,
+lockfile, toolchain or Dockerfile rebuild the image. This is a rebuild/restart
+workflow, not live code replacement. No separate Rust watcher is required.
+
+Stop the watcher with Ctrl-C; remove its container explicitly:
+
+```sh
+docker compose -f docker-compose.dev.yml --profile gateway rm --stop --force ai-gateway
+```
+
+The opt-in development profile does not define Helm defaults or deploy anything
+to production. There is no second Web/worker process or production Compose wiring.
+
+## Tests and module boundaries
+
+```sh
+cd ai-gateway
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked
+```
+
+- `config.rs`: pure configuration parsing plus the environment adapter.
+- `server.rs`: router, probe state and bounded graceful shutdown. A listener and
+  shutdown future are injected, so tests do not depend on fixed ports or signals.
+- `main.rs`: configuration, logging, signal registration and process exit.
+- `tests/support`: local ephemeral-port HTTP servers with injected Axum routers.
+  `fake_dependency_records_requests_and_returns_scripted_response` demonstrates
+  configurable status/body/headers and request recording. Specialized provider
+  streaming scripts belong with the slices that consume them.
+
+Tests exercise real local HTTP requests, config rejection/redaction, readiness
+transition, in-flight draining and a stuck-handler deadline. CI runs these Cargo
+checks and the container smoke test independently of JavaScript builds; its result
+is a dependency of the required `all-ci-passed` gate. It currently runs for all
+eligible PRs, so source, lockfile, toolchain and Docker changes are all covered.
