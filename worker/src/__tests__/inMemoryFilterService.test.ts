@@ -1093,6 +1093,33 @@ describe("InMemoryFilterService", () => {
       ).toBe(true);
     });
 
+    test("treats an empty string as a non-null value by default", () => {
+      const dataWithEmptyString = { ...mockData, release: "" };
+
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          dataWithEmptyString,
+          [{ column: "release", type: "null", operator: "is null", value: "" }],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          dataWithEmptyString,
+          [
+            {
+              column: "release",
+              type: "null",
+              operator: "is not null",
+              value: "",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+    });
+
     test("evaluates multiple filters with AND logic", () => {
       expect(
         InMemoryFilterService.evaluateFilter(
