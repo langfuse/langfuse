@@ -1927,34 +1927,6 @@ export const FilteredEmpty = meta.story({
   },
 });
 
-export const TruncatedObservation = meta.story({
-  args: {
-    ...loadedArgs,
-    state: {
-      type: "loaded",
-      observations: [
-        {
-          ...observations[0]!,
-          input: "First 4,000 characters of the input…",
-          output: "First 4,000 characters of the output…",
-          inputTruncated: true,
-          outputTruncated: true,
-        },
-      ],
-    },
-  },
-});
-
-export const MetadataOmitted = meta.story({
-  args: {
-    ...loadedArgs,
-    state: {
-      type: "loaded",
-      observations: [{ ...observations[0]!, metadataTruncated: true }],
-    },
-  },
-});
-
 export const FalsyTruncatedValues = meta.story({
   args: {
     ...loadedArgs,
@@ -2031,9 +2003,23 @@ export const RenderTimelineLoadingState = meta.story({
   },
 });
 
-export const RenderTruncatedObservation = meta.story({
+export const TruncatedObservation = meta.story({
   name: "(Test) Renders Truncated Observation",
-  args: TruncatedObservation.input.args,
+  args: {
+    ...loadedArgs,
+    state: {
+      type: "loaded",
+      observations: [
+        {
+          ...observations[0]!,
+          input: "First 4,000 characters of the input…",
+          output: "First 4,000 characters of the output…",
+          inputTruncated: true,
+          outputTruncated: true,
+        },
+      ],
+    },
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
@@ -2046,7 +2032,9 @@ export const RenderTruncatedObservation = meta.story({
         .getByText("First 4,000 characters of the output…")
         .closest("article")?.parentElement,
     ).toHaveClass("justify-start");
-    await expect(canvas.getAllByText("Content truncated")).toHaveLength(2);
+    await expect(
+      canvas.getByRole("img", { name: "Content truncated" }),
+    ).toBeInTheDocument();
     await expect(
       canvas.queryByText(
         "This observation is too large to parse in the session timeline.",
@@ -2059,9 +2047,15 @@ export const RenderTruncatedObservation = meta.story({
   },
 });
 
-export const RenderOmittedMetadata = meta.story({
+export const MetadataOmitted = meta.story({
   name: "(Test) Renders Omitted Metadata",
-  args: MetadataOmitted.input.args,
+  args: {
+    ...loadedArgs,
+    state: {
+      type: "loaded",
+      observations: [{ ...observations[0]!, metadataTruncated: true }],
+    },
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(

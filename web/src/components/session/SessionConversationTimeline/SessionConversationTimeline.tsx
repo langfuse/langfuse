@@ -121,7 +121,6 @@ function TruncatedObservation({
       {phase !== "end" && hasPreviewValue(observation.input) ? (
         <div className="relative">
           <SessionTimelineMessage
-            isTruncated={observation.inputTruncated}
             message={{
               role: "user",
               source: "input",
@@ -136,7 +135,6 @@ function TruncatedObservation({
       {phase !== "start" && hasPreviewValue(observation.output) ? (
         <div className="relative">
           <SessionTimelineMessage
-            isTruncated={observation.outputTruncated}
             message={{
               role: "assistant",
               source: "output",
@@ -318,6 +316,16 @@ function SessionTimelineConversationObservation({
             </span>
           </button>
           <span className="ml-auto flex shrink-0 items-center gap-2">
+            {isTruncated ? (
+              <span
+                className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
+                role="img"
+                aria-label="Content truncated"
+                title="Content truncated"
+              >
+                <FileWarning className="h-3 w-3" aria-hidden="true" />
+              </span>
+            ) : null}
             {hasNoConversationalContent ? (
               <span
                 className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
