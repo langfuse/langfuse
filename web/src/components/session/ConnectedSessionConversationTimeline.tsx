@@ -9,7 +9,7 @@ import {
 } from "@/src/components/session/SessionConversationTimeline/SessionConversationTimeline";
 import {
   prepareSessionTimelineObservations,
-  type PreparedSessionTimelineObservation,
+  type PreparedSessionTimelineItem,
 } from "@/src/components/session/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
@@ -162,7 +162,7 @@ export function ConnectedSessionConversationTimeline({
     });
   });
   const preparedObservationGroups: Array<
-    PreparedSessionTimelineObservation<SessionObservation>[] | null | undefined
+    PreparedSessionTimelineItem<SessionObservation>[] | null | undefined
   > = hydratedObservationGroups.map((observations) =>
     observations === undefined || observations === null ? observations : [],
   );

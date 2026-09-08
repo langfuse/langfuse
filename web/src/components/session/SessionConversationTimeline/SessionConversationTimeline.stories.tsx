@@ -2128,6 +2128,65 @@ export const ExpandToolObservation = meta.story({
   },
 });
 
+export const ExpandRolledUpTool = meta.story({
+  name: "(Test) Expands Rolled-up Tool With Rail",
+  args: loadedArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const expandButton = canvas.getByRole("button", {
+      name: "Expand get_order",
+    });
+    const toolRow = expandButton.closest("[data-session-observation-depth]");
+    const toolIcon = expandButton.previousElementSibling?.querySelector("svg");
+
+    await expect(
+      toolRow?.querySelector('[data-session-observation-rail-depth="0"]'),
+    ).not.toBeInTheDocument();
+    const precedingGeneration = canvasElement
+      .querySelector('[data-session-observation-id="generation-1"]')
+      ?.closest("[data-session-observation-depth]");
+    await expect(
+      precedingGeneration?.querySelector(
+        '[data-session-observation-rail-depth="0"]',
+      ),
+    ).toHaveClass("bottom-0");
+    await expect(toolIcon).not.toBeNull();
+    const toolIconRect = (toolIcon as SVGElement).getBoundingClientRect();
+    const toolRowRect = (toolRow as HTMLElement).getBoundingClientRect();
+    const depthZeroRails = Array.from(
+      canvasElement.querySelectorAll<HTMLElement>(
+        '[data-session-observation-rail-depth="0"]',
+      ),
+    );
+    const railsIntersectingToolIcon = Array.from(depthZeroRails).filter(
+      (rail) => {
+        const railRect = rail.getBoundingClientRect();
+        return (
+          railRect.top < toolIconRect.bottom &&
+          railRect.bottom > toolIconRect.top
+        );
+      },
+    );
+    await expect(railsIntersectingToolIcon).toHaveLength(0);
+    const railsIntersectingToolRow = depthZeroRails.filter((rail) => {
+      const railRect = rail.getBoundingClientRect();
+      return (
+        railRect.top < toolRowRect.bottom && railRect.bottom > toolRowRect.top
+      );
+    });
+    await expect(railsIntersectingToolRow).toHaveLength(0);
+
+    await userEvent.click(expandButton);
+
+    await expect(
+      toolRow?.querySelector('[data-session-observation-rail-depth="0"]'),
+    ).toBeInTheDocument();
+    await expect(
+      toolRow?.querySelector("[data-session-observation-rail-end]"),
+    ).toBeInTheDocument();
+  },
+});
+
 export const MergeSystemPrompts = meta.story({
   name: "(Test) Merges System Prompts",
   args: InAppAgentErrorAnalysis.input.args,

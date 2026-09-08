@@ -6,14 +6,12 @@ import {
   FileWarning,
   MessageSquareOff,
 } from "lucide-react";
-import { type ToolCallPart } from "@langfuse/shared/src/utils/normalized-io";
-
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import {
   prepareSessionTimelineObservations,
   type ParsedSessionTimelineObservation,
-  type PreparedSessionTimelineObservation,
-  type ProcessedSessionTimelineMessages,
+  type PreparedSessionTimelineItem,
+  type PreparedSessionTimelineMessages,
 } from "@/src/components/session/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
 import { SessionTimelineMessage } from "@/src/components/session/SessionTimelineMessage/SessionTimelineMessage";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
@@ -59,7 +57,7 @@ export type PreparedSessionConversationTimelineState =
   | Exclude<SessionConversationTimelineState, { type: "loaded" }>
   | {
       type: "loaded";
-      observations: readonly PreparedSessionTimelineObservation<SessionObservation>[];
+      observations: readonly PreparedSessionTimelineItem<SessionObservation>[];
     };
 
 const toPreviewText = (value: unknown) =>
@@ -273,7 +271,7 @@ function SessionTimelineConversationObservation({
 }: {
   observation: SessionObservation;
   parsed: ParsedSessionTimelineObservation | null;
-  processedMessages: ProcessedSessionTimelineMessages;
+  processedMessages: PreparedSessionTimelineMessages;
   phase: "complete" | "start" | "end";
   onOpenInTraceView: () => void;
 }) {
@@ -295,128 +293,89 @@ function SessionTimelineConversationObservation({
   const showNonMessageBody = phase !== "end";
 
   return (
-    <>
-      <section
-        data-session-observation-id={showHeader ? observation.id : undefined}
-        className={cn(
-          "flex scroll-mt-16 flex-col",
-          hasObservationBody ? "gap-4 py-2" : "py-1",
-        )}
-      >
-        {showHeader ? (
-          <div className="flex w-full min-w-0 items-center gap-0.5">
-            <button
-              type="button"
-              onClick={onOpenInTraceView}
-              className="group flex min-w-0 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-            >
-              <span className="bg-background relative z-[1] flex shrink-0 rounded-full">
-                {renderFilterIcon(observation.type ?? "EVENT")}
-              </span>
-              <span
-                className="min-w-0 truncate text-xs font-normal group-hover:underline"
-                title={observation.name ?? observation.id}
-              >
-                {observation.name ?? observation.id}
-              </span>
-            </button>
-            <span className="ml-auto flex shrink-0 items-center gap-2">
-              {hasNoConversationalContent ? (
-                <span
-                  className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
-                  role="img"
-                  aria-label="No conversational content"
-                  title="No conversational content"
-                >
-                  <MessageSquareOff className="h-3 w-3" aria-hidden="true" />
-                </span>
-              ) : null}
-              {observation.metadataTruncated ? (
-                <span
-                  className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
-                  role="img"
-                  aria-label="Metadata omitted because it is too large"
-                  title="Metadata omitted because it is too large"
-                >
-                  <FileWarning className="h-3 w-3" aria-hidden="true" />
-                </span>
-              ) : null}
-              {observation.latency !== null && observation.type !== "EVENT" ? (
-                <span className="text-muted-foreground font-mono text-[11px]">
-                  {formatIntervalSeconds(observation.latency)}
-                </span>
-              ) : null}
-              <time className="text-muted-foreground font-mono text-[10px]">
-                {observation.startTime.toLocaleTimeString()}
-              </time>
+    <section
+      data-session-observation-id={showHeader ? observation.id : undefined}
+      className={cn(
+        "flex scroll-mt-16 flex-col",
+        hasObservationBody ? "gap-4 py-2" : "py-1",
+      )}
+    >
+      {showHeader ? (
+        <div className="flex w-full min-w-0 items-center gap-0.5">
+          <button
+            type="button"
+            onClick={onOpenInTraceView}
+            className="group flex min-w-0 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+          >
+            <span className="bg-background relative z-[1] flex shrink-0 rounded-full">
+              {renderFilterIcon(observation.type ?? "EVENT")}
             </span>
-          </div>
-        ) : null}
-        <div className="flex min-w-0 flex-col gap-5 pl-[22px]">
-          {isTruncated ? (
-            <TruncatedObservation observation={observation} phase={phase} />
-          ) : showNonMessageBody && parsed?.type === "error" ? (
-            <div className="border-destructive/40 bg-destructive/5 flex items-center justify-between gap-3 rounded-lg border p-3">
-              <span className="text-destructive text-xs">
-                This observation could not be parsed.
-              </span>
-              <Button variant="outline" size="sm" onClick={onOpenInTraceView}>
-                Open trace
-              </Button>
-            </div>
-          ) : visibleMessages.length > 0 ? (
-            visibleMessages.map((message, index) => (
-              <div
-                key={`${message.id ?? `${message.source}-${message.role}`}-${index}`}
-                className="relative"
+            <span
+              className="min-w-0 truncate text-xs font-normal group-hover:underline"
+              title={observation.name ?? observation.id}
+            >
+              {observation.name ?? observation.id}
+            </span>
+          </button>
+          <span className="ml-auto flex shrink-0 items-center gap-2">
+            {hasNoConversationalContent ? (
+              <span
+                className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
+                role="img"
+                aria-label="No conversational content"
+                title="No conversational content"
               >
-                <SessionTimelineMessage message={message} />
-                {phase !== "start" && index === visibleMessages.length - 1 ? (
-                  <SessionTimelineRailEnd />
-                ) : null}
-              </div>
-            ))
-          ) : null}
+                <MessageSquareOff className="h-3 w-3" aria-hidden="true" />
+              </span>
+            ) : null}
+            {observation.metadataTruncated ? (
+              <span
+                className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
+                role="img"
+                aria-label="Metadata omitted because it is too large"
+                title="Metadata omitted because it is too large"
+              >
+                <FileWarning className="h-3 w-3" aria-hidden="true" />
+              </span>
+            ) : null}
+            {observation.latency !== null && observation.type !== "EVENT" ? (
+              <span className="text-muted-foreground font-mono text-[11px]">
+                {formatIntervalSeconds(observation.latency)}
+              </span>
+            ) : null}
+            <time className="text-muted-foreground font-mono text-[10px]">
+              {observation.startTime.toLocaleTimeString()}
+            </time>
+          </span>
         </div>
-      </section>
-      {processedMessages.rolledUpToolCalls.map((toolCall, index) => (
-        <RolledUpToolRow
-          key={toolCall.toolCallId ?? `${toolCall.toolName}-${index}`}
-          observation={observation}
-          toolCall={toolCall}
-          index={index}
-          onOpenInTraceView={onOpenInTraceView}
-        />
-      ))}
-    </>
-  );
-}
-
-function RolledUpToolRow({
-  observation,
-  toolCall,
-  index,
-  onOpenInTraceView,
-}: {
-  observation: SessionObservation;
-  toolCall: ToolCallPart;
-  index: number;
-  onOpenInTraceView: () => void;
-}) {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  return (
-    <SessionTimelineToolRow
-      id={`${observation.id}-tool-call-${toolCall.toolCallId ?? index}`}
-      name={toolCall.toolName}
-      startTime={observation.startTime}
-      latency={null}
-      input={toolCall.input}
-      output={undefined}
-      isExpanded={isExpanded}
-      onExpandedChange={setIsExpanded}
-      onOpenInTraceView={onOpenInTraceView}
-    />
+      ) : null}
+      <div className="flex min-w-0 flex-col gap-5 pl-[22px]">
+        {isTruncated ? (
+          <TruncatedObservation observation={observation} phase={phase} />
+        ) : showNonMessageBody && parsed?.type === "error" ? (
+          <div className="border-destructive/40 bg-destructive/5 flex items-center justify-between gap-3 rounded-lg border p-3">
+            <span className="text-destructive text-xs">
+              This observation could not be parsed.
+            </span>
+            <Button variant="outline" size="sm" onClick={onOpenInTraceView}>
+              Open trace
+            </Button>
+          </div>
+        ) : visibleMessages.length > 0 ? (
+          visibleMessages.map((message, index) => (
+            <div
+              key={`${message.id ?? `${message.source}-${message.role}`}-${index}`}
+              className="relative"
+            >
+              <SessionTimelineMessage message={message} />
+              {phase !== "start" && index === visibleMessages.length - 1 ? (
+                <SessionTimelineRailEnd />
+              ) : null}
+            </div>
+          ))
+        ) : null}
+      </div>
+    </section>
   );
 }
 
@@ -431,7 +390,7 @@ function SessionTimelineObservation({
 }: {
   observation: SessionObservation;
   parsed: ParsedSessionTimelineObservation | null;
-  processedMessages: ProcessedSessionTimelineMessages;
+  processedMessages: PreparedSessionTimelineMessages;
   phase: "complete" | "start" | "end";
   isToolExpanded: boolean;
   onToolExpandedChange: (isExpanded: boolean) => void;
@@ -470,7 +429,7 @@ function LoadedSessionConversationTimeline({
   observations,
   onOpenObservation,
 }: {
-  observations: readonly PreparedSessionTimelineObservation<SessionObservation>[];
+  observations: readonly PreparedSessionTimelineItem<SessionObservation>[];
   onOpenObservation: (observationId: string) => void;
 }) {
   const [collapsedObservationIds, setCollapsedObservationIds] = useState(
@@ -498,144 +457,168 @@ function LoadedSessionConversationTimeline({
   return (
     <TooltipProvider>
       <div className="flex flex-col gap-1">
-        {observations.map(
-          ({
+        {observations.map((item) => {
+          const {
             observation,
             parsed,
             processedMessages,
             phase,
             ancestorObservationIds,
             nestedObservationCounts,
-          }) => {
-            if (
-              ancestorObservationIds.some((ancestorId) =>
-                collapsedObservationIds.has(ancestorId),
-              )
-            ) {
-              return null;
-            }
+          } = item;
+          if (
+            ancestorObservationIds.some((ancestorId) =>
+              collapsedObservationIds.has(ancestorId),
+            )
+          ) {
+            return null;
+          }
 
-            const isToolStart =
-              observation.type === "TOOL" && phase === "start";
-            const isEmptyEnd =
-              phase === "end" &&
-              processedMessages.messages.length === 0 &&
-              processedMessages.rolledUpToolCalls.length === 0 &&
-              !(
-                observation.outputTruncated &&
-                hasPreviewValue(observation.output)
-              );
-            const hasNestedObservations =
-              Object.keys(nestedObservationCounts).length > 0;
-            const isCollapsed = collapsedObservationIds.has(observation.id);
-            const isToolExpanded = expandedToolObservationIds.has(
-              observation.id,
+          const isToolStart =
+            item.type === "observation" &&
+            observation.type === "TOOL" &&
+            phase === "start";
+          const isEmptyEnd =
+            item.type === "observation" &&
+            phase === "end" &&
+            processedMessages.messages.length === 0 &&
+            !(
+              observation.outputTruncated && hasPreviewValue(observation.output)
             );
-            const hasChatBubbles =
-              observation.type !== "TOOL" &&
-              (observation.inputTruncated || observation.outputTruncated
-                ? (phase !== "end" && hasPreviewValue(observation.input)) ||
-                  (phase !== "start" && hasPreviewValue(observation.output))
-                : processedMessages.messages.length > 0);
+          const hasNestedObservations =
+            Object.keys(nestedObservationCounts).length > 0;
+          const isCollapsed = collapsedObservationIds.has(observation.id);
+          const itemId = item.type === "tool" ? item.id : observation.id;
+          const isToolExpanded = expandedToolObservationIds.has(itemId);
+          const hasChatBubbles =
+            item.type === "observation" &&
+            observation.type !== "TOOL" &&
+            (observation.inputTruncated || observation.outputTruncated
+              ? (phase !== "end" && hasPreviewValue(observation.input)) ||
+                (phase !== "start" && hasPreviewValue(observation.output))
+              : processedMessages.messages.length > 0);
 
-            const depth = ancestorObservationIds.length;
+          const depth = ancestorObservationIds.length;
 
-            return (
-              <div
-                key={`${observation.id}-${phase}`}
-                data-session-observation-depth={depth}
-                className="relative"
-                style={{ paddingLeft: `${depth * 24}px` }}
-              >
-                {ancestorObservationIds.map((ancestorId, ancestorDepth) => (
-                  <span
-                    key={ancestorId}
-                    data-session-observation-rail-depth={ancestorDepth}
-                    className="bg-border pointer-events-none absolute -top-1 -bottom-1 w-px"
-                    style={{ left: `${ancestorDepth * 24 + 7}px` }}
-                    aria-hidden="true"
-                  />
-                ))}
-                {(phase === "start" && !isToolStart) ||
-                (phase === "complete" && (hasChatBubbles || isToolExpanded)) ? (
-                  <span
-                    data-session-observation-rail-depth={depth}
-                    className="bg-border pointer-events-none absolute top-[22px] -bottom-1 w-px"
-                    style={{ left: `${depth * 24 + 7}px` }}
-                    aria-hidden="true"
-                  />
-                ) : null}
-                {phase === "end" ? (
-                  <span
-                    data-session-observation-rail-depth={depth}
-                    className="bg-border pointer-events-none absolute -top-1 bottom-0 w-px"
-                    style={{ left: `${depth * 24 + 7}px` }}
-                    aria-hidden="true"
-                  />
-                ) : null}
-                {!isToolStart && !isEmptyEnd ? (
-                  <SessionTimelineObservation
-                    observation={observation}
-                    parsed={parsed}
-                    processedMessages={processedMessages}
-                    phase={phase}
-                    isToolExpanded={isToolExpanded}
-                    onToolExpandedChange={(isExpanded) =>
-                      setExpandedToolObservationIds((current) => {
-                        const next = new Set(current);
-                        if (isExpanded) next.add(observation.id);
-                        else next.delete(observation.id);
-                        return next;
-                      })
-                    }
-                    onOpenInTraceView={() => onOpenObservation(observation.id)}
-                  />
-                ) : null}
-                {phase === "start" && hasNestedObservations ? (
-                  <div className={cn("relative", isCollapsed ? "h-7" : "h-0")}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-xs"
-                          className="bg-background text-muted-foreground hover:text-foreground absolute top-[18px] z-[1] -translate-x-1/2 -translate-y-1/2 rounded-full"
-                          style={{ left: "7.5px" }}
-                          aria-expanded={!isCollapsed}
-                          aria-label={`${isCollapsed ? "Show" : "Hide"} ${formatNestedObservationCounts(nestedObservationCounts)}`}
-                          onClick={() =>
-                            setCollapsedObservationIds((current) => {
-                              const next = new Set(current);
-                              if (isCollapsed) next.delete(observation.id);
-                              else next.add(observation.id);
-                              return next;
-                            })
-                          }
-                        >
-                          {isCollapsed ? (
-                            <ChevronsUpDown
-                              className="h-3 w-3"
-                              aria-hidden="true"
-                            />
-                          ) : (
-                            <ChevronsDownUp
-                              className="h-3 w-3"
-                              aria-hidden="true"
-                            />
-                          )}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">
-                        {isCollapsed ? "Show" : "Hide"}{" "}
-                        {formatNestedObservationCounts(nestedObservationCounts)}
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                ) : null}
-              </div>
-            );
-          },
-        )}
+          return (
+            <div
+              key={
+                item.type === "tool" ? item.id : `${observation.id}-${phase}`
+              }
+              data-session-observation-depth={depth}
+              className="relative"
+              style={{ paddingLeft: `${depth * 24}px` }}
+            >
+              {ancestorObservationIds.map((ancestorId, ancestorDepth) => (
+                <span
+                  key={ancestorId}
+                  data-session-observation-rail-depth={ancestorDepth}
+                  className="bg-border pointer-events-none absolute -top-1 -bottom-1 w-px"
+                  style={{ left: `${ancestorDepth * 24 + 7}px` }}
+                  aria-hidden="true"
+                />
+              ))}
+              {(phase === "start" && !isToolStart) ||
+              (phase === "complete" && (hasChatBubbles || isToolExpanded)) ? (
+                <span
+                  data-session-observation-rail-depth={depth}
+                  className={cn(
+                    "bg-border pointer-events-none absolute top-[22px] w-px",
+                    phase === "start" ? "-bottom-1" : "bottom-0",
+                  )}
+                  style={{ left: `${depth * 24 + 7}px` }}
+                  aria-hidden="true"
+                />
+              ) : null}
+              {phase === "end" ? (
+                <span
+                  data-session-observation-rail-depth={depth}
+                  className="bg-border pointer-events-none absolute -top-1 bottom-0 w-px"
+                  style={{ left: `${depth * 24 + 7}px` }}
+                  aria-hidden="true"
+                />
+              ) : null}
+              {item.type === "tool" ? (
+                <SessionTimelineToolRow
+                  id={item.id}
+                  name={item.toolCall.toolName}
+                  startTime={observation.startTime}
+                  latency={null}
+                  input={item.toolCall.input}
+                  output={undefined}
+                  isExpanded={isToolExpanded}
+                  onExpandedChange={(isExpanded) =>
+                    setExpandedToolObservationIds((current) => {
+                      const next = new Set(current);
+                      if (isExpanded) next.add(itemId);
+                      else next.delete(itemId);
+                      return next;
+                    })
+                  }
+                  onOpenInTraceView={() => onOpenObservation(observation.id)}
+                />
+              ) : !isToolStart && !isEmptyEnd ? (
+                <SessionTimelineObservation
+                  observation={observation}
+                  parsed={parsed}
+                  processedMessages={processedMessages}
+                  phase={phase}
+                  isToolExpanded={isToolExpanded}
+                  onToolExpandedChange={(isExpanded) =>
+                    setExpandedToolObservationIds((current) => {
+                      const next = new Set(current);
+                      if (isExpanded) next.add(itemId);
+                      else next.delete(itemId);
+                      return next;
+                    })
+                  }
+                  onOpenInTraceView={() => onOpenObservation(observation.id)}
+                />
+              ) : null}
+              {phase === "start" && hasNestedObservations ? (
+                <div className={cn("relative", isCollapsed ? "h-7" : "h-0")}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="bg-background text-muted-foreground hover:text-foreground absolute top-[18px] z-[1] -translate-x-1/2 -translate-y-1/2 rounded-full"
+                        style={{ left: "7.5px" }}
+                        aria-expanded={!isCollapsed}
+                        aria-label={`${isCollapsed ? "Show" : "Hide"} ${formatNestedObservationCounts(nestedObservationCounts)}`}
+                        onClick={() =>
+                          setCollapsedObservationIds((current) => {
+                            const next = new Set(current);
+                            if (isCollapsed) next.delete(observation.id);
+                            else next.add(observation.id);
+                            return next;
+                          })
+                        }
+                      >
+                        {isCollapsed ? (
+                          <ChevronsUpDown
+                            className="h-3 w-3"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <ChevronsDownUp
+                            className="h-3 w-3"
+                            aria-hidden="true"
+                          />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      {isCollapsed ? "Show" : "Hide"}{" "}
+                      {formatNestedObservationCounts(nestedObservationCounts)}
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
       </div>
     </TooltipProvider>
   );

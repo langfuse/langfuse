@@ -89,12 +89,10 @@ describe("prepareSessionTimelineObservations", () => {
     expect(prepared[1]?.parsed).toBeNull();
     expect(prepared[1]?.processedMessages).toEqual({
       messages: [],
-      rolledUpToolCalls: [],
     });
     expect(prepared[2]?.parsed).toEqual({ type: "error" });
     expect(prepared[2]?.processedMessages).toEqual({
       messages: [],
-      rolledUpToolCalls: [],
     });
   });
 
@@ -217,6 +215,40 @@ describe("prepareSessionTimelineObservations", () => {
     ]);
   });
 
+  it("emits rolled-up tool calls as same-depth timeline items", () => {
+    const prepared = prepareSessionTimelineObservations([
+      observation("generation", "Question", [
+        {
+          role: "assistant",
+          content: "I will search.",
+          tool_calls: [
+            {
+              id: "call-search",
+              type: "function",
+              function: {
+                name: "search",
+                arguments: JSON.stringify({ query: "dashboard" }),
+              },
+            },
+          ],
+        },
+      ]),
+    ]);
+
+    expect(prepared.map((item) => item.type)).toEqual(["observation", "tool"]);
+    expect(prepared[1]).toMatchObject({
+      type: "tool",
+      observation: { id: "generation" },
+      phase: "complete",
+      ancestorObservationIds: [],
+      toolCall: {
+        toolCallId: "call-search",
+        toolName: "search",
+        input: { query: "dashboard" },
+      },
+    });
+  });
+
   it("deduplicates a direct child tool by its unique name and input", () => {
     const prepared = prepareSessionTimelineObservations([
       observation("generation", null, [
@@ -252,10 +284,9 @@ describe("prepareSessionTimelineObservations", () => {
     ]);
 
     expect(
-      prepared.find(
-        ({ observation: item, phase }) =>
-          item.id === "generation" && phase === "end",
-      )?.processedMessages.rolledUpToolCalls,
+      prepared.filter(
+        (item) => item.type === "tool" && item.observation.id === "generation",
+      ),
     ).toEqual([]);
   });
 
@@ -292,10 +323,9 @@ describe("prepareSessionTimelineObservations", () => {
     ]);
 
     expect(
-      prepared.find(
-        ({ observation: item, phase }) =>
-          item.id === "generation" && phase === "end",
-      )?.processedMessages.rolledUpToolCalls,
+      prepared.filter(
+        (item) => item.type === "tool" && item.observation.id === "generation",
+      ),
     ).toHaveLength(1);
   });
 

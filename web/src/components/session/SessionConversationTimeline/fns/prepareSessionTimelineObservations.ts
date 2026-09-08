@@ -35,17 +35,33 @@ export type ParsedSessionTimelineObservation =
 export type ProcessedSessionTimelineMessages = ReturnType<
   typeof processTimelineMessages
 >[number];
+export type PreparedSessionTimelineMessages = Pick<
+  ProcessedSessionTimelineMessages,
+  "messages"
+>;
 
-export type PreparedSessionTimelineObservation<
+type PreparedSessionTimelineItemBase<
   Observation extends SessionTimelineObservation,
 > = {
   observation: Observation;
   parsed: ParsedSessionTimelineObservation | null;
-  processedMessages: ProcessedSessionTimelineMessages;
+  processedMessages: PreparedSessionTimelineMessages;
   phase: "complete" | "start" | "end";
   ancestorObservationIds: readonly string[];
   nestedObservationCounts: Readonly<Record<string, number>>;
 };
+
+export type PreparedSessionTimelineItem<
+  Observation extends SessionTimelineObservation,
+> =
+  | (PreparedSessionTimelineItemBase<Observation> & {
+      type: "observation";
+    })
+  | (PreparedSessionTimelineItemBase<Observation> & {
+      type: "tool";
+      id: string;
+      toolCall: ToolCallPart;
+    });
 
 const EMPTY_TOOL_CALL_IDS: ReadonlySet<string> = new Set();
 
@@ -190,7 +206,7 @@ export function prepareSessionTimelineObservations<
       );
   }
 
-  const result: PreparedSessionTimelineObservation<Observation>[] = [];
+  const result: PreparedSessionTimelineItem<Observation>[] = [];
   const emitted = new Set<string>();
   const active = new Set<string>();
   const nestedObservationCountsByKey = new Map<
@@ -221,6 +237,44 @@ export function prepareSessionTimelineObservations<
     nestedObservationCountsByKey.set(key, counts);
     return counts;
   };
+  const appendTimelineItems = ({
+    prepared,
+    phase,
+    messages,
+    rolledUpToolCalls,
+    ancestorObservationIds,
+    nestedObservationCounts,
+  }: {
+    prepared: (typeof preparedObservations)[number];
+    phase: "complete" | "start" | "end";
+    messages: ProcessedSessionTimelineMessages["messages"];
+    rolledUpToolCalls: readonly ToolCallPart[];
+    ancestorObservationIds: readonly string[];
+    nestedObservationCounts: Readonly<Record<string, number>>;
+  }) => {
+    result.push({
+      type: "observation",
+      observation: prepared.observation,
+      parsed: prepared.parsed,
+      processedMessages: { messages },
+      phase,
+      ancestorObservationIds,
+      nestedObservationCounts,
+    });
+    rolledUpToolCalls.forEach((toolCall, index) => {
+      result.push({
+        type: "tool",
+        id: `${prepared.observation.id}-tool-call-${toolCall.toolCallId ?? index}`,
+        observation: prepared.observation,
+        toolCall,
+        parsed: null,
+        processedMessages: { messages: [] },
+        phase: "complete",
+        ancestorObservationIds,
+        nestedObservationCounts: {},
+      });
+    });
+  };
   const emit = (
     prepared: (typeof preparedObservations)[number],
     ancestorMessages: ProcessedSessionTimelineMessages["messages"],
@@ -242,18 +296,26 @@ export function prepareSessionTimelineObservations<
     };
     if (children.length === 0) {
       emitted.add(key);
-      result.push({ ...contextualPrepared, phase: "complete" });
+      appendTimelineItems({
+        prepared,
+        phase: "complete",
+        messages: contextualPrepared.processedMessages.messages,
+        rolledUpToolCalls:
+          contextualPrepared.processedMessages.rolledUpToolCalls,
+        ancestorObservationIds,
+        nestedObservationCounts: contextualPrepared.nestedObservationCounts,
+      });
       return;
     }
 
     active.add(key);
-    result.push({
-      ...contextualPrepared,
+    appendTimelineItems({
+      prepared,
       phase: "start",
-      processedMessages: {
-        messages: messages.filter((message) => message.source === "input"),
-        rolledUpToolCalls: [],
-      },
+      messages: messages.filter((message) => message.source === "input"),
+      rolledUpToolCalls: [],
+      ancestorObservationIds,
+      nestedObservationCounts: contextualPrepared.nestedObservationCounts,
     });
     const ownInputMessages =
       prepared.parsed?.type === "loaded"
@@ -268,13 +330,13 @@ export function prepareSessionTimelineObservations<
     for (const child of children) {
       emit(child, descendantContext, descendantObservationIds);
     }
-    result.push({
-      ...contextualPrepared,
+    appendTimelineItems({
+      prepared,
       phase: "end",
-      processedMessages: {
-        messages: messages.filter((message) => message.source === "output"),
-        rolledUpToolCalls: prepared.processedMessages.rolledUpToolCalls,
-      },
+      messages: messages.filter((message) => message.source === "output"),
+      rolledUpToolCalls: prepared.processedMessages.rolledUpToolCalls,
+      ancestorObservationIds,
+      nestedObservationCounts: contextualPrepared.nestedObservationCounts,
     });
     active.delete(key);
     emitted.add(key);
