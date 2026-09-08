@@ -10,7 +10,7 @@ import {
   type PreparedSessionConversationTimelineTraceState,
   type SessionObservation,
   type SessionObservationActions,
-} from "@/src/components/session/SessionConversationTimeline/SessionConversationTimelineTrace";
+} from "@/src/components/session/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { useElementSize } from "@/src/hooks/useElementSize";

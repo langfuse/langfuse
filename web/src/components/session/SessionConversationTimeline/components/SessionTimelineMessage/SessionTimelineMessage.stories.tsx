@@ -2,7 +2,7 @@ import preview from "@/.storybook/preview";
 import { expect, userEvent, within } from "storybook/test";
 
 import { type SessionTimelineConversationMessage } from "@/src/components/session/SessionConversationTimeline/fns/processTimelineMessages";
-import { SessionTimelineMessage } from "@/src/components/session/SessionTimelineMessage/SessionTimelineMessage";
+import { SessionTimelineMessage } from "@/src/components/session/SessionConversationTimeline/components/SessionTimelineMessage/SessionTimelineMessage";
 
 const meta = preview.meta({
   component: SessionTimelineMessage,

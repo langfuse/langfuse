@@ -5,7 +5,7 @@ import {
   SessionConversationTimeline,
   type SessionConversationTimelineController,
 } from "@/src/components/session/SessionConversationTimeline/SessionConversationTimeline";
-import { type SessionObservation } from "@/src/components/session/SessionConversationTimeline/SessionConversationTimelineTrace";
+import { type SessionObservation } from "@/src/components/session/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
