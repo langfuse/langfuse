@@ -273,7 +273,7 @@ describe("ClickHouse Resource Error Handling", () => {
         errorMessage:
           "(total) memory limit exceeded: would use 2.25 GiB. OvercommitTracker decision: Query was selected to stop by OvercommitTracker: While executing AggregatingTransform",
         shouldBeResourceError: true,
-        errorType: "MEMORY_LIMIT",
+        errorType: "OVERCOMMIT",
       },
       {
         name: "Simple memory error",

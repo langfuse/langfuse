@@ -39,6 +39,14 @@ describe("ClickHouseResourceError", () => {
         expectedType: "OVERCOMMIT",
       },
       {
+        // Overcommit kills also carry a "Memory limit … exceeded" phrase; the
+        // more specific OVERCOMMIT cause must win so the outcome metric stays accurate.
+        name: "overcommit kill carrying a memory limit phrase",
+        message:
+          "Memory limit (total) exceeded: would use 9.32 GiB. OvercommitTracker decision: Query was selected to stop by OvercommitTracker",
+        expectedType: "OVERCOMMIT",
+      },
+      {
         name: "case-insensitive overcommittracker",
         message: "query stopped by overcommittracker",
         expectedType: "OVERCOMMIT",
@@ -68,13 +76,22 @@ describe("ClickHouseResourceError", () => {
       });
     });
 
-    it("does not wrap regular SQL errors", () => {
-      const error = new Error("Table 'test.non_existent' doesn't exist");
-      const wrapped = ClickHouseResourceError.wrapIfResourceError(error);
+    const benignCases = [
+      "Table 'test.non_existent' doesn't exist",
+      "Unknown identifier 'foo' in scope SELECT foo FROM traces",
+      "Syntax error: failed at position 42",
+      "Cannot parse input: expected ')' before end of stream",
+    ];
 
-      expect(wrapped).toBe(error);
-      expect(wrapped).not.toBeInstanceOf(ClickHouseResourceError);
-      expect(ClickHouseResourceError.is(wrapped)).toBe(false);
+    benignCases.forEach((message) => {
+      it(`does not wrap benign error: ${message.slice(0, 32)}`, () => {
+        const error = new Error(message);
+        const wrapped = ClickHouseResourceError.wrapIfResourceError(error);
+
+        expect(wrapped).toBe(error);
+        expect(wrapped).not.toBeInstanceOf(ClickHouseResourceError);
+        expect(ClickHouseResourceError.is(wrapped)).toBe(false);
+      });
     });
   });
 

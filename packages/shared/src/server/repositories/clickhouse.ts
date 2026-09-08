@@ -55,6 +55,12 @@ const ERROR_TYPE_CONFIG: Record<
     discriminators: string[];
   }
 > = {
+  // Order matters: matched top-to-bottom, first hit wins. OvercommitTracker
+  // kills also carry a "Memory limit … exceeded" phrase, so OVERCOMMIT must
+  // precede MEMORY_LIMIT to keep the more specific cause in the outcome metric.
+  OVERCOMMIT: {
+    discriminators: ["overcommittracker"],
+  },
   MEMORY_LIMIT: {
     discriminators: [
       "memory limit exceeded",
@@ -63,9 +69,6 @@ const ERROR_TYPE_CONFIG: Record<
       "memory limit (for user) exceeded",
       "memory limit",
     ],
-  },
-  OVERCOMMIT: {
-    discriminators: ["overcommittracker"],
   },
   TIMEOUT: {
     discriminators: ["timeout", "timed out"],
