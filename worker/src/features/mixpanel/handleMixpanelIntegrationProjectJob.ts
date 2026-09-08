@@ -250,23 +250,23 @@ export const handleMixpanelIntegrationProjectJob = async (
     return;
   }
 
-  // Fetch relevant data and send it to Mixpanel
-  const executionConfig: MixpanelExecutionConfig = {
-    projectId,
-    projectName: mixpanelIntegration.project.name,
-    // Start from 2000-01-01 if no lastSyncAt. Workaround because 1970-01-01 leads to subtle bugs in ClickHouse
-    minTimestamp: mixpanelIntegration.lastSyncAt || new Date("2000-01-01"),
-    maxTimestamp: new Date(new Date().getTime() - 30 * 60 * 1000), // 30 minutes ago
-    decryptedMixpanelProjectToken: decrypt(
-      mixpanelIntegration.encryptedMixpanelProjectToken,
-    ),
-    mixpanelRegion: mixpanelIntegration.mixpanelRegion,
-    useGraceHash: job.attemptsMade > 0,
-  };
-
   const runStartTime = new Date();
 
   try {
+    // Fetch relevant data and send it to Mixpanel
+    const executionConfig: MixpanelExecutionConfig = {
+      projectId,
+      projectName: mixpanelIntegration.project.name,
+      // Start from 2000-01-01 if no lastSyncAt. Workaround because 1970-01-01 leads to subtle bugs in ClickHouse
+      minTimestamp: mixpanelIntegration.lastSyncAt || new Date("2000-01-01"),
+      maxTimestamp: new Date(new Date().getTime() - 30 * 60 * 1000), // 30 minutes ago
+      decryptedMixpanelProjectToken: decrypt(
+        mixpanelIntegration.encryptedMixpanelProjectToken,
+      ),
+      mixpanelRegion: mixpanelIntegration.mixpanelRegion,
+      useGraceHash: job.attemptsMade > 0,
+    };
+
     // Fail loudly before exporting empty data and advancing lastSyncAt
     // (LFE-10148, LFE-11009); the catch below logs and BullMQ retries.
     assertExportSourceWritable(

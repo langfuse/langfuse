@@ -1296,6 +1296,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
   // self-hosted), so the deprecation notice below is Cloud-only too.
   const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
+  let watermarkAdvanced = false;
   try {
     // The catch persists lastError and notifies admins.
     assertExportSourceWritable(
@@ -1524,6 +1525,20 @@ export const handleBlobStorageIntegrationProjectJob = async (
       return;
     }
 
+    // The export watermark is committed. Catch-up enqueue below can still
+    // fail (Redis); that must not be recorded as an export-freshness failure
+    // against the pre-run lastSyncAt.
+    recordExportFreshnessLag({
+      integration: "blob_storage",
+      window: windowClassFromBlobFrequency(
+        blobStorageIntegration.exportFrequency,
+      ),
+      status: "success",
+      runStartTime,
+      maxExportedTimestamp: maxTimestamp,
+    });
+    watermarkAdvanced = true;
+
     // If still catching up, immediately queue the next chunk job
     if (!caughtUp) {
       const queue = BlobStorageIntegrationProcessingQueue.getInstance();
@@ -1548,15 +1563,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
     logger.info(
       `[BLOB INTEGRATION] Successfully processed blob storage integration for project ${projectId}`,
     );
-    recordExportFreshnessLag({
-      integration: "blob_storage",
-      window: windowClassFromBlobFrequency(
-        blobStorageIntegration.exportFrequency,
-      ),
-      status: "success",
-      runStartTime,
-      maxExportedTimestamp: maxTimestamp,
-    });
   } catch (error) {
     const errorMessage = extractStorageErrorMessage(error);
 
@@ -1575,15 +1581,17 @@ export const handleBlobStorageIntegrationProjectJob = async (
       return; // obsolete job: complete it rather than fail it
     }
 
-    recordExportFreshnessLag({
-      integration: "blob_storage",
-      window: windowClassFromBlobFrequency(
-        blobStorageIntegration.exportFrequency,
-      ),
-      status: "failure",
-      runStartTime,
-      maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
-    });
+    if (!watermarkAdvanced) {
+      recordExportFreshnessLag({
+        integration: "blob_storage",
+        window: windowClassFromBlobFrequency(
+          blobStorageIntegration.exportFrequency,
+        ),
+        status: "failure",
+        runStartTime,
+        maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
+      });
+    }
 
     switch (outcome.kind) {
       case "disabled-by-us":
