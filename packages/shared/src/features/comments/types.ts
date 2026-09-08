@@ -28,9 +28,9 @@ export const CreateCommentData = z
     objectId: z.string(),
     objectType: z.enum(COMMENT_OBJECT_TYPES),
     // Optional start time of the referenced object (e.g. an observation's
-    // start_time). When present it filters the reference-existence lookup to a
-    // narrow time range so ClickHouse can prune partitions/parts. A value that
-    // does not match the object's start_time excludes it from the lookup.
+    // start_time). When present it filters the reference-existence lookup to the
+    // minute of this value so ClickHouse can prune partitions/parts. A value
+    // whose minute differs from the object's start_time excludes it.
     objectStartTime: z.coerce.date().nullish(),
     // Optional inline positioning (parallel arrays)
     dataField: z.enum(COMMENT_DATA_FIELDS).nullish(),

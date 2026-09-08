@@ -100,8 +100,11 @@ describe("Create and get comments", () => {
     });
   });
 
-  it("should create an observation comment when objectStartTime bounds the lookup", async () => {
+  it("should create an observation comment when objectStartTime is in the observation's minute", async () => {
     const startTime = new Date("2024-05-15T12:00:00.000Z");
+    // Same minute, different second: the lookup floors to the minute, so this
+    // still resolves the observation.
+    const sameMinuteStartTime = new Date("2024-05-15T12:00:45.000Z");
     const observationId = randomUUID();
     // Seed both tables so the lookup resolves regardless of the v4 write-mode
     // routing the test environment happens to use.
@@ -134,7 +137,7 @@ describe("Create and get comments", () => {
         objectId: observationId,
         objectType: "OBSERVATION",
         projectId: seedProjectId,
-        objectStartTime: startTime.toISOString(),
+        objectStartTime: sameMinuteStartTime.toISOString(),
         authorUserId: orgMemberUserId,
       },
     );
@@ -157,12 +160,12 @@ describe("Create and get comments", () => {
     });
   });
 
-  it("should fail to create an observation comment when objectStartTime does not match", async () => {
+  it("should fail to create an observation comment when objectStartTime is in a different minute", async () => {
     const actualStartTime = new Date("2024-05-15T12:00:00.000Z");
-    // A day the observation does NOT live on: objectStartTime is a hard filter,
-    // so a value that misses the observation's start_time excludes it and the
-    // reference is treated as not found.
-    const wrongStartTime = new Date("2024-05-20T12:00:00.000Z");
+    // A different minute: objectStartTime is a hard filter at minute resolution,
+    // so a value outside the observation's minute excludes it and the reference
+    // is treated as not found.
+    const wrongStartTime = new Date("2024-05-15T12:02:00.000Z");
     const observationId = randomUUID();
     // Seed both tables so the lookup resolves regardless of the v4 write-mode
     // routing the test environment happens to use.

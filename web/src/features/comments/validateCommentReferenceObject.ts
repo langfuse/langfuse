@@ -22,9 +22,10 @@ export const validateCommentReferenceObject = async ({
       commentTarget = await getObservationById({
         id: objectId,
         projectId,
-        // Filters the events_full lookup to the observation's day so ClickHouse
-        // can prune partitions/parts; absent, the lookup scans without a time
-        // bound. A start_time that does not match the observation excludes it.
+        // Filters the lookup to the minute of objectStartTime so ClickHouse can
+        // prune partitions/parts; absent, the lookup scans without a time bound.
+        // An objectStartTime whose minute differs from the observation's start
+        // time excludes it, so the reference is reported not found.
         startTime: objectStartTime ?? undefined,
       });
       break;

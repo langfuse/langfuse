@@ -3017,11 +3017,12 @@ paths:
           in: query
           description: >-
             The start time of the observation (ISO 8601 with offset, e.g.
-            2024-01-01T00:00:00Z). Acts as a filter that restricts the lookup to
-            the observation's start day, which makes the request substantially
-            faster. Must match the observation's start time; a value that does
-            not will return not found. Omit it to look up the observation
-            without a time bound.
+            2024-01-01T00:00:00Z). Acts as a filter that restricts the lookup,
+            which makes the request substantially faster. Matched at minute
+            resolution (the value is floored to the minute), so it must fall in
+            the same minute (UTC) as the observation's start time; a value in a
+            different minute returns not found. Omit it to look up the
+            observation without a time bound.
           required: false
           schema:
             type: string
@@ -9213,10 +9214,11 @@ components:
           description: >-
             The start time of the referenced object (for observations, the
             observation's start time). Acts as a filter that speeds up reference
-            validation by narrowing the lookup to that time range. Must match
-            the object's start time; a value that does not will cause the
-            reference to be treated as not found. Omit it to validate the
-            reference without a time bound.
+            validation by narrowing the lookup. Matched at minute resolution
+            (the value is floored to the minute), so it must fall in the same
+            minute (UTC) as the object's start time; a value in a different
+            minute causes the reference to be treated as not found. Omit it to
+            validate the reference without a time bound.
       required:
         - projectId
         - objectType
