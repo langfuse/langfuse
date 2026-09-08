@@ -20,7 +20,7 @@ const PUBLIC_EVALUATOR_TYPES = ["llm_as_judge", "code"] as const;
 export const [PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE, PUBLIC_EVALUATOR_TYPE_CODE] =
   PUBLIC_EVALUATOR_TYPES;
 
-const PublicEvaluatorType = z.enum(PUBLIC_EVALUATOR_TYPES);
+export const PublicEvaluatorType = z.enum(PUBLIC_EVALUATOR_TYPES);
 export const PublicCodeEvaluatorSourceCodeLanguage = z.enum([
   "PYTHON",
   "TYPESCRIPT",
@@ -154,7 +154,7 @@ function createMappingSchema<
   });
 }
 
-const ObservationPromptVariableMappingInput = createMappingSchema(
+export const ObservationPromptVariableMappingInput = createMappingSchema(
   ObservationPromptVariableMappingSource,
 );
 

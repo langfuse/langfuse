@@ -502,6 +502,50 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   none of the three 2.5-family pricing-file entries carry a `grounding_queries` key —
   the 0.014/query rate is correctly scoped to 3.x models only. No change needed; this
   confirms the existing scoping is correct rather than being a shared/hardcoded bug.
+- **September 6 2026 audit: full re-fetch found no price or catalog drift; a newer
+  Gemini specialized-model wave confirmed out of scope** — Re-fetched the full
+  Anthropic pricing table, the OpenAI aggregate Standard/Fast-mode/Flex pricing
+  tables plus the dedicated `gpt-6-astra` model page, and the Gemini AI Studio
+  pricing pages (`ai.google.dev/pricing` for the 2.5 family, plus
+  `ai.google.dev/gemini-api/docs/pricing` and `ai.google.dev/gemini-api/docs/models`
+  for the 3.x family and full model catalog). Every price already in the pricing
+  file — including `gpt-6-astra`'s six tiers and `gemini-3.8-flash`'s introductory
+  rate — matched verbatim; no updates were needed. `ai.google.dev/gemini-api/docs/models`
+  now additionally lists `gemini-3.5-transcribe` / `gemini-3.5-transcribe-live`
+  (speech-to-text), `gemini-omni-1.1-flash` (video generation/editing, replacing the
+  August 21 2026 wave's `gemini-omni-flash` name), `gemini-2.5-computer-use-preview-10-2025`
+  (UI automation), `deep-research-preview-04-2026` (research agent), and
+  `antigravity-preview-05-2026` — confirmed via a targeted fetch to be "a
+  general-purpose managed agent that autonomously plans, reasons, runs code, manages
+  files, and browses the web inside a secure, isolated Linux sandbox," i.e. an agentic
+  product with no standard `generateContent` per-token text pricing, not a chat model.
+  None of these five are a general-purpose text/chat completion model with standard
+  per-token text pricing, so none were added, consistent with the existing
+  modality-specific/restricted-access skip rule. Re-investigate only if one of them
+  gains a standard text-generation mode with its own per-token text pricing.
+- **September 8 2026 audit: no price or catalog drift; `gemini-2.0-flash` shutdown
+  status confirmed; another Gemini specialized-model wave confirmed out of scope** —
+  Re-fetched the full Anthropic pricing table, the OpenAI aggregate Standard pricing
+  table (all short- and long-context tiers for the gpt-5.x/gpt-6 families plus
+  gpt-4.1/gpt-4o/o3/o4-mini), and both Gemini pricing pages
+  (`ai.google.dev/pricing` for the 2.5 family, `ai.google.dev/gemini-api/docs/pricing`
+  for the 3.x family) plus `ai.google.dev/gemini-api/docs/models`. Every price already
+  in the file matched verbatim; no updates were needed. Two new pieces of
+  information: (1) `ai.google.dev/gemini-api/docs/models` now explicitly labels
+  `gemini-2.0-flash` "(Shut down)" under previous models — this resolves the
+  long-standing "not re-verified, retained for backward compatibility" note on this
+  entry into a confirmed-retired status, but per the automated-audit scope (no
+  removal category authorized) the pricing entry and `types.ts` selectable-model
+  entries were left in place unchanged, same treatment as the `gemini-3-pro-preview`
+  precedent above; (2) the models page now additionally lists
+  `gemini-3.1-flash-image` ("Nano Banana 2"), `gemini-3.1-flash-lite-image` ("Nano
+  Banana 2 Lite"), `gemini-3-pro-image` ("Nano Banana Pro"), `gemini-embedding-2-preview`,
+  `gemini-embedding-001`, `gemini-2.5-flash-native-audio-preview-12-2025`,
+  `gemini-2.5-flash-preview-tts`, `gemini-2.5-pro-preview-tts`,
+  `deep-research-max-preview-04-2026`, and `gemini-robotics-er-1.6-preview` — image
+  generation, embedding, native-audio, text-to-speech, and robotics endpoints, none a
+  general-purpose text/chat model with standard per-token text pricing, so none were
+  added, consistent with the existing modality-specific skip rule.
 
 Capture:
 
