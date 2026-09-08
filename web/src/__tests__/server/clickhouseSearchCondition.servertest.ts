@@ -237,6 +237,7 @@ describe("clickhouseSearchCondition", () => {
       expect(text).toContain("idx_ngram_name");
       expect(text).toContain("idx_ngram_trace_name");
       expect(text).toMatch(/idx_fts_input_low|idx_fts_output_low/);
+      expect(text).toMatch(/Granules:\s*0\//);
     });
 
     it("matches name case-insensitively via lower() LIKE on the events path", async () => {
@@ -428,7 +429,7 @@ describe("clickhouseSearchCondition", () => {
     expect(ftsSearch.query).not.toContain("hasAllTokens");
   });
 
-  it("rewrites events-table name and trace_name search to lower() LIKE", () => {
+  it("rewrites events-table id-lane search to lower() LIKE", () => {
     const search = clickhouseSearchCondition({
       query: "alpha",
       searchType: ["id"],
@@ -443,10 +444,14 @@ describe("clickhouseSearchCondition", () => {
     expect(search.query).toContain(
       "lower(e.trace_name) LIKE lower({searchString: String})",
     );
-    expect(search.query).toContain("e.span_id ILIKE {searchString: String}");
-    expect(search.query).toContain("e.user_id ILIKE {searchString: String}");
+    expect(search.query).toContain(
+      "lower(e.span_id) LIKE lower({searchString: String})",
+    );
+    expect(search.query).toContain(
+      "lower(e.user_id) LIKE lower({searchString: String})",
+    );
     expect(search.query).not.toContain("e.name ILIKE");
-    expect(search.query).not.toContain("e.trace_name ILIKE");
+    expect(search.query).not.toContain("e.span_id ILIKE");
   });
 
   it("keeps ILIKE name search off the events table path", () => {

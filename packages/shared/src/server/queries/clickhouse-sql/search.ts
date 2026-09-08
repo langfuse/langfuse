@@ -8,9 +8,17 @@ import { bareFtsField, ftsTextTokenConjunct } from "./fts";
 
 const regexIndefiniteCharacters = "%";
 
-// events_full skip indexes idx_ngram_name / idx_ngram_trace_name are defined on
-// lower(name) / lower(trace_name). ILIKE on the raw column cannot use them.
-const NGRAM_SUBSTRING_COLUMNS = new Set(["name", "trace_name"]);
+// events_full ngrambf_v1 skip indexes are defined on lower(<col>). ILIKE on the
+// raw column cannot use them. Every leading-wildcard disjunct in the search OR
+// must be one of these or ClickHouse discards the input/output text indexes.
+const NGRAM_SUBSTRING_COLUMNS = new Set([
+  "name",
+  "trace_name",
+  "span_id",
+  "trace_id",
+  "user_id",
+  "session_id",
+]);
 
 /**
  * Re-encodes a string the way a JSON serializer with `ensure_ascii=True` does (e.g. Python's
