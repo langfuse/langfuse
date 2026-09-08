@@ -1,0 +1,175 @@
+name: Preview deployment health check
+
+# Poll every labeled preview's public health endpoint and shout in Slack when
+# one answers but is not serving. Argo CD notifications already cover a preview
+# whose *sync* failed; they cannot see this case, because a Deployment scaled to
+# zero is Healthy to Argo (`/spec/replicas` sits in the ApplicationSet's
+# ignoreDifferences for the downscaler), so a preview that exists, resolves, and
+# returns 503 looks fine from the cluster's point of view. Until this, the only
+# detector was someone opening the URL.
+#
+# Schedule is UTC; we want 08:00-20:00 Europe/Berlin, inside the window where
+# previews are up at all ("Mon-Fri 08:00-24:00 Europe/Berlin", downscaler/uptime
+# in the infrastructure repo's ApplicationSet). Berlin is UTC+1 or UTC+2
+# depending on DST, so a UTC hour H lands at H+1 or H+2 local: only 07:00-18:00
+# UTC is inside 08:00-20:00 Berlin whichever side of DST we are on. On a
+# 2-hourly grid that is 07:00-17:00, i.e. first probe at 08:00 or 09:00 local
+# and last at 18:00 or 19:00 — never on a deliberately sleeping preview.
+#
+# Safe triggers only: `schedule` + `workflow_dispatch`. No checkout, no PR-code
+# execution, no cloud credentials.
+on:
+  schedule:
+    - cron: "0 7,9,11,13,15,17 * * 1-5"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: preview-health-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check labeled previews are serving
+    runs-on: ubuntu-latest
+    # Same preview-system feature gate as preview-build / preview-stale-cleanup:
+    # unset => system off, nothing to poll.
+    if: vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != ''
+    permissions:
+      # Listing labeled open PRs is all this needs; it mutates nothing.
+      pull-requests: read
+    steps:
+      - name: Probe every labeled preview
+        id: probe
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # A preview is only expected to serve if the PR is open AND labeled.
+          numbers="$(gh api "repos/$REPOSITORY/pulls?state=open&per_page=100" --paginate \
+            --jq '.[] | select(any(.labels[]; .name == "preview")) | .number')"
+
+          if [ -z "$numbers" ]; then
+            echo "No labeled previews open; nothing to probe."
+            echo "unhealthy=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # curl already prints 000 for a timeout, DNS failure or refused
+          # connection, so swallow its exit status rather than echoing a second
+          # 000 after it (which would report "HTTP 000000").
+          probe() {
+            local code
+            code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 \
+              "https://pr-$1.preview.langfuse.com/api/public/health" 2>/dev/null || true)"
+            printf '%s' "${code:-000}"
+          }
+
+          unhealthy=""
+          suspects=""
+          undeployed=0
+          healthy=0
+          total=0
+
+          # 404 is the shared ALB's wildcard catch-all: the PR is labeled but
+          # nothing is deployed for it — an author off the deploy allowlist, or a
+          # teardown still in flight. Not a failure, so it never alerts, in
+          # either pass.
+          classify() {
+            case "$2" in
+              200) healthy=$((healthy + 1)); echo "pr-$1: ok" ;;
+              404) undeployed=$((undeployed + 1)); echo "pr-$1: not deployed (404)" ;;
+              *) return 1 ;;
+            esac
+          }
+
+          for n in $numbers; do
+            total=$((total + 1))
+            code="$(probe "$n")"
+            if ! classify "$n" "$code"; then
+              suspects="${suspects:+$suspects }$n"
+              echo "pr-$n: HTTP $code, re-probing"
+            fi
+          done
+
+          # A rebuild rolls the web Deployment, and a brief ImagePullBackOff is
+          # documented as normal and self-healing, so nothing is called broken on
+          # a single bad response. The wait is shared across all suspects rather
+          # than paid per preview: at 50 previews a per-preview sleep would run
+          # for tens of minutes.
+          if [ -n "$suspects" ]; then
+            sleep 30
+            for n in $suspects; do
+              code="$(probe "$n")"
+              if ! classify "$n" "$code"; then
+                # Space-free token: the Slack step counts and truncates this
+                # list by word, so an entry must never contain a space.
+                unhealthy="${unhealthy:+$unhealthy }pr-$n($code)"
+                echo "::error::pr-$n.preview.langfuse.com is labeled but not serving (HTTP $code)"
+              fi
+            done
+          fi
+
+          echo "unhealthy=$unhealthy" >> "$GITHUB_OUTPUT"
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Preview health"
+            echo ""
+            echo "- labeled previews: $total"
+            echo "- serving: $healthy"
+            echo "- not deployed (404, ignored): $undeployed"
+            echo "- not serving: ${unhealthy:-none}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify Slack
+        if: steps.probe.outputs.unhealthy != ''
+        env:
+          # Incoming webhook bound to #lf-preview-alerts, the same channel the
+          # Argo CD preview sync-failure alerts post to, so every preview signal
+          # lands in one place and none of it competes with CI failures.
+          SLACK_WEBHOOK: ${{ secrets.SLACK_PREVIEW_ALERTS_WEBHOOK_URL }}
+          UNHEALTHY: ${{ steps.probe.outputs.unhealthy }}
+          TOTAL: ${{ steps.probe.outputs.total }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SLACK_WEBHOOK:-}" ]; then
+            echo "::warning::SLACK_PREVIEW_ALERTS_WEBHOOK_URL is unset; skipping the Slack post."
+            exit 0
+          fi
+
+          # One message per run listing every offender, never one per preview, so
+          # the alert volume is set by the schedule (6/day) and not by the size of
+          # the fleet. Only the list itself grows, so cap it: a broken ALB would
+          # otherwise paste 50 hostnames into the channel.
+          count="$(printf '%s' "$UNHEALTHY" | wc -w | tr -d ' ')"
+          shown="$(printf '%s' "$UNHEALTHY" | tr ' ' '\n' | head -10 | paste -sd' ' -)"
+          if [ "$count" -gt 10 ]; then
+            shown="$shown (+$((count - 10)) more)"
+          fi
+
+          text="Preview health: $count of ${TOTAL} labeled previews not serving — ${shown}. Run: ${RUN_URL}"
+
+          response="$(curl -sS -X POST "$SLACK_WEBHOOK" \
+            -H 'Content-type: application/json; charset=utf-8' \
+            --data "$(jq -nc --arg text "$text" '{text: $text}')")"
+
+          # A Slack incoming webhook answers with the literal body "ok"; a revoked
+          # or mistyped hook answers 4xx with a reason, which -sS surfaces.
+          if [ "$response" != "ok" ]; then
+            echo "::error::Slack post failed: $response"
+            exit 1
+          fi
+          echo "Posted to #lf-preview-alerts."
+
+      - name: Fail if any preview is not serving
+        if: steps.probe.outputs.unhealthy != ''
+        env:
+          UNHEALTHY: ${{ steps.probe.outputs.unhealthy }}
+        run: |
+          echo "Not serving: $UNHEALTHY"
+          exit 1
