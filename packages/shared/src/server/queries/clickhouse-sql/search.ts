@@ -4,9 +4,13 @@ import {
   TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
   type TracingSearchType,
 } from "../../../interfaces/search";
-import { ftsTextTokenConjunct } from "./fts";
+import { bareFtsField, ftsTextTokenConjunct } from "./fts";
 
 const regexIndefiniteCharacters = "%";
+
+// events_full skip indexes idx_ngram_name / idx_ngram_trace_name are defined on
+// lower(name) / lower(trace_name). ILIKE on the raw column cannot use them.
+const NGRAM_SUBSTRING_COLUMNS = new Set(["name", "trace_name"]);
 
 /**
  * Re-encodes a string the way a JSON serializer with `ensure_ascii=True` does (e.g. Python's
@@ -68,6 +72,11 @@ export const clickhouseSearchCondition = ({
       ? `(${col} ILIKE ${param} AND ${ftsTextTokenConjunct(col, param)})`
       : `${col} ILIKE ${param}`;
 
+  const idLaneMatch = (col: string, param = "{searchString: String}") =>
+    useEventsTablePath && NGRAM_SUBSTRING_COLUMNS.has(bareFtsField(col))
+      ? `lower(${col}) LIKE lower(${param})`
+      : `${col} ILIKE ${param}`;
+
   const defaultCols = [`${prefix}id`, `t.user_id`, `${prefix}name`];
   const cols = (searchColumns ?? defaultCols).map((col) =>
     col.includes(".") ? col : `${prefix}${col}`,
@@ -100,7 +109,7 @@ export const clickhouseSearchCondition = ({
   // The default cols include t.user_id for callers querying via traces CTE (traces.ts, observations.ts).
   const conditions = [
     !searchType || searchType.includes("id")
-      ? cols.map((col) => `${col} ILIKE {searchString: String}`).join(" OR ")
+      ? cols.map((col) => idLaneMatch(col)).join(" OR ")
       : null,
     searchType && searchType.includes("content")
       ? `${ioColumnMatch(inputCol)} OR ${ioColumnMatch(outputCol)}`
