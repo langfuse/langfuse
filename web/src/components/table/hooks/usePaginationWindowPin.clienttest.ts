@@ -114,4 +114,38 @@ describe("usePaginationWindowPin", () => {
     rerender({ pageIndex: 1, enabled: false });
     expect(result.current.range?.to).toBeUndefined();
   });
+
+  it("pins to now when a live-tail sort is turned on past page 1", () => {
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        usePaginationWindowPin(LIVE, 1, { enabled }),
+      { initialProps: { enabled: false } },
+    );
+
+    expect(result.current.range?.to).toBeUndefined();
+
+    const later = new Date(START.getTime() + 40_000);
+    vi.setSystemTime(later);
+    rerender({ enabled: true });
+    expect(result.current.range?.to).toEqual(later);
+  });
+
+  it("does not reuse a stale pin when the live tail is turned back on", () => {
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        usePaginationWindowPin(LIVE, 1, { enabled }),
+      { initialProps: { enabled: true } },
+    );
+
+    act(() => result.current.pinOnLeavingFirstPage(1, NEWEST_ON_PAGE_1));
+    expect(result.current.range?.to).toEqual(NEWEST_ON_PAGE_1);
+
+    rerender({ enabled: false });
+    expect(result.current.range?.to).toBeUndefined();
+
+    const later = new Date(START.getTime() + 40_000);
+    vi.setSystemTime(later);
+    rerender({ enabled: true });
+    expect(result.current.range?.to).toEqual(later);
+  });
 });

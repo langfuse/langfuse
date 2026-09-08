@@ -52,6 +52,17 @@ export function usePaginationWindowPin(
   const [pinnedAt, setPinnedAt] = useState<Date | null>(() =>
     enabled && pageIndex > 0 ? new Date() : null,
   );
+  const [wasEnabled, setWasEnabled] = useState(enabled);
+
+  // Switching onto a live-tail sort while already past page 1 is the same as
+  // opening that page directly: there is no page-1 newest row to align with.
+  // Pin to now so the window is not left open (or pinned to a stale ASC visit).
+  if (enabled !== wasEnabled) {
+    setWasEnabled(enabled);
+    if (enabled && pageIndex > 0) {
+      setPinnedAt(new Date());
+    }
+  }
 
   const pin = enabled && pageIndex > 0 ? pinnedAt : null;
 

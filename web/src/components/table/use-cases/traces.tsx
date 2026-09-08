@@ -1458,9 +1458,6 @@ function TracesTableInternal({
                   : {
                       totalCount,
                       isTotalCountLoading: totalCountQuery.isPending,
-                      hasNextPage:
-                        (traces.data?.traces.length ?? 0) ===
-                        paginationState.pageSize,
                       onChange: (updater) => {
                         const next =
                           typeof updater === "function"
