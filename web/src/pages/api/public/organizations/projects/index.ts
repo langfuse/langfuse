@@ -1,3 +1,4 @@
+import { type IncomingHttpHeaders } from "http";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { logger } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
@@ -6,6 +7,15 @@ import { verifyOrgAuth } from "@/src/features/auth/policy/shadow.direct";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { env } from "@/src/env.mjs";
+import { authenticator } from "@/src/features/apiKey/authenticator";
+import { authorize } from "@/src/features/auth/policy/authorize";
+import {
+  diffResults,
+  legacyFromStatus,
+  recordCoverage,
+  type NewResult,
+} from "@/src/features/auth/policy/shadow";
 
 /** orgKeyRequired is the 403 body when a non-organization key hits an organization endpoint. */
 const orgKeyRequired =
@@ -49,6 +59,22 @@ export default async function handler(
     });
   }
 
+  if (env.API_AUTH_MIGRATION !== "legacy") {
+    const authz = await authorizeOrgProjectsRead(req.headers);
+    if (env.API_AUTH_MIGRATION === "shadow") {
+      recordCoverage("List Projects");
+      diffResults(authz, legacyFromStatus(200), {
+        seam: "org_route",
+        action: "project:read",
+      });
+    }
+    if (env.API_AUTH_MIGRATION === "enforce" && !authz.success) {
+      return res.status(403).json({
+        error: orgKeyRequired,
+      });
+    }
+  }
+
   const rateLimitCheck = await RateLimitService.getInstance().rateLimitRequest(
     authCheck.scope,
     "public-api",
@@ -69,4 +95,27 @@ export default async function handler(
       error: "Internal server error",
     });
   }
+}
+
+/** authorizeOrgProjectsRead resolves the request's context and checks project:read across the org's projects, vacuously allowing an org with none. */
+async function authorizeOrgProjectsRead(
+  headers: IncomingHttpHeaders,
+): Promise<NewResult> {
+  const authn = await authenticator.authenticate({ headers });
+  if (!authn.success) {
+    return { success: false, error: { httpCode: authn.error.httpCode } };
+  }
+  const context = authn.context;
+  const orgProjectIds =
+    context.principal.kind === "apiKey"
+      ? context.principal.organizations.flatMap((o) => o.projectIds)
+      : [];
+  const allowed =
+    orgProjectIds.length === 0 ||
+    orgProjectIds.some(
+      (projectId) => authorize(context, "project:read", { projectId }).success,
+    );
+  return allowed
+    ? { success: true }
+    : { success: false, error: { httpCode: 403 } };
 }

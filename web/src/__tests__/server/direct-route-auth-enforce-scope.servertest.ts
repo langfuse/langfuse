@@ -11,11 +11,13 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
+import { authorize } from "@/src/features/auth/policy/authorize";
 import {
   type DirectAuthResult,
   type VerifyOrgAuthParams,
 } from "@/src/features/auth/policy/shadow.direct";
 import {
+  type AuthorizationContext,
   type OrganizationAction,
   type ProjectAction,
 } from "@/src/features/auth/policy/types";
@@ -33,10 +35,19 @@ type ProjectVerify = (params: VerifyAuthParams) => Promise<{
   scope: Record<string, unknown>;
 }>;
 
+type Authenticator = {
+  authenticate: (params: {
+    headers: { authorization: string };
+  }) => Promise<
+    { success: true; context: AuthorizationContext } | { success: false }
+  >;
+};
+
 const adminApiKey = "test-admin-api-key-direct-enforce-scope";
 
 let orgSeam: OrgSeam;
 let verifyProjectAuth: ProjectVerify;
+let authenticator: Authenticator;
 let orgId = "";
 let projectId = "";
 let foreignProjectId = "";
@@ -138,6 +149,28 @@ const createOrgApiKey = async (targetOrgId: string) => {
   return createBasicAuthHeader(publicKey, secretKey);
 };
 
+const createOrgWithoutProjects = async () => {
+  const org = await prisma.organization.create({
+    data: { id: randomUUID(), name: randomUUID() },
+  });
+  return { orgId: org.id, auth: await createOrgApiKey(org.id) };
+};
+
+const contextFor = async (
+  authorization: string,
+): Promise<AuthorizationContext> => {
+  const authn = await authenticator.authenticate({
+    headers: { authorization },
+  });
+  if (!authn.success) throw new Error("authentication failed");
+  return authn.context;
+};
+
+const ownedProjectIds = (context: AuthorizationContext): string[] =>
+  context.principal.kind === "apiKey"
+    ? context.principal.organizations.flatMap((o) => o.projectIds)
+    : [];
+
 describe("the direct seams map principals to legacy-identical scopes", () => {
   beforeAll(async () => {
     originalMigration = (env as any).API_AUTH_MIGRATION;
@@ -149,6 +182,10 @@ describe("the direct seams map principals to legacy-identical scopes", () => {
     ({ verifyProjectAuth } =
       (await import("@/src/features/public-api/server/verifyProjectAuth")) as unknown as {
         verifyProjectAuth: ProjectVerify;
+      });
+    ({ authenticator } =
+      (await import("@/src/features/apiKey/authenticator")) as unknown as {
+        authenticator: Authenticator;
       });
 
     const base = await createOrgProjectAndApiKey();
@@ -272,6 +309,27 @@ describe("the direct seams map principals to legacy-identical scopes", () => {
     );
     expect(legacy).toMatchObject({ validKey: false, status: 403 });
     expect(enforce).toMatchObject({ validKey: false, status: 403 });
+  });
+
+  it("an organization key is granted project:read on a project it owns", async () => {
+    const context = await contextFor(orgAuth);
+    expect(ownedProjectIds(context)).toContain(projectId);
+    expect(authorize(context, "project:read", { projectId }).success).toBe(
+      true,
+    );
+  });
+
+  it("an organization key is denied project:read on a project it does not own", async () => {
+    const context = await contextFor(orgAuth);
+    expect(
+      authorize(context, "project:read", { projectId: foreignProjectId })
+        .success,
+    ).toBe(false);
+  });
+
+  it("an organization with no projects exposes no project ids to the per-project gate", async () => {
+    const { auth } = await createOrgWithoutProjects();
+    expect(ownedProjectIds(await contextFor(auth))).toEqual([]);
   });
 
   it("the admin key is refused on both direct seams in both modes", async () => {
