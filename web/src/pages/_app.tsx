@@ -312,8 +312,15 @@ if (
   process.env.NEXT_MANUAL_SIG_HANDLE
 ) {
   const { shutdown } = await import("@/src/utils/shutdown");
-  prexit(async (signal) => {
-    console.log("Signal: ", signal);
-    return await shutdown(signal);
-  });
+  // uncaughtException is intentionally omitted: it is handled by
+  // installProcessErrorHandlers (registered in instrumentation.ts), which
+  // drains in-flight requests and then exits, rather than prexit exiting
+  // abruptly without draining.
+  prexit(
+    ["exit", "beforeExit", "SIGTSTP", "SIGQUIT", "SIGHUP", "SIGTERM", "SIGINT"],
+    async (signal) => {
+      console.log("Signal: ", signal);
+      return await shutdown(signal);
+    },
+  );
 }
