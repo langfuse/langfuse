@@ -1,4 +1,8 @@
-import { CommentObjectType, type CreateCommentData } from "@langfuse/shared";
+import {
+  CommentObjectType,
+  type CreateCommentData,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
 import { type z } from "zod";
 import {
   getObservationById,
@@ -18,19 +22,22 @@ export const validateCommentReferenceObject = async ({
   let commentTarget;
   switch (objectType) {
     case CommentObjectType.OBSERVATION: {
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      commentTarget = await getObservationById({
-        id: objectId,
-        projectId,
-        // Bounds the events_full lookup to the observation's day so ClickHouse
-        // can prune partitions/parts; absent, the lookup falls back to a scan.
-        startTime: objectStartTime ?? undefined,
-      });
-      // objectStartTime is a client-supplied hint on the public API; a wrong or
-      // stale value would bound the lookup to the wrong day and hide an existing
-      // observation. Retry once unbounded on a miss so the hint can only ever
-      // speed up a hit, never turn into a false "not found".
-      if (!commentTarget && objectStartTime) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
+        commentTarget = await getObservationById({
+          id: objectId,
+          projectId,
+          // Bounds the events_full lookup to the observation's day so ClickHouse
+          // can prune partitions/parts; absent, the lookup falls back to a scan.
+          startTime: objectStartTime ?? undefined,
+        });
+      } catch (e) {
+        // objectStartTime is a client-supplied hint on the public API; a wrong
+        // or stale value bounds the lookup to the wrong day, so getObservationById
+        // throws NotFound for an observation that does exist. Retry once
+        // unbounded so the hint can only ever speed up a hit, never turn into a
+        // false "not found". A genuine miss re-throws from the unbounded lookup.
+        if (!(e instanceof LangfuseNotFoundError) || !objectStartTime) throw e;
         // eslint-disable-next-line @typescript-eslint/no-deprecated
         commentTarget = await getObservationById({ id: objectId, projectId });
       }
