@@ -168,17 +168,17 @@ export function generateConfusionMatrixData({
   const total = data.reduce((sum, d) => sum + d.count, 0);
   const maxCount = Math.max(...data.map((d) => d.count));
 
-  // Create lookup map
+  // Tuple keys so category names that contain '-' cannot collide
   const dataMap = new Map<string, number>();
   data.forEach((d) => {
-    dataMap.set(`${d.row_category}-${d.col_category}`, d.count);
+    dataMap.set(confusionCellKey(d.row_category, d.col_category), d.count);
   });
 
   // Generate cells
   const cells: HeatmapCell[] = [];
   rowCategories.forEach((rowCat, rowIdx) => {
     colCategories.forEach((colCat, colIdx) => {
-      const count = dataMap.get(`${rowCat}-${colCat}`) || 0;
+      const count = dataMap.get(confusionCellKey(rowCat, colCat)) || 0;
       const percentage = total > 0 ? (count / total) * 100 : 0;
       const isDiagonal = rowCat === colCat;
 
@@ -215,6 +215,10 @@ export function generateConfusionMatrixData({
     cols: colCategories.length,
     maxValue: maxCount,
   };
+}
+
+function confusionCellKey(rowCategory: string, colCategory: string): string {
+  return JSON.stringify([rowCategory, colCategory]);
 }
 
 /**
