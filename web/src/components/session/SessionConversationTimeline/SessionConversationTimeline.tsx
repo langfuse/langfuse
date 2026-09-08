@@ -60,12 +60,14 @@ const hasPreviewValue = (value: unknown) =>
 
 function TruncatedObservation({
   observation,
+  phase,
 }: {
   observation: SessionObservation;
+  phase: "complete" | "start" | "end";
 }) {
   return (
     <div className="flex flex-col gap-5">
-      {hasPreviewValue(observation.input) ? (
+      {phase !== "end" && hasPreviewValue(observation.input) ? (
         <SessionTimelineMessage
           isTruncated={observation.inputTruncated}
           message={{
@@ -75,7 +77,7 @@ function TruncatedObservation({
           }}
         />
       ) : null}
-      {hasPreviewValue(observation.output) ? (
+      {phase !== "start" && hasPreviewValue(observation.output) ? (
         <SessionTimelineMessage
           isTruncated={observation.outputTruncated}
           message={{
@@ -194,11 +196,13 @@ function SessionTimelineConversationObservation({
   observation,
   parsed,
   processedMessages,
+  phase,
   onOpenInTraceView,
 }: {
   observation: SessionObservation;
   parsed: ParsedSessionTimelineObservation | null;
   processedMessages: ProcessedSessionTimelineMessages;
+  phase: "complete" | "start" | "end";
   onOpenInTraceView: () => void;
 }) {
   const isTruncated = observation.inputTruncated || observation.outputTruncated;
@@ -218,61 +222,67 @@ function SessionTimelineConversationObservation({
     parsed?.type === "error" ||
     visibleMessages.length > 0 ||
     observation.metadataTruncated;
+  const showHeader = phase !== "end";
+  const showNonMessageBody = phase !== "end";
 
   return (
     <>
       <section
-        data-session-observation-id={observation.id}
+        data-session-observation-id={showHeader ? observation.id : undefined}
         className={cn(
           "flex scroll-mt-16 flex-col",
           hasObservationBody ? "gap-4 py-2" : "py-1",
         )}
       >
-        <div className="flex w-full min-w-0 items-center gap-0.5">
-          <button
-            type="button"
-            onClick={onOpenInTraceView}
-            className="group flex min-w-0 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-          >
-            {renderFilterIcon(observation.type ?? "EVENT")}
-            <span
-              className="min-w-0 truncate text-xs font-normal group-hover:underline"
-              title={observation.name ?? observation.id}
+        {showHeader ? (
+          <div className="flex w-full min-w-0 items-center gap-0.5">
+            <button
+              type="button"
+              onClick={onOpenInTraceView}
+              className="group flex min-w-0 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
             >
-              {observation.name ?? observation.id}
-            </span>
-          </button>
-          <span className="ml-auto flex shrink-0 items-center gap-2">
-            {hasNoConversationalContent ? (
+              {renderFilterIcon(observation.type ?? "EVENT")}
               <span
-                className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
-                role="img"
-                aria-label="No conversational content"
-                title="No conversational content"
+                className="min-w-0 truncate text-xs font-normal group-hover:underline"
+                title={observation.name ?? observation.id}
               >
-                <MessageSquareOff className="h-3 w-3" aria-hidden="true" />
+                {observation.name ?? observation.id}
               </span>
-            ) : null}
-            {observation.latency !== null && observation.type !== "EVENT" ? (
-              <span className="text-muted-foreground font-mono text-[11px]">
-                {formatIntervalSeconds(observation.latency)}
-              </span>
-            ) : null}
-            <time className="text-muted-foreground font-mono text-[10px]">
-              {observation.startTime.toLocaleTimeString()}
-            </time>
-          </span>
-        </div>
+            </button>
+            <span className="ml-auto flex shrink-0 items-center gap-2">
+              {hasNoConversationalContent ? (
+                <span
+                  className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
+                  role="img"
+                  aria-label="No conversational content"
+                  title="No conversational content"
+                >
+                  <MessageSquareOff className="h-3 w-3" aria-hidden="true" />
+                </span>
+              ) : null}
+              {observation.latency !== null && observation.type !== "EVENT" ? (
+                <span className="text-muted-foreground font-mono text-[11px]">
+                  {formatIntervalSeconds(observation.latency)}
+                </span>
+              ) : null}
+              <time className="text-muted-foreground font-mono text-[10px]">
+                {observation.startTime.toLocaleTimeString()}
+              </time>
+            </span>
+          </div>
+        ) : null}
         <div className="flex min-w-0 flex-col gap-5">
-          {observation.metadataTruncated && !isTruncated ? (
+          {showNonMessageBody &&
+          observation.metadataTruncated &&
+          !isTruncated ? (
             <p className="text-muted-foreground text-xs">
               Metadata was omitted because it is too large. Messages are parsed
               from input and output only.
             </p>
           ) : null}
           {isTruncated ? (
-            <TruncatedObservation observation={observation} />
-          ) : parsed?.type === "error" ? (
+            <TruncatedObservation observation={observation} phase={phase} />
+          ) : showNonMessageBody && parsed?.type === "error" ? (
             <div className="border-destructive/40 bg-destructive/5 flex items-center justify-between gap-3 rounded-lg border p-3">
               <span className="text-destructive text-xs">
                 This observation could not be parsed.
@@ -332,11 +342,13 @@ function SessionTimelineObservation({
   observation,
   parsed,
   processedMessages,
+  phase,
   onOpenInTraceView,
 }: {
   observation: SessionObservation;
   parsed: ParsedSessionTimelineObservation | null;
   processedMessages: ProcessedSessionTimelineMessages;
+  phase: "complete" | "start" | "end";
   onOpenInTraceView: () => void;
 }) {
   if (observation.type === "TOOL") {
@@ -360,6 +372,7 @@ function SessionTimelineObservation({
       observation={observation}
       parsed={parsed}
       processedMessages={processedMessages}
+      phase={phase}
       onOpenInTraceView={onOpenInTraceView}
     />
   );
@@ -526,15 +539,33 @@ export function PreparedSessionConversationTimeline({
       ) : (
         <div className="flex flex-col gap-1">
           {state.observations.map(
-            ({ observation, parsed, processedMessages }) => (
-              <SessionTimelineObservation
-                key={observation.id}
-                observation={observation}
-                parsed={parsed}
-                processedMessages={processedMessages}
-                onOpenInTraceView={() => onOpenObservation(observation.id)}
-              />
-            ),
+            ({ observation, parsed, processedMessages, phase }) => {
+              if (observation.type === "TOOL" && phase === "start") {
+                return null;
+              }
+              if (
+                phase === "end" &&
+                processedMessages.messages.length === 0 &&
+                processedMessages.rolledUpToolCalls.length === 0 &&
+                !(
+                  observation.outputTruncated &&
+                  hasPreviewValue(observation.output)
+                )
+              ) {
+                return null;
+              }
+
+              return (
+                <SessionTimelineObservation
+                  key={`${observation.id}-${phase}`}
+                  observation={observation}
+                  parsed={parsed}
+                  processedMessages={processedMessages}
+                  phase={phase}
+                  onOpenInTraceView={() => onOpenObservation(observation.id)}
+                />
+              );
+            },
           )}
         </div>
       )}

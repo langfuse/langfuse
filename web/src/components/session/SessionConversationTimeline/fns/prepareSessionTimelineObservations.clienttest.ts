@@ -11,9 +11,11 @@ const observation = (
   type = "GENERATION",
   startTime = new Date(0),
   traceId = "trace-1",
+  parentObservationId: string | null = null,
 ) => ({
   id,
   traceId,
+  parentObservationId,
   type,
   startTime,
   input,
@@ -141,6 +143,112 @@ describe("prepareSessionTimelineObservations", () => {
     expect(prepared[2]?.processedMessages.messages).toMatchObject([
       { role: "user", parts: [{ type: "text", text: "User 2" }] },
       { role: "assistant", parts: [{ type: "text", text: "Assistant 2" }] },
+    ]);
+  });
+
+  it("renders a parent output after its nested observations", () => {
+    const prepared = prepareSessionTimelineObservations(
+      [
+        observation(
+          "parent",
+          [{ role: "user", content: "Start" }],
+          [{ role: "assistant", content: "Finished" }],
+          "GENERATION",
+          new Date(0),
+        ),
+        observation(
+          "child",
+          "Tool input",
+          "Tool output",
+          "TOOL",
+          new Date(1),
+          "trace-1",
+          "parent",
+        ),
+      ],
+      true,
+    );
+
+    expect(
+      prepared.map(({ observation: item, phase }) => [item.id, phase]),
+    ).toEqual([
+      ["parent", "start"],
+      ["child", "complete"],
+      ["parent", "end"],
+    ]);
+    expect(prepared[0]?.processedMessages.messages).toMatchObject([
+      { source: "input", parts: [{ type: "text", text: "Start" }] },
+    ]);
+    expect(prepared[2]?.processedMessages.messages).toMatchObject([
+      { source: "output", parts: [{ type: "text", text: "Finished" }] },
+    ]);
+  });
+
+  it("flattens multiple nesting levels while preserving sibling chronology", () => {
+    const prepared = prepareSessionTimelineObservations(
+      [
+        observation("root", "root input", "root output"),
+        observation(
+          "second-child",
+          null,
+          null,
+          "EVENT",
+          new Date(3),
+          "trace-1",
+          "root",
+        ),
+        observation(
+          "first-child",
+          "child input",
+          "child output",
+          "GENERATION",
+          new Date(1),
+          "trace-1",
+          "root",
+        ),
+        observation(
+          "grandchild",
+          null,
+          null,
+          "TOOL",
+          new Date(2),
+          "trace-1",
+          "first-child",
+        ),
+      ],
+      true,
+    );
+
+    expect(
+      prepared.map(({ observation: item, phase }) => `${item.id}:${phase}`),
+    ).toEqual([
+      "root:start",
+      "first-child:start",
+      "grandchild:complete",
+      "first-child:end",
+      "second-child:complete",
+      "root:end",
+    ]);
+  });
+
+  it("renders observations with filtered or missing parents as roots", () => {
+    const prepared = prepareSessionTimelineObservations(
+      [
+        observation(
+          "orphan",
+          null,
+          null,
+          "EVENT",
+          new Date(0),
+          "trace-1",
+          "filtered-parent",
+        ),
+      ],
+      true,
+    );
+
+    expect(prepared).toMatchObject([
+      { observation: { id: "orphan" }, phase: "complete" },
     ]);
   });
 });

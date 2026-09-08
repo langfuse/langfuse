@@ -7,7 +7,10 @@ import {
   type PreparedSessionConversationTimelineState,
   type SessionObservation,
 } from "@/src/components/session/SessionConversationTimeline/SessionConversationTimeline";
-import { prepareSessionTimelineObservations } from "@/src/components/session/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
+import {
+  prepareSessionTimelineObservations,
+  type PreparedSessionTimelineObservation,
+} from "@/src/components/session/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { useElementSize } from "@/src/hooks/useElementSize";
@@ -155,20 +158,25 @@ export function ConnectedSessionConversationTimeline({
     hydratedObservationGroups.flatMap((observations) => observations ?? []),
     showSystemPrompt,
   );
-  let preparedOffset = 0;
-  const preparedObservationGroups = hydratedObservationGroups.map(
-    (observations) => {
-      if (observations === undefined || observations === null) {
-        return observations;
-      }
-      const preparedGroup = preparedObservations.slice(
-        preparedOffset,
-        preparedOffset + observations.length,
-      );
-      preparedOffset += observations.length;
-      return preparedGroup;
-    },
+  const groupIndexByObservation = new Map<SessionObservation, number>();
+  hydratedObservationGroups.forEach((observations, groupIndex) => {
+    observations?.forEach((observation) => {
+      groupIndexByObservation.set(observation, groupIndex);
+    });
+  });
+  const preparedObservationGroups: Array<
+    PreparedSessionTimelineObservation<SessionObservation>[] | null | undefined
+  > = hydratedObservationGroups.map((observations) =>
+    observations === undefined || observations === null ? observations : [],
   );
+  preparedObservations.forEach((preparedObservation) => {
+    const groupIndex = groupIndexByObservation.get(
+      preparedObservation.observation,
+    );
+    if (groupIndex === undefined) return;
+
+    preparedObservationGroups[groupIndex]?.push(preparedObservation);
+  });
   const timelineStates = traces.map(
     (
       { observations },
