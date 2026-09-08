@@ -23,6 +23,7 @@ import {
   tooltipStyle,
 } from "@/src/features/traces/fns/timeline/tooltipPlacement";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { type TreeNode } from "@/src/features/traces/types/treeNode";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
 import {
@@ -84,7 +85,7 @@ function findIdleGaps(intervals: Array<[number, number]>): IdleGap[] {
 }
 
 export function TraceLanesView() {
-  const { observations, traceStartTime, traceDuration } = useTraceData();
+  const { roots, traceStartTime, traceDuration } = useTraceData();
   const { selectedNodeId } = useSelection();
   const selectNode = useSelectTraceNode("lanes");
 
@@ -105,37 +106,47 @@ export function TraceLanesView() {
 
     const byType = new Map<string, LaneBar[]>();
     const intervals: Array<[number, number]> = [];
+    // Walk the SAME level-filtered tree `traceStartTime`/`traceDuration` were
+    // derived from — the raw `observations` list still includes rows a level
+    // filter hides, and building bars from that against filtered bounds is
+    // what put hidden-level bars off-axis (or, with every root filtered out,
+    // against an origin that fell back to `new Date()`).
     // Idle detection uses LEAF observations only: a wrapper span (root, agent
     // loop) covers its whole subtree including the waits inside it, so counting
-    // it as "busy" would mask every idle gap it contains.
-    const parentIds = new Set(
-      observations
-        .map((obs) => obs.parentObservationId)
-        .filter((id): id is string => Boolean(id)),
-    );
-    for (const obs of observations) {
-      if (!obs.startTime) continue;
-      const startMs = obs.startTime.getTime() - originMs;
-      const endMs = obs.endTime
-        ? obs.endTime.getTime() - originMs
-        : obs.latency
-          ? startMs + obs.latency * 1000
+    // it as "busy" would mask every idle gap it contains. Iterative to avoid
+    // stack overflow on deep trees.
+    const stack: TreeNode[] = [...roots];
+    while (stack.length > 0) {
+      const node = stack.pop()!;
+      for (const child of node.children) stack.push(child);
+      if (node.type === "TRACE") continue;
+      const startMs = node.startTime.getTime() - originMs;
+      const endMs = node.endTime
+        ? node.endTime.getTime() - originMs
+        : node.latency
+          ? startMs + node.latency * 1000
           : startMs;
-      if (!parentIds.has(obs.id)) {
-        intervals.push([startMs, Math.max(endMs, startMs)]);
+      const clampedEndMs = Math.max(endMs, startMs);
+      if (node.children.length === 0) {
+        intervals.push([startMs, clampedEndMs]);
       }
-      const bars = byType.get(obs.type) ?? [];
+      const bars = byType.get(node.type) ?? [];
       bars.push({
-        id: obs.id,
-        name: obs.name ?? obs.type.toLowerCase(),
-        type: obs.type,
+        id: node.id,
+        name: node.name || node.type.toLowerCase(),
+        type: node.type,
         startMs,
-        endMs: Math.max(endMs, startMs),
-        costText: obs.totalCost ? usdFormatter(obs.totalCost) : null,
+        endMs: clampedEndMs,
+        costText:
+          node.calculatedTotalCost != null
+            ? usdFormatter(node.calculatedTotalCost)
+            : null,
         usageText:
-          obs.totalUsage > 0 ? `∑ ${numberFormatter(obs.totalUsage, 0)}` : null,
+          node.totalUsage && node.totalUsage > 0
+            ? `∑ ${numberFormatter(node.totalUsage, 0)}`
+            : null,
       });
-      byType.set(obs.type, bars);
+      byType.set(node.type, bars);
     }
 
     const idleGaps = findIdleGaps(intervals).filter(
@@ -192,7 +203,7 @@ export function TraceLanesView() {
     }
 
     return { lanes, idleGaps, toX, ticks };
-  }, [observations, traceStartTime, traceDuration, width]);
+  }, [roots, traceStartTime, traceDuration, width]);
 
   if (lanes.length === 0) {
     return (
@@ -346,6 +357,7 @@ function LaneRows({
               <button
                 key={bar.id}
                 type="button"
+                aria-label={bar.name}
                 onClick={() => onSelect(bar.id)}
                 onPointerMove={(event) =>
                   setHovered({
