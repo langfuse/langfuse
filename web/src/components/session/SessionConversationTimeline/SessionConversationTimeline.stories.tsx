@@ -2221,20 +2221,18 @@ export const ExpandNestedObservations = meta.story({
       rootToggle.querySelector(".lucide-chevrons-up-down"),
     ).not.toBeNull();
 
+    // Expanding a parent reveals its direct children, but nested groups remain collapsed.
     await userEvent.click(rootToggle);
 
     await expect(canvas.getByText("generation-1")).toBeInTheDocument();
     await expect(canvas.getByText("generation-2")).toBeInTheDocument();
-    await expect(canvas.getByText("tool-1")).toBeInTheDocument();
+    await expect(canvas.queryByText("tool-1")).not.toBeInTheDocument();
     await expect(rootToggle.parentElement).toHaveClass("h-0");
     await expect(
       rootToggle.querySelector(".lucide-chevrons-down-up"),
     ).not.toBeNull();
     const nestedGeneration = canvasElement
       .querySelector('[data-session-observation-id="generation-1"]')
-      ?.closest("[data-session-observation-depth]");
-    const nestedTool = canvasElement
-      .querySelector('[data-session-observation-id="tool-1"]')
       ?.closest("[data-session-observation-depth]");
     await expect(nestedGeneration).toHaveAttribute(
       "data-session-observation-depth",
@@ -2246,6 +2244,15 @@ export const ExpandNestedObservations = meta.story({
         "[data-session-observation-rail-depth]",
       ),
     ).toHaveLength(2);
+    const nestedToggle = canvas.getByRole("button", { name: "Show 3 tools" });
+
+    // Nested observations expand independently from their ancestors.
+    await userEvent.click(nestedToggle);
+
+    await expect(canvas.getByText("tool-1")).toBeInTheDocument();
+    const nestedTool = canvasElement
+      .querySelector('[data-session-observation-id="tool-1"]')
+      ?.closest("[data-session-observation-depth]");
     await expect(nestedTool).toHaveAttribute(
       "data-session-observation-depth",
       "2",
@@ -2254,7 +2261,6 @@ export const ExpandNestedObservations = meta.story({
     await expect(
       nestedTool?.querySelectorAll("[data-session-observation-rail-depth]"),
     ).toHaveLength(2);
-    const nestedToggle = canvas.getByRole("button", { name: "Hide 3 tools" });
     await expect(nestedToggle).toHaveStyle({ left: "7.5px" });
     await expect(nestedToggle).toHaveClass("top-[16px]");
 

@@ -456,13 +456,17 @@ function LoadedSessionConversationTimeline({
     () =>
       new Set(
         observations.flatMap(
-          ({ observation, phase, ancestorObservationIds }) =>
-            phase === "start" &&
-            ancestorObservationIds.length === 0 &&
-            (hasPreviewValue(observation.input) ||
-              hasPreviewValue(observation.output))
-              ? [observation.id]
-              : [],
+          ({ observation, phase, ancestorObservationIds }) => {
+            if (phase !== "start") return [];
+            if (ancestorObservationIds.length > 0) return [observation.id];
+            if (
+              hasPreviewValue(observation.input) ||
+              hasPreviewValue(observation.output)
+            ) {
+              return [observation.id];
+            }
+            return [];
+          },
         ),
       ),
   );
