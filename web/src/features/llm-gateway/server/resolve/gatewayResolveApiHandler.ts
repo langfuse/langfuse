@@ -1,6 +1,5 @@
-import { env } from "@/src/env.mjs";
-import { createEd25519JwtSigner } from "@/src/server/utils/jwt";
 import { prisma } from "@langfuse/shared/src/db";
+import { logger, traceException } from "@langfuse/shared/src/server";
 import type { NextApiRequest, NextApiResponse } from "next";
 
 import {
@@ -8,16 +7,6 @@ import {
   GatewayResolveResponseSchema,
 } from "@/src/features/llm-gateway/server/provider";
 import { GatewayResolveError, GatewayResolveService } from "./resolveService";
-
-const gatewayIngestionTokenSigner =
-  env.LANGFUSE_GATEWAY_JWT_PRIVATE_KEY && env.LANGFUSE_GATEWAY_JWT_PUBLIC_KEY
-    ? createEd25519JwtSigner({
-        privateKey: env.LANGFUSE_GATEWAY_JWT_PRIVATE_KEY,
-        keyId: env.LANGFUSE_GATEWAY_JWT_KEY_ID,
-        issuer: env.LANGFUSE_GATEWAY_JWT_ISSUER,
-        audience: env.LANGFUSE_GATEWAY_JWT_AUDIENCE,
-      })
-    : undefined;
 
 export async function gatewayResolveApiHandler({
   res,
@@ -30,17 +19,20 @@ export async function gatewayResolveApiHandler({
   apiFormat: GatewayApiFormat;
 }) {
   try {
-    const result = await new GatewayResolveService(prisma, {
-      jwtSigner: gatewayIngestionTokenSigner,
-    }).resolve({
+    const result = await new GatewayResolveService(prisma).resolve({
       fastHashedSecretKey,
       apiFormat,
     });
     return res.status(200).json(GatewayResolveResponseSchema.parse(result));
   } catch (error) {
     if (error instanceof GatewayResolveError) {
+      // The data plane retries a 503, so tell it when to come back rather than
+      // letting it hammer a database that is already struggling.
+      if (error.status === 503) res.setHeader("Retry-After", "1");
       return res.status(error.status).json({ error: error.message });
     }
+    logger.error("Unexpected error resolving gateway request", error);
+    traceException(error);
     return res.status(500).json({ error: "Internal server error" });
   }
 }

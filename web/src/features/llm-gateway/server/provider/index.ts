@@ -10,4 +10,5 @@ export {
   providerSupportsApiFormat,
   type GatewayApiFormat,
   type GatewayMetadata,
+  type GatewayProviderId,
 } from "./registry";

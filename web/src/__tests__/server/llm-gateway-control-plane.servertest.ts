@@ -31,10 +31,7 @@ import {
   GatewayModelCatalogService,
   GatewayProviderService,
 } from "@/src/features/llm-gateway/server/provider";
-import {
-  createEd25519JwtSigner,
-  createEd25519JwtVerifier,
-} from "@/src/server/utils/jwt";
+import { createEs256JwtVerifier } from "@/src/server/utils/jwt";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
 import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
@@ -63,10 +60,9 @@ const sessionProjectIds = async (email: string) => {
 
 const GatewayIngestionClaimsSchema = z.object({
   version: z.literal(1),
-  organizationId: z.string(),
-  projectId: z.string(),
-  keyId: z.string(),
-  instrumentation_mode: z.enum(["usage", "full"]),
+  organization_id: z.string(),
+  project_id: z.string(),
+  key_id: z.string(),
   scope: z.literal("gateway-ingest"),
   exp: z.number().int(),
   iss: z.string(),
@@ -552,54 +548,68 @@ describe("LLM gateway control plane", () => {
       metadata: {},
     });
 
-    const signingKeys = generateKeyPairSync("ed25519");
-    const apiFormat = "openai.chat-completions" as const;
-    const jwtSigner = createEd25519JwtSigner({
-      privateKey: signingKeys.privateKey
-        .export({ format: "pem", type: "pkcs8" })
-        .toString(),
-      keyId: "current",
-      issuer: "test-issuer",
-      audience: "test-audience",
-    });
-    const jwtVerifier = createEd25519JwtVerifier({
-      publicKeys: [
-        {
-          id: "current",
-          publicKey: signingKeys.publicKey
-            .export({ format: "pem", type: "spki" })
-            .toString(),
-        },
-      ],
-      issuer: "test-issuer",
-      audience: "test-audience",
-      claimsSchema: GatewayIngestionClaimsSchema,
-    });
-    const result = await new GatewayResolveService(prisma, {
-      jwtSigner,
-    }).resolve({
-      fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
-      apiFormat,
+    const originalJwtConfig = {
+      privateKey: env.LANGFUSE_GATEWAY_JWT_PRIVATE_KEY,
+      publicKey: env.LANGFUSE_GATEWAY_JWT_PUBLIC_KEY,
+      keyId: env.LANGFUSE_GATEWAY_JWT_KEY_ID,
+      issuer: env.LANGFUSE_GATEWAY_JWT_ISSUER,
+      audience: env.LANGFUSE_GATEWAY_JWT_AUDIENCE,
+    };
+    const signingKeys = generateKeyPairSync("ec", { namedCurve: "P-256" });
+    const privateKey = signingKeys.privateKey
+      .export({ format: "pem", type: "pkcs8" })
+      .toString();
+    const publicKey = signingKeys.publicKey
+      .export({ format: "pem", type: "spki" })
+      .toString();
+    Object.assign(env, {
+      LANGFUSE_GATEWAY_JWT_PRIVATE_KEY: privateKey,
+      LANGFUSE_GATEWAY_JWT_PUBLIC_KEY: publicKey,
+      LANGFUSE_GATEWAY_JWT_KEY_ID: "current",
+      LANGFUSE_GATEWAY_JWT_ISSUER: "test-issuer",
+      LANGFUSE_GATEWAY_JWT_AUDIENCE: "test-audience",
     });
 
-    expect(openRouter.routingPriority).toBe(0);
-    expect(result.connection).toEqual({
-      api_format: apiFormat,
-      base_url: "https://openrouter.ai/api/v1",
-      auth: { type: "Bearer", token: "sk-test-openrouter" },
-    });
-    const ingestionClaims = jwtVerifier.verify({
-      token: result.ingestion!.access_token,
-    });
-    expect(ingestionClaims).toMatchObject({
-      organizationId: org.id,
-      projectId: project.id,
-      keyId: gatewayKey.id,
-      instrumentation_mode: "full",
-    });
-    expect(result.ingestion?.expires_in).toBe(
-      ingestionClaims.exp - ingestionClaims.iat,
-    );
+    try {
+      const apiFormat = "openai.chat-completions" as const;
+      const jwtVerifier = createEs256JwtVerifier({
+        publicKeys: [{ id: "current", publicKey }],
+        issuer: "test-issuer",
+        audience: "test-audience",
+        claimsSchema: GatewayIngestionClaimsSchema,
+      });
+      const result = await new GatewayResolveService(prisma).resolve({
+        fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
+        apiFormat,
+      });
+
+      expect(openRouter.routingPriority).toBe(0);
+      expect(result.connection).toEqual({
+        id: openRouter.id,
+        provider: "openrouter",
+        api_format: apiFormat,
+        base_url: "https://openrouter.ai/api/v1",
+        auth: { type: "Bearer", token: "sk-test-openrouter" },
+      });
+      const ingestionClaims = jwtVerifier.verify({
+        token: result.ingestion!.access_token,
+      });
+      expect(ingestionClaims).toMatchObject({
+        organization_id: org.id,
+        project_id: project.id,
+        key_id: gatewayKey.id,
+      });
+      expect(result.instrumentation_mode).toBe("full");
+      expect(result.ingestion?.expires_at).toBe(ingestionClaims.exp);
+    } finally {
+      Object.assign(env, {
+        LANGFUSE_GATEWAY_JWT_PRIVATE_KEY: originalJwtConfig.privateKey,
+        LANGFUSE_GATEWAY_JWT_PUBLIC_KEY: originalJwtConfig.publicKey,
+        LANGFUSE_GATEWAY_JWT_KEY_ID: originalJwtConfig.keyId,
+        LANGFUSE_GATEWAY_JWT_ISSUER: originalJwtConfig.issuer,
+        LANGFUSE_GATEWAY_JWT_AUDIENCE: originalJwtConfig.audience,
+      });
+    }
   });
 
   it("changes ERROR only for credential auth failures and explicit recovery", async () => {
@@ -689,6 +699,205 @@ describe("LLM gateway control plane", () => {
         where: { orgId: org.id, action: "retry" },
       }),
     ).toBe(1);
+  });
+
+  it("keeps current access when an existing project becomes the ingestion project", async () => {
+    const owner = await prepare();
+    const existingMember = await prisma.user.create({
+      data: { email: `gateway-existing-${randomUUID()}@example.test` },
+    });
+    cleanupUsers.push(existingMember.id);
+    await prisma.organizationMembership.create({
+      data: {
+        orgId: owner.org.id,
+        userId: existingMember.id,
+        role: "MEMBER",
+      },
+    });
+
+    await owner.caller.llmGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      instrumentationMode: "USAGE",
+    });
+
+    // Choosing an existing project must not silently take it away from the
+    // people who already worked in it, so their inherited role is written out
+    // as an explicit membership.
+    await expect(sessionProjectIds(existingMember.email!)).resolves.toContain(
+      owner.project.id,
+    );
+    await expect(
+      prisma.projectMembership.findUnique({
+        where: {
+          projectId_userId: {
+            projectId: owner.project.id,
+            userId: existingMember.id,
+          },
+        },
+      }),
+    ).resolves.toMatchObject({ role: "MEMBER" });
+
+    // Only members who join afterwards are kept out.
+    const futureMember = await prisma.user.create({
+      data: { email: `gateway-later-${randomUUID()}@example.test` },
+    });
+    cleanupUsers.push(futureMember.id);
+    await prisma.organizationMembership.create({
+      data: { orgId: owner.org.id, userId: futureMember.id, role: "MEMBER" },
+    });
+    await expect(sessionProjectIds(futureMember.email!)).resolves.not.toContain(
+      owner.project.id,
+    );
+  });
+
+  it("keeps routing priorities contiguous through reorders and deletes", async () => {
+    const { caller, org } = await prepare();
+    const created = [];
+    for (const name of ["first", "second", "third"]) {
+      created.push(
+        await caller.llmGateway.createConnection({
+          orgId: org.id,
+          name,
+          provider: "OPENAI",
+          credential: `sk-${name}`,
+        }),
+      );
+    }
+    const priorities = async () =>
+      (
+        await prisma.gatewayAiConnection.findMany({
+          where: { organizationId: org.id },
+          select: { name: true, routingPriority: true },
+          orderBy: { routingPriority: "asc" },
+        })
+      ).map(({ name, routingPriority }) => [name, routingPriority]);
+
+    expect(await priorities()).toEqual([
+      ["first", 0],
+      ["second", 1],
+      ["third", 2],
+    ]);
+
+    // Reversing every row would violate the unique (organization_id,
+    // routing_priority) index if the writes were applied in place.
+    await caller.llmGateway.reorderConnections({
+      orgId: org.id,
+      connectionIds: [...created].reverse().map(({ id }) => id),
+    });
+    expect(await priorities()).toEqual([
+      ["third", 0],
+      ["second", 1],
+      ["first", 2],
+    ]);
+
+    // Two reorders racing on one organization must serialize rather than
+    // deadlock on rows locked in opposite orders.
+    await expect(
+      Promise.all([
+        caller.llmGateway.reorderConnections({
+          orgId: org.id,
+          connectionIds: created.map(({ id }) => id),
+        }),
+        caller.llmGateway.reorderConnections({
+          orgId: org.id,
+          connectionIds: [...created].reverse().map(({ id }) => id),
+        }),
+      ]),
+    ).resolves.toHaveLength(2);
+    expect((await priorities()).map(([, priority]) => priority)).toEqual([
+      0, 1, 2,
+    ]);
+
+    // Deleting from the middle must close the gap it leaves behind.
+    await caller.llmGateway.deleteConnection({
+      orgId: org.id,
+      id: created[1].id,
+    });
+    expect((await priorities()).map(([, priority]) => priority)).toEqual([
+      0, 1,
+    ]);
+
+    await expect(
+      caller.llmGateway.reorderConnections({
+        orgId: org.id,
+        connectionIds: [created[0].id],
+      }),
+    ).rejects.toThrow(
+      "Reorder must contain every organization gateway connection exactly once",
+    );
+    expect((await priorities()).map(([, priority]) => priority)).toEqual([
+      0, 1,
+    ]);
+  });
+
+  it("serves repeat resolves from cache and drops it when a connection changes", async () => {
+    const { caller, org, project } = await prepare();
+    await caller.llmGateway.updateConfig({
+      orgId: org.id,
+      defaultIngestionProjectId: project.id,
+      instrumentationMode: "NONE",
+    });
+    const connection = await caller.llmGateway.createConnection({
+      orgId: org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-test",
+    });
+    const key = await caller.llmGateway.createApiKey({
+      orgId: org.id,
+      metadata: {},
+    });
+    const resolveParams = {
+      fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
+      apiFormat: "openai.responses" as const,
+    };
+    const lookup = vi.spyOn(prisma.gatewayApiKeyAssociation, "findFirst");
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await expect(
+        new GatewayResolveService(prisma, {}).resolve(resolveParams),
+      ).resolves.toMatchObject({
+        connection: { auth: { type: "Bearer", token: "sk-test" } },
+      });
+    }
+    // The second call must not reach Postgres: this endpoint runs on every LLM
+    // request through the gateway.
+    expect(lookup).toHaveBeenCalledOnce();
+
+    // Disabling a connection has to take effect now, not when the TTL expires.
+    await caller.llmGateway.updateConnection({
+      orgId: org.id,
+      id: connection.id,
+      status: "DISABLED",
+    });
+    await expect(
+      new GatewayResolveService(prisma, {}).resolve(resolveParams),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<GatewayResolveError>>({ status: 404 }),
+    );
+    expect(lookup).toHaveBeenCalledTimes(2);
+    lookup.mockRestore();
+  });
+
+  it("negatively caches unknown gateway keys", async () => {
+    const resolveParams = {
+      fastHashedSecretKey: createShaHash(`sk-lf-${randomUUID()}`, env.SALT),
+      apiFormat: "openai.responses" as const,
+    };
+    const lookup = vi.spyOn(prisma.gatewayApiKeyAssociation, "findFirst");
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await expect(
+        new GatewayResolveService(prisma, {}).resolve(resolveParams),
+      ).rejects.toEqual(
+        expect.objectContaining<Partial<GatewayResolveError>>({ status: 401 }),
+      );
+    }
+    // Without a negative cache, a client looping on a bad key is an unmetered
+    // query generator against the primary.
+    expect(lookup).toHaveBeenCalledOnce();
+    lookup.mockRestore();
   });
 
   it("blocks resolve after the default ingestion project is deleted", async () => {
@@ -804,7 +1013,7 @@ describe("LLM gateway control plane", () => {
           has_more: false,
         });
       }
-      throw new Error(`Unexpected provider request: ${value}`);
+      throw new Error(`Unexpected provider request: ${String(url)}`);
     });
 
     const service = new GatewayModelsService(prisma, fetcher, null);

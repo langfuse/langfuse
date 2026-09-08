@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createEd25519JwtSigner } from "@/src/server/utils/jwt";
+import { createEs256JwtSigner } from "@/src/server/utils/jwt";
 import { UnauthorizedError } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 
@@ -8,11 +8,14 @@ import { verifyGatewayIngestionAuthorization } from "./ingestionTokenVerifier";
 
 const { privateKey, publicKey } = vi.hoisted(() => ({
   privateKey: `-----BEGIN PRIVATE KEY-----
-MC4CAQAwBQYDK2VwBCIEILrtV4AwkFG9CqtDazO99CkO5yxiOKHhCcfIWF3vvOSz
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgO9UaI+6vJ8r+i6e9
+Jq+IyijVtDDlhQm9po9oUWBL9aWhRANCAASKwbdc48K11rY2hLvCTdeKwqxyefeH
+jeV98Ug14YPox+zv3DAVejtbyJEsLK6lRzWuMiYUmR2zZD0Ow/bVHs7a
 -----END PRIVATE KEY-----
 `,
   publicKey: `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEANHNV5VqgO9My3bkWvHc6oXdsstmalnhjePUfq9Ao168=
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEisG3XOPCtda2NoS7wk3XisKscnn3
+h43lffFINeGD6Mfs79wwFXo7W8iRLCyupUc1rjImFJkds2Q9DsP21R7O2g==
 -----END PUBLIC KEY-----
 `,
 }));
@@ -29,7 +32,7 @@ vi.mock("@/src/env.mjs", () => ({
   },
 }));
 
-const signer = createEd25519JwtSigner({
+const signer = createEs256JwtSigner({
   privateKey,
   keyId: "current",
   issuer: "test-issuer",
@@ -41,9 +44,9 @@ function token(organizationId = "org-1") {
     expiresInSeconds: 60,
     claims: {
       version: 1,
-      organizationId,
-      projectId: "project-1",
-      keyId: "key-1",
+      organization_id: organizationId,
+      project_id: "project-1",
+      key_id: "key-1",
       instrumentation_mode: "full",
       scope: "gateway-ingest",
     },
@@ -79,6 +82,27 @@ function database(
     },
   } as unknown as PrismaClient;
 }
+
+describe("verifyGatewayIngestionAuthorization without signing keys", () => {
+  it("stays inert so the regular API-key verifier still sees the header", async () => {
+    // Every deployment that never enabled the gateway is in this state. If the
+    // verifier rejected here, any three-part bearer token would 401 before the
+    // normal auth path ever ran.
+    vi.resetModules();
+    vi.doMock("@/src/env.mjs", () => ({
+      env: { LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST: [] },
+    }));
+    const { verifyGatewayIngestionAuthorization: verifyWithoutKeys } =
+      await import("./ingestionTokenVerifier");
+
+    await expect(
+      verifyWithoutKeys(`Bearer ${token()}`, {} as unknown as PrismaClient),
+    ).resolves.toBeNull();
+
+    vi.doUnmock("@/src/env.mjs");
+    vi.resetModules();
+  });
+});
 
 describe("verifyGatewayIngestionAuthorization", () => {
   it("rejects tokens for organizations outside the allowlist", async () => {

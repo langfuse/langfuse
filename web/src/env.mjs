@@ -385,6 +385,15 @@ export const env = createEnv({
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("true"),
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(300),
 
+    // The gateway data plane calls /resolve on every LLM request, so the
+    // lookup is cached. The TTL bounds how long a revoked key or a disabled
+    // connection can still be used if explicit invalidation is missed.
+    LANGFUSE_CACHE_GATEWAY_RESOLVE_ENABLED: z
+      .enum(["true", "false"])
+      .default("true"),
+    LANGFUSE_CACHE_GATEWAY_RESOLVE_TTL_SECONDS: z.coerce.number().default(60),
+    LANGFUSE_GATEWAY_RESOLVE_TIMEOUT_MS: z.coerce.number().default(1000),
+
     // auth migration; self-host and default stay legacy
     API_AUTH_MIGRATION: z
       .enum(["legacy", "shadow", "enforce"])
@@ -1075,6 +1084,12 @@ export const env = createEnv({
     LANGFUSE_CACHE_API_KEY_ENABLED: process.env.LANGFUSE_CACHE_API_KEY_ENABLED,
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS:
       process.env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
+    LANGFUSE_CACHE_GATEWAY_RESOLVE_ENABLED:
+      process.env.LANGFUSE_CACHE_GATEWAY_RESOLVE_ENABLED,
+    LANGFUSE_CACHE_GATEWAY_RESOLVE_TTL_SECONDS:
+      process.env.LANGFUSE_CACHE_GATEWAY_RESOLVE_TTL_SECONDS,
+    LANGFUSE_GATEWAY_RESOLVE_TIMEOUT_MS:
+      process.env.LANGFUSE_GATEWAY_RESOLVE_TIMEOUT_MS,
     API_AUTH_MIGRATION: process.env.API_AUTH_MIGRATION,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,

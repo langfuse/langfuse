@@ -17,12 +17,12 @@ export type JwtRegisteredClaims = {
   jti: string;
 };
 
-type Ed25519JwtPublicKey = {
+type Es256JwtPublicKey = {
   id: string;
   publicKey: KeyObject;
 };
 
-export type Ed25519JwtSigner = {
+export type Es256JwtSigner = {
   sign<TClaims extends Record<string, unknown>>(input: {
     expiresInSeconds: number;
     claims: TClaims;
@@ -30,12 +30,14 @@ export type Ed25519JwtSigner = {
   }): string;
 };
 
-export type Ed25519JwtVerifier<TClaims extends JwtRegisteredClaims> = {
+export type Es256JwtVerifier<TClaims extends JwtRegisteredClaims> = {
   verify(input: { token: string; now?: Date }): TClaims;
 };
 
-const Ed25519JwtHeaderSchema = z.object({
-  alg: z.literal("EdDSA"),
+// ES256 uses ECDSA P-256 with SHA-256, an approved signature service in the
+// RHEL 9 OpenSSL FIPS provider: https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4857
+const Es256JwtHeaderSchema = z.object({
+  alg: z.literal("ES256"),
   typ: z.literal("JWT"),
   kid: z.string().min(1),
 });
@@ -56,25 +58,38 @@ function decodeJson(value: string): unknown {
   return JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
 }
 
+function assertP256Key(key: KeyObject): void {
+  if (
+    key.asymmetricKeyType !== "ec" ||
+    key.asymmetricKeyDetails?.namedCurve !== "prime256v1"
+  ) {
+    throw new Error("JWT signing keys must use the P-256 curve");
+  }
+}
+
 function parsePrivateKey(value: string): KeyObject {
-  return createPrivateKey(value.replaceAll("\\n", "\n"));
+  const key = createPrivateKey(value.replaceAll("\\n", "\n"));
+  assertP256Key(key);
+  return key;
 }
 
 function parsePublicKey(value: string): KeyObject {
-  return createPublicKey(value.replaceAll("\\n", "\n"));
+  const key = createPublicKey(value.replaceAll("\\n", "\n"));
+  assertP256Key(key);
+  return key;
 }
 
-export function createEd25519JwtSigner(input: {
+export function createEs256JwtSigner(input: {
   privateKey: string;
   keyId: string;
   issuer: string;
   audience: string;
-}): Ed25519JwtSigner {
+}): Es256JwtSigner {
   const privateKey = parsePrivateKey(input.privateKey);
 
   return {
     sign: (request) =>
-      signEd25519Jwt({
+      signEs256Jwt({
         ...request,
         privateKey,
         keyId: input.keyId,
@@ -84,14 +99,14 @@ export function createEd25519JwtSigner(input: {
   };
 }
 
-export function createEd25519JwtVerifier<
+export function createEs256JwtVerifier<
   TClaims extends JwtRegisteredClaims,
 >(input: {
   publicKeys: Array<{ id: string; publicKey: string }>;
   issuer: string;
   audience: string;
   claimsSchema: z.ZodType<TClaims>;
-}): Ed25519JwtVerifier<TClaims> {
+}): Es256JwtVerifier<TClaims> {
   const publicKeys = input.publicKeys.map((key) => ({
     id: key.id,
     publicKey: parsePublicKey(key.publicKey),
@@ -99,7 +114,7 @@ export function createEd25519JwtVerifier<
 
   return {
     verify: (request) =>
-      verifyEd25519Jwt({
+      verifyEs256Jwt({
         ...request,
         publicKeys,
         issuer: input.issuer,
@@ -109,7 +124,7 @@ export function createEd25519JwtVerifier<
   };
 }
 
-function signEd25519Jwt<TClaims extends Record<string, unknown>>(input: {
+function signEs256Jwt<TClaims extends Record<string, unknown>>(input: {
   privateKey: KeyObject;
   keyId: string;
   issuer: string;
@@ -120,7 +135,7 @@ function signEd25519Jwt<TClaims extends Record<string, unknown>>(input: {
 }): string {
   const issuedAt = Math.floor((input.now ?? new Date()).getTime() / 1000);
   const header = encodeJson({
-    alg: "EdDSA",
+    alg: "ES256",
     typ: "JWT",
     kid: input.keyId,
   });
@@ -133,20 +148,19 @@ function signEd25519Jwt<TClaims extends Record<string, unknown>>(input: {
     jti: randomUUID(),
   });
   const signingInput = `${header}.${payload}`;
-  const signature = sign(
-    null,
-    Buffer.from(signingInput, "utf8"),
-    input.privateKey,
-  ).toString("base64url");
+  const signature = sign("sha256", Buffer.from(signingInput, "utf8"), {
+    key: input.privateKey,
+    dsaEncoding: "ieee-p1363",
+  }).toString("base64url");
 
   return `${signingInput}.${signature}`;
 }
 
-function verifyEd25519Jwt<TClaims extends JwtRegisteredClaims>(input: {
+function verifyEs256Jwt<TClaims extends JwtRegisteredClaims>(input: {
   token: string;
   issuer: string;
   audience: string;
-  publicKeys: Ed25519JwtPublicKey[];
+  publicKeys: Es256JwtPublicKey[];
   claimsSchema: z.ZodType<TClaims>;
   now?: Date;
 }): TClaims {
@@ -154,14 +168,14 @@ function verifyEd25519Jwt<TClaims extends JwtRegisteredClaims>(input: {
   if (parts.length !== 3) throw new Error("Invalid JWT");
   const [encodedHeader, encodedPayload, encodedSignature] = parts;
 
-  const header = Ed25519JwtHeaderSchema.parse(decodeJson(encodedHeader));
+  const header = Es256JwtHeaderSchema.parse(decodeJson(encodedHeader));
   const key = input.publicKeys.find((candidate) => candidate.id === header.kid);
   if (!key) throw new Error("Unknown JWT signing key");
 
   const validSignature = verify(
-    null,
+    "sha256",
     Buffer.from(`${encodedHeader}.${encodedPayload}`, "utf8"),
-    key.publicKey,
+    { key: key.publicKey, dsaEncoding: "ieee-p1363" },
     Buffer.from(encodedSignature, "base64url"),
   );
   if (!validSignature) throw new Error("Invalid JWT signature");

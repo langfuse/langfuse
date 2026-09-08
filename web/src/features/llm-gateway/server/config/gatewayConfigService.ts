@@ -1,12 +1,14 @@
 import { InvalidRequestError } from "@langfuse/shared";
 import type {
   GatewayInstrumentationMode,
+  Prisma,
   PrismaClient,
 } from "@langfuse/shared/src/db";
 import { invalidateCachedOrgApiKeys } from "@langfuse/shared/src/server";
 
 import { auditLog } from "@/src/features/audit-logs/server";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
+import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/llm-gateway/server/resolve/gatewayResolveCache";
 import { GatewayConfigRepository } from "./gatewayConfigRepository";
 
 export class GatewayConfigService {
@@ -48,16 +50,14 @@ export class GatewayConfigService {
           );
         }
       }
-      result = {
-        config: await this.repository.upsertConfig({
-          organizationId: params.organizationId,
-          defaultIngestionProjectId: params.defaultIngestionProjectId,
-          instrumentationMode: params.instrumentationMode,
-        }),
-        project: null,
-      };
+      result = await this.upsertConfigForExistingProject({
+        organizationId: params.organizationId,
+        defaultIngestionProjectId: params.defaultIngestionProjectId,
+        instrumentationMode: params.instrumentationMode,
+      });
     }
 
+    await invalidateGatewayResolveCacheForOrganization(params.organizationId);
     await auditLog(
       {
         session: params.session,
@@ -83,6 +83,71 @@ export class GatewayConfigService {
       await invalidateCachedOrgApiKeys(params.organizationId);
     }
     return result;
+  }
+
+  /**
+   * Points the gateway at a project that already exists.
+   *
+   * The ingestion project is excluded from organization-role inheritance (see
+   * resolveProjectRole), so without this the setting would silently remove an
+   * existing project from everyone who reached it through their organization
+   * role. Current access is therefore written out as explicit memberships, and
+   * only members who join later are kept out.
+   */
+  private upsertConfigForExistingProject(params: {
+    organizationId: string;
+    defaultIngestionProjectId: string | null;
+    instrumentationMode: GatewayInstrumentationMode;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      if (params.defaultIngestionProjectId) {
+        await this.preserveInheritedProjectAccess({
+          tx,
+          organizationId: params.organizationId,
+          projectId: params.defaultIngestionProjectId,
+        });
+      }
+      const config = await tx.gatewayConfig.upsert({
+        where: { organizationId: params.organizationId },
+        create: params,
+        update: {
+          defaultIngestionProjectId: params.defaultIngestionProjectId,
+          instrumentationMode: params.instrumentationMode,
+        },
+      });
+      return { config, project: null };
+    });
+  }
+
+  private async preserveInheritedProjectAccess(params: {
+    tx: Prisma.TransactionClient;
+    organizationId: string;
+    projectId: string;
+  }) {
+    let membershipCursor: string | undefined;
+    do {
+      const memberships = await params.tx.organizationMembership.findMany({
+        where: { orgId: params.organizationId, role: { not: "NONE" } },
+        select: { id: true, userId: true, role: true },
+        orderBy: { id: "asc" },
+        take: 100,
+        ...(membershipCursor
+          ? { cursor: { id: membershipCursor }, skip: 1 }
+          : undefined),
+      });
+      await params.tx.projectMembership.createMany({
+        data: memberships.map((membership) => ({
+          projectId: params.projectId,
+          userId: membership.userId,
+          orgMembershipId: membership.id,
+          role: membership.role,
+        })),
+        // Members with an explicit role on this project already keep it.
+        skipDuplicates: true,
+      });
+      membershipCursor =
+        memberships.length === 100 ? memberships.at(-1)?.id : undefined;
+    } while (membershipCursor);
   }
 
   private createIngestionProjectAndUpsertConfig(params: {

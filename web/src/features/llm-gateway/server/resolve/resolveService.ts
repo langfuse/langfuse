@@ -4,123 +4,225 @@ import type {
   PrismaClient,
 } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
+import { instrumentAsync, recordIncrement } from "@langfuse/shared/src/server";
 
-import type { Ed25519JwtSigner } from "@/src/server/utils/jwt";
+import { env } from "@/src/env.mjs";
+import {
+  createEs256JwtSigner,
+  type Es256JwtSigner,
+} from "@/src/server/utils/jwt";
 
 import { GATEWAY_INGESTION_TOKEN_TTL_SECONDS } from "@/src/features/llm-gateway/server/auth/ingestionTokenVerifier";
 import { isGatewayEnabledForOrganization } from "@/src/features/llm-gateway/server/availability";
 import { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/llm-gateway/server/gatewayControlPlaneError";
 import {
   type GatewayApiFormat,
+  type GatewayMetadata,
+  type GatewayProviderId,
+  GatewayMetadataSchema,
   gatewayProviders,
   getGatewayProviderDefinition,
   providerSupportsApiFormat,
 } from "@/src/features/llm-gateway/server/provider";
+import {
+  type CachedResolveContext,
+  GATEWAY_RESOLVE_KEY_NON_EXISTENT,
+  GatewayResolveCache,
+} from "./gatewayResolveCache";
 import { GatewayResolveRepository } from "./gatewayResolveRepository";
 
 export { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/llm-gateway/server/gatewayControlPlaneError";
 
 type ResolveConfig = {
-  jwtSigner?: Ed25519JwtSigner;
+  cache?: GatewayResolveCache;
 };
+
+let cachedGatewayIngestionTokenSigner:
+  | {
+      privateKey: string;
+      keyId: string;
+      issuer: string;
+      audience: string;
+      signer: Es256JwtSigner;
+    }
+  | undefined;
+
+function getGatewayIngestionTokenSigner() {
+  const privateKey = env.LANGFUSE_GATEWAY_JWT_PRIVATE_KEY;
+  if (!privateKey || !env.LANGFUSE_GATEWAY_JWT_PUBLIC_KEY) return undefined;
+
+  const config = {
+    privateKey,
+    keyId: env.LANGFUSE_GATEWAY_JWT_KEY_ID,
+    issuer: env.LANGFUSE_GATEWAY_JWT_ISSUER,
+    audience: env.LANGFUSE_GATEWAY_JWT_AUDIENCE,
+  };
+  if (
+    !cachedGatewayIngestionTokenSigner ||
+    cachedGatewayIngestionTokenSigner.privateKey !== config.privateKey ||
+    cachedGatewayIngestionTokenSigner.keyId !== config.keyId ||
+    cachedGatewayIngestionTokenSigner.issuer !== config.issuer ||
+    cachedGatewayIngestionTokenSigner.audience !== config.audience
+  ) {
+    cachedGatewayIngestionTokenSigner = {
+      ...config,
+      signer: createEs256JwtSigner(config),
+    };
+  }
+  return cachedGatewayIngestionTokenSigner.signer;
+}
 
 export class GatewayResolveService {
   private readonly repository: GatewayResolveRepository;
+  private readonly cache: GatewayResolveCache;
 
   constructor(
     prisma: PrismaClient,
-    private readonly config: ResolveConfig,
+    private readonly config: ResolveConfig = {},
   ) {
     this.repository = new GatewayResolveRepository(prisma);
+    this.cache = config.cache ?? new GatewayResolveCache();
   }
 
   async resolve(params: {
     fastHashedSecretKey: string;
     apiFormat: GatewayApiFormat;
   }) {
-    const supportedProviders = gatewayProviders.filter((provider) =>
-      providerSupportsApiFormat(provider, params.apiFormat),
-    ) as GatewayProvider[];
-    const { organizationId, apiKeyId, keyMetadata, config, connection } =
-      await this.getResolveContext({
-        fastHashedSecretKey: params.fastHashedSecretKey,
-        providers: supportedProviders,
-      });
-    if (
-      !config?.defaultIngestionProjectId ||
-      !config.defaultIngestionProject ||
-      config.defaultIngestionProject.deletedAt ||
-      config.defaultIngestionProject.orgId !== organizationId
-    ) {
-      throw new GatewayResolveError(
-        "Gateway ingestion project is unavailable",
-        403,
+    return instrumentAsync({ name: "gateway-resolve" }, async (span) => {
+      const context = await this.getResolveContext(params);
+      span.setAttribute("langfuse.organization.id", context.organizationId);
+
+      if (!context.ingestionProjectId || !context.instrumentationMode) {
+        throw new GatewayResolveError(
+          "Gateway ingestion project is unavailable",
+          403,
+        );
+      }
+      if (!context.connection) {
+        throw new GatewayResolveError(
+          "No enabled gateway connection supports this API format",
+          404,
+        );
+      }
+
+      const provider = getGatewayProviderDefinition(
+        context.connection.provider,
       );
-    }
-
-    if (!connection) {
-      throw new GatewayResolveError(
-        "No enabled gateway connection supports this API format",
-        404,
-      );
-    }
-
-    const provider = getGatewayProviderDefinition(connection.provider);
-    const credential = decrypt(connection.encryptedCredential);
-    const response = {
-      connection: {
-        api_format: params.apiFormat,
-        base_url: provider.baseUrl,
-        auth:
-          provider.authType === "bearer"
-            ? ({ type: "Bearer", token: credential } as const)
-            : ({
-                type: "x-api-key",
-                header: "x-api-key",
-                value: credential,
-              } as const),
-      },
-      attribution: {
-        ...keyMetadata,
-        organization_id: organizationId,
-        project_id: config.defaultIngestionProjectId,
-        key_id: apiKeyId,
-      },
-      ingestion: this.createIngestionResponse({
-        mode: config.instrumentationMode,
-        organizationId,
-        projectId: config.defaultIngestionProjectId,
-        apiKeyId,
-      }),
-    };
-
-    return response;
+      const credential = decrypt(context.connection.encryptedCredential);
+      return {
+        version: 1 as const,
+        connection: {
+          id: context.connection.id,
+          provider:
+            context.connection.provider.toLowerCase() as GatewayProviderId,
+          api_format: params.apiFormat,
+          base_url: provider.baseUrl,
+          auth:
+            provider.authType === "bearer"
+              ? ({ type: "Bearer", token: credential } as const)
+              : ({
+                  type: "x-api-key",
+                  header: "x-api-key",
+                  value: credential,
+                } as const),
+        },
+        attribution: {
+          organization_id: context.organizationId,
+          project_id: context.ingestionProjectId,
+          key_id: context.apiKeyId,
+          key_metadata: context.keyMetadata,
+        },
+        instrumentation_mode: context.instrumentationMode.toLowerCase() as
+          | "usage"
+          | "full"
+          | "none",
+        ingestion: this.createIngestionResponse({
+          mode: context.instrumentationMode,
+          organizationId: context.organizationId,
+          projectId: context.ingestionProjectId,
+          apiKeyId: context.apiKeyId,
+        }),
+      };
+    });
   }
 
   private async getResolveContext(params: {
     fastHashedSecretKey: string;
-    providers: GatewayProvider[];
-  }) {
-    const context = await this.repository.resolveContext(params);
-    const organizationId = context?.apiKey.orgId;
-    const organization = context?.apiKey.organization;
-    if (!context || !organizationId || !organization) {
+    apiFormat: GatewayApiFormat;
+  }): Promise<CachedResolveContext> {
+    const cached = await this.cache.get(params);
+    if (cached === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
       throw new GatewayResolveError("Invalid gateway key", 401);
     }
-    if (!isGatewayEnabledForOrganization(organizationId)) {
+    const context = cached ?? (await this.loadAndCacheResolveContext(params));
+
+    // Re-checked on every request, cache hits included: an organization losing
+    // gateway access must take effect without waiting for the TTL.
+    if (!isGatewayEnabledForOrganization(context.organizationId)) {
       throw new GatewayResolveError(
         "Gateway is not enabled for this organization",
         403,
       );
     }
+    return context;
+  }
 
-    return {
+  private async loadAndCacheResolveContext(params: {
+    fastHashedSecretKey: string;
+    apiFormat: GatewayApiFormat;
+  }): Promise<CachedResolveContext> {
+    const supportedProviders = gatewayProviders.filter((provider) =>
+      providerSupportsApiFormat(provider, params.apiFormat),
+    ) as GatewayProvider[];
+
+    // This endpoint sits in front of every LLM call, so a slow or saturated
+    // database has to be shed as a retryable 503 rather than held open until
+    // the connection pool times out.
+    const row = await withTimeout(
+      this.repository.resolveContext({
+        fastHashedSecretKey: params.fastHashedSecretKey,
+        providers: supportedProviders,
+      }),
+      env.LANGFUSE_GATEWAY_RESOLVE_TIMEOUT_MS,
+    );
+
+    const organizationId = row?.apiKey.orgId;
+    const organization = row?.apiKey.organization;
+    if (!row || !organizationId || !organization) {
+      await this.cache.set({
+        ...params,
+        context: GATEWAY_RESOLVE_KEY_NON_EXISTENT,
+      });
+      throw new GatewayResolveError("Invalid gateway key", 401);
+    }
+
+    const gatewayConfig = organization.gatewayConfig;
+    const project = gatewayConfig?.defaultIngestionProject;
+    const projectIsUsable =
+      Boolean(project) &&
+      !project?.deletedAt &&
+      project?.orgId === organizationId;
+    const connection = organization.gatewayAiConnections[0];
+
+    const context: CachedResolveContext = {
       organizationId,
-      apiKeyId: context.apiKeyId,
-      keyMetadata: toKeyMetadata(context.metadata),
-      config: organization.gatewayConfig,
-      connection: organization.gatewayAiConnections[0],
+      apiKeyId: row.apiKeyId,
+      keyMetadata: toKeyMetadata(row.metadata),
+      ingestionProjectId: projectIsUsable
+        ? (gatewayConfig?.defaultIngestionProjectId ?? null)
+        : null,
+      instrumentationMode: gatewayConfig?.instrumentationMode ?? null,
+      connection: connection
+        ? {
+            id: connection.id,
+            provider: connection.provider,
+            encryptedCredential: connection.encryptedCredential,
+          }
+        : null,
     };
+
+    await this.cache.set({ ...params, context });
+    return context;
   }
 
   private createIngestionResponse(params: {
@@ -130,34 +232,55 @@ export class GatewayResolveService {
     apiKeyId: string;
   }) {
     if (params.mode === "NONE") return undefined;
-    if (!this.config.jwtSigner) {
+    const signer = getGatewayIngestionTokenSigner();
+    if (!signer) {
       throw new GatewayResolveError(
         "Gateway ingestion signing is not configured",
         503,
       );
     }
     return {
-      access_token: this.config.jwtSigner.sign({
+      access_token: signer.sign({
         expiresInSeconds: GATEWAY_INGESTION_TOKEN_TTL_SECONDS,
         claims: {
           version: 1,
-          organizationId: params.organizationId,
-          projectId: params.projectId,
-          keyId: params.apiKeyId,
+          organization_id: params.organizationId,
+          project_id: params.projectId,
+          key_id: params.apiKeyId,
           instrumentation_mode: params.mode.toLowerCase() as "usage" | "full",
           scope: "gateway-ingest",
         },
       }),
       token_type: "Bearer" as const,
-      expires_in: GATEWAY_INGESTION_TOKEN_TTL_SECONDS,
+      expires_at:
+        Math.floor(Date.now() / 1000) + GATEWAY_INGESTION_TOKEN_TTL_SECONDS,
     };
   }
 }
 
 // The column is JSON, so a key written before validation existed can hold a
-// scalar or an array. Only an object shape can be attributed per event.
-function toKeyMetadata(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
+// scalar, an array, or nested objects. Only a flat object of scalars can be
+// attributed per event.
+function toKeyMetadata(value: unknown): GatewayMetadata {
+  const parsed = GatewayMetadataSchema.safeParse(value);
+  return parsed.success ? parsed.data : {};
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          recordIncrement("langfuse.gateway.resolve.timeout", 1);
+          reject(
+            new GatewayResolveError("Gateway is temporarily unavailable", 503),
+          );
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }

@@ -9,6 +9,7 @@ import type { Cluster, Redis } from "ioredis";
 import { auditLog } from "@/src/features/audit-logs/server";
 import type { GatewayMetadata } from "@/src/features/llm-gateway/server/provider";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
+import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/llm-gateway/server/resolve/gatewayResolveCache";
 import { GatewayApiKeyRepository } from "./gatewayApiKeyRepository";
 
 export class GatewayApiKeyService {
@@ -75,6 +76,15 @@ export class GatewayApiKeyService {
     if (!association) {
       throw new LangfuseNotFoundError("Gateway API key not found");
     }
+    // Read the hash before the row is gone; it is the resolve cache key.
+    const revoked = await this.prisma.apiKey.findFirst({
+      where: {
+        id: params.apiKeyId,
+        orgId: params.organizationId,
+        scope: "ORGANIZATION",
+      },
+      select: { fastHashedSecretKey: true },
+    });
     const deleted = await deleteApiKeyFromDb({
       prisma: this.prisma,
       id: params.apiKeyId,
@@ -84,6 +94,9 @@ export class GatewayApiKeyService {
     });
     if (!deleted) {
       throw new InternalServerError("Failed to revoke gateway API key");
+    }
+    if (revoked?.fastHashedSecretKey) {
+      await invalidateGatewayResolveCacheForApiKey(revoked.fastHashedSecretKey);
     }
     await auditLog(
       {

@@ -135,7 +135,7 @@ async function main() {
   // Realistic support chat scenario
   await createSupportChatSession(project1);
 
-  await prisma.organizationMembership.upsert({
+  const orgMembership = await prisma.organizationMembership.upsert({
     where: {
       orgId_userId: {
         userId: user.id,
@@ -185,8 +185,8 @@ async function main() {
 
   await seedLlmGateway({
     organizationId: seedOrgId,
-    projectId: seedProjectId,
     userId: user.id,
+    orgMembershipId: orgMembership.id,
   });
 
   const summaryPrompt = await prisma.prompt.upsert({
@@ -518,18 +518,49 @@ main()
 
 async function seedLlmGateway(params: {
   organizationId: string;
-  projectId: string;
   userId: string;
+  orgMembershipId: string;
 }) {
+  // The gateway gets its own project rather than the shared seed project.
+  // Organization members do not inherit access to the ingestion project (see
+  // resolveProjectRole), so pointing the config at the seed project would take
+  // that project away from every seeded user.
+  const ingestionProjectId = "c2ba9dcb-1f39-4f2f-a4e6-1f0b6a8f5c11";
+  await prisma.project.upsert({
+    where: { id: ingestionProjectId },
+    create: {
+      id: ingestionProjectId,
+      name: "LLM Gateway Ingestion",
+      orgId: params.organizationId,
+    },
+    update: { orgId: params.organizationId },
+  });
+  // Mirrors what the control plane writes when it creates the project: the
+  // creator keeps an explicit role so the project stays reachable in the UI.
+  await prisma.projectMembership.upsert({
+    where: {
+      projectId_userId: {
+        projectId: ingestionProjectId,
+        userId: params.userId,
+      },
+    },
+    create: {
+      projectId: ingestionProjectId,
+      userId: params.userId,
+      orgMembershipId: params.orgMembershipId,
+      role: "OWNER",
+    },
+    update: { orgMembershipId: params.orgMembershipId },
+  });
   await prisma.gatewayConfig.upsert({
     where: { organizationId: params.organizationId },
     create: {
       organizationId: params.organizationId,
-      defaultIngestionProjectId: params.projectId,
+      defaultIngestionProjectId: ingestionProjectId,
       instrumentationMode: "USAGE",
     },
     update: {
-      defaultIngestionProjectId: params.projectId,
+      defaultIngestionProjectId: ingestionProjectId,
     },
   });
 

@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 
 import {
-  createEd25519JwtSigner,
-  createEd25519JwtVerifier,
+  createEs256JwtSigner,
+  createEs256JwtVerifier,
   type JwtRegisteredClaims,
 } from "@/src/server/utils/jwt";
 
@@ -22,7 +22,9 @@ const TestClaimsSchema = z.object({
 type TestClaims = z.infer<typeof TestClaimsSchema> & JwtRegisteredClaims;
 
 function generatePemKeyPair() {
-  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+  const { privateKey, publicKey } = generateKeyPairSync("ec", {
+    namedCurve: "P-256",
+  });
   return {
     privateKey: privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
     publicKey: publicKey.export({ format: "pem", type: "spki" }).toString(),
@@ -38,7 +40,7 @@ function signToken(input: {
   issuer?: string;
   audience?: string;
 }) {
-  return createEd25519JwtSigner({
+  return createEs256JwtSigner({
     privateKey: input.privateKey,
     keyId: input.keyId,
     issuer: input.issuer ?? "test-issuer",
@@ -59,7 +61,7 @@ function verifyToken(
     now: Date;
   }> = {},
 ): TestClaims {
-  return createEd25519JwtVerifier({
+  return createEs256JwtVerifier({
     publicKeys,
     claimsSchema: TestClaimsSchema,
     issuer: overrides.issuer ?? "test-issuer",
@@ -70,16 +72,43 @@ function verifyToken(
   });
 }
 
-describe("Ed25519 JWT utilities", () => {
+describe("ES256 JWT utilities", () => {
+  it("emits the JWS ES256 header and fixed-width signature", () => {
+    const key = generatePemKeyPair();
+    const token = signToken({ ...key, keyId: "current" });
+    const [encodedHeader, , encodedSignature] = token.split(".");
+
+    expect(
+      JSON.parse(Buffer.from(encodedHeader, "base64url").toString("utf8")),
+    ).toEqual({ alg: "ES256", typ: "JWT", kid: "current" });
+    expect(Buffer.from(encodedSignature, "base64url")).toHaveLength(64);
+  });
+
+  it("rejects signing keys on other EC curves", () => {
+    const { privateKey } = generateKeyPairSync("ec", {
+      namedCurve: "P-384",
+    });
+    const pem = privateKey.export({ format: "pem", type: "pkcs8" }).toString();
+
+    expect(() =>
+      createEs256JwtSigner({
+        privateKey: pem,
+        keyId: "current",
+        issuer: "test-issuer",
+        audience: "test-audience",
+      }),
+    ).toThrow("JWT signing keys must use the P-256 curve");
+  });
+
   it("reuses constructed signer and verifier keys across operations", () => {
     const key = generatePemKeyPair();
-    const signer = createEd25519JwtSigner({
+    const signer = createEs256JwtSigner({
       privateKey: key.privateKey.replaceAll("\n", "\\n"),
       keyId: "current",
       issuer: "test-issuer",
       audience: "test-audience",
     });
-    const verifier = createEd25519JwtVerifier({
+    const verifier = createEs256JwtVerifier({
       publicKeys: [
         {
           id: "current",

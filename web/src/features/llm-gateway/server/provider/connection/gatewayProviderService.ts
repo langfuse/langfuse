@@ -14,6 +14,7 @@ import {
   type GatewayProviderName,
   getGatewayProviderDefinition,
 } from "@/src/features/llm-gateway/server/provider/registry";
+import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/llm-gateway/server/resolve/gatewayResolveCache";
 import { GatewayProviderRepository } from "./gatewayProviderRepository";
 import { GatewayModelCatalogService } from "../models/gatewayModelCatalogService";
 
@@ -76,6 +77,7 @@ export class GatewayProviderService {
       createdById: params.session.user.id,
       status: "ENABLED",
     });
+    await invalidateGatewayResolveCacheForOrganization(params.organizationId);
     await auditLog(
       {
         session: params.session,
@@ -134,6 +136,7 @@ export class GatewayProviderService {
       params.organizationId,
       params.id,
     );
+    await invalidateGatewayResolveCacheForOrganization(params.organizationId);
     await auditLog(
       {
         session: params.session,
@@ -153,16 +156,17 @@ export class GatewayProviderService {
     id: string;
     session: OrgAuthedContext["session"];
   }) {
-    const deleted = await this.repository.deleteConnection(params);
+    // Only the two identifiers, never the whole params object: the extra
+    // `session` field would land in the Prisma `where` and fail validation.
+    const deleted = await this.repository.deleteConnection({
+      organizationId: params.organizationId,
+      id: params.id,
+    });
     await this.modelCatalogService.clearModelCache(
       params.organizationId,
       params.id,
     );
-    const remaining = await this.listAll(params.organizationId);
-    await this.repository.reorderConnections({
-      organizationId: params.organizationId,
-      connectionIds: remaining.map((connection) => connection.id),
-    });
+    await invalidateGatewayResolveCacheForOrganization(params.organizationId);
     await auditLog(
       {
         session: params.session,
@@ -193,8 +197,12 @@ export class GatewayProviderService {
         "Reorder must contain every organization gateway connection exactly once",
       );
     }
-    await this.repository.reorderConnections(params);
+    await this.repository.reorderConnections({
+      organizationId: params.organizationId,
+      connectionIds: params.connectionIds,
+    });
     const reordered = await this.listAll(params.organizationId);
+    await invalidateGatewayResolveCacheForOrganization(params.organizationId);
     await auditLog(
       {
         session: params.session,

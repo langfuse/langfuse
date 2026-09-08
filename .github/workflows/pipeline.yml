@@ -1305,7 +1305,7 @@ jobs:
         run: cp .env.dev.example .env
       - name: Configure gateway signing
         run: |
-          openssl genpkey -algorithm Ed25519 -out /tmp/gateway-jwt-private.pem
+          openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out /tmp/gateway-jwt-private.pem
           openssl pkey -in /tmp/gateway-jwt-private.pem -pubout -out /tmp/gateway-jwt-public.pem
           delimiter="GATEWAY_KEY_$(openssl rand -hex 12)"
           {

@@ -1,7 +1,4 @@
-import type {
-  GatewayInstrumentationMode,
-  PrismaClient,
-} from "@langfuse/shared/src/db";
+import type { PrismaClient } from "@langfuse/shared/src/db";
 
 export class GatewayConfigRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -28,21 +25,6 @@ export class GatewayConfigRepository {
         deletedAt: null,
       },
       select: { id: true },
-    });
-  }
-
-  upsertConfig(params: {
-    organizationId: string;
-    defaultIngestionProjectId: string | null;
-    instrumentationMode: GatewayInstrumentationMode;
-  }) {
-    return this.prisma.gatewayConfig.upsert({
-      where: { organizationId: params.organizationId },
-      create: params,
-      update: {
-        defaultIngestionProjectId: params.defaultIngestionProjectId,
-        instrumentationMode: params.instrumentationMode,
-      },
     });
   }
 }

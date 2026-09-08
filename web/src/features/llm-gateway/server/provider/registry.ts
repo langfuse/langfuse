@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-const gatewayApiFormats = [
+export const gatewayApiFormats = [
   "openai.responses",
   "openai.chat-completions",
   "anthropic.messages",
@@ -12,10 +12,20 @@ export type GatewayApiFormat = (typeof gatewayApiFormats)[number];
 export type GatewayProviderName = (typeof gatewayProviders)[number];
 
 export const GatewayApiFormatSchema = z.enum(gatewayApiFormats);
+const metadataValueSchema = z.union([z.string(), z.number(), z.boolean()]);
+export const GatewayMetadataSchema = z.record(z.string(), metadataValueSchema);
+export type GatewayMetadata = z.infer<typeof GatewayMetadataSchema>;
+
+const gatewayProviderIds = ["openai", "anthropic", "openrouter"] as const;
+export type GatewayProviderId = (typeof gatewayProviderIds)[number];
+
 export const GatewayResolveResponseSchema = z
   .object({
+    version: z.literal(1),
     connection: z
       .object({
+        id: z.string(),
+        provider: z.enum(gatewayProviderIds),
         api_format: GatewayApiFormatSchema,
         base_url: z.url(),
         auth: z.union([
@@ -30,18 +40,20 @@ export const GatewayResolveResponseSchema = z
         ]),
       })
       .strict(),
-    // Key metadata is flattened alongside the trusted identifiers, so a
-    // metadata key that collides with one of them is dropped on the way out.
-    attribution: z.looseObject({
-      organization_id: z.string(),
-      project_id: z.string(),
-      key_id: z.string(),
-    }),
+    attribution: z
+      .object({
+        organization_id: z.string(),
+        project_id: z.string(),
+        key_id: z.string(),
+        key_metadata: GatewayMetadataSchema,
+      })
+      .strict(),
+    instrumentation_mode: z.enum(["usage", "full", "none"]),
     ingestion: z
       .object({
         access_token: z.string(),
         token_type: z.literal("Bearer"),
-        expires_in: z.number().int().positive(),
+        expires_at: z.number().int().positive(),
       })
       .strict()
       .optional(),
@@ -90,10 +102,6 @@ export const GatewayModelsResponseSchema = z.union([
   OpenAiGatewayModelsResponseSchema,
   AnthropicGatewayModelsResponseSchema,
 ]);
-
-const metadataValueSchema = z.union([z.string(), z.number(), z.boolean()]);
-export const GatewayMetadataSchema = z.record(z.string(), metadataValueSchema);
-export type GatewayMetadata = z.infer<typeof GatewayMetadataSchema>;
 
 type ProviderDefinition = {
   baseUrl: string;

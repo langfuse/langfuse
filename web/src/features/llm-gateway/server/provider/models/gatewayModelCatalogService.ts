@@ -8,6 +8,7 @@ import { redis as defaultRedis } from "@langfuse/shared/src/server";
 import type { Cluster, Redis } from "ioredis";
 
 import { auditLog } from "@/src/features/audit-logs/server";
+import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/llm-gateway/server/resolve/gatewayResolveCache";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import {
   type GatewayProviderName,
@@ -207,6 +208,11 @@ export class GatewayModelCatalogService {
           id: connection.id,
           status: "ERROR",
         });
+        // A connection that just failed authorization must stop being handed
+        // to the data plane.
+        await invalidateGatewayResolveCacheForOrganization(
+          params.organizationId,
+        );
       }
       return {
         connectionId: connection.id,
@@ -225,6 +231,7 @@ export class GatewayModelCatalogService {
         id: connection.id,
         status: "ENABLED",
       });
+      await invalidateGatewayResolveCacheForOrganization(params.organizationId);
     }
     return {
       connectionId: connection.id,

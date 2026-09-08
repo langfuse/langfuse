@@ -6,7 +6,7 @@ import type { AuthHeaderValidVerificationResult } from "@langfuse/shared/src/ser
 import { z } from "zod/v4";
 
 import {
-  createEd25519JwtVerifier,
+  createEs256JwtVerifier,
   type JwtRegisteredClaims,
 } from "@/src/server/utils/jwt";
 import { requireGatewayEnabledForOrganization } from "../availability";
@@ -15,9 +15,9 @@ export const GATEWAY_INGESTION_TOKEN_TTL_SECONDS = 15 * 60;
 
 const GatewayIngestionClaimsSchema = z.object({
   version: z.literal(1),
-  organizationId: z.string(),
-  projectId: z.string(),
-  keyId: z.string(),
+  organization_id: z.string(),
+  project_id: z.string(),
+  key_id: z.string(),
   instrumentation_mode: z.enum(["usage", "full"]),
   scope: z.literal("gateway-ingest"),
   exp: z.number().int(),
@@ -52,7 +52,7 @@ const gatewayIngestionTokenVerifier = (() => {
   ];
 
   return publicKeys.length > 0
-    ? createEd25519JwtVerifier({
+    ? createEs256JwtVerifier({
         issuer: env.LANGFUSE_GATEWAY_JWT_ISSUER,
         audience: env.LANGFUSE_GATEWAY_JWT_AUDIENCE,
         publicKeys,
@@ -76,22 +76,23 @@ export async function verifyGatewayIngestionAuthorization(
   if (scheme !== "Bearer" || !token || additionalParts.length > 0) return null;
   if (token.split(".").length !== 3) return null;
 
+  // On a deployment without gateway signing keys this path is inert: fall
+  // through so the regular API-key verifier still gets to see the header.
+  if (!gatewayIngestionTokenVerifier) return null;
+
   let claims: GatewayIngestionClaims;
   try {
-    if (!gatewayIngestionTokenVerifier) {
-      throw new Error("Gateway ingestion verification is not configured");
-    }
     claims = gatewayIngestionTokenVerifier.verify({ token });
   } catch {
     throw new UnauthorizedError("Invalid gateway ingestion token");
   }
-  requireGatewayEnabledForOrganization(claims.organizationId);
+  requireGatewayEnabledForOrganization(claims.organization_id);
 
   const [project, gatewayKey] = await Promise.all([
     database.project.findFirst({
       where: {
-        id: claims.projectId,
-        orgId: claims.organizationId,
+        id: claims.project_id,
+        orgId: claims.organization_id,
         deletedAt: null,
       },
       select: {
@@ -109,9 +110,9 @@ export async function verifyGatewayIngestionAuthorization(
     // key revokes already-issued ingestion tokens and preserves org tenancy.
     database.gatewayApiKeyAssociation.findFirst({
       where: {
-        apiKeyId: claims.keyId,
+        apiKeyId: claims.key_id,
         apiKey: {
-          orgId: claims.organizationId,
+          orgId: claims.organization_id,
         },
       },
       select: { apiKeyId: true },
@@ -139,8 +140,8 @@ export async function verifyGatewayIngestionAuthorization(
       orgId: project.organization.id,
       plan: getOrganizationPlanServerSide(cloudConfig),
       rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
-      apiKeyId: claims.keyId,
-      publicKey: `gateway:${claims.keyId}`,
+      apiKeyId: claims.key_id,
+      publicKey: `gateway:${claims.key_id}`,
       isIngestionSuspended:
         project.organization.cloudFreeTierUsageThresholdState === "BLOCKED",
       isInAppAgentKey: false,

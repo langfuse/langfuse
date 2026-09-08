@@ -200,7 +200,8 @@ export const llmGatewayRouter = createTRPCRouter({
       });
     }),
 
-  createApiKey: protectedOrganizationProcedure
+  // Returns the plaintext secret key once, so the procedure must not be traced.
+  createApiKey: protectedOrganizationProcedureWithoutTracing
     .input(
       organizationInput.extend({
         note: z.string().max(500).optional(),

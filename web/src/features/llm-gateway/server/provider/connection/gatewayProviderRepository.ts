@@ -107,10 +107,28 @@ export class GatewayProviderRepository {
     });
   }
 
+  /**
+   * Deletes a connection and closes the gap it leaves in the routing order in
+   * one transaction. Splitting the two lets a concurrent delete compact
+   * against rows that no longer exist, which abandons the gap.
+   */
   deleteConnection(params: { organizationId: string; id: string }) {
-    return this.prisma.gatewayAiConnection.delete({
-      where: params,
-      select: safeConnectionSelect,
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockOrganization(tx, params.organizationId);
+      const deleted = await tx.gatewayAiConnection.delete({
+        where: { id: params.id, organizationId: params.organizationId },
+        select: safeConnectionSelect,
+      });
+      const remaining = await tx.gatewayAiConnection.findMany({
+        where: { organizationId: params.organizationId },
+        select: { id: true },
+        orderBy: [{ routingPriority: "asc" }, { id: "asc" }],
+      });
+      await this.writePriorities(tx, {
+        organizationId: params.organizationId,
+        connectionIds: remaining.map((connection) => connection.id),
+      });
+      return deleted;
     });
   }
 
@@ -119,21 +137,41 @@ export class GatewayProviderRepository {
     connectionIds: string[];
   }): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      for (const [index, id] of params.connectionIds.entries()) {
-        await this.updatePriority(tx, {
-          organizationId: params.organizationId,
-          id,
-          routingPriority: -(index + 1),
-        });
-      }
-      for (const [index, id] of params.connectionIds.entries()) {
-        await this.updatePriority(tx, {
-          organizationId: params.organizationId,
-          id,
-          routingPriority: index,
-        });
-      }
+      // Rows are locked in caller-supplied order, so two concurrent reorders
+      // of one organization deadlock unless they serialize on the same key
+      // createConnection uses.
+      await this.lockOrganization(tx, params.organizationId);
+      await this.writePriorities(tx, params);
     });
+  }
+
+  private lockOrganization(tx: DatabaseClient, organizationId: string) {
+    return tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${organizationId}))`;
+  }
+
+  /**
+   * Assigns priorities 0..n in list order. Written in two passes through
+   * negative values because (organization_id, routing_priority) uniqueness is
+   * enforced by an index, which Postgres cannot defer to commit time.
+   */
+  private async writePriorities(
+    tx: DatabaseClient,
+    params: { organizationId: string; connectionIds: string[] },
+  ) {
+    for (const [index, id] of params.connectionIds.entries()) {
+      await this.updatePriority(tx, {
+        organizationId: params.organizationId,
+        id,
+        routingPriority: -(index + 1),
+      });
+    }
+    for (const [index, id] of params.connectionIds.entries()) {
+      await this.updatePriority(tx, {
+        organizationId: params.organizationId,
+        id,
+        routingPriority: index,
+      });
+    }
   }
 
   updateConnectionStatus(params: {
