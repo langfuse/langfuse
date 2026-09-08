@@ -209,6 +209,7 @@ describe("organization feature preview defaults", () => {
       // here. Asserting that two REGISTERED defaults resolve differently needs
       // a second preview; add that half back with the next one.
       modernSession: false,
+      normalizedIoPreview: false,
     });
   });
 
@@ -439,7 +440,10 @@ describe("organization member feature preview overrides", () => {
 
     // The state map surfaces every preview; the raw `featureFlags` array stays
     // hidden, which is what this guards.
-    expect(row?.featurePreviews).toEqual({ modernSession: true });
+    expect(row?.featurePreviews).toEqual({
+      modernSession: true,
+      normalizedIoPreview: false,
+    });
     expect(row?.user).not.toHaveProperty("featureFlags");
     expect(row).not.toHaveProperty("organizationIds");
   });

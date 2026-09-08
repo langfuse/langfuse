@@ -33,8 +33,8 @@ export const CLICKHOUSE_RESOURCE_ERROR_OUTCOMES = {
 } as const satisfies Record<string, ClickHouseQueryOutcome>;
 
 /**
- * Routes whose outcomes are reported under their own `route` tag. Everything
- * else is counted under `other`.
+ * REST routes whose outcomes are reported under their own `route` tag.
+ * Everything else is counted under `other`.
  *
  * `route` on the query tags is derived from the request path, so it carries
  * caller-controlled segments (trace ids, prompt names) and is unbounded. Metric
@@ -46,6 +46,14 @@ const LABELLED_ROUTES = new Set([
   "GET /api/public/v2/metrics",
   "GET /api/public/v3/scores",
 ]);
+
+/**
+ * Non-REST routes matched verbatim: tRPC procedure paths (`events.all`) and MCP
+ * tool names (`listObservations`) are code-defined and already bounded, so they
+ * do not need the method/path parsing REST routes get. Add one when it gains an
+ * SLO or drives a meaningful share of timeouts.
+ */
+const LABELLED_BARE_ROUTES = new Set(["events.all", "listObservations"]);
 
 const OTHER_ROUTE_LABEL = "other";
 
@@ -60,7 +68,9 @@ export function clickHouseQueryOutcomeRouteLabel(route?: string): string {
 
   const collapsed = route.trim();
   const separatorIndex = collapsed.indexOf(" ");
-  if (separatorIndex === -1) return OTHER_ROUTE_LABEL;
+  if (separatorIndex === -1) {
+    return LABELLED_BARE_ROUTES.has(collapsed) ? collapsed : OTHER_ROUTE_LABEL;
+  }
 
   const method = collapsed.slice(0, separatorIndex);
   const path = collapsed.slice(separatorIndex + 1);
@@ -74,13 +84,55 @@ export function clickHouseQueryOutcomeRouteLabel(route?: string): string {
   return `${method.toLowerCase()}_${normalizedPath}`;
 }
 
+/**
+ * Bounded table label so timeouts can be isolated to the table under load — the
+ * events read path (`events_full`/`events_core`) is the current driver, and the
+ * counter is blind to it without this tag.
+ */
+export type ClickHouseQueryTable =
+  | "events_full"
+  | "events_core"
+  | "traces"
+  | "observations"
+  | "scores"
+  | "other";
+
+/**
+ * Derived from the query text because threading a table through every call site
+ * is impractical. Anchored to the `FROM` table (with an optional `db.` prefix)
+ * so a lightweight join partner never outranks the table under load — the Scores
+ * UI reads `FROM scores ... LEFT JOIN traces`, and a bare `traces` scan would
+ * otherwise steal the label. Still best-effort: a subquery/CTE reading a
+ * different table in its own `FROM` can win by priority order (first match
+ * wins). The events read path is single-table (`FROM events_full`/`events_core`,
+ * no v3 joins), so those labels are reliable.
+ */
+const TABLE_LABEL_PATTERNS: ReadonlyArray<[ClickHouseQueryTable, RegExp]> = [
+  ["events_full", /\bfrom\s+(?:\w+\.)?events_full\b/i],
+  ["events_core", /\bfrom\s+(?:\w+\.)?events_core\b/i],
+  ["observations", /\bfrom\s+(?:\w+\.)?observations\b/i],
+  ["traces", /\bfrom\s+(?:\w+\.)?traces\b/i],
+  ["scores", /\bfrom\s+(?:\w+\.)?scores\b/i],
+];
+
+const OTHER_TABLE_LABEL = "other" as const;
+
+export function clickHouseQueryTableLabel(query: string): ClickHouseQueryTable {
+  for (const [label, pattern] of TABLE_LABEL_PATTERNS) {
+    if (pattern.test(query)) return label;
+  }
+  return OTHER_TABLE_LABEL;
+}
+
 export function recordClickHouseQueryOutcome(
   outcome: ClickHouseQueryOutcome,
   tags: NormalizedClickHouseQueryTags,
+  table: ClickHouseQueryTable,
 ): void {
   recordIncrement(CLICKHOUSE_QUERY_OUTCOME_METRIC, 1, {
     outcome,
     surface: tags.surface,
     route: clickHouseQueryOutcomeRouteLabel(tags.route),
+    table,
   });
 }
