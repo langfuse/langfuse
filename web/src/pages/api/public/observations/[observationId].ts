@@ -31,17 +31,23 @@ export default withMiddlewares(
       rejectInEventsOnlyMode: true,
       deprecation: OBSERVATIONS_V1_DEPRECATION,
       fn: async ({ query, auth }) => {
+        const startTime = query.startTime
+          ? new Date(query.startTime)
+          : undefined;
+
         const clickhouseObservation = query.useEventsTable
           ? await getObservationByIdFromEventsTable({
               id: query.observationId,
               projectId: auth.scope.projectId,
               fetchWithInputOutput: true,
+              startTime,
             })
           : // eslint-disable-next-line @typescript-eslint/no-deprecated
             await getObservationById({
               id: query.observationId,
               projectId: auth.scope.projectId,
               fetchWithInputOutput: true,
+              startTime,
               preferredClickhouseService: "ReadOnly",
             });
 
