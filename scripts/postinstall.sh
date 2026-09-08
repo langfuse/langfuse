@@ -24,3 +24,9 @@ pnpm run agents:sync
 # concern, and failing it here would break `pnpm i` and with it every CI job
 # that installs. The lint job runs the full check.
 node scripts/agents/sync-agent-shims.mjs --check
+
+# Recover the developer identity in every newly installed worktree. This is
+# best-effort: contributors and local installs commonly have no Linear token.
+if [[ -f "scripts/agents/configure-langfuse-identity.sh" ]]; then
+  bash scripts/agents/configure-langfuse-identity.sh || true
+fi
