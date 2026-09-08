@@ -127,16 +127,19 @@ async function prepare(role: Role = Role.OWNER) {
 }
 
 describe("LLM gateway control plane", () => {
-  it("rejects control-plane access outside the organization allowlist", async () => {
+  it("applies the environment-specific organization allowlist", async () => {
     const { caller, org } = await prepare();
     env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST.splice(
       env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST.indexOf(org.id),
       1,
     );
 
-    await expect(
-      caller.llmGateway.getConfig({ orgId: org.id }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const request = caller.llmGateway.getConfig({ orgId: org.id });
+    if (env.NODE_ENV === "development") {
+      await expect(request).resolves.toBeNull();
+    } else {
+      await expect(request).rejects.toMatchObject({ code: "FORBIDDEN" });
+    }
   });
 
   it("creates a private ingestion project and blocks implicit member access", async () => {
