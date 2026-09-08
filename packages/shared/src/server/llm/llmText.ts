@@ -305,6 +305,13 @@ async function prepareLLMTextCall<
     trace: options.trace,
   });
 
+  const hoisted = hoistSystemMessagesForResponses({
+    adapter: modelConfig.adapter,
+    apiMode: modelConfig.openAIApiMode,
+    messages: options.messages,
+    providerOptions,
+  });
+
   const apiKey = decrypt(options.connection.secretKey);
   const extraHeaders = decryptAndParseExtraHeaders(
     options.connection.extraHeaders,
@@ -349,14 +356,14 @@ async function prepareLLMTextCall<
     runInTraceContext: <T>(fn: () => T): T =>
       capture ? capture.run(fn) : fn(),
     callOptions: {
-      messages: options.messages,
+      messages: hoisted.messages,
       allowSystemInMessages: true,
       tools: options.tools,
       maxOutputTokens: options.maxOutputTokens,
       temperature: options.temperature,
       topP: options.topP,
       reasoning: options.reasoning,
-      providerOptions,
+      providerOptions: hoisted.providerOptions,
       maxRetries: options.maxRetries,
       timeout,
       abortSignal: options.abortSignal,
@@ -407,6 +414,69 @@ function isJsonObject(
   value: JSONValue | undefined,
 ): value is Record<string, JSONValue> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * OpenAI Responses requests reject role-based system items on endpoints that
+ * validate input strictly (notably Azure), because @ai-sdk/openai converts
+ * them without an explicit `type`. The Responses API's native system-prompt
+ * surface is the top-level `instructions` field, so hoist system messages out
+ * of the message list when the OpenAI/OpenAI-compatible connection runs in
+ * responses mode. An explicitly configured `instructions` provider option wins
+ * and disables the hoist.
+ */
+function hoistSystemMessagesForResponses(params: {
+  adapter: LLMAdapter;
+  apiMode?: "responses" | "chat-completions";
+  messages: ModelMessage[];
+  providerOptions?: ProviderOptions;
+}): { messages: ModelMessage[]; providerOptions?: ProviderOptions } {
+  if (params.adapter !== LLMAdapter.OpenAI || params.apiMode !== "responses") {
+    return {
+      messages: params.messages,
+      providerOptions: params.providerOptions,
+    };
+  }
+
+  const systemText = collectSystemMessageText(params.messages);
+  if (!systemText) {
+    return {
+      messages: params.messages,
+      providerOptions: params.providerOptions,
+    };
+  }
+
+  const openAIOptions = params.providerOptions?.openai ?? {};
+  if (openAIOptions.instructions !== undefined) {
+    return {
+      messages: params.messages,
+      providerOptions: params.providerOptions,
+    };
+  }
+
+  return {
+    messages: params.messages.filter((message) => message.role !== "system"),
+    providerOptions: {
+      ...params.providerOptions,
+      openai: {
+        ...openAIOptions,
+        instructions: systemText,
+      },
+    },
+  };
+}
+
+function collectSystemMessageText(
+  messages: ModelMessage[],
+): string | undefined {
+  const parts: string[] = [];
+  for (const message of messages) {
+    if (message.role !== "system") continue;
+    if (message.content.length > 0) {
+      parts.push(message.content);
+    }
+  }
+  return parts.length > 0 ? parts.join("\n\n") : undefined;
 }
 
 export function createEvaluatorMediaUrlPolicy(
