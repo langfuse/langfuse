@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import type { Session } from "next-auth";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -6,6 +6,7 @@ import waitForExpect from "wait-for-expect";
 
 import { env } from "@/src/env.mjs";
 import { GetMediaUploadUrlResponseSchema } from "@/src/features/media/validation";
+import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import {
   type GatewayApiFormat,
   GatewayModelsResponseSchema,
@@ -392,12 +393,10 @@ describe("LLM gateway live end-to-end", () => {
               });
             }
             expect(resolved.attribution).toEqual({
-              test: true,
-              provider,
-              apiFormat,
               organization_id: ORGANIZATION_ID,
               project_id: expect.stringMatching(/\S/),
               key_id: keyId,
+              key_metadata: { test: true, provider, apiFormat },
             });
             expect(resolved.ingestion).toMatchObject({
               access_token: expect.stringMatching(/\S/),
@@ -636,49 +635,59 @@ async function ingestTrace(
   ingestionToken: string,
   source: { provider: GatewayProviderName; apiFormat: GatewayApiFormat },
 ) {
-  const traceId = randomUUID();
-  const observationId = randomUUID();
-  const timestamp = new Date().toISOString();
-  const eventIds = [randomUUID(), randomUUID()];
-  const response = await fetch(`${BASE_URL}/api/public/ingestion`, {
-    method: "POST",
-    headers: bearerJsonHeaders(ingestionToken),
-    body: JSON.stringify({
-      batch: [
+  const traceIdBytes = randomBytes(16);
+  const observationIdBytes = randomBytes(8);
+  const traceId = traceIdBytes.toString("hex");
+  const observationId = observationIdBytes.toString("hex");
+  const startTimeUnixNano = BigInt(Date.now()) * 1_000_000n;
+  const ExportTraceServiceRequest =
+    $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
+  const requestBody = ExportTraceServiceRequest.encode(
+    ExportTraceServiceRequest.fromObject({
+      resourceSpans: [
         {
-          id: eventIds[0],
-          type: "trace-create",
-          timestamp,
-          body: {
-            id: traceId,
-            name: `Gateway E2E ${source.provider} ${source.apiFormat}`,
-            timestamp,
-          },
-        },
-        {
-          id: eventIds[1],
-          type: "generation-create",
-          timestamp,
-          body: {
-            id: observationId,
-            traceId,
-            name: "Gateway E2E generation",
-            model: "gateway-e2e",
-            startTime: timestamp,
-            endTime: timestamp,
-          },
+          scopeSpans: [
+            {
+              scope: { name: "langfuse-gateway-e2e", version: "1.0.0" },
+              spans: [
+                {
+                  traceId: traceIdBytes,
+                  spanId: observationIdBytes,
+                  name: `Gateway E2E ${source.provider} ${source.apiFormat}`,
+                  kind: 1,
+                  startTimeUnixNano: startTimeUnixNano.toString(),
+                  endTimeUnixNano: (startTimeUnixNano + 1_000_000n).toString(),
+                  attributes: [
+                    {
+                      key: "langfuse.observation.type",
+                      value: { stringValue: "generation" },
+                    },
+                    {
+                      key: "gen_ai.request.model",
+                      value: { stringValue: "gateway-e2e" },
+                    },
+                  ],
+                  status: { code: 1 },
+                },
+              ],
+            },
+          ],
         },
       ],
     }),
+  ).finish();
+  const response = await fetch(`${BASE_URL}/api/public/otel/v1/traces`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${ingestionToken}`,
+      "Content-Type": "application/x-protobuf",
+      "x-langfuse-ingestion-version": "4",
+      "x-langfuse-sdk-name": "gateway-e2e",
+      "x-langfuse-sdk-version": "1.0.0",
+    },
+    body: requestBody,
   });
-  const result = await readJsonResponse<{
-    successes: Array<{ id: string; status: number }>;
-    errors: unknown[];
-  }>(response, 207, "/api/public/ingestion");
-  expect(result.errors).toEqual([]);
-  expect(result.successes.map(({ id }) => id)).toEqual(
-    expect.arrayContaining(eventIds),
-  );
+  await expectResponseStatus(response, 200, "/api/public/otel/v1/traces");
 
   await waitForExpect(
     async () => {
