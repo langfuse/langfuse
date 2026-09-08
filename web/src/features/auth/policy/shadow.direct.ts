@@ -20,7 +20,7 @@ export async function verifyOrgAuth(
   if (env.API_AUTH_MIGRATION === "enforce") {
     const authz = await enforceOrgAuth({
       headers: params.req.headers,
-      action: params.action ?? undefined,
+      action: params.action,
     });
     if (!authz.success) {
       return enforceDenial(authz.error, params.scopeDeniedMessage);
@@ -38,12 +38,12 @@ export async function verifyOrgAuth(
     const legacy = await runLegacyScope(params.req);
     const authz = await enforceOrgAuth({
       headers: params.req.headers,
-      action: params.action ?? undefined,
+      action: params.action,
     });
     recordCoverage(params.name);
     diffResults(authz, legacyFromStatus(legacy.status), {
       seam: "org_route",
-      action: params.action ?? "none",
+      action: params.action,
     });
     return legacyResult(legacy, params.scopeDeniedMessage);
   }
@@ -108,7 +108,7 @@ function enforceDenial(
 export type VerifyOrgAuthParams = {
   req: NextApiRequest;
   name: string;
-  action: OrganizationAction | null;
+  action: OrganizationAction;
   scopeDeniedMessage: string;
 };
 

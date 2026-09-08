@@ -35,9 +35,6 @@ export async function enforceProjectAuth(
   const target = getProjectId(context, params.headers);
   if (!target.success) return target;
 
-  if (params.action === undefined) {
-    return { success: true, context, projectId: target.projectId };
-  }
   const decision = authorize(context, params.action, {
     projectId: target.projectId,
   });
@@ -83,7 +80,7 @@ function boundProjectIdOf(context: AuthorizationContext): string | undefined {
 /** EnforceProjectAuthParams is the request headers, the checked action, and the route's key-kind opt-ins. */
 export type EnforceProjectAuthParams = {
   headers: IncomingHttpHeaders;
-  action?: ProjectAction;
+  action: ProjectAction;
   allowInAppAgentKey?: boolean;
   isAdminApiKeyAuthAllowed?: boolean;
 };

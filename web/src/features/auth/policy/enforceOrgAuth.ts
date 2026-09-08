@@ -35,9 +35,6 @@ export async function enforceOrgAuth(
   const target = getOrgId(context, params.headers);
   if (!target.success) return target;
 
-  if (params.action === undefined) {
-    return { success: true, context, orgId: target.orgId };
-  }
   const decision = authorize(context, params.action, { orgId: target.orgId });
   if (!decision.success) {
     return { success: false, error: decision.error };
@@ -81,7 +78,7 @@ function boundOrgIdOf(context: AuthorizationContext): string | undefined {
 /** EnforceOrgAuthParams is the request headers, the checked action, and the route's key-kind opt-ins. */
 export type EnforceOrgAuthParams = {
   headers: IncomingHttpHeaders;
-  action?: OrganizationAction;
+  action: OrganizationAction;
   allowInAppAgentKey?: boolean;
   isAdminApiKeyAuthAllowed?: boolean;
 };
