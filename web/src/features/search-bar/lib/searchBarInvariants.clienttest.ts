@@ -13,7 +13,11 @@ import {
   RULE_SAMPLE_FIELD_REGISTRY,
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
-import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
+import {
+  EXPERIMENTS_FIELD_REGISTRY,
+  experimentsFieldRegistry,
+} from "@/src/features/experiments/constants/experimentsSearchRegistry";
+import { getExperimentsFilterConfig } from "@/src/features/experiments/components/table/filter-config";
 import { validateQuery } from "./validate";
 import { planCommit } from "./commit";
 import { filterStateToQueryText } from "./filter-state-to-query";
@@ -709,9 +713,9 @@ const experimentsView: RegistryUnderTest = {
   scoreContexts: [],
   fieldValues: ["x", "sonnet", "5", "0.8", "a b"],
   freeTextValues: ["hello", "run 12", "or", "!important"],
-  // Scores stay in the sidebar on this view, and after the score unification
-  // they sit on the SAME canonical columns the bar's `scores.` path recognizes —
-  // so the serializer has to be told they are not the bar's to render.
+  // Score filters are the bar's to render on this view, so these must derive to
+  // valid text rather than being skipped. The `trace_*` columns are not, and
+  // stay sidebar-only.
   sidebarFilters: [
     [
       {
@@ -792,20 +796,60 @@ describe("search bar invariants — experiments registry", () => {
     ).toBeNull();
   });
 
-  it("keeps score dot-paths closed until the columns are unified", () => {
-    // The adapter lowers `scores.<name>` onto the canonical scores_avg /
-    // score_categories / score_booleans columns. Experiments names its score
-    // columns obs_* / trace_*, so an open `scores.` here would emit a filter on
-    // a column this view does not have.
+  it("drops the dataset field when the page pins the dataset", () => {
+    // A dataset-scoped page omits the Dataset facet, and the sidebar strips any
+    // filter on a facet-less column on write — so offering `dataset:` there
+    // would take the token and silently discard it.
+    const scoped = experimentsFieldRegistry(
+      getExperimentsFilterConfig(["experimentDatasetId"]),
+    );
+
+    expect(scoped.resolveField("dataset")).toBeNull();
+    expect(scoped.resolveField("experimentDatasetName")).toBeNull();
+    expect(scoped.resolveField("name")).not.toBeNull();
+  });
+
+  it("opens `scores.` and keeps `traceScores.` closed", () => {
+    // `scores.<name>` lowers onto the canonical scores_avg / score_categories /
+    // score_booleans columns, which is what this view filters on. Those columns
+    // already match at trace level, so a separate `traceScores.` namespace would
+    // offer a second way to say the same thing — against `trace_*` columns the
+    // sidebar no longer offers.
     expect(
       EXPERIMENTS_FIELD_REGISTRY.resolveField("scores.groundedness"),
-    ).toBeNull();
+    ).toEqual({
+      type: "scores",
+      key: "groundedness",
+      level: "observation",
+    });
     expect(EXPERIMENTS_FIELD_REGISTRY.resolveField("traceScores.x")).toBeNull();
     // Metadata is unaffected — that column exists under its canonical name.
     expect(EXPERIMENTS_FIELD_REGISTRY.resolveField("metadata.owner")).toEqual({
       type: "metadata",
       key: "owner",
     });
+  });
+
+  it("renders a score filter the sidebar set", () => {
+    // The sidebar and the bar edit ONE filter state, so a score filter added in
+    // the sidebar has to show up as a token — otherwise the bar reads as though
+    // no score filter were applied.
+    const derived = filterStateToQueryText(
+      [
+        {
+          type: "numberObject",
+          column: "scores_avg",
+          key: "citation_usable_rate",
+          operator: "=",
+          value: 4,
+        },
+      ],
+      {},
+      EXPERIMENTS_FIELD_REGISTRY,
+    );
+
+    expect(derived.text).toBe("scores.citation_usable_rate:4");
+    expect(derived.skippedFilters).toEqual([]);
   });
 
   it("rewrites a bare word onto the experiment name", () => {
