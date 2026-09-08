@@ -523,6 +523,29 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   per-token text pricing, so none were added, consistent with the existing
   modality-specific/restricted-access skip rule. Re-investigate only if one of them
   gains a standard text-generation mode with its own per-token text pricing.
+- **September 8 2026 audit: no price or catalog drift; `gemini-2.0-flash` shutdown
+  status confirmed; another Gemini specialized-model wave confirmed out of scope** —
+  Re-fetched the full Anthropic pricing table, the OpenAI aggregate Standard pricing
+  table (all short- and long-context tiers for the gpt-5.x/gpt-6 families plus
+  gpt-4.1/gpt-4o/o3/o4-mini), and both Gemini pricing pages
+  (`ai.google.dev/pricing` for the 2.5 family, `ai.google.dev/gemini-api/docs/pricing`
+  for the 3.x family) plus `ai.google.dev/gemini-api/docs/models`. Every price already
+  in the file matched verbatim; no updates were needed. Two new pieces of
+  information: (1) `ai.google.dev/gemini-api/docs/models` now explicitly labels
+  `gemini-2.0-flash` "(Shut down)" under previous models — this resolves the
+  long-standing "not re-verified, retained for backward compatibility" note on this
+  entry into a confirmed-retired status, but per the automated-audit scope (no
+  removal category authorized) the pricing entry and `types.ts` selectable-model
+  entries were left in place unchanged, same treatment as the `gemini-3-pro-preview`
+  precedent above; (2) the models page now additionally lists
+  `gemini-3.1-flash-image` ("Nano Banana 2"), `gemini-3.1-flash-lite-image` ("Nano
+  Banana 2 Lite"), `gemini-3-pro-image` ("Nano Banana Pro"), `gemini-embedding-2-preview`,
+  `gemini-embedding-001`, `gemini-2.5-flash-native-audio-preview-12-2025`,
+  `gemini-2.5-flash-preview-tts`, `gemini-2.5-pro-preview-tts`,
+  `deep-research-max-preview-04-2026`, and `gemini-robotics-er-1.6-preview` — image
+  generation, embedding, native-audio, text-to-speech, and robotics endpoints, none a
+  general-purpose text/chat model with standard per-token text pricing, so none were
+  added, consistent with the existing modality-specific skip rule.
 
 Capture:
 

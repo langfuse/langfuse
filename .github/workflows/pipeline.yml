@@ -175,6 +175,8 @@ jobs:
       # by every AGENTS.md are resolved.
       - name: agent guidance paths resolve
         run: pnpm run agents:check
+      - name: cursor PR label tests
+        run: node --test scripts/github/label-cursor-prs.test.mjs
       - name: Load default env
         run: |
           cp .env.dev.example .env
