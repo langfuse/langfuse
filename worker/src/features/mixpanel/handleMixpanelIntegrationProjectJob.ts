@@ -14,6 +14,7 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import { MixpanelClient } from "./mixpanelClient";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
+import { recordExportFreshnessLag } from "../../services/exportFreshnessLagMetric";
 import {
   transformTraceForMixpanel,
   transformGenerationForMixpanel,
@@ -249,21 +250,23 @@ export const handleMixpanelIntegrationProjectJob = async (
     return;
   }
 
-  // Fetch relevant data and send it to Mixpanel
-  const executionConfig: MixpanelExecutionConfig = {
-    projectId,
-    projectName: mixpanelIntegration.project.name,
-    // Start from 2000-01-01 if no lastSyncAt. Workaround because 1970-01-01 leads to subtle bugs in ClickHouse
-    minTimestamp: mixpanelIntegration.lastSyncAt || new Date("2000-01-01"),
-    maxTimestamp: new Date(new Date().getTime() - 30 * 60 * 1000), // 30 minutes ago
-    decryptedMixpanelProjectToken: decrypt(
-      mixpanelIntegration.encryptedMixpanelProjectToken,
-    ),
-    mixpanelRegion: mixpanelIntegration.mixpanelRegion,
-    useGraceHash: job.attemptsMade > 0,
-  };
+  const runStartTime = new Date();
 
   try {
+    // Fetch relevant data and send it to Mixpanel
+    const executionConfig: MixpanelExecutionConfig = {
+      projectId,
+      projectName: mixpanelIntegration.project.name,
+      // Start from 2000-01-01 if no lastSyncAt. Workaround because 1970-01-01 leads to subtle bugs in ClickHouse
+      minTimestamp: mixpanelIntegration.lastSyncAt || new Date("2000-01-01"),
+      maxTimestamp: new Date(new Date().getTime() - 30 * 60 * 1000), // 30 minutes ago
+      decryptedMixpanelProjectToken: decrypt(
+        mixpanelIntegration.encryptedMixpanelProjectToken,
+      ),
+      mixpanelRegion: mixpanelIntegration.mixpanelRegion,
+      useGraceHash: job.attemptsMade > 0,
+    };
+
     // Fail loudly before exporting empty data and advancing lastSyncAt
     // (LFE-10148, LFE-11009); the catch below logs and BullMQ retries.
     assertExportSourceWritable(
@@ -314,10 +317,24 @@ export const handleMixpanelIntegrationProjectJob = async (
       bytes: mixpanel.getSerializedBytes(),
       projectId,
     });
+    recordExportFreshnessLag({
+      integration: "mixpanel",
+      window: "1h",
+      status: "success",
+      runStartTime,
+      maxExportedTimestamp: executionConfig.maxTimestamp,
+    });
     logger.info(
       `[MIXPANEL] Mixpanel integration processing complete for project ${projectId}`,
     );
   } catch (error) {
+    recordExportFreshnessLag({
+      integration: "mixpanel",
+      window: "1h",
+      status: "failure",
+      runStartTime,
+      maxExportedTimestamp: mixpanelIntegration.lastSyncAt,
+    });
     const mixpanelFaultReason = classifyCustomerFault(error);
     if (mixpanelFaultReason !== undefined) {
       recordIncrement(MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC, 1, {
