@@ -122,12 +122,19 @@ server, and `scripts/agents/sync-agent-shims.mjs` projects it into each tool's
 config on `pnpm install`. Those generated files are gitignored build artifacts —
 never hand-edit them.
 
-What is left per developer is **authorizing** it, which the first connection
-prompts for. On a headless surface there is nobody to approve that prompt, and a
-remote MCP can report itself connected before any token exists — so prove access
-with a real read rather than trusting an indicator, and use a token in an
-`Authorization` header there instead of the interactive flow. Do not commit that
-header: an unset variable is passed through literally and fails with no fallback.
+What is left per developer is **authorizing** it. On desktop, the first
+connection prompts for OAuth. On a headless surface (Cursor Cloud) there is
+nobody to approve that prompt, and `mcp_auth` is not available — do not try it.
+
+**Cursor Cloud:** prove Linear with a real read. If the MCP namespace is
+`needsAuth` or empty, look for `LINEAR_API_KEY` (aliases `LINEAR_TOKEN`,
+`LINEAR_API_TOKEN`) and query GraphQL `{ viewer { name email } }` or run
+`linear-context-handover/scripts/lf-context.sh`. Never print the secret. If
+the token is unset, tell them to add **`LINEAR_API_KEY`** at
+https://cursor.com/dashboard/cloud-agents (personal key from Linear → Settings
+→ Account → Security) and start a **new** Cloud run. Do not commit that header
+or key; an unset `${LINEAR_API_KEY}` passed through an MCP `headers` block
+fails with no fallback, which is why it is not in `.agents/config.json`.
 
 ## When there is no Linear connection: say so, loudly
 
@@ -138,6 +145,8 @@ is how a practice quietly dies.
 Say, in your reply, in plain language:
 
 - that this environment has no Linear access;
+- on Cursor Cloud, that they should set secret **`LINEAR_API_KEY`** and start a
+  new run (interactive Linear OAuth does not work here);
 - which step you could not complete (history reconstruction, the handover, the
   subtickets);
 - and then **the content itself**, ready to paste — the handover block, the
