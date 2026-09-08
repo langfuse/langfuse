@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ChevronsDownUp,
   ChevronsUpDown,
+  FileWarning,
   MessageSquareOff,
 } from "lucide-react";
 import { type ToolCallPart } from "@langfuse/shared/src/utils/normalized-io";
@@ -280,10 +281,7 @@ function SessionTimelineConversationObservation({
     visibleMessages.length === 0 &&
     (parsed.messages.length === 0 || hasTimelineContent);
   const hasObservationBody =
-    isTruncated ||
-    parsed?.type === "error" ||
-    visibleMessages.length > 0 ||
-    observation.metadataTruncated;
+    isTruncated || parsed?.type === "error" || visibleMessages.length > 0;
   const showHeader = phase !== "end";
   const showNonMessageBody = phase !== "end";
 
@@ -322,6 +320,16 @@ function SessionTimelineConversationObservation({
                   <MessageSquareOff className="h-3 w-3" aria-hidden="true" />
                 </span>
               ) : null}
+              {observation.metadataTruncated ? (
+                <span
+                  className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"
+                  role="img"
+                  aria-label="Metadata omitted because it is too large"
+                  title="Metadata omitted because it is too large"
+                >
+                  <FileWarning className="h-3 w-3" aria-hidden="true" />
+                </span>
+              ) : null}
               {observation.latency !== null && observation.type !== "EVENT" ? (
                 <span className="text-muted-foreground font-mono text-[11px]">
                   {formatIntervalSeconds(observation.latency)}
@@ -334,14 +342,6 @@ function SessionTimelineConversationObservation({
           </div>
         ) : null}
         <div className="flex min-w-0 flex-col gap-5 pl-[22px]">
-          {showNonMessageBody &&
-          observation.metadataTruncated &&
-          !isTruncated ? (
-            <p className="text-muted-foreground text-xs">
-              Metadata was omitted because it is too large. Messages are parsed
-              from input and output only.
-            </p>
-          ) : null}
           {isTruncated ? (
             <TruncatedObservation observation={observation} phase={phase} />
           ) : showNonMessageBody && parsed?.type === "error" ? (

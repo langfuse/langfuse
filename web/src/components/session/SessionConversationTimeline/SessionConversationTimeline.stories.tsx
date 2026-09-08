@@ -2065,8 +2065,13 @@ export const RenderOmittedMetadata = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByText(/Metadata was omitted because it is too large/i),
+      canvas.getByRole("img", {
+        name: "Metadata omitted because it is too large",
+      }),
     ).toBeInTheDocument();
+    await expect(
+      canvas.queryByText(/Messages are parsed from input and output only/i),
+    ).not.toBeInTheDocument();
     await expect(
       canvas.getByText(/Hi, I just noticed order #LF-20481/),
     ).toBeInTheDocument();
