@@ -649,7 +649,7 @@ describe("isDenylistedNoiseEvent", () => {
           ],
         },
         tags: { url: "data:text/html,probe" },
-      } as ErrorEvent;
+      } as unknown as ErrorEvent;
       expect(isDenylistedNoiseEvent(event)).toBe(true);
     });
 
