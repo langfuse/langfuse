@@ -239,6 +239,7 @@ const getMinTimestampForExport = async (
                 SELECT min(start_time) as ts
                 FROM events_core
                 WHERE project_id = {projectId: String}
+                AND is_deleted = 0 -- match the events export query's visibility
               )
               WHERE ts > 0 -- Ignore 0 results (usually empty tables)
             `,
