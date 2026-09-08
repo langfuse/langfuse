@@ -48,7 +48,7 @@ export function JSONView(props: {
   externalJsonCollapsed?: boolean;
   onToggleCollapse?: () => void;
   collapseDepth?: number;
-  /** Render prepared data without parsing strings or decoding source-code escapes. */
+  /** Skip normalization of prepared payloads to preserve exact source strings and field-marker identities. */
   preserveStrings?: boolean;
   customizeNode?: (node: unknown) => React.ReactElement | undefined;
 }) {

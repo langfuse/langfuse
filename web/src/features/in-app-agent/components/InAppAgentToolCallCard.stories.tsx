@@ -117,51 +117,47 @@ function evaluate({
   };
 }`;
 
+const toolErrorRateSource = toolErrorCountSource
+  .replace('name: "tool_error_count"', 'name: "tool_error_rate"')
+  .replace("value: errorCount,", "value: Math.min(errorCount / 2, 1),");
+
 const toolErrorCountDefinition = {
   name: "tool_error_count",
   type: "CODE",
   description:
     "Counts tool-call errors on a TOOL observation by checking the observation's level/status and scanning parsed output for common error fields.",
+  sourceCode: `${toolErrorCountSource}\n\nconst healthMarker = "\\u2713";`,
+  sourceCodeLanguage: "TYPESCRIPT",
+};
+
+const approvalToolErrorCountArguments = JSON.stringify(
+  toolErrorCountDefinition,
+);
+const toolErrorCountArguments = JSON.stringify({
+  ...toolErrorCountDefinition,
+  evaluatorId: "tool-error-evaluator",
+  sourceCode: toolErrorRateSource,
+});
+const toolErrorCountResultValue = {
+  id: "tool-error-evaluator",
+  name: "tool_error_count",
+  type: "CODE",
+  description: toolErrorCountDefinition.description,
   versions: [
     {
       version: 1,
       sourceCode: toolErrorCountSource,
       sourceCodeLanguage: "TYPESCRIPT",
     },
+    {
+      version: 2,
+      sourceCode: toolErrorRateSource,
+      sourceCodeLanguage: "TYPESCRIPT",
+    },
   ],
 };
-
-const toolErrorCountArguments = JSON.stringify(toolErrorCountDefinition);
-
 const toolErrorCountResult = JSON.stringify({
-  content: [
-    {
-      type: "text",
-      text: JSON.stringify({
-        evaluator: {
-          name: "tool_error_count",
-          type: "CODE",
-          version: 1,
-          status: "created",
-        },
-      }),
-    },
-  ],
-});
-
-const approvalToolErrorCountArguments = JSON.stringify({
-  ...toolErrorCountDefinition,
-  versions: [
-    {
-      ...toolErrorCountDefinition.versions[0],
-      sourceCode: `${toolErrorCountSource}\n\nconst healthMarker = "\\u2713";`,
-    },
-    {
-      ...toolErrorCountDefinition.versions[0],
-      version: 2,
-      sourceCode: `const healthMarker = "\\u2713";\nfunction evaluate() { return { scores: [] }; }`,
-    },
-  ],
+  content: [{ type: "text", text: JSON.stringify(toolErrorCountResultValue) }],
 });
 
 const meta = preview.meta({
@@ -199,66 +195,12 @@ export const Default = meta.story({
 });
 
 export const Error = meta.story({
+  name: "(Test) Error",
   args: {
     isCompact: true,
     tool: {
       type: "tool",
       name: "langfuse_getTraces",
-      status: "failed",
-      args: JSON.stringify({ limit: 10 }, null, 2),
-      error: "Failed to load traces: missing project access.",
-    },
-  },
-});
-
-export const EvaluatorToolCall = meta.story({
-  name: "Evaluator tool call",
-  args: {
-    isCompact: true,
-    tool: {
-      type: "tool",
-      name: "langfuse_createEvaluator",
-      status: "succeeded",
-      args: toolErrorCountArguments,
-      result: toolErrorCountResult,
-    },
-  },
-});
-
-export const LargePayload = meta.story({
-  name: "(Test) Large payload",
-  args: {
-    isCompact: true,
-    tool: {
-      type: "tool",
-      name: "langfuse_queryMetrics",
-      status: "succeeded",
-      args: JSON.stringify(
-        Object.fromEntries(
-          Array.from({ length: 21 }, (_, index) => [
-            `field-${index + 1}`,
-            `value-${index + 1}`,
-          ]),
-        ),
-      ),
-    },
-  },
-  play: async (context) => {
-    const canvas = await showToolCall(context);
-    await expect(canvas.getByRole("button", { name: "..." })).toBeVisible();
-    await expect(
-      canvas.queryByRole("button", { name: /show arguments/i }),
-    ).not.toBeInTheDocument();
-  },
-});
-
-export const InvalidPayload = meta.story({
-  name: "(Test) Invalid payload",
-  args: {
-    isCompact: true,
-    tool: {
-      type: "tool",
-      name: "langfuse_queryMetrics",
       status: "failed",
       args: "{ not valid JSON",
       error: "The tool rejected the request.",
@@ -270,6 +212,175 @@ export const InvalidPayload = meta.story({
     await expect(
       canvas.getByText("The tool rejected the request."),
     ).toBeVisible();
+  },
+});
+
+export const ApprovalRequiredWithCode = meta.story({
+  name: "(Test) Approval required with code",
+  args: {
+    isCompact: true,
+    tool: {
+      type: "tool",
+      name: "langfuse_createEvaluator",
+      status: "running",
+      args: approvalToolErrorCountArguments,
+      approval: { id: "approval-code-1", status: "pending" },
+    },
+    onApproveToolCall: fn(),
+    onAlwaysAllowToolCall: fn(),
+    onRejectToolCall: fn(),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("button", { name: "Approve" })).toBeVisible();
+    await expect(canvas.queryByRole("combobox")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("Details")).not.toBeInTheDocument();
+    await expect(canvas.getByText("sourceCode", { exact: true })).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "View JSON" }));
+    await expect(
+      canvas.queryByRole("button", { name: "Copy code" }),
+    ).not.toBeInTheDocument();
+    await expect(canvasElement).not.toHaveTextContent("const healthMarker");
+    const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    try {
+      const rootCopy = canvasElement.querySelector(
+        ".json-view > .json-view--copy",
+      );
+      if (!rootCopy) {
+        throw new globalThis.Error("Missing JSON root copy control");
+      }
+      await userEvent.click(rootCopy);
+      await expect(JSON.parse(copy.mock.calls[0][0])).toEqual(
+        JSON.parse(args.tool.args),
+      );
+      await userEvent.click(
+        canvas.getByRole("button", { name: "View as code: sourceCode" }),
+      );
+      await userEvent.click(canvas.getByRole("button", { name: "Copy code" }));
+      await expect(copy).toHaveBeenLastCalledWith(
+        toolErrorCountDefinition.sourceCode,
+      );
+    } finally {
+      copy.mockRestore();
+    }
+  },
+});
+
+export const EvaluatorToolCall = meta.story({
+  name: "(Test) Evaluator tool call",
+  args: {
+    isCompact: true,
+    tool: {
+      type: "tool",
+      name: "langfuse_updateEvaluator",
+      status: "succeeded",
+      args: toolErrorCountArguments,
+      result: toolErrorCountResult,
+    },
+  },
+  play: async (context) => {
+    const canvas = await showToolCall(context);
+    await expect(canvas.getByText("sourceCode", { exact: true })).toBeVisible();
+    await expect(canvas.getByText("versions[0].sourceCode")).toBeVisible();
+    await expect(
+      canvas.getAllByRole("button", { name: "Copy code" }),
+    ).toHaveLength(2);
+    await userEvent.click(
+      canvas.getAllByRole("button", { name: "View JSON" })[1],
+    );
+    await expect(
+      canvas.getByRole("region", { name: "sourceCode" }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("region", { name: "versions[0].sourceCode" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", {
+        name: "View as code: versions[0].sourceCode",
+      }),
+    ).toBeVisible();
+    const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    try {
+      const rootCopy = context.canvasElement.querySelector(
+        ".json-view > .json-view--copy",
+      );
+      if (!rootCopy) {
+        throw new globalThis.Error("Missing JSON root copy control");
+      }
+      await userEvent.click(rootCopy);
+      await expect(JSON.parse(copy.mock.calls[0][0])).toEqual(
+        toolErrorCountResultValue,
+      );
+      await userEvent.click(
+        canvas.getByRole("button", {
+          name: "View as code: versions[1].sourceCode",
+        }),
+      );
+      const selectedCode = within(
+        canvas.getByRole("region", { name: "versions[1].sourceCode" }),
+      );
+      await userEvent.click(
+        selectedCode.getByRole("button", { name: "Copy code" }),
+      );
+      await expect(copy).toHaveBeenLastCalledWith(toolErrorRateSource);
+      await expect(
+        canvas.getAllByRole("button", { name: "Copy code" }),
+      ).toHaveLength(2);
+    } finally {
+      copy.mockRestore();
+    }
+  },
+});
+
+export const ApprovalRequired = meta.story({
+  args: {
+    isCompact: true,
+    tool: {
+      type: "tool",
+      name: "langfuse_upsertDataset",
+      status: "running",
+      args: JSON.stringify(
+        {
+          name: "regression-examples",
+          description: "Examples used for release regression tests",
+        },
+        null,
+        2,
+      ),
+      approval: {
+        id: "approval-1",
+        status: "pending",
+      },
+    },
+    onApproveToolCall: fn(),
+    onAlwaysAllowToolCall: fn(),
+    onRejectToolCall: fn(),
+  },
+});
+
+export const ApprovalSubmitting = meta.story({
+  args: {
+    isCompact: true,
+    tool: {
+      type: "tool",
+      name: "langfuse_upsertDataset",
+      status: "running",
+      args: JSON.stringify(
+        {
+          name: "regression-examples",
+          description: "Examples used for release regression tests",
+        },
+        null,
+        2,
+      ),
+      approval: {
+        id: "approval-1",
+        status: "submitting",
+      },
+    },
+    onApproveToolCall: fn(),
+    onAlwaysAllowToolCall: fn(),
+    onRejectToolCall: fn(),
   },
 });
 
@@ -378,58 +489,6 @@ export const SandboxEdit = meta.story({
   },
 });
 
-export const ApprovalRequired = meta.story({
-  args: {
-    isCompact: true,
-    tool: {
-      type: "tool",
-      name: "langfuse_upsertDataset",
-      status: "running",
-      args: JSON.stringify(
-        {
-          name: "regression-examples",
-          description: "Examples used for release regression tests",
-        },
-        null,
-        2,
-      ),
-      approval: {
-        id: "approval-1",
-        status: "pending",
-      },
-    },
-    onApproveToolCall: fn(),
-    onAlwaysAllowToolCall: fn(),
-    onRejectToolCall: fn(),
-  },
-});
-
-export const ApprovalSubmitting = meta.story({
-  args: {
-    isCompact: true,
-    tool: {
-      type: "tool",
-      name: "langfuse_upsertDataset",
-      status: "running",
-      args: JSON.stringify(
-        {
-          name: "regression-examples",
-          description: "Examples used for release regression tests",
-        },
-        null,
-        2,
-      ),
-      approval: {
-        id: "approval-1",
-        status: "submitting",
-      },
-    },
-    onApproveToolCall: fn(),
-    onAlwaysAllowToolCall: fn(),
-    onRejectToolCall: fn(),
-  },
-});
-
 export const ApprovalDisabled = meta.story({
   name: "(Test) Approval disabled",
   args: {
@@ -470,94 +529,6 @@ export const ApprovalDisabled = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Decline" }),
     ).toBeDisabled();
-  },
-});
-
-export const ApprovalRequiredWithCode = meta.story({
-  name: "(Test) Approval required with code",
-  args: {
-    isCompact: true,
-    tool: {
-      type: "tool",
-      name: "langfuse_createEvaluator",
-      status: "running",
-      args: approvalToolErrorCountArguments,
-      approval: {
-        id: "approval-code-1",
-        status: "pending",
-      },
-    },
-    onApproveToolCall: fn(),
-    onAlwaysAllowToolCall: fn(),
-    onRejectToolCall: fn(),
-  },
-  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
-    const canvas = within(canvasElement);
-
-    await expect(canvas.getByRole("button", { name: "Approve" })).toBeVisible();
-    await expect(canvas.queryByRole("combobox")).not.toBeInTheDocument();
-    await expect(canvas.queryByText("Details")).not.toBeInTheDocument();
-    await expect(canvas.getByText("versions[0].sourceCode")).toBeVisible();
-    await expect(
-      canvas.getAllByRole("button", { name: "Copy code" }),
-    ).toHaveLength(1);
-    await userEvent.click(canvas.getByRole("button", { name: "View JSON" }));
-    await expect(
-      canvas.queryByRole("button", { name: "Copy code" }),
-    ).not.toBeInTheDocument();
-    await expect(canvasElement).not.toHaveTextContent("const healthMarker");
-    await userEvent.click(
-      canvas.getByRole("button", {
-        name: "View as code: versions[1].sourceCode",
-      }),
-    );
-    await expect(canvas.getByText("versions[1].sourceCode")).toBeVisible();
-    await expect(
-      canvas.getAllByRole("button", { name: "Copy code" }),
-    ).toHaveLength(1);
-    const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
-    try {
-      await userEvent.click(canvas.getByRole("button", { name: "Copy code" }));
-      await expect(copy).toHaveBeenCalledWith(
-        JSON.parse(approvalToolErrorCountArguments).versions[1].sourceCode,
-      );
-    } finally {
-      copy.mockRestore();
-    }
-  },
-});
-
-export const CopyEvaluatorPayload = meta.story({
-  name: "(Test) Copy evaluator payload",
-  args: {
-    isCompact: true,
-    tool: {
-      type: "tool",
-      name: "langfuse_createEvaluator",
-      status: "running",
-      args: approvalToolErrorCountArguments,
-      approval: { id: "copy-code", status: "pending" },
-    },
-  },
-  play: async ({ canvasElement, args }) => {
-    const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
-    try {
-      const canvas = within(canvasElement);
-      await userEvent.click(canvas.getByRole("button", { name: "View JSON" }));
-      const rootCopy = canvasElement.querySelector(
-        ".json-view > .json-view--copy",
-      );
-      if (!rootCopy) {
-        throw new globalThis.Error("Missing JSON root copy control");
-      }
-      await userEvent.click(rootCopy);
-      await expect(copy).toHaveBeenCalled();
-      await expect(JSON.parse(copy.mock.calls[0][0])).toEqual(
-        JSON.parse(args.tool.args),
-      );
-    } finally {
-      copy.mockRestore();
-    }
   },
 });
 
