@@ -1899,11 +1899,11 @@ export const RenderLoadedConversation = meta.story({
   args: Loaded.input.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(
-      canvas.getByRole("button", {
-        name: /trace 1.*trace-order-support-8f3a2/i,
-      }),
-    ).toBeInTheDocument();
+    const traceButton = canvas.getByRole("button", {
+      name: /1.*trace.*trace-order-support-8f3a2/i,
+    });
+    await expect(traceButton).toBeInTheDocument();
+    await expect(within(traceButton).getByText("1")).toHaveClass("bg-tertiary");
     await expect(canvas.getByText("+10 min idle")).toBeInTheDocument();
 
     const observationButton = canvas.getByRole("button", {

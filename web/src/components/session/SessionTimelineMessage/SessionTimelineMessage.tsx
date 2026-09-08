@@ -75,7 +75,7 @@ function CollapsiblePart({
   icon?: React.ComponentType<{ className?: string }>;
   status?: "success" | "error";
   variant: "plain" | "card";
-  alignment: "start" | "center";
+  alignment: "start" | "center" | "row";
   children: React.ReactNode;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -84,47 +84,56 @@ function CollapsiblePart({
     <div
       className={cn(
         "overflow-hidden",
-        alignment === "center" && "w-full",
+        (alignment === "center" || alignment === "row") && "w-full",
         variant === "card" &&
           "border-border bg-background/80 w-fit max-w-full rounded-md border px-2",
       )}
     >
-      <button
-        type="button"
-        className={cn(
-          "text-foreground flex max-w-full items-center gap-1.5 py-1 text-left font-mono text-xs transition-colors hover:opacity-80",
-          alignment === "center" ? "mx-auto font-normal" : "font-bold",
-        )}
-        aria-expanded={isExpanded}
-        onClick={() => setIsExpanded((current) => !current)}
-      >
-        {Icon ? <Icon className="h-3 w-3 shrink-0" /> : null}
-        <span className="truncate" title={label}>
-          {label}
-        </span>
-        {status === "success" ? (
-          <Check className="h-3 w-3 shrink-0" aria-label="Succeeded" />
-        ) : status === "error" ? (
-          <X
-            className="text-destructive h-3 w-3 shrink-0"
-            aria-label="Failed"
-          />
-        ) : null}
-        <ChevronDown
+      <div className={cn(alignment === "row" && "flex items-center gap-4")}>
+        <button
+          type="button"
           className={cn(
-            "h-3 w-3 shrink-0 transition-transform",
-            !isExpanded && "-rotate-90",
+            "flex max-w-full items-center gap-1.5 py-1 text-left font-mono text-xs transition-colors hover:opacity-80",
+            alignment === "row" ? "text-muted-foreground" : "text-foreground",
+            alignment === "center" && "mx-auto",
+            alignment === "start" ? "font-bold" : "font-normal",
           )}
-          aria-hidden="true"
-        />
-      </button>
+          aria-expanded={isExpanded}
+          onClick={() => setIsExpanded((current) => !current)}
+        >
+          {Icon ? <Icon className="h-3 w-3 shrink-0" /> : null}
+          <span className="truncate" title={label}>
+            {label}
+          </span>
+          {status === "success" ? (
+            <Check className="h-3 w-3 shrink-0" aria-label="Succeeded" />
+          ) : status === "error" ? (
+            <X
+              className="text-destructive h-3 w-3 shrink-0"
+              aria-label="Failed"
+            />
+          ) : null}
+          <ChevronDown
+            className={cn(
+              "h-3 w-3 shrink-0 transition-transform",
+              !isExpanded && "-rotate-90",
+            )}
+            aria-hidden="true"
+          />
+        </button>
+        {alignment === "row" ? (
+          <div className="border-border min-w-0 flex-1 border-t border-dashed" />
+        ) : null}
+      </div>
       {isExpanded ? (
         <div
           className={cn(
             "py-2",
             alignment === "center"
               ? "mx-auto w-fit max-w-full"
-              : "border-border ml-1.5 border-l pl-4",
+              : alignment === "start"
+                ? "border-border ml-1.5 border-l pl-4"
+                : "w-full",
           )}
         >
           {children}
@@ -289,13 +298,13 @@ function SessionTimelineSystemMessage({
   message: NormalizedMessage;
 }) {
   return (
-    <div className="ph-no-capture flex w-full justify-center">
+    <div className="ph-no-capture flex w-full">
       <CollapsiblePart
         label={message.senderName ?? "System prompt"}
         variant="plain"
-        alignment="center"
+        alignment="row"
       >
-        <div className="flex flex-col gap-2 text-sm leading-6">
+        <div className="text-muted-foreground flex flex-col gap-2 text-sm leading-6">
           {message.parts
             .filter((part) => part.type !== "tool-result")
             .map((part, index) => (

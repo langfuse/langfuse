@@ -147,9 +147,10 @@ export const ExpandSystemPrompt = meta.story({
     const trigger = canvas.getByRole("button", { name: "System prompt" });
     const initialLeft = trigger.getBoundingClientRect().left;
 
-    await expect(trigger.closest(".ph-no-capture")).toHaveClass(
+    await expect(trigger.closest(".ph-no-capture")).not.toHaveClass(
       "justify-center",
     );
+    await expect(canvasElement.querySelector(".border-dashed")).toBeVisible();
     await expect(trigger).toHaveClass("font-normal");
     await expect(trigger).not.toHaveClass("font-bold");
     await expect(canvas.queryByText(content)).not.toBeInTheDocument();
@@ -157,6 +158,7 @@ export const ExpandSystemPrompt = meta.story({
     const systemPrompt = canvas.getByText(content);
     await expect(systemPrompt).toBeVisible();
     await expect(systemPrompt.closest(".border-l")).toBeNull();
+    await expect(systemPrompt.getBoundingClientRect().left).toBe(initialLeft);
     await expect(trigger.getBoundingClientRect().left).toBe(initialLeft);
   },
 });

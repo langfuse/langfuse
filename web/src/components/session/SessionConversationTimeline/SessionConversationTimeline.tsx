@@ -562,11 +562,14 @@ export function PreparedSessionConversationTimeline({
       <div className="mb-6 flex items-center gap-4 pt-5">
         <button
           type="button"
-          className="text-muted-foreground hover:text-foreground ph-no-capture shrink-0 font-mono text-xs transition-colors"
+          className="text-muted-foreground hover:text-foreground ph-no-capture flex shrink-0 items-center gap-2 font-mono text-xs transition-colors"
           onClick={onOpenTrace}
           title={`${trace.name ?? "Trace"} (${trace.id})`}
         >
-          trace {turnNumber} · {trace.id}
+          <span className="border-border bg-tertiary text-foreground flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border font-mono text-[10px]">
+            {turnNumber}
+          </span>
+          <span>trace · {trace.id}</span>
         </button>
         <div className="border-border min-w-0 flex-1 border-t border-dashed" />
         {showIdleGap ? (
