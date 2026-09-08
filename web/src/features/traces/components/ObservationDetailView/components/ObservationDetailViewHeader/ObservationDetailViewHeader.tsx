@@ -522,10 +522,15 @@ export const ObservationDetailViewHeader = memo(
                       onOpenDialog={openDialog}
                     >
                       {({ Anchor, openDropdown }) => (
-                        <Anchor>
-                          {/* One "Add to" menu for the send-this-somewhere verbs
-                              (dataset, playground). */}
-                          <DropdownMenu>
+                        // One "Add to" menu for the send-this-somewhere verbs
+                        // (dataset, playground). Anchor must wrap only the
+                        // real DOM trigger, not this whole DropdownMenu: the
+                        // menu root is a context provider with no DOM node of
+                        // its own, so anchoring it left the existing-items
+                        // menu anchorless whenever the observation already
+                        // had dataset items.
+                        <DropdownMenu>
+                          <Anchor>
                             <DropdownMenuTrigger asChild>
                               <Button variant="secondary" size="sm">
                                 <PlusIcon
@@ -536,52 +541,52 @@ export const ObservationDetailViewHeader = memo(
                                 <ChevronDown className="ml-2 h-3 w-3" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                disabled={!hasDatasetAccess}
-                                onSelect={() => {
-                                  if (hasExistingDatasetItems) {
-                                    openDropdown();
-                                    return;
-                                  }
-                                  captureNewDatasetItemFormOpen();
-                                  openDialog();
-                                }}
-                              >
-                                <Database className="mr-2 h-4 w-4" />
-                                {hasExistingDatasetItems
-                                  ? `Dataset — in ${datasetCount}`
-                                  : "Dataset"}
-                                {!hasDatasetAccess && (
-                                  <LockIcon className="ml-auto h-3 w-3" />
-                                )}
-                              </DropdownMenuItem>
-                              {showPlaygroundEntry && (
-                                <DropdownMenuSub>
-                                  <DropdownMenuSubTrigger
-                                    disabled={!playground.isAvailable}
-                                    title={playground.tooltipMessage}
-                                  >
-                                    <Terminal className="mr-2 h-4 w-4" />
-                                    Playground
-                                  </DropdownMenuSubTrigger>
-                                  <DropdownMenuSubContent>
-                                    <JumpToPlaygroundMenu
-                                      source="generation"
-                                      includeOutput={playground.includeOutput}
-                                      onIncludeOutputChange={
-                                        playground.setIncludeOutput
-                                      }
-                                      onPlaygroundAction={
-                                        playground.handlePlaygroundAction
-                                      }
-                                    />
-                                  </DropdownMenuSubContent>
-                                </DropdownMenuSub>
+                          </Anchor>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              disabled={!hasDatasetAccess}
+                              onSelect={() => {
+                                if (hasExistingDatasetItems) {
+                                  openDropdown();
+                                  return;
+                                }
+                                captureNewDatasetItemFormOpen();
+                                openDialog();
+                              }}
+                            >
+                              <Database className="mr-2 h-4 w-4" />
+                              {hasExistingDatasetItems
+                                ? `Dataset — in ${datasetCount}`
+                                : "Dataset"}
+                              {!hasDatasetAccess && (
+                                <LockIcon className="ml-auto h-3 w-3" />
                               )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </Anchor>
+                            </DropdownMenuItem>
+                            {showPlaygroundEntry && (
+                              <DropdownMenuSub>
+                                <DropdownMenuSubTrigger
+                                  disabled={!playground.isAvailable}
+                                  title={playground.tooltipMessage}
+                                >
+                                  <Terminal className="mr-2 h-4 w-4" />
+                                  Playground
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent>
+                                  <JumpToPlaygroundMenu
+                                    source="generation"
+                                    includeOutput={playground.includeOutput}
+                                    onIncludeOutputChange={
+                                      playground.setIncludeOutput
+                                    }
+                                    onPlaygroundAction={
+                                      playground.handlePlaygroundAction
+                                    }
+                                  />
+                                </DropdownMenuSubContent>
+                              </DropdownMenuSub>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </ExistingDatasetItemsDropdownMenuController>
                   )}

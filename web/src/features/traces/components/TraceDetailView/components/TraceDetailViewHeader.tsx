@@ -28,7 +28,7 @@ import { CommentDrawerController } from "@/src/features/comments/CommentDrawerCo
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
-import { VersionBadge, TargetTraceBadge } from "../../TraceMetadataBadges";
+import { TargetTraceBadge } from "../../TraceMetadataBadges";
 import {
   hasRenderableUsage,
   UsageBadge,
@@ -494,7 +494,6 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
               targetTraceId={targetTraceId}
               projectId={projectId}
             />
-            <VersionBadge version={trace.version} />
             {aggregatedMetrics.hasGenerationLike &&
               aggregatedMetrics.usageDetails &&
               hasRenderableUsage({

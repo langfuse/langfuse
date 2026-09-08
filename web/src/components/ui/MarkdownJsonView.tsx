@@ -102,8 +102,10 @@ export function MarkdownJsonViewHeader({
       <div
         className={cn(
           "mr-1 flex min-w-0 shrink flex-row items-center gap-1",
+          // pointer-coarse: touch devices have no hover, so the controls
+          // stay visible there instead of being unreachable.
           hoverRevealControls &&
-            "opacity-0 transition-opacity group-hover/iosection:opacity-100 focus-within:opacity-100",
+            "opacity-0 transition-opacity group-hover/iosection:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100",
         )}
       >
         {collapseControl ? (
