@@ -19,7 +19,6 @@ export {
   useScoreColumns,
 } from "@/src/features/scores/hooks/useScoreColumns";
 export {
-  aggregateScores,
   collectScoreNameCoverage,
   composeAggregateScoreKey,
   decomposeAggregateScoreKey,
