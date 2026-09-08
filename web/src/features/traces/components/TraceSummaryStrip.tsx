@@ -22,7 +22,10 @@ import {
   SessionBadge,
   UserIdBadge,
 } from "@/src/features/traces/components/TraceMetadataBadges";
-import { LatencyBadge } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+import {
+  LatencyBadge,
+  VersionBadge,
+} from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import {
   CostBadge,
   hasRenderableUsage,
@@ -80,6 +83,7 @@ export function TraceSummaryStrip() {
         <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
         <EnvironmentBadge environment={trace.environment} />
         <ReleaseBadge release={trace.release} />
+        <VersionBadge version={trace.version} />
         {trace.tags.length > 0 && (
           <div className="flex min-w-0 items-center gap-1">
             {/* Quiet chips (dim fill, tight padding): v4 tags are immutable,

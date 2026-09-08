@@ -82,7 +82,6 @@ import { traceSpaceOf, type Box } from "../../fns/timeline/viewTransform";
 import {
   HUMAN_ROW_HEIGHT,
   anchorTimeToRows,
-  canExpandRowsToReadable,
   interpolateViewport,
   rowCountBounds,
   viewportsEqual,
@@ -497,14 +496,6 @@ export function TimelineDense({
       : 0;
   const presentation = presentationForRowHeight(rowHeight);
   const fitted = isViewportFitted(current, limits);
-  const canShowLabels = canExpandRowsToReadable(current, limits);
-  const labelsShowing = committedOpen || (labelsPinned && peekWidth > 0);
-  // Replace Fit only while the whole clock is still on screen AND names are
-  // missing. Rows can be too short, or the pane too narrow to volunteer a
-  // gutter — both are the same ask. A time-zoomed hairline keeps Fit.
-  const clockFits = current.time.duration >= limits.traceSpace.duration - 0.5;
-  const offerShowLabels =
-    clockFits && !labelsShowing && (canShowLabels || canShowNames);
   const fitSpent = fitted && !labelsPinned;
   const barHeight = Math.max(Math.min(rowHeight - 1, MAX_BAR_HEIGHT), 1);
 
@@ -1350,7 +1341,7 @@ export function TimelineDense({
         </ToolbarButton>
         {/* Where you are, when you are somewhere — and nothing at all when the
             whole trace is in view. */}
-        {!offerShowLabels && !fitted ? (
+        {!fitted ? (
           <span
             className="text-muted-foreground truncate"
             style={{ fontSize: "10px" }}
