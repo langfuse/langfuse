@@ -184,6 +184,48 @@ describe("prepareSessionTimelineObservations", () => {
     ]);
   });
 
+  it("renders input inherited by nested observations only once", () => {
+    const inheritedInput = [{ role: "user", content: "Build the dashboard" }];
+    const prepared = prepareSessionTimelineObservations(
+      [
+        observation("agent", inheritedInput, "Agent finished", "AGENT"),
+        observation(
+          "user-event",
+          inheritedInput,
+          null,
+          "EVENT",
+          new Date(1),
+          "trace-1",
+          "agent",
+        ),
+        observation(
+          "generation",
+          [...inheritedInput, { role: "user", content: "Use compact density" }],
+          "Generation finished",
+          "GENERATION",
+          new Date(2),
+          "trace-1",
+          "agent",
+        ),
+      ],
+      true,
+    );
+
+    const visibleText = prepared.flatMap(({ processedMessages }) =>
+      processedMessages.messages.flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === "text" ? [part.text] : [],
+        ),
+      ),
+    );
+    expect(visibleText).toEqual([
+      "Build the dashboard",
+      "Use compact density",
+      "Generation finished",
+      "Agent finished",
+    ]);
+  });
+
   it("flattens multiple nesting levels while preserving sibling chronology", () => {
     const prepared = prepareSessionTimelineObservations(
       [

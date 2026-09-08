@@ -73,6 +73,33 @@ function getHistoricalInputIndices(
   return historicalInputIndices;
 }
 
+export function deduplicateTimelineInput(
+  messages: NormalizedMessage[],
+  ancestorMessages: NormalizedMessage[],
+) {
+  const currentInput = getConversationEntries(messages, "input");
+  const ancestorInput = getConversationEntries(ancestorMessages, "input");
+  const historicalInputIndices = getHistoricalInputIndices(
+    ancestorInput,
+    currentInput,
+  );
+  const historicalParts = new Set(
+    currentInput
+      .filter((_entry, index) => historicalInputIndices.has(index))
+      .map((entry) => `${entry.messageIndex}:${entry.partIndex}`),
+  );
+
+  return messages.flatMap((message, messageIndex) => {
+    if (message.source === "output") return [message];
+
+    const parts = message.parts.filter(
+      (_part, partIndex) =>
+        !historicalParts.has(`${messageIndex}:${partIndex}`),
+    );
+    return parts.length > 0 ? [{ ...message, parts }] : [];
+  });
+}
+
 function getVisibleMessages({
   messages,
   currentInput,

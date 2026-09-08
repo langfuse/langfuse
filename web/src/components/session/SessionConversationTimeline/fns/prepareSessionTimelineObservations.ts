@@ -1,6 +1,7 @@
 import { normalizeSpanIO } from "@langfuse/shared/src/utils/normalized-io";
 
 import {
+  deduplicateTimelineInput,
   getStandaloneToolCallIds,
   processTimelineMessages,
 } from "@/src/components/session/SessionConversationTimeline/fns/processTimelineMessages";
@@ -159,36 +160,50 @@ export function prepareSessionTimelineObservations<
   const result: PreparedSessionTimelineObservation<Observation>[] = [];
   const emitted = new Set<string>();
   const active = new Set<string>();
-  const emit = (prepared: (typeof preparedObservations)[number]) => {
+  const emit = (
+    prepared: (typeof preparedObservations)[number],
+    ancestorMessages: ProcessedSessionTimelineMessages["messages"],
+  ) => {
     const key = observationKey(prepared.observation);
     if (emitted.has(key) || active.has(key)) return;
 
     const children = childrenByParentKey.get(key) ?? [];
+    const messages = deduplicateTimelineInput(
+      prepared.processedMessages.messages,
+      ancestorMessages,
+    );
+    const contextualPrepared = {
+      ...prepared,
+      processedMessages: { ...prepared.processedMessages, messages },
+    };
     if (children.length === 0) {
       emitted.add(key);
-      result.push({ ...prepared, phase: "complete" });
+      result.push({ ...contextualPrepared, phase: "complete" });
       return;
     }
 
     active.add(key);
     result.push({
-      ...prepared,
+      ...contextualPrepared,
       phase: "start",
       processedMessages: {
-        messages: prepared.processedMessages.messages.filter(
-          (message) => message.source === "input",
-        ),
+        messages: messages.filter((message) => message.source === "input"),
         rolledUpToolCalls: [],
       },
     });
-    for (const child of children) emit(child);
+    const ownInputMessages =
+      prepared.parsed?.type === "loaded"
+        ? prepared.parsed.messages.filter(
+            (message) => message.source === "input",
+          )
+        : messages.filter((message) => message.source === "input");
+    const descendantContext = ancestorMessages.concat(ownInputMessages);
+    for (const child of children) emit(child, descendantContext);
     result.push({
-      ...prepared,
+      ...contextualPrepared,
       phase: "end",
       processedMessages: {
-        messages: prepared.processedMessages.messages.filter(
-          (message) => message.source === "output",
-        ),
+        messages: messages.filter((message) => message.source === "output"),
         rolledUpToolCalls: prepared.processedMessages.rolledUpToolCalls,
       },
     });
@@ -201,9 +216,9 @@ export function prepareSessionTimelineObservations<
       ? `${prepared.observation.traceId ?? ""}\0${prepared.observation.parentObservationId}`
       : null;
     if (parentKey && preparedByKey.has(parentKey)) continue;
-    emit(prepared);
+    emit(prepared, []);
   }
-  for (const prepared of preparedObservations) emit(prepared);
+  for (const prepared of preparedObservations) emit(prepared, []);
 
   return result;
 }
