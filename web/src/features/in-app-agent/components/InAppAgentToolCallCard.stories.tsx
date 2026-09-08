@@ -1,5 +1,5 @@
 import preview from "../../../../.storybook/preview";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 import { InAppAgentToolCallCard } from "./InAppAgentToolCallCard";
 
 const toolErrorCountSource = `type ToolCall = {
@@ -159,7 +159,7 @@ const approvalToolErrorCountArguments = JSON.stringify({
     {
       ...toolErrorCountDefinition.versions[0],
       version: 2,
-      sourceCode: `${toolErrorCountSource}\n\nconst healthMarker = "\\u2713";`,
+      sourceCode: `const healthMarker = "\\u2713";\nfunction evaluate() { return { scores: [] }; }`,
     },
   ],
 });
@@ -495,11 +495,141 @@ export const ApprovalRequiredWithCode = meta.story({
     const canvas = within(canvasElement);
 
     await expect(canvas.getByRole("button", { name: "Approve" })).toBeVisible();
-    const showCodeButtons = canvas.getAllByRole("button", {
-      name: "View as code",
-    });
-    await expect(showCodeButtons).toHaveLength(2);
-    await userEvent.click(showCodeButtons[1]);
-    await expect(canvas.getByTitle("versions[1].sourceCode")).toBeVisible();
+    await expect(canvas.queryByRole("combobox")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("Details")).not.toBeInTheDocument();
+    await expect(canvas.getByText("versions[0].sourceCode")).toBeVisible();
+    await expect(
+      canvas.getAllByRole("button", { name: "Copy code" }),
+    ).toHaveLength(1);
+    await userEvent.click(canvas.getByRole("button", { name: "View JSON" }));
+    await expect(
+      canvas.queryByRole("button", { name: "Copy code" }),
+    ).not.toBeInTheDocument();
+    await expect(canvasElement).not.toHaveTextContent("const healthMarker");
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "View as code: versions[1].sourceCode",
+      }),
+    );
+    await expect(canvas.getByText("versions[1].sourceCode")).toBeVisible();
+    await expect(
+      canvas.getAllByRole("button", { name: "Copy code" }),
+    ).toHaveLength(1);
+    const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    try {
+      await userEvent.click(canvas.getByRole("button", { name: "Copy code" }));
+      await expect(copy).toHaveBeenCalledWith(
+        JSON.parse(approvalToolErrorCountArguments).versions[1].sourceCode,
+      );
+    } finally {
+      copy.mockRestore();
+    }
+  },
+});
+
+export const CopyEvaluatorPayload = meta.story({
+  name: "(Test) Copy evaluator payload",
+  args: {
+    isCompact: true,
+    tool: {
+      type: "tool",
+      name: "langfuse_createEvaluator",
+      status: "running",
+      args: approvalToolErrorCountArguments,
+      approval: { id: "copy-code", status: "pending" },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    try {
+      const canvas = within(canvasElement);
+      await userEvent.click(canvas.getByRole("button", { name: "View JSON" }));
+      const rootCopy = canvasElement.querySelector(
+        ".json-view > .json-view--copy",
+      );
+      if (!rootCopy) {
+        throw new globalThis.Error("Missing JSON root copy control");
+      }
+      await userEvent.click(rootCopy);
+      await expect(copy).toHaveBeenCalled();
+      await expect(JSON.parse(copy.mock.calls[0][0])).toEqual(
+        JSON.parse(args.tool.args),
+      );
+    } finally {
+      copy.mockRestore();
+    }
+  },
+});
+
+export const NestedEvaluatorPayload = meta.story({
+  name: "(Test) Nested evaluator payload",
+  args: {
+    isCompact: true,
+    tool: {
+      type: "tool",
+      name: "langfuse_getEvaluator",
+      status: "succeeded",
+      args: JSON.stringify({ evaluatorId: "example-evaluator" }),
+      result: JSON.stringify({
+        result:
+          '{"type":"CODE","sourceCode":"{}","sourceCodeLanguage":"PYTHON","id":9223372036854775807}',
+      }),
+    },
+  },
+  play: async (context) => {
+    const canvas = await showToolCall(context);
+    const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    try {
+      await expect(canvas.getByText("result.sourceCode")).toBeVisible();
+      await userEvent.click(canvas.getByRole("button", { name: "Copy code" }));
+      await expect(copy).toHaveBeenLastCalledWith("{}");
+      await userEvent.click(canvas.getByRole("button", { name: "View JSON" }));
+      copy.mockClear();
+      await userEvent.click(
+        context.canvasElement.querySelectorAll(
+          ".json-view > .json-view--copy",
+        )[1],
+      );
+      await expect(JSON.parse(copy.mock.calls[0][0])).toEqual({
+        result: {
+          type: "CODE",
+          sourceCode: "{}",
+          sourceCodeLanguage: "PYTHON",
+          id: "9223372036854775807",
+        },
+      });
+    } finally {
+      copy.mockRestore();
+    }
+  },
+});
+
+export const UnconfiguredCodePayload = meta.story({
+  name: "(Test) Unconfigured code payload",
+  args: {
+    isCompact: true,
+    tool: {
+      type: "tool",
+      name: "constructor",
+      status: "succeeded",
+      args: JSON.stringify({
+        type: "CODE",
+        sourceCode: "return 42",
+        sourceCodeLanguage: "PYTHON",
+      }),
+    },
+  },
+  play: async (context) => {
+    const canvas = await showToolCall(context);
+    await expect(canvas.getByText('"return 42"')).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "View JSON" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: /View as code/ }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "Copy code" }),
+    ).not.toBeInTheDocument();
   },
 });

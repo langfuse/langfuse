@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import { type ReactElement, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   Check,
@@ -48,19 +48,20 @@ export function JSONView(props: {
   externalJsonCollapsed?: boolean;
   onToggleCollapse?: () => void;
   collapseDepth?: number;
-  customizeNode?: (params: {
-    node: unknown;
-    indexOrName: number | string | undefined;
-    depth: number;
-  }) => ReactElement | undefined;
+  /** Render prepared data without parsing strings or decoding source-code escapes. */
+  preserveStrings?: boolean;
+  customizeNode?: (node: unknown) => React.ReactElement | undefined;
 }) {
   // some users ingest stringified json nested in json, parse it. Also decode
   // \uXXXX escapes (e.g. Japanese ingested with Python ensure_ascii=True) so
   // non-ASCII content renders as real characters. Already-decoded strings are
   // a no-op (decodeUnicodeEscapesOnly returns early when there is no backslash).
   const parsedJson = useMemo(
-    () => decodeUnicodeInJson(deepParseJson(props.json)),
-    [props.json],
+    () =>
+      props.preserveStrings
+        ? props.json
+        : decodeUnicodeInJson(deepParseJson(props.json)),
+    [props.json, props.preserveStrings],
   );
   const { resolvedTheme } = useTheme();
   const { setIsMarkdownEnabled } = useMarkdownContext();
@@ -158,14 +159,9 @@ export function JSONView(props: {
               // Render previewable media (Langfuse refs, data URIs, media URLs)
               // as a hover-to-peek chip instead of the raw string; everything
               // else falls through to the default value rendering.
-              customizeNode={({ node, indexOrName, depth }) => {
-                const customNode = props.customizeNode?.({
-                  node,
-                  indexOrName,
-                  depth,
-                });
-                if (customNode) return customNode;
-
+              customizeNode={({ node }) => {
+                const customNode = props.customizeNode?.(node);
+                if (customNode !== undefined) return customNode;
                 const descriptor = classifyMediaValue(node);
                 return descriptor ? (
                   <MediaReferenceTag descriptor={descriptor} />
