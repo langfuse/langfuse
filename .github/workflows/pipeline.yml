@@ -58,9 +58,9 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: bash "scripts/validate-release-tag-branch.sh" "${RELEASE_TAG}" "${RELEASE_COMMIT}" "origin/v3"
 
-  # Skips runs whose git tree was already tested in a prior successful run of
-  # this workflow (replaces fkirc/skip-duplicate-actions). This fires almost
-  # exclusively on pushes to main, whose tree the merge queue just tested, so
+  # Skips main pushes already tested by a successful merge-queue run of this
+  # workflow; other push refs use a recent successful tree match. This fires
+  # almost exclusively on main, whose tree the merge queue just tested, so
   # the job only runs for push events: pull_request and merge_group runs skip
   # it instantly and their jobs start without waiting for it (~45-100s of
   # wall clock per run).
@@ -71,25 +71,57 @@ jobs:
       should_skip: ${{ steps.skip_check.outputs.should_skip }}
     timeout-minutes: 15
     permissions:
+      actions: read
       contents: read
     steps:
       - id: skip_check
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           COMMIT_SHA: ${{ github.sha }}
           RUN_ID: ${{ github.run_id }}
         run: |
-          CURRENT_TREE=$(gh api "repos/$REPOSITORY/git/commits/$COMMIT_SHA" --jq '.tree.sha')
+          if ! CURRENT_TREE=$(timeout 10s gh api "repos/$REPOSITORY/git/commits/$COMMIT_SHA" --jq '.tree.sha // empty') \
+            || [[ ! "$CURRENT_TREE" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::warning::Cannot verify the current tree; running CI"
+            echo "should_skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
-          MATCH=$(gh api "repos/$REPOSITORY/actions/workflows/pipeline.yml/runs?status=success&per_page=20" \
-            | jq -r --argjson run_id "$RUN_ID" --arg current_tree "$CURRENT_TREE" \
-              '[.workflow_runs[] | select(.id != $run_id and .head_commit.tree_id == $current_tree)] | first | .head_sha // empty')
+          QUERY="status=success&per_page=20"
+          ATTEMPTS=1
+          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            # Scope the lookup to this commit and evaluate status locally so
+            # a just-completed queue run is not lost in a global success list.
+            QUERY="head_sha=$COMMIT_SHA&per_page=100"
+            ATTEMPTS=3
+          fi
+
+          MATCH=""
+          for ((ATTEMPT=1; ATTEMPT<=ATTEMPTS; ATTEMPT++)); do
+            if MATCH=$(timeout 10s gh api "repos/$REPOSITORY/actions/workflows/pipeline.yml/runs?$QUERY" \
+              -H "Cache-Control: no-cache" \
+              | jq -r --argjson run_id "$RUN_ID" --arg current_tree "$CURRENT_TREE" \
+                --arg sha "$COMMIT_SHA" --arg ref "$GITHUB_REF" \
+                '[.workflow_runs[] | select(.id != $run_id
+                  and .status == "completed" and .conclusion == "success"
+                  and .head_commit.tree_id == $current_tree
+                  and ($ref != "refs/heads/main" or (.head_sha == $sha and .event == "merge_group")))]
+                  | first | .id // empty'); then
+              if [[ -n "$MATCH" ]]; then break; fi
+            else
+              MATCH=""
+              echo "::warning::Duplicate lookup $ATTEMPT/$ATTEMPTS failed"
+            fi
+            if ((ATTEMPT < ATTEMPTS)); then sleep 5; fi
+          done
 
           if [[ -n "$MATCH" ]]; then
-            echo "::notice::Tree $CURRENT_TREE already tested in a prior successful run (commit $MATCH) — skipping"
+            echo "::notice::Tree $CURRENT_TREE already tested in successful run $MATCH — skipping"
             echo "should_skip=true" >> "$GITHUB_OUTPUT"
           else
+            echo "::notice::No verified duplicate after $ATTEMPTS lookup(s); running CI"
             echo "should_skip=false" >> "$GITHUB_OUTPUT"
           fi
 
