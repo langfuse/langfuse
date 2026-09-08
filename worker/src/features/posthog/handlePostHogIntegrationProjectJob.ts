@@ -28,6 +28,7 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import { PostHog } from "posthog-node";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
+import { recordExportFreshnessLag } from "../../services/exportFreshnessLagMetric";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { classifyCustomerFault } from "../integrations/customerFaultClassification";
 import { isRecordNotFoundError } from "../integrations/prismaErrors";
@@ -284,6 +285,8 @@ export const handlePostHogIntegrationProjectJob = async (
     return;
   }
 
+  const runStartTime = new Date();
+
   try {
     // Validate PostHog hostname to prevent SSRF attacks before sending data.
     // Rewrap preserving { cause } so the single catch below can classify the
@@ -327,6 +330,13 @@ export const handlePostHogIntegrationProjectJob = async (
       logger.info(
         `[POSTHOG] Skipping PostHog integration for project ${projectId}: empty sync window (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
       );
+      recordExportFreshnessLag({
+        integration: "posthog",
+        window: "1h",
+        status: "success",
+        runStartTime,
+        maxExportedTimestamp: postHogIntegration.lastSyncAt,
+      });
       return;
     }
 
@@ -425,6 +435,13 @@ export const handlePostHogIntegrationProjectJob = async (
       bytes: executionConfig.volume.bytes,
       projectId,
     });
+    recordExportFreshnessLag({
+      integration: "posthog",
+      window: "1h",
+      status: "success",
+      runStartTime,
+      maxExportedTimestamp: executionConfig.maxTimestamp,
+    });
     logger.info(
       `[POSTHOG] PostHog integration processing complete for project ${projectId}`,
     );
@@ -443,6 +460,14 @@ export const handlePostHogIntegrationProjectJob = async (
     const message = (
       error instanceof Error ? error.message : String(error)
     ).slice(0, 1000);
+
+    recordExportFreshnessLag({
+      integration: "posthog",
+      window: "1h",
+      status: "failure",
+      runStartTime,
+      maxExportedTimestamp: postHogIntegration.lastSyncAt,
+    });
 
     if (reason === undefined) {
       // Defensive fallback: every code today either classifies above and
