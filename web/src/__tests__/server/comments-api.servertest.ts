@@ -157,12 +157,15 @@ describe("Create and get comments", () => {
     });
   });
 
-  it("should still create an observation comment when objectStartTime is a wrong/stale hint", async () => {
+  it("should fail to create an observation comment when objectStartTime does not match", async () => {
     const actualStartTime = new Date("2024-05-15T12:00:00.000Z");
-    // A day the observation does NOT live on: the bounded lookup misses and
-    // must fall back to an unbounded lookup instead of surfacing a false 404.
+    // A day the observation does NOT live on: objectStartTime is a hard filter,
+    // so a value that misses the observation's start_time excludes it and the
+    // reference is treated as not found.
     const wrongStartTime = new Date("2024-05-20T12:00:00.000Z");
     const observationId = randomUUID();
+    // Seed both tables so the lookup resolves regardless of the v4 write-mode
+    // routing the test environment happens to use.
     await Promise.all([
       createEventsCh([
         createEvent({
@@ -183,36 +186,32 @@ describe("Create and get comments", () => {
       ]),
     ]);
 
-    const commentResponse = await makeZodVerifiedAPICall(
-      PostCommentsV1Response,
-      "POST",
-      "/api/public/comments",
-      {
-        content: "wrong-hint observation comment",
-        objectId: observationId,
-        objectType: "OBSERVATION",
-        projectId: seedProjectId,
-        objectStartTime: wrongStartTime.toISOString(),
-        authorUserId: orgMemberUserId,
-      },
-    );
-
-    const { id: commentId } = commentResponse.body;
-
-    const response = await makeZodVerifiedAPICall(
-      GetCommentV1Response,
-      "GET",
-      `/api/public/comments/${commentId}`,
-    );
-
-    expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({
-      id: commentId,
-      projectId: seedProjectId,
-      objectId: observationId,
-      objectType: "OBSERVATION",
-      content: "wrong-hint observation comment",
-    });
+    expect.assertions(2);
+    try {
+      await makeZodVerifiedAPICall(
+        z.object({
+          message: z.string(),
+          error: z.array(z.object({})),
+        }),
+        "POST",
+        "/api/public/comments",
+        {
+          content: "mismatched start-time observation comment",
+          objectId: observationId,
+          objectType: "OBSERVATION",
+          projectId: seedProjectId,
+          objectStartTime: wrongStartTime.toISOString(),
+          authorUserId: orgMemberUserId,
+        },
+      );
+    } catch (error) {
+      expect((error as Error).message).toContain(
+        `API call did not return 200, returned status 404`,
+      );
+      expect((error as Error).message).toContain(
+        `Observation with id ${observationId} not found`,
+      );
+    }
   });
 
   it("should fail to create comment if reference object does not exist", async () => {
