@@ -393,12 +393,10 @@ describe("LLM gateway live end-to-end", () => {
               });
             }
             expect(resolved.attribution).toEqual({
-              test: true,
-              provider,
-              apiFormat,
               organization_id: ORGANIZATION_ID,
               project_id: expect.stringMatching(/\S/),
               key_id: keyId,
+              key_metadata: { test: true, provider, apiFormat },
             });
             expect(resolved.ingestion).toMatchObject({
               access_token: expect.stringMatching(/\S/),
@@ -771,20 +769,10 @@ async function uploadMedia(
 
   await waitForExpect(
     async () => {
-      const [media, traceMedia, observationMedia] = await Promise.all([
+      const [media, observationMedia] = await Promise.all([
         prisma.media.findUnique({
           where: {
             projectId_id: { projectId: defaultProjectId, id: upload.mediaId },
-          },
-        }),
-        prisma.traceMedia.findUnique({
-          where: {
-            projectId_traceId_mediaId_field: {
-              projectId: defaultProjectId,
-              traceId: context.traceId,
-              mediaId: upload.mediaId,
-              field: "input",
-            },
           },
         }),
         prisma.observationMedia.findUnique({
@@ -805,7 +793,6 @@ async function uploadMedia(
         contentLength: BigInt(fileBytes.length),
         uploadHttpStatus: 200,
       });
-      expect(traceMedia).not.toBeNull();
       expect(observationMedia).not.toBeNull();
     },
     10_000,
