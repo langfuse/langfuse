@@ -191,7 +191,9 @@ The start command waits for web, worker, PostgreSQL, ClickHouse, Redis, and
 MinIO, then seeds the synthetic demo project and checks both application health
 endpoints. Cursor team administrators separately configure the read-only MCP
 catalog described in `.agents/README.md`; credentials and OAuth grants belong
-in Cursor, never in repository files.
+in Cursor, never in repository files. Maintainers who need the issue tracker
+inside Cloud should also set secret `LINEAR_API_KEY` (personal Linear API key)
+in the Cloud Agents dashboard; Linear MCP OAuth does not complete in Cloud.
 
 After local verification, a Cursor agent should open a same-repo reviewable
 PR (not a draft), apply the GitHub `cursor` label, and test its
