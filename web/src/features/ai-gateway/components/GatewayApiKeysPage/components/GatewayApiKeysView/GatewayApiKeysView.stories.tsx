@@ -24,6 +24,20 @@ const apiKeys = [
   },
 ] satisfies ComponentProps<typeof GatewayApiKeysView>["apiKeys"];
 
+const manyApiKeys = Array.from({ length: 30 }, (_, index) => ({
+  metadata: {
+    environment: index % 2 === 0 ? "production" : "staging",
+    region: index % 3 === 0 ? "us" : "eu",
+  },
+  apiKey: {
+    id: `gateway-key-${index + 1}`,
+    publicKey: `pk-lf-gw-${String(index + 1).padStart(4, "0")}`,
+    displaySecretKey: `sk-lf-gw-...${String(index + 1).padStart(4, "0")}`,
+    note: `Application ${index + 1}`,
+    createdAt: new Date(Date.UTC(2026, 8, 4 - (index % 28))),
+  },
+})) satisfies ComponentProps<typeof GatewayApiKeysView>["apiKeys"];
+
 const actions = {
   createAction: <Button onClick={onCreate}>Create gateway key</Button>,
   renderRevokeAction: (apiKeyId: string) => (
@@ -47,6 +61,14 @@ export const PopulatedMetadata = meta.story({
   args: {
     apiKeys,
     ...actions,
+  },
+});
+
+export const ManyRowsWithMoreAvailable = meta.story({
+  args: {
+    apiKeys: manyApiKeys,
+    ...actions,
+    hasMore: true,
   },
 });
 

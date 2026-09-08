@@ -51,6 +51,25 @@ const connections = [
   },
 ] satisfies ComponentProps<typeof GatewayProvidersView>["connections"];
 
+const providers = ["OPENAI", "ANTHROPIC", "OPENROUTER"] as const;
+const statuses = ["ENABLED", "ERROR", "DISABLED"] as const;
+const manyConnections = Array.from({ length: 30 }, (_, index) => ({
+  id: `connection-${index + 1}`,
+  name: `Credential ${index + 1}`,
+  provider: providers[index % providers.length]!,
+  displaySecret: `sk-...${String(index + 1).padStart(4, "0")}`,
+  status: statuses[index % statuses.length]!,
+  organizationId: "org-1",
+  createdById: "user-1",
+  routingPriority: index,
+  createdAt: new Date(Date.UTC(2026, 8, 30 - index)),
+  updatedAt: new Date("2026-09-30T12:00:00.000Z"),
+})) satisfies ComponentProps<typeof GatewayProvidersView>["connections"];
+
+const manyModelCounts = Object.fromEntries(
+  manyConnections.map((connection, index) => [connection.id, index * 7 + 1]),
+);
+
 const actions = {
   createAction: <Button onClick={onCreate}>Add credential</Button>,
   renderCredentialActions: (connection) => (
@@ -87,6 +106,15 @@ export const OrderedCredentials = meta.story({
       "connection-openrouter": 126,
     },
     ...actions,
+  },
+});
+
+export const ManyRowsWithMoreAvailable = meta.story({
+  args: {
+    connections: manyConnections,
+    modelCounts: manyModelCounts,
+    ...actions,
+    hasMore: true,
   },
 });
 

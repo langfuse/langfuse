@@ -224,6 +224,21 @@ export function GatewayModelsView({
                         }
                   }
                   hidePagination
+                  footer={
+                    hasMoreProviders ? (
+                      <Button
+                        variant="secondary"
+                        loading={isLoadingMoreProviders}
+                        disabled={isLoadingMoreProviders}
+                        aria-label="Load more"
+                        onClick={() => {
+                          onLoadMoreProviders();
+                        }}
+                      >
+                        Load more
+                      </Button>
+                    ) : undefined
+                  }
                   className="min-h-0"
                   noResultsMessage={emptyMessage}
                   cellPadding="comfortable"
@@ -233,21 +248,6 @@ export function GatewayModelsView({
           </div>
         </div>
       </DataTableControlsProvider>
-
-      {hasMoreProviders ? (
-        <Button
-          className="self-center"
-          variant="secondary"
-          loading={isLoadingMoreProviders}
-          disabled={isLoadingMoreProviders}
-          aria-label="Load more providers"
-          onClick={() => {
-            onLoadMoreProviders();
-          }}
-        >
-          Load more providers
-        </Button>
-      ) : null}
     </div>
   );
 }

@@ -816,6 +816,27 @@ describe("AI gateway control plane", () => {
     await expect(sessionProjectIds(futureMember.email!)).resolves.not.toContain(
       owner.project.id,
     );
+
+    // Saving an unrelated setting must not grant access to people who joined
+    // after this project was designated for gateway ingestion.
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      instrumentationMode: "FULL",
+    });
+    await expect(sessionProjectIds(futureMember.email!)).resolves.not.toContain(
+      owner.project.id,
+    );
+    await expect(
+      prisma.projectMembership.findUnique({
+        where: {
+          projectId_userId: {
+            projectId: owner.project.id,
+            userId: futureMember.id,
+          },
+        },
+      }),
+    ).resolves.toBeNull();
   });
 
   it("keeps routing priorities contiguous through reorders and deletes", async () => {

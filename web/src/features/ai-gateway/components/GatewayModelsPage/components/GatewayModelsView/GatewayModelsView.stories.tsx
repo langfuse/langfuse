@@ -8,6 +8,7 @@ import { GatewayModelsView } from "./GatewayModelsView";
 
 const meta = preview.meta({
   component: GatewayModelsView,
+  parameters: { layout: "fullscreen" },
   decorators: [
     (Story) => (
       <QueryParamProvider adapter={NextAdapterPages}>
@@ -35,6 +36,29 @@ const models = [
   },
 ] satisfies ComponentProps<typeof GatewayModelsView>["models"];
 
+const manyModels = Array.from({ length: 60 }, (_, index) => {
+  const provider =
+    index % 3 === 0
+      ? ("OPENAI" as const)
+      : index % 3 === 1
+        ? ("ANTHROPIC" as const)
+        : ("OPENROUTER" as const);
+
+  return {
+    id: `gateway-model-${String(index + 1).padStart(3, "0")}`,
+    availableVia: [
+      {
+        connectionName: `Credential ${(index % 6) + 1}`,
+        provider,
+      },
+    ],
+    apiFormats:
+      provider === "ANTHROPIC"
+        ? ["Anthropic Messages"]
+        : ["OpenAI Responses", "OpenAI Chat Completions"],
+  };
+}) satisfies ComponentProps<typeof GatewayModelsView>["models"];
+
 const defaultArgs = {
   models,
   failedProviderCount: 0,
@@ -51,6 +75,14 @@ const defaultArgs = {
 
 export const Populated = meta.story({
   args: defaultArgs,
+});
+
+export const ManyRowsWithMoreAvailable = meta.story({
+  args: {
+    ...defaultArgs,
+    models: manyModels,
+    hasMoreProviders: true,
+  },
 });
 
 export const PartialFailure = meta.story({

@@ -2,7 +2,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -76,17 +75,7 @@ const SortableHandleContext = createContext<SortableHandleContextValue | null>(
 
 export type GatewayConnectionRow = GatewayConnection;
 
-export function GatewayProvidersView({
-  connections,
-  modelCounts,
-  createAction,
-  renderCredentialActions,
-  hasMore,
-  isLoadingMore,
-  onLoadMore,
-  canReorder,
-  onReorder,
-}: {
+type GatewayProvidersViewProps = {
   connections: GatewayConnectionRow[];
   modelCounts: Record<string, number | "loading">;
   createAction: ReactNode;
@@ -99,20 +88,34 @@ export function GatewayProvidersView({
   onLoadMore: () => unknown;
   canReorder: boolean;
   onReorder: (sourceId: string, targetId: string) => Promise<boolean>;
-}) {
+};
+
+export function GatewayProvidersView(props: GatewayProvidersViewProps) {
+  const serverOrderKey = JSON.stringify(
+    props.connections.map((connection) => connection.id),
+  );
+  return <SortableGatewayProvidersView key={serverOrderKey} {...props} />;
+}
+
+function SortableGatewayProvidersView({
+  connections,
+  modelCounts,
+  createAction,
+  renderCredentialActions,
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
+  canReorder,
+  onReorder,
+}: GatewayProvidersViewProps) {
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor),
   );
-  const serverOrderKey = JSON.stringify(
+  const [orderedIds, setOrderedIds] = useState(() =>
     connections.map((connection) => connection.id),
   );
-  const serverIds = useMemo<string[]>(
-    () => JSON.parse(serverOrderKey),
-    [serverOrderKey],
-  );
-  const [orderedIds, setOrderedIds] = useState(serverIds);
   const rowNodes = useRef(new Map<string, HTMLTableRowElement>());
   const pendingRowPositions = useRef<Map<string, number> | null>(null);
 
@@ -133,10 +136,6 @@ export function GatewayProvidersView({
     },
     [],
   );
-
-  useEffect(() => {
-    setOrderedIds(serverIds);
-  }, [serverIds]);
 
   useLayoutEffect(() => {
     const previousPositions = pendingRowPositions.current;
@@ -302,6 +301,21 @@ export function GatewayProvidersView({
                 data: orderedConnections,
               }}
               hidePagination
+              footer={
+                hasMore ? (
+                  <Button
+                    variant="secondary"
+                    loading={isLoadingMore}
+                    disabled={isLoadingMore}
+                    aria-label="Load more"
+                    onClick={() => {
+                      onLoadMore();
+                    }}
+                  >
+                    Load more
+                  </Button>
+                ) : undefined
+              }
               cellPadding="comfortable"
               noResultsMessage="No provider credentials configured."
               renderRow={({ row, children }) => (
@@ -317,21 +331,6 @@ export function GatewayProvidersView({
           </div>
         </SortableContext>
       </DndContext>
-
-      {hasMore ? (
-        <Button
-          className="self-center"
-          variant="secondary"
-          loading={isLoadingMore}
-          disabled={isLoadingMore}
-          aria-label="Load more"
-          onClick={() => {
-            onLoadMore();
-          }}
-        >
-          Load more
-        </Button>
-      ) : null}
     </div>
   );
 }

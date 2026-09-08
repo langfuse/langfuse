@@ -1,6 +1,30 @@
-import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
-import { getProviderReorder, reorderProviderIds } from "./GatewayProvidersView";
+import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
+import {
+  GatewayProvidersView,
+  getProviderReorder,
+  reorderProviderIds,
+} from "./GatewayProvidersView";
+
+const connection = (
+  id: string,
+  name: string,
+  routingPriority: number,
+): GatewayConnection => ({
+  id,
+  name,
+  provider: "OPENAI",
+  displaySecret: "sk-...test",
+  status: "ENABLED",
+  organizationId: "org-1",
+  createdById: "user-1",
+  routingPriority,
+  createdAt: new Date("2026-09-08T12:00:00.000Z"),
+  updatedAt: new Date("2026-09-08T12:00:00.000Z"),
+});
 
 describe("provider credential reordering", () => {
   it("moves credentials in both directions", () => {
@@ -10,6 +34,46 @@ describe("provider credential reordering", () => {
     expect(
       reorderProviderIds(["anthropic", "openai"], "openai", "anthropic"),
     ).toEqual(["openai", "anthropic"]);
+  });
+
+  it("resets an optimistic order when the server order changes", async () => {
+    const alpha = connection("alpha", "Alpha", 0);
+    const beta = connection("beta", "Beta", 1);
+    const gamma = connection("gamma", "Gamma", 2);
+    const props = {
+      modelCounts: {},
+      createAction: null,
+      renderCredentialActions: () => null,
+      hasMore: false,
+      isLoadingMore: false,
+      onLoadMore: vi.fn(),
+      canReorder: true,
+      onReorder: vi.fn(async () => true),
+    };
+    const { rerender } = render(
+      createElement(GatewayProvidersView, {
+        ...props,
+        connections: [alpha, beta, gamma],
+      }),
+    );
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Move credential down" })[0]!,
+    );
+    await waitFor(() => {
+      expect(screen.getAllByRole("row")[1]).toHaveTextContent("Beta");
+    });
+
+    rerender(
+      createElement(GatewayProvidersView, {
+        ...props,
+        connections: [gamma, beta, alpha],
+      }),
+    );
+
+    expect(screen.getAllByRole("row")[1]).toHaveTextContent("Gamma");
+    expect(screen.getAllByRole("row")[2]).toHaveTextContent("Beta");
+    expect(screen.getAllByRole("row")[3]).toHaveTextContent("Alpha");
   });
 
   it("maps a completed drag to the source and target credentials", () => {

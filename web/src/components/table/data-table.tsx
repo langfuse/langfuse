@@ -125,6 +125,7 @@ interface DataTableProps<TData, TValue> {
   }) => React.ReactNode;
   /** Used for row click handling and MemoizedTableBody snapshot only. Render <TablePeekView> as a sibling outside DataTable. */
   peekView?: DataTablePeekViewProps;
+  footer?: React.ReactNode;
   hidePagination?: boolean;
   tableName: string;
   getRowClassName?: (row: TData) => string;
@@ -248,6 +249,7 @@ export function DataTable<TData extends object, TValue>({
   onRowClick,
   renderRow,
   peekView,
+  footer,
   hidePagination = false,
   tableName,
   getRowClassName,
@@ -447,12 +449,14 @@ export function DataTable<TData extends object, TValue>({
         )}
       >
         <div
-          // pr-2 + scrollbar-gutter:stable reserve a small gutter on the right so the
-          // last column's resize handle is never flush against the scrollbar/edge and
-          // always has some cursor room. Partial mitigation for LFE-10460: a maximized
-          // browser still clamps the cursor at the screen edge, so this guarantees room
-          // to the right, not a complete fix.
-          className="relative min-h-full w-full overflow-auto border-t pr-2 [scrollbar-gutter:stable]"
+          // When the final visible column can be resized, reserve a small gutter so
+          // its handle is never flush against the scrollbar or edge and always has
+          // some cursor room. Partial mitigation for LFE-10460: a maximized browser
+          // still clamps the cursor at the screen edge.
+          className={cn(
+            "relative min-h-full w-full overflow-auto border-t [scrollbar-gutter:stable]",
+            table.getVisibleLeafColumns().at(-1)?.getCanResize() && "pr-2",
+          )}
           style={{ ...columnSizeVars }}
           onScroll={onScroll}
         >
@@ -663,6 +667,11 @@ export function DataTable<TData extends object, TValue>({
           </Table>
         </div>
       </div>
+      {footer ? (
+        <div className="bg-background sticky bottom-0 z-10 flex w-full shrink-0 justify-center border-t p-2">
+          {footer}
+        </div>
+      ) : null}
       {!hidePagination && pagination !== undefined ? (
         <div className="bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-bold">
           <DataTablePagination

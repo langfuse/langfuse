@@ -54,6 +54,9 @@ export class GatewayConfigService {
         organizationId: params.organizationId,
         defaultIngestionProjectId: params.defaultIngestionProjectId,
         instrumentationMode: params.instrumentationMode,
+        preserveInheritedAccess:
+          before?.defaultIngestionProjectId !==
+          params.defaultIngestionProjectId,
       });
     }
 
@@ -97,9 +100,10 @@ export class GatewayConfigService {
     organizationId: string;
     defaultIngestionProjectId: string | null;
     instrumentationMode: GatewayInstrumentationMode;
+    preserveInheritedAccess: boolean;
   }) {
     return this.prisma.$transaction(async (tx) => {
-      if (params.defaultIngestionProjectId) {
+      if (params.defaultIngestionProjectId && params.preserveInheritedAccess) {
         await this.preserveInheritedProjectAccess({
           tx,
           organizationId: params.organizationId,
@@ -108,7 +112,11 @@ export class GatewayConfigService {
       }
       const config = await tx.gatewayConfig.upsert({
         where: { organizationId: params.organizationId },
-        create: params,
+        create: {
+          organizationId: params.organizationId,
+          defaultIngestionProjectId: params.defaultIngestionProjectId,
+          instrumentationMode: params.instrumentationMode,
+        },
         update: {
           defaultIngestionProjectId: params.defaultIngestionProjectId,
           instrumentationMode: params.instrumentationMode,
