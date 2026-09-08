@@ -56,6 +56,22 @@ hand-selects what lands.
 An explicit ask such as "write the handover", "comment on the ticket", or
 "update Linear" **is** the go-ahead for that write. Do not ask twice.
 
+## End of session: ask once whether to preserve on tickets
+
+When a session produced decisions, reversals, or other reasoning that should
+survive the chat — and you have not already been told to update Linear —
+**close with a clear yes/no ask**, not a silent write and not a buried aside.
+
+Use wording close to:
+
+> Should I update the ticket(s) with the results of this session so they are
+> preserved?
+
+If yes, show the exact comment or description block (or the batch table), then
+write. If no or unanswered, leave the block in the reply. Skip the ask only when
+nothing durable came out of the session, or when they already approved the write
+for this wrap-up.
+
 ## The three shapes
 
 They compose. Stamp **every** shape you used, so the labels read as a log of what
@@ -187,3 +203,15 @@ The Linear MCP writes as the **authenticated human**, not as a bot. An unmarked
 agent block reads as that person's own words to everyone who sees it. The label
 is for filtering; the in-text marking is what stops the misattribution. Do both,
 every time.
+
+## Where preferences live
+
+**Org defaults** for agent behaviour — including this propose-then-write gate —
+live in `.agents/skills/**` (and the maintainer handbook that points at them).
+Edit the skill when the team wants a different default.
+
+**Personal overrides** (tone, focus areas, “always / never do X for me”) belong
+in `~/.config/langfuse/me.md`, which is local and not shared. If a preference
+should apply to every maintainer’s agent, promote it into a skill instead of
+leaving it only in one person’s file. A richer commit-able preferences surface
+in-repo is a separate, larger change; until then, skills are the shared source.

@@ -69,6 +69,11 @@ go-ahead. Assigning, moving state, closing, estimating, re-prioritising,
 deleting, projects, and new labels still belong to a human — surface those as
 suggestions only.
 
+At wrap-up, skills that leave durable reasoning should close with a clear ask
+(wording close to "Should I update the ticket(s) with the results of this
+session so they are preserved?") rather than writing silently or skipping
+preservation — detail lives in `linear-agent-writes`.
+
 Two consequences worth designing for:
 
 - **Batch the ask.** A skill that reviews a whole queue should present filings

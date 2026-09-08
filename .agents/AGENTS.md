@@ -139,9 +139,11 @@ Two moments in every task, both easy to skip and both expensive:
   `.agents/skills/pr-stack-workflow/references/stack-commands.md` → *Recover the
   context before you slice*. A decision already reversed once does not need
   proposing again.
-- **Before you ask for review or merge, propose the reasoning for the work item**
-  — the decisions, the reversals, how the human steered, the traps. Show the
-  handover block in your reply and append it only after a yes (an ask such as
+- **Before you ask for review or merge — and at the end of a productive
+  session — ask whether to preserve results on the ticket(s).** Wording close
+  to: "Should I update the ticket(s) with the results of this session so they
+  are preserved?" Then show the handover block (decisions, reversals, how the
+  human steered, the traps) and append it only after a yes (an ask such as
   "write the handover" counts). It survives one session otherwise. Do it before
   the PR, not after the merge: there is no later.
 

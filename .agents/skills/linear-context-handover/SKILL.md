@@ -67,15 +67,21 @@ By hand, the same chain is:
 
 Read all of it before proposing a direction.
 
-## When you wrap up: propose the handover
+## When you wrap up: ask, then propose the handover
 
-Draft a clearly separated agent block for the **description** of the ticket the
-work belongs to. Show that block in your reply (name the ticket, say it would
-be labelled `AI edited`), and **append it only after an explicit yes** — see
-[`linear-agent-writes`](../linear-agent-writes/SKILL.md). An ask such as "write
-the handover" or "update the ticket" is that yes. If they decline or do not
-answer, leave the block in the reply so the reasoning still survives the
-session.
+Do not end a productive session by silently writing to Linear, and do not omit
+the preserve step. Close with a clear ask — wording close to:
+
+> Should I update the ticket(s) with the results of this session so they are
+> preserved?
+
+Then draft a clearly separated agent block for the **description** of the ticket
+the work belongs to. Show that block in your reply (name the ticket, say it
+would be labelled `AI edited`), and **append it only after an explicit yes** —
+see [`linear-agent-writes`](../linear-agent-writes/SKILL.md). An ask such as
+"write the handover" or "update the ticket" is that yes (no second question). If
+they decline or do not answer, leave the block in the reply so the reasoning
+still survives the session.
 
 **Scale it.** One substantial handover on the project or parent ticket, short
 pointers on the leaves. The same essay repeated on eight tickets is noise, not

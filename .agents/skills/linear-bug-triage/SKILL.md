@@ -77,15 +77,16 @@ Always, before writing anything:
    service, environment, monitor name, and observability link keywords.
 2. Search recently closed or canceled issues if the error is recurring or the
    wording is distinctive.
-3. If a related issue exists, add a concise evidence comment to it and label it
-   `AI commented`.
+3. If a related issue exists, put a concise evidence comment in the findings
+   table as `awaiting your go-ahead`. Post it and label `AI commented` only
+   after the go-ahead (one yes can cover the whole set).
 4. If no related issue exists, prepare the issue in the format below and put it
    in the findings table as `awaiting your go-ahead`. File it once the go-ahead
    comes, and update the row to `filed <issue key>`.
 
 ## Existing Issue Comments
 
-For related existing issues, add only:
+For related existing issues, after a yes, add only:
 
 - Recent window and baseline window.
 - Measured delta or `No measurements found` for unavailable signals.
