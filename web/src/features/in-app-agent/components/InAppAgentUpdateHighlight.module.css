@@ -12,6 +12,37 @@
   animation: assistant-update-highlight 2.4s ease-out forwards;
 }
 
+.corner {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-style: solid;
+}
+
+.topLeft {
+  top: -2px;
+  left: -2px;
+  border-width: 2px 0 0 2px;
+}
+
+.topRight {
+  top: -2px;
+  right: -2px;
+  border-width: 2px 2px 0 0;
+}
+
+.bottomRight {
+  right: -2px;
+  bottom: -2px;
+  border-width: 0 2px 2px 0;
+}
+
+.bottomLeft {
+  bottom: -2px;
+  left: -2px;
+  border-width: 0 0 2px 2px;
+}
+
 @keyframes assistant-update-highlight {
   0% {
     opacity: 0;

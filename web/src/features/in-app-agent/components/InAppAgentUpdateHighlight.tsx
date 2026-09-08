@@ -16,12 +16,38 @@ export function InAppAgentUpdateHighlight({
       {updateId ? (
         <div
           key={updateId}
-          className={cn(
-            styles.highlight,
-            "border-primary/60 ring-primary/20 border-2 ring-2",
-          )}
+          className={cn(styles.highlight, "border-border border")}
           aria-hidden="true"
-        />
+        >
+          <span
+            className={cn(
+              styles.corner,
+              styles.topLeft,
+              "border-foreground/60",
+            )}
+          />
+          <span
+            className={cn(
+              styles.corner,
+              styles.topRight,
+              "border-foreground/60",
+            )}
+          />
+          <span
+            className={cn(
+              styles.corner,
+              styles.bottomRight,
+              "border-foreground/60",
+            )}
+          />
+          <span
+            className={cn(
+              styles.corner,
+              styles.bottomLeft,
+              "border-foreground/60",
+            )}
+          />
+        </div>
       ) : null}
     </div>
   );
