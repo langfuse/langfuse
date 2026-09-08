@@ -5,44 +5,40 @@ import { type ApiAccessScope, redis } from "@langfuse/shared/src/server";
 
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { env } from "@/src/env.mjs";
-import { enforceOrgAuth } from "./enforceOrgAuth";
-import { principalScope } from "./principalScope";
+import {
+  enforceOrgAuth,
+  type AuthError,
+  type OrgAccessResult,
+} from "./enforceOrgAuth";
+import {
+  enforceProjectAuth,
+  type ProjectAccessResult,
+} from "./enforceProjectAuth";
+import { principalScope, type ScopeTarget } from "./principalScope";
 import { diffResults, legacyFromStatus, recordCoverage } from "./shadow";
-import { type OrganizationAction } from "./types";
+import {
+  type ErrorResult,
+  type OrganizationAction,
+  type ProjectAction,
+} from "./types";
 
 /** scopeDeniedCode is the http status legacy returns when a key's access level is wrong for the route. */
 const scopeDeniedCode = 403;
 
-/** verifyOrgAuth is the org direct-handler seam: legacy decides in legacy/shadow (byte-identical), the new pipeline decides alone in enforce. */
+/** verifyOrgAuth is the org direct-handler seam: legacy decides in legacy/shadow (byte-identical), the new pipeline decides alone in enforce; a projectId delegates enforce to the project pipeline. */
 export async function verifyOrgAuth(
   params: VerifyOrgAuthParams,
 ): Promise<DirectAuthResult> {
   if (env.API_AUTH_MIGRATION === "enforce") {
-    const authz = await enforceOrgAuth({
-      headers: params.req.headers,
-      action: params.action,
-    });
-    if (!authz.success) {
-      return enforceDenial(authz.error);
-    }
-    const mapped = await principalScope(authz.context.principal, {
-      orgId: authz.orgId,
-    });
-    if (!mapped.success) {
-      return enforceDenial(mapped.error);
-    }
-    return { validKey: true, scope: mapped.scope };
+    return enforceNew(params);
   }
 
   if (env.API_AUTH_MIGRATION === "shadow") {
     const legacy = await runLegacyScope(params.req);
-    const authz = await enforceOrgAuth({
-      headers: params.req.headers,
-      action: params.action,
-    });
+    const authz = await runNewPipeline(params);
     recordCoverage(params.req.url ?? "");
     diffResults(authz, legacyFromStatus(legacy.status), {
-      seam: "org_route",
+      seam: "projectId" in params ? "project_route" : "org_route",
       action: params.action,
     });
     return legacyResult(legacy);
@@ -50,6 +46,40 @@ export async function verifyOrgAuth(
 
   // any other value, a blank one included, fails safe to legacy
   return legacyResult(await runLegacyScope(params.req));
+}
+
+/** enforceNew runs the new pipeline alone and maps its principal onto the scope the handler receives. */
+async function enforceNew(
+  params: VerifyOrgAuthParams,
+): Promise<DirectAuthResult> {
+  const authz = await runNewPipeline(params);
+  if (!authz.success) {
+    return enforceDenial(authz.error);
+  }
+  const target: ScopeTarget =
+    "orgId" in authz ? { orgId: authz.orgId } : { projectId: authz.projectId };
+  const mapped = await principalScope(authz.context.principal, target);
+  if (!mapped.success) {
+    return enforceDenial(mapped.error);
+  }
+  return { validKey: true, scope: mapped.scope };
+}
+
+/** runNewPipeline routes to the project pipeline against the URL projectId when one is given, else the org pipeline. */
+function runNewPipeline(
+  params: VerifyOrgAuthParams,
+): Promise<OrgAccessResult | ProjectAccessResult | ErrorResult<AuthError>> {
+  if ("projectId" in params) {
+    return enforceProjectAuth({
+      headers: params.req.headers,
+      action: params.action,
+      projectId: params.projectId,
+    });
+  }
+  return enforceOrgAuth({
+    headers: params.req.headers,
+    action: params.action,
+  });
 }
 
 /** runLegacyScope verifies the credential and its organization access level, capturing every outcome as a value. */
@@ -86,11 +116,11 @@ function enforceDenial(error: EnforceError): DirectAuthResult {
   return { validKey: false, status: error.httpCode, error: error.message };
 }
 
-/** VerifyOrgAuthParams is the request and the checked org action. */
-export type VerifyOrgAuthParams = {
-  req: NextApiRequest;
-  action: OrganizationAction;
-};
+/** VerifyOrgAuthParams is the request and the checked org action, or a URL projectId with the project action enforce delegates to the project pipeline. */
+export type VerifyOrgAuthParams = { req: NextApiRequest } & (
+  | { action: OrganizationAction }
+  | { projectId: string; action: ProjectAction }
+);
 
 /** DirectAuthResult is the direct seam's outcome: the verified scope, or the status and message the handler renders. */
 export type DirectAuthResult =

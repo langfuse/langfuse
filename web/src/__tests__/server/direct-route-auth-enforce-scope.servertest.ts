@@ -15,6 +15,7 @@ import {
   type DirectAuthResult,
   type VerifyOrgAuthParams,
 } from "@/src/features/auth/policy/shadow.direct";
+import { type ProjectAction } from "@/src/features/auth/policy/types";
 import { type VerifyAuthParams } from "@/src/features/public-api/server/verifyProjectAuth";
 
 // The seams are imported dynamically so the authenticator singleton captures
@@ -35,6 +36,7 @@ let orgSeam: OrgSeam;
 let verifyProjectAuth: ProjectVerify;
 let orgId = "";
 let projectId = "";
+let foreignProjectId = "";
 let orgAuth = "";
 let projectAuth = "";
 let projectPublicKey = "";
@@ -91,6 +93,23 @@ const projectResultUnderModes = async (
   return { legacy, enforce };
 };
 
+const projectNestedUnderModes = async (
+  authorization: string,
+  target: string,
+  action: ProjectAction = "apiKeys:read",
+) => {
+  const params: VerifyOrgAuthParams = {
+    req: reqWith({ authorization }),
+    projectId: target,
+    action,
+  };
+  setMode("legacy");
+  const legacy = await orgSeam.verifyOrgAuth(params);
+  setMode("enforce");
+  const enforce = await orgSeam.verifyOrgAuth(params);
+  return { legacy, enforce };
+};
+
 const scopeOf = (result: DirectAuthResult): Record<string, unknown> => {
   if (!result.validKey) throw new Error(`denied with ${result.status}`);
   return result.scope as unknown as Record<string, unknown>;
@@ -132,6 +151,9 @@ describe("the direct seams map principals to legacy-identical scopes", () => {
     projectAuth = base.auth;
     projectPublicKey = base.publicKey;
     orgAuth = await createOrgApiKey(orgId);
+
+    const foreign = await createOrgProjectAndApiKey();
+    foreignProjectId = foreign.projectId;
   });
 
   afterAll(() => {
@@ -184,6 +206,33 @@ describe("the direct seams map principals to legacy-identical scopes", () => {
   it("a bearer-presented project key on a project route 403s in both modes", async () => {
     const { legacy, enforce } = await projectResultUnderModes(
       `Bearer ${projectPublicKey}`,
+    );
+    expect(legacy).toMatchObject({ validKey: false, status: 403 });
+    expect(enforce).toMatchObject({ validKey: false, status: 403 });
+  });
+
+  it("an organization key on a project-nested route stays org-gated in legacy and authorizes its own project in enforce", async () => {
+    const { legacy, enforce } = await projectNestedUnderModes(
+      orgAuth,
+      projectId,
+    );
+    expect(scopeOf(legacy).accessLevel).toBe("organization");
+    expect(scopeOf(enforce).projectId).toBe(projectId);
+    expect(scopeOf(enforce).orgId).toBe(orgId);
+  });
+
+  it("an organization key on a project-nested route is 403 in enforce for a project it does not own", async () => {
+    const { enforce } = await projectNestedUnderModes(
+      orgAuth,
+      foreignProjectId,
+    );
+    expect(enforce).toMatchObject({ validKey: false, status: 403 });
+  });
+
+  it("a project key on a project-nested route 403s in both modes", async () => {
+    const { legacy, enforce } = await projectNestedUnderModes(
+      projectAuth,
+      projectId,
     );
     expect(legacy).toMatchObject({ validKey: false, status: 403 });
     expect(enforce).toMatchObject({ validKey: false, status: 403 });

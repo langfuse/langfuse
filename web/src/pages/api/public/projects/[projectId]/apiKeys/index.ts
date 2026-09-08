@@ -27,10 +27,16 @@ export default async function handler(
       return;
     }
 
+    const projectId = validateQueryAndExtractId(req.query);
+    if (!projectId) {
+      return res.status(400).json({ message: "Invalid project ID" });
+    }
+
     // CHECK AUTH
     const authCheck = await verifyOrgAuth({
       req,
-      action: "projects:read",
+      projectId,
+      action: req.method === "GET" ? "apiKeys:read" : "apiKeys:CUD",
     });
     if (!authCheck.validKey) {
       return res.status(authCheck.status).json({
@@ -57,11 +63,6 @@ export default async function handler(
       );
     if (rateLimitCheck?.isRateLimited()) {
       return rateLimitCheck.sendRestResponseIfLimited(res);
-    }
-
-    const projectId = validateQueryAndExtractId(req.query);
-    if (!projectId) {
-      return res.status(400).json({ message: "Invalid project ID" });
     }
 
     // Check if project exists and belongs to the organization
