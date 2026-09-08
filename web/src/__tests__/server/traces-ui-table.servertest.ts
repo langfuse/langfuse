@@ -279,7 +279,7 @@ describe("Traces table API test", () => {
         projectId: project_id,
         filter,
         searchQuery: needle,
-        searchType: ["content"] as const,
+        searchType: ["content"],
         orderBy: { column: "timestamp" as const, order },
         limit: 5,
       };
