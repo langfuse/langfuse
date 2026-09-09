@@ -1,9 +1,11 @@
 /**
- * Cost/usage metadata text for ObservationDetailView and the trace summary
- * strip. Muted text (measurements are typography, not chips) with a dotted
- * underline as the hover affordance; BreakdownTooltip carries the detail.
+ * Cost/usage metadata pills for ObservationDetailView and the trace summary
+ * strip. Rendered through the session header's pill primitive
+ * (`ModernSessionHeaderPill`); `BreakdownTooltip` carries the detail on
+ * hover/click and its trigger semantics are unchanged.
  */
 
+import { ModernSessionHeaderPill } from "@/src/components/session/ModernSessionHeaderPill";
 import {
   BreakdownTooltip,
   type PriceSource,
@@ -14,9 +16,6 @@ import {
   numberFormatter,
 } from "@/src/utils/numbers";
 import { InfoIcon } from "lucide-react";
-
-const METRIC_TEXT_CLASSES =
-  "text-muted-foreground inline-flex cursor-help items-center gap-1 text-xs";
 
 export function CostBadge({
   totalCost,
@@ -33,9 +32,12 @@ export function CostBadge({
       isCost={true}
       priceSource={priceSource}
     >
-      <span className={METRIC_TEXT_CLASSES} title="Cost breakdown on hover">
-        {usdFormatter(totalCost)}
-      </span>
+      <ModernSessionHeaderPill
+        variant="display"
+        title="Cost breakdown on hover"
+      >
+        cost <span className="text-foreground">{usdFormatter(totalCost)}</span>
+      </ModernSessionHeaderPill>
     </BreakdownTooltip>
   );
 }
@@ -108,9 +110,16 @@ export function UsageBadge({
 
     return (
       <BreakdownTooltip details={usageDetails} isCost={false}>
-        <span className={METRIC_TEXT_CLASSES} title="Usage breakdown on hover">
-          {`∑ ${numberFormatter(compactTotal, 0)}`}
-        </span>
+        <ModernSessionHeaderPill
+          variant="display"
+          title="Usage breakdown on hover"
+        >
+          tokens{" "}
+          <span className="text-foreground">
+            {numberFormatter(inputUsage, 0)} → {numberFormatter(outputUsage, 0)}{" "}
+            (∑ {numberFormatter(compactTotal, 0)})
+          </span>
+        </ModernSessionHeaderPill>
       </BreakdownTooltip>
     );
   }
@@ -125,13 +134,18 @@ export function UsageBadge({
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>
       {tokenText ? (
-        <span className={METRIC_TEXT_CLASSES} title="Usage breakdown on hover">
-          {tokenText}
-        </span>
+        <ModernSessionHeaderPill
+          variant="display"
+          title="Usage breakdown on hover"
+        >
+          <span className="text-foreground">{tokenText}</span>
+        </ModernSessionHeaderPill>
       ) : (
-        <span className={METRIC_TEXT_CLASSES} aria-label="View usage breakdown">
-          <InfoIcon aria-hidden className="size-3" />
-        </span>
+        <ModernSessionHeaderPill variant="display">
+          <span aria-label="View usage breakdown">
+            <InfoIcon aria-hidden className="size-3" />
+          </span>
+        </ModernSessionHeaderPill>
       )}
     </BreakdownTooltip>
   );

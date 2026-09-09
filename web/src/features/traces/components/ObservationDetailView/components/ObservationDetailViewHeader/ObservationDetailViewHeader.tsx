@@ -809,9 +809,19 @@ export const ObservationDetailViewHeader = memo(
                 internalModelId={observation.internalModelId}
                 projectId={projectId}
               />
-              <EnvironmentBadge environment={observation.environment} />
-              <ReleaseBadge release={observation.release} />
-              <VersionBadge version={observation.version} />
+              {/* env/release/version render only when they DIFFER from the
+                  trace's (a differing value is signal — e.g. an observation
+                  from another release); the inherited common case is already
+                  shown once in the TraceSummaryStrip. */}
+              {observation.environment !== trace.environment && (
+                <EnvironmentBadge environment={observation.environment} />
+              )}
+              {observation.release !== trace.release && (
+                <ReleaseBadge release={observation.release} />
+              )}
+              {observation.version !== trace.version && (
+                <VersionBadge version={observation.version} />
+              )}
               <EvaluatorBadge
                 evaluatorId={evaluatorId}
                 evaluatorName={evaluator.data?.name}
