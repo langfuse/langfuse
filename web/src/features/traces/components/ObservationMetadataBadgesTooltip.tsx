@@ -34,6 +34,10 @@ import { usdFormatter, numberFormatter } from "@/src/utils/numbers";
 const METRIC_TEXT_CLASS =
   "text-muted-foreground inline-flex shrink-0 items-center gap-1 font-mono text-[11px] whitespace-nowrap";
 
+// Values that own a hover breakdown get a faint dotted underline at rest so
+// they read as "more here" next to plain metrics (latency) that have nothing.
+const BREAKDOWN_AFFORDANCE_CLASS = `${METRIC_TEXT_CLASS} decoration-muted-foreground/50 underline decoration-dotted underline-offset-4`;
+
 /**
  * Whether a usage object is worth rendering at all — `CostUsageBadge`'s own
  * null-render check.
@@ -219,7 +223,10 @@ export function CostUsageBadge({
     return (
       <BreakdownTooltip details={usage} isCost={false}>
         {total > 0 ? (
-          <span title="Usage breakdown on hover" className={METRIC_TEXT_CLASS}>
+          <span
+            title="Usage breakdown on hover"
+            className={BREAKDOWN_AFFORDANCE_CLASS}
+          >
             {`∑ ${numberFormatter(total, 0)}`}
           </span>
         ) : (
@@ -240,7 +247,10 @@ export function CostUsageBadge({
           className="flex cursor-pointer"
           onClick={() => setIsOpen(!isOpen)}
         >
-          <span title="Cost breakdown on hover" className={METRIC_TEXT_CLASS}>
+          <span
+            title="Cost breakdown on hover"
+            className={BREAKDOWN_AFFORDANCE_CLASS}
+          >
             {usdFormatter(totalCost)}
           </span>
         </TooltipTrigger>
