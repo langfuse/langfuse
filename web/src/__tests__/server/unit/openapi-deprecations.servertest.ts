@@ -186,6 +186,26 @@ describe("OpenAPI deprecations", () => {
     }
   });
 
+  it("tells legacy ingestion callers to prefer Python and JS SDKs over curl", () => {
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "Always prefer upgrading to the current Python and JS SDKs",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "custom auto-instrumentation",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain("curl");
+
+    const ingestion = getFernDeprecatedOperations(definitionDirectory).find(
+      ({ method, endpointPath }) =>
+        method === "post" && endpointPath === "/api/public/ingestion",
+    );
+    expect(ingestion?.message).toContain(
+      "Always prefer upgrading to the current Python and JS SDKs",
+    );
+    expect(ingestion?.message).toContain("custom auto-instrumentation");
+    expect(ingestion?.message).toContain("curl");
+  });
+
   it("supports deprecated endpoints at a service base path", () => {
     withDefinition(
       {
