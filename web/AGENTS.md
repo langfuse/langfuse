@@ -198,10 +198,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   and ingestion-scoped `evaluation-rules`; do not leak `EvalTemplate` or
   `JobConfiguration` naming into the public contract.
 - Keep tests independent; in `src/__tests__/server/**`, prefer scoped cleanup or
-  unique test data over global reset helpers. Suites that must invalidate the
-  entire API-key cache belong to `server-cache-exclusive` in `vitest.config.mts`:
-  this project runs files sequentially after all other projects. Include it in
-  every full server-test invocation; Redis Cluster cannot isolate via DB numbers.
+  unique test data over global reset helpers.
 - Put pure server unit tests that do not need Postgres bootstrap under
   `src/__tests__/server/unit/**` so they skip the shared DB setup hook.
 - Server tests that drive the public REST API over HTTP need a web server on
