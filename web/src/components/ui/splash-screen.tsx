@@ -69,16 +69,18 @@ function VideoPlayer({ videoSrc }: { videoSrc: string }) {
         onError={() => setHasError(true)}
         onLoadedData={(event) => {
           setIsLoaded(true);
-          // Own the autoplay promise: the autoPlay attribute's play()
-          // rejection is unhandled, and Firefox reports it as
-          // NotSupportedError when the codec is unavailable.
+          // Firefox rejects play() with NotSupportedError when the codec is
+          // unavailable; hide the player. NotAllowedError is autoplay policy.
+          // Other rejections rethrow so they stay visible to error reporting.
           return event.currentTarget.play().catch((error: unknown) => {
-            if (
-              error instanceof DOMException &&
-              error.name === "NotSupportedError"
-            ) {
-              setHasError(true);
+            if (error instanceof DOMException) {
+              if (error.name === "NotSupportedError") {
+                setHasError(true);
+                return;
+              }
+              if (error.name === "NotAllowedError") return;
             }
+            throw error;
           });
         }}
       />
