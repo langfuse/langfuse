@@ -257,7 +257,10 @@ export function rule20(modules) {
 // other feature happens to reuse it. Filtering pages out of the consumer set
 // and sending `components/session` into `annotation-queues` is how ModernSession
 // landed in the wrong feature (LFE-16079 → LFE-16119).
-/** Map a pages route to the feature slug it owns. */
+/** Map a pages route to the feature slug it owns.
+ * @param {string} pagePath
+ * @returns {string | null}
+ */
 export function pageOwnedFeatureSlug(pagePath) {
   if (
     !/^src\/pages\//.test(pagePath) ||
