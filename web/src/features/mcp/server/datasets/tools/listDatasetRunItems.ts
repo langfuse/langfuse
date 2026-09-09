@@ -1,4 +1,4 @@
-import { listDatasetRunItemsByRunIdForApi } from "@/src/features/datasets/server/publicDatasetService";
+import { listDatasetRunItemsByRunIdForApi } from "@/src/features/datasets/server";
 import { GetDatasetRunItemsV1Response } from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { buildDatasetRunUrl } from "@langfuse/shared/src/server";

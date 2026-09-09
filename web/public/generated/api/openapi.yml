@@ -3013,6 +3013,18 @@ paths:
           required: true
           schema:
             type: string
+        - name: startTime
+          in: query
+          description: >-
+            The start time of the observation (ISO 8601 with offset, e.g.
+            2024-01-01T00:00:00Z). When provided, the lookup is restricted to
+            the observation's start day, which makes the request substantially
+            faster. Omit it to look up the observation without a time bound.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
       responses:
         '200':
           description: ''
@@ -9192,6 +9204,15 @@ components:
             The id of the user who created the comment. Must be a member of the
             organization that owns the project, otherwise an error will be
             thrown.
+        objectStartTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            The start time of the referenced object (for observations, the
+            observation's start time). When provided, Langfuse validates the
+            reference more efficiently by narrowing the lookup to that time
+            range.
       required:
         - projectId
         - objectType

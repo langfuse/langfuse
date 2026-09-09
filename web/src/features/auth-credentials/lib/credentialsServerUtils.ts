@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
-import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
+import type { AdClickIds } from "@/src/features/auth";
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
