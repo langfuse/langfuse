@@ -261,7 +261,7 @@ function PlaygroundWindowContent({
 
           <div className="relative flex-1 overflow-auto p-4">
             {playgroundContext.sourcePrompt && (
-              <div className="absolute top-1 right-8 flex max-w-[calc(100%-4rem)] justify-end">
+              <div className="absolute top-1 flex max-w-[calc(100%-4rem)] justify-end">
                 <SourcePromptHeading
                   sourcePrompt={playgroundContext.sourcePrompt}
                   isEdited={isEdited}
