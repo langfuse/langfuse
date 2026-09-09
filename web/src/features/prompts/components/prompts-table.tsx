@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { normalizeOrderByForTable } from "@langfuse/shared";
 import { DataTable } from "@/src/components/table/data-table";
 import {
   DataTableControlsProvider,
@@ -85,6 +86,10 @@ export function PromptTable() {
     column: "createdAt",
     order: "DESC",
   });
+  const orderBy = normalizeOrderByForTable({
+    orderBy: orderByState,
+    expectedTimeColumn: "createdAt",
+  });
 
   const {
     paginationState,
@@ -109,7 +114,7 @@ export function PromptTable() {
       limit: paginationState.pageSize,
       projectId,
       filter: filterState,
-      orderBy: orderByState,
+      orderBy,
       pathPrefix: currentFolderPath,
       searchQuery: searchQuery || undefined,
       searchType: searchType,
@@ -377,7 +382,7 @@ export function PromptTable() {
               limit: 50,
               projectId,
               filter: filterState,
-              orderBy: orderByState,
+              orderBy,
             }}
           />
         );
@@ -478,7 +483,7 @@ export function PromptTable() {
                         })),
                       }
               }
-              orderBy={orderByState}
+              orderBy={orderBy}
               setOrderBy={setOrderByState}
               pagination={{
                 totalCount,

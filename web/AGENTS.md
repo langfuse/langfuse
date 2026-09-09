@@ -199,6 +199,10 @@ Sentry instrumentation skill first and decide whether it should capture at all
   `JobConfiguration` naming into the public contract.
 - Keep tests independent; in `src/__tests__/server/**`, prefer scoped cleanup or
   unique test data over global reset helpers.
+- Test teardown closes existing `globalThis.redis` and imports ClickHouse through
+  `@langfuse/shared/src/server/clickhouse`, not the full server barrel or relative
+  shared source paths. Suites own their private Redis clients; shared-context
+  workers skip per-file teardown.
 - Put pure server unit tests that do not need Postgres bootstrap under
   `src/__tests__/server/unit/**` so they skip the shared DB setup hook.
 - Server tests that drive the public REST API over HTTP need a web server on
