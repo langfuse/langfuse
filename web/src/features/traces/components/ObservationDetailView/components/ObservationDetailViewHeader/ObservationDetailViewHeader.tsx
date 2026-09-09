@@ -745,12 +745,18 @@ export const ObservationDetailViewHeader = memo(
                 userId={observation.userId ?? null}
                 projectId={projectId}
               />
-              <EvaluatorBadge
-                evaluatorId={evaluatorId}
-                evaluatorName={evaluator.data?.name}
-                environment={observation.environment}
-                projectId={projectId}
-              />
+              {evaluatorId &&
+                (observation.environment ===
+                  LangfuseInternalTraceEnvironment.LLMJudge ||
+                  observation.environment ===
+                    LangfuseInternalTraceEnvironment.CodeEval) &&
+                !evaluatorId.startsWith("managed:") && (
+                  <EvaluatorBadge
+                    evaluatorId={evaluatorId}
+                    evaluatorName={evaluator.data?.name}
+                    projectId={projectId}
+                  />
+                )}
               <EnvironmentBadge environment={observation.environment} />
               <ReleaseBadge release={observation.release} />
               {displayedTotalCost != null && displayedCostDetails && (
