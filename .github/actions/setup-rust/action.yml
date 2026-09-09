@@ -1,0 +1,19 @@
+name: Setup Rust toolchain
+description: Install the Rust toolchain pinned by packages/native/rust-toolchain.toml, which compiles the worker's native addon.
+
+runs:
+  using: composite
+  steps:
+    - name: Install pinned Rust toolchain
+      shell: bash
+      working-directory: packages/native
+      # With no toolchain argument rustup installs the channel and components
+      # named in rust-toolchain.toml, so the pin lives in one place.
+      run: |
+        if ! command -v rustup >/dev/null 2>&1; then
+          echo "::error::rustup is not installed on this runner; @langfuse/native cannot be built"
+          exit 1
+        fi
+        rustup toolchain install
+        rustup show active-toolchain
+        cargo --version

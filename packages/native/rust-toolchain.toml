@@ -1,0 +1,7 @@
+# Pinned to the Rust version that Alpine ships in the `node:24-alpine` image,
+# which compiles this crate for the worker image (see worker/Dockerfile). Keep
+# the two aligned so CI and local builds use the compiler that production uses.
+[toolchain]
+channel = "1.96.1"
+components = ["clippy", "rustfmt"]
+profile = "minimal"

@@ -1,0 +1,37 @@
+{
+  "name": "@langfuse/native",
+  "version": "0.0.0",
+  "description": "Rust native addon (napi-rs) loaded by the Langfuse worker",
+  "license": "MIT",
+  "private": true,
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "*.node"
+  ],
+  "engines": {
+    "node": "24"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs --release",
+    "build:debug": "node scripts/build.mjs",
+    "lint": "cargo fmt --check && cargo clippy --all-targets -- -D warnings",
+    "lint:fix": "cargo fmt && cargo clippy --all-targets --fix --allow-dirty -- -D warnings"
+  },
+  "napi": {
+    "binaryName": "langfuse-native",
+    "targets": [
+      "x86_64-unknown-linux-musl",
+      "aarch64-unknown-linux-musl",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+      "aarch64-apple-darwin",
+      "x86_64-apple-darwin"
+    ]
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "3.8.6"
+  }
+}
