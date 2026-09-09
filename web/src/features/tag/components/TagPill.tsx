@@ -1,17 +1,16 @@
+import { ModernSessionHeaderPill } from "@/src/components/session/ModernSessionHeaderPill";
+
 /**
- * Read-only tag chip: thin outlined pill, muted text. The quiet counterpart to
- * the interactive TagButton — for surfaces that display tags without editing
- * them (trace summary strip, detail headers).
+ * Read-only tag chip for surfaces that display tags without editing them
+ * (trace summary strip, detail headers). Renders through the session
+ * header's pill primitive so trace and session chips share one style.
  */
 export function TagPill({ tag }: { tag: string }) {
   return (
-    <span
-      title={tag}
-      className="border-border text-muted-foreground inline-flex max-w-40 items-center rounded-sm border px-1.5 text-xs leading-4"
-    >
-      <span className="truncate" title={tag}>
+    <ModernSessionHeaderPill variant="display" title={tag}>
+      <span className="max-w-40 truncate" title={tag}>
         {tag}
       </span>
-    </span>
+    </ModernSessionHeaderPill>
   );
 }

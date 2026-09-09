@@ -16,6 +16,7 @@ import { useMemo, useState } from "react";
 
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { TagPill } from "@/src/features/tag/components/TagPill";
+import { ModernSessionHeaderPill } from "@/src/components/session/ModernSessionHeaderPill";
 import {
   EnvironmentBadge,
   ReleaseBadge,
@@ -85,29 +86,28 @@ export function TraceSummaryStrip() {
         <VersionBadge version={trace.version} />
         {trace.tags.length > 0 && (
           <div className="flex min-w-0 items-center gap-1">
-            {/* Quiet chips (dim fill, tight padding): v4 tags are immutable,
-                so no edit affordance. */}
+            {/* Session-header pill styling; v4 tags are immutable here, so no
+                edit affordance. */}
             {visibleTags.map((tag) => (
               <TagPill key={tag} tag={tag} />
             ))}
             {hiddenTagCount > 0 && (
-              <button
-                type="button"
+              <ModernSessionHeaderPill
+                variant="button"
+                ariaLabel={`Show ${hiddenTagCount} more tags`}
                 onClick={() => setShowAllTags(true)}
-                title={trace.tags.slice(MAX_VISIBLE_TAGS).join(", ")}
-                className="text-muted-foreground hover:text-foreground text-xs"
               >
                 +{hiddenTagCount}
-              </button>
+              </ModernSessionHeaderPill>
             )}
             {showAllTags && trace.tags.length > MAX_VISIBLE_TAGS && (
-              <button
-                type="button"
+              <ModernSessionHeaderPill
+                variant="button"
+                ariaLabel="Show fewer tags"
                 onClick={() => setShowAllTags(false)}
-                className="text-muted-foreground hover:text-foreground text-xs"
               >
                 show fewer
-              </button>
+              </ModernSessionHeaderPill>
             )}
           </div>
         )}
