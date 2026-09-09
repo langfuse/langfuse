@@ -3,6 +3,7 @@ import { getAdClickIdsFromRequest } from "@/src/features/auth/lib/signupAttribut
 import { getCookieName } from "@/src/server/utils/cookies";
 import { isValidCallbackUrl } from "@/src/server/utils/nextAuthCallbackUrl";
 import { env } from "@/src/env.mjs";
+import { applyAuthRateLimit } from "@/src/features/auth-credentials/server/authRateLimit";
 import { logger } from "@langfuse/shared/src/server";
 import type { NextApiRequest, NextApiResponse } from "next";
 import NextAuth from "next-auth";
@@ -82,6 +83,12 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
     );
     res.setHeader("Allow", "POST");
     return res.status(405).json({ message: "Method Not Allowed" });
+  }
+  if (
+    isCredentialsCallback &&
+    (await applyAuthRateLimit(req, res, "auth-login"))
+  ) {
+    return;
   }
 
   // next-auth rejects malformed callbackUrl values (query param or cookie)
