@@ -68,6 +68,7 @@ import { createInAppAgentConversationId } from "@/src/features/in-app-agent/ids"
 import { evaluatorAssistantTestResultStore } from "@/src/features/evals/v2/store/evaluatorAssistantTestResultStore";
 import { getEvaluatorAssistantSampleObservation } from "@/src/features/evals/v2/fns/getEvaluatorAssistantSampleObservation";
 import { startCodeEvaluatorAssistantHandoff } from "@/src/features/evals/v2/fns/startCodeEvaluatorAssistantHandoff";
+import { startJudgeEvaluatorAssistantHandoff } from "@/src/features/evals/v2/fns/startJudgeEvaluatorAssistantHandoff";
 import { useEvaluatorSamplePageContext } from "@/src/features/evals/v2/hooks/useEvaluatorSamplePageContext";
 import { useEvaluatorAssistantTestResultSync } from "@/src/features/evals/v2/hooks/useEvaluatorAssistantTestResultSync";
 import { useEvaluatorAssistantTestUpdateSignal } from "@/src/features/evals/v2/store/evaluatorAssistantUpdateSignalStore";
@@ -725,43 +726,57 @@ export function EvaluatorSetupPage(
     }
   };
 
-  const submitCodeEvaluatorAssistantRequest = async (request: string) => {
+  const submitEvaluatorAssistantRequest = async (
+    request: string,
+    evaluatorType: "CODE" | "LLM_AS_JUDGE",
+  ) => {
     setTestResult(null);
     const conversationId = createInAppAgentConversationId();
     const sampleObservation = getEvaluatorAssistantSampleObservation(
       evaluatorSetupStore.getState().selectedObservation,
     );
-    const handoff = await startCodeEvaluatorAssistantHandoff({
-      request,
-      sampleObservation,
-      conversationId,
-      openAssistant: () => openAssistant("code_evaluator_editor"),
-      persistEvaluator: async () => {
-        const persistedEvaluatorId = await save("assistant");
-        if (!persistedEvaluatorId) {
-          showErrorToast(
-            "Couldn't save evaluator",
-            "Review the code for validation errors, then try again.",
-          );
-        } else {
-          evaluatorAssistantTestResultStore.expect({
-            projectId,
-            evaluatorId: persistedEvaluatorId,
+    const persistEvaluator = async () => {
+      const persistedEvaluatorId = await save("assistant");
+      if (!persistedEvaluatorId) {
+        showErrorToast(
+          "Couldn't save evaluator",
+          "Review the evaluator for validation errors, then try again.",
+        );
+      } else {
+        evaluatorAssistantTestResultStore.expect({
+          projectId,
+          evaluatorId: persistedEvaluatorId,
+          conversationId,
+          observationId: sampleObservation?.observationId ?? null,
+        });
+      }
+      return persistedEvaluatorId;
+    };
+    const handoff =
+      evaluatorType === "CODE"
+        ? await startCodeEvaluatorAssistantHandoff({
+            request,
+            sampleObservation,
             conversationId,
-            observationId: sampleObservation?.observationId ?? null,
+            openAssistant: () => openAssistant("evaluator_editor"),
+            persistEvaluator,
+            submitToAssistant,
+          })
+        : await startJudgeEvaluatorAssistantHandoff({
+            request,
+            sampleObservation,
+            conversationId,
+            openAssistant: () => openAssistant("evaluator_editor"),
+            persistEvaluator,
+            submitToAssistant,
           });
-        }
-        return persistedEvaluatorId;
-      },
-      submitToAssistant,
-    });
     if (!handoff) return false;
 
     if (!handoff.started) {
       evaluatorAssistantTestResultStore.clear(projectId, handoff.evaluatorId);
       showErrorToast(
         "Assistant didn't start",
-        "The evaluator was saved. Open AI input and try again.",
+        "The evaluator was saved. Open Edit with AI and try again.",
       );
     }
 
@@ -838,7 +853,12 @@ export function EvaluatorSetupPage(
             ? "scratch"
             : null
       }
-      onCodeEvaluatorAssistantSubmit={submitCodeEvaluatorAssistantRequest}
+      onCodeEvaluatorAssistantSubmit={(request) =>
+        submitEvaluatorAssistantRequest(request, "CODE")
+      }
+      onJudgeEvaluatorAssistantSubmit={(request) =>
+        submitEvaluatorAssistantRequest(request, "LLM_AS_JUDGE")
+      }
       onStepOpenChange={setStepOpen}
       nameAIAssistance={
         !nameAIAssistanceAvailable

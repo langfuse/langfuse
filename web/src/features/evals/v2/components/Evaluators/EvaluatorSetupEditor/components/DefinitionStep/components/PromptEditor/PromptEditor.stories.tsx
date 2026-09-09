@@ -1,5 +1,5 @@
 import { useState, type ComponentProps } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../../../../../../../../.storybook/preview";
 import { PromptEditorContent } from "./PromptEditor";
@@ -12,11 +12,13 @@ function PromptEditorStory({
   messages,
   compact = false,
   previewEnabled = false,
+  assistantAvailable = false,
   sampleObject = null,
 }: {
   messages: EvaluatorPromptMessage[];
   compact?: boolean;
   previewEnabled?: boolean;
+  assistantAvailable?: boolean;
   sampleObject?: ComponentProps<typeof PromptEditorContent>["sampleObject"];
 }) {
   const [store] = useState(() => {
@@ -39,7 +41,11 @@ function PromptEditorStory({
 
   return (
     <div className={compact ? "w-64 max-w-full" : "w-[42rem] max-w-full"}>
-      <PromptEditorContent store={store} sampleObject={sampleObject} />
+      <PromptEditorContent
+        store={store}
+        sampleObject={sampleObject}
+        onAssistantSubmit={assistantAvailable ? async () => true : undefined}
+      />
     </div>
   );
 }
@@ -118,6 +124,43 @@ export const MultipleMessages = meta.story({
     );
     await expect(expandButton.getBoundingClientRect().left).toBe(
       userCollapseButton.getBoundingClientRect().left,
+    );
+  },
+});
+
+export const ExistingJudgeAssistantModal = meta.story({
+  name: "(Test) Existing judge Assistant modal",
+  render: () => (
+    <PromptEditorStory
+      assistantAvailable
+      messages={[
+        {
+          role: "system",
+          content: "Judge the response consistently.",
+        },
+        {
+          role: "user",
+          content: "Input: {{input}}\nResponse: {{output}}",
+        },
+      ]}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "Edit with AI" }));
+    await waitFor(() => expect(page.getByRole("dialog")).toBeVisible());
+    await waitFor(() =>
+      expect(
+        page.getByLabelText(
+          "Describe how to change this LLM-as-a-judge evaluator",
+        ),
+      ).toBeVisible(),
+    );
+    await userEvent.click(page.getByRole("button", { name: "Cancel" }));
+    await waitFor(() =>
+      expect(page.queryByRole("dialog")).not.toBeInTheDocument(),
     );
   },
 });

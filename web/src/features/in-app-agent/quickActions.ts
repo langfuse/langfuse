@@ -74,7 +74,8 @@ export type InAppAgentSubmitOptions = {
     | "chat"
     | "add-widget-modal"
     | "evaluators-empty-state"
-    | "code-evaluator-editor";
+    | "code-evaluator-editor"
+    | "judge-evaluator-editor";
 };
 
 // Version 1 starter sets. Idea is that periodic curation replaces sets when usage

@@ -25,16 +25,29 @@ export function performEvaluatorAssistantToolSideEffects({
   source: "live" | "hydrated";
   utils: ReturnType<typeof api.useUtils>;
 }) {
-  const updatedEvaluators = new Map<string, string>();
+  const updatedEvaluators = new Map<
+    string,
+    { updateId: string; surface: "code" | "prompt" }
+  >();
 
   for (const toolCall of toolCalls) {
-    if (toolCall.toolName === "langfuse_updateEvaluator") {
+    if (
+      toolCall.toolName === "langfuse_updateEvaluator" &&
+      !toolCall.toolError
+    ) {
       const evaluatorId = getStringFromToolArguments(
         toolCall.toolArguments,
         "evaluatorId",
       );
       if (evaluatorId) {
-        updatedEvaluators.set(evaluatorId, toolCall.toolCallId);
+        updatedEvaluators.set(evaluatorId, {
+          updateId: toolCall.toolCallId,
+          surface:
+            getStringFromToolArguments(toolCall.toolArguments, "type") ===
+            "LLM_AS_JUDGE"
+              ? "prompt"
+              : "code",
+        });
       }
     }
 
@@ -68,13 +81,13 @@ export function performEvaluatorAssistantToolSideEffects({
     }
   }
 
-  return Array.from(updatedEvaluators, ([evaluatorId, updateId]) =>
+  return Array.from(updatedEvaluators, ([evaluatorId, { updateId, surface }]) =>
     utils.evalsV2.get.invalidate({ projectId, evaluatorId }).then(() => {
       if (source === "live") {
         evaluatorAssistantUpdateSignalStore.publish({
           projectId,
           evaluatorId,
-          surface: "code",
+          surface,
           updateId,
         });
       }
@@ -84,7 +97,7 @@ export function performEvaluatorAssistantToolSideEffects({
 
 function getStringFromToolArguments(
   toolArguments: unknown,
-  key: "evaluatorId" | "observationId",
+  key: "evaluatorId" | "observationId" | "type",
 ) {
   const parsedArguments =
     typeof toolArguments === "string"

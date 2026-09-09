@@ -29,6 +29,7 @@ export function DefinitionStepContainer({
   codeValidationResult,
   codeEvaluatorAssistantContext,
   onCodeEvaluatorAssistantSubmit,
+  onJudgeEvaluatorAssistantSubmit,
 }: {
   projectId: string;
   evaluatorId: string;
@@ -44,6 +45,7 @@ export function DefinitionStepContainer({
   codeValidationResult: CodeEvalValidationResult | null;
   codeEvaluatorAssistantContext: CodeEvaluatorAssistantContext | null;
   onCodeEvaluatorAssistantSubmit: (request: string) => Promise<boolean>;
+  onJudgeEvaluatorAssistantSubmit: (request: string) => Promise<boolean>;
 }) {
   const state = useStore(
     store,
@@ -73,7 +75,16 @@ export function DefinitionStepContainer({
           onSetProjectDefault={onSetProjectDefault}
         />
       }
-      promptEditor={<PromptEditor projectId={projectId} store={store} />}
+      promptEditor={
+        <PromptEditor
+          projectId={projectId}
+          evaluatorId={evaluatorId}
+          store={store}
+          onAssistantSubmit={
+            isEditing ? onJudgeEvaluatorAssistantSubmit : undefined
+          }
+        />
+      }
       scoreOutputEditor={<ScoreOutputEditor store={store} />}
     />
   ) : (

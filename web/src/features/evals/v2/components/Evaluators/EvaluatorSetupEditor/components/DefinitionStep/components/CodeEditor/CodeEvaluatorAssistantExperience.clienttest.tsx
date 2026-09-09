@@ -33,6 +33,9 @@ describe("CodeEvaluatorAssistantExperience", () => {
     );
 
     expect(screen.queryByText("Code editor")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Answer cites a retrieved document"),
+    ).not.toBeInTheDocument();
 
     fireEvent.change(
       screen.getByLabelText("Describe the code evaluator you want"),
@@ -81,12 +84,6 @@ describe("CodeEvaluatorAssistantExperience", () => {
     expect(
       screen.getByRole("button", { name: "Create with Langfuse Assistant" }),
     ).toBeDisabled();
-    expect(
-      screen.getByRole("button", {
-        name: "Answer cites a retrieved document",
-      }),
-    ).toBeDisabled();
-
     resolveSubmission(true);
     await waitFor(() => expect(input).toHaveValue(""));
     expect(screen.queryByText("Code editor")).not.toBeInTheDocument();
@@ -180,9 +177,7 @@ describe("CodeEvaluatorAssistantExperience", () => {
     expect(
       screen.getByLabelText("Describe how to change this code evaluator"),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByText("Edit with Langfuse Assistant"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
     fireEvent.keyDown(
       screen.getByLabelText("Describe how to change this code evaluator"),
       { key: "Escape" },
@@ -204,7 +199,7 @@ describe("CodeEvaluatorAssistantExperience", () => {
     ]);
   });
 
-  it("keeps the floating palette open while submission is pending", async () => {
+  it("keeps the modal open while submission is pending", async () => {
     let resolveSubmission: (started: boolean) => void = () => undefined;
     submitRequest.mockReturnValueOnce(
       new Promise<boolean>((resolve) => {
@@ -226,17 +221,13 @@ describe("CodeEvaluatorAssistantExperience", () => {
     fireEvent.change(input, { target: { value: "Handle empty outputs" } });
     fireEvent.submit(input.closest("form")!);
 
-    expect(
-      screen.getByRole("button", { name: "Dismiss AI editor" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
     fireEvent.keyDown(input, { key: "Escape" });
     expect(input).toBeInTheDocument();
 
     resolveSubmission(false);
     await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Dismiss AI editor" }),
-      ).toBeEnabled(),
+      expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled(),
     );
   });
 

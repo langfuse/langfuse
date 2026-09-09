@@ -28,6 +28,7 @@ export function EvaluatorSetupEditor({
   codeValidationResult,
   codeEvaluatorAssistantContext,
   onCodeEvaluatorAssistantSubmit,
+  onJudgeEvaluatorAssistantSubmit,
 }: {
   projectId: string;
   evaluatorId: string;
@@ -47,6 +48,7 @@ export function EvaluatorSetupEditor({
   codeValidationResult: CodeEvalValidationResult | null;
   codeEvaluatorAssistantContext: CodeEvaluatorAssistantContext | null;
   onCodeEvaluatorAssistantSubmit: (request: string) => Promise<boolean>;
+  onJudgeEvaluatorAssistantSubmit: (request: string) => Promise<boolean>;
 }) {
   const type = useStore(store, (state) => state.type);
 
@@ -67,6 +69,7 @@ export function EvaluatorSetupEditor({
         codeValidationResult={codeValidationResult}
         codeEvaluatorAssistantContext={codeEvaluatorAssistantContext}
         onCodeEvaluatorAssistantSubmit={onCodeEvaluatorAssistantSubmit}
+        onJudgeEvaluatorAssistantSubmit={onJudgeEvaluatorAssistantSubmit}
       />
       {type === "LLM_AS_JUDGE" ? (
         <VariableMappingStepContainer

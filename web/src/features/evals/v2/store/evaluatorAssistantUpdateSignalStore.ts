@@ -5,7 +5,7 @@ type Listener = () => void;
 
 const EMPTY_SNAPSHOT: SignalSnapshot = new Map();
 const SIGNAL_TTL_MS = 5_000;
-type EvaluatorAssistantUpdateSurface = "code" | "test";
+type EvaluatorAssistantUpdateSurface = "code" | "prompt" | "test";
 
 function signalKey(
   projectId: string,
@@ -81,6 +81,13 @@ export function useEvaluatorAssistantTestUpdateSignal(
   evaluatorId: string,
 ) {
   return useEvaluatorAssistantUpdateSignal(projectId, evaluatorId, "test");
+}
+
+export function useEvaluatorAssistantPromptUpdateSignal(
+  projectId: string,
+  evaluatorId: string,
+) {
+  return useEvaluatorAssistantUpdateSignal(projectId, evaluatorId, "prompt");
 }
 
 function useEvaluatorAssistantUpdateSignal(

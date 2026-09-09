@@ -51,6 +51,78 @@ describe("evaluator Assistant tool side effects", () => {
     publishUpdate.mockRestore();
   });
 
+  it("highlights judge prompt updates on the prompt surface", async () => {
+    const publishUpdate = vi.spyOn(
+      evaluatorAssistantUpdateSignalStore,
+      "publish",
+    );
+    const utils = {
+      evalsV2: { get: { invalidate: vi.fn(() => Promise.resolve()) } },
+    } as unknown as InvalidationUtils;
+
+    await Promise.all(
+      performEvaluatorAssistantToolSideEffects({
+        toolCalls: [
+          {
+            toolCallId: "update-judge-1",
+            toolName: "langfuse_updateEvaluator",
+            toolArguments: {
+              evaluatorId: "evaluator-1",
+              type: "LLM_AS_JUDGE",
+            },
+          },
+        ],
+        projectId: "project-1",
+        conversationId: "conversation-1",
+        source: "live",
+        utils,
+      }),
+    );
+
+    expect(publishUpdate).toHaveBeenCalledWith({
+      projectId: "project-1",
+      evaluatorId: "evaluator-1",
+      surface: "prompt",
+      updateId: "update-judge-1",
+    });
+    publishUpdate.mockRestore();
+  });
+
+  it("does not refresh or highlight failed evaluator updates", async () => {
+    const evaluatorInvalidate = vi.fn(() => Promise.resolve());
+    const publishUpdate = vi.spyOn(
+      evaluatorAssistantUpdateSignalStore,
+      "publish",
+    );
+    const utils = {
+      evalsV2: { get: { invalidate: evaluatorInvalidate } },
+    } as unknown as InvalidationUtils;
+
+    await Promise.all(
+      performEvaluatorAssistantToolSideEffects({
+        toolCalls: [
+          {
+            toolCallId: "failed-update",
+            toolName: "langfuse_updateEvaluator",
+            toolArguments: {
+              evaluatorId: "evaluator-1",
+              type: "LLM_AS_JUDGE",
+            },
+            toolError: { message: "Invalid prompt messages" },
+          },
+        ],
+        projectId: "project-1",
+        conversationId: "conversation-1",
+        source: "live",
+        utils,
+      }),
+    );
+
+    expect(evaluatorInvalidate).not.toHaveBeenCalled();
+    expect(publishUpdate).not.toHaveBeenCalled();
+    publishUpdate.mockRestore();
+  });
+
   it("does not replay highlights for hydrated historical updates", async () => {
     const publishUpdate = vi.spyOn(
       evaluatorAssistantUpdateSignalStore,

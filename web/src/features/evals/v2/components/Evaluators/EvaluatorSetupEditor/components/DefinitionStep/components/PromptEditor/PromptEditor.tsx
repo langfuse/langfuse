@@ -1,4 +1,4 @@
-import { Fragment, useId, useState, type CSSProperties } from "react";
+import { Fragment, useId, useRef, useState, type CSSProperties } from "react";
 import {
   Check,
   ChevronDown,
@@ -6,6 +6,7 @@ import {
   GripVertical,
   MoreVertical,
   Plus,
+  Sparkles,
   Trash2,
   TriangleAlert,
 } from "lucide-react";
@@ -50,6 +51,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { PromptVariableEditor } from "@/src/features/evals/v2/components/Evaluators/Judges/PromptVariableEditor/PromptVariableEditor";
+import { EvaluatorAssistantEditDialog } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/EvaluatorAssistantEditDialog";
 import { preparePromptEditorState } from "@/src/features/evals/v2/fns/promptEditor/preparePromptEditorState";
 import {
   EMPTY_PROMPT_MESSAGE_ERROR,
@@ -58,6 +60,9 @@ import {
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { InAppAgentUpdateHighlight } from "@/src/features/in-app-agent";
+import { useEvaluatorAssistantPromptUpdateSignal } from "@/src/features/evals/v2/store/evaluatorAssistantUpdateSignalStore";
 import { cn } from "@/src/utils/tailwind";
 import type { EvaluatorPromptMessage } from "@langfuse/shared";
 
@@ -71,22 +76,43 @@ type PreparedPromptEditorState = ReturnType<typeof preparePromptEditorState>;
 
 export function PromptEditor({
   projectId,
+  evaluatorId,
   store,
+  onAssistantSubmit,
 }: {
   projectId: string;
+  evaluatorId: string;
   store: EvaluatorSetupStore;
+  onAssistantSubmit?: (request: string) => Promise<boolean>;
 }) {
   const sampleObject = useEvaluatorSetupSample({ projectId, store });
-  return <PromptEditorContent store={store} sampleObject={sampleObject} />;
+  const isAssistantLauncherVisible = useIsInAppAgentLauncherVisible();
+  const promptUpdateId = useEvaluatorAssistantPromptUpdateSignal(
+    projectId,
+    evaluatorId,
+  );
+  return (
+    <InAppAgentUpdateHighlight updateId={promptUpdateId}>
+      <PromptEditorContent
+        store={store}
+        sampleObject={sampleObject}
+        onAssistantSubmit={
+          isAssistantLauncherVisible ? onAssistantSubmit : undefined
+        }
+      />
+    </InAppAgentUpdateHighlight>
+  );
 }
 
 /** Presentational prompt editor used by the connected editor and Storybook. */
 export function PromptEditorContent({
   store,
   sampleObject,
+  onAssistantSubmit,
 }: {
   store: EvaluatorSetupStore;
   sampleObject: Record<string, unknown> | null;
+  onAssistantSubmit?: (request: string) => Promise<boolean>;
 }) {
   const state = useStore(
     store,
@@ -108,6 +134,8 @@ export function PromptEditorContent({
     sampleObject,
   });
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
+  const [assistantDialogOpen, setAssistantDialogOpen] = useState(false);
+  const assistantTriggerRef = useRef<HTMLButtonElement>(null);
   const previewDisabledDescriptionId = useId();
   const activeMessageIndex = activeMessageId
     ? state.promptMessageIds.indexOf(activeMessageId)
@@ -142,13 +170,26 @@ export function PromptEditorContent({
       onDragCancel={() => setActiveMessageId(null)}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="rounded-md border">
+        <div className="bg-muted/30 flex flex-wrap items-center justify-between gap-2 rounded-t-md border-b px-2 py-1.5">
           <span className="text-muted-foreground text-xs">
             {state.promptMessages.length}{" "}
             {state.promptMessages.length === 1 ? "message" : "messages"}
           </span>
           <div className="flex flex-wrap items-center justify-end gap-1.5">
+            {onAssistantSubmit ? (
+              <Button
+                ref={assistantTriggerRef}
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-haspopup="dialog"
+                onClick={() => setAssistantDialogOpen(true)}
+              >
+                <Sparkles className="text-primary-accent mr-1.5 h-3.5 w-3.5" />
+                Edit with AI
+              </Button>
+            ) : null}
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
                 <label
@@ -206,30 +247,32 @@ export function PromptEditorContent({
             </Button>
           </div>
         </div>
-        <SortableContext
-          items={state.promptMessageIds}
-          strategy={verticalListSortingStrategy}
-        >
-          {state.promptMessages.map((message, index) => (
-            <SortablePromptMessage
-              key={state.promptMessageIds[index]}
-              id={state.promptMessageIds[index]}
-              index={index}
-              messageCount={state.promptMessages.length}
-              message={message}
-              combinedPrepared={combinedPrepared}
-              prepared={preparePromptEditorState({
-                prompt: message.content,
-                variableFields: state.variableFields,
-                promptPreviewEnabled: state.promptPreviewEnabled,
-                sampleObject,
-              })}
-              previewEnabled={state.promptPreviewEnabled}
-              onChange={(next) => state.actions.setPromptMessage(index, next)}
-              onRemove={() => state.actions.removePromptMessage(index)}
-            />
-          ))}
-        </SortableContext>
+        <div className="flex flex-col gap-2 p-2">
+          <SortableContext
+            items={state.promptMessageIds}
+            strategy={verticalListSortingStrategy}
+          >
+            {state.promptMessages.map((message, index) => (
+              <SortablePromptMessage
+                key={state.promptMessageIds[index]}
+                id={state.promptMessageIds[index]}
+                index={index}
+                messageCount={state.promptMessages.length}
+                message={message}
+                combinedPrepared={combinedPrepared}
+                prepared={preparePromptEditorState({
+                  prompt: message.content,
+                  variableFields: state.variableFields,
+                  promptPreviewEnabled: state.promptPreviewEnabled,
+                  sampleObject,
+                })}
+                previewEnabled={state.promptPreviewEnabled}
+                onChange={(next) => state.actions.setPromptMessage(index, next)}
+                onRemove={() => state.actions.removePromptMessage(index)}
+              />
+            ))}
+          </SortableContext>
+        </div>
       </div>
       <DragOverlay dropAnimation={null}>
         {activeMessage ? (
@@ -250,6 +293,15 @@ export function PromptEditorContent({
           </div>
         ) : null}
       </DragOverlay>
+      {onAssistantSubmit ? (
+        <EvaluatorAssistantEditDialog
+          open={assistantDialogOpen}
+          evaluatorType="judge"
+          returnFocusRef={assistantTriggerRef}
+          onOpenChange={setAssistantDialogOpen}
+          onAssistantSubmit={onAssistantSubmit}
+        />
+      ) : null}
     </DndContext>
   );
 }
