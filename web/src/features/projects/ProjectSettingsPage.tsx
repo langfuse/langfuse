@@ -78,7 +78,7 @@ export function useProjectSettingsPages(): ProjectSettingsPageEntry[] {
   });
 }
 
-export const getProjectSettingsPages = ({
+const getProjectSettingsPages = ({
   project,
   organization,
   showBillingSettings,
@@ -325,7 +325,15 @@ export default function ProjectSettingsPage() {
   const pages = useProjectSettingsPages();
 
   if (!project || !organization) {
-    return <NoDataOrLoading isLoading />;
+    return (
+      <ContainerPage
+        headerProps={{
+          title: "Project Settings",
+        }}
+      >
+        <NoDataOrLoading isLoading />
+      </ContainerPage>
+    );
   }
 
   return (
