@@ -1,21 +1,22 @@
 /**
- * Cost/usage metadata pills for ObservationDetailView and the trace summary
- * strip. Rendered through the session header's pill primitive
- * (`ModernSessionHeaderPill`); `BreakdownTooltip` carries the detail on
- * hover/click and its trigger semantics are unchanged.
+ * Cost/usage metadata text for ObservationDetailView and the trace summary
+ * strip. Quiet grammar: muted mono text, no border/box — pills are reserved
+ * for tags. A small icon stands in for the word label on cost; the input →
+ * output split never renders inline, only in the `BreakdownTooltip` that
+ * carries the detail on hover/click (its trigger semantics are unchanged).
  */
 
-import { ModernSessionHeaderPill } from "@/src/components/session/ModernSessionHeaderPill";
 import {
   BreakdownTooltip,
   type PriceSource,
 } from "@/src/features/traces/components/BreakdownTooltip";
-import {
-  usdFormatter,
-  formatTokenCounts,
-  numberFormatter,
-} from "@/src/utils/numbers";
-import { InfoIcon } from "lucide-react";
+import { usdFormatter, numberFormatter } from "@/src/utils/numbers";
+import { Coins, InfoIcon } from "lucide-react";
+
+// Matches the metrics-tier scale in ObservationMetadataBadgesSimple.tsx —
+// uniform muted mono text, no borders/boxes.
+const METRIC_TEXT_CLASS =
+  "text-muted-foreground inline-flex shrink-0 items-center gap-1 font-mono text-[11px] whitespace-nowrap";
 
 export function CostBadge({
   totalCost,
@@ -32,12 +33,10 @@ export function CostBadge({
       isCost={true}
       priceSource={priceSource}
     >
-      <ModernSessionHeaderPill
-        variant="display"
-        title="Cost breakdown on hover"
-      >
-        cost <span className="text-foreground">{usdFormatter(totalCost)}</span>
-      </ModernSessionHeaderPill>
+      <span title="Cost breakdown on hover" className={METRIC_TEXT_CLASS}>
+        <Coins className="size-3 shrink-0" aria-hidden />
+        {usdFormatter(totalCost)}
+      </span>
     </BreakdownTooltip>
   );
 }
@@ -67,10 +66,10 @@ export function hasRenderableUsage({
 }
 
 /**
- * The single number the compact `UsageBadge` shows. `totalUsage` can be 0
- * while the in→out split still carries real numbers (e.g. usage recorded
- * only per-direction) — fall back to their sum rather than showing a
- * misleadingly empty total for a generation that does have usage.
+ * The single number `UsageBadge` shows inline. `totalUsage` can be 0 while
+ * the in→out split still carries real numbers (e.g. usage recorded only
+ * per-direction) — fall back to their sum rather than showing a misleadingly
+ * empty total for a generation that does have usage.
  */
 export function getCompactUsageTotal({
   inputUsage,
@@ -89,63 +88,30 @@ export function UsageBadge({
   outputUsage,
   totalUsage,
   usageDetails,
-  compact = false,
 }: {
   inputUsage: number;
   outputUsage: number;
   totalUsage: number;
   usageDetails: Record<string, number>;
-  /** Total only ("259 tok"), for the trace summary strip — the in→out split
-      lives in the breakdown tooltip. */
-  compact?: boolean;
 }) {
-  if (compact) {
-    // Callers gate compact rendering on getCompactUsageTotal(...) > 0, same
-    // as this — see TraceSummaryStrip.
-    const compactTotal = getCompactUsageTotal({
-      inputUsage,
-      outputUsage,
-      totalUsage,
-    });
-
-    return (
-      <BreakdownTooltip details={usageDetails} isCost={false}>
-        <ModernSessionHeaderPill
-          variant="display"
-          title="Usage breakdown on hover"
-        >
-          tokens{" "}
-          <span className="text-foreground">
-            {numberFormatter(inputUsage, 0)} → {numberFormatter(outputUsage, 0)}{" "}
-            (∑ {numberFormatter(compactTotal, 0)})
-          </span>
-        </ModernSessionHeaderPill>
-      </BreakdownTooltip>
-    );
-  }
-
-  const tokenText = formatTokenCounts(
-    inputUsage,
-    outputUsage,
-    totalUsage,
-    true,
-  );
+  // Total only, everywhere — the input→output split lives in the breakdown
+  // tooltip on hover, never inline. Falls back to a bare info icon when
+  // there is no total but usage still exists only in the details map (e.g.
+  // audio_seconds), so the breakdown stays reachable.
+  const total = getCompactUsageTotal({ inputUsage, outputUsage, totalUsage });
 
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>
-      {tokenText ? (
-        <ModernSessionHeaderPill
-          variant="display"
-          title="Usage breakdown on hover"
-        >
-          <span className="text-foreground">{tokenText}</span>
-        </ModernSessionHeaderPill>
+      {total > 0 ? (
+        <span title="Usage breakdown on hover" className={METRIC_TEXT_CLASS}>
+          {`∑ ${numberFormatter(total, 0)}`}
+        </span>
       ) : (
-        <ModernSessionHeaderPill variant="display">
+        <span className={METRIC_TEXT_CLASS}>
           <span aria-label="View usage breakdown">
             <InfoIcon aria-hidden className="size-3" />
           </span>
-        </ModernSessionHeaderPill>
+        </span>
       )}
     </BreakdownTooltip>
   );

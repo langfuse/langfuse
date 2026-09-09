@@ -25,8 +25,9 @@ export function CollapsibleBadgeRow({
   const isMobile = useIsMobile();
   const [expanded, setExpanded] = useState(false);
 
-  // Desktop: full wrapped row. gap-x-3: the row holds muted TEXT metadata now
-  // (not chips), and text items need breathing room to scan as separate facts.
+  // Desktop: full wrapped row. gap-x-3: the row is mostly muted TEXT metadata
+  // (tags are the one boxed exception), and text items need breathing room
+  // to scan as separate facts.
   if (!isMobile) {
     return (
       <div

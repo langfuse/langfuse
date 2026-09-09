@@ -1,20 +1,19 @@
 /* eslint-disable @repo/no-null-render */
 /**
- * Trace-level metadata pills for the trace summary strip and detail headers.
- *
- * Rendered through the session header's pill primitive
- * (`ModernSessionHeaderPill`) so trace and session chips are indistinguishable.
- * Each element handles its own null check and returns null when the data is
- * unavailable.
+ * Trace-level reference links for the trace summary strip and detail
+ * headers. Styled like the quiet metric text (muted mono, no border/box) and
+ * distinguished only by link affordance — hover color, underline, and the
+ * trailing arrow icon. Pills are reserved for tags. Each element handles its
+ * own null check and returns null when the underlying value is unavailable.
  */
 
 import { ArrowUpRight } from "lucide-react";
-import { ModernSessionHeaderPill } from "@/src/components/session/ModernSessionHeaderPill";
-import {
-  EnvironmentBadge,
-  ReleaseBadge,
-  VersionBadge,
-} from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+import Link from "next/link";
+
+// Same scale as the metrics tier; link affordance (hover color + underline)
+// is the only thing that sets a reference apart from a plain metric.
+const REFERENCE_LINK_CLASS =
+  "text-muted-foreground hover:text-link inline-flex min-w-0 max-w-[280px] shrink-0 items-center gap-1 font-mono text-[11px] whitespace-nowrap hover:underline";
 
 export function SessionBadge({
   sessionId,
@@ -26,20 +25,16 @@ export function SessionBadge({
   if (!sessionId) return null;
 
   return (
-    <ModernSessionHeaderPill
-      variant="link"
+    <Link
       href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
-      maskFromSessionReplay
+      className={`ph-no-capture ${REFERENCE_LINK_CLASS}`}
     >
       session{" "}
-      <span
-        className="text-foreground group-hover:text-link truncate"
-        title={sessionId}
-      >
+      <span className="truncate" title={sessionId}>
         {sessionId}
       </span>
-      <ArrowUpRight className="text-link h-3 w-3 shrink-0" />
-    </ModernSessionHeaderPill>
+      <ArrowUpRight className="h-3 w-3 shrink-0" />
+    </Link>
   );
 }
 
@@ -53,20 +48,16 @@ export function UserIdBadge({
   if (!userId) return null;
 
   return (
-    <ModernSessionHeaderPill
-      variant="link"
+    <Link
       href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
-      maskFromSessionReplay
+      className={`ph-no-capture ${REFERENCE_LINK_CLASS}`}
     >
       user{" "}
-      <span
-        className="text-foreground group-hover:text-link truncate"
-        title={userId}
-      >
+      <span className="truncate" title={userId}>
         {userId}
       </span>
-      <ArrowUpRight className="text-link h-3 w-3 shrink-0" />
-    </ModernSessionHeaderPill>
+      <ArrowUpRight className="h-3 w-3 shrink-0" />
+    </Link>
   );
 }
 
@@ -80,23 +71,15 @@ export function TargetTraceBadge({
   if (!targetTraceId) return null;
 
   return (
-    <ModernSessionHeaderPill
-      variant="link"
+    <Link
       href={`/project/${projectId}/traces/${encodeURIComponent(targetTraceId)}`}
-      maskFromSessionReplay
+      className={`ph-no-capture ${REFERENCE_LINK_CLASS}`}
     >
       target trace{" "}
-      <span
-        className="text-foreground group-hover:text-link truncate"
-        title={targetTraceId}
-      >
+      <span className="truncate" title={targetTraceId}>
         {targetTraceId}
       </span>
-      <ArrowUpRight className="text-link h-3 w-3 shrink-0" />
-    </ModernSessionHeaderPill>
+      <ArrowUpRight className="h-3 w-3 shrink-0" />
+    </Link>
   );
 }
-
-// Context text (env/release/version) is shared with the observation header so
-// both surfaces speak the same visual grammar.
-export { EnvironmentBadge, ReleaseBadge, VersionBadge };

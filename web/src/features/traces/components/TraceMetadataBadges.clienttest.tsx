@@ -2,11 +2,11 @@
 
 import { render, screen } from "@testing-library/react";
 import {
-  EnvironmentBadge,
   SessionBadge,
   TargetTraceBadge,
   UserIdBadge,
 } from "./TraceMetadataBadges";
+import { EnvironmentBadge } from "./ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { UsageBadge } from "./ObservationMetadataBadgesTooltip";
 
 describe("TraceMetadataBadges session replay privacy", () => {
@@ -20,8 +20,8 @@ describe("TraceMetadataBadges session replay privacy", () => {
       </>,
     );
 
-    // The session id now renders as visible text (session pill convention),
-    // so the mask must sit directly on the link, not just in a title attr.
+    // The session id renders as visible quiet text, so the mask must sit
+    // directly on the link, not just in a title attr.
     expect(screen.getByText("customer-session").closest("a")).toHaveClass(
       "ph-no-capture",
     );
@@ -32,15 +32,11 @@ describe("TraceMetadataBadges session replay privacy", () => {
     expect(screen.getByText("target-trace").closest("a")).toHaveClass(
       "ph-no-capture",
     );
-    // Session header pill styling, not primary-filled chips.
+    // Quiet reference-link styling: muted mono text, no pill box.
     expect(screen.getByText("customer-session").closest("a")).toHaveClass(
       "text-muted-foreground",
     );
-    expect(screen.getByText("customer-session").closest("a")).toHaveAttribute(
-      "data-session-header-pill",
-      "true",
-    );
-    // Environment renders as a display pill, not a text chip.
+    // Environment renders as quiet key/value text, not a boxed chip.
     expect(screen.getByText("production").closest("span")).not.toBeNull();
     expect(
       screen.getByText("production").closest("span")?.parentElement,
@@ -62,5 +58,20 @@ describe("UsageBadge", () => {
     expect(
       screen.getByRole("button", { name: "View usage breakdown" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows the total only, never the input/output split, inline", () => {
+    render(
+      <UsageBadge
+        inputUsage={9618}
+        outputUsage={582}
+        totalUsage={10200}
+        usageDetails={{ input: 9618, output: 582, total: 10200 }}
+      />,
+    );
+
+    expect(screen.getByText("∑ 10,200")).toBeInTheDocument();
+    expect(screen.queryByText(/9,618/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/→/)).not.toBeInTheDocument();
   });
 });

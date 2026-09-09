@@ -2,10 +2,12 @@
  * TraceSummaryStrip - persistent trace-level summary row.
  *
  * Renders directly under the page header, above the navigation/detail panels,
- * and stays visible regardless of which observation is selected. This is the
- * single home for trace-level attributes (session, user, environment, release,
- * tags) and trace totals (latency, cost) — the detail-panel headers no longer
- * repeat them.
+ * and stays visible regardless of which observation is selected. It carries
+ * only trace totals (latency, cost, tokens), the session/user reference
+ * links, and tags — env/release/version live in the detail headers instead
+ * (trace-level values on TraceDetailViewHeader, observation-level values on
+ * ObservationDetailViewHeader), since observations can differ from the
+ * trace.
  *
  * Totals are shuffled, not computed: latency comes from the tRPC trace payload
  * (server-derived from observation timestamps) and cost from the same
@@ -18,15 +20,10 @@ import { CollapsibleBadgeRow } from "@/src/features/traces/components/Collapsibl
 import { TagPill } from "@/src/features/tag/components/TagPill";
 import { ModernSessionHeaderPill } from "@/src/components/session/ModernSessionHeaderPill";
 import {
-  EnvironmentBadge,
-  ReleaseBadge,
   SessionBadge,
   UserIdBadge,
 } from "@/src/features/traces/components/TraceMetadataBadges";
-import {
-  LatencyBadge,
-  VersionBadge,
-} from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+import { LatencyBadge } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import {
   CostBadge,
   getCompactUsageTotal,
@@ -72,7 +69,6 @@ export function TraceSummaryStrip() {
             totalUsage: aggregatedMetrics.totalUsage,
           }) > 0 && (
             <UsageBadge
-              compact
               inputUsage={aggregatedMetrics.inputUsage}
               outputUsage={aggregatedMetrics.outputUsage}
               totalUsage={aggregatedMetrics.totalUsage}
@@ -81,9 +77,6 @@ export function TraceSummaryStrip() {
           )}
         <SessionBadge sessionId={trace.sessionId} projectId={trace.projectId} />
         <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
-        <EnvironmentBadge environment={trace.environment} />
-        <ReleaseBadge release={trace.release} />
-        <VersionBadge version={trace.version} />
         {trace.tags.length > 0 && (
           <div className="flex min-w-0 items-center gap-1">
             {/* Session-header pill styling; v4 tags are immutable here, so no

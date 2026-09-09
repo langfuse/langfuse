@@ -28,6 +28,11 @@ import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
 import { TargetTraceBadge } from "../../TraceMetadataBadges";
+import {
+  EnvironmentBadge,
+  ReleaseBadge,
+  VersionBadge,
+} from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { resolveEvalExecutionMetadata } from "@/src/features/traces/fns/resolveMetadata";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
@@ -474,17 +479,25 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
       ) : null}
 
       <div className="flex flex-col gap-2">
-        {/* Trace-level attributes (latency, session, user, environment,
-            release, cost, usage, tags) live in the TraceSummaryStrip, not
-            here — its compact usage badge already carries the breakdown
-            tooltip, so this header only adds the target-trace link. */}
+        {/* Trace-level totals (latency, session, user, cost, usage, tags)
+            live in the TraceSummaryStrip, not here — its compact usage badge
+            already carries the breakdown tooltip. This header adds the
+            target-trace link plus a quiet attribute line for the trace's
+            own env/release/version. */}
         {!isAnnotationMode && (
-          <CollapsibleBadgeRow>
-            <TargetTraceBadge
-              targetTraceId={targetTraceId}
-              projectId={projectId}
-            />
-          </CollapsibleBadgeRow>
+          <>
+            <CollapsibleBadgeRow>
+              <TargetTraceBadge
+                targetTraceId={targetTraceId}
+                projectId={projectId}
+              />
+            </CollapsibleBadgeRow>
+            <CollapsibleBadgeRow>
+              <EnvironmentBadge environment={trace.environment} />
+              <ReleaseBadge release={trace.release} />
+              <VersionBadge version={trace.version} />
+            </CollapsibleBadgeRow>
+          </>
         )}
       </div>
     </div>

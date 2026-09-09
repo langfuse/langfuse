@@ -1,14 +1,18 @@
 /* eslint-disable @repo/no-null-render */
 /**
- * Metadata pills for the trace/observation headers and the trace summary
- * strip. Rendered through the session header's pill primitive
- * (`ModernSessionHeaderPill`) so trace and session chips share one style.
- * Each element handles its own null checks and returns null when the
- * underlying value is unavailable.
+ * Quiet-text metadata for the trace/observation headers and the trace
+ * summary strip. Pills are reserved for tags (`TagPill`) — everything here
+ * renders as muted mono text with no border/box. Each element handles its
+ * own null check and returns null when the underlying value is unavailable.
  */
 
-import { ModernSessionHeaderPill } from "@/src/components/session/ModernSessionHeaderPill";
+import { Clock } from "lucide-react";
 import { formatIntervalSeconds } from "@/src/utils/dates";
+
+// Metrics tier (latency, time-to-first-token): uniform muted mono text,
+// matching the numeric feel of the session header without its pill box.
+const METRIC_TEXT_CLASS =
+  "text-muted-foreground inline-flex shrink-0 items-center gap-1 font-mono text-[11px] whitespace-nowrap";
 
 export function LatencyBadge({
   latencySeconds,
@@ -18,11 +22,10 @@ export function LatencyBadge({
   if (latencySeconds == null) return null;
 
   return (
-    <ModernSessionHeaderPill variant="display" title="Latency">
-      <span className="text-foreground">
-        {formatIntervalSeconds(latencySeconds)}
-      </span>
-    </ModernSessionHeaderPill>
+    <span title="Latency" className={METRIC_TEXT_CLASS}>
+      <Clock className="size-3 shrink-0" aria-hidden />
+      {formatIntervalSeconds(latencySeconds)}
+    </span>
   );
 }
 
@@ -34,15 +37,16 @@ export function TimeToFirstTokenBadge({
   if (timeToFirstToken == null) return null;
 
   return (
-    <ModernSessionHeaderPill variant="display" title="Time to first token">
-      ttft{" "}
-      <span className="text-foreground">
-        {formatIntervalSeconds(timeToFirstToken)}
-      </span>
-    </ModernSessionHeaderPill>
+    <span title="Time to first token" className={METRIC_TEXT_CLASS}>
+      ttft {formatIntervalSeconds(timeToFirstToken)}
+    </span>
   );
 }
 
+// Attributes tier (env/release/version, and model params in the observation
+// header): key/value text, key muted and value a touch stronger so the
+// value still reads at a glance. Still under design discussion — kept
+// isolated here so it stays cheap to restyle.
 function KeyValueText({
   label,
   value,
@@ -53,12 +57,12 @@ function KeyValueText({
   if (!value) return null;
 
   return (
-    <ModernSessionHeaderPill variant="display">
+    <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1 font-mono text-[11px] whitespace-nowrap">
       {label}{" "}
-      <span className="text-foreground max-w-40 truncate" title={value}>
+      <span className="text-foreground/80 max-w-40 truncate" title={value}>
         {value}
       </span>
-    </ModernSessionHeaderPill>
+    </span>
   );
 }
 

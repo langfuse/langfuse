@@ -739,12 +739,12 @@ export const ObservationDetailViewHeader = memo(
         ) : null}
 
         <div className="flex flex-col gap-2">
-          {/* Other badges */}
+          {/* Metrics row: measured numbers plus specialty badges (level,
+              evaluator, prompt) that stay next to them. Session/user render
+              once in the TraceSummaryStrip — in v4 every observation carries
+              the trace's values. */}
           {!isAnnotationMode && (
             <CollapsibleBadgeRow>
-              {/* Measured metrics, then user-supplied context, then specialty
-                  badges. Session/user render once in the TraceSummaryStrip —
-                  in v4 every observation carries the trace's values. */}
               <LatencyBadge latencySeconds={latencySeconds} />
               <TimeToFirstTokenBadge
                 timeToFirstToken={observation.timeToFirstToken}
@@ -804,32 +804,11 @@ export const ObservationDetailViewHeader = memo(
                       usageDetails={observation.usageDetails}
                     />
                   )}
-              <ModelBadge
-                model={observation.model}
-                internalModelId={observation.internalModelId}
-                projectId={projectId}
-              />
-              {/* env/release/version render only when they DIFFER from the
-                  trace's (a differing value is signal — e.g. an observation
-                  from another release); the inherited common case is already
-                  shown once in the TraceSummaryStrip. */}
-              {observation.environment !== trace.environment && (
-                <EnvironmentBadge environment={observation.environment} />
-              )}
-              {observation.release !== trace.release && (
-                <ReleaseBadge release={observation.release} />
-              )}
-              {observation.version !== trace.version && (
-                <VersionBadge version={observation.version} />
-              )}
               <EvaluatorBadge
                 evaluatorId={evaluatorId}
                 evaluatorName={evaluator.data?.name}
                 environment={observation.environment}
                 projectId={projectId}
-              />
-              <ModelParametersBadges
-                modelParameters={observation.modelParameters}
               />
               {observation.level !== "DEFAULT" && (
                 <ObservationLevelBadge
@@ -843,6 +822,25 @@ export const ObservationDetailViewHeader = memo(
                   projectId={projectId}
                 />
               )}
+            </CollapsibleBadgeRow>
+          )}
+          {/* Quiet attribute line: model + user-supplied context. Renders
+              unconditionally — observations are the home for env/release/
+              version now that the trace summary strip no longer repeats
+              them. */}
+          {!isAnnotationMode && (
+            <CollapsibleBadgeRow>
+              <ModelBadge
+                model={observation.model}
+                internalModelId={observation.internalModelId}
+                projectId={projectId}
+              />
+              <EnvironmentBadge environment={observation.environment} />
+              <ReleaseBadge release={observation.release} />
+              <VersionBadge version={observation.version} />
+              <ModelParametersBadges
+                modelParameters={observation.modelParameters}
+              />
             </CollapsibleBadgeRow>
           )}
         </div>
