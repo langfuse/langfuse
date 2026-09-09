@@ -4,7 +4,11 @@ import { fileURLToPath } from "url";
 import { type NextApiRequest } from "next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ForbiddenError, InvalidRequestError } from "@langfuse/shared";
+import {
+  ForbiddenError,
+  InternalServerError,
+  InvalidRequestError,
+} from "@langfuse/shared";
 
 const {
   env,
@@ -28,7 +32,7 @@ vi.mock("@/src/features/public-api/server/apiAuth", () => ({
   },
 }));
 
-vi.mock("@/src/features/auth/policy/enforceAuth", () => ({
+vi.mock("@/src/features/public-api/server/enforceAuth", () => ({
   enforceAuth: mockEnforceAuth,
 }));
 
@@ -39,30 +43,6 @@ vi.mock("@/src/features/auth/policy/shadow", async (importOriginal) => ({
 }));
 
 import { verifyOrgAuth } from "@/src/features/auth/policy/verifyOrgAuth";
-import { type Principal } from "@/src/features/auth/policy/types";
-
-const organization = {
-  orgId: "org_1",
-  plan: "oss" as const,
-  rateLimitOverrides: [],
-  projectIds: ["prj_1"],
-  isIngestionSuspended: false,
-};
-
-const apiKeyPrincipal = (scope: "ORGANIZATION" | "PROJECT"): Principal => ({
-  kind: "apiKey",
-  apiKeyId: "key_1",
-  userId: null,
-  isInAppAgentKey: false,
-  publicKey: "pk-lf-1",
-  scope,
-  presentation: "privateKey",
-  organizations: [organization],
-  boundResource:
-    scope === "ORGANIZATION"
-      ? { orgId: "org_1" }
-      : { orgId: "org_1", projectId: "prj_1" },
-});
 
 const mappedFields = {
   orgId: "org_1",
@@ -94,8 +74,7 @@ describe("org direct seam verifyOrgAuth", () => {
   const authzAllows = () =>
     mockEnforceAuth.mockResolvedValue({
       success: true,
-      context: { principal: apiKeyPrincipal("ORGANIZATION"), policies: [] },
-      target: { orgId: "org_1" },
+      scope: { ...mappedFields, projectId: null, accessLevel: "organization" },
     });
   const authzDenies = () =>
     mockEnforceAuth.mockResolvedValue({
@@ -194,11 +173,10 @@ describe("org direct seam verifyOrgAuth", () => {
       });
     });
 
-    it("500s when the resolved org is absent from the principal", async () => {
+    it("renders a new-pipeline 500 as a 500 denial", async () => {
       mockEnforceAuth.mockResolvedValue({
-        success: true,
-        context: { principal: apiKeyPrincipal("ORGANIZATION"), policies: [] },
-        target: { orgId: "org_2" },
+        success: false,
+        error: new InternalServerError("unmappable principal"),
       });
       expect(await call()).toMatchObject({ validKey: false, status: 500 });
     });

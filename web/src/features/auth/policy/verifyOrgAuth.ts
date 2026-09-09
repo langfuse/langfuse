@@ -5,8 +5,11 @@ import { type ApiAccessScope, redis } from "@langfuse/shared/src/server";
 
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { env } from "@/src/env.mjs";
-import { enforceAuth, type AccessResult, type AuthError } from "./enforceAuth";
-import { toApiAccessScope } from "./toApiAccessScope";
+import {
+  enforceAuth,
+  type AccessResult,
+  type AuthError,
+} from "../../public-api/server/enforceAuth";
 import { diffResults, legacyFromStatus, recordCoverage } from "./shadow";
 import {
   isOrgAction,
@@ -41,7 +44,7 @@ export async function verifyOrgAuth(
   return legacyResult(await runLegacyScope(params.req));
 }
 
-/** enforceNew runs the new pipeline alone and maps its principal to a scope. */
+/** enforceNew runs the new pipeline alone and returns its scope. */
 async function enforceNew(
   params: VerifyOrgAuthParams,
 ): Promise<DirectAuthResult> {
@@ -49,11 +52,7 @@ async function enforceNew(
   if (!authz.success) {
     return deny(authz.error);
   }
-  const mapped = await toApiAccessScope(authz.context, authz.target);
-  if (!mapped.success) {
-    return deny(mapped.error);
-  }
-  return allow(mapped.scope);
+  return allow(authz.scope);
 }
 
 /** runNewPipeline authorizes the request through the unified pipeline. */

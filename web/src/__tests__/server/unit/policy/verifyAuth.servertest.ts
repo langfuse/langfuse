@@ -23,7 +23,7 @@ vi.mock("@/src/features/public-api/server/verifyProjectApiKeyAuth", () => ({
   verifyAuth: mockLegacyVerifyAuth,
 }));
 
-vi.mock("@/src/features/auth/policy/enforceAuth", () => ({
+vi.mock("@/src/features/public-api/server/enforceAuth", () => ({
   enforceAuth: mockEnforceAuth,
 }));
 
@@ -53,33 +53,22 @@ describe("project seam verifyProjectAuth", () => {
       error: new ForbiddenError("nope"),
     });
 
-  const principalOrg = {
+  const projectScope = (presentation: "privateKey" | "publicKey") => ({
+    projectId: "p1",
+    accessLevel: presentation === "publicKey" ? "scores" : "project",
     orgId: "o1",
-    plan: "Team" as const,
+    plan: "Team",
     rateLimitOverrides: [],
-    projectIds: ["p1"],
+    apiKeyId: "ak1",
+    publicKey: "pk-lf-1",
     isIngestionSuspended: false,
-  };
-  const apiKeyContextResult = (presentation: "privateKey" | "publicKey") => ({
-    success: true as const,
-    target: { projectId: "p1" },
-    context: {
-      principal: {
-        kind: "apiKey" as const,
-        apiKeyId: "ak1",
-        userId: null,
-        isInAppAgentKey: false,
-        scope: "PROJECT" as const,
-        publicKey: "pk-lf-1",
-        presentation,
-        organizations: [principalOrg],
-        boundResource: { orgId: principalOrg.orgId, projectId: "p1" },
-      },
-      policies: [],
-    },
+    isInAppAgentKey: false,
   });
   const authzAllowsApiKey = (presentation: "privateKey" | "publicKey") =>
-    mockEnforceAuth.mockResolvedValue(apiKeyContextResult(presentation));
+    mockEnforceAuth.mockResolvedValue({
+      success: true,
+      scope: projectScope(presentation),
+    });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -150,7 +139,7 @@ describe("project seam verifyProjectAuth", () => {
       env.API_AUTH_MIGRATION = "enforce";
     });
 
-    it("maps a private-key principal to a legacy-shaped project scope", async () => {
+    it("returns the new pipeline's project scope", async () => {
       authzAllowsApiKey("privateKey");
       expect(await call()).toEqual({
         validKey: true,
@@ -168,7 +157,7 @@ describe("project seam verifyProjectAuth", () => {
       });
     });
 
-    it("maps a public-key presentation to the scores access level", async () => {
+    it("returns a scores-level scope for a public key", async () => {
       authzAllowsApiKey("publicKey");
       expect((await call()).scope.accessLevel).toBe("scores");
     });

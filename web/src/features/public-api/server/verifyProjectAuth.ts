@@ -7,8 +7,7 @@ import {
   verifyAuth as verifyLegacyAuth,
   type RouteAccessLevel,
 } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
-import { enforceAuth } from "@/src/features/auth/policy/enforceAuth";
-import { toApiAccessScope } from "@/src/features/auth/policy/toApiAccessScope";
+import { enforceAuth } from "@/src/features/public-api/server/enforceAuth";
 import {
   diffResults,
   legacyFromStatus,
@@ -25,7 +24,7 @@ export async function verifyProjectAuth(
   return legacyOnly(params);
 }
 
-/** enforceOnly authorizes solely with the new pipeline and returns its mapped project scope. */
+/** enforceOnly authorizes solely with the new pipeline and returns its project scope. */
 async function enforceOnly(
   params: VerifyAuthParams,
 ): Promise<VerifyAuthResult> {
@@ -33,11 +32,7 @@ async function enforceOnly(
   if (!authz.success) {
     throw { status: authz.error.httpCode, message: authz.error.message };
   }
-  const mapped = await toApiAccessScope(authz.context, authz.target);
-  if (!mapped.success) {
-    throw { status: mapped.error.httpCode, message: mapped.error.message };
-  }
-  return { validKey: true, scope: mapped.scope } as VerifyAuthResult;
+  return { validKey: true, scope: authz.scope } as VerifyAuthResult;
 }
 
 /** legacyWithShadow lets legacy decide while the new pipeline records parity. */
