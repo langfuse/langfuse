@@ -439,6 +439,11 @@ export function ConnectedModernSessionBodyTimeline({
           controller={timelineController}
           scrollTarget={scrollTarget}
           onFilterObservationByName={onFilterObservationByName}
+          onLoadMoreObservations={
+            hasMoreObservations && !isLoadingMoreObservations
+              ? loadMoreObservations
+              : undefined
+          }
         />
       </div>
     </div>

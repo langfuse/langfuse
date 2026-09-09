@@ -2703,3 +2703,20 @@ export const KeepDifferentToolData = meta.story({
     ).toBeInTheDocument();
   },
 });
+
+export const LoadMoreObservations = meta.story({
+  name: "(Test) Loads More Observations",
+  args: {
+    ...loadedArgs,
+    onLoadMoreObservations: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const timeline = canvas.getByLabelText("Session conversation timeline");
+
+    timeline.scrollTop = timeline.scrollHeight;
+    timeline.dispatchEvent(new Event("scroll", { bubbles: true }));
+
+    await expect(args.onLoadMoreObservations).toHaveBeenCalledOnce();
+  },
+});

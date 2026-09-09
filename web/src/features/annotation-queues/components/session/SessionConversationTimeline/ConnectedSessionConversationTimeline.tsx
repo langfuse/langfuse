@@ -33,6 +33,7 @@ export function ConnectedSessionConversationTimeline({
   controller,
   scrollTarget,
   onFilterObservationByName,
+  onLoadMoreObservations,
 }: {
   traces: readonly ConnectedSessionConversationTimelineItem[];
   projectId: string;
@@ -50,6 +51,7 @@ export function ConnectedSessionConversationTimeline({
     name: string,
     operator: "any of" | "none of",
   ) => void;
+  onLoadMoreObservations?: () => void;
 }) {
   const observationRefs = traces.flatMap(
     ({ trace, observations }) =>
@@ -168,6 +170,7 @@ export function ConnectedSessionConversationTimeline({
       observationActions={{
         onFilterByName: onFilterObservationByName,
       }}
+      onLoadMoreObservations={onLoadMoreObservations}
     />
   );
 }

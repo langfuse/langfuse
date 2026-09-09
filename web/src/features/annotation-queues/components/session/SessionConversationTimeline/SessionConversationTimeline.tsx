@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type UIEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import {
@@ -136,6 +136,7 @@ export function SessionConversationTimeline({
   controller,
   observationActions,
   scrollTarget,
+  onLoadMoreObservations,
 }: {
   traces: readonly SessionConversationTimelineItem[];
   filterMeasurementKey: string;
@@ -145,6 +146,7 @@ export function SessionConversationTimeline({
   controller: SessionConversationTimelineController;
   observationActions?: SessionConversationTimelineObservationActions;
   scrollTarget?: SessionConversationTimelineScrollTarget | null;
+  onLoadMoreObservations?: () => void;
 }) {
   const preparedObservations = prepareSessionTimelineObservations(
     traces.flatMap(({ observations }) => observations ?? []),
@@ -196,6 +198,7 @@ export function SessionConversationTimeline({
       controller={controller}
       observationActions={observationActions}
       scrollTarget={scrollTarget ?? null}
+      onLoadMoreObservations={onLoadMoreObservations}
     />
   );
 }
@@ -209,6 +212,7 @@ function SessionConversationTimelineFeed({
   controller,
   observationActions,
   scrollTarget,
+  onLoadMoreObservations,
 }: {
   traces: readonly SessionConversationTimelineItem[];
   states: readonly PreparedSessionConversationTimelineTraceState[];
@@ -218,11 +222,35 @@ function SessionConversationTimelineFeed({
   controller: SessionConversationTimelineController;
   observationActions?: SessionConversationTimelineObservationActions;
   scrollTarget: SessionConversationTimelineScrollTarget | null;
+  onLoadMoreObservations?: () => void;
 }) {
   const { feedRef, virtualItems, virtualizer } = controller;
+  const handleScroll = (event: UIEvent<HTMLDivElement>) => {
+    if (!onLoadMoreObservations) return;
+
+    const { clientHeight, scrollTop } = event.currentTarget;
+    const viewportBottom = scrollTop + clientHeight;
+    const visibleTrace = virtualItems.findLast(
+      (virtualItem) => virtualItem.start < viewportBottom,
+    );
+    const loadMoreThreshold = visibleTrace
+      ? Math.min(240, visibleTrace.size / 4)
+      : 0;
+    if (
+      visibleTrace &&
+      viewportBottom >= visibleTrace.end - loadMoreThreshold
+    ) {
+      onLoadMoreObservations();
+    }
+  };
 
   return (
-    <div ref={feedRef} className="h-full min-h-0 overflow-y-auto scroll-smooth">
+    <div
+      ref={feedRef}
+      aria-label="Session conversation timeline"
+      className="h-full min-h-0 overflow-y-auto scroll-smooth"
+      onScroll={handleScroll}
+    >
       <div
         style={{
           height: `${virtualizer.getTotalSize()}px`,
