@@ -4,6 +4,18 @@ import { env } from "@/src/env.mjs";
 import { isPostHogClientEnabled } from "@/src/features/posthog-analytics";
 import { clearV4BetaEnabledSentryTag } from "@/src/utils/sentryV4BetaTag";
 
+const getSignInUrl = () => {
+  const autoSignInOptOut =
+    env.NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN === "true"
+      ? "?autoSignIn=false"
+      : "";
+  return `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/sign-in${autoSignInOptOut}`;
+};
+
+export const redirectToSignIn = () => {
+  window.location.assign(getSignInUrl());
+};
+
 /**
  * Canonical client-side sign-out.
  *
@@ -26,11 +38,7 @@ export const signOutCleanly = async () => {
   // On preview deployments the sign-in page signs visitors back in
   // automatically; an explicit sign-out must land on the opted-out form or
   // staying signed out via the UI is impossible.
-  const autoSignInOptOut =
-    env.NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN === "true"
-      ? "?autoSignIn=false"
-      : "";
   await signOut({
-    callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/sign-in${autoSignInOptOut}`,
+    callbackUrl: getSignInUrl(),
   });
 };

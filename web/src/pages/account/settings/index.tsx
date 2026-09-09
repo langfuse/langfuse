@@ -26,7 +26,10 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { useSession } from "next-auth/react";
-import { signOutCleanly } from "@/src/features/auth/lib/signOut";
+import {
+  redirectToSignIn,
+  signOutCleanly,
+} from "@/src/features/auth/lib/signOut";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { useRouter } from "next/router";
@@ -250,13 +253,20 @@ function SignOutAllSessionsButton() {
         title: "Signed Out of All Sessions",
         description: "All sessions have been invalidated.",
       });
-      await signOutCleanly();
     } catch (error) {
       reportNonTrpcError(error, "account");
       showErrorToast(
         "Failed to Sign Out of All Sessions",
         error instanceof Error ? error.message : "An unexpected error occurred",
       );
+      return;
+    }
+
+    try {
+      await signOutCleanly();
+    } catch (error) {
+      reportNonTrpcError(error, "account");
+      redirectToSignIn();
     }
   };
 

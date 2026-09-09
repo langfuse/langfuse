@@ -17,6 +17,7 @@ import {
 } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
+import { getSessionLoginAt } from "@/src/features/auth/lib/databaseClock";
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import {
   type AdapterUser,
@@ -752,7 +753,8 @@ export async function getAuthOptions(signupAttribution?: {
       },
       async jwt({ token, user }) {
         if (user) {
-          token.loginAt = Date.now();
+          const loginAt = await getSessionLoginAt(token.email!);
+          token.loginAt = loginAt.getTime();
         }
         return token;
       },
@@ -764,8 +766,10 @@ export async function getAuthOptions(signupAttribution?: {
               OR: [
                 { sessionsValidAfter: null },
                 {
+                  // Strict: a token issued in the same millisecond as revocation
+                  // is treated as revoked.
                   sessionsValidAfter: {
-                    lte: new Date(token.loginAt ?? 0),
+                    lt: new Date(token.loginAt ?? 0),
                   },
                 },
               ],

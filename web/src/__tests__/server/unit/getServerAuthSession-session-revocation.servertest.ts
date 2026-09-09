@@ -2,8 +2,9 @@ import type { Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockFindFirst, mockInstrumentAsync } = vi.hoisted(() => ({
+const { mockFindFirst, mockQueryRaw, mockInstrumentAsync } = vi.hoisted(() => ({
   mockFindFirst: vi.fn(),
+  mockQueryRaw: vi.fn(),
   mockInstrumentAsync: vi.fn(
     async (
       _options: unknown,
@@ -18,6 +19,7 @@ vi.mock("@langfuse/shared/src/db", async (importOriginal) => ({
     user: {
       findFirst: mockFindFirst,
     },
+    $queryRaw: mockQueryRaw,
   },
 }));
 
@@ -94,28 +96,32 @@ async function getCallbacks() {
 describe("NextAuth JWT session revocation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockQueryRaw.mockResolvedValue([
+      { loginAt: new Date("2026-09-09T12:00:00.000Z") },
+    ]);
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it("stamps loginAt on initial sign-in and preserves it on refresh", async () => {
+  it("stamps loginAt from the database clock on initial sign-in and preserves it on refresh", async () => {
     const { jwt } = await getCallbacks();
-    const now = new Date("2026-09-09T12:00:00.000Z");
-    vi.useFakeTimers();
-    vi.setSystemTime(now);
+    const dbNow = new Date("2026-09-09T12:00:00.123Z");
+    mockQueryRaw.mockResolvedValueOnce([{ loginAt: dbNow }]);
 
     const initialToken = await jwt({
       token: { email: "user@example.com" },
       user: { id: "user-1" },
     });
-    expect(initialToken.loginAt).toBe(now.getTime());
+    expect(initialToken.loginAt).toBe(dbNow.getTime());
+    expect(mockQueryRaw).toHaveBeenCalledTimes(1);
 
     const refreshedToken = await jwt({
       token: initialToken,
     });
-    expect(refreshedToken.loginAt).toBe(now.getTime());
+    expect(refreshedToken.loginAt).toBe(dbNow.getTime());
+    expect(mockQueryRaw).toHaveBeenCalledTimes(1);
   });
 
   it.each([
@@ -132,8 +138,14 @@ describe("NextAuth JWT session revocation", () => {
       isAllowed: true,
     },
     {
-      name: "allows a token issued at the revocation timestamp",
+      name: "denies a token issued at the revocation timestamp",
       token: { email: "USER@example.com", loginAt },
+      sessionsValidAfter: new Date(loginAt),
+      isAllowed: false,
+    },
+    {
+      name: "allows a token issued strictly after the revocation timestamp",
+      token: { email: "USER@example.com", loginAt: loginAt + 1 },
       sessionsValidAfter: new Date(loginAt),
       isAllowed: true,
     },
@@ -151,12 +163,12 @@ describe("NextAuth JWT session revocation", () => {
         where: {
           OR: [
             { sessionsValidAfter: null },
-            { sessionsValidAfter: { lte: Date } },
+            { sessionsValidAfter: { lt: Date } },
           ];
         };
       }) => {
-        const tokenLoginAt = where.OR[1].sessionsValidAfter.lte;
-        return sessionsValidAfter === null || sessionsValidAfter <= tokenLoginAt
+        const tokenLoginAt = where.OR[1].sessionsValidAfter.lt;
+        return sessionsValidAfter === null || sessionsValidAfter < tokenLoginAt
           ? dbUser
           : null;
       },
@@ -177,7 +189,7 @@ describe("NextAuth JWT session revocation", () => {
             { sessionsValidAfter: null },
             {
               sessionsValidAfter: {
-                lte: new Date(token.loginAt ?? 0),
+                lt: new Date(token.loginAt ?? 0),
               },
             },
           ],
