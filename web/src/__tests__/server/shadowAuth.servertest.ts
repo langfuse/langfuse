@@ -49,6 +49,7 @@ let projectPublicKey = "";
 
 let originalMigration: string | undefined;
 let originalAdminApiKey: string | undefined;
+let originalCloudRegion: string | undefined;
 
 const reqWith = (
   headers: Record<string, string | undefined>,
@@ -114,6 +115,14 @@ const projectNestedUnderModes = async (
   return { legacy, enforce };
 };
 
+const resultsUnderModes = async (params: ShadowAuthParams) => {
+  setMode("legacy");
+  const legacy = await shadowAuth(params);
+  setMode("enforce");
+  const enforce = await shadowAuth(params);
+  return { legacy, enforce };
+};
+
 const scopeOf = (result: ShadowResult): Record<string, unknown> => {
   if (!result.success) throw new Error(`denied with ${result.error.httpCode}`);
   return result.scope;
@@ -162,6 +171,7 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
   beforeAll(async () => {
     originalMigration = (env as any).API_AUTH_MIGRATION;
     originalAdminApiKey = (env as any).ADMIN_API_KEY;
+    originalCloudRegion = (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     (env as any).ADMIN_API_KEY = adminApiKey;
 
     ({ shadowAuth } =
@@ -187,6 +197,7 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
   afterAll(() => {
     (env as any).API_AUTH_MIGRATION = originalMigration;
     (env as any).ADMIN_API_KEY = originalAdminApiKey;
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
   it("an organization key on an org route yields a legacy-identical org scope", async () => {
@@ -343,5 +354,60 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
       success: false,
       error: { httpCode: 401 },
     });
+  });
+
+  it("a public-key bearer on a score-ingest route yields the scores access level", async () => {
+    const { legacy, enforce } = await resultsUnderModes({
+      req: reqWith({ authorization: `Bearer ${projectPublicKey}` }),
+      action: "scores:create",
+      allowedAccessLevels: ["project", "scores"],
+    });
+    expect(scopeOf(enforce).accessLevel).toBe("scores");
+    expect(dropScopeKey(scopeOf(enforce))).toEqual(
+      dropScopeKey(scopeOf(legacy)),
+    );
+  });
+
+  it("an admin key on self-host yields the synthesized admin scope", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    const { legacy, enforce } = await resultsUnderModes({
+      req: reqWith({
+        authorization: `Bearer ${adminApiKey}`,
+        "x-langfuse-admin-api-key": adminApiKey,
+        "x-langfuse-project-id": projectId,
+      }),
+      action: "models:read",
+      isAdminApiKeyAuthAllowed: true,
+      allowedAccessLevels: ["project"],
+    });
+    expect(scopeOf(enforce).apiKeyId).toBe("ADMIN_API_KEY");
+    expect(scopeOf(enforce).projectId).toBe(projectId);
+    expect(dropScopeKey(scopeOf(enforce))).toEqual(
+      dropScopeKey(scopeOf(legacy)),
+    );
+  });
+
+  it("an admin key on Langfuse Cloud is refused in legacy and enforce", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+    const params: ShadowAuthParams = {
+      req: reqWith({
+        authorization: `Bearer ${adminApiKey}`,
+        "x-langfuse-admin-api-key": adminApiKey,
+        "x-langfuse-project-id": projectId,
+      }),
+      action: "models:read",
+      isAdminApiKeyAuthAllowed: true,
+      allowedAccessLevels: ["project"],
+    };
+    const cloudDenial = {
+      success: false,
+      error: {
+        httpCode: 403,
+        message: "Admin API key auth is not available on Langfuse Cloud",
+      },
+    };
+    const { legacy, enforce } = await resultsUnderModes(params);
+    expect(legacy).toMatchObject(cloudDenial);
+    expect(enforce).toMatchObject(cloudDenial);
   });
 });
