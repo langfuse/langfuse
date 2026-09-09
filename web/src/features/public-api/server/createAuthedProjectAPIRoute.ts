@@ -1,6 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodType, type z } from "zod";
 import {
+  type ApiAccessScopeWithOptionalApiKeyId,
   type AuthHeaderValidVerificationResult,
   traceException,
   logger,
@@ -286,8 +287,12 @@ export type VerifyAuthParams = {
 };
 
 /** VerifyAuthResult is the verified project scope the route handler receives. */
-type VerifyAuthResult = AuthHeaderValidVerificationResult & {
-  scope: { projectId: string; accessLevel: RouteAccessLevel };
+type VerifyAuthResult = {
+  validKey: true;
+  scope: ApiAccessScopeWithOptionalApiKeyId & {
+    projectId: string;
+    accessLevel: RouteAccessLevel;
+  };
 };
 
 /** ApiKeyPrincipal is the api-key variant of `Principal` the mapper consumes. */
@@ -331,9 +336,7 @@ export const createAuthedProjectAPIRoute = <
       return;
     }
 
-    let auth: AuthHeaderValidVerificationResult & {
-      scope: { projectId: string; accessLevel: RouteAccessLevel };
-    };
+    let auth: VerifyAuthResult;
 
     // Verify authentication (API key or admin API key)
     try {

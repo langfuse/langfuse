@@ -1,7 +1,6 @@
 import { InvalidRequestError } from "@langfuse/shared";
 import type {
   GatewayIngestionMode,
-  Prisma,
   PrismaClient,
 } from "@langfuse/shared/src/db";
 import { invalidateCachedOrgApiKeys } from "@langfuse/shared/src/server";
@@ -35,7 +34,6 @@ export class GatewayConfigService {
       result = await this.createIngestionProjectAndUpsertConfig({
         organizationId: params.organizationId,
         projectName: params.createProjectName,
-        createdByUserId: params.session.user.id,
         ingestionMode: params.ingestionMode,
       });
     } else {
@@ -54,9 +52,6 @@ export class GatewayConfigService {
         organizationId: params.organizationId,
         defaultIngestionProjectId: params.defaultIngestionProjectId,
         ingestionMode: params.ingestionMode,
-        preserveInheritedAccess:
-          before?.defaultIngestionProjectId !==
-          params.defaultIngestionProjectId,
       });
     }
 
@@ -88,79 +83,29 @@ export class GatewayConfigService {
     return result;
   }
 
-  /**
-   * Points the gateway at a project that already exists.
-   *
-   * Regular organization members do not inherit access to the ingestion project
-   * (see resolveProjectRole). Current access is therefore written out as
-   * explicit memberships so selecting an existing project does not remove it.
-   * Only regular members who join later are kept out.
-   */
-  private upsertConfigForExistingProject(params: {
+  private async upsertConfigForExistingProject(params: {
     organizationId: string;
     defaultIngestionProjectId: string | null;
     ingestionMode: GatewayIngestionMode;
-    preserveInheritedAccess: boolean;
   }) {
-    return this.prisma.$transaction(async (tx) => {
-      if (params.defaultIngestionProjectId && params.preserveInheritedAccess) {
-        await this.preserveInheritedProjectAccess({
-          tx,
-          organizationId: params.organizationId,
-          projectId: params.defaultIngestionProjectId,
-        });
-      }
-      const config = await tx.gatewayConfig.upsert({
-        where: { organizationId: params.organizationId },
-        create: {
-          organizationId: params.organizationId,
-          defaultIngestionProjectId: params.defaultIngestionProjectId,
-          ingestionMode: params.ingestionMode,
-        },
-        update: {
-          defaultIngestionProjectId: params.defaultIngestionProjectId,
-          ingestionMode: params.ingestionMode,
-        },
-      });
-      return { config, project: null };
+    const config = await this.prisma.gatewayConfig.upsert({
+      where: { organizationId: params.organizationId },
+      create: {
+        organizationId: params.organizationId,
+        defaultIngestionProjectId: params.defaultIngestionProjectId,
+        ingestionMode: params.ingestionMode,
+      },
+      update: {
+        defaultIngestionProjectId: params.defaultIngestionProjectId,
+        ingestionMode: params.ingestionMode,
+      },
     });
-  }
-
-  private async preserveInheritedProjectAccess(params: {
-    tx: Prisma.TransactionClient;
-    organizationId: string;
-    projectId: string;
-  }) {
-    let membershipCursor: string | undefined;
-    do {
-      const memberships = await params.tx.organizationMembership.findMany({
-        where: { orgId: params.organizationId, role: { not: "NONE" } },
-        select: { id: true, userId: true, role: true },
-        orderBy: { id: "asc" },
-        take: 100,
-        ...(membershipCursor
-          ? { cursor: { id: membershipCursor }, skip: 1 }
-          : undefined),
-      });
-      await params.tx.projectMembership.createMany({
-        data: memberships.map((membership) => ({
-          projectId: params.projectId,
-          userId: membership.userId,
-          orgMembershipId: membership.id,
-          role: membership.role,
-        })),
-        // Members with an explicit role on this project already keep it.
-        skipDuplicates: true,
-      });
-      membershipCursor =
-        memberships.length === 100 ? memberships.at(-1)?.id : undefined;
-    } while (membershipCursor);
+    return { config, project: null };
   }
 
   private createIngestionProjectAndUpsertConfig(params: {
     organizationId: string;
     projectName: string;
-    createdByUserId: string;
     ingestionMode: GatewayIngestionMode;
   }) {
     return this.prisma.$transaction(async (tx) => {
@@ -188,25 +133,6 @@ export class GatewayConfigService {
         data: {
           orgId: params.organizationId,
           name: params.projectName,
-        },
-      });
-      // Preserve the creator's access even if their organization role changes.
-      // Other organization owners and admins inherit access; regular members
-      // need an explicit project role.
-      await tx.projectMembership.create({
-        data: {
-          projectId: project.id,
-          userId: params.createdByUserId,
-          orgMembershipId: (
-            await tx.organizationMembership.findFirstOrThrow({
-              where: {
-                orgId: params.organizationId,
-                userId: params.createdByUserId,
-              },
-              select: { id: true },
-            })
-          ).id,
-          role: "OWNER",
         },
       });
       const config = await tx.gatewayConfig.upsert({

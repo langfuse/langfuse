@@ -15,7 +15,6 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
-import { getAuthOptions } from "@/src/server/auth";
 import {
   createInnerTRPCContext,
   type OrgAuthedContext,
@@ -41,28 +40,35 @@ const cleanupUsers: string[] = [];
 const originalGatewayOrganizationAllowlist = [
   ...env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
 ];
-
-/**
- * Resolves the project ids a user can read through the real NextAuth session
- * callback — the same object every project-scoped tRPC procedure authorizes
- * against.
- */
-const sessionProjectIds = async (email: string) => {
-  const authOptions = await getAuthOptions();
-  const session = (await authOptions.callbacks!.session!({
-    session: {} as Session,
-    token: { email },
-  } as never)) as Session;
-  return (session.user?.organizations ?? []).flatMap((organization) =>
-    organization.projects.map((project) => project.id),
-  );
+const originalGatewayJwtConfig = {
+  privateKey: env.LANGFUSE_GATEWAY_JWT_PRIVATE_KEY,
+  publicKey: env.LANGFUSE_GATEWAY_JWT_PUBLIC_KEY,
+  keyId: env.LANGFUSE_GATEWAY_JWT_KEY_ID,
+  issuer: env.LANGFUSE_GATEWAY_JWT_ISSUER,
+  audience: env.LANGFUSE_GATEWAY_JWT_AUDIENCE,
 };
+const gatewaySigningKeys = generateKeyPairSync("ec", { namedCurve: "P-256" });
+const gatewayPrivateKey = gatewaySigningKeys.privateKey
+  .export({ format: "pem", type: "pkcs8" })
+  .toString();
+const gatewayPublicKey = gatewaySigningKeys.publicKey
+  .export({ format: "pem", type: "spki" })
+  .toString();
+
+function configureGatewayJwtSigning() {
+  Object.assign(env, {
+    LANGFUSE_GATEWAY_JWT_PRIVATE_KEY: gatewayPrivateKey,
+    LANGFUSE_GATEWAY_JWT_PUBLIC_KEY: gatewayPublicKey,
+    LANGFUSE_GATEWAY_JWT_KEY_ID: "current",
+    LANGFUSE_GATEWAY_JWT_ISSUER: "test-issuer",
+    LANGFUSE_GATEWAY_JWT_AUDIENCE: "test-audience",
+  });
+}
 
 const GatewayIngestionClaimsSchema = z.object({
   version: z.literal(1),
   organization_id: z.string(),
   project_id: z.string(),
-  api_key_id: z.string(),
   scope: z.literal("gateway-ingest"),
   exp: z.number().int(),
   iss: z.string(),
@@ -83,6 +89,13 @@ afterEach(async () => {
     env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST.length,
     ...originalGatewayOrganizationAllowlist,
   );
+  Object.assign(env, {
+    LANGFUSE_GATEWAY_JWT_PRIVATE_KEY: originalGatewayJwtConfig.privateKey,
+    LANGFUSE_GATEWAY_JWT_PUBLIC_KEY: originalGatewayJwtConfig.publicKey,
+    LANGFUSE_GATEWAY_JWT_KEY_ID: originalGatewayJwtConfig.keyId,
+    LANGFUSE_GATEWAY_JWT_ISSUER: originalGatewayJwtConfig.issuer,
+    LANGFUSE_GATEWAY_JWT_AUDIENCE: originalGatewayJwtConfig.audience,
+  });
   vi.clearAllMocks();
 });
 
@@ -168,137 +181,6 @@ describe("AI gateway control plane", () => {
     } else {
       await expect(request).rejects.toMatchObject({ code: "FORBIDDEN" });
     }
-  });
-
-  it("limits default ingestion project access to organization owners and admins", async () => {
-    const owner = await prepare();
-    const existingMember = await prisma.user.create({
-      data: { email: `gateway-member-${randomUUID()}@example.test` },
-    });
-    cleanupUsers.push(existingMember.id);
-    await prisma.organizationMembership.create({
-      data: {
-        orgId: owner.org.id,
-        userId: existingMember.id,
-        role: "MEMBER",
-      },
-    });
-    const existingPrivilegedUsers = await Promise.all(
-      [Role.OWNER, Role.ADMIN].map(async (role) => {
-        const user = await prisma.user.create({
-          data: {
-            email: `gateway-existing-${role.toLowerCase()}-${randomUUID()}@example.test`,
-          },
-        });
-        cleanupUsers.push(user.id);
-        await prisma.organizationMembership.create({
-          data: { orgId: owner.org.id, userId: user.id, role },
-        });
-        return user;
-      }),
-    );
-
-    const config = await owner.caller.aiGateway.updateConfig({
-      orgId: owner.org.id,
-      defaultIngestionProjectId: null,
-      createProjectName: "llm-ingestion-project",
-      ingestionMode: "USAGE",
-    });
-    const ingestionProjectId = config.defaultIngestionProjectId;
-    expect(ingestionProjectId).not.toBeNull();
-    if (!ingestionProjectId) throw new Error("Missing ingestion project");
-    const project = await prisma.project.findFirstOrThrow({
-      where: { id: ingestionProjectId },
-    });
-
-    const retriedConfig = await owner.caller.aiGateway.updateConfig({
-      orgId: owner.org.id,
-      defaultIngestionProjectId: null,
-      createProjectName: "llm-ingestion-project",
-      ingestionMode: "USAGE",
-    });
-    expect(retriedConfig.defaultIngestionProjectId).toBe(ingestionProjectId);
-    await expect(
-      prisma.project.count({
-        where: {
-          orgId: owner.org.id,
-          name: "llm-ingestion-project",
-          deletedAt: null,
-        },
-      }),
-    ).resolves.toBe(1);
-
-    // Members remain excluded whether they joined before or after project
-    // creation. Organization owners and admins inherit access in both cases.
-    // This goes through the real NextAuth session callback because that session
-    // is what every project-scoped tRPC procedure authorizes against.
-    const futureMember = await prisma.user.create({
-      data: { email: `gateway-future-${randomUUID()}@example.test` },
-    });
-    cleanupUsers.push(futureMember.id);
-    await prisma.organizationMembership.create({
-      data: {
-        orgId: owner.org.id,
-        userId: futureMember.id,
-        role: "MEMBER",
-      },
-    });
-    const futurePrivilegedUsers = await Promise.all(
-      [Role.OWNER, Role.ADMIN].map(async (role) => {
-        const user = await prisma.user.create({
-          data: {
-            email: `gateway-future-${role.toLowerCase()}-${randomUUID()}@example.test`,
-          },
-        });
-        cleanupUsers.push(user.id);
-        await prisma.organizationMembership.create({
-          data: { orgId: owner.org.id, userId: user.id, role },
-        });
-        return user;
-      }),
-    );
-
-    await expect(sessionProjectIds(owner.user.email!)).resolves.toContain(
-      project.id,
-    );
-    for (const user of [...existingPrivilegedUsers, ...futurePrivilegedUsers]) {
-      await expect(sessionProjectIds(user.email!)).resolves.toContain(
-        project.id,
-      );
-    }
-    await expect(
-      sessionProjectIds(existingMember.email!),
-    ).resolves.not.toContain(project.id);
-    await expect(sessionProjectIds(futureMember.email!)).resolves.not.toContain(
-      project.id,
-    );
-
-    // Sanity check that exclusion is specific to the ingestion project: an
-    // ordinary project in the same organization stays visible to the same
-    // member through organization-role inheritance.
-    const ordinaryProject = await prisma.project.create({
-      data: { orgId: owner.org.id, name: `ordinary-${randomUUID()}` },
-    });
-    await expect(sessionProjectIds(existingMember.email!)).resolves.toContain(
-      ordinaryProject.id,
-    );
-
-    // An explicit project membership still overrides the exclusion.
-    const orgMembership = await prisma.organizationMembership.findFirstOrThrow({
-      where: { orgId: owner.org.id, userId: existingMember.id },
-      select: { id: true },
-    });
-    await prisma.projectMembership.create({
-      data: {
-        projectId: project.id,
-        userId: existingMember.id,
-        orgMembershipId: orgMembership.id,
-        role: Role.VIEWER,
-      },
-    });
-    await expect(sessionProjectIds(existingMember.email!)).resolves.toContain(
-      project.id,
-    );
   });
 
   it("enforces admin scope and validates the ingestion project organization", async () => {
@@ -617,72 +499,42 @@ describe("AI gateway control plane", () => {
       metadata: {},
     });
 
-    const originalJwtConfig = {
-      privateKey: env.LANGFUSE_GATEWAY_JWT_PRIVATE_KEY,
-      publicKey: env.LANGFUSE_GATEWAY_JWT_PUBLIC_KEY,
-      keyId: env.LANGFUSE_GATEWAY_JWT_KEY_ID,
-      issuer: env.LANGFUSE_GATEWAY_JWT_ISSUER,
-      audience: env.LANGFUSE_GATEWAY_JWT_AUDIENCE,
-    };
-    const signingKeys = generateKeyPairSync("ec", { namedCurve: "P-256" });
-    const privateKey = signingKeys.privateKey
-      .export({ format: "pem", type: "pkcs8" })
-      .toString();
-    const publicKey = signingKeys.publicKey
-      .export({ format: "pem", type: "spki" })
-      .toString();
-    Object.assign(env, {
-      LANGFUSE_GATEWAY_JWT_PRIVATE_KEY: privateKey,
-      LANGFUSE_GATEWAY_JWT_PUBLIC_KEY: publicKey,
-      LANGFUSE_GATEWAY_JWT_KEY_ID: "current",
-      LANGFUSE_GATEWAY_JWT_ISSUER: "test-issuer",
-      LANGFUSE_GATEWAY_JWT_AUDIENCE: "test-audience",
+    configureGatewayJwtSigning();
+
+    const apiFormat = "openai.chat-completions" as const;
+    const jwtVerifier = createEs256JwtVerifier({
+      publicKeys: [{ id: "current", publicKey: gatewayPublicKey }],
+      issuer: "test-issuer",
+      audience: "test-audience",
+      claimsSchema: GatewayIngestionClaimsSchema,
+    });
+    const result = await new GatewayResolveService(prisma).resolve({
+      fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
+      apiFormat,
     });
 
-    try {
-      const apiFormat = "openai.chat-completions" as const;
-      const jwtVerifier = createEs256JwtVerifier({
-        publicKeys: [{ id: "current", publicKey }],
-        issuer: "test-issuer",
-        audience: "test-audience",
-        claimsSchema: GatewayIngestionClaimsSchema,
-      });
-      const result = await new GatewayResolveService(prisma).resolve({
-        fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
-        apiFormat,
-      });
-
-      expect(openAiPrimary.routingPriority).toBe(0);
-      expect(result.connection).toEqual({
-        id: openAiPrimary.id,
-        provider: "openai",
-        api_format: apiFormat,
-        base_url: "https://api.openai.com/v1",
-        auth: { type: "Bearer", token: "sk-test-openai-primary" },
-      });
-      const ingestionToken = result.ingestion!.access_token;
-      const ingestionClaims = jwtVerifier.verify({ token: ingestionToken });
-      const encodedClaims = ingestionToken.split(".")[1];
-      const rawClaims = JSON.parse(
-        Buffer.from(encodedClaims, "base64url").toString("utf8"),
-      ) as Record<string, unknown>;
-      expect(rawClaims).not.toHaveProperty("key_id");
-      expect(ingestionClaims).toMatchObject({
-        organization_id: org.id,
-        project_id: project.id,
-        api_key_id: gatewayKey.id,
-      });
-      expect(result.ingestion_mode).toBe("full");
-      expect(result.ingestion?.expires_at).toBe(ingestionClaims.exp);
-    } finally {
-      Object.assign(env, {
-        LANGFUSE_GATEWAY_JWT_PRIVATE_KEY: originalJwtConfig.privateKey,
-        LANGFUSE_GATEWAY_JWT_PUBLIC_KEY: originalJwtConfig.publicKey,
-        LANGFUSE_GATEWAY_JWT_KEY_ID: originalJwtConfig.keyId,
-        LANGFUSE_GATEWAY_JWT_ISSUER: originalJwtConfig.issuer,
-        LANGFUSE_GATEWAY_JWT_AUDIENCE: originalJwtConfig.audience,
-      });
-    }
+    expect(openAiPrimary.routingPriority).toBe(0);
+    expect(result.connection).toEqual({
+      id: openAiPrimary.id,
+      provider: "openai",
+      api_format: apiFormat,
+      base_url: "https://api.openai.com/v1",
+      auth: { type: "Bearer", token: "sk-test-openai-primary" },
+    });
+    const ingestionToken = result.ingestion!.access_token;
+    const ingestionClaims = jwtVerifier.verify({ token: ingestionToken });
+    const encodedClaims = ingestionToken.split(".")[1];
+    const rawClaims = JSON.parse(
+      Buffer.from(encodedClaims, "base64url").toString("utf8"),
+    ) as Record<string, unknown>;
+    expect(rawClaims).not.toHaveProperty("key_id");
+    expect(ingestionClaims).toMatchObject({
+      organization_id: org.id,
+      project_id: project.id,
+    });
+    expect(rawClaims).not.toHaveProperty("api_key_id");
+    expect(result.ingestion_mode).toBe("full");
+    expect(result.ingestion?.expires_at).toBe(ingestionClaims.exp);
   });
 
   it("changes ERROR only for credential auth failures and explicit recovery", async () => {
@@ -781,77 +633,6 @@ describe("AI gateway control plane", () => {
     ).toBe(1);
   });
 
-  it("keeps current access when an existing project becomes the ingestion project", async () => {
-    const owner = await prepare();
-    const existingMember = await prisma.user.create({
-      data: { email: `gateway-existing-${randomUUID()}@example.test` },
-    });
-    cleanupUsers.push(existingMember.id);
-    await prisma.organizationMembership.create({
-      data: {
-        orgId: owner.org.id,
-        userId: existingMember.id,
-        role: "MEMBER",
-      },
-    });
-
-    await owner.caller.aiGateway.updateConfig({
-      orgId: owner.org.id,
-      defaultIngestionProjectId: owner.project.id,
-      ingestionMode: "USAGE",
-    });
-
-    // Choosing an existing project must not silently take it away from the
-    // people who already worked in it, so their inherited role is written out
-    // as an explicit membership.
-    await expect(sessionProjectIds(existingMember.email!)).resolves.toContain(
-      owner.project.id,
-    );
-    await expect(
-      prisma.projectMembership.findUnique({
-        where: {
-          projectId_userId: {
-            projectId: owner.project.id,
-            userId: existingMember.id,
-          },
-        },
-      }),
-    ).resolves.toMatchObject({ role: "MEMBER" });
-
-    // Only members who join afterwards are kept out.
-    const futureMember = await prisma.user.create({
-      data: { email: `gateway-later-${randomUUID()}@example.test` },
-    });
-    cleanupUsers.push(futureMember.id);
-    await prisma.organizationMembership.create({
-      data: { orgId: owner.org.id, userId: futureMember.id, role: "MEMBER" },
-    });
-    await expect(sessionProjectIds(futureMember.email!)).resolves.not.toContain(
-      owner.project.id,
-    );
-
-    // Saving an unrelated setting must not grant access to people who joined
-    // after this project was designated for gateway ingestion.
-    await owner.caller.aiGateway.updateConfig({
-      orgId: owner.org.id,
-      defaultIngestionProjectId: owner.project.id,
-      ingestionMode: "FULL",
-    });
-    await expect(sessionProjectIds(futureMember.email!)).resolves.not.toContain(
-      owner.project.id,
-    );
-    await expect(
-      prisma.projectMembership.findUnique({
-        where: {
-          projectId_userId: {
-            projectId: owner.project.id,
-            userId: futureMember.id,
-          },
-        },
-      }),
-    ).resolves.toBeNull();
-  });
-
   it("keeps routing priorities contiguous through reorders and deletes", async () => {
     const { caller, org } = await prepare();
     const created = [];
@@ -933,6 +714,7 @@ describe("AI gateway control plane", () => {
   });
 
   it("serves repeat resolves from cache and drops it when a connection changes", async () => {
+    configureGatewayJwtSigning();
     const { caller, org, project } = await prepare();
     await caller.aiGateway.updateConfig({
       orgId: org.id,

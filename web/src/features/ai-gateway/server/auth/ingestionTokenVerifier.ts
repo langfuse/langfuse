@@ -2,7 +2,7 @@ import { env } from "@/src/env.mjs";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import { CloudConfigSchema, UnauthorizedError } from "@langfuse/shared";
 import { prisma, type PrismaClient } from "@langfuse/shared/src/db";
-import type { AuthHeaderValidVerificationResult } from "@langfuse/shared/src/server";
+import type { ApiAccessScopeWithOptionalApiKeyId } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 
 import {
@@ -14,11 +14,10 @@ import { verifyGatewayAuthorization } from "./gatewayAuthVerifier";
 
 export const GATEWAY_INGESTION_TOKEN_TTL_SECONDS = 15 * 60;
 
-const GatewayIngestionClaimsSchema = z.object({
+const GatewayIngestionClaimsSchema = z.strictObject({
   version: z.literal(1),
   organization_id: z.string(),
   project_id: z.string(),
-  api_key_id: z.string(),
   ingestion_mode: z.enum(["usage", "full"]),
   scope: z.literal("gateway-ingest"),
   exp: z.number().int(),
@@ -30,6 +29,14 @@ const GatewayIngestionClaimsSchema = z.object({
 
 type GatewayIngestionClaims = z.infer<typeof GatewayIngestionClaimsSchema> &
   JwtRegisteredClaims;
+
+type GatewayProjectAuth = {
+  validKey: true;
+  scope: ApiAccessScopeWithOptionalApiKeyId & {
+    projectId: string;
+    accessLevel: "project";
+  };
+};
 
 function configuredPublicKey(input: {
   keyId: string | undefined;
@@ -76,12 +83,7 @@ export async function verifyGatewayIngestionAuthorization(
   authorization: string | undefined,
   gatewayAuthorization: string | string[] | undefined,
   database: PrismaClient = prisma,
-): Promise<
-  | (AuthHeaderValidVerificationResult & {
-      scope: { projectId: string; accessLevel: "project" };
-    })
-  | null
-> {
+): Promise<GatewayProjectAuth | null> {
   const [scheme, token, ...additionalParts] = (authorization ?? "")
     .trim()
     .split(/\s+/);
@@ -160,7 +162,6 @@ export async function verifyGatewayIngestionAuthorization(
       orgId: project.organization.id,
       plan: getOrganizationPlanServerSide(cloudConfig),
       rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
-      apiKeyId: claims.api_key_id,
       publicKey: `gateway:${claims.jti}`,
       isIngestionSuspended:
         project.organization.cloudFreeTierUsageThresholdState === "BLOCKED",

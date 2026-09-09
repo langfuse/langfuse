@@ -90,9 +90,6 @@ const getRealOrganizationMemberships = ({
               },
             ],
           },
-          gatewayConfig: {
-            select: { defaultIngestionProjectId: true },
-          },
         },
       },
     } satisfies Prisma.OrganizationMembershipInclude,
@@ -127,9 +124,6 @@ const getAccessibleProjects = (
           projectId: project.id,
           projectMemberships: membership.ProjectMemberships,
           orgMembershipRole: membership.role,
-          explicitMembershipOnlyProjectIds: [
-            membership.organization.gatewayConfig?.defaultIngestionProjectId,
-          ],
         }),
       }))
       .filter((project) =>
@@ -174,10 +168,6 @@ export const resolveOnboardingRedirectTarget = async ({
       projectId: starterProject.id,
       projectMemberships: starterOrganizationMembership.ProjectMemberships,
       orgMembershipRole: starterOrganizationMembership.role,
-      explicitMembershipOnlyProjectIds: [
-        starterOrganizationMembership.organization.gatewayConfig
-          ?.defaultIngestionProjectId,
-      ],
     });
 
     if (projectRoleAccessRights[starterProjectRole].includes("project:read")) {

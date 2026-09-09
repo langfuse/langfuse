@@ -59,56 +59,6 @@ describe("find user project roles", () => {
     ]);
   });
 
-  it("limits gateway ingestion projects to privileged and explicit members", async () => {
-    const { org, project } = await createOrgAndProject();
-    await prisma.gatewayConfig.create({
-      data: {
-        organizationId: org.id,
-        defaultIngestionProjectId: project.id,
-        ingestionMode: "USAGE",
-      },
-    });
-
-    const memberships = await Promise.all(
-      (["OWNER", "ADMIN", "MEMBER", "MEMBER"] as const).map(async (role) => {
-        const user = await prisma.user.create({
-          data: { id: v4(), email: v4(), name: v4() },
-        });
-        const membership = await prisma.organizationMembership.create({
-          data: { userId: user.id, orgId: org.id, role },
-        });
-        return { user, membership };
-      }),
-    );
-    const [owner, admin, member, explicitMember] = memberships;
-    await prisma.projectMembership.create({
-      data: {
-        userId: explicitMember.user.id,
-        projectId: project.id,
-        role: "MEMBER",
-        orgMembershipId: explicitMember.membership.id,
-      },
-    });
-
-    const users = await getUserProjectRoles({
-      projectId: project.id,
-      orgId: org.id,
-      filterCondition: [],
-      searchFilter: Prisma.empty,
-      orderBy: Prisma.empty,
-    });
-
-    expect(users.map(({ id }) => id)).toEqual(
-      expect.arrayContaining([
-        owner.user.id,
-        admin.user.id,
-        explicitMember.user.id,
-      ]),
-    );
-    expect(users.map(({ id }) => id)).not.toContain(member.user.id);
-    expect(users).toHaveLength(3);
-  });
-
   it("should exclude users with NONE role", async () => {
     const { org, project } = await createOrgAndProject();
 
