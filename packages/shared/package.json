@@ -31,6 +31,10 @@
       "import": "./dist/src/server/index.js",
       "require": "./dist/src/server/index.js"
     },
+    "./src/server/clickhouse": {
+      "import": "./dist/src/server/clickhouse/index.js",
+      "require": "./dist/src/server/clickhouse/index.js"
+    },
     "./src/server/clickhouse/clickhouseIdentifiers": {
       "import": "./dist/src/server/clickhouse/clickhouseIdentifiers.js",
       "require": "./dist/src/server/clickhouse/clickhouseIdentifiers.js"

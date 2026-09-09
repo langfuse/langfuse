@@ -234,10 +234,13 @@ Each agent run starts the six-service source stack with
 
 Identity recovery runs in both repo postinstall and Cursor Cloud start. When
 `LINEAR_API_KEY` is available, it verifies the viewer belongs to the Langfuse
-team and creates `~/.config/langfuse/me.md` without exposing the key. The file
-is never overwritten, so human corrections survive repeated installs and
-worktrees. Running it at Cloud start matters because environment builds do not
-rerun install for each new agent.
+team and writes `.langfuse/me.md` (gitignored, inside the checkout) without
+exposing the key. A machine-level copy under `~/.config/langfuse` is also
+written when the harness allows home-dir access; OpenCode and similar
+workspace-scoped tools skip that path so they do not prompt on the user
+dir. Neither file is overwritten, so human corrections survive repeated
+installs and worktrees. Running it at Cloud start matters because
+environment builds do not rerun install for each new agent.
 
 The start script builds and waits for web, worker, PostgreSQL, ClickHouse,
 Redis, and MinIO, seeds the synthetic demo project, and verifies the web and

@@ -13,7 +13,7 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { useSidebarFilterState } from "@/src/features/filters";
 import {
   getExperimentItemsColumnName,
   experimentItemsFilterConfig,
@@ -39,7 +39,10 @@ import {
 import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import {
@@ -55,7 +58,6 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useExperimentItemsTableData } from "../../hooks/useExperimentItemsTableData";
 import {
   type ExperimentItemsTableRow,
@@ -68,13 +70,13 @@ import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCel
 import { Badge } from "@/src/components/ui/badge";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
-import { createScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import {
   collectPresentScoreKeys,
+  composeAggregateScoreKey,
+  createScoreColumns,
   revealScoreColumns,
   withPresentScoreKeys,
-} from "@/src/features/scores/lib/scoreColumns";
-import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+} from "@/src/features/scores";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ExperimentCompareTable } from "./ExperimentCompareTable";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
@@ -82,10 +84,12 @@ import {
   useExperimentItemsFilterOptions,
   type ScoreColumnDef,
 } from "@/src/features/experiments/hooks/useExperimentItemsFilterOptions";
-import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
+import {
+  calculateNumericDiff,
+  computeScoreDiffs,
+  DiffLabel,
+} from "@/src/features/datasets";
 import { describeRunComparison } from "@/src/features/experiments/fns/describeRunComparison";
-import { calculateNumericDiff } from "@/src/features/datasets/lib/calculateBaselineDiff";
-import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
 import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/peek-experiment-item-detail";
 import { NotRecordedMetric } from "./NotRecordedMetric";
 import {
@@ -970,6 +974,12 @@ export default function ExperimentItemsTable({
 
         return {
           ...scoreCol,
+          // The header holds this column's analysis, so it also sets the
+          // column's floor: the shared table's default lets a column be dragged
+          // to 20px, which is narrower than `−0.12 ↗1 ↘14` and would clip a
+          // count into a different, wrong number. 120px holds the delta and the
+          // movement counts whole.
+          minSize: 120,
           // The header carries the column's aggregate over the items in view, and
           // the movement against the comparison. Keeps the plain name for the
           // column picker.

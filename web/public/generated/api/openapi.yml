@@ -3013,6 +3013,19 @@ paths:
           required: true
           schema:
             type: string
+        - name: startTime
+          in: query
+          description: >-
+            The start time of the observation (ISO 8601 with offset, e.g.
+            2024-01-01T00:00:00Z). Optional performance hint - when provided,
+            Langfuse narrows the lookup to make the request substantially
+            faster. It only affects speed - an incorrect or omitted value never
+            changes the result.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
       responses:
         '200':
           description: ''
@@ -9192,6 +9205,16 @@ components:
             The id of the user who created the comment. Must be a member of the
             organization that owns the project, otherwise an error will be
             thrown.
+        objectStartTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            The start time of the referenced object (for observations, the
+            observation's start time). Optional performance hint - when
+            provided, Langfuse narrows the lookup to validate the reference
+            faster. It only affects speed - an incorrect or omitted value never
+            changes the result.
       required:
         - projectId
         - objectType

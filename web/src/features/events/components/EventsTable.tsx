@@ -9,16 +9,16 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { startOfMinute } from "date-fns";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import {
-  type UseSidebarFilterStateOptions,
+  buildSidebarFilterSessionContextId,
   useSidebarFilterPresentation,
   useSidebarFilterStateCore,
-} from "@/src/features/filters/hooks/useSidebarFilterState";
+  type UseSidebarFilterStateOptions,
+} from "@/src/features/filters";
 import {
   getEventsColumnName,
   getObservationEventsFilterConfig,
   type ObservationEventsOmittableFilterColumn,
 } from "../config/filter-config";
-import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
 import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type ObservationLevelType,
@@ -50,7 +50,16 @@ import { createStatusTableColumn } from "@/src/components/design-system/table/co
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+import {
+  buildAiContext,
+  EventsSearchBarRow,
+  filterStateToQueryText,
+  observedScoreNamesFromOptions,
+  toObservedOptions,
+  useEventsSearchBar,
+  useSearchBarEnabled,
+  withMetadataPathOptions,
+} from "@/src/features/search-bar";
 import { cn } from "@/src/utils/tailwind";
 import { getObservationLevelStatus } from "@/src/components/level-colors";
 import {
@@ -69,7 +78,10 @@ import {
 } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
-import { usePaginationWindowPin } from "@/src/components/table/hooks/usePaginationWindowPin";
+import {
+  isLiveTailTimeSort,
+  usePaginationWindowPin,
+} from "@/src/components/table/hooks/usePaginationWindowPin";
 import {
   type TableDateRange,
   TABLE_AGGREGATION_OPTIONS,
@@ -80,7 +92,10 @@ import { DataTableRefreshButton } from "@/src/components/table/data-table-refres
 import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
@@ -104,9 +119,7 @@ import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { scoreFilters, useScoreColumns } from "@/src/features/scores";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
 import {
   useAppRootDefault,
@@ -130,18 +143,9 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements";
 import { showSuccessToast } from "@/src/features/notifications";
-import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBarEnabled";
-import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
-import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { MobileFullTextSearch } from "@/src/features/events/components/MobileFullTextSearch";
-import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
-import {
-  observedScoreNamesFromOptions,
-  toObservedOptions,
-  withMetadataPathOptions,
-} from "@/src/features/search-bar/lib/observed-options";
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
@@ -492,7 +496,11 @@ export default function ObservationsEventsTable({
   // row/count queries take the pinned upper bound instead, so offset paging does
   // not repeat or skip rows while the window keeps taking in newly ingested ones.
   const { range: rowsDateRange, pinOnLeavingFirstPage } =
-    usePaginationWindowPin(dateRange, limitRows ? 0 : paginationState.page - 1);
+    usePaginationWindowPin(
+      dateRange,
+      limitRows ? 0 : paginationState.page - 1,
+      { enabled: isLiveTailTimeSort(orderByState, "startTime") },
+    );
   const dateRangeFilter: FilterState = toStartTimeFilterState(rowsDateRange);
 
   const appRootDefault = useAppRootDefault({

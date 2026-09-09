@@ -45,6 +45,7 @@ overrides:
   browserslist: 4.28.7
   postcss: 8.5.25
   esbuild: 0.28.1
+  undici@6: 6.28.1
   undici@7: 7.29.1
   zod: 4.3.6
   nanoid: 3.3.18
@@ -68,7 +69,7 @@ overrides:
   '@ai-sdk/ui-utils>@ai-sdk/provider-utils': 2.2.8
   next-auth>nodemailer: ^9.0.3
 
-packageExtensionsChecksum: sha256-QG4c9KJXY/TKGmHnbwxEePs/bdv0Wj8pLpBLp8HZH0Y=
+packageExtensionsChecksum: sha256-WsueXkDwaA1Mur66bfJz2RLd0+lO1INOq2n8H30Pf8M=
 
 patchedDependencies:
   '@radix-ui/react-roving-focus@1.1.11': fb2bc2e96ad2c31dcb5860e509374a512fa08b1fade5805e3ae2dc72dcd68a0b
@@ -987,8 +988,8 @@ importers:
         specifier: 10.5.10
         version: 10.5.10(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@7.0.2)
       eslint-plugin-tailwindcss:
-        specifier: 4.0.2
-        version: 4.0.2(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(tailwindcss@4.2.2)
+        specifier: 4.4.0
+        version: 4.4.0(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2)
       jsdom:
         specifier: ^26.1.0
         version: 26.1.0(supports-color@8.1.1)
@@ -7825,11 +7826,16 @@ packages:
     peerDependencies:
       eslint: '>=8'
 
-  eslint-plugin-tailwindcss@4.0.2:
-    resolution: {integrity: sha512-I/plNAFclmxJUUzKhQ6W2sMYcfxMMYLcslVFzRwtoIaheLOvKoVluTOxx67aX0H234gAlKW5VuK0fOVWgPFkqQ==}
+  eslint-plugin-tailwindcss@4.4.0:
+    resolution: {integrity: sha512-cPyEIeBTVbPU30oQTm7pOqOYurb5vtGaGhRCajYsSUwpUS9fvswB13dOLDUjGJJ+Rt8ylXf4L0hrhLA7Hf7WTQ==}
     engines: {node: '>=20.19.0'}
     peerDependencies:
+      eslint: ^9.0.0 || ^10.0.0
       tailwindcss: ^4.0.0
+      typescript: '*'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   eslint-plugin-turbo@2.10.5:
     resolution: {integrity: sha512-4a1hbA04A4D5ZdSpzTAVn2JL0RqEOava+u6MJzxMoY5ckWfqdgcmJnez7a83gj4bUTomBqDP6vlb4Q7LqrfYaw==}
@@ -11408,8 +11414,8 @@ packages:
   undici-types@7.10.0:
     resolution: {integrity: sha512-t5Fy/nfn+14LuOc2KNYg75vZqClpAiqscVvMygNnlsHBFpSXdJaYtXMcdNLpl/Qvc3P2cB3s6lOV51nqsFq4ag==}
 
-  undici@6.28.0:
-    resolution: {integrity: sha512-LIY910g9TI13YS95lrMFrs8Rm/u/irgHeTWoKCoteeJ04CUJ92eEfj0rVn+7VKMPBpUPiUoBKfhNyLI23EE/KA==}
+  undici@6.28.1:
+    resolution: {integrity: sha512-zWpdTVD54H48CIybL0rWQ3ukpb9d23wM7eH5RtfdmeP70cWHNjtfo7P4vZX+5CoDcO53J4Pu5uXp7lNfjc6DRA==}
     engines: {node: '>=18.17'}
 
   undici@7.29.1:
@@ -12159,7 +12165,7 @@ snapshots:
       '@ai-sdk/provider': 3.0.15
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.1.0
-      undici: 6.28.0
+      undici: 6.28.1
       zod: 4.3.6
 
   '@ai-sdk/provider-utils@5.0.11(zod@4.3.6)':
@@ -19478,17 +19484,18 @@ snapshots:
       - supports-color
       - typescript
 
-  eslint-plugin-tailwindcss@4.0.2(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(tailwindcss@4.2.2):
+  eslint-plugin-tailwindcss@4.4.0(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2):
     dependencies:
-      '@typescript-eslint/utils': 8.67.0(@typescript/typescript6@6.0.2)(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
+      '@typescript-eslint/utils': 8.67.0(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@7.0.2)
+      eslint: 10.8.0(jiti@2.7.0)(supports-color@8.1.1)
       postcss: 8.5.25
       postcss-nested: 7.0.2(postcss@8.5.25)
       synckit: 0.11.13
       tailwind-api-utils: 1.0.3(tailwindcss@4.2.2)
       tailwindcss: 4.2.2
-      typescript: '@typescript/typescript6@6.0.2'
+    optionalDependencies:
+      typescript: 7.0.2
     transitivePeerDependencies:
-      - eslint
       - supports-color
 
   eslint-plugin-turbo@2.10.5(eslint@10.8.0(jiti@2.7.0)(supports-color@8.1.1))(turbo@2.10.5):
@@ -23803,7 +23810,7 @@ snapshots:
 
   undici-types@7.10.0: {}
 
-  undici@6.28.0: {}
+  undici@6.28.1: {}
 
   undici@7.29.1: {}
 

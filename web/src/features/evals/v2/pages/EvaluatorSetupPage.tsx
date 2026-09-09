@@ -300,6 +300,9 @@ export function EvaluatorSetupPage(
     evaluatorId,
   );
   const hasRequestedName = useRef(false);
+  const saveInFlightRef = useRef(false);
+  const hasCreatedRef = useRef(false);
+  const [saveInFlight, setSaveInFlight] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
@@ -519,23 +522,27 @@ export function EvaluatorSetupPage(
   const save = async (
     intent: "manual" | "assistant" = "manual",
   ): Promise<string | null> => {
+    const stateAtRequest = evaluatorSetupStore.getState();
+    const isAssistantHandoff = intent === "assistant";
+    if (
+      isAssistantHandoff &&
+      props.mode === "create" &&
+      assistantPersistedEvaluatorIdRef.current
+    ) {
+      return assistantPersistedEvaluatorIdRef.current;
+    }
+    if (
+      isAssistantHandoff &&
+      initialEvaluator &&
+      getCurrentSnapshot(stateAtRequest) === initialSnapshot.current
+    ) {
+      return initialEvaluator.id;
+    }
+    if (saveInFlightRef.current || hasCreatedRef.current) return null;
+    saveInFlightRef.current = true;
+    setSaveInFlight(true);
     try {
       let state = evaluatorSetupStore.getState();
-      const isAssistantHandoff = intent === "assistant";
-      if (
-        isAssistantHandoff &&
-        props.mode === "create" &&
-        assistantPersistedEvaluatorIdRef.current
-      ) {
-        return assistantPersistedEvaluatorIdRef.current;
-      }
-      if (
-        isAssistantHandoff &&
-        initialEvaluator &&
-        getCurrentSnapshot(state) === initialSnapshot.current
-      ) {
-        return initialEvaluator.id;
-      }
       const metadata = await prepareEvaluatorMetadataForSave({
         currentName: state.name,
         currentDescription: state.description,
@@ -639,6 +646,7 @@ export function EvaluatorSetupPage(
         description,
         definition,
       });
+      hasCreatedRef.current = true;
       capture("evaluators:create", {
         ...getEvaluatorCreationAnalyticsProperties({
           evaluatorType: state.type,
@@ -700,6 +708,7 @@ export function EvaluatorSetupPage(
       });
       return evaluator.id;
     } catch (error) {
+      hasCreatedRef.current = false;
       if (
         initialEvaluator &&
         error instanceof TRPCClientError &&
@@ -710,6 +719,9 @@ export function EvaluatorSetupPage(
         trpcErrorToast(error);
       }
       return null;
+    } finally {
+      saveInFlightRef.current = false;
+      setSaveInFlight(false);
     }
   };
 
@@ -993,6 +1005,7 @@ export function EvaluatorSetupPage(
           initialSnapshot={initialSnapshot.current}
           isEditing={Boolean(initialEvaluator)}
           isSaving={
+            saveInFlight ||
             create.isPending ||
             update.isPending ||
             suggestName.isPending ||
