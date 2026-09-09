@@ -23,13 +23,6 @@ export default async function handler(
       return;
     }
 
-    const params = validateQueryParams(req.query);
-    if (!params) {
-      return res.status(400).json({ message: "Invalid request parameters" });
-    }
-
-    const { projectId, apiKeyId } = params;
-
     const authCheck = await shadowAuth({
       req,
       action: "apiKeys:CUD",
@@ -38,6 +31,13 @@ export default async function handler(
     if (!authCheck.success) {
       return writeProjectError(res, authCheck.error);
     }
+
+    const params = validateQueryParams(req.query);
+    if (!params) {
+      return res.status(400).json({ message: "Invalid request parameters" });
+    }
+
+    const { projectId, apiKeyId } = params;
 
     if (
       !hasEntitlementBasedOnPlan({

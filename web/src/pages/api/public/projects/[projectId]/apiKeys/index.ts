@@ -24,12 +24,6 @@ export default async function handler(
       return;
     }
 
-    const projectId = validateQueryAndExtractId(req.query);
-    if (!projectId) {
-      return res.status(400).json({ message: "Invalid project ID" });
-    }
-
-    // CHECK AUTH
     const authCheck = await shadowAuth({
       req,
       action: req.method === "GET" ? "apiKeys:read" : "apiKeys:CUD",
@@ -38,7 +32,11 @@ export default async function handler(
     if (!authCheck.success) {
       return writeProjectError(res, authCheck.error);
     }
-    // END CHECK AUTH
+
+    const projectId = validateQueryAndExtractId(req.query);
+    if (!projectId) {
+      return res.status(400).json({ message: "Invalid project ID" });
+    }
 
     if (
       !hasEntitlementBasedOnPlan({
