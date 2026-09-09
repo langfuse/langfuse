@@ -93,11 +93,8 @@ import { SessionDetailStoreProvider } from "@/src/components/session/SessionDeta
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/components/session/sessionDetailStore";
 import { ModernSession } from "@/src/components/session/ModernSession";
-import { ModernSessionHeader } from "@/src/components/session/ModernSessionHeader";
-import { SessionMetadataJsonPathControl } from "@/src/components/session/SessionMetadataJsonPathControl";
 import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
 import { ModernSessionHeaderActionsController } from "@/src/components/session/ModernSessionHeaderActionsController";
-import { ModernSessionFilterControls } from "@/src/components/session/ModernSessionFilterControls";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useStore } from "zustand";
@@ -969,6 +966,9 @@ const LoadedSessionEventsPage: React.FC<{
     enableForAdmins: false,
     projectId,
   });
+  const isSessionTimelineEnabled = useIsFeatureEnabled("sessionTimeline", {
+    projectId,
+  });
   const isMobile = useIsMobile();
   const parentRef = useRef<HTMLDivElement>(null);
   const defaultPresetResolvedSessionRef = useRef<string | null>(null);
@@ -982,6 +982,10 @@ const LoadedSessionEventsPage: React.FC<{
       initialSessionId: sessionId,
       initialShowCorrections: showCorrections,
     }),
+  );
+  const showInlineToolCalls = useStore(
+    sessionDetailStore,
+    (state) => state.showInlineToolCalls,
   );
   const showSystemPrompt = useStore(
     sessionDetailStore,
@@ -1005,6 +1009,11 @@ const LoadedSessionEventsPage: React.FC<{
     },
     [sessionDetailStore, setShowCorrections],
   );
+
+  const setInlineToolCallsForSession = (isEnabled: boolean) => {
+    capture("session_detail:inline_tools_toggled", { isEnabled, isV4: true });
+    sessionDetailStore.getState().actions.setShowInlineToolCalls(isEnabled);
+  };
 
   const setShowSystemPromptForSession = (isEnabled: boolean) => {
     capture("session_detail:system_prompt_toggled", {
@@ -1506,10 +1515,6 @@ const LoadedSessionEventsPage: React.FC<{
     getItemKey: (index) => traces?.[index]?.id ?? index,
   });
   const virtualItems = virtualizer.getVirtualItems();
-  const modernSessionTraces = isTracesSuccess
-    ? ({ state: "loaded", data: traces ?? [] } as const)
-    : ({ state: "loading" } as const);
-
   return (
     <SessionDetailStoreProvider store={sessionDetailStore}>
       <Page
@@ -1664,6 +1669,13 @@ const LoadedSessionEventsPage: React.FC<{
                   projectId={projectId}
                   sessionId={sessionId}
                   isPublic={session.public}
+                  {...(!isSessionTimelineEnabled
+                    ? {
+                        showInlineToolCalls,
+                        onShowInlineToolCallsChange:
+                          setInlineToolCallsForSession,
+                      }
+                    : {})}
                   showSystemPrompt={showSystemPrompt}
                   onShowSystemPromptChange={setShowSystemPromptForSession}
                 >
@@ -1819,31 +1831,6 @@ const LoadedSessionEventsPage: React.FC<{
               : "flex h-full flex-col overflow-auto"
           }
         >
-          {isModernSessionEnabled ? (
-            <SessionMetadataJsonPathControl
-              key={`${projectId}:${sessionId}`}
-              projectId={projectId}
-              sessionId={sessionId}
-              traces={modernSessionTraces}
-              filterState={visibleFilterState}
-            >
-              {(metadataJsonPaths) => (
-                <ModernSessionHeader
-                  projectId={projectId}
-                  countTraces={session.countTraces}
-                  traces={modernSessionTraces}
-                  tokensIn={session.inputUsage}
-                  tokensOut={session.outputUsage}
-                  totalTokens={session.totalTokens}
-                  totalCost={session.totalCost ?? 0}
-                  environment={session.environment ?? null}
-                  users={session.users ?? []}
-                  metadataJsonPaths={metadataJsonPaths}
-                  scores={session.scores}
-                />
-              )}
-            </SessionMetadataJsonPathControl>
-          ) : null}
           {!isModernSessionEnabled && hasSessionControls ? (
             <SessionControlsBar
               isMobile={isMobile && !isModernSessionEnabled}
@@ -1968,41 +1955,40 @@ const LoadedSessionEventsPage: React.FC<{
               </div>
             </div>
           ) : (
-            <ModernSessionFilterControls
+            <ModernSession
+              isTimelineEnabled={isSessionTimelineEnabled}
+              session={session}
+              tracesState={
+                isTracesSuccess
+                  ? { type: "loaded", traces: traces ?? [] }
+                  : { type: "loading" }
+              }
               projectId={projectId}
+              sessionId={sessionId}
+              openPeek={openPeek}
+              traceCommentCounts={asCommentCounts(traceCommentCounts.data)}
               filterState={visibleFilterState}
-              filterColumns={filterColumns}
-              filterColumnsWithCustomSelect={filterColumnsWithCustomSelect}
-              onChange={queryFilter.setFilterState}
-              viewControllers={viewControllers}
-              currentViewState={{
-                orderBy: null,
-                filters: queryFilter.filterState,
-                columnOrder,
-                columnVisibility,
-                searchQuery: "",
+              filterMeasurementKey={visibleFilterMeasurementKey}
+              viewLabel={viewLabel}
+              showInlineToolCalls={showInlineToolCalls}
+              showSystemPrompt={showSystemPrompt}
+              filterControlsProps={{
+                projectId,
+                filterState: visibleFilterState,
+                filterColumns,
+                filterColumnsWithCustomSelect,
+                onChange: queryFilter.setFilterState,
+                viewControllers,
+                currentViewState: {
+                  orderBy: null,
+                  filters: queryFilter.filterState,
+                  columnOrder,
+                  columnVisibility,
+                  searchQuery: "",
+                },
               }}
-            >
-              {(sidebarFilterControls) => (
-                <ModernSession
-                  tracesState={
-                    isTracesSuccess
-                      ? { type: "loaded", traces: traces ?? [] }
-                      : { type: "loading" }
-                  }
-                  projectId={projectId}
-                  sessionId={sessionId}
-                  sessionMinTimestamp={session.minTimestamp}
-                  sessionMaxTimestamp={session.maxTimestamp}
-                  openPeek={openPeek}
-                  filterState={visibleFilterState}
-                  filterMeasurementKey={visibleFilterMeasurementKey}
-                  viewLabel={viewLabel}
-                  sidebarFilterControls={sidebarFilterControls}
-                  onFilterObservationByName={filterObservationsByName}
-                />
-              )}
-            </ModernSessionFilterControls>
+              onFilterObservationByName={filterObservationsByName}
+            />
           )}
         </div>
         <TablePeekViewTraceDetail

@@ -102,4 +102,30 @@ describe("ModernSessionHeaderActionsController", () => {
 
     expect(onShowSystemPromptChange).toHaveBeenCalledWith(true);
   });
+
+  it("shows the legacy tool-call setting only when provided", () => {
+    const onShowInlineToolCallsChange = vi.fn();
+
+    render(
+      <ModernSessionHeaderActionsController
+        projectId="project-id"
+        sessionId="session-id"
+        isPublic={false}
+        showInlineToolCalls={false}
+        showSystemPrompt={false}
+        onShowInlineToolCallsChange={onShowInlineToolCallsChange}
+        onShowSystemPromptChange={vi.fn()}
+      >
+        <DropdownMenuTrigger asChild>
+          <button type="button">Actions</button>
+        </DropdownMenuTrigger>
+      </ModernSessionHeaderActionsController>,
+    );
+
+    fireEvent.click(
+      screen.getByRole("menuitemcheckbox", { name: "Show tool calls" }),
+    );
+
+    expect(onShowInlineToolCallsChange).toHaveBeenCalledWith(true);
+  });
 });

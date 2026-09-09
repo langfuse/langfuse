@@ -43,4 +43,7 @@ export const availableFlags = [
   // Internal flag (deliberately NOT in featurePreviewFlags): gates the
   // normalized-parser formatted trace view for admins/flagged users only.
   "normalizedIoPreview",
+  // Internal flag (deliberately NOT in featurePreviewFlags): gates the
+  // redesigned compact session timeline for admins/flagged users only.
+  "sessionTimeline",
 ] as const;
