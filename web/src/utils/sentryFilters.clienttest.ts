@@ -740,6 +740,68 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("I. drops Chrome extension port lastError (no stack, so denyUrls misses them)", () => {
+    // Real shape (LANGFUSE-614): Chrome rejects `chrome.runtime.sendMessage`
+    // / `connect` when the extension background or content-script port is
+    // gone. Unhandled rejection, no frames, so denyUrls never matches.
+    const chromeExtensionPortEvent = (
+      value: string,
+      mechanismType = "auto.browser.global_handlers.onunhandledrejection",
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the LANGFUSE-614 receiving-end lastError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          chromeExtensionPortEvent(
+            "Could not establish connection. Receiving end does not exist.",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording without a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          chromeExtensionPortEvent(
+            "Could not establish connection. Receiving end does not exist",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the sibling Chrome lastError for a closed message port", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          chromeExtensionPortEvent(
+            "The message port closed before a response was received.",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording via a global onerror handler", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          chromeExtensionPortEvent(
+            "Could not establish connection. Receiving end does not exist.",
+            "auto.browser.global_handlers.onerror",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1192,6 +1254,50 @@ describe("isDenylistedNoiseEvent", () => {
                 "Failed to persist playground batch: Java bridge method invocation error",
               mechanism: {
                 type: "auto.browser.browserapierrors.addEventListener",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured Chrome port lastError (not a Sentry browser wrap)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Could not establish connection. Receiving end does not exist.",
+          ),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value:
+                "Could not establish connection. Receiving end does not exist.",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+    it("keeps a longer app message that merely quotes the Chrome port lastError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value:
+                "Worker handshake failed: Could not establish connection. Receiving end does not exist.",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
                 handled: false,
               },
             },
