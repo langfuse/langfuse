@@ -77,6 +77,42 @@ export function buildEventsTablePathForObservationType({
   });
 }
 
+/**
+ * Builds an events-table URL that adds a filter on a regular table column
+ * (environment, model, version, release, ...). Like the metadata helper below
+ * it MERGES into the filters already in `currentPath`, replacing any existing
+ * clause on the same column so the click reads as "filter by this value".
+ */
+export function buildEventsTablePathForColumnFilter({
+  currentPath,
+  projectId,
+  target,
+  filter,
+}: {
+  currentPath: string;
+  projectId: string;
+  target: "observations" | "traces";
+  filter: FilterState[number];
+}) {
+  const url = new URL(currentPath, "https://langfuse.local");
+  const params = new URLSearchParams();
+
+  const dateRange = url.searchParams.get("dateRange");
+  if (dateRange) {
+    params.set("dateRange", dateRange);
+  }
+
+  const existingFilters = decodeFiltersGeneric(
+    url.searchParams.get("filter") ?? "",
+  ).filter((f) => f.column !== filter.column);
+
+  params.set("filter", encodeFiltersGeneric([...existingFilters, filter]));
+
+  const query = params.toString();
+
+  return `/project/${projectId}/${target}${query ? `?${query}` : ""}`;
+}
+
 export type MetadataFilterOperator = "=" | "contains" | "does not contain";
 
 type BuildEventsTablePathForMetadataFilterParams = {

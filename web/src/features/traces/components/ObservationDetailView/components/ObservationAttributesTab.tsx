@@ -12,12 +12,14 @@ import {
 } from "@/src/features/traces/components/ObservationAttributesList";
 
 export function ObservationAttributesTab({
+  projectId,
   rows,
   parsedMetadata,
   isLoading,
   isParsing,
   media,
 }: {
+  projectId: string;
   rows: AttributeRow[];
   parsedMetadata: unknown;
   isLoading?: boolean;
@@ -27,7 +29,10 @@ export function ObservationAttributesTab({
   return (
     <div className="flex w-full flex-col gap-6 overflow-y-auto p-2">
       <div className="px-2">
-        <ObservationAttributesList rows={rows} />
+        <ObservationAttributesList
+          rows={rows}
+          actions={{ projectId, filterTarget: "observations" }}
+        />
       </div>
 
       {parsedMetadata !== undefined ? (

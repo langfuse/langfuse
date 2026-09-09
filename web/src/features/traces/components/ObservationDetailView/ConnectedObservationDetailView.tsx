@@ -577,6 +577,7 @@ export function ConnectedObservationDetailView({
             className="mt-0 flex max-h-full min-h-0 w-full flex-1"
           >
             <ObservationAttributesTab
+              projectId={projectId}
               rows={attributeRows}
               parsedMetadata={parsedMetadata}
               isLoading={observationWithIOCompat.isLoading}

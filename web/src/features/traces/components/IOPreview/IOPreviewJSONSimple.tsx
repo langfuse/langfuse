@@ -216,7 +216,13 @@ export function IOPreviewJSONSimple({
       )}
       {attributes && attributes.length > 0 ? (
         <div className="px-2 pt-3 pb-1">
-          <ObservationAttributesList rows={attributes} />
+          <ObservationAttributesList
+            rows={attributes}
+            actions={{
+              projectId,
+              filterTarget: observationId ? "observations" : "traces",
+            }}
+          />
         </div>
       ) : null}
       {showMetadata &&
