@@ -705,7 +705,7 @@ const cases: ProcessCase[] = [
     },
   },
   {
-    name: "ClickHouseResourceError on executeQuery: rethrows, stays ACTIVE, not ERROR_BAD_QUERY",
+    name: "ClickHouseResourceError TIMEOUT on executeQuery: flips ERROR_BAD_QUERY, PAUSED, no throw",
     monitors: [
       {
         id: monitorAId,
@@ -720,17 +720,17 @@ const cases: ProcessCase[] = [
       message: "Timeout exceeded",
     },
     expect: {
-      throws: "Timeout exceeded",
+      throws: null,
       publishCallCount: 0,
       rows: [
         {
           id: monitorAId,
-          status: MonitorStatusSchema.enum.ACTIVE,
-          severity: MonitorSeveritySchema.enum.OK,
-          severityChangedAt: tenMinutesAgo,
+          status: MonitorStatusSchema.enum.ERROR_BAD_QUERY,
+          severity: MonitorSeveritySchema.enum.PAUSED,
+          severityChangedAt: justAfterRunAt,
           alertedAt: null,
           lastClaimedAt: justAfterRunAt,
-          lastCompletedAt: null,
+          lastCompletedAt: justAfterRunAt,
         },
       ],
     },

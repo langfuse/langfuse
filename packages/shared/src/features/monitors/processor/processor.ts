@@ -163,8 +163,15 @@ export class MonitorProcessor {
       }
       metricMap["count_count"] = parseNumericValue(row["count_count"]);
     } catch (error) {
-      // Resource pressure is transient, not a bad query; rethrow so the monitor stays ACTIVE and the scheduler retries.
-      if (ClickHouseResourceError.is(error)) {
+      // MEMORY_LIMIT / OVERCOMMIT are transient pressure — rethrow so the
+      // monitor stays ACTIVE and the scheduler retries. TIMEOUT (including
+      // HTTP client aborts on request_timeout) is treated as a bad/expensive
+      // query so a perpetually aborting monitor pauses as ERROR_BAD_QUERY
+      // instead of retrying forever.
+      if (
+        ClickHouseResourceError.is(error) &&
+        error.errorType !== "TIMEOUT"
+      ) {
         logger.warn("queryMetrics hit a ClickHouse resource limit; retrying", {
           errorType: error.errorType,
           projectId: event.projectId,
