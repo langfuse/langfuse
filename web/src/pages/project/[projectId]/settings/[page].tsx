@@ -1,3 +1,1 @@
-import SettingsPage from "@/src/features/projects/ProjectSettingsPage";
-
-export default SettingsPage;
+export { default } from "@/src/features/projects/ProjectSettingsPage";

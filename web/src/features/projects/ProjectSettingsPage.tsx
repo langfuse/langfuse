@@ -37,14 +37,14 @@ import { WebCalloutIntegrationCard } from "@/src/features/web-callouts/component
 import { DeveloperToolsSettings } from "@/src/features/developer-tools/components/DeveloperToolsSettings";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 
-type ProjectSettingsPage = {
+type ProjectSettingsPageEntry = {
   title: string;
   slug: string;
   show?: boolean | (() => boolean);
   cmdKKeywords?: string[];
 } & ({ content: React.ReactNode } | { href: string });
 
-export function useProjectSettingsPages(): ProjectSettingsPage[] {
+export function useProjectSettingsPages(): ProjectSettingsPageEntry[] {
   const router = useRouter();
   const { project, organization } = useQueryProject();
   const showBillingSettings = useHasEntitlement("cloud-billing");
@@ -98,7 +98,7 @@ export const getProjectSettingsPages = ({
   showProjectNotificationChannels: boolean;
   showScoreConfigSettings: boolean;
   showV4Migration: boolean;
-}): ProjectSettingsPage[] => [
+}): ProjectSettingsPageEntry[] => [
   {
     title: "General",
     slug: "index",
@@ -319,7 +319,7 @@ export const getProjectSettingsPages = ({
   },
 ];
 
-export default function SettingsPage() {
+export default function ProjectSettingsPage() {
   const { project, organization } = useQueryProject();
   const router = useRouter();
   const pages = useProjectSettingsPages();
