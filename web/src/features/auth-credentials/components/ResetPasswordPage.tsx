@@ -101,32 +101,21 @@ export function ResetPasswordPage({
         ? "auth:set_password_form_submit"
         : "auth:update_password_form_submit",
     );
-
     try {
       await mutResetPassword.mutateAsync({
         email: effectiveEmail,
         token: values.token,
         password: values.password,
       });
-    } catch (error) {
-      if (error instanceof TRPCClientError) {
-        setFormError(error.message);
-      } else {
-        console.error(error);
-        setFormError("An unknown error occurred");
+
+      if (isSetMode) {
+        sessionStorage.removeItem(PASSWORD_SETUP_EMAIL_STORAGE_KEY);
       }
-      return;
-    }
 
-    if (isSetMode) {
-      sessionStorage.removeItem(PASSWORD_SETUP_EMAIL_STORAGE_KEY);
-    }
-
-    let target =
-      isSetMode && isLangfuseCloud && region !== "DEV" ? "/onboarding" : "/";
-    // Password updates revoke every existing JWT, including this browser's.
-    // Re-authenticate so this browser receives a token after the boundary.
-    try {
+      let target =
+        isSetMode && isLangfuseCloud && region !== "DEV" ? "/onboarding" : "/";
+      // A password update revokes every existing JWT, including this
+      // browser's, so the current session always has to be re-established.
       const signInResult = await signIn("credentials", {
         email: effectiveEmail,
         password: values.password,
@@ -135,16 +124,20 @@ export function ResetPasswordPage({
       if (!signInResult?.ok) {
         target = "/auth/sign-in";
       }
-    } catch (error) {
-      console.error(error);
-      target = "/auth/sign-in";
-    }
 
-    setIsSuccess(true);
-    setTimeout(() => {
-      router.push(target);
-      setIsSuccess(false);
-    }, 2000);
+      setIsSuccess(true);
+      setTimeout(() => {
+        router.push(target);
+        setIsSuccess(false);
+      }, 2000);
+    } catch (error) {
+      if (error instanceof TRPCClientError) {
+        setFormError(error.message);
+      } else {
+        console.error(error);
+        setFormError("An unknown error occurred");
+      }
+    }
   }
 
   if (!passwordResetAvailable)
