@@ -86,12 +86,12 @@
     "@types/express": "^5.0.6",
     "@types/lodash": "^4.17.24",
     "@types/node": "^24.3.0",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.11",
     "eslint": "catalog:",
     "msw": "^2.6.5",
     "tsx": "^4.20.5",
     "typescript": "catalog:",
-    "vitest": "^4.1.10",
+    "vitest": "^4.1.11",
     "wait-for-expect": "^3.0.2"
   }
 }
