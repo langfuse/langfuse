@@ -20,26 +20,31 @@ describe("TraceMetadataBadges session replay privacy", () => {
       </>,
     );
 
-    // The session link is label-only ("Session"); the id lives in the title.
-    expect(screen.getByText("Session").closest("a")).toHaveClass(
+    // The session id now renders as visible text (session pill convention),
+    // so the mask must sit directly on the link, not just in a title attr.
+    expect(screen.getByText("customer-session").closest("a")).toHaveClass(
       "ph-no-capture",
     );
     // The user id renders in full (it is often an email) — link still masked.
     expect(screen.getByText("customer-user").closest("a")).toHaveClass(
       "ph-no-capture",
     );
-    expect(screen.getByText("Target trace").closest("a")).toHaveClass(
+    expect(screen.getByText("target-trace").closest("a")).toHaveClass(
       "ph-no-capture",
     );
-    // Quiet text links, not primary-filled chips.
-    expect(screen.getByText("Session").closest("a")).toHaveClass(
+    // Session header pill styling, not primary-filled chips.
+    expect(screen.getByText("customer-session").closest("a")).toHaveClass(
       "text-muted-foreground",
     );
-    // Environment renders as muted key-value text, not a chip.
+    expect(screen.getByText("customer-session").closest("a")).toHaveAttribute(
+      "data-session-header-pill",
+      "true",
+    );
+    // Environment renders as a display pill, not a text chip.
     expect(screen.getByText("production").closest("span")).not.toBeNull();
     expect(
       screen.getByText("production").closest("span")?.parentElement,
-    ).toHaveTextContent("env: production");
+    ).toHaveTextContent("env production");
   });
 });
 

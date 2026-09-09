@@ -1,22 +1,20 @@
 /* eslint-disable @repo/no-null-render */
 /**
- * Trace-level metadata text for the trace summary strip and detail headers.
+ * Trace-level metadata pills for the trace summary strip and detail headers.
  *
- * Links and context render as quiet text, not chips — chips are reserved for
- * user-defined tags. Each element handles its own null check and returns null
- * when the data is unavailable.
+ * Rendered through the session header's pill primitive
+ * (`ModernSessionHeaderPill`) so trace and session chips are indistinguishable.
+ * Each element handles its own null check and returns null when the data is
+ * unavailable.
  */
 
-import Link from "next/link";
-import { ExternalLinkIcon } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
+import { ModernSessionHeaderPill } from "@/src/components/session/ModernSessionHeaderPill";
 import {
   EnvironmentBadge,
   ReleaseBadge,
   VersionBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
-
-const META_LINK_CLASSES =
-  "ph-no-capture text-muted-foreground hover:text-foreground inline-flex max-w-48 items-center gap-1 text-xs hover:underline";
 
 export function SessionBadge({
   sessionId,
@@ -28,18 +26,20 @@ export function SessionBadge({
   if (!sessionId) return null;
 
   return (
-    <Link
+    <ModernSessionHeaderPill
+      variant="link"
       href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
-      className={META_LINK_CLASSES}
-      title={`Session: ${sessionId}`}
+      maskFromSessionReplay
     >
-      {/* Label-only link: the raw session id is noise here; the tooltip
-          carries it and the link leads to the session itself. */}
-      <span className="truncate" title={`Session: ${sessionId}`}>
-        Session
+      session{" "}
+      <span
+        className="text-foreground group-hover:text-link truncate"
+        title={sessionId}
+      >
+        {sessionId}
       </span>
-      <ExternalLinkIcon className="size-3 shrink-0" aria-hidden />
-    </Link>
+      <ArrowUpRight className="text-link h-3 w-3 shrink-0" />
+    </ModernSessionHeaderPill>
   );
 }
 
@@ -53,18 +53,20 @@ export function UserIdBadge({
   if (!userId) return null;
 
   return (
-    <Link
+    <ModernSessionHeaderPill
+      variant="link"
       href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
-      className={META_LINK_CLASSES}
-      title={`User: ${userId}`}
+      maskFromSessionReplay
     >
-      {/* Unlike sessions, the user id itself carries meaning (it is often an
-          email), so it renders in full; only the "User ID:" label is dropped. */}
-      <span className="truncate" title={`User: ${userId}`}>
+      user{" "}
+      <span
+        className="text-foreground group-hover:text-link truncate"
+        title={userId}
+      >
         {userId}
       </span>
-      <ExternalLinkIcon className="size-3 shrink-0" aria-hidden />
-    </Link>
+      <ArrowUpRight className="text-link h-3 w-3 shrink-0" />
+    </ModernSessionHeaderPill>
   );
 }
 
@@ -78,16 +80,20 @@ export function TargetTraceBadge({
   if (!targetTraceId) return null;
 
   return (
-    <Link
+    <ModernSessionHeaderPill
+      variant="link"
       href={`/project/${projectId}/traces/${encodeURIComponent(targetTraceId)}`}
-      className={META_LINK_CLASSES}
-      title={`Target trace: ${targetTraceId}`}
+      maskFromSessionReplay
     >
-      <span className="truncate" title={`Target trace: ${targetTraceId}`}>
-        Target trace
+      target trace{" "}
+      <span
+        className="text-foreground group-hover:text-link truncate"
+        title={targetTraceId}
+      >
+        {targetTraceId}
       </span>
-      <ExternalLinkIcon className="size-3 shrink-0" aria-hidden />
-    </Link>
+      <ArrowUpRight className="text-link h-3 w-3 shrink-0" />
+    </ModernSessionHeaderPill>
   );
 }
 

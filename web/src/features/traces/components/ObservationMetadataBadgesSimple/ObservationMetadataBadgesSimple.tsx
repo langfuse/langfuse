@@ -1,16 +1,13 @@
 /* eslint-disable @repo/no-null-render */
 /**
- * Metadata text for the trace/observation headers and the trace summary strip.
- *
- * Two visual tiers, deliberately NOT chips (chips are for user-defined tags):
- * - Measured metrics (latency, TTFT): plain muted text — measurements read as
- *   typography, importance maps to visual weight.
- * - User-supplied context (env, release, version): muted `key: value` text,
- *   rendered only when set.
- * Each element handles its own null checks and returns null when unavailable.
+ * Metadata pills for the trace/observation headers and the trace summary
+ * strip. Rendered through the session header's pill primitive
+ * (`ModernSessionHeaderPill`) so trace and session chips share one style.
+ * Each element handles its own null checks and returns null when the
+ * underlying value is unavailable.
  */
 
-import { Clock } from "lucide-react";
+import { ModernSessionHeaderPill } from "@/src/components/session/ModernSessionHeaderPill";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 
 export function LatencyBadge({
@@ -21,13 +18,11 @@ export function LatencyBadge({
   if (latencySeconds == null) return null;
 
   return (
-    <span
-      title="Latency"
-      className="text-muted-foreground inline-flex items-center gap-1 text-xs"
-    >
-      <Clock className="size-3 shrink-0" aria-hidden />
-      {formatIntervalSeconds(latencySeconds)}
-    </span>
+    <ModernSessionHeaderPill variant="display" title="Latency">
+      <span className="text-foreground">
+        {formatIntervalSeconds(latencySeconds)}
+      </span>
+    </ModernSessionHeaderPill>
   );
 }
 
@@ -39,9 +34,12 @@ export function TimeToFirstTokenBadge({
   if (timeToFirstToken == null) return null;
 
   return (
-    <span title="Time to first token" className="text-muted-foreground text-xs">
-      TTFT {formatIntervalSeconds(timeToFirstToken)}
-    </span>
+    <ModernSessionHeaderPill variant="display" title="Time to first token">
+      ttft{" "}
+      <span className="text-foreground">
+        {formatIntervalSeconds(timeToFirstToken)}
+      </span>
+    </ModernSessionHeaderPill>
   );
 }
 
@@ -55,9 +53,12 @@ function KeyValueText({
   if (!value) return null;
 
   return (
-    <span className="text-muted-foreground text-xs">
-      {label}: <span className="text-foreground/80">{value}</span>
-    </span>
+    <ModernSessionHeaderPill variant="display">
+      {label}{" "}
+      <span className="text-foreground max-w-40 truncate" title={value}>
+        {value}
+      </span>
+    </ModernSessionHeaderPill>
   );
 }
 
