@@ -255,8 +255,18 @@ export function rule20(modules) {
 // Pages drive features: when a shared file is imported (transitively) from a
 // Next.js page, the destination is `src/features/<route-slug>`, not whatever
 // other feature happens to reuse it. Filtering pages out of the consumer set
-// and sending `components/session` into `annotation-queues` is how ModernSession
-// landed in the wrong feature (LFE-16079 → LFE-16119).
+// and treating the remaining feature as the sole owner is how a page-owned
+// UI (e.g. session detail) can be parked under a secondary consumer.
+/** Strip a page filename to a feature slug, or null when it is not one.
+ * @param {string} segment
+ * @returns {string | null}
+ */
+function featureSlugFromRouteSegment(segment) {
+  const base = segment.replace(/\.(tsx?|jsx?)$/, "");
+  if (!base || base === "index" || base.startsWith("[")) return null;
+  return base;
+}
+
 /** Map a pages route to the feature slug it owns.
  * @param {string} pagePath
  * @returns {string | null}
@@ -268,15 +278,18 @@ export function pageOwnedFeatureSlug(pagePath) {
   )
     return null;
   const parts = pagePath.slice("src/pages/".length).split("/");
-  // project/[projectId]/sessions/... → sessions
-  if (parts[0] === "project" && parts.length >= 3) return parts[2];
-  // organization/[organizationId]/settings/... → settings (or organizations)
-  if (parts[0] === "organization" && parts.length >= 3) return parts[2];
+  // project/[projectId]/sessions/... → sessions; project/.../models.tsx → models
+  if (parts[0] === "project" && parts.length >= 3)
+    return featureSlugFromRouteSegment(parts[2]);
+  // organization/[organizationId]/settings/... → settings
+  if (parts[0] === "organization" && parts.length >= 3)
+    return featureSlugFromRouteSegment(parts[2]);
   // account/settings → settings; prefer the leaf resource
-  if (parts[0] === "account" && parts.length >= 2) return parts[1];
+  if (parts[0] === "account" && parts.length >= 2)
+    return featureSlugFromRouteSegment(parts[1]);
   // auth/sign-in → auth
   if (parts[0] === "auth") return "auth";
-  return parts[0] && !parts[0].startsWith("[") ? parts[0] : null;
+  return featureSlugFromRouteSegment(parts[0] ?? "");
 }
 
 /** @param {Module[]} modules @returns {Violation[]} */
