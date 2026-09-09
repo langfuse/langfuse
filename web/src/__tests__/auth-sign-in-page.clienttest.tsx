@@ -347,9 +347,7 @@ describe("sign-in page SSO check transport errors", () => {
   it("still captures a non-JSON SyntaxError from check-sso", async () => {
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockRejectedValue(new SyntaxError("Invalid regular expression")),
+      vi.fn().mockRejectedValue(new SyntaxError("Invalid regular expression")),
     );
 
     renderSignIn({
