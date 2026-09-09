@@ -4,6 +4,7 @@ import {
   makeAPICall,
 } from "@/src/__tests__/test-utils";
 import {
+  DeleteAnnotationQueueResponse,
   GetAnnotationQueuesResponse,
   GetAnnotationQueueByIdResponse,
   GetAnnotationQueueItemsResponse,
@@ -858,6 +859,117 @@ describe("Annotation Queues API Endpoints", () => {
       );
 
       expect(response.status).toBe(404);
+    });
+  });
+
+  describe("DELETE /annotation-queues/:queueId", () => {
+    let queueId: string;
+
+    beforeEach(async () => {
+      const queue = await createQueue();
+      queueId = queue.id;
+    });
+
+    it("should delete an annotation queue", async () => {
+      // Seed items and an assignment so we can verify the cascade
+      await prisma.annotationQueueItem.create({
+        data: {
+          queueId,
+          objectId: uuidv4(),
+          objectType: AnnotationQueueObjectType.TRACE,
+          status: AnnotationQueueStatus.PENDING,
+          projectId,
+        },
+      });
+
+      const user = await prisma.user.create({
+        data: {
+          id: `user-${uuidv4()}`,
+          email: `${uuidv4()}@example.com`,
+          name: "Test User",
+        },
+      });
+      await prisma.annotationQueueAssignment.create({
+        data: {
+          projectId,
+          queueId,
+          userId: user.id,
+        },
+      });
+
+      const response = await makeZodVerifiedAPICall(
+        DeleteAnnotationQueueResponse,
+        "DELETE",
+        `/api/public/annotation-queues/${queueId}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(typeof response.body.message).toBe("string");
+
+      // Verify the queue is deleted
+      const deletedQueue = await prisma.annotationQueue.findUnique({
+        where: { id: queueId, projectId },
+      });
+      expect(deletedQueue).toBeNull();
+
+      // Verify items and assignments were cascaded out
+      const remainingItems = await prisma.annotationQueueItem.count({
+        where: { queueId },
+      });
+      expect(remainingItems).toBe(0);
+
+      const remainingAssignments = await prisma.annotationQueueAssignment.count(
+        {
+          where: { queueId },
+        },
+      );
+      expect(remainingAssignments).toBe(0);
+    });
+
+    it("should return 404 for non-existent queue", async () => {
+      const nonExistentId = uuidv4();
+      const response = await makeAPICall(
+        "DELETE",
+        `/api/public/annotation-queues/${nonExistentId}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(404);
+    });
+
+    it("should return 404 when deleting a queue from a different project", async () => {
+      // Create a second org+project+api key
+      const { projectId: otherProjectId } = await createOrgProjectAndApiKey();
+
+      // Create a queue in the SECOND project
+      const otherProjectQueue = await prisma.annotationQueue.create({
+        data: {
+          name: "Other Project Queue",
+          description: "Belongs to a different project",
+          scoreConfigIds: [],
+          projectId: otherProjectId,
+        },
+      });
+
+      // Attempt to delete with the FIRST project's auth
+      const response = await makeAPICall(
+        "DELETE",
+        `/api/public/annotation-queues/${otherProjectQueue.id}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(404);
+
+      // The other project's queue should still exist
+      const stillThere = await prisma.annotationQueue.findUnique({
+        where: { id: otherProjectQueue.id },
+      });
+      expect(stillThere).not.toBeNull();
     });
   });
 });

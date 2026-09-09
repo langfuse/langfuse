@@ -21,7 +21,7 @@ import {
   MethodNotAllowedError,
   Prisma,
 } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { getUserProjectRoles } from "@langfuse/shared/src/server";
 import type { z } from "zod";
 
@@ -691,4 +691,76 @@ export const deleteAnnotationQueueAssignmentForApi = async ({
 
     throw error;
   }
+};
+
+export const deleteAnnotationQueueForApi = async ({
+  projectId,
+  queueId,
+  auditScope,
+}: {
+  projectId: string;
+  queueId: string;
+} & OptionalAuditScope): Promise<{
+  success: boolean;
+  message: string;
+}> => {
+  // Look up first so we can audit-log the full record before deletion, and so
+  // a missing queue (or one in another project) yields a clean 404 instead of
+  // a Prisma P2025 racing through the cascade.
+  const existingQueue = await getAnnotationQueueRecordOrThrow({
+    projectId,
+    queueId,
+  });
+
+  // Wrap the delete + audit-log in a single transaction so the two
+  // operations either both succeed or both roll back. Pre-fix, a failure
+  // in auditLog after prisma.annotationQueue.delete returned 500 even
+  // though the queue and its cascading children were already deleted,
+  // and a retry returned 404 with no audit entry. Now both are part of
+  // the same atomic outcome.
+  await prisma.$transaction(async (tx) => {
+    try {
+      // Hard-delete. The Prisma schema cascades AnnotationQueueItem and
+      // AnnotationQueueAssignment on queue deletion, so items and
+      // assignments are removed in the same transaction.
+      await tx.annotationQueue.delete({
+        where: {
+          id: queueId,
+          projectId,
+        },
+      });
+    } catch (error) {
+      // Handle the race: if a concurrent DELETE already removed the
+      // queue between the lookup above and this delete, Prisma throws
+      // P2025. withMiddlewares maps P2025 to a generic 500; surface a
+      // clean 404 instead so the public API contract is preserved.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2025"
+      ) {
+        throw new LangfuseNotFoundError("Annotation queue not found");
+      }
+      throw error;
+    }
+
+    if (auditScope) {
+      await auditLog(
+        {
+          action: "delete",
+          resourceType: "annotationQueue",
+          resourceId: existingQueue.id,
+          projectId: auditScope.projectId,
+          orgId: auditScope.orgId,
+          apiKeyId: auditScope.apiKeyId,
+          before: existingQueue,
+        },
+        tx,
+      );
+    }
+  });
+
+  return {
+    success: true,
+    message: "Annotation queue deleted successfully",
+  };
 };
