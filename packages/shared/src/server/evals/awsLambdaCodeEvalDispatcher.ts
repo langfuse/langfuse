@@ -422,7 +422,10 @@ function classifyLambdaFunctionError(params: {
   if (
     errorType === "Function.TimedOut" ||
     errorType === "Sandbox.Timedout" ||
-    (errorMessage && isTimeoutErrorMessage(errorMessage))
+    (errorMessage && isTimeoutErrorMessage(errorMessage)) ||
+    (errorType === "Runtime.ExitError" &&
+      errorMessage !== null &&
+      /runtime exited without providing a reason/i.test(errorMessage))
   ) {
     return new CodeEvalDispatcherError(
       composedMessage || "Lambda task timed out",
