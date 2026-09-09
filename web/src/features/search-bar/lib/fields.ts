@@ -74,7 +74,8 @@ export type FieldRegistry = {
     | "evaluatorSamples"
     | "ruleSamples"
     | "sessions"
-    | "experiments";
+    | "experiments"
+    | "users";
   fields: readonly FieldDef[];
   columns: readonly ColumnDefinition[];
   allowFreeText: boolean;
@@ -87,6 +88,15 @@ export type FieldRegistry = {
    *  no searchQuery, but `id contains` is its most-applied filter by far, so a
    *  bare word means that instead of being rejected. Null = reject. */
   defaultTextField: string | null;
+  /**
+   * What a bare word matches, phrased for the hint and the scope list
+   * ("ids, names, input & output"). Written per view because the registry
+   * cannot see it: `searchQuery` lowers to a column list the BACKEND picks,
+   * and the users query narrows that list to `user_id` while keeping the same
+   * field catalog. Null drops the clause rather than guessing — vague beats
+   * naming columns a view does not search.
+   */
+  freeTextScopeLabel: string | null;
   /** Placeholder examples. Written per view, never derived from field ids: the
    *  events examples advertise `latency:`/`level:` on a view that has neither. */
   searchExamples: readonly string[];
@@ -144,6 +154,7 @@ export function fieldRegistryFromColumns(
     traceScores?: boolean;
     allowFreeText?: boolean;
     defaultTextField?: string;
+    freeTextScopeLabel?: string;
     searchExamples?: readonly string[];
     hasExample?: string;
     recentSearches?: boolean;
@@ -205,6 +216,7 @@ export function fieldRegistryFromColumns(
     traceScores: overlay.traceScores ?? scores,
     allowFreeText: overlay.allowFreeText ?? true,
     defaultTextField: overlay.defaultTextField ?? null,
+    freeTextScopeLabel: overlay.freeTextScopeLabel ?? null,
     searchExamples: overlay.searchExamples ?? [],
     hasExample: overlay.hasExample ?? null,
     recentSearches: overlay.recentSearches ?? false,
@@ -232,6 +244,7 @@ export function extendFieldRegistryWithColumns(
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
     defaultTextField: registry.defaultTextField,
+    freeTextScopeLabel: registry.freeTextScopeLabel,
     searchExamples: registry.searchExamples,
     hasExample: registry.hasExample,
     recentSearches: registry.recentSearches,
@@ -274,6 +287,7 @@ export function withFieldOptions(
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
     defaultTextField: registry.defaultTextField,
+    freeTextScopeLabel: registry.freeTextScopeLabel,
     searchExamples: registry.searchExamples,
     hasExample: registry.hasExample,
     recentSearches: registry.recentSearches,
@@ -377,7 +391,15 @@ export type FieldRef =
   | { type: "scores"; key: string; level: "observation" | "trace" }
   | { type: "pseudo"; id: typeof HAS_KEY };
 
-function createFieldRegistry({
+/**
+ * Assembles a registry from field defs that already exist. `fieldRegistryFromColumns`
+ * derives its defs from `ColumnDefinition.type`, which is right for a view with no
+ * grammar of its own — but a view that narrows ANOTHER view's grammar must reuse that
+ * view's defs verbatim. Deriving them again would silently re-decide `syncMode` from
+ * the column type and give the same field a different meaning on the two bars
+ * (`name:checkout` an exact match on one, a substring on the other).
+ */
+export function createFieldRegistry({
   id,
   fields,
   columns,
@@ -386,6 +408,7 @@ function createFieldRegistry({
   traceScores,
   allowFreeText,
   defaultTextField,
+  freeTextScopeLabel,
   searchExamples,
   hasExample,
   recentSearches,
@@ -400,6 +423,7 @@ function createFieldRegistry({
   traceScores: boolean;
   allowFreeText: boolean;
   defaultTextField: string | null;
+  freeTextScopeLabel: string | null;
   searchExamples: readonly string[];
   hasExample: string | null;
   recentSearches: boolean;
@@ -435,6 +459,7 @@ function createFieldRegistry({
     scores,
     traceScores,
     defaultTextField,
+    freeTextScopeLabel,
     searchExamples,
     hasExample,
     recentSearches,
@@ -465,6 +490,7 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
   traceScores: true,
   allowFreeText: true,
   defaultTextField: null,
+  freeTextScopeLabel: "ids, names, input & output",
   searchExamples: [
     "level:ERROR",
     "-env:dev",
