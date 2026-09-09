@@ -4,6 +4,7 @@ import type {
   SingleValueOption,
 } from "@langfuse/shared";
 import type { FilterConfig } from "./filter-config";
+import { partitionNoneOfEnvironmentValues } from "./managedEnvironmentPolicy";
 
 // Pure FilterState transitions behind the sidebar's facet interactions.
 // No React: every function maps (context, current state, user input) to the
@@ -31,6 +32,12 @@ export type SidebarFilterActionContext = {
    * enable-all-environments override in applySelection.
    */
   managedEnvironmentColumn?: string;
+  /**
+   * Hidden environments for the managed-environment policy. Required to
+   * distinguish "default plus extra exclusions" (stay in none-of) from
+   * "user enabled at least one hidden env" (store as any-of [checked]).
+   */
+  hiddenEnvironments?: readonly string[];
 };
 
 // Represents one active filter row in the key-value facet UI
@@ -300,6 +307,28 @@ export function applySelection(
     // "none of" filter.
     if (finalOperator === "none of" && finalValues.length === 0) {
       return other;
+    }
+  }
+
+  // Managed environment: a none-of that does not exclude every hidden env
+  // means the user enabled at least one hidden environment. Store that as
+  // a positive any-of of the checked set so it cannot be confused with
+  // "default plus extra exclusions" (`none of [hidden ∪ extras]`). Shared
+  // by checkbox writes and the explicit-operator path (Only / operator
+  // toggle) so the sidebar never persists extras-only none-of.
+  const hiddenEnvironments = ctx.hiddenEnvironments ?? [];
+  if (
+    isManagedEnvironmentColumn &&
+    finalOperator === "none of" &&
+    hiddenEnvironments.length > 0
+  ) {
+    const { excludesAllHidden } = partitionNoneOfEnvironmentValues({
+      values: finalValues,
+      hiddenEnvironments,
+    });
+    if (!excludesAllHidden) {
+      finalOperator = "any of";
+      finalValues = values;
     }
   }
 

@@ -46,6 +46,8 @@ export function stringFilterToPrisma(
       return { startsWith: filter.value, ...insensitive };
     case "ends with":
       return { endsWith: filter.value, ...insensitive };
+    case "is not empty":
+      return { not: "" };
   }
 }
 

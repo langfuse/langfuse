@@ -1,7 +1,7 @@
 import { signOut } from "next-auth/react";
 import posthog from "posthog-js";
 import { env } from "@/src/env.mjs";
-import { isPostHogClientEnabled } from "@/src/features/posthog-analytics/productAnalyticsAvailability";
+import { isPostHogClientEnabled } from "@/src/features/posthog-analytics";
 import { clearV4BetaEnabledSentryTag } from "@/src/utils/sentryV4BetaTag";
 
 /**

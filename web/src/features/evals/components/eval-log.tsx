@@ -11,12 +11,16 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { evalLogFilterConfig } from "@/src/features/filters/config/eval-logs-config";
+import { useSidebarFilterState } from "@/src/features/filters";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { JobExecutionStatus, type Prisma } from "@langfuse/shared";
@@ -38,8 +42,8 @@ export type JobExecutionRow = {
   scoreValue?: number | string;
   scoreComment?: string;
   scoreMetadata?: Prisma.JsonValue;
-  startTime?: string;
-  endTime?: string;
+  startTime?: Date;
+  endTime?: Date;
   traceId?: string;
   executionTraceId?: string;
   templateId: string;
@@ -93,19 +97,19 @@ export default function EvalLogTable({
       getStatus: (status) =>
         status ? jobExecutionStatusToStatus[status] : undefined,
     }),
-    columnHelper.accessor("startTime", {
-      id: "startTime",
+    createDateTableColumn<JobExecutionRow>({
+      accessorKey: "startTime",
       header: "Start Time",
       enableHiding: true,
     }),
-    columnHelper.accessor("endTime", {
-      id: "endTime",
+    createDateTableColumn<JobExecutionRow>({
+      accessorKey: "endTime",
       header: "End Time",
       enableHiding: true,
     }),
-    columnHelper.accessor("scoreName", {
+    createIdTableColumn<JobExecutionRow>({
+      accessorKey: "scoreName",
       header: "Score Name",
-      id: "scoreName",
       enableHiding: true,
     }),
     columnHelper.accessor("scoreValue", {
@@ -233,8 +237,8 @@ export default function EvalLogTable({
         jobConfig.score?.stringValue ?? jobConfig.score?.value ?? undefined,
       scoreComment: jobConfig.score?.comment ?? undefined,
       scoreMetadata: jobConfig.score?.metadata ?? undefined,
-      startTime: jobConfig.startTime?.toLocaleString() ?? undefined,
-      endTime: jobConfig.endTime?.toLocaleString() ?? undefined,
+      startTime: jobConfig.startTime ?? undefined,
+      endTime: jobConfig.endTime ?? undefined,
       traceId: jobConfig.jobInputTraceId ?? undefined,
       executionTraceId: jobConfig.executionTraceId ?? undefined,
       templateId: jobConfig.jobTemplateId ?? "",
@@ -250,6 +254,7 @@ export default function EvalLogTable({
     >
       <div className="flex h-full w-full flex-col">
         <DataTableToolbar
+          tableName="evalLogs"
           columns={columns}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}

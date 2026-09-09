@@ -1,3 +1,4 @@
+/* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 
 import { type LangfuseColumnDef } from "@/src/components/table/types";

@@ -10,8 +10,8 @@ import { CreateProjectMemberDialogContent } from "@/src/features/rbac/components
 import {
   useEntitlementLimit,
   useHasEntitlement,
-} from "@/src/features/entitlements/hooks";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+} from "@/src/features/entitlements";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";

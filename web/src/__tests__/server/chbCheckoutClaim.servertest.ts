@@ -84,7 +84,7 @@ describe("chbBillingService checkout claim (postgres)", () => {
       data: { id: orgId, name: "CHB Claim Test Org" },
     });
     vi.mocked(clientMock.createCheckoutSession).mockResolvedValue({
-      url: "https://billing.clickhouse.test/checkout/abc",
+      checkoutUrl: "https://billing.clickhouse.test/checkout/abc",
       organizationId: chOrganizationId,
     } satisfies ChbCheckoutSession);
   });
@@ -178,7 +178,7 @@ describe("chbBillingService checkout claim (postgres)", () => {
     // CHB hands back a different org for a request that asked to reuse one:
     // sticky routing is broken, so checkout must refuse rather than clobber.
     vi.mocked(clientMock.createCheckoutSession).mockResolvedValue({
-      url: "https://billing.clickhouse.test/checkout/def",
+      checkoutUrl: "https://billing.clickhouse.test/checkout/def",
       organizationId: randomUUID(),
     } satisfies ChbCheckoutSession);
 

@@ -6,7 +6,7 @@ import {
   DrawerTitle,
 } from "@/src/components/ui/drawer";
 import { CommentList } from "@/src/features/comments/CommentList";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { type CommentObjectType } from "@langfuse/shared";
 import { useRouter } from "next/router";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -16,6 +16,7 @@ type CommentDrawerContentProps = {
   projectId: string;
   objectId: string;
   objectType: CommentObjectType;
+  objectStartTime?: Date | null;
   isOpen: boolean;
   pendingSelection?: SelectionData | null;
   onSelectionUsed?: () => void;
@@ -27,6 +28,7 @@ function CommentDrawerContent({
   projectId,
   objectId,
   objectType,
+  objectStartTime,
   isOpen,
   pendingSelection,
   onSelectionUsed,
@@ -63,6 +65,7 @@ function CommentDrawerContent({
             projectId={projectId}
             objectId={objectId}
             objectType={objectType}
+            objectStartTime={objectStartTime}
             onMentionDropdownChange={onMentionDropdownChange}
             isDrawerOpen={isOpen}
             pendingSelection={pendingSelection}
@@ -79,6 +82,7 @@ export type CommentDrawerControllerProps = {
   projectId: string;
   objectId: string;
   objectType: CommentObjectType;
+  objectStartTime?: Date | null;
   count?: number;
   pendingSelection?: SelectionData | null;
   onSelectionUsed?: () => void;
@@ -96,6 +100,7 @@ export function CommentDrawerController({
   projectId,
   objectId,
   objectType,
+  objectStartTime,
   count,
   pendingSelection,
   onSelectionUsed,
@@ -184,6 +189,7 @@ export function CommentDrawerController({
         projectId={projectId}
         objectId={objectId}
         objectType={objectType}
+        objectStartTime={objectStartTime}
         isOpen={isOpen}
         pendingSelection={pendingSelection}
         onSelectionUsed={onSelectionUsed}

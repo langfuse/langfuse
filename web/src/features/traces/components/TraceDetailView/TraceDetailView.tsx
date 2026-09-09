@@ -11,7 +11,7 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useCallback, useMemo, useState } from "react";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
@@ -39,9 +39,9 @@ import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
-import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 
 // Extracted components
@@ -102,6 +102,8 @@ export function TraceDetailView({
 
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
+  // The Formatted view shares the pretty layout; JSON views differ.
+  const isPrettyLikeView = currentView === "pretty";
 
   const selectedViewTab =
     jsonViewPreference === "pretty" ? "pretty" : ("json" as const);
@@ -109,7 +111,7 @@ export function TraceDetailView({
   const handleViewTabChange = useCallback(
     (tab: string) => {
       if (tab === "pretty") {
-        setJsonViewPreference("pretty");
+        setJsonViewPreference(tab);
       } else {
         setJsonViewPreference(jsonBetaEnabled ? "json-beta" : "json");
       }
@@ -265,69 +267,63 @@ export function TraceDetailView({
               {(selectedTab === "log" ||
                 (selectedTab === "preview" && isPrettyViewAvailable)) && (
                 <>
-                  <Tabs
-                    className="ml-auto h-fit px-2 py-0.5"
-                    value={
-                      selectedTab === "log" && isLogViewVirtualized
-                        ? "pretty"
-                        : selectedViewTab
-                    }
-                    onValueChange={(value) => {
-                      // Don't allow JSON views for virtualized log view
-                      if (
-                        selectedTab === "log" &&
-                        isLogViewVirtualized &&
-                        value === "json"
-                      ) {
-                        return;
+                  <div className="ml-auto h-fit px-2 py-0.5">
+                    <Tabs
+                      value={
+                        selectedTab === "log" && isLogViewVirtualized
+                          ? "pretty"
+                          : selectedViewTab
                       }
-                      handleViewTabChange(value);
-                    }}
-                  >
-                    <TabsList className="h-fit py-0.5">
-                      <TabsTrigger
-                        value="pretty"
-                        className="h-fit px-1 text-xs"
-                      >
-                        Formatted
-                      </TabsTrigger>
-                      {selectedTab === "log" && isLogViewVirtualized ? (
-                        <HoverCard openDelay={200}>
-                          <HoverCardTrigger asChild>
-                            <TabsTrigger
-                              value="json"
-                              className="h-fit px-1 text-xs"
-                              disabled
+                      onValueChange={(value) => {
+                        // Don't allow JSON views for virtualized log view
+                        if (
+                          selectedTab === "log" &&
+                          isLogViewVirtualized &&
+                          value === "json"
+                        ) {
+                          return;
+                        }
+                        handleViewTabChange(value);
+                      }}
+                    >
+                      <Tabs.List size="sm">
+                        <Tabs.Trigger
+                          value="pretty"
+                          size="sm"
+                          label="Formatted"
+                        />
+                        {selectedTab === "log" && isLogViewVirtualized ? (
+                          <HoverCard openDelay={200}>
+                            <HoverCardTrigger asChild>
+                              <Tabs.Trigger
+                                value="json"
+                                size="sm"
+                                disabled
+                                label="JSON"
+                              />
+                            </HoverCardTrigger>
+                            <HoverCardContent
+                              align="end"
+                              className="w-64 text-sm"
+                              sideOffset={8}
                             >
-                              JSON
-                            </TabsTrigger>
-                          </HoverCardTrigger>
-                          <HoverCardContent
-                            align="end"
-                            className="w-64 text-sm"
-                            sideOffset={8}
-                          >
-                            <p className="font-bold">JSON view unavailable</p>
-                            <p className="text-muted-foreground mt-1">
-                              Disabled for traces with{" "}
-                              {
-                                TRACE_VIEW_CONFIG.logView
-                                  .virtualizationThreshold
-                              }
-                              + observations to maintain performance.
-                            </p>
-                          </HoverCardContent>
-                        </HoverCard>
-                      ) : (
-                        <TabsTrigger
-                          value="json"
-                          className="h-fit px-1 text-xs"
-                        >
-                          JSON
-                        </TabsTrigger>
-                      )}
-                    </TabsList>
-                  </Tabs>
+                              <p className="font-bold">JSON view unavailable</p>
+                              <p className="text-muted-foreground mt-1">
+                                Disabled for traces with{" "}
+                                {
+                                  TRACE_VIEW_CONFIG.logView
+                                    .virtualizationThreshold
+                                }
+                                + observations to maintain performance.
+                              </p>
+                            </HoverCardContent>
+                          </HoverCard>
+                        ) : (
+                          <Tabs.Trigger value="json" size="sm" label="JSON" />
+                        )}
+                      </Tabs.List>
+                    </Tabs>
+                  </div>
                   {/* Beta toggle - only show when JSON is selected and not in virtualized log view */}
                   {selectedViewTab === "json" &&
                     !(selectedTab === "log" && isLogViewVirtualized) && (
@@ -364,12 +360,12 @@ export function TraceDetailView({
             {trace.tags.length > 0 && (
               <>
                 <div
-                  className={`px-2 pt-2 text-sm font-bold ${currentView !== "pretty" ? "shrink-0" : ""}`}
+                  className={`px-2 pt-2 text-sm font-bold ${!isPrettyLikeView ? "shrink-0" : ""}`}
                 >
                   Tags
                 </div>
                 <div
-                  className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${currentView !== "pretty" ? "shrink-0" : ""}`}
+                  className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${!isPrettyLikeView ? "shrink-0" : ""}`}
                 >
                   <TagList selectedTags={trace.tags} isLoading={false} />
                 </div>

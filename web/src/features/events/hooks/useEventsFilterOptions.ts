@@ -5,7 +5,7 @@ import {
   planEventFacetQueries,
   splitFacetFilter,
 } from "@/src/features/events/lib/facet-query-plan";
-import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+import { sortOptionValues } from "@/src/features/filters";
 
 type EventFilterOptionColumnsInput =
   RouterInputs["events"]["filterOptions"]["columns"];
@@ -350,9 +350,11 @@ export function useEventsFilterOptions({
       timeToFirstToken: [],
       tokensPerSecond: [],
       inputTokens: [],
+      cachedInputTokens: [],
       outputTokens: [],
       totalTokens: [],
       inputCost: [],
+      cachedInputCost: [],
       outputCost: [],
       totalCost: [],
       score_categories: scoreCategories,

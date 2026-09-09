@@ -148,6 +148,7 @@ export const CodeEvalDispatcherErrorCode = z.enum([
   "RESULT_TOO_LARGE",
   "SOURCE_TOO_LARGE",
   "TIMEOUT",
+  "OUT_OF_MEMORY",
   "UNSUPPORTED_RUNTIME",
   "USER_CODE_ERROR",
   "LAMBDA_CONCURRENCY_LIMIT",

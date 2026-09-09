@@ -14,13 +14,11 @@ export function ModelBadge({
   projectId,
   usageDetails,
 }: {
-  model: string | null;
+  model: string;
   internalModelId: string | null;
   projectId: string;
   usageDetails: Record<string, number> | undefined;
 }) {
-  if (!model) return null;
-
   // Linked model - show link to model settings
   if (internalModelId) {
     return (

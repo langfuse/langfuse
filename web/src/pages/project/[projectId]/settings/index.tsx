@@ -51,6 +51,14 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
   const showProtectedLabelsSettings = useHasEntitlement(
     "prompt-protected-labels",
   );
+  const showProjectNotificationChannels = useHasProjectAccess({
+    projectId: project?.id,
+    scope: "automations:CUD",
+  });
+  const showScoreConfigSettings = useHasProjectAccess({
+    projectId: project?.id,
+    scope: "scoreConfigs:read",
+  });
   const showV4Migration = useV4UpgradeUiFlag();
   if (!project || !organization || !router.query.projectId) {
     return [];
@@ -63,6 +71,8 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
     showRetentionSettings,
     showLLMConnectionsSettings: true,
     showProtectedLabelsSettings,
+    showProjectNotificationChannels,
+    showScoreConfigSettings,
     showV4Migration,
   });
 }
@@ -74,6 +84,8 @@ export const getProjectSettingsPages = ({
   showRetentionSettings,
   showLLMConnectionsSettings,
   showProtectedLabelsSettings,
+  showProjectNotificationChannels,
+  showScoreConfigSettings,
   showV4Migration,
 }: {
   project: { id: string; name: string; metadata: Record<string, unknown> };
@@ -82,6 +94,8 @@ export const getProjectSettingsPages = ({
   showRetentionSettings: boolean;
   showLLMConnectionsSettings: boolean;
   showProtectedLabelsSettings: boolean;
+  showProjectNotificationChannels: boolean;
+  showScoreConfigSettings: boolean;
   showV4Migration: boolean;
 }): ProjectSettingsPage[] => [
   {
@@ -225,6 +239,7 @@ export const getProjectSettingsPages = ({
     slug: "scores",
     cmdKKeywords: ["config"],
     content: <ScoreConfigSettings projectId={project.id} />,
+    show: showScoreConfigSettings,
   },
   {
     title: "Members",
@@ -278,7 +293,9 @@ export const getProjectSettingsPages = ({
     content: (
       <div className="flex flex-col gap-6">
         <PersonalNotificationSettings />
-        <ProjectNotificationChannels projectId={project.id} />
+        {showProjectNotificationChannels && (
+          <ProjectNotificationChannels projectId={project.id} />
+        )}
       </div>
     ),
   },

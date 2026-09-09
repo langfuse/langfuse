@@ -1515,7 +1515,7 @@ export function SearchComposer({
       </div>
 
       {showGlobalDiagnostics && (
-        <div className="absolute top-1.5 right-2 flex items-center gap-1">
+        <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-1">
           <span
             className="text-destructive"
             title={visibleDiagnostics.map((d) => d.message).join("; ")}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { normalizeOrderByForTable } from "@langfuse/shared";
 import { DataTable } from "@/src/components/table/data-table";
 import {
   DataTableControlsProvider,
@@ -17,18 +18,22 @@ import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { TagPromptPopover } from "@/src/features/tag/components/TagPromptPopover";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { promptFilterConfig } from "@/src/features/filters/config/prompts-config";
+import {
+  promptFilterConfig,
+  useQueryFilterState,
+  useSidebarFilterState,
+} from "@/src/features/filters";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
 import { buildFullPath } from "@/src/features/folders/utils";
 import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 
 type PromptTableRow = {
   id: string;
@@ -81,6 +86,10 @@ export function PromptTable() {
     column: "createdAt",
     order: "DESC",
   });
+  const orderBy = normalizeOrderByForTable({
+    orderBy: orderByState,
+    expectedTimeColumn: "createdAt",
+  });
 
   const {
     paginationState,
@@ -105,7 +114,7 @@ export function PromptTable() {
       limit: paginationState.pageSize,
       projectId,
       filter: filterState,
-      orderBy: orderByState,
+      orderBy,
       pathPrefix: currentFolderPath,
       searchQuery: searchQuery || undefined,
       searchType: searchType,
@@ -294,36 +303,36 @@ export function PromptTable() {
         };
       },
     }),
-    {
+    createNumberTableColumn<PromptTableRow>({
       accessorKey: "version",
       header: "Versions",
-      id: "version",
       enableSorting: true,
       size: 70,
-      cell: ({ getValue, row }) => {
-        if (row.original.type === "folder") return null;
-        return getValue<number | undefined>();
+      formatter: (value) => String(value),
+      getValue: (value, { row }) => {
+        if (row.original.type === "folder") return undefined;
+        return value ?? undefined;
       },
-    },
-    {
+    }),
+    createTextTableColumn<PromptTableRow>({
       accessorKey: "type",
       header: "Type",
-      id: "type",
       enableSorting: true,
       size: 60,
-    },
-    {
+    }),
+    createDateTableColumn({
       accessorKey: "createdAt",
       header: "Latest Version Created At",
-      id: "createdAt",
       enableSorting: true,
       size: 200,
-      cell: ({ getValue, row }) => {
-        if (row.original.type === "folder") return null;
-        const createdAt = getValue<Date | undefined>();
-        return createdAt ? <LocalIsoDate date={createdAt} /> : null;
+      getValue: (value, context) => {
+        if (context.row.original.type === "folder") {
+          return undefined;
+        }
+
+        return value ?? undefined;
       },
-    },
+    }),
     {
       accessorKey: "numberOfObservations",
       header: "Number of Observations (7d)",
@@ -373,7 +382,7 @@ export function PromptTable() {
               limit: 50,
               projectId,
               filter: filterState,
-              orderBy: orderByState,
+              orderBy,
             }}
           />
         );
@@ -417,6 +426,7 @@ export function PromptTable() {
           />
         )}
         <DataTableToolbar
+          tableName="prompts"
           columns={promptColumns}
           filterState={queryFilter.filterState}
           columnsWithCustomSelect={["labels", "tags"]}
@@ -473,7 +483,7 @@ export function PromptTable() {
                         })),
                       }
               }
-              orderBy={orderByState}
+              orderBy={orderBy}
               setOrderBy={setOrderByState}
               pagination={{
                 totalCount,

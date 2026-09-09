@@ -18,7 +18,7 @@ import {
   type RowHeight,
   getRowHeightTailwindClass,
 } from "@/src/components/table/data-table-row-height-switch";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   type DataTableCellBackground,
   type DataTableCellPadding,
@@ -541,21 +541,39 @@ export function DataTable<TData extends object, TValue>({
                         }}
                       >
                         {header.isPlaceholder ? null : (
-                          <div className="flex items-center select-none">
-                            <span
-                              className="truncate leading-normal"
-                              title={getPlainTextFromReactNode(
-                                flexRender(
+                          <div
+                            className={cn(
+                              "flex select-none",
+                              columnDef.headerBlock
+                                ? "items-start"
+                                : "items-center",
+                            )}
+                          >
+                            {columnDef.headerBlock ? (
+                              // Opted out of the single truncated line, so a
+                              // header can carry more than the column's name.
+                              <div className="min-w-0 flex-1 leading-normal">
+                                {flexRender(
                                   header.column.columnDef.header,
                                   header.getContext(),
-                                ),
-                              )}
-                            >
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
-                              )}
-                            </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span
+                                className="truncate leading-normal"
+                                title={getPlainTextFromReactNode(
+                                  flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext(),
+                                  ),
+                                )}
+                              >
+                                {flexRender(
+                                  header.column.columnDef.header,
+                                  header.getContext(),
+                                )}
+                              </span>
+                            )}
                             {columnDef.headerTooltip && (
                               <DocPopup
                                 description={
@@ -885,8 +903,9 @@ function TableBodyComponent<TData>({
                       }
 
                       return (
-                        <TableTextLoadingCell
+                        <Skeleton
                           className={cn(
+                            "h-4 w-1/2",
                             "min-w-[3rem]",
                             (rowIndex + columnIndex) % 4 === 0 && "w-3/4",
                             (rowIndex + columnIndex) % 4 === 1 && "w-1/2",

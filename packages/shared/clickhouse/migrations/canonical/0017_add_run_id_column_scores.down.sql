@@ -1,0 +1,1 @@
+ALTER TABLE scores {CLICKHOUSE_CLUSTER_CLAUSE} DROP COLUMN IF EXISTS dataset_run_id SETTINGS mutations_sync = 2;

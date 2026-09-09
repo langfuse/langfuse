@@ -258,6 +258,24 @@ describe("Blob Storage Integration tRPC Router", () => {
     vi.clearAllMocks();
   });
 
+  describe("region normalization", () => {
+    it("persists a trimmed region", async () => {
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        region: " us-west-2",
+      });
+
+      const integration = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+        select: { region: true },
+      });
+      expect(integration?.region).toBe("us-west-2");
+    });
+  });
+
   describe("runNow", () => {
     it("creates a success audit log when a manual run is queued", async () => {
       const add = vi.fn().mockResolvedValue(undefined);

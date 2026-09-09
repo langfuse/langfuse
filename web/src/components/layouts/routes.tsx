@@ -68,6 +68,9 @@ export type Route = {
       | undefined;
     projectId: string | undefined;
     isLangfuseCloud: boolean;
+    hasActiveCloudIncident: boolean;
+    canToggleV4: boolean;
+    forceV3Experience: boolean;
     v4WriteMode: undefined | "legacy" | "dual" | "events_only"; // undefined until the session has loaded
     v4UpgradeUiAvailable: boolean; // deployment shows the v4 migration UI (see isV4UpgradeUiAvailable)
   }) => boolean;
@@ -169,7 +172,7 @@ export const ROUTES: Route[] = [
     title: "Evaluators",
     icon: Lightbulb,
     productModule: "evaluation",
-    projectRbacScopes: ["evalJob:read"],
+    projectRbacScopes: ["evaluator:read", "evaluationRule:read"],
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
     pathname: `/project/[projectId]/evals`,
@@ -214,6 +217,8 @@ export const ROUTES: Route[] = [
     title: "Cloud Status",
     section: RouteSection.Secondary,
     pathname: "",
+    show: ({ isLangfuseCloud, hasActiveCloudIncident }) =>
+      isLangfuseCloud && hasActiveCloudIncident,
     menuNode: <CloudStatusMenu />,
   },
   {
@@ -221,6 +226,9 @@ export const ROUTES: Route[] = [
     pathname: "",
     section: RouteSection.Secondary,
     featureFlag: "v4BetaToggleVisible",
+    // v4-upgrade users get this toggle inside the migration panel instead.
+    show: ({ canToggleV4, forceV3Experience, v4UpgradeUiAvailable }) =>
+      canToggleV4 && (!v4UpgradeUiAvailable || forceV3Experience),
     menuNode: <V4SidebarToggle />,
   },
   {

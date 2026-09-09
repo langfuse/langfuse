@@ -18,6 +18,7 @@ import {
 export default withMiddlewares({
   DELETE: createAuthedProjectAPIRoute({
     name: "Delete LLM Connection",
+    action: "llmApiKeys:delete",
     querySchema: DeleteLlmConnectionV1Query,
     responseSchema: DeleteLlmConnectionV1Response,
     isAdminApiKeyAuthAllowed: true,
