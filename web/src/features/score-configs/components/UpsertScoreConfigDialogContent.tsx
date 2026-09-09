@@ -33,7 +33,7 @@ import {
   isCategoricalDataType,
   isNumericDataType,
   isTextDataType,
-} from "@/src/features/scores/lib/helpers";
+} from "@/src/features/scores";
 import {
   createConfigSchema,
   type CreateConfig,

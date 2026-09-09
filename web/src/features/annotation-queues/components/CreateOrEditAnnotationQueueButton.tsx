@@ -2,7 +2,7 @@ import { type ButtonProps } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Edit, Pen, PlusIcon } from "lucide-react";
 import { api } from "@/src/utils/api";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements";
 import { ActionButton } from "@/src/components/ActionButton";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { AnnotationQueueFormDialogController } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogController";

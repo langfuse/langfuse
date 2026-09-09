@@ -50,7 +50,7 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 
 import { type z } from "zod";
 
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import { Input } from "@/src/components/ui/input";
 import startCase from "lodash/startCase";
 import { DatePickerWithRange } from "@/src/components/date-picker";

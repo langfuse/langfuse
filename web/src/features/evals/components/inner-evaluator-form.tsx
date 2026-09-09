@@ -36,7 +36,7 @@ import {
 import { z } from "zod";
 import { useEffect, useMemo, useState, memo, Suspense, lazy } from "react";
 import { api } from "@/src/utils/api";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { InlineFilterBuilder } from "@/src/features/filters";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
 import { reportError } from "@/src/utils/reportError";
@@ -109,7 +109,7 @@ import {
 } from "@/src/features/evals/utils/evaluator-constants";
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
 import { VariableMappingCard } from "@/src/features/evals/components/variable-mapping-card";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import {
   isCodeEvalTemplate,

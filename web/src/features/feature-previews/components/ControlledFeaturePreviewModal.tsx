@@ -1,8 +1,7 @@
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useSession } from "next-auth/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
-import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
+import { useReadPath, V4_PREVIEW_LABEL } from "@/src/features/events";
 import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
 import { api } from "@/src/utils/api";
 
