@@ -18,7 +18,7 @@ const GatewayIngestionClaimsSchema = z.object({
   version: z.literal(1),
   organization_id: z.string(),
   project_id: z.string(),
-  instrumentation_mode: z.enum(["usage", "full"]),
+  ingestion_mode: z.enum(["usage", "full"]),
   scope: z.literal("gateway-ingest"),
   exp: z.number().int(),
   iss: z.string(),

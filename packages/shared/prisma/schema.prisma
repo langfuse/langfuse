@@ -239,8 +239,6 @@ enum GatewayIngestionMode {
   USAGE @map("usage")
   FULL  @map("full")
   NONE  @map("none")
-
-  @@map("GatewayInstrumentationMode")
 }
 
 enum GatewayProvider {
@@ -259,7 +257,7 @@ model GatewayConfig {
   organization              Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   defaultIngestionProjectId String?              @map("default_ingestion_project_id")
   defaultIngestionProject   Project?             @relation("GatewayDefaultIngestionProject", fields: [defaultIngestionProjectId], references: [id], onDelete: SetNull)
-  ingestionMode             GatewayIngestionMode @default(USAGE) @map("instrumentation_mode")
+  ingestionMode             GatewayIngestionMode @default(USAGE) @map("ingestion_mode")
   createdAt                 DateTime             @default(now()) @map("created_at")
   updatedAt                 DateTime             @default(now()) @updatedAt @map("updated_at")
 

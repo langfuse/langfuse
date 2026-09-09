@@ -140,7 +140,7 @@ export class GatewayResolveService {
           key_id: context.apiKeyId,
           key_metadata: context.keyMetadata,
         },
-        instrumentation_mode: context.ingestionMode.toLowerCase() as
+        ingestion_mode: context.ingestionMode.toLowerCase() as
           | "usage"
           | "full"
           | "none",
@@ -252,7 +252,7 @@ export class GatewayResolveService {
           version: 1,
           organization_id: params.organizationId,
           project_id: params.projectId,
-          instrumentation_mode: params.mode.toLowerCase() as "usage" | "full",
+          ingestion_mode: params.mode.toLowerCase() as "usage" | "full",
           scope: "gateway-ingest",
         },
       }),

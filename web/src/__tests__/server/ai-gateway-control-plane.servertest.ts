@@ -659,7 +659,7 @@ describe("AI gateway control plane", () => {
         organization_id: org.id,
         project_id: project.id,
       });
-      expect(result.instrumentation_mode).toBe("full");
+      expect(result.ingestion_mode).toBe("full");
       expect(result.ingestion?.expires_at).toBe(ingestionClaims.exp);
     } finally {
       Object.assign(env, {

@@ -83,7 +83,7 @@ describe("GatewayResolveService", () => {
         key_id: "key-1",
         key_metadata: { team: "platform", project_id: "spoofed-project" },
       },
-      instrumentation_mode: "none",
+      ingestion_mode: "none",
       // Ingestion is off, so no ingestion token is minted.
       ingestion: undefined,
     });

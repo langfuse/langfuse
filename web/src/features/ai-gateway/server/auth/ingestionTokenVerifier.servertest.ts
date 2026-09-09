@@ -51,7 +51,7 @@ function token(organizationId = "org-1") {
       version: 1,
       organization_id: organizationId,
       project_id: "project-1",
-      instrumentation_mode: "full",
+      ingestion_mode: "full",
       scope: "gateway-ingest",
     },
   });

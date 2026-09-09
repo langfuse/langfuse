@@ -14,7 +14,7 @@ BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '30s';
 
-CREATE TYPE "GatewayInstrumentationMode" AS ENUM ('usage', 'full', 'none');
+CREATE TYPE "GatewayIngestionMode" AS ENUM ('usage', 'full', 'none');
 
 CREATE TYPE "GatewayProvider" AS ENUM ('openai', 'anthropic');
 
@@ -23,7 +23,7 @@ CREATE TYPE "GatewayConnectionStatus" AS ENUM ('enabled', 'disabled', 'error');
 CREATE TABLE "gateway_configs" (
     "organization_id" TEXT NOT NULL,
     "default_ingestion_project_id" TEXT,
-    "instrumentation_mode" "GatewayInstrumentationMode" NOT NULL DEFAULT 'usage',
+    "ingestion_mode" "GatewayIngestionMode" NOT NULL DEFAULT 'usage',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

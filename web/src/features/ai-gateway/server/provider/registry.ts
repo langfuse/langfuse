@@ -48,7 +48,7 @@ export const GatewayResolveResponseSchema = z
         key_metadata: GatewayMetadataSchema,
       })
       .strict(),
-    instrumentation_mode: z.enum(["usage", "full", "none"]),
+    ingestion_mode: z.enum(["usage", "full", "none"]),
     ingestion: z
       .object({
         access_token: z.string(),
