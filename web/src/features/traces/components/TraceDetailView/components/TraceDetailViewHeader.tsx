@@ -111,8 +111,8 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   return (
     <div className="@container shrink-0 space-y-2 p-3">
       {/* Title row with actions */}
-      <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
-        <div className="flex w-full flex-row items-center gap-1">
+      <div className="flex w-full flex-wrap items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-auto flex-row items-center gap-1">
           <span
             className={cn(
               "line-clamp-2 min-w-0 text-base font-bold break-all md:break-normal md:wrap-break-word",
@@ -316,7 +316,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
         </div>
         {/* Action buttons (desktop inline cluster) */}
         {!isMobile && (
-          <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
+          <div className="flex flex-wrap content-start items-start gap-0.5">
             <NewDatasetItemFromExistingObjectDialogController
               traceId={trace.id}
               projectId={projectId}
