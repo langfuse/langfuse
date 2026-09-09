@@ -304,6 +304,8 @@ export const scoreAnalyticsRouter = createTRPCRouter({
         !isNumeric && // Any non-numeric comparison
         (score1.dataType === "CATEGORICAL" ||
           score2.dataType === "CATEGORICAL" ||
+          score1.dataType === "BOOLEAN" ||
+          score2.dataType === "BOOLEAN" ||
           isCrossType);
 
       // Build comprehensive analytics query
