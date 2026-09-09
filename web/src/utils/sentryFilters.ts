@@ -136,6 +136,10 @@ const NOISE_MESSAGE_PREFIXES: readonly string[] = [
   "[next-auth][error][CLIENT_FETCH_ERROR]",
   // PostHog analytics SDK notices / client-side rate-limit logs. Third-party.
   "[PostHog.js]",
+  // Cloudflare / Cursor Kitesurf console-errors its own localhost CORS probe
+  // with this unbracketed prefix (LANGFUSE-610). Distinct from bracketed
+  // `[kitesurf]` listener wraps — those go through {@link isKitesurfInternalEvent}.
+  "kitesurf:",
   // `Response.json()` on a non-JSON body (a 5xx / HTML proxy page returned where
   // JSON was expected). This is the response not being ours-as-JSON, i.e. a
   // transport/infra artifact, not app logic.
@@ -613,4 +617,70 @@ export function isPosthogRecorderInternalEvent(event: ErrorEvent): boolean {
     return false;
   }
   return sawRecorderFrame;
+}
+
+/**
+ * Kitesurf's injected page-world scripts. Served as root-relative paths on our
+ * origin (`/__ks_user_classic_regular.js`), so `denyUrls` never matches them.
+ */
+const KITESURF_USER_SCRIPT_RE = /(?:^|\/)__ks_user[^/]*\.js$/i;
+const KITESURF_DOM_SHIM_RE = /(?:^|\/)dom-shim\.js$/i;
+
+/**
+ * Bare `page.js` as Sentry reports Kitesurf's page controller. Must NOT match
+ * a Next.js `/_next/.../page.js` — basename-only matching is intentional.
+ */
+function isKitesurfPageControllerFilename(path: string): boolean {
+  return path === "page.js" || path === "/page.js";
+}
+
+function isKitesurfVendorFilename(path: string): boolean {
+  return KITESURF_USER_SCRIPT_RE.test(path) || KITESURF_DOM_SHIM_RE.test(path);
+}
+
+/**
+ * True for Kitesurf (Cursor / Cloudflare agent-browser) internals that mint
+ * production Sentry noise without involving Langfuse app code:
+ *
+ *  1. Console: `[kitesurf] …` via `captureConsoleIntegration` (LANGFUSE-60W).
+ *     Dropped only when the text has no `/_next/` chunk — a wrap of a real
+ *     app listener throw usually quotes our chunk and is KEPT.
+ *  2. Stack: every attributable frame in `__ks_user_*.js` / `dom-shim.js`
+ *     (plus opaque / bare `page.js` controller frames). Covers
+ *     `ReferenceError: DOMRect is not defined` (LANGFUSE-60Z) and the
+ *     iframe-load `Proxy` TypeError (LANGFUSE-60X).
+ *
+ * Unbracketed `kitesurf:` CORS probes are handled by
+ * {@link NOISE_MESSAGE_PREFIXES} (LANGFUSE-610).
+ *
+ * Same posture as {@link isPosthogRecorderInternalEvent}.
+ */
+export function isKitesurfInternalEvent(event: ErrorEvent): boolean {
+  const text = eventText(event);
+  if (text.length > 0) {
+    const core = coreMessage(text);
+    if (core.startsWith("[kitesurf]") && !text.includes("/_next/")) {
+      return true;
+    }
+  }
+
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+
+  let sawKitesurfVendorFrame = false;
+  for (const stackFrame of frames) {
+    const filename = stackFrame?.filename;
+    if (typeof filename !== "string" || filename.length === 0) continue;
+    const path = filename.split(/[?#]/)[0];
+    if (isKitesurfVendorFilename(path)) {
+      sawKitesurfVendorFrame = true;
+      continue;
+    }
+    if (isOpaqueOrSdkFrame(filename)) continue;
+    // Bare `page.js` is Kitesurf's controller only when a vendor script is
+    // also on the stack. An all-`page.js` stack is kept.
+    if (isKitesurfPageControllerFilename(path)) continue;
+    return false;
+  }
+  return sawKitesurfVendorFrame;
 }

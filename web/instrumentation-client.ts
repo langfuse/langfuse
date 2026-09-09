@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/nextjs";
 import {
   isDenylistedNoiseEvent,
+  isKitesurfInternalEvent,
   isNoisyHttpClientPollEvent,
   isPosthogRecorderInternalEvent,
   isReactDevtoolsInternalEvent,
@@ -54,6 +55,14 @@ Sentry.init({
     // frame is ever present in these stacks; anything touching our code is
     // kept. See isPosthogRecorderInternalEvent for the rationale.
     if (isPosthogRecorderInternalEvent(event)) {
+      return null;
+    }
+
+    // Drop Kitesurf (Cursor / Cloudflare agent-browser) internals: `[kitesurf]`
+    // console wraps with no app chunk, and stacks wholly in `__ks_*` /
+    // `dom-shim.js`. Same-origin injectors miss `denyUrls`. See
+    // isKitesurfInternalEvent.
+    if (isKitesurfInternalEvent(event)) {
       return null;
     }
 
