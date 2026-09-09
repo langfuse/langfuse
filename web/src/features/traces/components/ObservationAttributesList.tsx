@@ -216,17 +216,19 @@ export function ObservationAttributesList({
   actions?: MetadataFilterActions;
 }) {
   return (
-    <section className="flex flex-col gap-2">
-      <h3 className="text-muted-foreground text-xs">Attributes</h3>
+    <section className="flex flex-col">
+      <h3 className="text-sm font-bold">Attributes</h3>
       {rows.length > 0 ? (
-        <dl className="grid grid-cols-[max-content_minmax(0,1fr)_1rem] gap-x-6 gap-y-1.5 text-xs">
+        <dl className="divide-border/60 mt-1 grid grid-cols-[minmax(10rem,35%)_minmax(0,1fr)_1rem] divide-y text-xs">
           {rows.map((row) => (
             <div
               key={row.key}
-              className="group col-span-full grid grid-cols-subgrid items-center"
+              className="group col-span-full grid grid-cols-subgrid items-center gap-x-4 py-2"
             >
-              <dt className="text-muted-foreground">{row.key}</dt>
-              <dd className="text-foreground/90 truncate" title={row.value}>
+              <dt className="text-muted-foreground truncate" title={row.key}>
+                {row.key}
+              </dt>
+              <dd className="text-foreground truncate" title={row.value}>
                 {row.value}
               </dd>
               <div className="flex justify-end">
@@ -238,7 +240,7 @@ export function ObservationAttributesList({
           ))}
         </dl>
       ) : (
-        <p className="text-muted-foreground text-xs italic">
+        <p className="text-muted-foreground mt-1 text-xs italic">
           No attributes on this observation.
         </p>
       )}
