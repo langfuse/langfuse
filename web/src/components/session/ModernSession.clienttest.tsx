@@ -1,8 +1,16 @@
 import { render, screen } from "@testing-library/react";
 import { type ComponentProps, type ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ModernSession } from "@/src/components/session/ModernSession";
+
+const { useIsAuthenticatedAndProjectMember } = vi.hoisted(() => ({
+  useIsAuthenticatedAndProjectMember: vi.fn(() => true),
+}));
+
+vi.mock("@/src/features/auth/hooks", () => ({
+  useIsAuthenticatedAndProjectMember,
+}));
 
 vi.mock("@/src/components/session/ConnectedModernSessionBodyLegacy", () => ({
   ConnectedModernSessionBodyLegacy: () => <div>Legacy body</div>,
@@ -93,6 +101,10 @@ const defaultProps = {
 } satisfies ComponentProps<typeof ModernSession>;
 
 describe("ModernSession", () => {
+  beforeEach(() => {
+    useIsAuthenticatedAndProjectMember.mockReturnValue(true);
+  });
+
   it("renders the shared header and legacy connected body by default", () => {
     render(<ModernSession {...defaultProps} />);
 
@@ -107,5 +119,14 @@ describe("ModernSession", () => {
     expect(screen.getByText("Modern session header")).toBeInTheDocument();
     expect(screen.getByText("Timeline body")).toBeInTheDocument();
     expect(screen.queryByText("Legacy body")).not.toBeInTheDocument();
+  });
+
+  it("renders the legacy body for public access when the timeline is enabled", () => {
+    useIsAuthenticatedAndProjectMember.mockReturnValue(false);
+
+    render(<ModernSession {...defaultProps} isTimelineEnabled />);
+
+    expect(screen.getByText("Legacy body")).toBeInTheDocument();
+    expect(screen.queryByText("Timeline body")).not.toBeInTheDocument();
   });
 });
