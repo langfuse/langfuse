@@ -36,6 +36,7 @@ import type { ModelParamsContext } from "@/src/components/ModelParameters";
 import { env } from "@/src/env.mjs";
 import {
   type PlaygroundSchema,
+  type PlaygroundSourcePrompt,
   type PlaygroundTool,
   type PlaceholderMessageFillIn,
   type PlaygroundProviderProps,
@@ -67,6 +68,9 @@ type PlaygroundContextType = {
 
   structuredOutputSchema: PlaygroundSchema | null;
   setStructuredOutputSchema: (schema: PlaygroundSchema | null) => void;
+
+  /** The stored prompt this window was opened from, if any. */
+  sourcePrompt: PlaygroundSourcePrompt | null;
 
   output: string;
   outputReasoning: string;
@@ -113,6 +117,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
   const { playgroundCache, setPlaygroundCache } = usePlaygroundCache(windowId);
+  const sourcePrompt = playgroundCache?.sourcePrompt ?? null;
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
   const [messagePlaceholders, setMessagePlaceholders] = useState<
     PlaceholderMessageFillIn[]
@@ -459,6 +464,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
           messagePlaceholders,
           tools,
           structuredOutputSchema,
+          sourcePrompt,
         });
         capture("playground:execute_button_click", {
           inputLength: finalMessages.length,
@@ -485,6 +491,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
       capture,
       setPlaygroundCache,
       structuredOutputSchema,
+      sourcePrompt,
       projectId,
     ],
   );
@@ -574,6 +581,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         messagePlaceholders,
         tools,
         structuredOutputSchema,
+        sourcePrompt,
       });
     }
   }, [
@@ -584,6 +592,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     messagePlaceholders,
     tools,
     structuredOutputSchema,
+    sourcePrompt,
     setPlaygroundCache,
     cacheLoaded,
   ]);
@@ -727,6 +736,8 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
 
         structuredOutputSchema,
         setStructuredOutputSchema,
+
+        sourcePrompt,
 
         messages,
         addMessage,
