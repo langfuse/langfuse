@@ -2622,8 +2622,19 @@ export const getObservationsBatchIOFromEventsTable = async <
     ? `
       e.tool_calls as tool_calls,
       e.tool_call_names as tool_call_names,
-    `
+      `
     : "";
+  const sessionTraceFilter =
+    opts.sessionId !== undefined
+      ? `AND e.trace_id IN (
+          SELECT trace_id
+          FROM events_core
+          WHERE project_id = {projectId: String}
+            AND trace_id IN {traceIds: Array(String)}
+          GROUP BY trace_id
+          HAVING argMaxIf(session_id, event_ts, session_id <> '') = {sessionId: String}
+        )`
+      : "";
 
   const query = `
       SELECT
@@ -2639,7 +2650,7 @@ export const getObservationsBatchIOFromEventsTable = async <
         AND e.span_id IN {observationIds: Array(String)}
         AND e.trace_id IN {traceIds: Array(String)}
         AND (e.trace_id, e.span_id) IN {observationTuples: Array(Tuple(String, String))}
-        ${opts.sessionId !== undefined ? "AND e.session_id = {sessionId: String}" : ""}
+        ${sessionTraceFilter}
       AND e.start_time >= {minTimestamp: DateTime64(3)}
       AND e.start_time <= {maxTimestamp: DateTime64(3)}
   `;

@@ -4234,6 +4234,66 @@ describe("Clickhouse Events Repository Test", () => {
       expect(result).toHaveLength(2);
     });
 
+    it("authorizes observations using the trace's latest session", async () => {
+      const uniqueProjectId = randomUUID();
+      const previousSessionId = randomUUID();
+      const currentSessionId = randomUUID();
+      const observationId = randomUUID();
+      const traceId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: observationId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          session_id: previousSessionId,
+          type: "GENERATION",
+          input: "observation input",
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          session_id: currentSessionId,
+          type: "SPAN",
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+      ]);
+
+      const params = {
+        projectId: uniqueProjectId,
+        observations: [{ id: observationId, traceId }],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      };
+
+      await expect(
+        getObservationsBatchIOFromEventsTable({
+          ...params,
+          sessionId: previousSessionId,
+        }),
+      ).resolves.toEqual([]);
+      await expect(
+        getObservationsBatchIOFromEventsTable({
+          ...params,
+          sessionId: currentSessionId,
+        }),
+      ).resolves.toEqual([
+        expect.objectContaining({
+          id: observationId,
+          traceId,
+          input: "observation input",
+        }),
+      ]);
+    });
+
     it("keeps the session filter when the session id is empty", async () => {
       const observationId = randomUUID();
       const traceId = randomUUID();
