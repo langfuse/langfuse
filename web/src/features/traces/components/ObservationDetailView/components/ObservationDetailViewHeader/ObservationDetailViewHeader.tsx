@@ -558,7 +558,6 @@ export const ObservationDetailViewHeader = memo(
                                   aria-hidden="true"
                                 />
                                 Add to
-                                <ChevronDown className="ml-2 h-3 w-3" />
                               </Button>
                             </DropdownMenuTrigger>
                           </Anchor>
