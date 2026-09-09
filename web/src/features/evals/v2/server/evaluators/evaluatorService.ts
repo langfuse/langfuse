@@ -340,9 +340,8 @@ export class EvaluatorService {
       return normalizeEvaluatorPromptMessages(evaluator);
     } catch (error) {
       // Callers may pre-generate the id so test runs can be attributed
-      // before the first save. A retry with that same id in this project
-      // returns the existing evaluator. Ids are globally unique, so a
-      // collision with another project must not surface as an unhandled 500.
+      // before the first save. An exact retry returns the existing evaluator.
+      // Reusing the id with different content remains a conflict.
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2002"
@@ -353,7 +352,17 @@ export class EvaluatorService {
             projectId: input.projectId,
             evaluatorId: input.evaluatorId,
           });
-          if (existing) {
+          const latest = existing?.versions[0];
+          if (
+            existing &&
+            latest &&
+            existing.name === input.name &&
+            existing.description === input.description &&
+            isDeepStrictEqual(
+              toEvaluatorDefinition(existing.type, latest),
+              input.definition,
+            )
+          ) {
             return normalizeEvaluatorPromptMessages(existing);
           }
         }
