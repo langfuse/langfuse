@@ -2778,6 +2778,134 @@ describe("OTel Resource Span Mapping", () => {
       expect(observationEvent?.body.input).toBe(JSON.stringify(allMessages));
     });
 
+    const createGenAiInputSpan = ({
+      inputMessages,
+      systemInstructions,
+    }: {
+      inputMessages: unknown;
+      systemInstructions: unknown;
+    }) => ({
+      resource: {},
+      scopeSpans: [
+        {
+          spans: [
+            {
+              ...defaultSpanProps,
+              attributes: [
+                {
+                  key: "gen_ai.input.messages",
+                  value: { stringValue: JSON.stringify(inputMessages) },
+                },
+                {
+                  key: "gen_ai.system_instructions",
+                  value: {
+                    stringValue:
+                      typeof systemInstructions === "string"
+                        ? systemInstructions
+                        : JSON.stringify(systemInstructions),
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const parseObservationInput = (events: TestIngestionEvent[]) => {
+      const observation = events.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+      const input = observation?.body.input;
+      return typeof input === "string" ? JSON.parse(input) : input;
+    };
+
+    it("should preserve structured gen_ai.system_instructions messages instead of string-coercing them", async () => {
+      const inputMessages = [
+        {
+          role: "user",
+          parts: [{ type: "text", content: "Hello" }],
+        },
+      ];
+      const systemInstructions = [
+        {
+          role: "system",
+          parts: [{ type: "text", content: "Be concise." }],
+        },
+        {
+          role: "system",
+          parts: [{ type: "text", content: "Use plain language." }],
+        },
+      ];
+
+      const events = await convertOtelSpanToIngestionEvent(
+        createGenAiInputSpan({ inputMessages, systemInstructions }),
+        new Set(),
+      );
+      const input = parseObservationInput(events);
+
+      expect(input).toEqual([...systemInstructions, ...inputMessages]);
+      expect(JSON.stringify(input)).not.toContain("[object Object]");
+    });
+
+    it("should preserve non-text gen_ai.system_instructions parts without string coercion", async () => {
+      const inputMessages = [
+        {
+          role: "user",
+          parts: [{ type: "text", content: "Hello" }],
+        },
+      ];
+      const systemInstructions = [
+        { type: "text", content: "Describe the image." },
+        { type: "binary", content_type: "image/png", id: "file-1" },
+      ];
+
+      const events = await convertOtelSpanToIngestionEvent(
+        createGenAiInputSpan({ inputMessages, systemInstructions }),
+        new Set(),
+      );
+      const input = parseObservationInput(events);
+
+      expect(input).toEqual([
+        {
+          role: "system",
+          parts: [
+            { type: "text", content: "Describe the image." },
+            { type: "binary", content_type: "image/png", id: "file-1" },
+          ],
+        },
+        ...inputMessages,
+      ]);
+      expect(JSON.stringify(input)).not.toContain("[object Object]");
+    });
+
+    it("should leave input unchanged when gen_ai.system_instructions cannot be mapped safely", async () => {
+      const inputMessages = [
+        {
+          role: "user",
+          parts: [{ type: "text", content: "Hello" }],
+        },
+      ];
+
+      const emptyEvents = await convertOtelSpanToIngestionEvent(
+        createGenAiInputSpan({ inputMessages, systemInstructions: [] }),
+        new Set(),
+      );
+      expect(parseObservationInput(emptyEvents)).toEqual(inputMessages);
+
+      const unsafeEvents = await convertOtelSpanToIngestionEvent(
+        createGenAiInputSpan({
+          inputMessages,
+          systemInstructions: [{ unexpected: true }, null, 42],
+        }),
+        new Set(),
+      );
+      expect(parseObservationInput(unsafeEvents)).toEqual(inputMessages);
+      expect(JSON.stringify(parseObservationInput(unsafeEvents))).not.toContain(
+        "[object Object]",
+      );
+    });
+
     it("should prioritize OpenInference over OTel GenAI and model detection", async () => {
       const resourceSpan = {
         scopeSpans: [
