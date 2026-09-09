@@ -7,6 +7,7 @@ import {
   eventsTableTraceNameSql,
 } from "../../../eventsTable";
 import type { FilterState } from "../../../types";
+import { convertDateToClickhouseDateTime } from "../../clickhouse/client";
 import { eventsTableUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
 import { FilterList } from "./clickhouse-filter";
 import { EventsAggQueryBuilder } from "./event-query-builder";
@@ -230,7 +231,16 @@ export type EventFilterOptionRow = {
   displayValue?: string;
 };
 
-export type EventFilterOptionScope = "scoredTraces";
+// scoredTraces restricts events to traces that carry a score. The optional
+// time bounds mirror the scores list view's both-sided window on
+// scores.timestamp, so offered options match what the windowed view can
+// actually display (and the subquery prunes by partition/PK instead of
+// scanning all history).
+export type EventFilterOptionScope = {
+  type: "scoredTraces";
+  fromTime?: Date;
+  toTime?: Date;
+};
 
 const EVENTS_FILTER_OPTION_COLUMN_IDENTIFIER_PATTERN = /^[A-Za-z]+$/;
 
@@ -375,10 +385,30 @@ const optionRowsArrayExpression = (column: EventFilterOptionColumn) => {
 
 const eventFilterOptionScopeCondition = (
   scope: EventFilterOptionScope,
-): string => {
-  switch (scope) {
-    case "scoredTraces":
-      return "e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE project_id = {projectId: String})";
+): { condition: string; params: Record<string, unknown> } => {
+  switch (scope.type) {
+    case "scoredTraces": {
+      const clauses = ["project_id = {projectId: String}"];
+      const params: Record<string, unknown> = {};
+      if (scope.fromTime) {
+        clauses.push(
+          "timestamp >= {scoredTracesFromTime: DateTime64(3, 'UTC')}",
+        );
+        params.scoredTracesFromTime = convertDateToClickhouseDateTime(
+          scope.fromTime,
+        );
+      }
+      if (scope.toTime) {
+        clauses.push("timestamp <= {scoredTracesToTime: DateTime64(3, 'UTC')}");
+        params.scoredTracesToTime = convertDateToClickhouseDateTime(
+          scope.toTime,
+        );
+      }
+      return {
+        condition: `e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE ${clauses.join(" AND ")})`,
+        params,
+      };
+    }
   }
 };
 
@@ -426,7 +456,8 @@ export const buildEventsFilterOptionColumnQuery = (params: {
     .sampleRows(sampleRows);
 
   if (params.scope) {
-    queryBuilder.whereRaw(eventFilterOptionScopeCondition(params.scope));
+    const scopeCondition = eventFilterOptionScopeCondition(params.scope);
+    queryBuilder.whereRaw(scopeCondition.condition, scopeCondition.params);
   }
 
   return queryBuilder.buildWithParams();
@@ -466,8 +497,10 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
   aggregatedOptionsBuilder.sampleRows(sampleRows);
 
   if (params.scope) {
+    const scopeCondition = eventFilterOptionScopeCondition(params.scope);
     aggregatedOptionsBuilder.whereRaw(
-      eventFilterOptionScopeCondition(params.scope),
+      scopeCondition.condition,
+      scopeCondition.params,
     );
   }
 

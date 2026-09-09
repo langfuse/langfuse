@@ -381,17 +381,39 @@ export const scoresRouter = createTRPCRouter({
         );
       }
 
+      // Bound the scored-traces semi-join by the same both-sided window the
+      // scores list view applies on scores.timestamp, so the offered options
+      // match what the windowed view can actually display. The UI sends `>=`
+      // for the lower bound and `<=` for the upper; take the tightest of each.
+      const lowerBounds = (timestampFilter ?? [])
+        .filter((tf) => tf.operator === ">=" || tf.operator === ">")
+        .map((tf) => tf.value);
+      const upperBounds = (timestampFilter ?? [])
+        .filter((tf) => tf.operator === "<=" || tf.operator === "<")
+        .map((tf) => tf.value);
+      const scope = {
+        type: "scoredTraces" as const,
+        fromTime:
+          lowerBounds.length > 0
+            ? new Date(Math.max(...lowerBounds.map((d) => d.getTime())))
+            : undefined,
+        toTime:
+          upperBounds.length > 0
+            ? new Date(Math.min(...upperBounds.map((d) => d.getTime())))
+            : undefined,
+      };
+
       const [names, tags, traceNames, userIds, stringValues] =
         await Promise.all([
           getScoreNames(input.projectId, timestampFilter ?? []),
           getEventsGroupedByTraceTags(input.projectId, eventsFilter, {
-            scope: "scoredTraces",
+            scope,
           }),
           getEventsGroupedByTraceName(input.projectId, eventsFilter, {
-            scope: "scoredTraces",
+            scope,
           }),
           getEventsGroupedByUserId(input.projectId, eventsFilter, {
-            scope: "scoredTraces",
+            scope,
           }),
           getScoreStringValues(input.projectId, timestampFilter ?? []),
         ]);
