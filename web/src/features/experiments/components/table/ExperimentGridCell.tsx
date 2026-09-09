@@ -9,12 +9,12 @@ import {
   type AggregatedScoreData,
 } from "@langfuse/shared";
 import { useMemo, Fragment, useState } from "react";
-import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
 import {
-  calculateNumericDiff,
   type BaselineDiff,
-} from "@/src/features/datasets/lib/calculateBaselineDiff";
-import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
+  calculateNumericDiff,
+  computeScoreDiffs,
+  DiffLabel,
+} from "@/src/features/datasets";
 import { Separator } from "@/src/components/ui/separator";
 import { type VisibilityState } from "@tanstack/react-table";
 import {
@@ -40,8 +40,10 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { api } from "@/src/utils/api";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
-import { getScoreDataTypeExplanation } from "@/src/features/scores/lib/scoreColumns";
+import {
+  decomposeAggregateScoreKey,
+  getScoreDataTypeExplanation,
+} from "@/src/features/scores";
 import { cn } from "@/src/utils/tailwind";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import Link from "next/link";

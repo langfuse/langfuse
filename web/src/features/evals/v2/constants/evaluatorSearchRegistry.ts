@@ -4,7 +4,7 @@ import {
   EVENTS_FIELD_REGISTRY,
   extendFieldRegistryWithColumns,
   type FieldRegistry,
-} from "@/src/features/search-bar/lib/fields";
+} from "@/src/features/search-bar";
 
 const withDatasetNameAiContext = (
   registry: FieldRegistry,

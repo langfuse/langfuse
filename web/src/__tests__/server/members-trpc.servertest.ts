@@ -881,6 +881,13 @@ describe("membersRouter.create - duplicate project membership", () => {
       code: "BAD_REQUEST",
       message: "User is already a member of this project",
     });
+
+    // The duplicate is rejected before the org membership is created, so no
+    // partial write (or consumed seat) is left behind in the target org.
+    const orgMembership = await prisma.organizationMembership.findFirst({
+      where: { orgId: org.id, userId: user.id },
+    });
+    expect(orgMembership).toBeNull();
   });
 });
 

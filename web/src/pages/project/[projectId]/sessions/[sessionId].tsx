@@ -1,4 +1,7 @@
-import { SessionEventsPage, SessionPage } from "@/src/components/session";
+import {
+  SessionEventsPage,
+  SessionPage,
+} from "@/src/features/annotation-queues/components/session";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   RouteParamsPendingFallback,

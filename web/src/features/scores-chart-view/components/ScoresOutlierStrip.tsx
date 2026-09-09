@@ -13,7 +13,7 @@ import {
 import {
   canReuseOutlierPlaceholder,
   pickChartGranularity,
-} from "@/src/features/events/components/outlier-strip/lib/binning";
+} from "@/src/features/events";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { ScoreOutlierStripHeader } from "@/src/features/scores-chart-view/components/ScoreOutlierStripHeader";

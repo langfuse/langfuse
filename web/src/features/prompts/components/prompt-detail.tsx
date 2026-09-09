@@ -36,7 +36,7 @@ import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playgroun
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import LegacyGenerations from "@/src/components/table/use-cases/observations";
 import EventsTable from "@/src/features/events/components/EventsTable";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import {
   ChevronDown,
   FlaskConical,
