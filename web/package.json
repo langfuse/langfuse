@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "4.32.0",
+  "version": "4.33.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -196,7 +196,7 @@
     "@types/react-dom": "19.2.3",
     "@types/react-grid-layout": "^1.3.6",
     "@vitejs/plugin-react": "^4.7.0",
-    "@vitest/browser-playwright": "4.1.10",
+    "@vitest/browser-playwright": "4.1.11",
     "dependency-cruiser": "^18.1.0",
     "dotenv": "^16.6.1",
     "dotenv-cli": "^7.4.2",
@@ -218,7 +218,7 @@
     "typescript": "^7.0.2",
     "vite": "^7.3.5",
     "vite-tsconfig-paths": "^6.1.1",
-    "vitest": "^4.1.10",
+    "vitest": "^4.1.11",
     "wait-for-expect": "^3.0.2"
   },
   "ct3aMetadata": {
