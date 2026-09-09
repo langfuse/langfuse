@@ -93,7 +93,12 @@ export function SpanContent({
   // Rows carry only duration and cost; token counts live in the detail panel.
   const shouldRenderCost = showCostTokens && Boolean(totalCost);
 
-  const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCost;
+  // Generations carry their model inline: it is the one attribute that varies
+  // per LLM call, so the row is where a mixed-model trace becomes visible.
+  const shouldRenderModel = node.type === "GENERATION" && Boolean(node.model);
+
+  const shouldRenderAnyMetrics =
+    shouldRenderDuration || shouldRenderCost || shouldRenderModel;
 
   const nodeScores = selectNodeScores(
     mergedScores,
@@ -199,6 +204,16 @@ export function SpanContent({
                 )}
               >
                 {usdFormatter(totalCost.toNumber())}
+              </span>
+            ) : null}
+
+            {/* Model (generations only) */}
+            {shouldRenderModel ? (
+              <span
+                title={`Model: ${node.model}`}
+                className="text-foreground-tertiary max-w-40 truncate text-xs"
+              >
+                {node.model}
               </span>
             ) : null}
           </div>
