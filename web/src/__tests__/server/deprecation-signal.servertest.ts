@@ -239,6 +239,13 @@ describe("public API deprecation signal", () => {
       "POST /api/public/otel/v1/traces",
     );
     expect(INGESTION_DEPRECATION.message).toContain(
+      "Always prefer upgrading to the current Python and JS SDKs",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "custom auto-instrumentation",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain("curl");
+    expect(INGESTION_DEPRECATION.message).toContain(
       "GET /api/public/v2/observations",
     );
     expect(INGESTION_DEPRECATION.message).toContain(

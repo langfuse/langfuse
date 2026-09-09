@@ -105,7 +105,7 @@ export const DATASET_RUNS_DEPRECATION: ApiDeprecationInfo = {
 // stay on this endpoint, so the 207 only carries this object when the batch
 // included a sunset write type.
 export const INGESTION_DEPRECATION: ApiDeprecationInfo = {
-  message: `${V3_NOTICE} Write traces and observations via ${REPLACEMENT.otelTraces}. Retrieve the data via ${REPLACEMENT.observationsV2} and ${REPLACEMENT.metricsV2}.`,
+  message: `${V3_NOTICE} Always prefer upgrading to the current Python and JS SDKs. If you use custom auto-instrumentation, only then write traces and observations via ${REPLACEMENT.otelTraces} (for example with curl). Retrieve the data via ${REPLACEMENT.observationsV2} and ${REPLACEMENT.metricsV2}.`,
   replacement: REPLACEMENT.otelTraces,
   docsUrl: DOCS.otelMigration,
   sunsetAt: V3_SUNSET_DATE,
