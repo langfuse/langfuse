@@ -420,6 +420,7 @@ types:
     properties:
       successes: list<IngestionSuccess>
       errors: list<IngestionError>
+      _deprecation: optional<commons.Deprecation>
 
   OpenAICompletionUsageSchema:
     docs: OpenAI Usage schema from (Chat-)Completion APIs

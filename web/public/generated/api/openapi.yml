@@ -14095,6 +14095,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/IngestionError'
+        _deprecation:
+          $ref: '#/components/schemas/Deprecation'
+          nullable: true
       required:
         - successes
         - errors

@@ -28,6 +28,10 @@ import { RateLimitService } from "@/src/features/public-api/server/RateLimitServ
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
 import {
+  attachDeprecation,
+  INGESTION_DEPRECATION,
+} from "@/src/features/public-api/server/deprecations";
+import {
   SDK_NAME_ATTRIBUTE,
   SDK_VERSION_ATTRIBUTE,
   extractSdkAttributes,
@@ -194,7 +198,17 @@ export default async function handler(
         if (rejectedErrors.length > 0) {
           result.errors = [...result.errors, ...rejectedErrors];
         }
-        return res.status(207).json(result);
+
+        // Cloud-only: a 207 with every event 201 is how agents conclude the
+        // legacy write path is healthy. Stamp when the original batch asked
+        // to write a trace or observation, including events_only rejections.
+        const deprecation =
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+          batchContainsTraceOrObservationEvent(parsedSchema.data.batch)
+            ? INGESTION_DEPRECATION
+            : undefined;
+
+        return res.status(207).json(attachDeprecation(result, deprecation));
       } catch (error) {
         if (!(error instanceof BaseError && error.isUserError())) {
           markProjectIngestFailure(projectId, {
@@ -265,6 +279,15 @@ const EVENTS_ONLY_ALLOWED_TYPES = new Set<string>([
   eventTypes.SDK_LOG,
 ]);
 
+const TRACE_OR_OBSERVATION_EVENT_TYPES = new Set(
+  Object.values(eventTypes).filter(
+    (type) =>
+      type !== eventTypes.SCORE_CREATE &&
+      type !== eventTypes.SDK_LOG &&
+      type !== eventTypes.DATASET_RUN_ITEM_CREATE,
+  ),
+);
+
 const EVENTS_ONLY_INGESTION_DOCS_URL =
   "https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4";
 
@@ -321,4 +344,19 @@ function filterBatchForEventsOnly(
   }
 
   return { batchForProcessing, rejectedErrors };
+}
+
+function eventTypeOf(event: unknown): string | null {
+  if (typeof event !== "object" || event === null) {
+    return null;
+  }
+  const type = (event as { type?: unknown }).type;
+  return typeof type === "string" ? type : null;
+}
+
+function batchContainsTraceOrObservationEvent(batch: unknown[]): boolean {
+  return batch.some((event) => {
+    const type = eventTypeOf(event);
+    return type !== null && TRACE_OR_OBSERVATION_EVENT_TYPES.has(type);
+  });
 }

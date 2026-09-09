@@ -15,6 +15,7 @@ import {
 import {
   DATASET_RUN_ITEMS_DEPRECATION,
   DATASET_RUNS_DEPRECATION,
+  INGESTION_DEPRECATION,
   OBSERVATIONS_V1_DEPRECATION,
   SCORES_DEPRECATION,
   SESSIONS_DEPRECATION,
@@ -208,5 +209,106 @@ describe("public API deprecation signal", () => {
     expect((response.body as Record<string, unknown>)._deprecation).toEqual(
       DATASET_RUNS_DEPRECATION,
     );
+  });
+
+  it("attaches `_deprecation` to POST /ingestion when the batch writes a trace", async () => {
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/ingestion",
+      {
+        batch: [
+          {
+            id: randomUUID(),
+            type: "trace-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: randomUUID(),
+              timestamp: new Date().toISOString(),
+            },
+          },
+        ],
+      },
+      auth,
+    );
+
+    expect(response.status).toBe(207);
+    expect((response.body as Record<string, unknown>)._deprecation).toEqual(
+      INGESTION_DEPRECATION,
+    );
+    expect(INGESTION_DEPRECATION.replacement).toBe(
+      "POST /api/public/otel/v1/traces",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "GET /api/public/v2/observations",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "GET /api/public/v2/metrics",
+    );
+  });
+
+  it("attaches `_deprecation` to POST /ingestion when a mixed batch includes an observation", async () => {
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/ingestion",
+      {
+        batch: [
+          {
+            id: randomUUID(),
+            type: "score-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: randomUUID(),
+              name: "score-name",
+              traceId: randomUUID(),
+              value: 1,
+            },
+          },
+          {
+            id: randomUUID(),
+            type: "span-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: randomUUID(),
+              traceId: randomUUID(),
+              startTime: new Date().toISOString(),
+            },
+          },
+        ],
+      },
+      auth,
+    );
+
+    expect(response.status).toBe(207);
+    expect((response.body as Record<string, unknown>)._deprecation).toEqual(
+      INGESTION_DEPRECATION,
+    );
+  });
+
+  it("omits `_deprecation` from POST /ingestion when the batch is only scores", async () => {
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/ingestion",
+      {
+        batch: [
+          {
+            id: randomUUID(),
+            type: "score-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: randomUUID(),
+              name: "score-name",
+              traceId: randomUUID(),
+              value: 1,
+            },
+          },
+        ],
+      },
+      auth,
+    );
+
+    expect(response.status).toBe(207);
+    expect(
+      (response.body as Record<string, unknown>)._deprecation,
+    ).toBeUndefined();
   });
 });

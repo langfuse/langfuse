@@ -42,6 +42,8 @@ const DOCS = {
   metricsV2: "https://langfuse.com/docs/metrics/features/metrics-api",
   compatibility: "https://langfuse.com/docs/compatibility",
   otel: "https://langfuse.com/integrations/native/opentelemetry",
+  otelMigration:
+    "https://langfuse.com/integrations/native/opentelemetry/migration-to-v4.md",
 } as const;
 
 export const OBSERVATIONS_V1_DEPRECATION: ApiDeprecationInfo = {
@@ -96,6 +98,16 @@ export const DATASET_RUNS_DEPRECATION: ApiDeprecationInfo = {
   message: `${V3_NOTICE} In Langfuse v4, dataset runs are replaced by experiments; use ${REPLACEMENT.experiments} instead.`,
   replacement: REPLACEMENT.experiments,
   docsUrl: DOCS.compatibility,
+  sunsetAt: V3_SUNSET_DATE,
+};
+
+// Legacy batch writes of traces/observations → OTLP. Scores and SDK logs
+// stay on this endpoint, so the 207 only carries this object when the batch
+// included a sunset write type.
+export const INGESTION_DEPRECATION: ApiDeprecationInfo = {
+  message: `${V3_NOTICE} Write traces and observations via ${REPLACEMENT.otelTraces}. Retrieve the data via ${REPLACEMENT.observationsV2} and ${REPLACEMENT.metricsV2}.`,
+  replacement: REPLACEMENT.otelTraces,
+  docsUrl: DOCS.otelMigration,
   sunsetAt: V3_SUNSET_DATE,
 };
 
