@@ -1233,10 +1233,13 @@ function buildStatefulDatasetItemsCountQuery(
     },
   });
 
+  // Match VERSIONED / countDatasetItemVariableMatches: current, non-deleted rows only.
   return Prisma.sql`
     SELECT COUNT(*) as count
     FROM dataset_items di
     WHERE di.project_id = ${projectId}
+      AND di.is_deleted = false
+      AND di.valid_to IS NULL
     ${filterCondition}
     ${searchCondition}
   `;
@@ -1787,9 +1790,12 @@ export async function getDatasetItemsCount(props: {
         return result.length > 0 ? Number(result[0].count) : 0;
       }
 
-      // Otherwise use Prisma
+      // Otherwise use Prisma. Same current-row rules as
+      // countDatasetItemVariableMatchesInternal (is_deleted / valid_to).
       const where = {
         projectId: props.projectId,
+        isDeleted: false,
+        validTo: null,
         ...buildPrismaWhereFromFilterState(props.filterState),
       };
 
