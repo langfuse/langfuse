@@ -49,11 +49,19 @@ let cachedGatewayIngestionTokenSigner:
 
 function getGatewayIngestionTokenSigner() {
   const privateKey = env.LANGFUSE_GATEWAY_JWT_PRIVATE_KEY;
-  if (!privateKey || !env.LANGFUSE_GATEWAY_JWT_PUBLIC_KEY) return undefined;
+  if (!privateKey) return undefined;
+
+  const publicKey = env.LANGFUSE_GATEWAY_JWT_PUBLIC_KEY;
+  const keyId = env.LANGFUSE_GATEWAY_JWT_KEY_ID;
+  if (!publicKey || !keyId) {
+    throw new Error(
+      "LANGFUSE_GATEWAY_JWT_PRIVATE_KEY, LANGFUSE_GATEWAY_JWT_PUBLIC_KEY, and LANGFUSE_GATEWAY_JWT_KEY_ID must be set together",
+    );
+  }
 
   const config = {
     privateKey,
-    keyId: env.LANGFUSE_GATEWAY_JWT_KEY_ID,
+    keyId,
     issuer: env.LANGFUSE_GATEWAY_JWT_ISSUER,
     audience: env.LANGFUSE_GATEWAY_JWT_AUDIENCE,
   };

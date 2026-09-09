@@ -103,6 +103,27 @@ function database(input: { project?: object | null } = {}) {
 }
 
 describe("verifyGatewayIngestionAuthorization without signing keys", () => {
+  it("rejects a public key without its stable key ID", async () => {
+    vi.resetModules();
+    vi.doMock("@/src/env.mjs", () => ({
+      env: {
+        LANGFUSE_GATEWAY_JWT_PUBLIC_KEY: publicKey,
+        LANGFUSE_GATEWAY_JWT_KEY_ID: undefined,
+        LANGFUSE_GATEWAY_JWT_PREVIOUS_KEY_ID: undefined,
+        LANGFUSE_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY: undefined,
+        LANGFUSE_GATEWAY_JWT_ISSUER: "test-issuer",
+        LANGFUSE_GATEWAY_JWT_AUDIENCE: "test-audience",
+      },
+    }));
+
+    await expect(import("./ingestionTokenVerifier")).rejects.toThrow(
+      "LANGFUSE_GATEWAY_JWT_KEY_ID and LANGFUSE_GATEWAY_JWT_PUBLIC_KEY must be set together",
+    );
+
+    vi.doUnmock("@/src/env.mjs");
+    vi.resetModules();
+  });
+
   it("stays inert so the regular API-key verifier still sees the header", async () => {
     // Every deployment that never enabled the gateway is in this state. If the
     // verifier rejected here, any three-part bearer token would 401 before the

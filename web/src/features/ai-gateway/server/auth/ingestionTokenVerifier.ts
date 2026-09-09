@@ -30,25 +30,35 @@ const GatewayIngestionClaimsSchema = z.object({
 type GatewayIngestionClaims = z.infer<typeof GatewayIngestionClaimsSchema> &
   JwtRegisteredClaims;
 
+function configuredPublicKey(input: {
+  keyId: string | undefined;
+  publicKey: string | undefined;
+  keyIdVariable: string;
+  publicKeyVariable: string;
+}) {
+  if (!input.keyId && !input.publicKey) return [];
+  if (!input.keyId || !input.publicKey) {
+    throw new Error(
+      `${input.keyIdVariable} and ${input.publicKeyVariable} must be set together`,
+    );
+  }
+  return [{ id: input.keyId, publicKey: input.publicKey }];
+}
+
 const gatewayIngestionTokenVerifier = (() => {
   const publicKeys = [
-    ...(env.LANGFUSE_GATEWAY_JWT_PUBLIC_KEY
-      ? [
-          {
-            id: env.LANGFUSE_GATEWAY_JWT_KEY_ID,
-            publicKey: env.LANGFUSE_GATEWAY_JWT_PUBLIC_KEY,
-          },
-        ]
-      : []),
-    ...(env.LANGFUSE_GATEWAY_JWT_PREVIOUS_KEY_ID &&
-    env.LANGFUSE_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY
-      ? [
-          {
-            id: env.LANGFUSE_GATEWAY_JWT_PREVIOUS_KEY_ID,
-            publicKey: env.LANGFUSE_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY,
-          },
-        ]
-      : []),
+    ...configuredPublicKey({
+      keyId: env.LANGFUSE_GATEWAY_JWT_KEY_ID,
+      publicKey: env.LANGFUSE_GATEWAY_JWT_PUBLIC_KEY,
+      keyIdVariable: "LANGFUSE_GATEWAY_JWT_KEY_ID",
+      publicKeyVariable: "LANGFUSE_GATEWAY_JWT_PUBLIC_KEY",
+    }),
+    ...configuredPublicKey({
+      keyId: env.LANGFUSE_GATEWAY_JWT_PREVIOUS_KEY_ID,
+      publicKey: env.LANGFUSE_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY,
+      keyIdVariable: "LANGFUSE_GATEWAY_JWT_PREVIOUS_KEY_ID",
+      publicKeyVariable: "LANGFUSE_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY",
+    }),
   ];
 
   return publicKeys.length > 0

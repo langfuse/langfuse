@@ -367,7 +367,7 @@ export const env = createEnv({
               .filter(Boolean)
           : [],
       ),
-    LANGFUSE_GATEWAY_JWT_KEY_ID: z.string().min(1).default("current"),
+    LANGFUSE_GATEWAY_JWT_KEY_ID: z.string().min(1).optional(),
     LANGFUSE_GATEWAY_JWT_PRIVATE_KEY: z.string().min(1).optional(),
     LANGFUSE_GATEWAY_JWT_PUBLIC_KEY: z.string().min(1).optional(),
     LANGFUSE_GATEWAY_JWT_PREVIOUS_KEY_ID: z.string().min(1).optional(),
