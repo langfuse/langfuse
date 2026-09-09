@@ -29,22 +29,18 @@ export default async function handler(
   }
 
   if (req.method === "GET") {
-    let auth;
-    try {
-      auth = await verifyProjectAuth({
-        req,
-        action: "project:read",
-      });
-    } catch (error: any) {
-      const status = error.status ?? 401;
+    const auth = await verifyProjectAuth({
+      req,
+      action: "project:read",
+    });
+    if (!auth.success) {
+      const status = auth.error.httpCode;
       return res.status(status).json({
-        message:
-          status === 403
-            ? projectKeyRequired
-            : (error.message ?? "Authentication failed"),
+        message: status === 403 ? projectKeyRequired : auth.error.message,
       });
     }
-    const projectId = auth.scope.projectId;
+    // project:read guarantees a project-scoped key, so projectId is always set.
+    const projectId = auth.scope.projectId as string;
 
     try {
       // Do not apply rate limits as it can break applications on lower tier plans when using auth_check in prod

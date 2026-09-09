@@ -78,13 +78,16 @@ describe("project seam verifyProjectAuth", () => {
   describe("legacy mode never runs the new pipeline", () => {
     it("returns the legacy scope and skips enforceAuth", async () => {
       legacyAllows();
-      expect(await call()).toBe(legacyScope);
+      expect(await call()).toEqual({ success: true, scope: legacyScope.scope });
       expect(mockEnforceAuth).not.toHaveBeenCalled();
     });
 
-    it("rethrows the legacy error unchanged", async () => {
+    it("returns the legacy error unchanged", async () => {
       legacyDenies(403);
-      await expect(call()).rejects.toEqual({ status: 403, message: "legacy" });
+      expect(await call()).toMatchObject({
+        success: false,
+        error: { httpCode: 403, message: "legacy" },
+      });
       expect(mockEnforceAuth).not.toHaveBeenCalled();
     });
   });
@@ -97,7 +100,7 @@ describe("project seam verifyProjectAuth", () => {
     it("runs only legacy and skips the new pipeline and parity telemetry", async () => {
       legacyAllows();
       authzDenies();
-      expect(await call()).toBe(legacyScope);
+      expect(await call()).toEqual({ success: true, scope: legacyScope.scope });
       expect(mockEnforceAuth).not.toHaveBeenCalled();
       expect(mockDiffResults).not.toHaveBeenCalled();
       expect(mockRecordCoverage).not.toHaveBeenCalled();
@@ -112,13 +115,16 @@ describe("project seam verifyProjectAuth", () => {
     it("returns the legacy scope even when the new pipeline denies", async () => {
       legacyAllows();
       authzDenies();
-      expect(await call()).toBe(legacyScope);
+      expect(await call()).toEqual({ success: true, scope: legacyScope.scope });
     });
 
-    it("rethrows the legacy denial even when the new pipeline allows", async () => {
+    it("returns the legacy denial even when the new pipeline allows", async () => {
       legacyDenies(401);
       authzAllows();
-      await expect(call()).rejects.toEqual({ status: 401, message: "legacy" });
+      expect(await call()).toMatchObject({
+        success: false,
+        error: { httpCode: 401, message: "legacy" },
+      });
     });
 
     it("records the parity cell and coverage counter", async () => {
@@ -142,7 +148,7 @@ describe("project seam verifyProjectAuth", () => {
     it("returns the new pipeline's project scope", async () => {
       authzAllowsApiKey("privateKey");
       expect(await call()).toEqual({
-        validKey: true,
+        success: true,
         scope: {
           projectId: "p1",
           accessLevel: "project",
@@ -159,7 +165,8 @@ describe("project seam verifyProjectAuth", () => {
 
     it("returns a scores-level scope for a public key", async () => {
       authzAllowsApiKey("publicKey");
-      expect((await call()).scope.accessLevel).toBe("scores");
+      const result = await call();
+      expect(result.success && result.scope.accessLevel).toBe("scores");
     });
 
     it("never runs legacy verify", async () => {
@@ -168,9 +175,12 @@ describe("project seam verifyProjectAuth", () => {
       expect(mockLegacyVerifyAuth).not.toHaveBeenCalled();
     });
 
-    it("throws the new pipeline's 403 when it denies", async () => {
+    it("returns the new pipeline's 403 when it denies", async () => {
       authzDenies();
-      await expect(call()).rejects.toEqual({ status: 403, message: "nope" });
+      expect(await call()).toMatchObject({
+        success: false,
+        error: { httpCode: 403, message: "nope" },
+      });
     });
 
     it("does not record parity telemetry", async () => {

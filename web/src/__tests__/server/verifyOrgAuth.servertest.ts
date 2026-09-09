@@ -21,7 +21,7 @@ import {
   type OrganizationAction,
   type ProjectAction,
 } from "@/src/features/auth/policy/types";
-import { type VerifyAuthParams } from "@/src/features/public-api/server/verifyProjectAuth";
+import { type VerifyProjectAuthParams } from "@/src/features/public-api/server/verifyProjectAuth";
 
 // The seams are imported dynamically so the authenticator singleton captures
 // the admin key set in beforeAll.
@@ -30,10 +30,12 @@ type OrgSeam = {
   verifyOrgAuth: (params: VerifyOrgAuthParams) => Promise<DirectAuthResult>;
 };
 
-type ProjectVerify = (params: VerifyAuthParams) => Promise<{
-  validKey: true;
-  scope: Record<string, unknown>;
-}>;
+type ProjectVerify = (
+  params: VerifyProjectAuthParams,
+) => Promise<
+  | { success: true; scope: Record<string, unknown> }
+  | { success: false; error: { httpCode: number; message: string } }
+>;
 
 type Authenticator = {
   authenticate: (params: {
@@ -74,13 +76,23 @@ const dropScopeKey = ({
 }: Record<string, unknown>) => rest;
 
 const asResult = async (
-  fn: () => Promise<{ validKey: true; scope: Record<string, unknown> }>,
+  fn: () => Promise<
+    | { success: true; scope: Record<string, unknown> }
+    | { success: false; error: { httpCode: number; message: string } }
+  >,
 ): Promise<DirectAuthResult> => {
-  try {
-    return (await fn()) as unknown as DirectAuthResult;
-  } catch (error: any) {
-    return { validKey: false, status: error.status, error: error.message };
+  const result = await fn();
+  if (result.success) {
+    return {
+      validKey: true,
+      scope: result.scope,
+    } as unknown as DirectAuthResult;
   }
+  return {
+    validKey: false,
+    status: result.error.httpCode,
+    error: result.error.message,
+  };
 };
 
 const orgResultUnderModes = async (
@@ -102,7 +114,7 @@ const projectResultUnderModes = async (
   authorization: string,
   target?: string,
 ) => {
-  const params: VerifyAuthParams = {
+  const params: VerifyProjectAuthParams = {
     req: reqWith({ authorization, "x-langfuse-project-id": target }),
     action: "project:read",
   };

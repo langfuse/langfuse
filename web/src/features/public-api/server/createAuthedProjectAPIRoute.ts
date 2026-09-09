@@ -1,6 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodType, type z } from "zod";
 import {
+  type ApiAccessScope,
   type AuthHeaderValidVerificationResult,
   traceException,
   logger,
@@ -16,7 +17,6 @@ import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rate
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
 import { isZodError } from "@/src/features/public-api/server/withMiddlewares";
-import { isPrismaException } from "@/src/utils/exceptions";
 import {
   createStructuredPublicApiAuthError,
   createStructuredPublicApiRequestValidationError,
@@ -132,39 +132,16 @@ export const createAuthedProjectAPIRoute = <
       return;
     }
 
-    let auth: AuthHeaderValidVerificationResult & {
-      scope: { projectId: string; accessLevel: RouteAccessLevel };
-    };
+    const result = await verifyProjectAuth({
+      req,
+      action: routeConfig.action,
+      isAdminApiKeyAuthAllowed: routeConfig.isAdminApiKeyAuthAllowed || false,
+      allowedAccessLevels: routeConfig.allowedAccessLevels || ["project"],
+      allowInAppAgentKey: routeConfig.allowInAppAgentKey === true,
+    });
 
-    // Verify authentication (API key or admin API key)
-    try {
-      auth = await verifyProjectAuth({
-        req,
-        action: routeConfig.action,
-        isAdminApiKeyAuthAllowed: routeConfig.isAdminApiKeyAuthAllowed || false,
-        allowedAccessLevels: routeConfig.allowedAccessLevels || ["project"],
-        allowInAppAgentKey: routeConfig.allowInAppAgentKey === true,
-      });
-    } catch (error: any) {
-      if (isPrismaException(error)) {
-        traceException(error);
-
-        if (routeConfig.errorContract === structuredPublicApiErrorContract) {
-          return sendStructuredPublicApiErrorResponse(
-            res,
-            createStructuredPublicApiAuthError({
-              statusCode: 503,
-              message: "Service Unavailable",
-            }),
-          );
-        }
-
-        res.status(503).json({ message: "Service Unavailable" });
-        return;
-      }
-
-      const statusCode = error.status ?? 401;
-      const message = error.message ?? "Authentication failed";
+    if (!result.success) {
+      const { httpCode: statusCode, message } = result.error;
 
       if (routeConfig.errorContract === structuredPublicApiErrorContract) {
         return sendStructuredPublicApiErrorResponse(
@@ -177,6 +154,15 @@ export const createAuthedProjectAPIRoute = <
 
       return;
     }
+
+    // The route's action guarantees a project scope; narrow off the phantom org level.
+    const auth = {
+      validKey: true as const,
+      scope: result.scope as ApiAccessScope & {
+        projectId: string;
+        accessLevel: RouteAccessLevel;
+      },
+    };
 
     const rateLimitResponse =
       await RateLimitService.getInstance().rateLimitRequest(
@@ -254,9 +240,7 @@ export const createAuthedProjectAPIRoute = <
         body,
         req,
         res,
-        auth: auth as AuthHeaderValidVerificationResult & {
-          scope: { projectId: string; accessLevel: RouteAccessLevel };
-        },
+        auth,
       });
 
       if (env.NODE_ENV === "development" && routeConfig.responseSchema) {

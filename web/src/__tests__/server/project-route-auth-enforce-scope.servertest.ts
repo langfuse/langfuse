@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
-import { type VerifyAuthParams } from "@/src/features/public-api/server/verifyProjectAuth";
+import { type VerifyProjectAuthParams } from "@/src/features/public-api/server/verifyProjectAuth";
 
 // Proves the enforce mapper returns a scope byte-identical to legacy's across
 // credential kinds. The parity matrix asserts status; this asserts scope
@@ -14,8 +14,11 @@ import { type VerifyAuthParams } from "@/src/features/public-api/server/verifyPr
 // captures the admin key set in beforeAll.
 
 type VerifyAuth = (
-  params: VerifyAuthParams,
-) => Promise<{ validKey: true; scope: Record<string, unknown> }>;
+  params: VerifyProjectAuthParams,
+) => Promise<
+  | { success: true; scope: Record<string, unknown> }
+  | { success: false; error: { httpCode: number; message: string } }
+>;
 
 const adminApiKey = "test-admin-api-key-enforce-scope";
 
@@ -29,7 +32,7 @@ let originalAdminApiKey: string | undefined;
 let originalCloudRegion: string | undefined;
 
 const reqWith = (headers: Record<string, string | undefined>): NextApiRequest =>
-  ({ headers, method: "GET" }) as unknown as NextApiRequest;
+  ({ headers, method: "GET", query: {} }) as unknown as NextApiRequest;
 
 const setMode = (mode: string) => {
   (env as any).API_AUTH_MIGRATION = mode;
@@ -40,11 +43,12 @@ const dropScopeKey = ({
   ...rest
 }: Record<string, unknown>) => rest;
 
-const scopeUnderModes = async (params: VerifyAuthParams) => {
+const scopeUnderModes = async (params: VerifyProjectAuthParams) => {
   setMode("legacy");
   const legacy = await verifyAuth(params);
   setMode("enforce");
   const enforce = await verifyAuth(params);
+  if (!legacy.success || !enforce.success) throw new Error("expected success");
   return { legacy: legacy.scope, enforce: enforce.scope };
 };
 
@@ -113,7 +117,7 @@ describe("enforce maps principals to legacy-identical scopes", () => {
 
   it("admin key on Langfuse Cloud is refused in legacy and enforce", async () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
-    const params: VerifyAuthParams = {
+    const params: VerifyProjectAuthParams = {
       req: reqWith({
         authorization: `Bearer ${adminApiKey}`,
         "x-langfuse-admin-api-key": adminApiKey,
@@ -123,12 +127,15 @@ describe("enforce maps principals to legacy-identical scopes", () => {
       isAdminApiKeyAuthAllowed: true,
     };
     const cloudDenial = {
-      status: 403,
-      message: "Admin API key auth is not available on Langfuse Cloud",
+      success: false,
+      error: {
+        httpCode: 403,
+        message: "Admin API key auth is not available on Langfuse Cloud",
+      },
     };
     setMode("legacy");
-    await expect(verifyAuth(params)).rejects.toEqual(cloudDenial);
+    expect(await verifyAuth(params)).toMatchObject(cloudDenial);
     setMode("enforce");
-    await expect(verifyAuth(params)).rejects.toEqual(cloudDenial);
+    expect(await verifyAuth(params)).toMatchObject(cloudDenial);
   });
 });
