@@ -11,14 +11,19 @@ import {
   ChatMlMessageSchema,
 } from "../IORepresentation/chatML/types";
 import { selectAdapter, type NormalizerContext } from "./adapters";
-import { safeSchemaParse, type SafeParseCatchFailure } from "./helpers";
+import { safeSchemaParse } from "./helpers";
 
-type ChatMlParseResult =
-  | ReturnType<typeof ChatMlArraySchema.safeParse>
-  | SafeParseCatchFailure;
+type ChatMlParseResult = ReturnType<typeof ChatMlArraySchema.safeParse>;
 
-function failedChatMlParse(): SafeParseCatchFailure {
-  return { success: false };
+function failedChatMlParse(): ChatMlParseResult {
+  // Bare `{ success: false }` at runtime (SES-safe). Cast keeps the historical
+  // Zod SafeParse shape so callers that read `.data` after a success assert
+  // (Vitest does not narrow) typecheck without rewriting every test.
+  return { success: false } as ChatMlParseResult;
+}
+
+function parseChatMlArray(data: unknown): ChatMlParseResult {
+  return safeSchemaParse(ChatMlArraySchema, data) as ChatMlParseResult;
 }
 
 type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
@@ -36,7 +41,7 @@ function isSingleChatMlMessage(
 }
 
 export function mapToChatMl(input: unknown): ChatMlParseResult {
-  const result = safeSchemaParse(ChatMlArraySchema, input);
+  const result = parseChatMlArray(input);
   if (result.success) {
     return result;
   }
@@ -45,7 +50,7 @@ export function mapToChatMl(input: unknown): ChatMlParseResult {
   // e.g. [[ChatMlMessageSchema, ...]]
   const inputArray = safeSchemaParse(z.array(ChatMlArraySchema), input);
   if (inputArray.success && inputArray.data.length === 1) {
-    return safeSchemaParse(ChatMlArraySchema, inputArray.data[0]);
+    return parseChatMlArray(inputArray.data[0]);
   }
 
   // Check if input is an object with a messages key
@@ -58,12 +63,12 @@ export function mapToChatMl(input: unknown): ChatMlParseResult {
   );
 
   if (inputObject.success) {
-    return safeSchemaParse(ChatMlArraySchema, inputObject.data.messages);
+    return parseChatMlArray(inputObject.data.messages);
   }
 
   // Single message object, e.g. { role: "user", content: "..." }
   if (isSingleChatMlMessage(input)) {
-    return safeSchemaParse(ChatMlArraySchema, [input]);
+    return parseChatMlArray([input]);
   }
 
   return result;
@@ -78,13 +83,10 @@ export function mapOutputToChatMl(output: unknown): ChatMlParseResult {
     "messages" in output
   ) {
     const obj = output as Record<string, unknown>;
-    return safeSchemaParse(ChatMlArraySchema, obj.messages);
+    return parseChatMlArray(obj.messages);
   }
 
-  return safeSchemaParse(
-    ChatMlArraySchema,
-    Array.isArray(output) ? output : [output],
-  );
+  return parseChatMlArray(Array.isArray(output) ? output : [output]);
 }
 
 export function cleanLegacyOutput(output: unknown, fallback?: unknown) {
