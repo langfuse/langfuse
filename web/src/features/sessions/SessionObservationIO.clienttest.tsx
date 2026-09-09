@@ -42,12 +42,9 @@ vi.mock("@/src/features/traces", () => ({
   useMedia: (args: Record<string, unknown>) => useMediaMock(args),
 }));
 
-vi.mock(
-  "@/src/features/annotation-queues/components/session/actions/downloadSessionAsJson",
-  () => ({
-    downloadJsonFile: (args: unknown) => downloadJsonFile(args),
-  }),
-);
+vi.mock("@/src/features/sessions/actions/downloadSessionAsJson", () => ({
+  downloadJsonFile: (args: unknown) => downloadJsonFile(args),
+}));
 
 import {
   SessionObservationIO,

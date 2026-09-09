@@ -2,8 +2,8 @@ import { type ComponentProps, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
-import { ModernSessionHeader } from "@/src/features/annotation-queues/components/session/ModernSessionHeader";
-import { sessionHeaderVisibilityStorageKey } from "@/src/features/annotation-queues/components/session/sessionHeaderVisibility";
+import { ModernSessionHeader } from "@/src/features/sessions/ModernSessionHeader";
+import { sessionHeaderVisibilityStorageKey } from "@/src/features/sessions/sessionHeaderVisibility";
 
 const scores = [
   {

@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { type VirtualItem, type Virtualizer } from "@tanstack/react-virtual";
-import { useStableVirtualRowMeasurement } from "@/src/features/annotation-queues/components/session/useStableVirtualRowMeasurement";
+import { useStableVirtualRowMeasurement } from "@/src/features/sessions/useStableVirtualRowMeasurement";
 
 export function SessionVirtualizedRow({
   children,

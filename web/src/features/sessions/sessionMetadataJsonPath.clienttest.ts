@@ -5,8 +5,8 @@ import {
   metadataJsonPathsStorageKey,
   parseStoredMetadataJsonPaths,
   resolveMetadataJsonPath,
-} from "@/src/features/annotation-queues/components/session/sessionMetadataJsonPath";
-import { getVisibleSessionObservations } from "@/src/features/annotation-queues/components/session/sessionVisibleObservations";
+} from "@/src/features/sessions/sessionMetadataJsonPath";
+import { getVisibleSessionObservations } from "@/src/features/sessions/sessionVisibleObservations";
 
 const observation = ({
   id,

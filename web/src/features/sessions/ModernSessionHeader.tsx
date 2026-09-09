@@ -3,23 +3,23 @@ import { ArrowUpRight, Eye, EyeOff, Plus, Search, X } from "lucide-react";
 import { type ReactNode, type SyntheticEvent, useRef, useState } from "react";
 
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
-import { ModernSessionHeaderPill } from "@/src/features/annotation-queues/components/session/ModernSessionHeaderPill";
+import { ModernSessionHeaderPill } from "@/src/features/sessions/ModernSessionHeaderPill";
 import {
   MAX_STORED_HIDDEN_SESSION_HEADER_DETAILS,
   parseStoredHiddenSessionHeaderDetails,
   sessionHeaderDynamicDetailKey,
   sessionHeaderVisibilityStorageKey,
-} from "@/src/features/annotation-queues/components/session/sessionHeaderVisibility";
+} from "@/src/features/sessions/sessionHeaderVisibility";
 import {
   getMetadataJsonPathLabel,
   resolveMetadataJsonPath,
   type FirstVisibleObservationMetadataState,
   type SessionMetadataJsonPathState,
-} from "@/src/features/annotation-queues/components/session/sessionMetadataJsonPath";
+} from "@/src/features/sessions/sessionMetadataJsonPath";
 import {
   INITIAL_SESSION_USERS_DISPLAY_COUNT,
   SESSION_USERS_PER_PAGE,
-} from "@/src/features/annotation-queues/components/session/sessionUsers";
+} from "@/src/features/sessions/sessionUsers";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import { Label } from "@/src/components/ui/label";

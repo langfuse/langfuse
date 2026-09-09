@@ -3,8 +3,8 @@ import {
   TraceEventsRow,
   TraceEventsSkeleton,
   type TraceEventsSurface,
-} from "@/src/features/annotation-queues/components/session/TraceEventsRow";
-import { useSessionDetailStore } from "@/src/features/annotation-queues/components/session/SessionDetailStoreProvider";
+} from "@/src/features/sessions/TraceEventsRow";
+import { useSessionDetailStore } from "@/src/features/sessions/SessionDetailStoreProvider";
 import { type RouterOutputs } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
 import { type IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
