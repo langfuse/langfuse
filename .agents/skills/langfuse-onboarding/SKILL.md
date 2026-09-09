@@ -6,8 +6,10 @@ description: |
   Cloud, identify the run owner (not Cloud gh permissions) and treat missing
   Linear as a LINEAR_API_KEY secret to set. Use on "onboard me", "I'm new here",
   "what do I need to set up", "am I set up correctly", "why can't you see my
-  tickets", "what should I do today" when me.md is missing, and whenever you
-  need someone's role and no identity file exists yet.
+  tickets", "what should I do today" when me.md is missing, whenever you
+  need someone's role and no identity file exists yet, and when a
+  workspace-scoped harness (OpenCode) prompts on ~/.config or other
+  user-dir paths.
 ---
 
 # Onboarding at Langfuse
@@ -27,10 +29,14 @@ for a maintainer comes from the first, so do that before anything else.
 ## Step 1 — name them, then prove Linear; do not ask what you can find out
 
 Normal path: `scripts/agents/configure-langfuse-identity.sh` already ran from
-repo postinstall or Cursor Cloud start and created
-`~/.config/langfuse/me.md` from the Linear viewer. Read it and continue. It
-never overwrites an existing file, so the human's Focus and corrections survive
-across worktrees.
+repo postinstall or Cursor Cloud start and wrote a workspace identity file
+at `.langfuse/me.md` (gitignored) from the Linear viewer. Read **that**
+file — it is inside the project. Do **not** Read, Write, or bash
+`~/.config/langfuse/me.md` or any other path under `$HOME`. Workspace-scoped
+harnesses (OpenCode and similar) prompt on every access outside the project;
+identity is optional there, so skip it rather than ask the human to approve
+the user dir. If a tool call to a home path is denied, treat identity as
+absent and continue — do not retry.
 
 Run the local probe first, then stop at the first path that names a person:
 
@@ -38,14 +44,17 @@ Run the local probe first, then stop at the first path that names a person:
 bash .agents/skills/langfuse-onboarding/scripts/whoami.sh
 ```
 
-It reports whether `me.md` exists, whether a Linear token is in the environment
-(boolean only — it never prints the secret), a `linear_viewer` line if that
-token works, and whether `gh api user` works. On Cursor Cloud, a working
-`linear_viewer` is tracker identity even when Linear MCP is `needsAuth`.
+The probe does not stat `$HOME` unless `LANGFUSE_ALLOW_HOME_IDENTITY=1`.
+It reports whether a workspace (or opted-in) `me.md` exists, whether a
+Linear token is in the environment (boolean only — it never prints the
+secret), a `linear_viewer` line if that token works, and whether
+`gh api user` works. On Cursor Cloud, a working `linear_viewer` is tracker
+identity even when Linear MCP is `needsAuth`.
 
 **Who, in this order:**
 
-1. **`~/.config/langfuse/me.md`** — already recorded. Skip to Linear.
+1. **Workspace `me.md`** — `.langfuse/me.md` in this checkout, as reported
+   by `whoami.sh`. Already recorded. Skip to Linear.
 2. **Cursor Cloud run owner.** If `cursor-cloud` tools exist, call `run-info`.
    Use `owningUserName` and `owningUserEmail`. Join the name to the roster
    (`components-mdx/team-members.mdx` in a docs checkout, or
@@ -93,9 +102,11 @@ Say what you found and let them correct it. Never announce a role silently.
 
 ## Step 2 — record it, so this happens once
 
-Write `~/.config/langfuse/me.md`. Machine-level on purpose: it has to answer the
-question in `langfuse`, in `langfuse-docs`, and in a scratch directory, so it
-cannot live in one repo. Create the directory if it does not exist.
+Write `.langfuse/me.md` in this checkout (gitignored). That path stays inside
+the project, so OpenCode and other workspace-scoped harnesses do not prompt.
+Do not write `~/.config/langfuse/me.md` from an agent session — postinstall
+and Cloud start still recover a machine-level copy when the harness allows
+it. If a home-dir write is denied, ignore it and keep the workspace file.
 
 ```markdown
 # Me, at Langfuse
@@ -110,9 +121,10 @@ cannot live in one repo. Create the directory if it does not exist.
 - *Recorded <date> by an agent. Edit freely; delete to be asked again.*
 ```
 
-**Never commit this file, and never put a secret in it.** It is notes, not
-config: no tokens, no keys. A repo `.env` is the wrong home — those are
-app configuration and one careless `git add` publishes them.
+**Never commit this file, and never put a secret in it.** `.langfuse/` is
+gitignored. It is notes, not config: no tokens, no keys. A repo `.env` is
+the wrong home — those are app configuration and one careless `git add`
+publishes them.
 
 **Ask for Focus — once — rather than deriving it.** What someone owns on paper
 and what they are responsible for this quarter are different things, and only
@@ -219,11 +231,12 @@ alternative is a clone in the middle of a task.
 
 ```bash
 git rev-parse --show-toplevel                        # where am I
-ls -d ../langfuse-docs ~/code/langfuse-docs 2>/dev/null   # is the docs repo here
+ls -d ../langfuse-docs 2>/dev/null                   # is the docs repo a sibling
 ```
 
-If `langfuse-docs` is missing, say so plainly and give the command — do not
-carry on and hope:
+Do not `ls` under `$HOME` (`~/code/langfuse-docs` and similar). If the
+sibling path is missing, say so plainly and give the clone command — do
+not search the user dir, and do not carry on and hope:
 
 ```bash
 git clone git@github.com:langfuse/langfuse-docs.git
