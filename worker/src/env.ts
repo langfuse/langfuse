@@ -151,6 +151,11 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(25),
+  // Enables a read-only benchmark of observation I/O retrieval for each
+  // trace-upsert job. Keep disabled unless actively measuring the query.
+  LANGFUSE_TRACE_UPSERT_OBSERVATION_IO_BENCHMARK_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_TRACE_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
   LANGFUSE_SCORE_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
   // Delay (ms) inserted after each Mixpanel flush to throttle analytics exports

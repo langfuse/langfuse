@@ -14,6 +14,7 @@ import {
   classifyEvaluatorLlmError,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
+import { runTraceObservationIoBenchmark } from "../features/traces/observationIoBenchmark";
 import { processObservationEval } from "../features/evaluation/observationEval";
 import { createW3CTraceId, retryLLMRateLimitError } from "../features/utils";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
@@ -30,6 +31,16 @@ export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
 ) => {
   try {
+    if (env.LANGFUSE_TRACE_UPSERT_OBSERVATION_IO_BENCHMARK_ENABLED === "true") {
+      await runTraceObservationIoBenchmark({
+        projectId: job.data.payload.projectId,
+        traceId: job.data.payload.traceId,
+        timestamp: new Date(
+          job.data.payload.exactTimestamp ?? job.data.timestamp,
+        ),
+      });
+    }
+
     await createEvalJobs({
       sourceEventType: "trace-upsert",
       event: job.data.payload,
