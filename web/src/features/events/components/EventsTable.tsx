@@ -9,16 +9,16 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { startOfMinute } from "date-fns";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import {
-  type UseSidebarFilterStateOptions,
+  buildSidebarFilterSessionContextId,
   useSidebarFilterPresentation,
   useSidebarFilterStateCore,
-} from "@/src/features/filters/hooks/useSidebarFilterState";
+  type UseSidebarFilterStateOptions,
+} from "@/src/features/filters";
 import {
   getEventsColumnName,
   getObservationEventsFilterConfig,
   type ObservationEventsOmittableFilterColumn,
 } from "../config/filter-config";
-import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
 import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type ObservationLevelType,
@@ -34,19 +34,34 @@ import {
   type TracingSearchType,
   type ScoreAggregate,
   buildTracePath,
+  getCachedInputCost,
+  getCachedInputMetric,
 } from "@langfuse/shared";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
-import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
-import { createDurationTableColumn } from "@/src/components/design-system/Table/columns/createDurationTableColumn";
-import { createItemBadgeTableColumn } from "@/src/components/design-system/Table/columns/createItemBadgeTableColumn";
-import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
-import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createDurationTableColumn } from "@/src/components/design-system/table/columns/createDurationTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { createItemBadgeTableColumn } from "@/src/components/design-system/table/columns/createItemBadgeTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
+import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+import {
+  buildAiContext,
+  EventsSearchBarRow,
+  filterStateToQueryText,
+  observedScoreNamesFromOptions,
+  toObservedOptions,
+  useEventsSearchBar,
+  useSearchBarEnabled,
+  withMetadataPathOptions,
+} from "@/src/features/search-bar";
 import { cn } from "@/src/utils/tailwind";
-import { getLevelColors } from "@/src/components/level-colors";
+import { getObservationLevelStatus } from "@/src/components/level-colors";
 import {
   compactNumberFormatter,
   numberFormatter,
@@ -63,7 +78,10 @@ import {
 } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
-import { usePaginationWindowPin } from "@/src/components/table/hooks/usePaginationWindowPin";
+import {
+  isLiveTailTimeSort,
+  usePaginationWindowPin,
+} from "@/src/components/table/hooks/usePaginationWindowPin";
 import {
   type TableDateRange,
   TABLE_AGGREGATION_OPTIONS,
@@ -74,13 +92,15 @@ import { DataTableRefreshButton } from "@/src/components/table/data-table-refres
 import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { type RowSelectionState } from "@tanstack/react-table";
-import TableIdOrName from "@/src/components/table/table-id";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
@@ -99,10 +119,7 @@ import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { scoreFilters, useScoreColumns } from "@/src/features/scores";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
 import {
   useAppRootDefault,
@@ -118,7 +135,6 @@ import { getSafeRedirectPath } from "@/src/utils/redirect";
 // } from "@/src/features/events/hooks/useEventsViewMode";
 // import { EventsViewModeToggle } from "@/src/features/events/components/EventsViewModeToggle";
 // import { useObservationCountCheck } from "@/src/features/events/hooks/useObservationCountCheck";
-import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import {
   REFRESH_INTERVALS,
   type RefreshInterval,
@@ -127,18 +143,9 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBarEnabled";
-import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
-import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { useHasEntitlement } from "@/src/features/entitlements";
+import { showSuccessToast } from "@/src/features/notifications";
 import { MobileFullTextSearch } from "@/src/features/events/components/MobileFullTextSearch";
-import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
-import {
-  observedScoreNamesFromOptions,
-  toObservedOptions,
-  withMetadataPathOptions,
-} from "@/src/features/search-bar/lib/observed-options";
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
@@ -489,7 +496,11 @@ export default function ObservationsEventsTable({
   // row/count queries take the pinned upper bound instead, so offset paging does
   // not repeat or skip rows while the window keeps taking in newly ingested ones.
   const { range: rowsDateRange, pinOnLeavingFirstPage } =
-    usePaginationWindowPin(dateRange, limitRows ? 0 : paginationState.page - 1);
+    usePaginationWindowPin(
+      dateRange,
+      limitRows ? 0 : paginationState.page - 1,
+      { enabled: isLiveTailTimeSort(orderByState, "startTime") },
+    );
   const dateRangeFilter: FilterState = toStartTimeFilterState(rowsDateRange);
 
   const appRootDefault = useAppRootDefault({
@@ -669,6 +680,7 @@ export default function ObservationsEventsTable({
       isV4: true,
     },
   );
+  const projectFiltersForSearchBar = queryFilter.projectFiltersForSearchBar;
 
   // Lazy filter-options: load a facet's values when its sidebar section is
   // expanded (also covers active filters, which auto-expand on mount). The
@@ -740,7 +752,7 @@ export default function ObservationsEventsTable({
     projectId,
     tableName: eventsFilterConfig.tableName,
     enabled: searchBarMode,
-    filterState: queryFilter.explicitFilterState,
+    filterState: queryFilter.searchBarFilterState,
     searchQuery,
     searchType,
     observed: observedOptions,
@@ -759,12 +771,15 @@ export default function ObservationsEventsTable({
       if (!searchBarMode) return;
       const { actions } = searchBarStore.getState();
       if (state) {
-        actions.setPreview(filterStateToQueryText(state.filters).text);
+        actions.setPreview(
+          filterStateToQueryText(projectFiltersForSearchBar(state.filters))
+            .text,
+        );
       } else {
         actions.clearPreview();
       }
     },
-    [searchBarMode, searchBarStore],
+    [searchBarMode, searchBarStore, projectFiltersForSearchBar],
   );
 
   // Disabled for now because perhaps confusing
@@ -1110,7 +1125,7 @@ export default function ObservationsEventsTable({
       disabled: isSelectAllCountUnavailable,
       disabledReason: selectAllCountUnavailableReason,
       accessCheck: {
-        scope: "evalJob:CUD",
+        scope: "evaluationRule:CUD",
       },
     },
   ];
@@ -1137,134 +1152,52 @@ export default function ObservationsEventsTable({
       size: 50,
       enableSorting,
     }),
-    {
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "name",
-      id: "name",
       header: getEventsColumnName("name"),
       size: 150,
       enableSorting,
-      cell: ({ row }) => {
-        const value: EventsTableRow["name"] = row.getValue("name");
-        return value ?? undefined;
-      },
-    },
-    {
+    }),
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "traceName",
-      id: "traceName",
       header: getEventsColumnName("traceName"),
       size: 150,
       enableSorting: true,
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("traceName");
-        return value ?? undefined;
-      },
-    },
-    {
+    }),
+    createIOTableColumn<EventsTableRow>({
       accessorKey: "input",
       header: getEventsColumnName("input"),
-      id: "input",
       size: 300,
-      loadingCell: () => (
-        <JsonSkeleton
-          numRows={rowHeight === "s" ? 1 : undefined}
-          borderless
-          className="h-full w-full overflow-hidden px-2 py-1"
-        />
-      ),
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("input");
-        if (isIoPending(row.original.id)) {
-          return (
-            <JsonSkeleton
-              numRows={rowHeight === "s" ? 1 : undefined}
-              borderless
-              className="h-full w-full overflow-hidden px-2 py-1"
-            />
-          );
-        }
-        return value ? (
-          <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
-            singleLine={rowHeight === "s"}
-          />
-        ) : null;
-      },
+      getCell: (value, { row }) =>
+        isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
+      singleLine: rowHeight === "s",
       enableHiding: true,
-    },
-    {
+    }),
+    createIOTableColumn<EventsTableRow>({
       accessorKey: "output",
-      id: "output",
       header: getEventsColumnName("output"),
       size: 300,
-      loadingCell: () => (
-        <JsonSkeleton
-          numRows={rowHeight === "s" ? 1 : undefined}
-          borderless
-          className="h-full w-full overflow-hidden px-2 py-1"
-        />
-      ),
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("output");
-        if (isIoPending(row.original.id)) {
-          return (
-            <JsonSkeleton
-              numRows={rowHeight === "s" ? 1 : undefined}
-              borderless
-              className="h-full w-full overflow-hidden px-2 py-1"
-            />
-          );
-        }
-        return value ? (
-          <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
-            className="bg-accent-light-green"
-            singleLine={rowHeight === "s"}
-          />
-        ) : null;
-      },
+      getCell: (value, { row }) =>
+        isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
+      singleLine: rowHeight === "s",
+      variant: "output",
       enableHiding: true,
-    },
-    {
+    }),
+    createIOTableColumn<EventsTableRow>({
       accessorKey: "metadata",
       header: "Metadata",
       size: 300,
-      loadingCell: () => (
-        <JsonSkeleton
-          numRows={rowHeight === "s" ? 1 : undefined}
-          borderless
-          className="h-full w-full overflow-hidden px-2 py-1"
-        />
-      ),
       headerTooltip: {
         description: "Add metadata to traces to track additional information.",
         href: "https://langfuse.com/docs/observability/features/metadata",
       },
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("metadata");
-        if (isIoPending(row.original.id)) {
-          return (
-            <JsonSkeleton
-              numRows={rowHeight === "s" ? 1 : undefined}
-              borderless
-              className="h-full w-full overflow-hidden px-2 py-1"
-            />
-          );
-        }
-        return value ? (
-          <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
-            singleLine={rowHeight === "s"}
-          />
-        ) : null;
-      },
+      getCell: (value, { row }) =>
+        isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
+      singleLine: rowHeight === "s",
       enableHiding: true,
-    },
-    {
+    }),
+    createStatusTableColumn<EventsTableRow, ObservationLevelType>({
       accessorKey: "level",
-      id: "level",
       header: getEventsColumnName("level"),
       size: 100,
       headerTooltip: {
@@ -1273,26 +1206,14 @@ export default function ObservationsEventsTable({
         href: "https://langfuse.com/docs/observability/features/log-levels",
       },
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: ObservationLevelType | undefined = row.getValue("level");
-        return value ? (
-          <span
-            className={cn(
-              "rounded-sm p-0.5 text-xs",
-              getLevelColors(value).bg,
-              getLevelColors(value).text,
-            )}
-          >
-            {value}
-          </span>
-        ) : undefined;
-      },
       enableSorting,
-    },
-    {
+      isLive: false,
+      getStatus: (level) =>
+        level ? getObservationLevelStatus(level) : undefined,
+    }),
+    createIOTableColumn<EventsTableRow>({
       accessorKey: "statusMessage",
       header: getEventsColumnName("statusMessage"),
-      id: "statusMessage",
       size: 150,
       headerTooltip: {
         description:
@@ -1301,17 +1222,9 @@ export default function ObservationsEventsTable({
       },
       enableHiding: true,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("statusMessage");
-        return value ? (
-          <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
-            singleLine={rowHeight === "s"}
-          />
-        ) : undefined;
-      },
-    },
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
     createDurationTableColumn<EventsTableRow>({
       accessorKey: "latency",
       header: getEventsColumnName("latency"),
@@ -1356,54 +1269,41 @@ export default function ObservationsEventsTable({
       defaultHidden: true,
       cell: () => {
         return observations.status === "loading" ? (
-          <TableTextLoadingCell />
+          <Skeleton className="h-4 w-1/2" />
         ) : null;
       },
       columns: [
-        {
-          accessorKey: "inputCost",
+        createTextTableColumn<EventsTableRow>({
+          accessorFn: (row) =>
+            formatObservationCost(row.cost.inputCost, row.type),
           id: "inputCost",
           header: getEventsColumnName("inputCost"),
           size: 120,
-          loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }) => {
-            const value = row.getValue("cost") as {
-              inputCost: number | undefined;
-              outputCost: number | undefined;
-            };
-
-            return (
-              <span>
-                {formatObservationCost(value.inputCost, row.original.type)}
-              </span>
-            );
-          },
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
-        {
-          accessorKey: "outputCost",
+        }),
+        createNumberTableColumn<EventsTableRow>({
+          accessorFn: (row) => getCachedInputCost(row.costDetails),
+          id: "cachedInputCost",
+          header: getEventsColumnName("cachedInputCost"),
+          size: 140,
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting,
+          formatter: (value) => usdFormatter(value),
+          emptyValue: "-",
+        }),
+        createTextTableColumn<EventsTableRow>({
+          accessorFn: (row) =>
+            formatObservationCost(row.cost.outputCost, row.type),
           id: "outputCost",
           header: getEventsColumnName("outputCost"),
           size: 120,
-          loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }) => {
-            const value = row.getValue("cost") as {
-              inputCost: number | undefined;
-              outputCost: number | undefined;
-            };
-
-            return (
-              <span>
-                {formatObservationCost(value.outputCost, row.original.type)}
-              </span>
-            );
-          },
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
+        }),
       ] satisfies LangfuseColumnDef<EventsTableRow>[],
     },
     createNumberTableColumn<EventsTableRow>({
@@ -1450,7 +1350,7 @@ export default function ObservationsEventsTable({
       defaultHidden: true,
       cell: () => {
         return observations.status === "loading" ? (
-          <TableTextLoadingCell />
+          <Skeleton className="h-4 w-1/2" />
         ) : null;
       },
       columns: [
@@ -1467,7 +1367,7 @@ export default function ObservationsEventsTable({
           id: "tokensPerSecond",
           header: "Tokens per second",
           size: 200,
-          formatter: String,
+          formatter: (value) => String(value),
           defaultHidden: true,
           enableHiding: true,
           enableSorting,
@@ -1477,6 +1377,16 @@ export default function ObservationsEventsTable({
           accessorFn: (row) => row.usage.inputUsage,
           header: getEventsColumnName("inputTokens"),
           size: 100,
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting,
+          formatter: (value) => numberFormatter(value, 0, 0),
+        }),
+        createNumberTableColumn<EventsTableRow>({
+          accessorFn: (row) => getCachedInputMetric(row.usageDetails),
+          id: "cachedInputTokens",
+          header: getEventsColumnName("cachedInputTokens"),
+          size: 140,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
@@ -1512,22 +1422,24 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       cell: ({ row }) => {
-        const model = row.getValue("providedModelName") as string;
+        const model = row.getValue("providedModelName") as
+          | string
+          | null
+          | undefined;
         const modelId = row.getValue("modelId") as string | undefined;
 
-        return (
+        return model ? (
           <ProvidedModelNameCell
             modelName={model}
             modelId={modelId}
             projectId={projectId}
             usageDetails={row.original.usageDetails}
           />
-        );
+        ) : undefined;
       },
     },
-    {
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "promptName",
-      id: "promptName",
       header: getEventsColumnName("promptName"),
       headerTooltip: {
         description: "Link to prompt version in Langfuse prompt management.",
@@ -1536,13 +1448,14 @@ export default function ObservationsEventsTable({
       size: 200,
       enableHiding: true,
       enableSorting,
-      cell: ({ row }) => {
+      getValue: (_value, { row }) => {
         const promptName = row.original.promptName;
         const promptVersion = row.original.promptVersion;
-        const value = `${promptName} (v${promptVersion})`;
-        return promptName && promptVersion && <TableIdOrName value={value} />;
+        return promptName && promptVersion
+          ? `${promptName} (v${promptVersion})`
+          : undefined;
       },
-    },
+    }),
     createBadgeTableColumn<EventsTableRow>({
       accessorKey: "environment",
       header: getEventsColumnName("environment"),
@@ -1563,7 +1476,7 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return isColumnLoading ? <TableTextLoadingCell /> : null;
+        return isColumnLoading ? <Skeleton className="h-4 w-1/2" /> : null;
       },
       columns: scoreColumns,
     },
@@ -1575,32 +1488,23 @@ export default function ObservationsEventsTable({
       enableSorting,
       defaultHidden: true,
     }),
-    {
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "traceId",
-      id: "traceId",
       header: getEventsColumnName("traceId"),
       size: 100,
-      cell: ({ row }) => {
-        const value = row.getValue("traceId");
-        return typeof value === "string" ? (
-          <TableIdOrName value={value} />
-        ) : undefined;
-      },
       enableSorting,
       enableHiding: true,
       defaultHidden: true,
-    },
-    {
+    }),
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "modelId",
-      id: "modelId",
       header: getEventsColumnName("modelId"),
       size: 100,
       enableHiding: true,
       defaultHidden: true,
-    },
-    {
+    }),
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "version",
-      id: "version",
       header: getEventsColumnName("version"),
       size: 100,
       headerTooltip: {
@@ -1610,10 +1514,9 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-    },
-    {
+    }),
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "release",
-      id: "release",
       header: getEventsColumnName("release"),
       size: 100,
       headerTooltip: {
@@ -1623,23 +1526,21 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-    },
-    {
+    }),
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "userId",
-      id: "userId",
       header: getEventsColumnName("userId"),
       size: 150,
       enableHiding: true,
       defaultHidden: true,
-    },
-    {
+    }),
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "sessionId",
-      id: "sessionId",
       header: getEventsColumnName("sessionId"),
       size: 150,
       enableHiding: true,
       defaultHidden: true,
-    },
+    }),
   ];
 
   const [columnVisibility, setColumnVisibilityState] =

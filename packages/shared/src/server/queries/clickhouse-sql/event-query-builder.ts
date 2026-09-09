@@ -569,6 +569,12 @@ const EVENTS_AGGREGATION_FIELDS = {
   tags: "argMaxIf(tags, event_ts, notEmpty(tags)) AS tags",
   release: "argMaxIf(release, event_ts, release <> '') AS release",
 
+  // Evaluator execution fields are stamped on every internal evaluation span.
+  evaluator_id:
+    "argMaxIf(evaluator_id, event_ts, evaluator_id <> '') AS evaluator_id",
+  evaluation_rule_id:
+    "argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id <> '') AS evaluation_rule_id",
+
   // experiment fields
   experiment_id: "any(experiment_id) as experiment_id",
 } as const;

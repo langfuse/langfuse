@@ -7,8 +7,11 @@ import {
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { listScoresV3ForPublicApi } from "@/src/features/public-api/server/scores-api-v3";
-import { EncodedScoresCursorV3 } from "@/src/features/public-api/types/scores";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import {
+  listScoresV3ForPublicApi,
+  EncodedScoresCursorV3,
+} from "@/src/features/public-api/server";
 import { buildScoreSubjectUrl } from "@langfuse/shared/src/server";
 
 const ListScoresBaseSchema = z
@@ -159,6 +162,10 @@ export const [listScoresTool, handleListScores] = defineTool({
         "mcp.pagination_limit": input.limit,
       },
       fn: async (span) => {
+        const dataAccessWindow = clampToDataAccessDays({
+          plan: context.plan,
+          fromTimestamp: input.fromTimestamp,
+        });
         const result = await listScoresV3ForPublicApi({
           projectId: context.projectId,
           limit: input.limit,
@@ -180,9 +187,7 @@ export const [listScoresTool, handleListScores] = defineTool({
           sessionId: input.sessionId,
           observationId: input.observationId,
           experimentId: input.experimentId,
-          fromTimestamp: input.fromTimestamp
-            ? new Date(input.fromTimestamp)
-            : undefined,
+          fromTimestamp: dataAccessWindow.effectiveFromTimestamp,
           toTimestamp: input.toTimestamp
             ? new Date(input.toTimestamp)
             : undefined,

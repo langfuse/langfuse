@@ -28,6 +28,7 @@ pnpm run seed -- many-traces --count 100000 --days 14
 pnpm run seed -- outlier-traffic --days 90   # diurnal v4 traffic w/ cost/latency/token outliers (outlier chart strip)
 pnpm run seed -- scored-traces --traces 24 --v4   # scores w/ spaces in the name
 pnpm run seed -- custom-models --v4  # project-level model definitions (tiered + single-tier, one price at 0) + a trace whose generations link to them, plus one unpriced model
+NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- evaluator-gallery --count 200  # project-owned evaluators via the seeded public API key
 ```
 
 The last stdout line of a run is a JSON summary with `traceIds`,

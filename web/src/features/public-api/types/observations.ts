@@ -239,6 +239,10 @@ export const GetObservationsV1Response = z
 // GET /observations/{observationId}
 export const GetObservationV1Query = z.object({
   observationId: z.string(),
+  // Optional timestamp on the observation's start (ISO 8601 with offset).
+  // When provided, it bounds the lookup to that UTC day, making the query
+  // dramatically cheaper. Omit it for the default full lookup.
+  startTime: stringDateTime,
   useEventsTable: useEventsTableSchema,
 });
 // `_deprecation` at the response level, not on the shared `APIObservation`
@@ -386,7 +390,7 @@ const APIObservationV2 = z
     metadata: z.any().optional(),
 
     // Model fields (field group: model)
-    providedModelName: z.string().nullable().optional(),
+    model: z.string().nullable().optional(),
     internalModelId: z.string().nullable().optional(),
     modelParameters: z.any().optional(),
 

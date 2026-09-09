@@ -1,4 +1,4 @@
 export * from "./OtelIngestionProcessor";
 export * from "./OtelMediaProcessor";
 export * from "./internalTraceOtelWriter";
-export * from "./aiFeatureOtelWriter";
+export * from "./internalAiFeatureOtelWriter";

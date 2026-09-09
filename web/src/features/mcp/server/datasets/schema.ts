@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publicApiIdSchema } from "@/src/features/public-api/types/datasets";
+import { publicApiIdSchema } from "@/src/features/public-api/server";
 
 const paginationSchema = {
   page: z.number().int().positive().default(1),

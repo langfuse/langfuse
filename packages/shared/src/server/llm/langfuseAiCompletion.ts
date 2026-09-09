@@ -14,8 +14,10 @@ export function isLangfuseAITracingConfigured() {
   return Boolean(env.LANGFUSE_AI_FEATURES_PROJECT_ID);
 }
 
+/** Product telemetry in the AI-features project. Eligible as an eval target. */
+const LANGFUSE_AI_FEATURE_ENVIRONMENT = "production";
+
 export function getLangfuseAITraceSinkParams(params: {
-  environment: TraceSinkParams["environment"];
   feature: string;
   projectId: string;
   traceId?: string;
@@ -29,7 +31,7 @@ export function getLangfuseAITraceSinkParams(params: {
   }
 
   return {
-    environment: params.environment,
+    environment: LANGFUSE_AI_FEATURE_ENVIRONMENT,
     traceName: params.traceName,
     traceId: params.traceId ?? randomBytes(16).toString("hex"),
     targetProjectId: env.LANGFUSE_AI_FEATURES_PROJECT_ID,
@@ -40,6 +42,7 @@ export function getLangfuseAITraceSinkParams(params: {
       ...params.metadata,
     },
     prompt: params.prompt,
+    aiFeatureOtelIngestion: true,
   };
 }
 

@@ -186,6 +186,53 @@ const BENIGN_NON_ERROR_REJECTION_VALUE_PREFIXES: readonly string[] = [
 ];
 
 /**
+ * Chromium Android WebView wording when a host-app `@JavascriptInterface`
+ * method fails. The method name is a Java identifier; the suffix is fixed.
+ * Observed: LANGFUSE-60G (`Error invoking batch: Java bridge method
+ * invocation error`).
+ */
+const ANDROID_WEBVIEW_JAVA_BRIDGE_ERROR_RE =
+  /^Error invoking [A-Za-z_][\w$]*: Java bridge method invocation error$/;
+
+/**
+ * Chromium wording when `new URL(input, base)` rejects the base. A `data:`
+ * document URL cannot resolve a path-absolute URL, so Next.js App Router's
+ * `new URL(canonicalUrl, window.location.href)` throws during hydrate.
+ * Observed: LANGFUSE-60K (Electron health probe loading the app HTML as a
+ * `data:` URL; stack is Next.js `Router` only, 0 users).
+ */
+const CHROMIUM_INVALID_URL_CONSTRUCTOR_MESSAGE =
+  "Failed to construct 'URL': Invalid URL";
+
+/**
+ * Firefox wording for the same `new URL` rejection (`URL constructor: <x>
+ * is not a valid URL`).
+ */
+const FIREFOX_INVALID_URL_CONSTRUCTOR_RE =
+  /^URL constructor: .+ is not a valid URL\.?$/;
+
+function isInvalidUrlConstructorMessage(value: string): boolean {
+  return (
+    value === CHROMIUM_INVALID_URL_CONSTRUCTOR_MESSAGE ||
+    FIREFOX_INVALID_URL_CONSTRUCTOR_RE.test(value)
+  );
+}
+
+/**
+ * True when the event's page URL is a `data:` document. Checks `request.url`
+ * first, then `tags.url` — Sentry's transaction/culprit often strips the
+ * `data:` scheme, so those fields are not used.
+ */
+function isDataDocumentUrl(event: ErrorEvent): boolean {
+  const requestUrl = event.request?.url;
+  if (typeof requestUrl === "string" && requestUrl.startsWith("data:")) {
+    return true;
+  }
+  const taggedUrl = event.tags?.url;
+  return typeof taggedUrl === "string" && taggedUrl.startsWith("data:");
+}
+
+/**
  * A `TRPCClientError` re-wraps its cause's message. Depending on capture path
  * the Sentry `value` may be the bare cause message (`Failed to fetch`) or carry
  * the wrapper prefix (`TRPCClientError: Failed to fetch`). We strip ONLY this
@@ -398,6 +445,48 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       /^Failed to read the '(localStorage|sessionStorage)' property from 'Window':/.test(
         exceptionValue,
       )
+    ) {
+      return true;
+    }
+
+    // Android WebView `@JavascriptInterface` methods only accept primitives.
+    // Chromium throws `Error invoking <method>: Java bridge method invocation
+    // error` when an injected host-app bridge fails — typically on `unload`,
+    // after the Java side is already torn down. Sentry's addEventListener wrap
+    // then captures the HOST APP's listener, not Langfuse code. We have no
+    // Java bridge (LANGFUSE-60G: Chrome Mobile WebView, anonymous `batch`
+    // frames only).
+    //
+    // Anchored to Chromium's exact wording (Java identifier method name) AND
+    // a Sentry browser-API / global-handler mechanism so an app-captured
+    // exception that merely quotes this phrase is KEPT. A first-party
+    // TypeError from our own listener is also KEPT (different message).
+    const mechanismType = exception?.mechanism?.type;
+    if (
+      typeof mechanismType === "string" &&
+      mechanismType.startsWith("auto.browser.") &&
+      ANDROID_WEBVIEW_JAVA_BRIDGE_ERROR_RE.test(exceptionValue)
+    ) {
+      return true;
+    }
+
+    // Next.js App Router hydrates with
+    // `new URL(canonicalUrl, window.location.href)`. A `data:` document is
+    // not a valid base for a path-absolute canonical URL, so Chromium throws
+    // TypeError. Observed only from third-party Electron probes that load the
+    // app HTML as a data: URL (LANGFUSE-60K) — 0 users, Next.js frames only.
+    // We cannot fix Next.js here, and the page is not a real session.
+    //
+    // Requires TypeError + exact constructor wording + a data: page URL +
+    // a Sentry browser/global-handler mechanism so:
+    //  - the same TypeError on an https:// page is KEPT (real app bug);
+    //  - an app-captured exception that merely quotes the phrase is KEPT.
+    if (
+      exceptionType === "TypeError" &&
+      typeof mechanismType === "string" &&
+      mechanismType.startsWith("auto.browser.") &&
+      isInvalidUrlConstructorMessage(exceptionValue) &&
+      isDataDocumentUrl(event)
     ) {
       return true;
     }

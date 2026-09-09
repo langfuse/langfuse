@@ -8,7 +8,7 @@ import {
   LangfuseConflictError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   DashboardSchema,
   type DashboardPlacementSchema,
@@ -16,7 +16,7 @@ import {
   type PatchUnstableDashboardBody,
   type PostDashboardPlacementBody,
   type PostUnstableDashboardBody,
-} from "@/src/features/public-api/types/unstable-dashboards";
+} from "@/src/features/public-api/server";
 import type { z } from "zod";
 import { randomUUID } from "crypto";
 

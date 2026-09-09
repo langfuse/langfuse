@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { type QueryValidationResult } from "@langfuse/shared/query";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 type WidgetHighCardinalityErrorSurface =
   | "create_editor"

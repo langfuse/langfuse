@@ -2,7 +2,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import { type RowSelectionState, type Updater } from "@tanstack/react-table";
 import { type TableSelectionStoreState } from "@/src/components/table/table-selection-store";
 import { type RouterInput } from "@/src/utils/types";
-import { type usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { type usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 type RowSelectionUpdater = Updater<RowSelectionState>;
 type BooleanUpdater = Updater<boolean>;

@@ -18,7 +18,10 @@ import {
 import { ObservationTypeDomain } from "../../domain/observations";
 import type { InternalTraceEventInput } from "../llm/internalTraceEvents";
 import { logger } from "../logger";
-import { LangfuseOtelSpanAttributes } from "./attributes";
+import {
+  buildEvaluationAttributes,
+  LangfuseOtelSpanAttributes,
+} from "./attributes";
 import {
   OtelIngestionProcessor,
   type ResourceSpan,
@@ -69,11 +72,15 @@ export function internalTraceEventToOtelAttributes(
     | "public"
     | "release"
     | "traceName"
+    | "evaluationContext"
   >,
   options: { isRoot: boolean },
 ): Attributes {
   const observationType = observationTypeToOtelAttribute(eventInput.type);
   const metadataJson = asOtelAttributeString(eventInput.metadata);
+  const evaluationAttributes = eventInput.evaluationContext
+    ? buildEvaluationAttributes(eventInput.evaluationContext)
+    : undefined;
   const { isRoot } = options;
 
   return {
@@ -101,6 +108,7 @@ export function internalTraceEventToOtelAttributes(
     ...(metadataJson !== undefined
       ? { [LangfuseOtelSpanAttributes.OBSERVATION_METADATA]: metadataJson }
       : {}),
+    ...(evaluationAttributes ?? {}),
     ...(eventInput.modelName !== undefined
       ? { [LangfuseOtelSpanAttributes.OBSERVATION_MODEL]: eventInput.modelName }
       : {}),
@@ -216,6 +224,12 @@ export async function publishInternalOtelSpans(params: {
   spans: ReadableSpan[];
   projectId: string;
   sdkName: string;
+  /**
+   * Judge/code-eval traces stay internal (`true`, the default). AI-feature
+   * product traces (Ask AI, titles) pass `false` so observation evals can
+   * match them.
+   */
+  isLangfuseInternal?: boolean;
 }): Promise<void> {
   const serialized = JsonTraceSerializer.serializeRequest(params.spans);
   if (!serialized) return;
@@ -240,7 +254,7 @@ export async function publishInternalOtelSpans(params: {
     // schema; the public schema strips the "langfuse-" environment prefix,
     // exposing internal traces as user environments and bypassing the
     // trace-upsert eval-loop guard.
-    isLangfuseInternal: true,
+    isLangfuseInternal: params.isLangfuseInternal ?? true,
   });
 }
 
@@ -265,6 +279,7 @@ export type InternalOtelSpanInput = Pick<
   | "input"
   | "output"
   | "metadata"
+  | "evaluationContext"
 >;
 
 /**

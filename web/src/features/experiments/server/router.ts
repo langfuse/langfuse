@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import { randomUUID } from "crypto";
+import { addDays } from "date-fns";
 import {
   type ExperimentMetadata,
   createDatasetItemFilterState,
@@ -43,6 +44,7 @@ import {
   isPresent,
   type DatasetItemDomain,
   singleFilter,
+  type FilterState,
   orderBy,
   paginationZod,
   timeFilter,
@@ -53,7 +55,7 @@ import {
   parsePromptToolConfig,
   PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
 } from "@langfuse/shared";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 const ExperimentFilterOptions = z.object({
@@ -62,6 +64,13 @@ const ExperimentFilterOptions = z.object({
   orderBy: orderBy,
   ...paginationZod,
 });
+
+/**
+ * Lookback for `mostRecent`: wide enough to cover a project whose last run is
+ * months old, still bounded so the query prunes partitions instead of scanning
+ * the whole project. Deliberately wider than any table date-range preset.
+ */
+const MOST_RECENT_LOOKBACK_DAYS = 365;
 
 const ValidConfigResponse = z.object({
   isValid: z.literal(true),
@@ -328,6 +337,50 @@ export const experimentsRouter = createTRPCRouter({
       };
     }),
 
+  /**
+   * The most recent runs regardless of the selected time range, for the empty
+   * window on the experiments list ("if there's nothing in the last X days, I
+   * still want to see the last ones"). Same scoping and filters as `all`, only
+   * the start-time bounds are replaced.
+   */
+  mostRecent: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        filter: z.array(singleFilter).nullable(),
+        limit: z.number().int().min(1).max(50),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      const filter: FilterState = [
+        // The selected window is the one that came back empty; every other
+        // filter the user applied still holds.
+        ...(input.filter ?? []).filter((f) => f.column !== "startTime"),
+        {
+          column: "startTime",
+          type: "datetime",
+          operator: ">=",
+          value: addDays(new Date(), -MOST_RECENT_LOOKBACK_DAYS),
+        },
+      ];
+
+      const experiments = await getExperimentsFromEvents({
+        projectId: input.projectId,
+        filter,
+        orderBy: { column: "startTime", order: "DESC" },
+        page: 0,
+        limit: input.limit,
+      });
+
+      return { data: experiments };
+    }),
+
   byId: protectedProjectProcedure
     .input(
       z.object({
@@ -473,29 +526,77 @@ export const experimentsRouter = createTRPCRouter({
             }))
           : [];
 
+      // Offered-set == matchable-set: the level-agnostic score filters match a
+      // score only if it rolls up into a trace, so discovery is scoped the same
+      // way. Session- and dataset-run scores can never match, and offering them
+      // would advertise a filter that cannot fire.
+      const nullCondition = (
+        column: "traceId" | "observationId",
+        operator: "is null" | "is not null",
+      ) => ({ type: "null" as const, column, operator, value: "" as const });
+      const traceScopedFilter = [
+        nullCondition("traceId", "is not null"),
+        ...(traceTimestampFilters ?? []),
+      ];
+      // Discovered per level as well, to tag each offered name with the level(s)
+      // it exists at rather than duplicating the facets per level.
+      const observationScopedFilter = [
+        ...traceScopedFilter,
+        nullCondition("observationId", "is not null"),
+      ];
+      const traceLevelScopedFilter = [
+        ...traceScopedFilter,
+        nullCondition("observationId", "is null"),
+      ];
+
       const [
         numericScoreNames,
         categoricalScoreNames,
         booleanScoreNames,
+        observationLevelNumeric,
+        observationLevelCategorical,
+        observationLevelBoolean,
+        traceLevelNumeric,
+        traceLevelCategorical,
+        traceLevelBoolean,
         experimentDatasetIds,
       ] = await Promise.all([
-        getNumericScoresGroupedByName(
-          input.projectId,
-          traceTimestampFilters ?? [],
-        ),
+        getNumericScoresGroupedByName(input.projectId, traceScopedFilter),
+        getCategoricalScoresGroupedByName(input.projectId, traceScopedFilter),
+        getBooleanScoresGroupedByName(input.projectId, traceScopedFilter),
+        getNumericScoresGroupedByName(input.projectId, observationScopedFilter),
         getCategoricalScoresGroupedByName(
           input.projectId,
-          traceTimestampFilters ?? [],
+          observationScopedFilter,
         ),
-        getBooleanScoresGroupedByName(
+        getBooleanScoresGroupedByName(input.projectId, observationScopedFilter),
+        getNumericScoresGroupedByName(input.projectId, traceLevelScopedFilter),
+        getCategoricalScoresGroupedByName(
           input.projectId,
-          traceTimestampFilters ?? [],
+          traceLevelScopedFilter,
         ),
+        getBooleanScoresGroupedByName(input.projectId, traceLevelScopedFilter),
         getEventsGroupedByExperimentDatasetId(
           input.projectId,
           input.startTimeFilter ?? [],
         ),
       ]);
+
+      /**
+       * Split per data type: a name can be reused across types at different
+       * levels (a numeric observation-level "accuracy" beside an unrelated
+       * categorical trace-level one), and a name-only map would mislabel both.
+       */
+      const levelsOf = (
+        observationNames: string[],
+        traceNames: string[],
+      ): Record<string, ("observation" | "trace")[]> => {
+        const out: Record<string, ("observation" | "trace")[]> = {};
+        for (const name of observationNames)
+          (out[name] ??= []).push("observation");
+        for (const name of traceNames) (out[name] ??= []).push("trace");
+        return out;
+      };
 
       const experimentDatasetIdSet = new Set<string>();
       for (const { experimentDatasetId } of experimentDatasetIds) {
@@ -510,14 +611,23 @@ export const experimentsRouter = createTRPCRouter({
       const booleanScoreOptions = booleanScoreNames.map((score) => score.name);
 
       return {
-        // Observation-level score options (eos.*)
-        obs_scores_avg: numericScoreOptions,
-        obs_score_categories: categoricalScoreNames,
-        obs_score_booleans: booleanScoreOptions,
-        // Trace-level score options (ets.*)
-        trace_scores_avg: numericScoreOptions,
-        trace_score_categories: categoricalScoreNames,
-        trace_score_booleans: booleanScoreOptions,
+        // What the three score facets offer, with the level(s) each name exists
+        // at so the picker can tag them.
+        scores_avg: numericScoreOptions,
+        score_categories: categoricalScoreNames,
+        score_booleans: booleanScoreOptions,
+        score_name_levels_numeric: levelsOf(
+          observationLevelNumeric.map((score) => score.name),
+          traceLevelNumeric.map((score) => score.name),
+        ),
+        score_name_levels_categorical: levelsOf(
+          observationLevelCategorical.map((score) => score.label),
+          traceLevelCategorical.map((score) => score.label),
+        ),
+        score_name_levels_boolean: levelsOf(
+          observationLevelBoolean.map((score) => score.name),
+          traceLevelBoolean.map((score) => score.name),
+        ),
         experimentDatasetIds: Array.from(experimentDatasetIdSet),
       };
     }),
@@ -790,6 +900,34 @@ export const experimentsRouter = createTRPCRouter({
         projectId: input.projectId,
       });
 
-      return { experimentNames: experiments };
+      // Dataset names live in Postgres only — ClickHouse carries the id — so the
+      // display name is resolved here rather than in the projection, and the
+      // pickers never have to render a raw dataset id.
+      const datasetIds = [
+        ...new Set(
+          experiments
+            .map((experiment) => experiment.datasetId)
+            .filter((datasetId): datasetId is string => Boolean(datasetId)),
+        ),
+      ];
+      const datasets = datasetIds.length
+        ? await ctx.prisma.dataset.findMany({
+            where: { projectId: input.projectId, id: { in: datasetIds } },
+            select: { id: true, name: true },
+          })
+        : [];
+      const datasetNameById = new Map(datasets.map((d) => [d.id, d.name]));
+
+      return {
+        experimentNames: experiments.map((experiment) => ({
+          experimentId: experiment.experimentId,
+          experimentName: experiment.experimentName,
+          startTime: experiment.startTime,
+          datasetId: experiment.datasetId,
+          datasetName: experiment.datasetId
+            ? (datasetNameById.get(experiment.datasetId) ?? null)
+            : null,
+        })),
+      };
     }),
 });

@@ -4,7 +4,7 @@ import { api } from "@/src/utils/api";
 import Header from "@/src/components/layouts/header";
 import { Label } from "@/src/components/ui/label";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 
 export function PersonalNotificationSettings() {
   const router = useRouter();

@@ -42,16 +42,17 @@ describe("PostHog session replay privacy", () => {
     expect(config.disable_session_recording).toBe(false);
   });
 
-  it("disables session recording in the HIPAA cloud region", async () => {
+  // Stronger than disabling the recorder: the HIPAA region runs no product
+  // analytics at all, so there is no PostHog client to record with. The wider
+  // region gate lives in posthog-product-analytics-region.clienttest.ts.
+  it("initializes no PostHog client in the HIPAA cloud region", async () => {
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test");
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://us.i.posthog.com");
     vi.stubEnv("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION", "HIPAA");
 
     await import("@/src/pages/_app");
 
-    expect(initMock).toHaveBeenCalledTimes(1);
-    const config = initMock.mock.calls[0]![1] as Partial<PostHogConfig>;
-    expect(config.disable_session_recording).toBe(true);
+    expect(initMock).not.toHaveBeenCalled();
   });
 
   it("disables session recording outside Langfuse Cloud", async () => {

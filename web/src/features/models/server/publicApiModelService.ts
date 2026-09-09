@@ -1,4 +1,4 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 import {
   type DeleteModelV1Query,
@@ -6,7 +6,7 @@ import {
   type GetModelsV1Query,
   type PostModelsV1Body,
   prismaToApiModelDefinition,
-} from "@/src/features/public-api/types/models";
+} from "@/src/features/public-api/server";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { clearModelCacheForProject } from "@langfuse/shared/src/server";

@@ -1,3 +1,4 @@
+import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { buildScoreOutputDefinition } from "@/src/features/evals/v2/fns/scoreOutput/buildScoreOutputDefinition";
 import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
 import type { EvaluatorSetupStoreState } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
@@ -5,7 +6,7 @@ import type { EvaluatorSetupStoreState } from "@/src/features/evals/v2/store/eva
 type EvaluatorSetupDraftState = Pick<
   EvaluatorSetupStoreState,
   | "type"
-  | "prompt"
+  | "promptMessages"
   | "sourceCode"
   | "sourceCodeLanguage"
   | "scoreOutput"
@@ -18,19 +19,21 @@ type EvaluatorSetupDraftState = Pick<
 
 export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
   const outputDefinition = buildScoreOutputDefinition(params.scoreOutput);
+  const promptMessagesValid =
+    getPromptMessagesValidationError(params.promptMessages) === null;
   const mappings =
     params.type === "LLM_AS_JUDGE"
       ? buildEvaluatorVariableMappings({
-          prompt: params.prompt,
+          promptMessages: params.promptMessages,
           variableFields: params.variableFields,
         })
       : [];
   const definition =
     params.type === "LLM_AS_JUDGE"
-      ? outputDefinition
+      ? outputDefinition && promptMessagesValid
         ? {
             type: params.type,
-            prompt: params.prompt,
+            promptMessages: params.promptMessages,
             modelConfig:
               params.modelMode === "custom" && params.selectedModel
                 ? {

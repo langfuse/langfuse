@@ -3,17 +3,18 @@ import {
   protectedOrganizationProcedure,
   authenticatedProcedure,
 } from "@/src/server/api/trpc";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   organizationFormSchema,
   organizationOptionalNameSchema,
 } from "@/src/features/organizations/utils/organizationNameSchema";
 import * as z from "zod";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
 import { TRPCError } from "@trpc/server";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "@/src/features/public-api/server";
 import {
   getLastTraceTimestampsByProjects,
+  isLangfuseAITracingConfigured,
   redis,
 } from "@langfuse/shared/src/server";
 import { resolveBillingService } from "@/src/ee/features/billing/server/resolveBillingService";
@@ -315,15 +316,22 @@ export const organizationsRouter = createTRPCRouter({
         scope: "organization:update",
       });
 
-      if (
-        input.aiTelemetryEnabled !== undefined &&
-        !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-      ) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message:
-            "AI telemetry controls are only available on Langfuse Cloud.",
-        });
+      if (input.aiTelemetryEnabled !== undefined) {
+        if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "AI telemetry controls are only available on Langfuse Cloud.",
+          });
+        }
+
+        if (!isLangfuseAITracingConfigured()) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "AI telemetry controls are only available when the AI-features project is configured.",
+          });
+        }
       }
 
       const beforeOrganization = await ctx.prisma.organization.findFirst({
@@ -413,16 +421,17 @@ export const organizationsRouter = createTRPCRouter({
         }
       }
 
+      // Evict before the delete: ApiKey.organization cascades, so keys are gone
+      // by the time a post-delete eviction would run and it would find nothing.
+      await new ApiAuthService(ctx.prisma, redis).invalidateCachedOrgApiKeys(
+        input.orgId,
+      );
+
       const organization = await ctx.prisma.organization.delete({
         where: {
           id: input.orgId,
         },
       });
-
-      // the api keys contain which org they belong to, so we need to remove them from Redis
-      await new ApiAuthService(ctx.prisma, redis).invalidateCachedOrgApiKeys(
-        input.orgId,
-      );
 
       await auditLog({
         session: ctx.session,

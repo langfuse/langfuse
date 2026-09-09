@@ -6,7 +6,7 @@ import { processEventBatch } from "../ingestion/processEventBatch";
 import { createUnknownSdkIngestionAttribution } from "../ingestion/ingestionAttribution";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
-import { publishAiFeatureTraceViaOtelIngestion } from "../otel/aiFeatureOtelWriter";
+import { publishAiFeatureTraceViaOtelIngestion } from "../otel/internalAiFeatureOtelWriter";
 
 export function prepareInternalTraceEvents(params: {
   events: Array<{

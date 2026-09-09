@@ -66,6 +66,10 @@ declare module "next-auth" {
       // Instance-wide in-app agent switch. Populated by the session callback.
       // Optional so existing session mocks need not set it.
       inAppAgentEnabled?: boolean;
+      // Whether LANGFUSE_AI_FEATURES_PROJECT_ID is set, so Cloud orgs can
+      // opt out of product traces. Optional so existing session mocks need
+      // not set it.
+      aiFeaturesTracingConfigured?: boolean;
       // Enables features that are only available under an enterprise/commercial license when self-hosting Langfuse
       selfHostedInstancePlan: Plan | null;
       // V4 migration write mode. Mirrors LANGFUSE_MIGRATION_V4_WRITE_MODE so the

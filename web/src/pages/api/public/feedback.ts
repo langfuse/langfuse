@@ -9,6 +9,7 @@ import {
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Submit Feedback",
+    action: "feedback:create",
     bodySchema: PostFeedbackBody,
     responseSchema: PostFeedbackResponse,
     successStatusCode: 201,

@@ -112,6 +112,7 @@ describe("getSafeRedirectPath", () => {
         expect(getSafeRedirectPath("./dashboard")).toBe("/");
         expect(getSafeRedirectPath("../dashboard")).toBe("/");
         expect(getSafeRedirectPath("evil.com")).toBe("/");
+        expect(getSafeRedirectPath("\\dashboard")).toBe("/");
       });
 
       it("should handle URL-encoded attack attempts", () => {
@@ -121,6 +122,36 @@ describe("getSafeRedirectPath", () => {
         );
         // Note: The function receives already-decoded input in real usage
         // since router.query.targetPath is already decoded by Next.js
+      });
+
+      it("should block inputs the WHATWG parser would resolve off-origin", () => {
+        // `new URL(path, origin)` — the same parse as location.assign.
+        expect(getSafeRedirectPath("/\\evil.com")).toBe("/");
+        expect(getSafeRedirectPath("/\\evil.com/path")).toBe("/");
+        expect(getSafeRedirectPath("/\\\\evil.com")).toBe("/");
+        expect(getSafeRedirectPath("\\\\evil.com")).toBe("/");
+        expect(getSafeRedirectPath(decodeURIComponent("%2F%5Cevil.com"))).toBe(
+          "/",
+        );
+        // Tab between the slashes is dropped by the URL parser, leaving `//`.
+        expect(getSafeRedirectPath("/\t/evil.com")).toBe("/");
+        expect(getSafeRedirectPath("/\t\\evil.com")).toBe("/");
+      });
+
+      it("should reject absolute URLs that match the dummy parse origin", () => {
+        expect(getSafeRedirectPath("https://langfuse.invalid/phishing")).toBe(
+          "/",
+        );
+        expect(getSafeRedirectPath("https:/evil.com")).toBe("/");
+      });
+
+      it("should reject paths that normalize to protocol-relative", () => {
+        // `/x/..//evil.com` stays on the dummy origin, but pathname is
+        // `//evil.com`. Returning that would reopen the redirect.
+        expect(getSafeRedirectPath("/x/..//evil.com")).toBe("/");
+        expect(getSafeRedirectPath("/..//evil.com")).toBe("/");
+        expect(getSafeRedirectPath("/x/..//evil.com/path")).toBe("/");
+        expect(getSafeRedirectPath("/x/%2e%2e//evil.com")).toBe("/");
       });
     });
   });
@@ -170,6 +201,8 @@ describe("getSafeRedirectPath", () => {
       expect(getSafeRedirectPath("//evil.com")).toBe("/my-app/");
       expect(getSafeRedirectPath("http://evil.com")).toBe("/my-app/");
       expect(getSafeRedirectPath("javascript:alert(1)")).toBe("/my-app/");
+      expect(getSafeRedirectPath("/\\evil.com")).toBe("/my-app/");
+      expect(getSafeRedirectPath("/x/..//evil.com")).toBe("/my-app/");
     });
 
     it("should not double-prepend basePath when path already includes it", () => {
@@ -197,6 +230,12 @@ describe("getSafeRedirectPath", () => {
         "/my-app/some/my-app/path",
       );
     });
+
+    it("should only skip prepending when the path is a basePath segment", () => {
+      expect(getSafeRedirectPath("/my-application")).toBe(
+        "/my-app/my-application",
+      );
+    });
   });
 
   describe("edge cases", () => {
@@ -210,8 +249,9 @@ describe("getSafeRedirectPath", () => {
     });
 
     it("should handle paths with special characters", () => {
+      // The URL serializer percent-encodes spaces in the pathname.
       expect(getSafeRedirectPath("/path/with spaces")).toBe(
-        "/path/with spaces",
+        "/path/with%20spaces",
       );
       expect(getSafeRedirectPath("/path/with-dashes")).toBe(
         "/path/with-dashes",
@@ -219,6 +259,14 @@ describe("getSafeRedirectPath", () => {
       expect(getSafeRedirectPath("/path/with_underscores")).toBe(
         "/path/with_underscores",
       );
+    });
+
+    it("should return the WHATWG-resolved path for otherwise-safe inputs", () => {
+      expect(getSafeRedirectPath("/project\\123")).toBe("/project/123");
+      expect(getSafeRedirectPath("/dashboard\\tab?view=traces")).toBe(
+        "/dashboard/tab?view=traces",
+      );
+      expect(getSafeRedirectPath("/foo/../bar")).toBe("/bar");
     });
 
     it("should handle paths with encoded characters", () => {
@@ -254,69 +302,41 @@ describe("getSafeRedirectPath", () => {
       expect(getSafeRedirectPath("/a\n\n\nb")).toBe("/ab");
     });
 
-    it("should strip null bytes from paths", () => {
-      // Null-byte injection (path-extension confusion) is sanitized
+    it("should percent-encode null bytes and DEL in paths", () => {
       expect(getSafeRedirectPath("/dashboard\u0000.png")).toBe(
-        "/dashboard.png",
+        "/dashboard%00.png",
       );
-      expect(getSafeRedirectPath("/abc\u0000evil")).toBe("/abcevil");
+      expect(getSafeRedirectPath("/abc\u0000evil")).toBe("/abc%00evil");
+      expect(getSafeRedirectPath("/abc\u007Fdef")).toBe("/abc%7Fdef");
+      expect(getSafeRedirectPath("/abc\u001Fdef")).toBe("/abc%1Fdef");
     });
 
-    it("should strip DEL and other control characters from the C0 range", () => {
-      // DEL (U+007F) is the boundary control char; stripped.
-      expect(getSafeRedirectPath("/abc\u007Fdef")).toBe("/abcdef");
-      // Tab (U+0009) is in the C0 range; stripped.
+    it("should strip tabs that the URL parser treats as ignorable", () => {
       expect(getSafeRedirectPath("/abc\tdef")).toBe("/abcdef");
-      // Unit-separator (U+001F) is the upper edge of the C0 range;
-      // stripped.
-      expect(getSafeRedirectPath("/abc\u001Fdef")).toBe("/abcdef");
     });
 
-    it("should NOT strip Unicode bidi-formatting characters outside the C0 range", () => {
-      // The C0 control-char strip is intentionally scoped to 0x00-0x1F
-      // and 0x7F (ASCII control characters per RFC 3986). Unicode bidi
-      // chars like RTL-override (U+202E) are out of scope for THIS fix;
-      // they require a separate, larger change. This test pins the
-      // current scope so future regressions are visible.
-      // Note: when this PR is merged, file a follow-up issue for
-      // bidi-formatting-character handling.
-      const pathWithRtl = "/abc\u202eevil";
-      const result = getSafeRedirectPath(pathWithRtl);
-      // The current implementation does not strip U+202E, so the
-      // character passes through.
-      expect(result).toContain("\u202e");
+    it("should percent-encode Unicode bidi-formatting characters", () => {
+      expect(getSafeRedirectPath("/abc\u202eevil")).toBe("/abc%E2%80%AEevil");
     });
 
     it("should fall back to safe default when path is only control characters", () => {
-      // A path that is nothing but ASCII control characters is fully
-      // stripped to empty, so the safe default is returned.
       expect(getSafeRedirectPath("\n")).toBe("/");
       expect(getSafeRedirectPath("\u0000\u0000")).toBe("/");
     });
 
-    it("should fall back to safe default for path with no leading slash after stripping", () => {
-      // U+202E (RTL-override) is not stripped by this fix, but it
-      // also doesn't start with "/" so the safe default is returned.
-      // This case is documented separately from the control-character
-      // case above because the rejection happens at the startWith("/")
-      // guard, not in the strip step.
+    it("should fall back to safe default for path with no leading slash", () => {
+      // U+202E is not path-absolute, so it is rejected even though
+      // the URL parser would resolve it same-origin as /%E2%80%AE.
       expect(getSafeRedirectPath("\u202e")).toBe("/");
     });
 
-    it("should preserve internal whitespace", () => {
-      // Tabs, spaces, etc. that are NOT control chars (i.e. U+0020
-      // SPACE) are preserved. This is a regression test for the strip
-      // being scoped to control characters only.
-      expect(getSafeRedirectPath("/abc def")).toBe("/abc def");
-      expect(getSafeRedirectPath("/a b c")).toBe("/a b c");
+    it("should percent-encode internal spaces", () => {
+      expect(getSafeRedirectPath("/abc def")).toBe("/abc%20def");
+      expect(getSafeRedirectPath("/a b c")).toBe("/a%20b%20c");
     });
 
     it("should keep protocol-relative and absolute-URL guards working with control characters", () => {
-      // Regression: the existing // guard still wins after the strip.
-      // "//\nevil.com" → strip newline → "//evil.com" → still matches
-      // startsWith("//") → safe default.
       expect(getSafeRedirectPath("//\nevil.com")).toBe("/");
-      // "http:\n//evil.com" → "http://evil.com" → safe default.
       expect(getSafeRedirectPath("http:\n//evil.com")).toBe("/");
     });
   });

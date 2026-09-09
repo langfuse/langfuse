@@ -13,6 +13,7 @@ import { SCORES_DEPRECATION } from "@/src/features/public-api/server/deprecation
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Score",
+    action: "scores:read",
     querySchema: GetScoreQueryV2,
     responseSchema: GetScoreResponseV2,
     deprecation: SCORES_DEPRECATION,

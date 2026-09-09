@@ -1,7 +1,10 @@
 import { z } from "zod";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import {
+  hasEntitlementLimit,
+  throwIfNoEntitlement,
+} from "@/src/features/entitlements/server";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -47,7 +50,6 @@ import {
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
-import { hasEntitlementLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
   if (!pathPrefix) {

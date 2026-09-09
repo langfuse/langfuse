@@ -26,7 +26,7 @@ export function EvaluatorGallerySection({
 }: {
   section: GallerySection;
   expanded: boolean;
-  onExpandedChange: (expanded: boolean) => void;
+  onExpandedChange?: (expanded: boolean) => void;
   onSelectTemplate: (template: GalleryTemplate) => void;
 }) {
   const isRecommended =
@@ -79,7 +79,7 @@ export function EvaluatorGallerySection({
           </div>
         </>
       )}
-      {totalCount > EVALUATOR_GALLERY_PREVIEW_SIZE ? (
+      {totalCount > EVALUATOR_GALLERY_PREVIEW_SIZE && onExpandedChange ? (
         <button
           type="button"
           className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1.5 px-1 text-sm"

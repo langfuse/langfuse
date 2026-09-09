@@ -36,6 +36,7 @@ export type ParsedMediaReferenceType = z.infer<
   typeof ParsedMediaReferenceSchema
 >;
 
+// TODO: move to parser
 // Matches the format parsed by MediaReferenceStringSchema. Non-greedy, so
 // consecutive references in one string are separate matches.
 export const MEDIA_REFERENCE_PATTERN = /@@@langfuseMedia:.+?@@@/g;
@@ -47,6 +48,7 @@ export const MEDIA_REFERENCE_PATTERN = /@@@langfuseMedia:.+?@@@/g;
  * Note: This schema uses transforms that can throw errors during validation
  * if the magic string format is invalid. Always use with try-catch or safeParse.
  */
+// TODO: move to parser
 export const MediaReferenceStringSchema = z
   .string()
   .transform((str, ctx) => {
@@ -186,8 +188,21 @@ export const MediaReferencePartSchema = z.string().refine((value) => {
   );
 });
 
+/** AI SDK file part after its egress-only payload has been replaced. */
+export const AiSdkFileContentPartSchema = z.object({
+  type: z.literal("file"),
+  data: MediaReferencePartSchema,
+  mediaType: z.string(),
+  filename: z.string().optional(),
+});
+export type AiSdkFileContentPart = z.infer<typeof AiSdkFileContentPartSchema>;
+export const isAiSdkFileContentPart = (
+  content: unknown,
+): content is AiSdkFileContentPart =>
+  AiSdkFileContentPartSchema.safeParse(content).success;
+
 /**
- * Array of OpenAI content parts (text, image, audio, bare media reference).
+ * Array of OpenAI/AI SDK content parts.
  * Used when message content is structured with multiple parts.
  */
 export const OpenAIContentParts = z.array(
@@ -195,6 +210,7 @@ export const OpenAIContentParts = z.array(
     OpenAITextContentPart,
     OpenAIImageContentPart,
     OpenAIInputAudioContentPart,
+    AiSdkFileContentPartSchema,
     MediaReferencePartSchema,
   ]),
 );

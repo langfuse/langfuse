@@ -5,10 +5,7 @@
  * Measures each digit and unit string ONCE against a canvas, then sums cached
  * glyph widths per label. That is what lets `layout()` decide inside the pure
  * function whether a duration label fits in its bar or has to sit outside it —
- * a decision CSS flow currently makes, and makes wrong in a narrow lane.
- *
- * Production code, arriving one PR before its callers: the renderer beside it
- * (`TimelineV2.tsx`) is a Storybook harness and says so, this is not.
+ * a decision CSS flow makes wrong in a narrow lane.
  */
 
 /** Manual measurement average; used when no 2D context is available. */
@@ -35,13 +32,6 @@ const unitAt = (text: string, index: number): string | null => {
 
 export type TextMeasurer = {
   measure: (text: string) => number;
-  /**
-   * The same text as the browser will set it in BOLD. Callers that reserve room
-   * for bold content need this: measuring it at the regular weight came out
-   * ~4% short on one font stack and fitted on another, which is a reservation
-   * that clips only on some machines.
-   */
-  measureBold: (text: string) => number;
 };
 
 export function createTextMeasurer(font = "12px ui-sans-serif"): TextMeasurer {
@@ -62,19 +52,14 @@ export function createTextMeasurerFrom(
   context: CanvasRenderingContext2D | null,
   font = "12px ui-sans-serif",
 ): TextMeasurer {
-  return {
-    measure: measurerFor(context, font),
-    // A CSS font shorthand takes the weight first, and the callers here build
-    // theirs from a probe's `font-size` + `font-family`.
-    measureBold: measurerFor(context, `700 ${font}`),
-  };
+  return { measure: measurerFor(context, font) };
 }
 
 /**
  * The px size out of a CSS font shorthand — the SIZE, not the first number in
- * the string. A bold twin's font is `700 11px …`, so reading the leading number
- * takes the weight: paired with a canvas that refused the font and reports
- * `10px sans-serif`, that scales every width by seventy rather than by one.
+ * the string. A shorthand can lead with a weight (`700 11px …`), and reading the
+ * leading number there takes the weight: paired with the correction below, that
+ * scales every width by seventy rather than by one.
  */
 function pxSizeOf(font: string): number {
   const match = /(\d*\.?\d+)px/.exec(font);
@@ -134,8 +119,8 @@ function measurerFor(
     const flush = () => {
       if (!run) return;
       if (context) {
-        // Set every time: the bold twin shares this context, and whichever
-        // measured last would otherwise decide the font for both.
+        // Set every time: the context is not ours alone, and whatever drew on
+        // it last would otherwise decide the font for these widths.
         context.font = font;
         width += context.measureText(run).width * scale;
       } else {

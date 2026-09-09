@@ -17,12 +17,10 @@ import {
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
 
-import compactTimelineDarkIllustration from "../assets/compact-timeline-dark.svg";
-import sessionsSearchBarDarkIllustration from "../assets/sessions-search-bar-dark.svg";
-import sessionsSearchBarLightIllustration from "../assets/sessions-search-bar-light.svg";
-import compactTimelineLightIllustration from "../assets/compact-timeline-light.svg";
 import modernSessionDarkIllustration from "../assets/modern-session-dark.svg";
 import modernSessionLightIllustration from "../assets/modern-session-light.svg";
+import improvedMessageRenderingDarkIllustration from "../assets/improved-message-rendering-dark.svg";
+import improvedMessageRenderingLightIllustration from "../assets/improved-message-rendering-light.svg";
 
 /** Flags the Feature Preview modal can toggle. Keep in sync with the
  *  userAccount.setFeaturePreviewEnabled allowlist and available-flags.ts. */
@@ -71,29 +69,16 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
     },
   },
   {
-    flag: "compactTimeline",
+    flag: "normalizedIoPreview",
     description:
-      "See a whole trace at once — every observation a single dense line, coloured by type — then zoom and pan it like a map.",
+      "Render the Formatted view of trace and observation input/output more faithfully — chat messages, tool calls, and reasoning are recognized across a wide range of model providers and frameworks.",
     details:
-      "The Compact Timeline replaces the trace panel's Timeline view. It fits the entire trace into the space available on both axes instead of scrolling: rows shrink to a single-pixel line, and colour carries the observation type where there is no room for a name. Scroll to pan, pinch to zoom both time and rows together, and double-click an observation to fly to it at a readable size — at which point the rows grow their names back and the tree gutter returns. Hovering the left edge peeks the names without moving the bars.",
+      "A new parser understands the conventions of OpenAI, Anthropic, Gemini, LangChain, the Vercel AI SDK, OpenTelemetry GenAI, Pydantic AI, and more. Messages, tool calls, tool results, and reasoning render as structured blocks in the Formatted view instead of falling back to raw JSON. When enabled, the Formatted tab is powered by this parser everywhere trace and observation I/O is shown.",
     feedbackUrl: "https://github.com/orgs/langfuse/discussions",
     illustration: {
-      light: compactTimelineLightIllustration,
-      dark: compactTimelineDarkIllustration,
-      alt: "A whole trace as dense coloured lines, one per observation, cascading across a time axis.",
-    },
-  },
-  {
-    flag: "sessionsSearchBar",
-    description:
-      "Filter sessions by typing instead of clicking — the same query bar the observations table uses, now over the sessions table.",
-    details:
-      "One keyboard-driven bar over the sessions table: type `userIds:alice`, `tags:(billing AND urgent)`, `duration:>30`, `metadata.region:eu`, or `scores.helpfulness:>0.8` and press Enter. Autocomplete suggests fields and the values your project has actually recorded. The facet sidebar stays and stays in sync — the bar is an additional editor over the same filters, so saved views keep working from either side.",
-    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
-    illustration: {
-      light: sessionsSearchBarLightIllustration,
-      dark: sessionsSearchBarDarkIllustration,
-      alt: "A query bar above the sessions table with typed filter pills and an autocomplete list.",
+      light: improvedMessageRenderingLightIllustration,
+      dark: improvedMessageRenderingDarkIllustration,
+      alt: "Formatted trace view rendering a user message, an assistant reply, a tool call, and a reasoning block as distinct structured cards.",
     },
   },
 ];

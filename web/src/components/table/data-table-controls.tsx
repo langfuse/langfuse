@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 import {
   type default as React,
   createContext,
@@ -9,7 +9,7 @@ import {
   useCallback,
 } from "react";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   Select,
   SelectContent,
@@ -33,10 +33,8 @@ import {
 } from "@/src/features/filters/lib/facet-order";
 import { useMediaQuery } from "react-responsive";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import useSessionStorage from "@/src/components/useSessionStorage";
 import { cn } from "@/src/utils/tailwind";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { Accordion } from "@/src/components/ui/accordion";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import {
   Check,
@@ -179,12 +177,6 @@ export interface QueryFilter {
   setFilterState: (filters: FilterState) => void;
   /** v3-vs-v4 analytics dimension of the surface (see useSidebarFilterState). */
   isV4?: boolean;
-  /**
-   * Curated default-visible facet set from the table's FilterConfig
-   * When present, facets outside it fold behind "Show N more";
-   * absent = the whole catalog stays visible.
-   */
-  commonFacets?: string[];
 }
 
 interface DataTableControlsProps {
@@ -267,17 +259,7 @@ export function DataTableControls({
   facetOrderRef.current = facetOrder;
   // No event = a programmatic in-list action (Add filter), which is always a
   // deliberate interaction.
-  const noteFacetInteraction = (event?: React.SyntheticEvent) => {
-    // The fold toggle never changes promotion, so it must not arm the
-    // attribution token: a dangling token would wrongly hold the order
-    // through the next external filter change (search bar, saved view).
-    if (
-      event &&
-      event.target instanceof Element &&
-      event.target.closest("[data-facet-fold-toggle]")
-    ) {
-      return;
-    }
+  const noteFacetInteraction = () => {
     facetInteractionRef.current += 1;
   };
   // Boundaries the sidebar owns itself (Clear all, AI apply): the change they
@@ -293,18 +275,6 @@ export function DataTableControls({
   const displayedFilters = showOnlyActive
     ? orderedFilters.filter(isPromoted)
     : orderedFilters;
-
-  // Fold the uncommon tail of the catalog behind "Show N more",
-  // on tables that declare a curated `commonFacets` set. Session-scoped like
-  // the per-facet expanded state: a mid-session "show all" survives
-  // navigation, a fresh session starts folded again. Active-only mode is a
-  // stricter collapse already, so the fold only applies outside it.
-  const [showAllFacets, setShowAllFacets] = useSessionStorage(
-    `${storagePrefix}-facets-show-all`,
-    false,
-  );
-  const commonFacetSet = new Set(queryFilter.commonFacets ?? []);
-  const facetFoldEnabled = commonFacetSet.size > 0 && !showOnlyActive;
 
   // Facet-NAME search over a long catalog. Two surfaces search the same names:
   // this list, and the active-only "Add filter" picker below.
@@ -335,59 +305,18 @@ export function DataTableControls({
 
   // Facet-usage recency: every facet the user has filtered on, on this table,
   // in this browser (localStorage; written by the activity effect below).
-  // Feeds the "Add filter" dropdown's ordering, and keeps used facets out of
-  // the fold — once someone filters on a facet, it stays visible for them.
+  // Feeds the "Add filter" dropdown's ordering.
   const [recentColumns, setRecentColumns] = useLocalStorage<
     Record<string, number>
   >(`${storagePrefix}-recent-facets`, EMPTY_RECENCY);
-  // Two groups, both in settled order: the top group is the curated common
-  // set, every facet this user has ever filtered on, and the SETTLED promoted
-  // block; everything else is the tail. Expanding APPENDS the tail below the
-  // top group (never interleaves it back into catalog order), so the facets
-  // already on screen keep their exact positions when the button is clicked.
-  // Group membership uses the settled promotion — not the live one — so a
-  // facet activated in place stays in place until the next settle. A
-  // live-active tail facet still never hides: when folded it renders at the
-  // end of the top group, right above the button.
-  const inTopFoldGroup = (filter: UIFilter) =>
-    commonFacetSet.has(filter.column) ||
-    recentColumns[filter.column] !== undefined ||
-    facetOrder.promoted.has(filter.column);
-  const topFoldGroup = facetFoldEnabled
-    ? displayedFilters.filter(inTopFoldGroup)
-    : displayedFilters;
-  const tailFoldGroup = facetFoldEnabled
-    ? displayedFilters.filter((filter) => !inTopFoldGroup(filter))
-    : [];
-  const foldedFacetCount = tailFoldGroup.filter(
-    (filter) => !isPromoted(filter),
-  ).length;
-  // The one render order: top group first, tail appended below — expanding
-  // the fold never interleaves the tail back into catalog order, so facets
-  // already on screen keep their exact positions. Reordering a single keyed
-  // array moves elements without remounting them.
-  const renderOrderedFilters = facetFoldEnabled
-    ? [...topFoldGroup, ...tailFoldGroup]
-    : displayedFilters;
-  const foldVisibleFilters = facetFoldEnabled
-    ? [
-        ...topFoldGroup,
-        ...(showAllFacets ? tailFoldGroup : tailFoldGroup.filter(isPromoted)),
-      ]
-    : displayedFilters;
-  // Search and fold COMPOSE: an active search suspends the fold (a match in
-  // the folded tail must be findable), otherwise the fold decides what is on
-  // screen. Either way rows are HIDDEN, never unmounted: every facet holds
+  // Search hides non-matching rows; it never unmounts them. Every facet holds
   // uncommitted local state — a typed-but-not-added text filter, a metadata
   // condition mid-build, a "show more" expansion, a debounced numeric draft —
-  // and unmounting throws all of it away with nothing said. Now that an ACTIVE
-  // facet can be hidden too, that matters more, not less: hiding is
+  // and unmounting throws all of it away with nothing said. Hiding is
   // presentation only and must never touch the filter state.
   const visibleFilters = facetSearchMatches
-    ? renderOrderedFilters.filter((filter) =>
-        facetSearchMatches.has(filter.column),
-      )
-    : foldVisibleFilters;
+    ? displayedFilters.filter((filter) => facetSearchMatches.has(filter.column))
+    : displayedFilters;
   const visibleColumns = new Set(visibleFilters.map((filter) => filter.column));
   const expandedVisibleCount = queryFilter.expanded.filter((column) =>
     visibleColumns.has(column),
@@ -570,8 +499,7 @@ export function DataTableControls({
     : visibleFilters.filter((filter) => facetOrder.promoted.has(filter.column))
         .length;
   // Anchored to the first VISIBLE catalog facet rather than to an index: rows
-  // hidden by a search or the fold stay in the list, so an index would count
-  // them.
+  // hidden by a search stay in the list, so an index would count them.
   const firstCatalogColumn = visibleFilters.find(
     (filter) => !facetOrder.promoted.has(filter.column),
   )?.column;
@@ -615,6 +543,7 @@ export function DataTableControls({
           onOnlyChange={filter.onOnlyChange}
           renderIcon={filter.renderIcon}
           renderOptionSuffix={filter.renderOptionSuffix}
+          getOptionTitle={filter.getOptionTitle}
           isActive={filter.isActive}
           onReset={filter.onReset}
           operator={filter.operator}
@@ -795,45 +724,62 @@ export function DataTableControls({
       onPointerDownCapture={noteFacetInteraction}
       onKeyDownCapture={noteFacetInteraction}
     >
-      <Accordion
-        type="multiple"
-        className="w-full"
-        value={queryFilter.expanded}
-        onValueChange={queryFilter.onExpandedChange}
-      >
-        {/* ONE keyed child array — not two .map() slices: React can
-            only match keys within the same array, so a facet crossing
-            the promoted/rest boundary would REMOUNT (wiping input
-            focus and draft state) instead of moving.
+      <div className="w-full">
+        <AccordionPrimitive.Root
+          type="multiple"
+          value={queryFilter.expanded}
+          onValueChange={(next) => {
+            const prev = queryFilter.expanded;
+            queryFilter.onExpandedChange(next);
+            // One header click changes exactly one column. Expand-all, add
+            // filter, and AI apply call onExpandedChange directly and skip
+            // this handler, so they do not double-count as facet toggles.
+            const added = next.filter((column) => !prev.includes(column));
+            const removed = prev.filter((column) => !next.includes(column));
+            if (added.length + removed.length !== 1) return;
+            capture("filters:facet_toggled", {
+              tableName,
+              column: added[0] ?? removed[0],
+              expanded: added.length === 1,
+              layout,
+              isV4: queryFilter.isV4 ?? false,
+            });
+          }}
+        >
+          {/* ONE keyed child array — not two .map() slices: React can
+                      only match keys within the same array, so a facet crossing
+                      the promoted/rest boundary would REMOUNT (wiping input
+                      focus and draft state) instead of moving.
 
-            Every facet renders; a search or the fold only sets `hidden`
-            on the rows they exclude. The wrapper is always present for
-            the same reason the array is single: swapping the element
-            around a facet would remount it and lose its draft state. */}
-        {renderOrderedFilters.flatMap((filter) => {
-          const nodes = [];
-          if (showPromotedSeparator && filter.column === firstCatalogColumn) {
+                      Every facet renders; a search only sets `hidden`
+                      on the rows it excludes. The wrapper is always present for
+                      the same reason the array is single: swapping the element
+                      around a facet would remount it and lose its draft state. */}
+          {displayedFilters.flatMap((filter) => {
+            const nodes = [];
+            if (showPromotedSeparator && filter.column === firstCatalogColumn) {
+              nodes.push(
+                // The one line that means something: the boundary
+                // between the active/added block and the catalog.
+                <div
+                  key="promoted-separator"
+                  className="border-border mx-2 my-2 border-t"
+                  aria-hidden
+                />,
+              );
+            }
             nodes.push(
-              // The one line that means something: the boundary
-              // between the active/added block and the catalog.
               <div
-                key="promoted-separator"
-                className="border-border mx-2 my-2 border-t"
-                aria-hidden
-              />,
+                key={filter.column}
+                hidden={!visibleColumns.has(filter.column)}
+              >
+                {renderFacet(filter)}
+              </div>,
             );
-          }
-          nodes.push(
-            <div
-              key={filter.column}
-              hidden={!visibleColumns.has(filter.column)}
-            >
-              {renderFacet(filter)}
-            </div>,
-          );
-          return nodes;
-        })}
-      </Accordion>
+            return nodes;
+          })}
+        </AccordionPrimitive.Root>
+      </div>
 
       {/* Nothing matched — including any facet currently filtering, which the
           query hides like the rest. */}
@@ -841,46 +787,6 @@ export function DataTableControls({
         <p className="text-muted-foreground px-3 pt-6 text-center text-xs break-words">
           {`No filters match "${facetSearchQuery}"`}
         </p>
-      )}
-
-      {/* The fold control: the uncommon tail of the catalog sits
-          behind an accurate "Show N more"; expanding reveals every remaining
-          facet, so nothing is unreachable. Hidden while nothing is foldable
-          (e.g. every tail facet currently carries an active filter) and while
-          a search owns visibility. */}
-      {facetFoldEnabled && foldedFacetCount > 0 && !facetSearchQuery && (
-        <div className="px-2 pt-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            data-facet-fold-toggle
-            onClick={() => {
-              const next = !showAllFacets;
-              setShowAllFacets(next);
-              capture("filters:facet_fold_toggled", {
-                tableName,
-                expanded: next,
-                foldedCount: foldedFacetCount,
-                isV4: queryFilter.isV4 ?? false,
-              });
-            }}
-            // Reads like a facet header row: same muted color, size, and
-            // chevron treatment (> folded, v expanded), same left inset.
-            className="text-muted-foreground hover:text-foreground h-auto w-full justify-start gap-1.5 px-2 py-1 text-xs font-normal"
-          >
-            {showAllFacets ? (
-              <>
-                <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                Show fewer
-              </>
-            ) : (
-              <>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-                Show {foldedFacetCount} more
-              </>
-            )}
-          </Button>
-        </div>
       )}
 
       {/* Active-only mode: surface the rest of the catalog behind an
@@ -1137,9 +1043,10 @@ export function DataTableControls({
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6"
-                  onClick={() =>
+                  onClick={() => {
+                    const expanded = expandedVisibleCount === 0;
                     queryFilter.onExpandedChange(
-                      expandedVisibleCount === 0
+                      expanded
                         ? [
                             ...new Set([
                               ...queryFilter.expanded,
@@ -1149,8 +1056,15 @@ export function DataTableControls({
                         : queryFilter.expanded.filter(
                             (column) => !visibleColumns.has(column),
                           ),
-                    )
-                  }
+                    );
+                    capture("filters:expand_all_toggled", {
+                      tableName,
+                      expanded,
+                      facetCount: visibleFilters.length,
+                      layout,
+                      isV4: queryFilter.isV4 ?? false,
+                    });
+                  }}
                   aria-label={
                     expandedVisibleCount === 0
                       ? "Expand all filters"
@@ -1378,6 +1292,7 @@ interface CategoricalFacetProps extends BaseFacetProps {
   onOnlyChange?: (value: string) => void;
   renderIcon?: (value: string) => React.ReactNode;
   renderOptionSuffix?: (value: string) => React.ReactNode;
+  getOptionTitle?: (value: string, displayLabel: string) => string;
   operator?: "any of" | "all of" | "none of";
   onOperatorChange?: (operator: "any of" | "all of" | "none of") => void;
   textFilters?: TextFilterEntry[];
@@ -1679,6 +1594,7 @@ export function CategoricalFacet({
   onOnlyChange,
   renderIcon,
   renderOptionSuffix,
+  getOptionTitle,
   isActive,
   isDisabled,
   disabledReason,
@@ -1759,6 +1675,7 @@ export function CategoricalFacet({
             onOnlyChange={onOnlyChange}
             renderIcon={renderIcon}
             renderOptionSuffix={renderOptionSuffix}
+            getOptionTitle={getOptionTitle}
             operator={operator}
             onOperatorChange={onOperatorChange}
           />
@@ -1800,6 +1717,7 @@ function CategoricalSelectContent({
   onOnlyChange,
   renderIcon,
   renderOptionSuffix,
+  getOptionTitle,
   operator,
   onOperatorChange,
 }: Pick<
@@ -1814,6 +1732,7 @@ function CategoricalSelectContent({
   | "onOnlyChange"
   | "renderIcon"
   | "renderOptionSuffix"
+  | "getOptionTitle"
   | "operator"
   | "onOperatorChange"
 >) {
@@ -1896,6 +1815,7 @@ function CategoricalSelectContent({
         key={option}
         id={`${filterKey}-${option}`}
         label={displayLabel}
+        title={getOptionTitle?.(option, displayLabel)}
         icon={renderIcon?.(option)}
         suffix={renderOptionSuffix?.(option)}
         count={counts.get(option) || 0}
@@ -1950,13 +1870,9 @@ function CategoricalSelectContent({
               onOperatorChange(newOperator as "any of" | "all of" | "none of")
             }
           >
-            <TabsList className="grid h-6 w-full grid-cols-3 p-0.5">
-              <TabsTrigger value="any of" className="h-5 px-1 text-xs">
-                Any of
-              </TabsTrigger>
-              <TabsTrigger value="all of" className="h-5 px-1 text-xs">
-                All of
-              </TabsTrigger>
+            <Tabs.List layout="full" size="sm">
+              <Tabs.Trigger value="any of" size="sm" label="Any of" />
+              <Tabs.Trigger value="all of" size="sm" label="All of" />
               {/* Without a persisted selection, switching to "none of" is a
                   deliberate no-op in the state model (an empty exclusion
                   would persist a vacuous filter — LFE-10717), which used to
@@ -1965,14 +1881,13 @@ function CategoricalSelectContent({
                   engages by itself when a value is unchecked. */}
               <Tooltip delayDuration={80}>
                 <TooltipTrigger asChild>
-                  <span className="min-w-0">
-                    <TabsTrigger
+                  <span className="w-full min-w-0">
+                    <Tabs.Trigger
                       value="none of"
                       disabled={operator === undefined}
-                      className="h-5 w-full px-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      None of
-                    </TabsTrigger>
+                      size="sm"
+                      label="None of"
+                    />
                   </span>
                 </TooltipTrigger>
                 {operator === undefined && (
@@ -1982,7 +1897,7 @@ function CategoricalSelectContent({
                   </TooltipContent>
                 )}
               </Tooltip>
-            </TabsList>
+            </Tabs.List>
           </Tabs>
         </div>
       )}
@@ -2595,14 +2510,10 @@ function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
         value={mode}
         onValueChange={(newMode) => onModeChange(newMode as "select" | "text")}
       >
-        <TabsList className="grid h-6 w-full grid-cols-2 p-0.5">
-          <TabsTrigger value="select" className="h-5 px-2 text-xs">
-            Select
-          </TabsTrigger>
-          <TabsTrigger value="text" className="h-5 px-2 text-xs">
-            Text
-          </TabsTrigger>
-        </TabsList>
+        <Tabs.List layout="full" size="sm">
+          <Tabs.Trigger value="select" size="sm" label="Select" />
+          <Tabs.Trigger value="text" size="sm" label="Text" />
+        </Tabs.List>
       </Tabs>
     </div>
   );
@@ -2717,6 +2628,7 @@ function TextFilterSection({
 interface FilterValueCheckboxProps {
   id: string;
   label: string;
+  title?: string;
   icon?: React.ReactNode;
   suffix?: React.ReactNode;
   count: number;
@@ -2730,6 +2642,7 @@ interface FilterValueCheckboxProps {
 function FilterValueCheckbox({
   id,
   label,
+  title,
   icon,
   suffix,
   count,
@@ -2744,7 +2657,7 @@ function FilterValueCheckbox({
 
   // Display placeholder for empty strings to ensure clickable area
   const displayLabel = label === "" ? "(empty)" : label;
-  const displayTitle = label === "" ? "(empty)" : label;
+  const displayTitle = title ?? (label === "" ? "(empty)" : label);
 
   return (
     <div

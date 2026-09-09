@@ -1,6 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { Badge } from "@/src/components/ui/badge";
 import {
   ExperimentGridCell,
@@ -34,11 +34,15 @@ type ExperimentGridViewProps = {
   baselineExperimentId?: string;
   comparisonExperimentIds: string[];
   useExperimentColors?: boolean;
+  /** Whether cells carry a delta against the baseline (the diff mode). */
+  showDiff: boolean;
   /** Render I/O cells as single-line text (true) or JSON tree (false). */
   singleLine: boolean;
   rows: ExperimentItemsTableRow[];
   isLoading: boolean;
   rowHeight: RowHeight;
+  /** Whether any item in view has an expected output worth a column. */
+  showExpectedOutput: boolean;
   observationScoreOrder: string[];
   traceScoreOrder: string[];
   showScoreLevelLabels: boolean;
@@ -66,10 +70,12 @@ export const ExperimentGridView = ({
   baselineExperimentId,
   comparisonExperimentIds,
   useExperimentColors = true,
+  showDiff,
   singleLine,
   rows,
   isLoading,
   rowHeight,
+  showExpectedOutput,
   observationScoreOrder,
   traceScoreOrder,
   showScoreLevelLabels,
@@ -173,8 +179,14 @@ export const ExperimentGridView = ({
               traceScoreOrder={traceScoreOrder}
               showScoreLevelLabels={showScoreLevelLabels}
               isBaseline={isBaseline}
+              showDiff={showDiff}
               baselineScores={baselineData?.observationScores}
               baselineTraceScores={baselineData?.traceScores}
+              baselineExperimentName={
+                experimentNames.find(
+                  (e) => e.experimentId === baselineExperimentId,
+                )?.experimentName
+              }
               columnVisibility={columnVisibility}
               markerClassName={colorStyles?.markerClass}
             />
@@ -192,6 +204,7 @@ export const ExperimentGridView = ({
     showScoreLevelLabels,
     columnVisibility,
     useExperimentColors,
+    showDiff,
     singleLine,
   ]);
 
@@ -200,36 +213,37 @@ export const ExperimentGridView = ({
     () => [
       // Include select column if provided
       ...(selectActionColumn ? [selectActionColumn] : []),
-      {
+      createIOTableColumn<ExperimentItemsTableRow>({
         accessorKey: "input",
-        id: "input",
         header: "Input",
         size: 200,
-        cell: ({ row }) => (
-          <MemoizedIOTableCell
-            isLoading={isLoading}
-            data={row.original.input ?? null}
-            singleLine={singleLine}
-          />
-        ),
-      },
-      {
-        accessorKey: "expectedOutput",
-        id: "expectedOutput",
-        header: "Expected Output",
-        size: 200,
-        cell: ({ row }) => (
-          <MemoizedIOTableCell
-            isLoading={isLoading}
-            data={row.original.expectedOutput ?? null}
-            singleLine={singleLine}
-            className="bg-accent-light-green"
-          />
-        ),
-      },
+        getCell: (value) => (isLoading ? { type: "loading" } : (value ?? null)),
+        singleLine,
+      }),
+      // Gated: an empty expected output used to render as two literal quote
+      // characters, and a whole column of them is worse than no column.
+      ...(showExpectedOutput
+        ? [
+            createIOTableColumn<ExperimentItemsTableRow>({
+              accessorKey: "expectedOutput",
+              header: "Expected Output",
+              size: 200,
+              getCell: (value) =>
+                isLoading ? { type: "loading" } : value || undefined,
+              singleLine,
+              variant: "output",
+            }),
+          ]
+        : []),
       ...experimentColumns,
     ],
-    [experimentColumns, isLoading, selectActionColumn, singleLine],
+    [
+      experimentColumns,
+      isLoading,
+      selectActionColumn,
+      showExpectedOutput,
+      singleLine,
+    ],
   );
 
   return (

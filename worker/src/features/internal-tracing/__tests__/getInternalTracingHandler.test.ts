@@ -28,7 +28,7 @@ vi.mock(
 );
 
 vi.mock(
-  "../../../../../packages/shared/src/server/otel/aiFeatureOtelWriter",
+  "../../../../../packages/shared/src/server/otel/internalAiFeatureOtelWriter",
   () => ({
     publishAiFeatureTraceViaOtelIngestion: mockPublishAiFeatureTrace,
   }),
