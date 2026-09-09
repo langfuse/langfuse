@@ -1,4 +1,4 @@
-import { createDatasetItemForApi } from "@/src/features/datasets/server/publicDatasetService";
+import { createDatasetItemForApi } from "@/src/features/datasets/server";
 import { PostDatasetItemsV1Response } from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { buildDatasetItemUrl } from "@langfuse/shared/src/server";
