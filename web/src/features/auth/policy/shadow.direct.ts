@@ -22,10 +22,10 @@ import {
   type ProjectAction,
 } from "./types";
 
-/** scopeDeniedCode is the http status legacy returns when a key's access level is wrong for the route. */
+/** scopeDeniedCode is the status for a key with the wrong access level. */
 const scopeDeniedCode = 403;
 
-/** verifyOrgAuth is the org direct-handler seam: legacy decides in legacy/shadow (byte-identical), the new pipeline decides alone in enforce; a projectId delegates enforce to the project pipeline. */
+/** verifyOrgAuth authorizes an org direct-handler request under the active migration mode. */
 export async function verifyOrgAuth(
   params: VerifyOrgAuthParams,
 ): Promise<DirectAuthResult> {
@@ -44,11 +44,11 @@ export async function verifyOrgAuth(
     return legacyResult(legacy);
   }
 
-  // any other value, a blank one included, fails safe to legacy
+  // any other value fails safe to legacy
   return legacyResult(await runLegacyScope(params.req));
 }
 
-/** enforceNew runs the new pipeline alone and maps its principal onto the scope the handler receives. */
+/** enforceNew runs the new pipeline alone and maps its principal to a scope. */
 async function enforceNew(
   params: VerifyOrgAuthParams,
 ): Promise<DirectAuthResult> {
@@ -65,7 +65,7 @@ async function enforceNew(
   return { validKey: true, scope: mapped.scope };
 }
 
-/** runNewPipeline routes to the project pipeline against the URL projectId when one is given, else the org pipeline. */
+/** runNewPipeline routes to the project pipeline when given a projectId, else the org pipeline. */
 function runNewPipeline(
   params: VerifyOrgAuthParams,
 ): Promise<OrgAccessResult | ProjectAccessResult | ErrorResult<AuthError>> {
@@ -100,7 +100,7 @@ async function runLegacyScope(req: NextApiRequest): Promise<LegacyDecision> {
   return { status: 200, scope: authCheck.scope };
 }
 
-/** legacyResult lifts a legacy decision into the handler-facing result: the auth message on 401, status alone on 403 (the route renders its own body). */
+/** legacyResult lifts a legacy decision into the handler-facing result. */
 function legacyResult(legacy: LegacyDecision): DirectAuthResult {
   if (legacy.status === 200) {
     return { validKey: true, scope: legacy.scope };
@@ -116,13 +116,13 @@ function enforceDenial(error: EnforceError): DirectAuthResult {
   return { validKey: false, status: error.httpCode, error: error.message };
 }
 
-/** VerifyOrgAuthParams is the request and the checked org action, or a URL projectId with the project action enforce delegates to the project pipeline. */
+/** VerifyOrgAuthParams is a request with either an org action or a URL projectId and project action. */
 export type VerifyOrgAuthParams = { req: NextApiRequest } & (
   | { action: OrganizationAction }
   | { projectId: string; action: ProjectAction }
 );
 
-/** DirectAuthResult is the direct seam's outcome: the verified scope, or the status and message the handler renders. */
+/** DirectAuthResult is the direct seam's outcome: a verified scope, or a status and message to render. */
 export type DirectAuthResult =
   | { validKey: true; scope: ApiAccessScope }
   | { validKey: false; status: number; error: string };
@@ -130,7 +130,7 @@ export type DirectAuthResult =
 /** EnforceError is a new-pipeline failure reduced to what the seam renders. */
 type EnforceError = { httpCode: number; message: string };
 
-/** LegacyDecision is legacy auth captured as a value: the verified scope, a 401 with its message, or a 403 access-level denial. */
+/** LegacyDecision is legacy auth captured as a value: a verified scope, a 401 with its message, or a 403 denial. */
 type LegacyDecision =
   | { status: 200; scope: ApiAccessScope }
   | { status: 401; authError: string }

@@ -14,7 +14,7 @@ import {
   type Success,
 } from "./types";
 
-/** principalScope maps an authorized principal onto the ApiAccessScope a seam hands its route, for the resolved org or project target. */
+/** principalScope maps an authorized principal onto the ApiAccessScope for the resolved org or project target. */
 export async function principalScope(
   principal: Principal,
   target: ScopeTarget,
@@ -24,7 +24,7 @@ export async function principalScope(
     : projectScope(principal, target.projectId);
 }
 
-/** orgScope maps an authorized principal onto the organization-level scope; any non-api-key or unresolvable org is an invariant break. */
+/** orgScope maps an authorized principal onto the organization-level scope. */
 function orgScope(principal: Principal, orgId: string): ScopeResult {
   if (principal.kind !== "apiKey") {
     return invariantBreak(
@@ -47,7 +47,7 @@ function orgScope(principal: Principal, orgId: string): ScopeResult {
   };
 }
 
-/** projectScope maps an authorized principal onto the project-level scope, synthesizing the self-host admin scope for an admin principal. */
+/** projectScope maps an authorized principal onto the project-level scope. */
 async function projectScope(
   principal: Principal,
   projectId: string,
@@ -75,7 +75,7 @@ async function projectScope(
   };
 }
 
-/** adminScope synthesizes the legacy self-host admin scope, loading the target project's org (404 on miss); admin key auth never applies on Langfuse Cloud. */
+/** adminScope synthesizes the legacy self-host admin scope for a project. */
 async function adminScope(projectId: string): Promise<ScopeResult> {
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     return {
@@ -127,7 +127,7 @@ function credentialFields(
   };
 }
 
-/** invariantBreak is a 500 for a state the pipeline's own gates should have made unreachable. */
+/** invariantBreak is a 500 for a state that should be unreachable. */
 function invariantBreak(message: string): ErrorResult<InternalServerError> {
   return { success: false, error: new InternalServerError(message) };
 }

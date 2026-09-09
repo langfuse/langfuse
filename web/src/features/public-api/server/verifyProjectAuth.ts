@@ -16,43 +16,62 @@ import {
 } from "@/src/features/auth/policy/shadow";
 import { type ProjectAction } from "@/src/features/auth/policy/types";
 
-/** verifyProjectAuth is the project seam: the new pipeline decides alone in enforce, both run for parity in shadow (byte-identical to legacy), and legacy decides alone otherwise (the default). */
+/** verifyProjectAuth authorizes a public-API project route under the active migration mode. */
 export async function verifyProjectAuth(
   params: VerifyAuthParams,
 ): Promise<VerifyAuthResult> {
-  // enforce mode runs only the new pipeline, which is the sole authority.
-  if (env.API_AUTH_MIGRATION === "enforce") {
-    const authz = await runNewAuth(params);
-    if (!authz.success) {
-      throw { status: authz.error.httpCode, message: authz.error.message };
-    }
-    const mapped = await principalScope(authz.context.principal, {
-      projectId: authz.projectId,
-    });
-    if (!mapped.success) {
-      throw { status: mapped.error.httpCode, message: mapped.error.message };
-    }
-    return { validKey: true, scope: mapped.scope } as VerifyAuthResult;
-  }
+  if (env.API_AUTH_MIGRATION === "enforce") return enforceOnly(params);
+  if (env.API_AUTH_MIGRATION === "shadow") return legacyWithShadow(params);
+  return legacyOnly(params);
+}
 
-  // shadow mode runs both: legacy decides, the new pipeline records parity.
-  if (env.API_AUTH_MIGRATION === "shadow") {
-    const legacy = await runLegacyAuth(params);
-    const authz = await runNewAuth(params);
-    recordCoverage(params.req.url ?? "");
-    diffResults(authz, legacyFromStatus(legacy.status), {
-      seam: "project_route",
-      action: params.action,
-    });
-    if (!legacy.ok) throw legacy.error;
-    return legacy.auth;
+/** enforceOnly authorizes solely with the new pipeline and returns its mapped project scope. */
+async function enforceOnly(
+  params: VerifyAuthParams,
+): Promise<VerifyAuthResult> {
+  const authz = await runNewAuth(params);
+  if (!authz.success) {
+    throw { status: authz.error.httpCode, message: authz.error.message };
   }
+  const mapped = await principalScope(authz.context.principal, {
+    projectId: authz.projectId,
+  });
+  if (!mapped.success) {
+    throw { status: mapped.error.httpCode, message: mapped.error.message };
+  }
+  return { validKey: true, scope: mapped.scope } as VerifyAuthResult;
+}
 
-  // legacy is the default: any other value (including a blank one) fails safe
-  // to the legacy path, so self-host does no new auth work.
+/** legacyWithShadow lets legacy decide while the new pipeline records parity. */
+async function legacyWithShadow(
+  params: VerifyAuthParams,
+): Promise<VerifyAuthResult> {
+  const legacy = await runLegacyAuth(params);
+  const authz = await runNewAuth(params);
+  recordCoverage(params.req.url ?? "");
+  diffResults(authz, legacyFromStatus(legacy.status), {
+    seam: "project_route",
+    action: params.action,
+  });
+  if (!legacy.ok) throw legacy.error;
+  return legacy.auth;
+}
+
+/** legacyOnly authorizes solely with the legacy verify. */
+async function legacyOnly(params: VerifyAuthParams): Promise<VerifyAuthResult> {
   const legacy = await runLegacyAuth(params);
   if (!legacy.ok) throw legacy.error;
   return legacy.auth;
+}
+
+/** runNewAuth runs the new project pipeline for the request's action and route opt-ins. */
+function runNewAuth(params: VerifyAuthParams) {
+  return enforceProjectAuth({
+    headers: params.req.headers,
+    action: params.action,
+    allowInAppAgentKey: params.allowInAppAgentKey,
+    isAdminApiKeyAuthAllowed: params.isAdminApiKeyAuthAllowed,
+  });
 }
 
 /** runLegacyAuth runs the legacy verify and captures its throw as a value with the status it reported. */
@@ -75,16 +94,6 @@ async function runLegacyAuth(
       error,
     };
   }
-}
-
-/** runNewAuth runs the new project pipeline for the request's action and route opt-ins. */
-function runNewAuth(params: VerifyAuthParams) {
-  return enforceProjectAuth({
-    headers: params.req.headers,
-    action: params.action,
-    allowInAppAgentKey: params.allowInAppAgentKey,
-    isAdminApiKeyAuthAllowed: params.isAdminApiKeyAuthAllowed,
-  });
 }
 
 /** VerifyAuthParams is the request plus the route's action and legacy auth options. */

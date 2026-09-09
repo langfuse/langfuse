@@ -6,7 +6,6 @@ import {
   InvalidRequestError,
   type UnauthorizedError,
 } from "@langfuse/shared";
-
 import { authorize } from "./authorize";
 import { headerValue } from "./headers";
 import { authenticator } from "@/src/features/apiKey/authenticator";
@@ -20,7 +19,7 @@ import {
 /** projectIdHeader selects the target project for keys without a bound project. */
 const projectIdHeader = "x-langfuse-project-id";
 
-/** enforceProjectAuth runs the new project pipeline — authenticate, its own target resolution, authorize — returning every outcome as a value; it never throws one. */
+/** enforceProjectAuth authenticates the request, resolves the target project, and authorizes the action. */
 export async function enforceProjectAuth(
   params: EnforceProjectAuthParams,
 ): Promise<ProjectAccessResult | ErrorResult<AuthError>> {
@@ -46,7 +45,7 @@ export async function enforceProjectAuth(
   return { success: true, context, projectId: target.projectId };
 }
 
-/** getProjectId resolves the target project as `header ?? boundResource`; a header disagreeing with the bound project 400s, no target 403s. */
+/** getProjectId resolves the target project from the project-id header or the key's bound project. */
 function getProjectId(
   context: AuthorizationContext,
   headers: IncomingHttpHeaders,
@@ -79,7 +78,7 @@ function boundProjectIdOf(context: AuthorizationContext): string | undefined {
   return context.principal.boundResource.projectId;
 }
 
-/** EnforceProjectAuthParams is the request headers, the checked action, an optional explicit project target, and the route's key-kind opt-ins. */
+/** EnforceProjectAuthParams are the inputs to enforceProjectAuth. */
 export type EnforceProjectAuthParams = {
   headers: IncomingHttpHeaders;
   action: ProjectAction;
@@ -88,13 +87,13 @@ export type EnforceProjectAuthParams = {
   isAdminApiKeyAuthAllowed?: boolean;
 };
 
-/** ProjectAccessResult is the project seam's success outcome: the resolved context and target. */
+/** ProjectAccessResult is enforceProjectAuth's success outcome. */
 export type ProjectAccessResult = Success & {
   context: AuthorizationContext;
   projectId: string;
 };
 
-/** AuthError is any typed failure the project pipeline surfaces. */
+/** AuthError is any typed failure enforceProjectAuth surfaces. */
 export type AuthError =
   | UnauthorizedError
   | InvalidRequestError
@@ -104,5 +103,4 @@ export type AuthError =
 /** ResolvedProject is project target resolution's success outcome. */
 type ResolvedProject = Success & { projectId: string };
 
-/** __test exposes module-private helpers for the colocated unit test. */
 export const __test = { getProjectId };

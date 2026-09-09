@@ -17,10 +17,10 @@ import {
   type Success,
 } from "./types";
 
-/** orgIdHeader selects the target org for keys without a bound org; dead until a Phase 3 multi-scope key exists. */
+/** orgIdHeader is the header selecting the target org. */
 const orgIdHeader = "x-langfuse-organization-id";
 
-/** enforceOrgAuth runs the new org pipeline — authenticate, its own target resolution, authorize — returning every outcome as a value; it never throws one. */
+/** enforceOrgAuth authenticates, resolves the org target, and authorizes, returning every outcome as a value. */
 export async function enforceOrgAuth(
   params: EnforceOrgAuthParams,
 ): Promise<OrgAccessResult | ErrorResult<AuthError>> {
@@ -42,7 +42,7 @@ export async function enforceOrgAuth(
   return { success: true, context, orgId: target.orgId };
 }
 
-/** getOrgId resolves the target org as `header ?? boundResource`; a header disagreeing with the bound org 400s, no target 403s. */
+/** getOrgId resolves the target org from the header or the key's bound org. */
 function getOrgId(
   context: AuthorizationContext,
   headers: IncomingHttpHeaders,
@@ -69,7 +69,7 @@ function getOrgId(
   return { success: true, orgId };
 }
 
-/** boundOrgIdOf returns the org an api key is bound to; every api key has one. */
+/** boundOrgIdOf returns the org an api key is bound to. */
 function boundOrgIdOf(context: AuthorizationContext): string | undefined {
   if (context.principal.kind !== "apiKey") return undefined;
   return context.principal.boundResource.orgId;
@@ -99,5 +99,4 @@ export type AuthError =
 /** ResolvedOrg is org target resolution's success outcome. */
 type ResolvedOrg = Success & { orgId: string };
 
-/** __test exposes module-private helpers for the colocated unit test. */
 export const __test = { getOrgId };
