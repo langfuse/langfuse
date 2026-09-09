@@ -1,5 +1,5 @@
 /**
- * Observation-type bar colors shared by the timeline and lanes renderers.
+ * Observation-type bar colors for the timeline renderer.
  * Hue carries TYPE and nothing else (focus/selection are wash + ring).
  */
 export const OBSERVATION_TYPE_COLOR: Record<string, string> = {

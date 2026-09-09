@@ -6,11 +6,7 @@ import { useDesktopLayoutContextOptional } from "@/src/features/traces/component
 import { useMobileLayoutContextOptional } from "@/src/features/traces/components/TraceLayoutMobile";
 
 /** Which view is reporting the selection — the only thing that differs. */
-export type TraceNodeSelectionSource =
-  | "tree"
-  | "timeline"
-  | "timeline_compact"
-  | "lanes";
+export type TraceNodeSelectionSource = "tree" | "timeline" | "timeline_compact";
 
 /**
  * Selecting an observation is four things at once: record it, point the app at

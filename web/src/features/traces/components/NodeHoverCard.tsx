@@ -1,6 +1,6 @@
 /**
- * Hover card body shared by every trace visualization (tree, timeline, graph,
- * lanes). Header identifies the node; a short key/value block carries the
+ * Hover card body shared by the trace visualizations (tree, timeline).
+ * Header identifies the node; a short key/value block carries the
  * metrics a row cannot fit. Generations add model and tokens; the trace root
  * shows totals and the observation count. Scores are capped at three — the
  * detail panel has the rest.
