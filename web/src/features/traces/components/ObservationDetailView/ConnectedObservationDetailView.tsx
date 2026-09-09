@@ -70,6 +70,7 @@ import { useSession } from "next-auth/react";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { ObservationPreview } from "./ObservationPreview";
 import { ObservationAttributesTab } from "./components/ObservationAttributesTab";
+import { buildObservationAttributeRows } from "@/src/features/traces/components/ObservationAttributesList";
 
 export interface ConnectedObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -118,6 +119,13 @@ export function ConnectedObservationDetailView({
     isV4Enabled && observations.length > 0 && !isAnnotationMode;
   const showScoresTab = !isAnnotationMode;
   const showAttributesTab = !isAnnotationMode;
+  const attributeRows = buildObservationAttributeRows({
+    model: observation.model,
+    environment: observation.environment,
+    release: observation.release,
+    version: observation.version,
+    modelParameters: observation.modelParameters,
+  });
 
   // Hide entire tabs bar when only Preview tab remains (cleaner annotation mode UI)
   const showTabsBar = showLogViewTab || showScoresTab;
@@ -554,6 +562,7 @@ export function ConnectedObservationDetailView({
               onAddInlineComment: handleAddInlineComment,
               commentedPathsByField,
               showMetadata: true,
+              attributes: attributeRows,
               observationId: observation.id,
               projectId,
               traceId,
@@ -568,11 +577,7 @@ export function ConnectedObservationDetailView({
             className="mt-0 flex max-h-full min-h-0 w-full flex-1"
           >
             <ObservationAttributesTab
-              model={observation.model}
-              environment={observation.environment}
-              release={observation.release}
-              version={observation.version}
-              modelParameters={observation.modelParameters}
+              rows={attributeRows}
               parsedMetadata={parsedMetadata}
               isLoading={observationWithIOCompat.isLoading}
               isParsing={isWaitingForParsing}

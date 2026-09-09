@@ -45,15 +45,10 @@ import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,
   TimeToFirstTokenBadge,
-  EnvironmentBadge,
-  ReleaseBadge,
-  VersionBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
 import { CostUsageBadge } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
-import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
-import { ModelParametersBadges } from "@/src/features/traces/components/ObservationDetailView/components/ModelParametersBadges";
 import {
   type WithStringifiedMetadata,
   type MetadataDomainClient,
@@ -811,25 +806,6 @@ export const ObservationDetailViewHeader = memo(
                   projectId={projectId}
                 />
               )}
-            </CollapsibleBadgeRow>
-          )}
-          {/* Quiet attribute line: model + user-supplied context. Renders
-              unconditionally — observations are the home for env/release/
-              version now that the trace summary strip no longer repeats
-              them. */}
-          {!isAnnotationMode && (
-            <CollapsibleBadgeRow>
-              <ModelBadge
-                model={observation.model}
-                internalModelId={observation.internalModelId}
-                projectId={projectId}
-              />
-              <EnvironmentBadge environment={observation.environment} />
-              <ReleaseBadge release={observation.release} />
-              <VersionBadge version={observation.version} />
-              <ModelParametersBadges
-                modelParameters={observation.modelParameters}
-              />
             </CollapsibleBadgeRow>
           )}
         </div>

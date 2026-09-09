@@ -1,6 +1,10 @@
 import { useMemo } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import {
+  type AttributeRow,
+  ObservationAttributesList,
+} from "@/src/features/traces/components/ObservationAttributesList";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { type MediaReturnType } from "@/src/features/media/validation";
@@ -108,6 +112,8 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   hideInput?: boolean;
   // Whether to show metadata section (default: false)
   showMetadata?: boolean;
+  // Fixed-key attributes rendered as a light list above the IO sections
+  attributes?: AttributeRow[];
   observationId?: string;
   projectId: string;
   traceId: string;
@@ -156,6 +162,7 @@ export function IOPreviewPretty({
   onOutputExpansionChange,
   onMetadataExpansionChange,
   showMetadata = false,
+  attributes,
   observationId,
   projectId,
   traceId,
@@ -285,6 +292,12 @@ export function IOPreviewPretty({
 
   return (
     <div>
+      {showData && attributes && attributes.length > 0 ? (
+        <div className="px-2 pt-1 pb-3">
+          <ObservationAttributesList rows={attributes} />
+        </div>
+      ) : null}
+
       {showData && status ? (
         <StatusMessageSection status={status} currentView="pretty" />
       ) : null}

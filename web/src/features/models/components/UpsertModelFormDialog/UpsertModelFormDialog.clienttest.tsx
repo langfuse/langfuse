@@ -4,12 +4,10 @@ import {
   fireEvent,
   render,
   screen,
-  within,
   waitFor,
 } from "@testing-library/react";
 
 import { type GetModelResult } from "@/src/features/models/validation";
-import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
 import { UpsertModelFormDialog } from "./UpsertModelFormDialog";
 
 const upsertMutateAsync = vi.fn().mockResolvedValue({
@@ -165,24 +163,6 @@ describe("UpsertModelFormDialog price editor", () => {
 
   beforeEach(() => {
     upsertMutateAsync.mockClear();
-  });
-
-  it("renders an unlinked model as a link to model settings (no inline dialog)", () => {
-    render(
-      <ModelBadge
-        model="claude-sonnet-4-5"
-        internalModelId={null}
-        projectId="p1"
-      />,
-    );
-
-    const link = screen.getByTitle(
-      "Model has no pricing definition — view model settings",
-    );
-    within(link).getByText("claude-sonnet-4-5");
-
-    expect(link.tagName).toBe("A");
-    expect(link).toHaveAttribute("href", "/project/p1/settings/models");
   });
 
   it("keeps every keystroke of a usage type that extends an existing one", () => {

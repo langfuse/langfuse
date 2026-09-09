@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { type AttributeRow } from "@/src/features/traces/components/ObservationAttributesList";
 import { type ScoreDomain, type Prisma } from "@langfuse/shared";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -62,6 +63,8 @@ export interface IOPreviewProps extends ExpansionStateProps {
   parsedInput?: unknown;
   parsedOutput?: unknown;
   parsedMetadata?: unknown;
+  // Fixed-key attributes shown as a light list at the top of the pretty view
+  attributes?: AttributeRow[];
   chatMLParserResult?: ChatMLParserResult;
   observationName?: string;
   isLoading?: boolean;
@@ -143,6 +146,7 @@ export function IOPreview({
   onAddInlineComment,
   commentedPathsByField,
   showMetadata = false,
+  attributes,
   onVirtualizationChange,
   observationId,
   projectId,
@@ -316,6 +320,7 @@ export function IOPreview({
           }
           observationName={observationName}
           showMetadata={showMetadata}
+          attributes={attributes}
           contentMode={contentMode}
           showSystemPrompt={showSystemPrompt}
         />
