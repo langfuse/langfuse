@@ -123,8 +123,13 @@ export function instrumentSync<T>(
 
 export const getCurrentSpan = () => opentelemetry.trace.getActiveSpan();
 
-export const getActiveTraceId = () =>
-  opentelemetry.trace.getActiveSpan()?.spanContext().traceId;
+export const getActiveTraceId = () => {
+  const span = opentelemetry.trace.getActiveSpan();
+  // Only return a trace id for sampled/recording spans. An unsampled span still
+  // carries a valid traceId in its context but is never exported, so that id
+  // would resolve to nothing in the tracing backend.
+  return span?.isRecording() ? span.spanContext().traceId : undefined;
+};
 
 export const addTagsToCurrentSpan = (
   attributes: Parameters<opentelemetry.Span["setAttributes"]>[0],

@@ -109,7 +109,8 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
       data: {
         ...shape.data,
         // OTEL trace id of the failing request, for frontend/support correlation
-        // with Datadog. Absent when OTEL is not running (e.g. some self-hosted).
+        // with Datadog. Absent when OTEL is not running or the trace was not
+        // sampled (an unsampled id never reaches the tracing backend).
         traceId: getActiveTraceId(),
         zodError:
           error.cause instanceof ZodError ? z.flattenError(error.cause) : null,
