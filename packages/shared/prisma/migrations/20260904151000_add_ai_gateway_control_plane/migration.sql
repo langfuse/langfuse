@@ -62,18 +62,10 @@ ON "gateway_ai_connections"("organization_id", "routing_priority");
 CREATE INDEX "gateway_ai_connections_organization_id_status_routing_prior_idx"
 ON "gateway_ai_connections"("organization_id", "status", "routing_priority");
 
-CREATE INDEX "gateway_ai_connections_created_by_id_idx"
-ON "gateway_ai_connections"("created_by_id");
-
 ALTER TABLE "gateway_ai_connections"
 ADD CONSTRAINT "gateway_ai_connections_organization_id_fkey"
 FOREIGN KEY ("organization_id") REFERENCES "organizations"("id")
 ON DELETE CASCADE ON UPDATE CASCADE;
-
-ALTER TABLE "gateway_ai_connections"
-ADD CONSTRAINT "gateway_ai_connections_created_by_id_fkey"
-FOREIGN KEY ("created_by_id") REFERENCES "users"("id")
-ON DELETE SET NULL ON UPDATE CASCADE;
 
 CREATE TABLE "gateway_api_key_associations" (
     "api_key_id" TEXT NOT NULL,

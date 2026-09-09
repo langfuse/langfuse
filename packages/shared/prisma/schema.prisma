@@ -80,7 +80,6 @@ model User {
   inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
   inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
   apiKeysCreated            ApiKey[]                    @relation("ApiKeyCreatedByUser")
-  gatewayAiConnectionsCreated GatewayAiConnection[] @relation("GatewayAiConnectionCreatedByUser")
   evaluatorsCreated         Evaluator[]                 @relation("EvaluatorCreatedByUser")
   evaluatorVersionsCreated  EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
   evaluationRulesCreated    EvaluationRule[]            @relation("EvaluationRuleCreatedByUser")
@@ -205,27 +204,27 @@ enum ApiKeyScope {
 }
 
 model ApiKey {
-  id                  String        @id @unique @default(cuid())
-  createdAt           DateTime      @default(now()) @map("created_at")
+  id                  String                    @id @unique @default(cuid())
+  createdAt           DateTime                  @default(now()) @map("created_at")
   note                String?
-  publicKey           String        @unique @map("public_key")
-  hashedSecretKey     String        @unique @map("hashed_secret_key")
-  fastHashedSecretKey String?       @unique @map("fast_hashed_secret_key")
-  displaySecretKey    String        @map("display_secret_key")
-  lastUsedAt          DateTime?     @map("last_used_at")
-  expiresAt           DateTime?     @map("expires_at")
-  isInAppAgentKey     Boolean       @default(false) @map("is_in_app_agent_key")
-  projectId           String?       @map("project_id")
-  project             Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  orgId               String?       @map("organization_id")
-  organization        Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  scope               ApiKeyScope   @default(PROJECT) @map("scope")
-  createdByUserId     String?       @map("created_by_user_id")
-  createdByUser       User?         @relation("ApiKeyCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  createdByApiKeyId   String?       @map("created_by_api_key_id")
-  createdByApiKey     ApiKey?       @relation("ApiKeyCreatedByApiKey", fields: [createdByApiKeyId], references: [id], onDelete: SetNull)
-  apiKeysCreated      ApiKey[]      @relation("ApiKeyCreatedByApiKey")
-  gatewayAssociation GatewayApiKeyAssociation?
+  publicKey           String                    @unique @map("public_key")
+  hashedSecretKey     String                    @unique @map("hashed_secret_key")
+  fastHashedSecretKey String?                   @unique @map("fast_hashed_secret_key")
+  displaySecretKey    String                    @map("display_secret_key")
+  lastUsedAt          DateTime?                 @map("last_used_at")
+  expiresAt           DateTime?                 @map("expires_at")
+  isInAppAgentKey     Boolean                   @default(false) @map("is_in_app_agent_key")
+  projectId           String?                   @map("project_id")
+  project             Project?                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  orgId               String?                   @map("organization_id")
+  organization        Organization?             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  scope               ApiKeyScope               @default(PROJECT) @map("scope")
+  createdByUserId     String?                   @map("created_by_user_id")
+  createdByUser       User?                     @relation("ApiKeyCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByApiKeyId   String?                   @map("created_by_api_key_id")
+  createdByApiKey     ApiKey?                   @relation("ApiKeyCreatedByApiKey", fields: [createdByApiKeyId], references: [id], onDelete: SetNull)
+  apiKeysCreated      ApiKey[]                  @relation("ApiKeyCreatedByApiKey")
+  gatewayAssociation  GatewayApiKeyAssociation?
 
   @@index(orgId)
   @@index(projectId)
@@ -275,7 +274,6 @@ model GatewayAiConnection {
   encryptedCredential String                  @map("encrypted_credentials")
   displaySecret       String                  @map("display_secret_key")
   createdById         String?                 @map("created_by_id")
-  createdBy           User?                   @relation("GatewayAiConnectionCreatedByUser", fields: [createdById], references: [id], onDelete: SetNull)
   routingPriority     Int                     @map("routing_priority")
   status              GatewayConnectionStatus @default(ENABLED)
   createdAt           DateTime                @default(now()) @map("created_at")
@@ -283,7 +281,6 @@ model GatewayAiConnection {
 
   @@unique([organizationId, routingPriority])
   @@index([organizationId, status, routingPriority])
-  @@index([createdById])
   @@map("gateway_ai_connections")
 }
 
@@ -301,20 +298,20 @@ enum InAppAgentConversationVisibilityScope {
 }
 
 model InAppAgentConversation {
-  id                String
-  projectId         String                                @map("project_id")
-  project           Project                               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdByUserId   String?                               @map("created_by_user_id")
-  createdByUser     User?                                 @relation("InAppAgentConversationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  title             String?
-  renamedByUserAt   DateTime?                             @map("renamed_by_user_at")
-  visibilityScope   InAppAgentConversationVisibilityScope @default(PERSONAL) @map("visibility_scope")
-  providerSessionId String?                               @map("provider_session_id")
+  id                 String
+  projectId          String                                @map("project_id")
+  project            Project                               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdByUserId    String?                               @map("created_by_user_id")
+  createdByUser      User?                                 @relation("InAppAgentConversationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  title              String?
+  renamedByUserAt    DateTime?                             @map("renamed_by_user_at")
+  visibilityScope    InAppAgentConversationVisibilityScope @default(PERSONAL) @map("visibility_scope")
+  providerSessionId  String?                               @map("provider_session_id")
   // Prefixed tool grants are revalidated against the registry and owner's role each run.
-  alwaysAllowedTools String[]                             @default([]) @map("always_allowed_tools")
-  deletedAt         DateTime?                             @map("deleted_at")
-  createdAt         DateTime                              @default(now()) @map("created_at")
-  updatedAt         DateTime                              @default(now()) @updatedAt @map("updated_at")
+  alwaysAllowedTools String[]                              @default([]) @map("always_allowed_tools")
+  deletedAt          DateTime?                             @map("deleted_at")
+  createdAt          DateTime                              @default(now()) @map("created_at")
+  updatedAt          DateTime                              @default(now()) @updatedAt @map("updated_at")
 
   events               InAppAgentEvent[]
   runs                 InAppAgentRun[]
@@ -1079,7 +1076,7 @@ model JobConfiguration {
   variableMapping Json     @map("variable_mapping")
   sampling        Decimal // ratio of jobs that are executed for sampling (0..1)
   delay           Int // delay in milliseconds
-  timeScope       String[]       @default(["NEW"]) @map("time_scope")
+  timeScope       String[] @default(["NEW"]) @map("time_scope")
 
   @@index([projectId, id])
   @@map("job_configurations")
