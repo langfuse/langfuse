@@ -31,7 +31,7 @@ import {
   isInteractiveTarget,
   isOpenDialogPresent,
   isTypingTarget,
-} from "@/src/features/scores/lib/keyboardShortcuts";
+} from "@/src/features/scores";
 import { useAnnotationQueueData } from "./shared/hooks/useAnnotationQueueData";
 import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData";
 import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor";

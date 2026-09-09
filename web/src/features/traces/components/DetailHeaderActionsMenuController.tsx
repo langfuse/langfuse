@@ -9,7 +9,7 @@ import {
 import {
   buildEventsTablePathForObservationType,
   buildEventsTablePathForSpanName,
-} from "@/src/features/events/lib/eventsTablePaths";
+} from "@/src/features/events";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationType } from "@langfuse/shared";
 import {

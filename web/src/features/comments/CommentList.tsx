@@ -80,6 +80,7 @@ export function CommentList({
   projectId,
   objectId,
   objectType,
+  objectStartTime,
   cardView = false,
   className,
   onDraftChange,
@@ -92,6 +93,7 @@ export function CommentList({
   projectId: string;
   objectId: string;
   objectType: CommentObjectType;
+  objectStartTime?: Date | null;
   cardView?: boolean;
   className?: string;
   onDraftChange?: (hasDraft: boolean) => void;
@@ -422,6 +424,7 @@ export function CommentList({
   function onSubmit(values: z.infer<typeof CreateCommentData>) {
     createCommentMutation.mutateAsync({
       ...values,
+      objectStartTime: objectStartTime ?? undefined,
       dataField: pendingSelection?.dataField,
       path: pendingSelection?.path,
       rangeStart: pendingSelection?.rangeStart,
