@@ -237,7 +237,7 @@ function isDataDocumentUrl(event: ErrorEvent): boolean {
 }
 
 /**
-* Chrome's exact `chrome.runtime.sendMessage` / `chrome.runtime.connect`
+ * Chrome's exact `chrome.runtime.sendMessage` / `chrome.runtime.connect`
  * lastError when the extension background or content-script port is gone.
  * Extensions inject this into the page; Langfuse never calls `chrome.runtime`.
  * Observed as an unhandled rejection with no stack (LANGFUSE-614), so
