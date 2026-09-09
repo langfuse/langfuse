@@ -28,11 +28,11 @@ export const CachedResolveContext = z.object({
   apiKeyId: z.string(),
   keyMetadata: GatewayMetadataSchema,
   ingestionProjectId: z.string().nullable(),
-  instrumentationMode: z.enum(["USAGE", "FULL", "NONE"]).nullable(),
+  ingestionMode: z.enum(["USAGE", "FULL", "NONE"]).nullable(),
   connection: z
     .object({
       id: z.string(),
-      provider: z.enum(["OPENAI", "ANTHROPIC", "OPENROUTER"]),
+      provider: z.enum(["OPENAI", "ANTHROPIC"]),
       encryptedCredential: z.string(),
     })
     .nullable(),

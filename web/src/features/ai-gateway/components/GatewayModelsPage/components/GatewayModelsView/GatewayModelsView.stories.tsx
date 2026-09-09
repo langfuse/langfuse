@@ -21,10 +21,7 @@ const meta = preview.meta({
 const models = [
   {
     id: "gpt-5-mini",
-    availableVia: [
-      { connectionName: "Primary", provider: "OPENAI" },
-      { connectionName: "OpenRouter fallback", provider: "OPENROUTER" },
-    ],
+    availableVia: [{ connectionName: "Primary", provider: "OPENAI" }],
     apiFormats: ["OpenAI Responses", "OpenAI Chat Completions"],
   },
   {
@@ -38,11 +35,7 @@ const models = [
 
 const manyModels = Array.from({ length: 60 }, (_, index) => {
   const provider =
-    index % 3 === 0
-      ? ("OPENAI" as const)
-      : index % 3 === 1
-        ? ("ANTHROPIC" as const)
-        : ("OPENROUTER" as const);
+    index % 2 === 0 ? ("OPENAI" as const) : ("ANTHROPIC" as const);
 
   return {
     id: `gateway-model-${String(index + 1).padStart(3, "0")}`,
@@ -62,7 +55,7 @@ const manyModels = Array.from({ length: 60 }, (_, index) => {
 const defaultArgs = {
   models,
   failedProviderCount: 0,
-  providerCount: 3,
+  providerCount: 2,
   hasProviders: true,
   hasSynced: true,
   isLoading: false,

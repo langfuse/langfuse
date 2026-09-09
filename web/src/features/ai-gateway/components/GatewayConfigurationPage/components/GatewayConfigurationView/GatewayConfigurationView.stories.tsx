@@ -15,7 +15,7 @@ export const Enabled = meta.story({
   args: {
     projects,
     initialProjectId: "project-production",
-    initialMode: "USAGE",
+    initialIngestionMode: "USAGE",
     isSaving: false,
     saveError: false,
     onSave: fn(),
@@ -26,7 +26,7 @@ export const MissingProjectWarning = meta.story({
   args: {
     projects,
     initialProjectId: "deleted-project",
-    initialMode: "FULL",
+    initialIngestionMode: "FULL",
     isSaving: false,
     saveError: false,
     onSave: fn(),

@@ -56,19 +56,19 @@ export function GatewayConfigurationPage({
   const config = configQuery.data;
   return (
     <GatewayConfigurationView
-      key={`${config?.updatedAt?.toISOString() ?? "new"}:${config?.defaultIngestionProjectId ?? "none"}:${config?.instrumentationMode ?? "USAGE"}`}
+      key={`${config?.updatedAt?.toISOString() ?? "new"}:${config?.defaultIngestionProjectId ?? "none"}:${config?.ingestionMode ?? "USAGE"}`}
       projects={projects}
       initialProjectId={config?.defaultIngestionProjectId ?? null}
-      initialMode={config?.instrumentationMode ?? "USAGE"}
+      initialIngestionMode={config?.ingestionMode ?? "USAGE"}
       isSaving={updateConfig.isPending}
       saveError={updateConfig.isError}
-      onSave={async ({ projectId, createProjectName, mode }) => {
+      onSave={async ({ projectId, createProjectName, ingestionMode }) => {
         try {
           await updateConfig.mutateAsync({
             orgId: organizationId,
             defaultIngestionProjectId: projectId,
             ...(createProjectName ? { createProjectName } : {}),
-            instrumentationMode: mode,
+            ingestionMode,
           });
           await utils.aiGateway.getConfig.invalidate({
             orgId: organizationId,

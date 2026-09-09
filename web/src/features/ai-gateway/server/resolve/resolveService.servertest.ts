@@ -24,7 +24,7 @@ const serviceWith = (findFirst: () => Promise<unknown>) =>
   );
 
 const row = (overrides: {
-  instrumentationMode?: string;
+  ingestionMode?: string;
   projectOrgId?: string;
   metadata?: unknown;
 }) => ({
@@ -35,7 +35,7 @@ const row = (overrides: {
     organization: {
       gatewayConfig: {
         defaultIngestionProjectId: "project-1",
-        instrumentationMode: overrides.instrumentationMode ?? "NONE",
+        ingestionMode: overrides.ingestionMode ?? "NONE",
         defaultIngestionProject: {
           id: "project-1",
           orgId: overrides.projectOrgId ?? "org-1",
@@ -84,7 +84,7 @@ describe("GatewayResolveService", () => {
         key_metadata: { team: "platform", project_id: "spoofed-project" },
       },
       instrumentation_mode: "none",
-      // Instrumentation is off, so no ingestion token is minted.
+      // Ingestion is off, so no ingestion token is minted.
       ingestion: undefined,
     });
   });

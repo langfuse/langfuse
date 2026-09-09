@@ -6,7 +6,7 @@ export const gatewayApiFormats = [
   "anthropic.messages",
 ] as const;
 
-export const gatewayProviders = ["OPENAI", "ANTHROPIC", "OPENROUTER"] as const;
+export const gatewayProviders = ["OPENAI", "ANTHROPIC"] as const;
 
 export type GatewayApiFormat = (typeof gatewayApiFormats)[number];
 export type GatewayProviderName = (typeof gatewayProviders)[number];
@@ -16,7 +16,7 @@ const metadataValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 export const GatewayMetadataSchema = z.record(z.string(), metadataValueSchema);
 export type GatewayMetadata = z.infer<typeof GatewayMetadataSchema>;
 
-const gatewayProviderIds = ["openai", "anthropic", "openrouter"] as const;
+const gatewayProviderIds = ["openai", "anthropic"] as const;
 export type GatewayProviderId = (typeof gatewayProviderIds)[number];
 
 export const GatewayResolveResponseSchema = z
@@ -98,17 +98,6 @@ const PROVIDER_REGISTRY: Record<GatewayProviderName, ProviderDefinition> = {
     authType: "x-api-key",
     validationModel: "claude-haiku-4-5-20251001",
     apiFormats: ["anthropic.messages"],
-  },
-  OPENROUTER: {
-    baseUrl: "https://openrouter.ai/api/v1",
-    modelsPath: "/models",
-    authType: "bearer",
-    validationModel: "openai/gpt-4o-mini",
-    apiFormats: [
-      "openai.responses",
-      "openai.chat-completions",
-      "anthropic.messages",
-    ],
   },
 };
 

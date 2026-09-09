@@ -557,7 +557,7 @@ async function seedAiGateway(params: {
     create: {
       organizationId: params.organizationId,
       defaultIngestionProjectId: ingestionProjectId,
-      instrumentationMode: "USAGE",
+      ingestionMode: "USAGE",
     },
     update: {
       defaultIngestionProjectId: ingestionProjectId,
@@ -592,17 +592,6 @@ async function seedAiGateway(params: {
           createdById: params.userId,
           routingPriority: 1,
           status: "ENABLED",
-        },
-        {
-          id: "seed-gateway-openrouter",
-          organizationId: params.organizationId,
-          name: "OpenRouter shared",
-          provider: "OPENROUTER",
-          encryptedCredential: encrypt("sk-or-seed-not-valid"),
-          displaySecret: getDisplaySecretKey("sk-or-seed-not-valid"),
-          createdById: params.userId,
-          routingPriority: 2,
-          status: "ERROR",
         },
       ],
     });

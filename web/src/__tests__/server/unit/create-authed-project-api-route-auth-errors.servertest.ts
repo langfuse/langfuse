@@ -28,14 +28,11 @@ vi.mock("@/src/features/public-api/server/apiAuth", () => ({
 }));
 
 vi.mock("@langfuse/shared/src/db", async () => {
-  const {
-    GatewayConnectionStatus,
-    GatewayInstrumentationMode,
-    GatewayProvider,
-  } = await vi.importActual<typeof PrismaClientModule>("@prisma/client");
+  const { GatewayConnectionStatus, GatewayIngestionMode, GatewayProvider } =
+    await vi.importActual<typeof PrismaClientModule>("@prisma/client");
   return {
     GatewayConnectionStatus,
-    GatewayInstrumentationMode,
+    GatewayIngestionMode,
     GatewayProvider,
     prisma: {},
   };

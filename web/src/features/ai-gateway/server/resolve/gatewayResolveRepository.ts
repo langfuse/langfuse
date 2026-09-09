@@ -29,7 +29,7 @@ export class GatewayResolveRepository {
                 gatewayConfig: {
                   select: {
                     defaultIngestionProjectId: true,
-                    instrumentationMode: true,
+                    ingestionMode: true,
                     defaultIngestionProject: {
                       select: { id: true, orgId: true, deletedAt: true },
                     },

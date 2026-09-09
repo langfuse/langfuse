@@ -10,7 +10,7 @@ import {
 } from "@/src/server/api/trpc";
 import {
   GatewayConnectionStatus,
-  GatewayInstrumentationMode,
+  GatewayIngestionMode,
   GatewayProvider,
 } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
@@ -53,7 +53,7 @@ export const aiGatewayRouter = createTRPCRouter({
         .extend({
           defaultIngestionProjectId: z.string().nullable(),
           createProjectName: StringNoHTMLNonEmpty.max(200).optional(),
-          instrumentationMode: z.enum(GatewayInstrumentationMode),
+          ingestionMode: z.enum(GatewayIngestionMode),
         })
         .refine(
           (input) =>
@@ -69,7 +69,7 @@ export const aiGatewayRouter = createTRPCRouter({
         ...(input.createProjectName
           ? { createProjectName: input.createProjectName }
           : {}),
-        instrumentationMode: input.instrumentationMode,
+        ingestionMode: input.ingestionMode,
         session: ctx.session,
       });
       return result.config;

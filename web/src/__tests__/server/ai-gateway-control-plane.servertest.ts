@@ -190,7 +190,7 @@ describe("AI gateway control plane", () => {
       orgId: owner.org.id,
       defaultIngestionProjectId: null,
       createProjectName: "llm-ingestion-project",
-      instrumentationMode: "USAGE",
+      ingestionMode: "USAGE",
     });
     const ingestionProjectId = config.defaultIngestionProjectId;
     expect(ingestionProjectId).not.toBeNull();
@@ -203,7 +203,7 @@ describe("AI gateway control plane", () => {
       orgId: owner.org.id,
       defaultIngestionProjectId: null,
       createProjectName: "llm-ingestion-project",
-      instrumentationMode: "USAGE",
+      ingestionMode: "USAGE",
     });
     expect(retriedConfig.defaultIngestionProjectId).toBe(ingestionProjectId);
     await expect(
@@ -297,7 +297,7 @@ describe("AI gateway control plane", () => {
       member.caller.aiGateway.updateConfig({
         orgId: member.org.id,
         defaultIngestionProjectId: member.project.id,
-        instrumentationMode: "USAGE",
+        ingestionMode: "USAGE",
       }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
@@ -305,7 +305,7 @@ describe("AI gateway control plane", () => {
       owner.caller.aiGateway.updateConfig({
         orgId: owner.org.id,
         defaultIngestionProjectId: member.project.id,
-        instrumentationMode: "USAGE",
+        ingestionMode: "USAGE",
       }),
     ).rejects.toThrow("active project in the organization");
   });
@@ -446,7 +446,7 @@ describe("AI gateway control plane", () => {
       organizationId: org.id,
       defaultIngestionProjectId: null,
       createProjectName: "Audited ingestion project",
-      instrumentationMode: "USAGE",
+      ingestionMode: "USAGE",
       session,
     });
     await providerService.create({
@@ -586,7 +586,7 @@ describe("AI gateway control plane", () => {
     await caller.aiGateway.updateConfig({
       orgId: org.id,
       defaultIngestionProjectId: project.id,
-      instrumentationMode: "FULL",
+      ingestionMode: "FULL",
     });
     const openAiPrimary = await caller.aiGateway.createConnection({
       orgId: org.id,
@@ -785,7 +785,7 @@ describe("AI gateway control plane", () => {
     await owner.caller.aiGateway.updateConfig({
       orgId: owner.org.id,
       defaultIngestionProjectId: owner.project.id,
-      instrumentationMode: "USAGE",
+      ingestionMode: "USAGE",
     });
 
     // Choosing an existing project must not silently take it away from the
@@ -822,7 +822,7 @@ describe("AI gateway control plane", () => {
     await owner.caller.aiGateway.updateConfig({
       orgId: owner.org.id,
       defaultIngestionProjectId: owner.project.id,
-      instrumentationMode: "FULL",
+      ingestionMode: "FULL",
     });
     await expect(sessionProjectIds(futureMember.email!)).resolves.not.toContain(
       owner.project.id,
@@ -924,7 +924,7 @@ describe("AI gateway control plane", () => {
     await caller.aiGateway.updateConfig({
       orgId: org.id,
       defaultIngestionProjectId: project.id,
-      instrumentationMode: "NONE",
+      ingestionMode: "NONE",
     });
     const connection = await caller.aiGateway.createConnection({
       orgId: org.id,
@@ -993,7 +993,7 @@ describe("AI gateway control plane", () => {
     await caller.aiGateway.updateConfig({
       orgId: org.id,
       defaultIngestionProjectId: project.id,
-      instrumentationMode: "NONE",
+      ingestionMode: "NONE",
     });
     await caller.aiGateway.createConnection({
       orgId: org.id,

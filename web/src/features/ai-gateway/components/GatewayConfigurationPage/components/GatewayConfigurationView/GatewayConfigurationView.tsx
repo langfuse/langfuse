@@ -35,15 +35,15 @@ import { cn } from "@/src/utils/tailwind";
 
 const GATEWAY_BASE_URL = "https://gateway.langfuse.com/v1";
 
-type InstrumentationMode = "NONE" | "USAGE" | "FULL";
+type IngestionMode = "NONE" | "USAGE" | "FULL";
 type Project = {
   id: string;
   name: string;
   deletedAt?: Date | string | null;
 };
 
-const instrumentationModes: Array<{
-  value: InstrumentationMode;
+const ingestionModes: Array<{
+  value: IngestionMode;
   title: string;
   description: string;
   icon: LucideIcon;
@@ -71,20 +71,20 @@ const instrumentationModes: Array<{
 export function GatewayConfigurationView({
   projects,
   initialProjectId,
-  initialMode,
+  initialIngestionMode,
   isSaving,
   saveError,
   onSave,
 }: {
   projects: Project[];
   initialProjectId: string | null;
-  initialMode: InstrumentationMode;
+  initialIngestionMode: IngestionMode;
   isSaving: boolean;
   saveError: boolean;
   onSave: (values: {
     projectId: string | null;
     createProjectName?: string;
-    mode: InstrumentationMode;
+    ingestionMode: IngestionMode;
   }) => void | Promise<void>;
 }) {
   const activeProjects = projects.filter((project) => !project.deletedAt);
@@ -96,9 +96,11 @@ export function GatewayConfigurationView({
   );
   const [showExistingProjects, setShowExistingProjects] =
     useState(initialProjectExists);
-  const [mode, setMode] = useState<InstrumentationMode>(initialMode);
+  const [ingestionMode, setIngestionMode] =
+    useState<IngestionMode>(initialIngestionMode);
   const projectId = projectSelection ?? null;
-  const isDirty = projectId !== initialProjectId || mode !== initialMode;
+  const isDirty =
+    projectId !== initialProjectId || ingestionMode !== initialIngestionMode;
 
   return (
     <div className="flex flex-col gap-6">
@@ -142,7 +144,7 @@ export function GatewayConfigurationView({
               </SelectContent>
             </Select>
             <CreateIngestionProjectDialog
-              mode={mode}
+              ingestionMode={ingestionMode}
               isSaving={isSaving}
               onCreate={onSave}
               triggerLabel="or create a new project"
@@ -151,7 +153,7 @@ export function GatewayConfigurationView({
         ) : (
           <div className="flex flex-row items-center gap-2">
             <CreateIngestionProjectDialog
-              mode={mode}
+              ingestionMode={ingestionMode}
               isSaving={isSaving}
               onCreate={onSave}
               triggerLabel="Create ingestion project"
@@ -173,17 +175,17 @@ export function GatewayConfigurationView({
       </div>
 
       <div>
-        <CardTitle className="mb-4 text-base">Instrumentation mode</CardTitle>
+        <CardTitle className="mb-4 text-base">Ingestion mode</CardTitle>
         <div className="grid gap-2 md:grid-cols-3">
-          {instrumentationModes.map((option) => {
+          {ingestionModes.map((option) => {
             const Icon = option.icon;
-            const selected = mode === option.value;
+            const selected = ingestionMode === option.value;
             return (
               <button
                 key={option.value}
                 type="button"
                 aria-pressed={selected}
-                onClick={() => setMode(option.value)}
+                onClick={() => setIngestionMode(option.value)}
                 className={cn(
                   "bg-card hover:bg-muted/50 flex flex-col items-start gap-2 rounded-md border p-3 text-left transition-colors",
                   selected && "border-primary ring-primary ring-1",
@@ -220,7 +222,7 @@ export function GatewayConfigurationView({
         <Button
           disabled={!isDirty || isSaving}
           loading={isSaving}
-          onClick={() => onSave({ projectId, mode })}
+          onClick={() => onSave({ projectId, ingestionMode })}
         >
           Save
         </Button>
@@ -230,18 +232,18 @@ export function GatewayConfigurationView({
 }
 
 function CreateIngestionProjectDialog({
-  mode,
+  ingestionMode,
   isSaving,
   onCreate,
   triggerLabel,
   showIcon = false,
 }: {
-  mode: InstrumentationMode;
+  ingestionMode: IngestionMode;
   isSaving: boolean;
   onCreate: (values: {
     projectId: string | null;
     createProjectName?: string;
-    mode: InstrumentationMode;
+    ingestionMode: IngestionMode;
   }) => void | Promise<void>;
   triggerLabel: string;
   showIcon?: boolean;
@@ -284,7 +286,7 @@ function CreateIngestionProjectDialog({
                 onCreate({
                   projectId: null,
                   createProjectName: projectName.trim(),
-                  mode,
+                  ingestionMode,
                 })
               }
             >

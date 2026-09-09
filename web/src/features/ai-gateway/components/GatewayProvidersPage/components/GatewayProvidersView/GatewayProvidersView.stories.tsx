@@ -37,21 +37,9 @@ const connections = [
     createdAt: new Date("2026-09-07T12:00:00.000Z"),
     updatedAt: new Date("2026-09-07T12:00:00.000Z"),
   },
-  {
-    id: "connection-openrouter",
-    name: "Open models",
-    provider: "OPENROUTER",
-    displaySecret: "sk-or-...42ef",
-    status: "DISABLED",
-    organizationId: "org-1",
-    createdById: "user-1",
-    routingPriority: 2,
-    createdAt: new Date("2026-09-07T12:00:00.000Z"),
-    updatedAt: new Date("2026-09-07T12:00:00.000Z"),
-  },
 ] satisfies ComponentProps<typeof GatewayProvidersView>["connections"];
 
-const providers = ["OPENAI", "ANTHROPIC", "OPENROUTER"] as const;
+const providers = ["OPENAI", "ANTHROPIC"] as const;
 const statuses = ["ENABLED", "ERROR", "DISABLED"] as const;
 const manyConnections = Array.from({ length: 30 }, (_, index) => ({
   id: `connection-${index + 1}`,
@@ -103,7 +91,6 @@ export const OrderedCredentials = meta.story({
     modelCounts: {
       "connection-openai": 42,
       "connection-anthropic": 18,
-      "connection-openrouter": 126,
     },
     ...actions,
   },

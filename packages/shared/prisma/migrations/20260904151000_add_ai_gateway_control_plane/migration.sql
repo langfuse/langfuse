@@ -16,7 +16,7 @@ SET LOCAL statement_timeout = '30s';
 
 CREATE TYPE "GatewayInstrumentationMode" AS ENUM ('usage', 'full', 'none');
 
-CREATE TYPE "GatewayProvider" AS ENUM ('openai', 'anthropic', 'openrouter');
+CREATE TYPE "GatewayProvider" AS ENUM ('openai', 'anthropic');
 
 CREATE TYPE "GatewayConnectionStatus" AS ENUM ('enabled', 'disabled', 'error');
 

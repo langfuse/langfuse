@@ -1,5 +1,5 @@
 import type {
-  GatewayInstrumentationMode,
+  GatewayIngestionMode,
   GatewayProvider,
   PrismaClient,
 } from "@langfuse/shared/src/db";
@@ -100,7 +100,7 @@ export class GatewayResolveService {
       const context = await this.getResolveContext(params);
       span.setAttribute("langfuse.organization.id", context.organizationId);
 
-      if (!context.ingestionProjectId || !context.instrumentationMode) {
+      if (!context.ingestionProjectId || !context.ingestionMode) {
         throw new GatewayResolveError(
           "Gateway ingestion project is unavailable",
           403,
@@ -140,12 +140,12 @@ export class GatewayResolveService {
           key_id: context.apiKeyId,
           key_metadata: context.keyMetadata,
         },
-        instrumentation_mode: context.instrumentationMode.toLowerCase() as
+        instrumentation_mode: context.ingestionMode.toLowerCase() as
           | "usage"
           | "full"
           | "none",
         ingestion: this.createIngestionResponse({
-          mode: context.instrumentationMode,
+          mode: context.ingestionMode,
           organizationId: context.organizationId,
           projectId: context.ingestionProjectId,
         }),
@@ -218,7 +218,7 @@ export class GatewayResolveService {
       ingestionProjectId: projectIsUsable
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)
         : null,
-      instrumentationMode: gatewayConfig?.instrumentationMode ?? null,
+      ingestionMode: gatewayConfig?.ingestionMode ?? null,
       connection: connection
         ? {
             id: connection.id,
@@ -233,7 +233,7 @@ export class GatewayResolveService {
   }
 
   private createIngestionResponse(params: {
-    mode: GatewayInstrumentationMode;
+    mode: GatewayIngestionMode;
     organizationId: string;
     projectId: string;
   }) {

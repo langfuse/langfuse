@@ -264,7 +264,6 @@ export const getOrganizationSettingsPages = ({
       "credentials",
       "openai",
       "anthropic",
-      "openrouter",
     ],
     content: <GatewayProvidersPage organizationId={organization.id} />,
     show: showAiGateway,

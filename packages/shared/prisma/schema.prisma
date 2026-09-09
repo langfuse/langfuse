@@ -235,16 +235,17 @@ model ApiKey {
   @@map("api_keys")
 }
 
-enum GatewayInstrumentationMode {
+enum GatewayIngestionMode {
   USAGE @map("usage")
   FULL  @map("full")
   NONE  @map("none")
+
+  @@map("GatewayInstrumentationMode")
 }
 
 enum GatewayProvider {
-  OPENAI     @map("openai")
-  ANTHROPIC  @map("anthropic")
-  OPENROUTER @map("openrouter")
+  OPENAI    @map("openai")
+  ANTHROPIC @map("anthropic")
 }
 
 enum GatewayConnectionStatus {
@@ -254,13 +255,13 @@ enum GatewayConnectionStatus {
 }
 
 model GatewayConfig {
-  organizationId            String                     @id @map("organization_id")
-  organization              Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  defaultIngestionProjectId String?                    @map("default_ingestion_project_id")
-  defaultIngestionProject   Project?                   @relation("GatewayDefaultIngestionProject", fields: [defaultIngestionProjectId], references: [id], onDelete: SetNull)
-  instrumentationMode       GatewayInstrumentationMode @default(USAGE) @map("instrumentation_mode")
-  createdAt                 DateTime                   @default(now()) @map("created_at")
-  updatedAt                 DateTime                   @default(now()) @updatedAt @map("updated_at")
+  organizationId            String               @id @map("organization_id")
+  organization              Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  defaultIngestionProjectId String?              @map("default_ingestion_project_id")
+  defaultIngestionProject   Project?             @relation("GatewayDefaultIngestionProject", fields: [defaultIngestionProjectId], references: [id], onDelete: SetNull)
+  ingestionMode             GatewayIngestionMode @default(USAGE) @map("instrumentation_mode")
+  createdAt                 DateTime             @default(now()) @map("created_at")
+  updatedAt                 DateTime             @default(now()) @updatedAt @map("updated_at")
 
   @@map("gateway_configs")
 }

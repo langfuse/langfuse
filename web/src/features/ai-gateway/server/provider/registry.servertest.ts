@@ -28,22 +28,8 @@ describe("AI gateway provider registry", () => {
       authType: "x-api-key",
       validationModel: "claude-haiku-4-5-20251001",
     });
-    expect(getGatewayProviderDefinition("OPENROUTER")).toMatchObject({
-      baseUrl: "https://openrouter.ai/api/v1",
-      authType: "bearer",
-    });
-
     expect(providerSupportsApiFormat("OPENAI", "openai.responses")).toBe(true);
-    expect(
-      providerSupportsApiFormat("OPENROUTER", "openai.chat-completions"),
-    ).toBe(true);
-    expect(providerSupportsApiFormat("OPENROUTER", "openai.responses")).toBe(
-      true,
-    );
     expect(providerSupportsApiFormat("ANTHROPIC", "anthropic.messages")).toBe(
-      true,
-    );
-    expect(providerSupportsApiFormat("OPENROUTER", "anthropic.messages")).toBe(
       true,
     );
   });
@@ -179,87 +165,6 @@ describe("AI gateway provider registry", () => {
       ],
     });
     expect(String(fetcher.mock.calls[1]?.[0])).toContain("after_id=claude-a");
-  });
-
-  it("normalizes OpenRouter models and follows pagination links", async () => {
-    const fetcher = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        Response.json({
-          data: [
-            {
-              id: "openrouter/model-b",
-              canonical_slug: "openrouter/model-b-canonical",
-              name: "Model B",
-              created: 20,
-              architecture: {
-                input_modalities: ["text", "image"],
-                output_modalities: ["text"],
-              },
-              context_length: 200000,
-              supported_parameters: ["reasoning", "structured_outputs"],
-              top_provider: { max_completion_tokens: 64000 },
-              pricing: { prompt: "0.1", completion: "0.2" },
-            },
-          ],
-          links: { next: "/api/v1/models?offset=1&limit=1" },
-          total_count: 2,
-        }),
-      )
-      .mockResolvedValueOnce(
-        Response.json({
-          data: [
-            {
-              id: "openrouter/model-a",
-              canonical_slug: "openrouter/model-a-canonical",
-              name: "Model A",
-              created: 10,
-            },
-          ],
-          links: { next: null },
-          total_count: 2,
-        }),
-      );
-    const prisma = {
-      gatewayAiConnection: {
-        findFirst: vi.fn().mockResolvedValue({
-          id: "connection-1",
-          organizationId: "org-1",
-          provider: "OPENROUTER",
-          encryptedCredential: encrypt("sk-test"),
-          status: "ENABLED",
-        }),
-      },
-    } as unknown as PrismaClient;
-    const service = new GatewayModelCatalogService(prisma, fetcher, null);
-
-    await expect(
-      service.getModelCatalog({
-        organizationId: "org-1",
-        connectionId: "connection-1",
-      }),
-    ).resolves.toMatchObject({
-      success: true,
-      models: [
-        {
-          id: "openrouter/model-b",
-          provider: "OPENROUTER",
-          canonicalSlug: "openrouter/model-b-canonical",
-          displayName: "Model B",
-          createdAt: "1970-01-01T00:00:20.000Z",
-        },
-        {
-          id: "openrouter/model-a",
-          provider: "OPENROUTER",
-          canonicalSlug: "openrouter/model-a-canonical",
-          displayName: "Model A",
-          createdAt: "1970-01-01T00:00:10.000Z",
-        },
-      ],
-    });
-    expect(String(fetcher.mock.calls[1]?.[0])).toBe(
-      "https://openrouter.ai/api/v1/models?offset=1&limit=1",
-    );
   });
 
   it("treats malformed provider model responses as failures", async () => {

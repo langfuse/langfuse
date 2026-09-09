@@ -1,6 +1,6 @@
 import { InvalidRequestError } from "@langfuse/shared";
 import type {
-  GatewayInstrumentationMode,
+  GatewayIngestionMode,
   Prisma,
   PrismaClient,
 } from "@langfuse/shared/src/db";
@@ -26,7 +26,7 @@ export class GatewayConfigService {
     organizationId: string;
     defaultIngestionProjectId: string | null;
     createProjectName?: string;
-    instrumentationMode: GatewayInstrumentationMode;
+    ingestionMode: GatewayIngestionMode;
     session: OrgAuthedContext["session"];
   }) {
     const before = await this.getConfig(params.organizationId);
@@ -36,7 +36,7 @@ export class GatewayConfigService {
         organizationId: params.organizationId,
         projectName: params.createProjectName,
         createdByUserId: params.session.user.id,
-        instrumentationMode: params.instrumentationMode,
+        ingestionMode: params.ingestionMode,
       });
     } else {
       if (params.defaultIngestionProjectId) {
@@ -53,7 +53,7 @@ export class GatewayConfigService {
       result = await this.upsertConfigForExistingProject({
         organizationId: params.organizationId,
         defaultIngestionProjectId: params.defaultIngestionProjectId,
-        instrumentationMode: params.instrumentationMode,
+        ingestionMode: params.ingestionMode,
         preserveInheritedAccess:
           before?.defaultIngestionProjectId !==
           params.defaultIngestionProjectId,
@@ -99,7 +99,7 @@ export class GatewayConfigService {
   private upsertConfigForExistingProject(params: {
     organizationId: string;
     defaultIngestionProjectId: string | null;
-    instrumentationMode: GatewayInstrumentationMode;
+    ingestionMode: GatewayIngestionMode;
     preserveInheritedAccess: boolean;
   }) {
     return this.prisma.$transaction(async (tx) => {
@@ -115,11 +115,11 @@ export class GatewayConfigService {
         create: {
           organizationId: params.organizationId,
           defaultIngestionProjectId: params.defaultIngestionProjectId,
-          instrumentationMode: params.instrumentationMode,
+          ingestionMode: params.ingestionMode,
         },
         update: {
           defaultIngestionProjectId: params.defaultIngestionProjectId,
-          instrumentationMode: params.instrumentationMode,
+          ingestionMode: params.ingestionMode,
         },
       });
       return { config, project: null };
@@ -161,7 +161,7 @@ export class GatewayConfigService {
     organizationId: string;
     projectName: string;
     createdByUserId: string;
-    instrumentationMode: GatewayInstrumentationMode;
+    ingestionMode: GatewayIngestionMode;
   }) {
     return this.prisma.$transaction(async (tx) => {
       const existing = await tx.project.findFirst({
@@ -214,11 +214,11 @@ export class GatewayConfigService {
         create: {
           organizationId: params.organizationId,
           defaultIngestionProjectId: project.id,
-          instrumentationMode: params.instrumentationMode,
+          ingestionMode: params.ingestionMode,
         },
         update: {
           defaultIngestionProjectId: project.id,
-          instrumentationMode: params.instrumentationMode,
+          ingestionMode: params.ingestionMode,
         },
       });
       return { config, project };

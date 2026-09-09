@@ -12,7 +12,6 @@ type RefreshResult = RouterOutputs["aiGateway"]["refreshModels"][number];
 const providerFormats: Record<GatewayProvider, string[]> = {
   OPENAI: ["OpenAI Responses", "OpenAI Chat Completions"],
   ANTHROPIC: ["Anthropic Messages"],
-  OPENROUTER: ["OpenAI Responses", "OpenAI Chat Completions"],
 };
 
 type ModelRow = {

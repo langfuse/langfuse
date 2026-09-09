@@ -65,7 +65,7 @@ describe("find user project roles", () => {
       data: {
         organizationId: org.id,
         defaultIngestionProjectId: project.id,
-        instrumentationMode: "USAGE",
+        ingestionMode: "USAGE",
       },
     });
 
