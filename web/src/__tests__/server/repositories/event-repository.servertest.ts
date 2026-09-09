@@ -4234,6 +4234,36 @@ describe("Clickhouse Events Repository Test", () => {
       expect(result).toHaveLength(2);
     });
 
+    it("keeps the session filter when the session id is empty", async () => {
+      const observationId = randomUUID();
+      const traceId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          session_id: randomUUID(),
+          type: "GENERATION",
+          input: "outside empty session",
+          start_time: nowMicro,
+        }),
+      ]);
+
+      const result = await getObservationsBatchIOFromEventsTable({
+        projectId,
+        sessionId: "",
+        observations: [{ id: observationId, traceId }],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      });
+
+      expect(result).toEqual([]);
+    });
+
     it("should handle empty observation array", async () => {
       // minStartTime/maxStartTime are intentionally omitted: the function
       // early-returns on an empty observations array before touching them.

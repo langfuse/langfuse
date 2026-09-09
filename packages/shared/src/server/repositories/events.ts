@@ -2639,7 +2639,7 @@ export const getObservationsBatchIOFromEventsTable = async <
         AND e.span_id IN {observationIds: Array(String)}
         AND e.trace_id IN {traceIds: Array(String)}
         AND (e.trace_id, e.span_id) IN {observationTuples: Array(Tuple(String, String))}
-        ${opts.sessionId ? "AND e.session_id = {sessionId: String}" : ""}
+        ${opts.sessionId !== undefined ? "AND e.session_id = {sessionId: String}" : ""}
       AND e.start_time >= {minTimestamp: DateTime64(3)}
       AND e.start_time <= {maxTimestamp: DateTime64(3)}
   `;

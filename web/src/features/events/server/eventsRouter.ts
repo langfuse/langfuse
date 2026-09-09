@@ -117,7 +117,7 @@ const BatchIOInput = zodSchema.object({
   traceId: zodSchema.string().optional(),
 });
 const SessionBatchIOInput = BatchIOInput.omit({ traceId: true }).extend({
-  sessionId: zodSchema.string(),
+  sessionId: zodSchema.string().min(1),
 });
 
 type BatchIOInput = z.infer<typeof BatchIOInput>;
