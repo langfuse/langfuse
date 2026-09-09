@@ -46,9 +46,6 @@ packageExtensions:
   "eslint-plugin-storybook@10.3.6":
     dependencies:
       typescript: npm:@typescript/typescript6@^6.0.2
-  "eslint-plugin-tailwindcss@4.0.2":
-    dependencies:
-      typescript: npm:@typescript/typescript6@^6.0.2
   "vite-tsconfig-paths@6.1.1":
     dependencies:
       typescript: npm:@typescript/typescript6@^6.0.2

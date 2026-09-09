@@ -112,6 +112,7 @@ export default [
       // TODO: Enable these rule later
       "tailwindcss/classnames-order": "off",
       "tailwindcss/enforces-shorthand": "off",
+      "tailwindcss/enforces-canonical-classname": "off",
       "tailwindcss/no-unnecessary-arbitrary-value": "off",
       "tailwindcss/no-contradicting-classname": "off",
     },
