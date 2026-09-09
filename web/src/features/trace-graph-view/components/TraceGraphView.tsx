@@ -8,7 +8,7 @@ import React, {
 import { StringParam, useQueryParam } from "use-query-params";
 import { ObservationType } from "@langfuse/shared";
 
-import { ElkGraphRenderer, type GraphNodeHoverInfo } from "./ElkGraphRenderer";
+import { ElkGraphRenderer } from "./ElkGraphRenderer";
 import { GraphViewModeSwitch } from "./GraphViewModeSwitch";
 import {
   type AgentGraphDataResponse,
@@ -24,19 +24,6 @@ import {
   transformLanggraphToGeneralized,
 } from "../buildGraphCanvasData";
 import { buildExpandedGraph } from "../buildExpandedGraph";
-
-/** A hovered graph node resolved to the observation it stands for. */
-export type TraceGraphHoverInfo = {
-  observationId: string;
-  clientX: number;
-  clientY: number;
-};
-
-const isSystemNodeName = (nodeName: string) =>
-  nodeName === LANGFUSE_START_NODE_NAME ||
-  nodeName === LANGFUSE_END_NODE_NAME ||
-  nodeName === LANGGRAPH_START_NODE_NAME ||
-  nodeName === LANGGRAPH_END_NODE_NAME;
 
 type TraceGraphViewProps = {
   agentGraphData: AgentGraphDataResponse[];
@@ -60,24 +47,15 @@ type TraceGraphViewProps = {
    * so this feature module stays free of trace-view context dependencies.
    */
   transport?: React.ReactNode;
-  /**
-   * Pointer-anchored hover (fine pointer only), resolved to an observation id:
-   * the one a click on that node would select (the node's current cycling
-   * position, first call by default). `null` when nothing is hovered, or the
-   * node is synthetic (start/end). The host renders the card — this feature
-   * module has no observation data.
-   */
-  onNodeHover?: (info: TraceGraphHoverInfo | null) => void;
 };
 
-const TraceGraphViewComponent: React.FC<TraceGraphViewProps> = ({
+export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   agentGraphData,
   activeObservationIds,
   viewMode = "aggregated",
   onViewModeChange,
   onObservationSelect,
   transport,
-  onNodeHover,
 }) => {
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
@@ -295,7 +273,13 @@ const TraceGraphViewComponent: React.FC<TraceGraphViewProps> = ({
     (nodeName: string | null) => {
       if (nodeName) {
         // Don't cycle through system nodes (start/end nodes)
-        if (isSystemNodeName(nodeName)) {
+        const isSystemNode =
+          nodeName === LANGFUSE_START_NODE_NAME ||
+          nodeName === LANGFUSE_END_NODE_NAME ||
+          nodeName === LANGGRAPH_START_NODE_NAME ||
+          nodeName === LANGGRAPH_END_NODE_NAME;
+
+        if (isSystemNode) {
           // For system nodes, don't set observation ID (they're synthetic)
           setPreviousSelectedNode(nodeName);
           setSelectedNodeName(nodeName);
@@ -342,32 +326,6 @@ const TraceGraphViewComponent: React.FC<TraceGraphViewProps> = ({
     ],
   );
 
-  // Hover mirrors selection: the node's representative observation is the one
-  // at its current cycling index (what the "(x/N)" counter shows).
-  const handleNodeHover = useCallback(
-    (info: GraphNodeHoverInfo | null) => {
-      if (!onNodeHover) return;
-      if (!info || isSystemNodeName(info.id)) {
-        onNodeHover(null);
-        return;
-      }
-      const observations = nodeToObservationsMap[info.id] ?? [];
-      const observationId =
-        observations[currentObservationIndices[info.id] ?? 0] ??
-        observations[0];
-      if (!observationId) {
-        onNodeHover(null);
-        return;
-      }
-      onNodeHover({
-        observationId,
-        clientX: info.clientX,
-        clientY: info.clientY,
-      });
-    },
-    [onNodeHover, nodeToObservationsMap, currentObservationIndices],
-  );
-
   return (
     <div className="@container/graphcanvas relative h-full w-full">
       {limitExceeded ? (
@@ -386,7 +344,6 @@ const TraceGraphViewComponent: React.FC<TraceGraphViewProps> = ({
           // Expanded runs are long chains — left→right reads like a
           // timeline and fits the wide graph panel far better than top-down.
           layoutDirection={isExpanded ? "RIGHT" : "DOWN"}
-          onNodeHover={onNodeHover ? handleNodeHover : undefined}
           // Only the aggregated (DOWN) layout hits the size budget; when it
           // does, offer the budget-exempt expanded view as the in-place
           // recovery (it renders the same trace as an acyclic DAG).
@@ -410,7 +367,3 @@ const TraceGraphViewComponent: React.FC<TraceGraphViewProps> = ({
     </div>
   );
 };
-
-// Memoized: the host keeps per-pointer-move hover state next to this component,
-// so its re-renders must not re-render the whole canvas.
-export const TraceGraphView = React.memo(TraceGraphViewComponent);
