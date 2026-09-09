@@ -1,7 +1,7 @@
 import { CloudConfigSchema, type ParsedOrganization } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import { getSfdcService, toSfdcPlan } from "./sfdcService";
 
 /**

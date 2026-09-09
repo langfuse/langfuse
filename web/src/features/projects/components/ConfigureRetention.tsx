@@ -17,9 +17,9 @@ import { LockIcon } from "lucide-react";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useSession } from "next-auth/react";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
+import { projectRetentionSchema } from "@/src/features/auth";
 import { ActionButton } from "@/src/components/ActionButton";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements";
 
 export default function ConfigureRetention() {
   const { update: updateSession } = useSession();
