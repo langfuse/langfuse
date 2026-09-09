@@ -275,7 +275,7 @@ function TracePanelNavigationHeaderExpanded({
   );
 }
 
-export type TraceViewMode = "tree" | "timeline" | "graph";
+type TraceViewMode = "tree" | "timeline" | "graph";
 
 function ViewModeSwitch({
   activeView,
