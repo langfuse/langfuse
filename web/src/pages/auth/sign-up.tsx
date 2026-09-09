@@ -25,7 +25,7 @@ import {
   SSOButtons,
   useHuggingFaceRedirect,
   type PageProps,
-} from "@/src/features/auth/SignInPage";
+} from "@/src/pages/auth/sign-in";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
@@ -38,7 +38,7 @@ import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
 import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
 
 // Use the same getServerSideProps function as src/features/auth/SignInPage.tsx
-export { getServerSideProps } from "@/src/features/auth/SignInPage";
+export { getServerSideProps } from "@/src/pages/auth/sign-in";
 
 type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
 

@@ -590,7 +590,7 @@ const signInErrors = [
   },
 ];
 
-export default function SignIn({
+export default function SignInPage({
   authProviders = FALLBACK_AUTH_PROVIDERS,
   signUpDisabled,
   runningOnHuggingFaceSpaces,
