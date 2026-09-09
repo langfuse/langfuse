@@ -162,9 +162,7 @@ function CostUsageTable({
               <td className={tableCellClass}>
                 {numberFormatter(row.tokens, 0)}
               </td>
-              <td className={tableCellClass}>
-                {usdFormatter(row.cost, 2, 12)}
-              </td>
+              <td className={tableCellClass}>{usdFormatter(row.cost)}</td>
               <td className="py-1 text-right font-mono tabular-nums">
                 {totalCost > 0
                   ? `${((row.cost / totalCost) * 100).toFixed(0)}%`
@@ -177,7 +175,7 @@ function CostUsageTable({
             <td className={tableCellClass}>
               {numberFormatter(totalTokens, 0)}
             </td>
-            <td className={tableCellClass}>{usdFormatter(totalCost, 2, 12)}</td>
+            <td className={tableCellClass}>{usdFormatter(totalCost)}</td>
             <td className="py-1 text-right font-mono tabular-nums">100%</td>
           </tr>
         </tbody>
