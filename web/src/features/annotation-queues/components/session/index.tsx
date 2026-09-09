@@ -1688,13 +1688,15 @@ const LoadedSessionEventsPage: React.FC<{
                   isPublic={session.public}
                   {...(!isSessionTimelineEnabled
                     ? {
+                        showCorrections,
                         showInlineToolCalls,
+                        showSystemPrompt,
+                        onShowCorrectionsChange: setShowCorrectionsForSession,
                         onShowInlineToolCallsChange:
                           setInlineToolCallsForSession,
+                        onShowSystemPromptChange: setShowSystemPromptForSession,
                       }
                     : {})}
-                  showSystemPrompt={showSystemPrompt}
-                  onShowSystemPromptChange={setShowSystemPromptForSession}
                 >
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -1816,7 +1818,7 @@ const LoadedSessionEventsPage: React.FC<{
               {webCalloutAction && (
                 <WebCalloutButton action={webCalloutAction} layout="menu" />
               )}
-              {!isModernSessionEnabled ? (
+              {!isModernSessionEnabled || !isSessionTimelineEnabled ? (
                 <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
                   <span className="text-sm">Show corrections</span>
                   <Switch
@@ -1825,7 +1827,8 @@ const LoadedSessionEventsPage: React.FC<{
                     size="sm"
                   />
                 </label>
-              ) : (
+              ) : null}
+              {isModernSessionEnabled && !isSessionTimelineEnabled ? (
                 <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
                   <span className="text-sm">Show system prompt</span>
                   <Switch
@@ -1834,7 +1837,7 @@ const LoadedSessionEventsPage: React.FC<{
                     size="sm"
                   />
                 </label>
-              )}
+              ) : null}
             </>
           ),
         }}

@@ -20,8 +20,10 @@ export function ModernSessionHeaderActionsController({
   projectId,
   sessionId,
   isPublic,
+  showCorrections,
   showInlineToolCalls,
   showSystemPrompt,
+  onShowCorrectionsChange,
   onShowInlineToolCallsChange,
   onShowSystemPromptChange,
   children,
@@ -29,10 +31,12 @@ export function ModernSessionHeaderActionsController({
   projectId: string;
   sessionId: string;
   isPublic: boolean;
+  showCorrections?: boolean;
   showInlineToolCalls?: boolean;
-  showSystemPrompt: boolean;
+  showSystemPrompt?: boolean;
+  onShowCorrectionsChange?: (isEnabled: boolean) => void;
   onShowInlineToolCallsChange?: (isEnabled: boolean) => void;
-  onShowSystemPromptChange: (isEnabled: boolean) => void;
+  onShowSystemPromptChange?: (isEnabled: boolean) => void;
   children: ReactNode;
 }) {
   const capture = usePostHogClientCapture();
@@ -45,6 +49,10 @@ export function ModernSessionHeaderActionsController({
   const publishMutation = api.sessions.publish.useMutation({
     onSuccess: () => utils.sessions.invalidate(),
   });
+  const hasDisplaySettings =
+    (showCorrections !== undefined && onShowCorrectionsChange) ||
+    (showInlineToolCalls !== undefined && onShowInlineToolCallsChange) ||
+    (showSystemPrompt !== undefined && onShowSystemPromptChange);
 
   return (
     <DropdownMenu>
@@ -73,33 +81,50 @@ export function ModernSessionHeaderActionsController({
           <CopyIcon className="mr-2 h-3.5 w-3.5" />
           Copy session ID
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>Display</DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            {showInlineToolCalls !== undefined &&
-            onShowInlineToolCallsChange ? (
-              <DropdownMenuCheckboxItem
-                checked={showInlineToolCalls}
-                onClick={(event) => {
-                  event.preventDefault();
-                  onShowInlineToolCallsChange(!showInlineToolCalls);
-                }}
-              >
-                Show tool calls
-              </DropdownMenuCheckboxItem>
-            ) : null}
-            <DropdownMenuCheckboxItem
-              checked={showSystemPrompt}
-              onClick={(event) => {
-                event.preventDefault();
-                onShowSystemPromptChange(!showSystemPrompt);
-              }}
-            >
-              Show system prompt
-            </DropdownMenuCheckboxItem>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
+        {hasDisplaySettings ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>Display</DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {showCorrections !== undefined && onShowCorrectionsChange ? (
+                  <DropdownMenuCheckboxItem
+                    checked={showCorrections}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      onShowCorrectionsChange(!showCorrections);
+                    }}
+                  >
+                    Show corrections
+                  </DropdownMenuCheckboxItem>
+                ) : null}
+                {showInlineToolCalls !== undefined &&
+                onShowInlineToolCallsChange ? (
+                  <DropdownMenuCheckboxItem
+                    checked={showInlineToolCalls}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      onShowInlineToolCallsChange(!showInlineToolCalls);
+                    }}
+                  >
+                    Show tool calls
+                  </DropdownMenuCheckboxItem>
+                ) : null}
+                {showSystemPrompt !== undefined && onShowSystemPromptChange ? (
+                  <DropdownMenuCheckboxItem
+                    checked={showSystemPrompt}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      onShowSystemPromptChange(!showSystemPrompt);
+                    }}
+                  >
+                    Show system prompt
+                  </DropdownMenuCheckboxItem>
+                ) : null}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          </>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );
