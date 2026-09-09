@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  diffResults,
+  shadowAuthDiff,
   newVerdict,
   recordCoverage,
   type LegacyDecision,
   type NewResult,
   type ParitySink,
-} from "@/src/features/auth/policy/shadow";
+} from "@/src/features/public-api/server/shadowAuthDiff";
 
 const capture = () => {
   const calls: { stat: string; tags: Record<string, string | number> }[] = [];
@@ -21,7 +21,7 @@ const capture = () => {
 const deny: NewResult = { success: false, error: { httpCode: 403 } };
 const allow: NewResult = { success: true };
 
-describe("diffResults — the ship-gate signal", () => {
+describe("shadowAuthDiff — the ship-gate signal", () => {
   it.each([
     ["both allow", allow, { ok: true } as LegacyDecision, "match"],
     ["both deny", deny, { ok: false, code: 403 } as LegacyDecision, "match"],
@@ -41,7 +41,7 @@ describe("diffResults — the ship-gate signal", () => {
   ] as const)("%s", (_name, neu, legacy, result) => {
     const { calls, sink } = capture();
     expect(
-      diffResults(
+      shadowAuthDiff(
         neu,
         legacy,
         { seam: "project_route", action: "traces:read" },

@@ -25,11 +25,11 @@ import {
   type EnforceAuthResult,
 } from "@/src/features/public-api/server/enforceAuth";
 import {
-  diffResults,
+  shadowAuthDiff,
   legacyFromStatus,
   recordCoverage,
   type Seam,
-} from "@/src/features/auth/policy/shadow";
+} from "@/src/features/public-api/server/shadowAuthDiff";
 import {
   type AuthorizationContext,
   type ErrorResult,
@@ -61,7 +61,7 @@ async function legacyWithShadow(
   const legacy = await runLegacyAuth(params);
   const authz = await runNewAuth(params);
   recordCoverage(params.req.url ?? "");
-  diffResults(authz, legacyFromStatus(legacy.status), {
+  shadowAuthDiff(authz, legacyFromStatus(legacy.status), {
     seam: seamOf(params.allowedAccessLevels),
     action: params.action,
   });

@@ -12,8 +12,8 @@ const defaultSink: ParitySink = {
   span: () => getCurrentSpan(),
 };
 
-/** diffResults classifies the new pipeline's decision against legacy's, emits `langfuse.authz.parity`, and returns the result. */
-export function diffResults(
+/** shadowAuthDiff classifies the new pipeline's decision against legacy's, emits `langfuse.authz.parity`, and returns the result. */
+export function shadowAuthDiff(
   neu: NewResult,
   legacy: LegacyDecision,
   meta: { seam: Seam; action: string },

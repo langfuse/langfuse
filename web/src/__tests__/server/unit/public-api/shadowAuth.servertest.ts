@@ -15,14 +15,14 @@ const {
   mockVerifyScope,
   mockLegacyProjectAuth,
   mockEnforceAuth,
-  mockDiffResults,
+  mockShadowAuthDiff,
   mockRecordCoverage,
 } = vi.hoisted(() => ({
   env: { API_AUTH_MIGRATION: "legacy" as string },
   mockVerifyScope: vi.fn(),
   mockLegacyProjectAuth: vi.fn(),
   mockEnforceAuth: vi.fn(),
-  mockDiffResults: vi.fn(),
+  mockShadowAuthDiff: vi.fn(),
   mockRecordCoverage: vi.fn(),
 }));
 
@@ -42,11 +42,14 @@ vi.mock("@/src/features/public-api/server/enforceAuth", () => ({
   enforceAuth: mockEnforceAuth,
 }));
 
-vi.mock("@/src/features/auth/policy/shadow", async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  diffResults: mockDiffResults,
-  recordCoverage: mockRecordCoverage,
-}));
+vi.mock(
+  "@/src/features/public-api/server/shadowAuthDiff",
+  async (importOriginal) => ({
+    ...(await importOriginal<object>()),
+    shadowAuthDiff: mockShadowAuthDiff,
+    recordCoverage: mockRecordCoverage,
+  }),
+);
 
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 
@@ -143,7 +146,7 @@ describe("org-family dispatch (allowedAccessLevels ['organization'])", () => {
       authzDenies();
       await call();
       expect(mockRecordCoverage).toHaveBeenCalledWith("");
-      expect(mockDiffResults).toHaveBeenCalledWith(
+      expect(mockShadowAuthDiff).toHaveBeenCalledWith(
         { success: false, error: expect.any(ForbiddenError) },
         { ok: true },
         { seam: "org_route", action: "projects:read" },
@@ -213,7 +216,7 @@ describe("org-family dispatch (allowedAccessLevels ['organization'])", () => {
     it("does not record parity telemetry", async () => {
       authzAllows();
       await call();
-      expect(mockDiffResults).not.toHaveBeenCalled();
+      expect(mockShadowAuthDiff).not.toHaveBeenCalled();
       expect(mockRecordCoverage).not.toHaveBeenCalled();
     });
   });
@@ -291,7 +294,7 @@ describe("project-family dispatch (allowedAccessLevels ['project'])", () => {
       authzDenies();
       expect(await call()).toEqual({ success: true, scope: legacyScope.scope });
       expect(mockEnforceAuth).not.toHaveBeenCalled();
-      expect(mockDiffResults).not.toHaveBeenCalled();
+      expect(mockShadowAuthDiff).not.toHaveBeenCalled();
       expect(mockRecordCoverage).not.toHaveBeenCalled();
     });
   });
@@ -321,7 +324,7 @@ describe("project-family dispatch (allowedAccessLevels ['project'])", () => {
       authzDenies();
       await call();
       expect(mockRecordCoverage).toHaveBeenCalledWith("");
-      expect(mockDiffResults).toHaveBeenCalledWith(
+      expect(mockShadowAuthDiff).toHaveBeenCalledWith(
         { success: false, error: expect.any(ForbiddenError) },
         { ok: true },
         { seam: "project_route", action: "traces:read" },
@@ -375,7 +378,7 @@ describe("project-family dispatch (allowedAccessLevels ['project'])", () => {
     it("does not record parity telemetry", async () => {
       authzAllowsApiKey("privateKey");
       await call();
-      expect(mockDiffResults).not.toHaveBeenCalled();
+      expect(mockShadowAuthDiff).not.toHaveBeenCalled();
       expect(mockRecordCoverage).not.toHaveBeenCalled();
     });
   });
