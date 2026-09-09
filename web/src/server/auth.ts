@@ -750,11 +750,25 @@ export async function getAuthOptions(signupAttribution?: {
         }
         return baseUrl;
       },
+      async jwt({ token, user }) {
+        if (user) {
+          token.loginAt = Date.now();
+        }
+        return token;
+      },
       async session({ session, token }): Promise<Session> {
         return instrumentAsync({ name: "next-auth-session" }, async (span) => {
-          const dbUser = await prisma.user.findUnique({
+          const dbUser = await prisma.user.findFirst({
             where: {
               email: token.email!.toLowerCase(),
+              OR: [
+                { sessionsValidAfter: null },
+                {
+                  sessionsValidAfter: {
+                    lte: new Date(token.loginAt ?? 0),
+                  },
+                },
+              ],
             },
             select: {
               id: true,

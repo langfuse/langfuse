@@ -110,6 +110,7 @@ export async function consumeEmailOtpAndUpdatePassword({
       data: {
         password: hashedPassword,
         emailVerified: now,
+        sessionsValidAfter: now,
       },
     });
 

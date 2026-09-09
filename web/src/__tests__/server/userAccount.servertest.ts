@@ -81,6 +81,25 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   });
 });
 
+describe("userAccountRouter.signOutAllSessions", () => {
+  it("advances the user's session revocation timestamp", async () => {
+    const { caller, userId } = await createCaller();
+    const beforeRevocation = new Date();
+
+    await expect(caller.userAccount.signOutAllSessions()).resolves.toEqual({
+      success: true,
+    });
+
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { sessionsValidAfter: true },
+    });
+    expect(user.sessionsValidAfter?.getTime()).toBeGreaterThanOrEqual(
+      beforeRevocation.getTime(),
+    );
+  });
+});
+
 async function createCaller({
   plan = "cloud:hobby",
   aiFeaturesEnabled = true,

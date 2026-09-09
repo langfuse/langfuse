@@ -98,6 +98,15 @@ export const userAccountRouter = createTRPCRouter({
       };
     }),
 
+  signOutAllSessions: authenticatedProcedure.mutation(async ({ ctx }) => {
+    await ctx.prisma.user.update({
+      where: { id: ctx.session.user.id },
+      data: { sessionsValidAfter: new Date() },
+    });
+
+    return { success: true };
+  }),
+
   setFeaturePreviewEnabled: authenticatedProcedure
     .input(
       z.object({

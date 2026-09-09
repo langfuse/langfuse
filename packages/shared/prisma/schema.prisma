@@ -51,6 +51,7 @@ model User {
   email                     String?                     @unique
   emailVerified             DateTime?                   @map("email_verified")
   password                  String?
+  sessionsValidAfter        DateTime?                   @map("sessions_valid_after")
   image                     String?
   admin                     Boolean                     @default(false)
   v4BetaEnabled             Boolean                     @default(false) @map("v4_beta_enabled")
