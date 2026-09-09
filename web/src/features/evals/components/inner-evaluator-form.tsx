@@ -1363,9 +1363,12 @@ export const InnerEvaluatorForm = (props: {
         <CodeEvalTestRunCard
           projectId={props.projectId}
           evalTemplate={props.evalTemplate}
-          target={watchedTarget}
+          target={
+            isEventTarget(watchedTarget)
+              ? EvalTargetObject.EVENT
+              : EvalTargetObject.EXPERIMENT
+          }
           scoreName={watchedScoreName}
-          disabled={props.disabled}
           enableExecutionTracePeek={!props.existingEvaluator}
         />
       ) : isCodeEvalConfig ? null : (
