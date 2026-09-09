@@ -52,7 +52,7 @@ export class GatewayApiKeyService {
     await auditLog(
       {
         session: params.session,
-        resourceType: "gatewayApiKey",
+        resourceType: "apiKey",
         resourceId: key.id,
         action: "create",
         after: {
@@ -101,7 +101,7 @@ export class GatewayApiKeyService {
     await auditLog(
       {
         session: params.session,
-        resourceType: "gatewayApiKey",
+        resourceType: "apiKey",
         resourceId: params.apiKeyId,
         action: "delete",
         before: association,

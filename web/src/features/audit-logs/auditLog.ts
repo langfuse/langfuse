@@ -50,7 +50,6 @@ type AuditableResource =
   | "ssoConfig"
   | "gatewayConfig"
   | "gatewayAiConnection"
-  | "gatewayApiKey"
   // legacy resources
   | "membership";
 

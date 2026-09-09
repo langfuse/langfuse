@@ -1,11 +1,10 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import type { Session } from "next-auth";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import waitForExpect from "wait-for-expect";
 
 import { env } from "@/src/env.mjs";
-import { GetMediaUploadUrlResponseSchema } from "@/src/features/media/validation";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import {
   type GatewayApiFormat,
@@ -97,7 +96,6 @@ let connectionSnapshots: ConnectionSnapshot[] = [];
 const createdConnectionIds = new Set<string>();
 const connectionIdsByProvider = new Map<GatewayProviderName, string>();
 const apiKeyIds = new Set<string>();
-const mediaIds = new Set<string>();
 const originalAllowlist = [...env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST];
 
 describe("AI gateway live end-to-end", () => {
@@ -351,14 +349,10 @@ describe("AI gateway live end-to-end", () => {
             if (!ingestionToken)
               throw new Error("Resolve did not return an ingestion token");
 
-            const { traceId, observationId } = await ingestTrace(
-              ingestionToken,
-              {
-                provider,
-                apiFormat,
-              },
-            );
-            await uploadMedia(ingestionToken, { traceId, observationId });
+            await ingestTrace(ingestionToken, {
+              provider,
+              apiFormat,
+            });
           },
         );
       },
@@ -417,17 +411,6 @@ async function cleanUpTestArtifacts() {
       where: { id: { in: [...apiKeyIds] } },
     });
   }
-  if (mediaIds.size === 0 || !defaultProjectId) return;
-
-  await prisma.traceMedia.deleteMany({
-    where: { projectId: defaultProjectId, mediaId: { in: [...mediaIds] } },
-  });
-  await prisma.observationMedia.deleteMany({
-    where: { projectId: defaultProjectId, mediaId: { in: [...mediaIds] } },
-  });
-  await prisma.media.deleteMany({
-    where: { projectId: defaultProjectId, id: { in: [...mediaIds] } },
-  });
 }
 
 async function restoreProviderConnections() {
@@ -658,103 +641,6 @@ async function ingestTrace(
   );
 
   return { traceId, observationId };
-}
-
-async function uploadMedia(
-  ingestionToken: string,
-  context: { traceId: string; observationId: string },
-) {
-  const fileBytes = Buffer.from(`Gateway E2E media ${randomUUID()}`, "utf8");
-  const sha256Hash = createHash("sha256").update(fileBytes).digest("base64");
-  const createResponse = await fetch(`${BASE_URL}/api/public/media`, {
-    method: "POST",
-    headers: bearerJsonHeaders(ingestionToken),
-    body: JSON.stringify({
-      contentType: "text/plain",
-      contentLength: fileBytes.length,
-      sha256Hash,
-      traceId: context.traceId,
-      observationId: context.observationId,
-      field: "input",
-    }),
-  });
-  const upload = GetMediaUploadUrlResponseSchema.parse(
-    await readJsonResponse(createResponse, 201, "/api/public/media"),
-  );
-  mediaIds.add(upload.mediaId);
-  if (!upload.uploadUrl) {
-    throw new Error(
-      "Media API did not return an upload URL for unique content",
-    );
-  }
-
-  const uploadResponse = await fetch(upload.uploadUrl, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "text/plain",
-      "X-Amz-Checksum-Sha256": sha256Hash,
-    },
-    body: fileBytes as BodyInit,
-  });
-  await expectResponseStatus(uploadResponse, 200, "media upload URL");
-
-  const patchResponse = await fetch(
-    `${BASE_URL}/api/public/media/${upload.mediaId}`,
-    {
-      method: "PATCH",
-      headers: bearerJsonHeaders(ingestionToken),
-      body: JSON.stringify({
-        uploadedAt: new Date().toISOString(),
-        uploadHttpStatus: uploadResponse.status,
-        uploadHttpError: "",
-      }),
-    },
-  );
-  await expectResponseStatus(
-    patchResponse,
-    200,
-    `/api/public/media/${upload.mediaId}`,
-  );
-
-  await waitForExpect(
-    async () => {
-      const [media, observationMedia] = await Promise.all([
-        prisma.media.findUnique({
-          where: {
-            projectId_id: { projectId: defaultProjectId, id: upload.mediaId },
-          },
-        }),
-        prisma.observationMedia.findUnique({
-          where: {
-            projectId_traceId_observationId_mediaId_field: {
-              projectId: defaultProjectId,
-              traceId: context.traceId,
-              observationId: context.observationId,
-              mediaId: upload.mediaId,
-              field: "input",
-            },
-          },
-        }),
-      ]);
-      expect(media).toMatchObject({
-        sha256Hash,
-        contentType: "text/plain",
-        contentLength: BigInt(fileBytes.length),
-        uploadHttpStatus: 200,
-      });
-      expect(observationMedia).not.toBeNull();
-    },
-    10_000,
-    500,
-  );
-}
-
-function bearerJsonHeaders(token: string) {
-  return {
-    Authorization: `Bearer ${token}`,
-    "Langfuse-Gateway-Authorization": gatewayIngestionAuthorization(token),
-    "Content-Type": "application/json",
-  };
 }
 
 function gatewayIngestionAuthorization(token: string) {

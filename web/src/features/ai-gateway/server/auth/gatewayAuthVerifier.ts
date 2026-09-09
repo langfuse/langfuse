@@ -94,7 +94,7 @@ export function withGatewayModelsAuth(handler: GatewayModelsHandler) {
 
     const token = getBearerToken(req);
     if (!token) {
-      return res.status(401).json({ error: "Invalid gateway key" });
+      return res.status(401).json({ error: "Invalid Bearer token" });
     }
 
     const query = modelsQuerySchema.safeParse(req.query);
@@ -143,7 +143,7 @@ function withGatewayControlPlaneAuth<
 
     const token = getBearerToken(req);
     if (!token) {
-      return res.status(401).json({ error: "Invalid gateway key" });
+      return res.status(401).json({ error: "Invalid Bearer token" });
     }
 
     let requestBody: string;

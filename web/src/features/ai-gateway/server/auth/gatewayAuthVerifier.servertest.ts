@@ -97,6 +97,7 @@ describe("withGatewayResolveAuth", () => {
     );
 
     expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ error: "Invalid Bearer token" });
     expect(handler).not.toHaveBeenCalled();
   });
 
@@ -124,6 +125,20 @@ describe("withGatewayResolveAuth", () => {
       });
     },
   );
+
+  it("rejects a missing Bearer token on the models endpoint", async () => {
+    const handler = vi.fn();
+    const res = response();
+
+    await withGatewayModelsAuth(handler)(
+      request({ method: "GET", query: { api_format: "anthropic.messages" } }),
+      res,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ error: "Invalid Bearer token" });
+    expect(handler).not.toHaveBeenCalled();
+  });
 
   it("accepts the same signature on the models endpoint", async () => {
     vi.useFakeTimers();

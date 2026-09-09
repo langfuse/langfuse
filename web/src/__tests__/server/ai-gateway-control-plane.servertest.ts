@@ -472,7 +472,7 @@ describe("AI gateway control plane", () => {
       { resourceType: "gatewayConfig", action: "create" },
       { resourceType: "project", action: "create" },
       { resourceType: "gatewayAiConnection", action: "create" },
-      { resourceType: "gatewayApiKey", action: "create" },
+      { resourceType: "apiKey", action: "create" },
     ]);
 
     await apiKeyService.revoke({
