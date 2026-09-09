@@ -14,7 +14,6 @@ import { prisma } from "@langfuse/shared/src/db";
 
 import { env } from "@/src/env.mjs";
 import { authorize } from "@/src/features/auth/policy/authorize";
-import { headerValue } from "@/src/features/auth/policy/headers";
 import { authenticator } from "@/src/features/apiKey/authenticator";
 import {
   isOrgAction,
@@ -32,6 +31,11 @@ const orgIdHeader = "x-langfuse-organization-id";
 
 /** projectIdHeader selects the target project for keys without a bound project. */
 const projectIdHeader = "x-langfuse-project-id";
+
+/** headerValue normalizes a possibly-repeated header to its first value. */
+const headerValue = (
+  value: string | string[] | undefined,
+): string | undefined => (Array.isArray(value) ? value[0] : value);
 
 /** enforceAuth authenticates the request, resolves the org or project target its action implies, authorizes it, and maps the principal onto the ApiAccessScope. */
 export async function enforceAuth(
