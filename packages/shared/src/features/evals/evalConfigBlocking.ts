@@ -112,6 +112,22 @@ export function getEvaluatorBlockMetadata(
   return EVALUATOR_BLOCK_METADATA[reason];
 }
 
+const DEFINITION_UPDATE_RECOVERABLE_BLOCK_REASONS: ReadonlySet<EvaluatorBlockReason> =
+  new Set([
+    EvaluatorBlockReason.LLM_CONNECTION_MISSING,
+    EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
+    EvaluatorBlockReason.EVAL_MODEL_CONFIG_INVALID,
+    EvaluatorBlockReason.EVAL_MODEL_UNAVAILABLE,
+  ]);
+
+export function isEvaluatorBlockReasonRecoverableByDefinitionUpdate(
+  reason: EvaluatorBlockReason | null | undefined,
+) {
+  return reason
+    ? DEFINITION_UPDATE_RECOVERABLE_BLOCK_REASONS.has(reason)
+    : false;
+}
+
 export function getEvaluatorBlockResolutionPath(params: {
   projectId: string;
   blockReason: EvaluatorBlockReason;

@@ -1,0 +1,241 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  evals: ./evaluation-commons.yml
+  evaluators: ./evaluators.yml
+  errors: ./evaluation-errors.yml
+
+service:
+  auth: true
+  base-path: /api/public/v2/evaluation-rules
+  endpoints:
+    create:
+      docs: |
+        Create an evaluation rule using stable evaluator identifiers.
+
+        An evaluation rule defines **which** incoming observations should be evaluated and how prompt variables should be populated.
+
+        Key behavior:
+        - rule names are not identifiers and do not need to be unique
+        - rules always use the latest version of each associated evaluator
+        - an enabled rule requires at least one evaluator assignment
+        - omit `sampling` to evaluate every matching observation
+        - omit `filter` to match every incoming observation
+        - `datasetId` is the public filter name for selecting experiment datasets
+      method: POST
+      path: ""
+      request: CreateEvaluationRuleRequest
+      response:
+        status-code: 201
+        type: EvaluationRule
+      errors:
+        - errors.BadRequestError
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationNotFoundError
+        - errors.EvaluationMethodNotAllowedError
+        - errors.ConflictError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+    list:
+      docs: |
+        List evaluation rules in newest-first creation order.
+
+        This includes legacy trace and dataset rules so they can be inspected and migrated. Treat the cursor as opaque and return it unchanged.
+      method: GET
+      path: ""
+      request:
+        name: ListEvaluationRulesRequest
+        query-parameters:
+          limit:
+            type: optional<integer>
+            docs: Maximum number of items to return. Defaults to `50` and cannot exceed `100`.
+          cursor:
+            type: optional<string>
+            docs: Opaque cursor returned by the previous page.
+      response: EvaluationRulesPage
+      errors:
+        - errors.BadRequestError
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationMethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+    get:
+      docs: Get one evaluation rule, including a legacy trace or dataset rule, by its stable identifier.
+      method: GET
+      path: /{evaluationRuleId}
+      path-parameters:
+        evaluationRuleId:
+          type: string
+          docs: Stable evaluation-rule identifier returned by the evaluation-rule endpoints.
+      response: EvaluationRule
+      errors:
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationNotFoundError
+        - errors.EvaluationMethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+    update:
+      docs: |
+        Update an evaluation rule by its stable identifier.
+
+        Provide only the fields to change. Providing `evaluatorAssignments` replaces the complete assignment list. Replacing the list with an empty array disables the rule. Setting `enabled=true` is rejected when the resulting assignment list is empty, including when both fields are sent in the same request.
+
+        Legacy trace and dataset rules follow the existing lifecycle restrictions: they can be deactivated with `enabled=false`, but their name, filters, sampling, and evaluator assignments cannot be changed.
+      method: PATCH
+      path: /{evaluationRuleId}
+      path-parameters:
+        evaluationRuleId:
+          type: string
+          docs: Stable evaluation-rule identifier returned by the evaluation-rule endpoints.
+      request: UpdateEvaluationRuleRequest
+      response: EvaluationRule
+      errors:
+        - errors.BadRequestError
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationNotFoundError
+        - errors.EvaluationMethodNotAllowedError
+        - errors.ConflictError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+    delete:
+      docs: |
+        Delete an evaluation rule.
+
+        This removes the live-ingestion rule only. It does not delete associated evaluators or scores already produced by them.
+
+        Legacy trace and dataset rules can also be deleted. Their evaluators and previously produced scores are preserved.
+      method: DELETE
+      path: /{evaluationRuleId}
+      path-parameters:
+        evaluationRuleId:
+          type: string
+          docs: Stable evaluation-rule identifier returned by the evaluation-rule endpoints.
+      response: DeletedEvaluationRule
+      errors:
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationNotFoundError
+        - errors.EvaluationMethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+types:
+  EvaluationRuleEvaluatorAssignmentInput:
+    properties:
+      evaluatorId:
+        type: string
+        docs: Stable evaluator identifier. The rule automatically uses that evaluator's latest version.
+      variableMapping:
+        type: optional<nullable<list<evals.PromptVariableMappingInput>>>
+        docs: |
+          Rule-specific prompt-variable mapping.
+
+          Set to `null` or omit to inherit the evaluator's latest default mapping. Code evaluators use the fixed runtime mapping and should use `null`.
+
+  EvaluatorAssignment:
+    properties:
+      evaluatorId:
+        type: string
+        docs: Stable identifier of the evaluator associated with this rule.
+      variableMapping:
+        type: nullable<list<evals.PromptVariableMapping>>
+        docs: Stored rule-specific override, or `null` when the evaluator's latest default mapping is inherited. Legacy mappings are returned as an explicit `legacy` variant.
+
+  EvaluationRule:
+    docs: |
+      Live evaluation rule for incoming observations.
+
+      A rule determines which evaluators should be used, which observations should trigger scoring, how often scoring should run, and which observation fields should populate prompt variables.
+    properties:
+      id:
+        type: string
+        docs: Stable evaluation-rule identifier.
+      name:
+        type: string
+        docs: Human-readable rule name. This is independent from evaluator names and does not need to be unique.
+      createdBy:
+        type: nullable<evaluators.Creator>
+        docs: User who created this rule, or `null` when no user can be resolved.
+      enabled:
+        type: boolean
+        docs: Whether live execution is enabled for this rule.
+      sampling:
+        type: double
+        docs: |
+          Fraction of matching observations that should be evaluated.
+
+          Must be between `0` and `1`.
+          - `1` evaluates every matching observation.
+          - `0.25` evaluates approximately 25% of matching observations.
+      filter:
+        type: list<evals.EvaluationRuleReadFilter>
+        docs: List of stored filter conditions returned verbatim. Filters with a `key` use the keyed response shape; all others use the base shape. These response shapes are not broken down by internal filter type. An empty list matches every incoming object.
+      evaluatorAssignments:
+        type: list<EvaluatorAssignment>
+        docs: Evaluators attached to this rule in deterministic assignment order.
+      createdAt:
+        type: datetime
+        docs: Timestamp when the evaluation rule was created.
+      updatedAt:
+        type: datetime
+        docs: Timestamp when the evaluation rule was last updated.
+
+  CreateEvaluationRuleRequest:
+    properties:
+      name:
+        type: string
+        docs: Human-readable rule name. Names are not identifiers and do not need to be unique.
+      enabled:
+        type: boolean
+        docs: Whether live execution should start immediately. Enabled rules require at least one evaluator assignment.
+      sampling:
+        type: optional<double>
+        docs: Fraction of matching observations to evaluate. Omit this field to use the default of `1`, which evaluates every match. `null` is not accepted.
+      filter:
+        type: optional<list<evals.EvaluationRuleFilter>>
+        docs: Conditions used to select observations. Defaults to an empty list, which matches every incoming observation.
+      evaluatorAssignments:
+        type: list<EvaluationRuleEvaluatorAssignmentInput>
+        docs: Evaluators to attach to this rule. Disabled rules may use an empty list as a draft.
+
+  UpdateEvaluationRuleRequest:
+    docs: At least one field must be provided.
+    properties:
+      name:
+        type: optional<string>
+        docs: New human-readable rule name.
+      enabled:
+        type: optional<boolean>
+        docs: New desired live-execution state.
+      sampling:
+        type: optional<double>
+        docs: New fraction of matching observations to evaluate. Omit to keep the current value.
+      filter:
+        type: optional<list<evals.EvaluationRuleFilter>>
+        docs: Complete replacement filter list. An empty list matches every incoming observation.
+      evaluatorAssignments:
+        type: optional<list<EvaluationRuleEvaluatorAssignmentInput>>
+        docs: Complete replacement assignment list. An empty list disables the rule.
+
+  EvaluationRulesPage:
+    properties:
+      data:
+        type: list<EvaluationRule>
+        docs: Evaluation rules for this page.
+      meta:
+        type: evaluators.CursorMeta
+        docs: Cursor pagination metadata.
+
+  DeletedEvaluationRule:
+    docs: Confirmation returned after successful evaluation-rule deletion.
+    properties:
+      id:
+        type: string
+        docs: Identifier of the deleted evaluation rule.

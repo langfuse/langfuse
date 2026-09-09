@@ -1,8 +1,4 @@
-import {
-  decrypt,
-  encrypt,
-  generateWebhookSecret,
-} from "@langfuse/shared/encryption";
+import { encrypt, generateWebhookSecret } from "@langfuse/shared/encryption";
 import {
   type ActionCreate,
   type ActionConfig,
@@ -168,22 +164,4 @@ function processWebhookHeaders(
     displaySecretKey: "", // will be overwritten by the caller
     lastFailingExecutionId: existingConfig?.lastFailingExecutionId,
   };
-}
-
-/**
- * Extracts webhook secret for one-time display after creation
- */
-export function extractWebhookSecret(
-  actionConfig: ActionConfig,
-): string | undefined {
-  if (actionConfig.type !== "WEBHOOK" || !actionConfig.secretKey) {
-    return undefined;
-  }
-
-  try {
-    return decrypt(actionConfig.secretKey);
-  } catch (error) {
-    console.error("Failed to decrypt webhook secret for display:", error);
-    return undefined;
-  }
 }

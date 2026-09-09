@@ -11,6 +11,7 @@ import {
   SCORE_COLUMNS,
   type FieldRegistry,
 } from "../lib/fields";
+import { planCommit } from "../lib/commit";
 import { filterStateToQueryText } from "../lib/filter-state-to-query";
 import type { ObservedScoreNames } from "../lib/observed-options";
 
@@ -287,15 +288,32 @@ export function parseGeneratedFilters(
     compatible,
     scoreNames,
   );
+  const projected: FilterState = [];
+  for (const filter of scoreChecked) {
+    const id = registry.columnIdOf(filter.column);
+    const ref = id === null ? null : registry.resolveField(id);
+    if (ref?.type !== "field" || ref.field.filterColumn === undefined) {
+      projected.push(filter);
+      continue;
+    }
+
+    const rendered = filterStateToQueryText([filter], {}, registry);
+    const result = planCommit(rendered.text, undefined, registry);
+    if (rendered.skippedFilters.length === 0 && result.status === "committed") {
+      for (const canonicalFilter of result.filters) {
+        projected.push(canonicalFilter);
+      }
+    }
+  }
   // Guardrail 3: drop anything that doesn't round-trip to bar grammar (unknown /
   // non-representable columns land in skippedFilters).
   const { text, skippedFilters } = filterStateToQueryText(
-    scoreChecked,
+    projected,
     {},
     registry,
   );
   const skipped = new Set(skippedFilters);
-  const filters = scoreChecked.filter((f) => !skipped.has(f));
+  const filters = projected.filter((f) => !skipped.has(f));
   return {
     filters,
     queryText: text,

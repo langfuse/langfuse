@@ -1,10 +1,11 @@
 import { useMemo, type ReactNode } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -13,6 +14,7 @@ import {
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   type AnalyticsIntegrationExportSource,
+  BlobStorageIntegrationFileType,
   type ExportSourceContext,
 } from "@langfuse/shared";
 import {
@@ -25,7 +27,6 @@ import { StorageProviderFields } from "@/src/features/blobstorage-integration/co
 import { ExportScheduleFields } from "@/src/features/blobstorage-integration/components/ExportScheduleFields";
 import { ExportSourceField } from "@/src/features/blobstorage-integration/components/ExportSourceField";
 import { ExportFieldGroupsField } from "@/src/features/blobstorage-integration/components/ExportFieldGroupsField";
-import { GzipCompressionField } from "@/src/features/blobstorage-integration/components/GzipCompressionField";
 
 // Disposable draft layer. The container mounts one instance per entity
 // identity (project + config existence, via React key) after all async
@@ -76,6 +77,7 @@ export const BlobStorageIntegrationForm = ({
   });
 
   const control = blobStorageForm.control;
+  const fileType = useWatch({ control, name: "fileType" });
 
   return (
     <Form {...blobStorageForm}>
@@ -91,7 +93,31 @@ export const BlobStorageIntegrationForm = ({
           exportSourceCtx={exportSourceCtx}
         />
         <ExportFieldGroupsField control={control} />
-        <GzipCompressionField control={control} />
+        {/* Parquet compresses internally — gzip does not apply. */}
+        {fileType !== BlobStorageIntegrationFileType.PARQUET && (
+          <FormField
+            control={control}
+            name="compressed"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Gzip Compression</FormLabel>
+                <FormControl>
+                  <div className="mt-1 ml-4">
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </div>
+                </FormControl>
+                <FormDescription>
+                  Compress exported files with gzip (.csv.gz, .json.gz,
+                  .jsonl.gz)
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         <FormField
           control={control}
           name="enabled"

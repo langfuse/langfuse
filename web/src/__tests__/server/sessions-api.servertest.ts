@@ -114,6 +114,48 @@ describe("/api/public/sessions API Endpoint", () => {
       );
     });
 
+    it("clamps Hobby session access to the last 30 days", async () => {
+      const hobbyFixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
+      const oldSessionId = `old-session-${v4()}`;
+      const recentSessionId = `recent-session-${v4()}`;
+
+      try {
+        await prisma.traceSession.createMany({
+          data: [
+            {
+              id: oldSessionId,
+              createdAt: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000),
+              projectId: hobbyFixture.projectId,
+            },
+            {
+              id: recentSessionId,
+              createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+              projectId: hobbyFixture.projectId,
+            },
+          ],
+        });
+
+        const response = await makeZodVerifiedAPICall(
+          GetSessionsV1Response,
+          "GET",
+          "/api/public/sessions",
+          undefined,
+          hobbyFixture.auth,
+        );
+
+        expect(response.body.data.map((session) => session.id)).toContain(
+          recentSessionId,
+        );
+        expect(response.body.data.map((session) => session.id)).not.toContain(
+          oldSessionId,
+        );
+      } finally {
+        await prisma.organization.delete({
+          where: { id: hobbyFixture.orgId },
+        });
+      }
+    });
+
     it("should return sessions with environment", async () => {
       const sessions = await makeZodVerifiedAPICall(
         GetSessionsV1Response,

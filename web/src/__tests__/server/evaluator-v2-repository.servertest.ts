@@ -1,14 +1,12 @@
 import { randomUUID } from "crypto";
-import { getCodeEvalVariableMapping } from "@langfuse/shared";
+import { getCodeEvalVariableMapping, LLMAdapter } from "@langfuse/shared";
+import { encrypt } from "@langfuse/shared/encryption";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import * as evaluatorRepository from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
 import { EvaluatorVersionConflictError } from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
-import type {
-  EvaluatorDefinition,
-  EvaluatorDefinitionForPersistence,
-} from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+import type { EvaluatorDefinitionForPersistence } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 
 const orgIds: string[] = [];
 let projectId = "";
@@ -26,18 +24,18 @@ const codeDefinition = (
 
 const llmDefinition = (
   overrides: Partial<
-    Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>
+    Extract<EvaluatorDefinitionForPersistence, { type: "LLM_AS_JUDGE" }>
   > = {},
-): Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }> => ({
+): Extract<EvaluatorDefinitionForPersistence, { type: "LLM_AS_JUDGE" }> => ({
   type: "LLM_AS_JUDGE",
   prompt: "Judge {{output}}",
+  promptMessages: [{ role: "user", content: "Judge {{output}}" }],
   provider: null,
   model: null,
   modelParams: null,
   vars: ["output"],
   variableMapping: null,
   outputDefinition: {
-    version: 2,
     dataType: "NUMERIC",
     score: { description: "Quality" },
     reasoning: { description: "Reasoning" },
@@ -126,6 +124,33 @@ const createEvaluatorWithThreeVersions = async () => {
   return evaluator;
 };
 
+const provisionDefaultEvalModel = async (model: string) => {
+  const provider = `openai-${randomUUID()}`;
+  const llmApiKey = await prisma.llmApiKeys.create({
+    data: {
+      projectId,
+      provider,
+      adapter: LLMAdapter.OpenAI,
+      secretKey: encrypt("sk-test"),
+      displaySecretKey: "...test",
+      baseURL: "https://api.openai.com/v1",
+      customModels: [],
+      withDefaultModels: true,
+      extraHeaders: null,
+      extraHeaderKeys: [],
+    },
+  });
+  await prisma.defaultLlmModel.create({
+    data: {
+      projectId,
+      llmApiKeyId: llmApiKey.id,
+      provider,
+      adapter: LLMAdapter.OpenAI,
+      model,
+    },
+  });
+};
+
 beforeAll(async () => {
   const [first, second, creator] = await Promise.all([
     createOrgProjectAndApiKey(),
@@ -148,6 +173,12 @@ afterEach(async () => {
     where: { projectId: { in: [projectId, otherProjectId] } },
   });
   await prisma.evaluator.deleteMany({
+    where: { projectId: { in: [projectId, otherProjectId] } },
+  });
+  await prisma.defaultLlmModel.deleteMany({
+    where: { projectId: { in: [projectId, otherProjectId] } },
+  });
+  await prisma.llmApiKeys.deleteMany({
     where: { projectId: { in: [projectId, otherProjectId] } },
   });
 });
@@ -228,7 +259,7 @@ describe("evaluator v2 repository", () => {
       });
     });
 
-    it("paginates evaluators in descending update order", async () => {
+    it("preserves default update order and supports explicit creation order", async () => {
       const [recentlyUpdated, newerButUnchanged] = await Promise.all([
         createEvaluator(),
         createEvaluator(),
@@ -272,6 +303,22 @@ describe("evaluator v2 repository", () => {
         }),
       ).resolves.toEqual({
         evaluators: [expect.objectContaining({ id: newerButUnchanged.id })],
+        totalItems: 2,
+      });
+
+      await expect(
+        evaluatorRepository.listEvaluators({
+          prisma,
+          projectId,
+          page: 1,
+          limit: 2,
+          orderBy: { column: "createdAt", order: "DESC" },
+        }),
+      ).resolves.toEqual({
+        evaluators: [
+          expect.objectContaining({ id: newerButUnchanged.id }),
+          expect.objectContaining({ id: recentlyUpdated.id }),
+        ],
         totalItems: 2,
       });
     });
@@ -412,6 +459,107 @@ describe("evaluator v2 repository", () => {
         totalItems: 1,
       });
     });
+
+    it("filters evaluators by their effective latest model", async () => {
+      await provisionDefaultEvalModel("project-default-model");
+      const [explicitMatch, inheritedMatch, historicalOnly, codeEvaluator] =
+        await Promise.all([
+          createEvaluator({
+            name: "Explicit match",
+            definition: llmDefinition({ model: "selected-model" }),
+          }),
+          createEvaluator({
+            name: "Inherited match",
+            definition: llmDefinition(),
+          }),
+          createEvaluator({
+            name: "Historical only",
+            definition: llmDefinition({ model: "selected-model" }),
+          }),
+          createEvaluator({ name: "Code evaluator" }),
+        ]);
+      await prisma.$transaction((tx) =>
+        evaluatorRepository.appendEvaluatorVersion({
+          tx,
+          evaluatorId: historicalOnly.id,
+          version: 2,
+          definition: llmDefinition({ model: "new-model" }),
+          createdByUserId: null,
+        }),
+      );
+
+      await expect(
+        evaluatorRepository.listEvaluators({
+          prisma,
+          projectId,
+          page: 1,
+          limit: 50,
+          filter: [
+            {
+              column: "model",
+              type: "stringOptions",
+              operator: "any of",
+              value: ["selected-model", "project-default-model"],
+            },
+          ],
+        }),
+      ).resolves.toMatchObject({
+        evaluators: expect.arrayContaining([
+          expect.objectContaining({
+            id: explicitMatch.id,
+            effectiveModel: "selected-model",
+          }),
+          expect.objectContaining({
+            id: inheritedMatch.id,
+            effectiveModel: "project-default-model",
+          }),
+        ]),
+        totalItems: 2,
+      });
+
+      await expect(
+        evaluatorRepository.listEvaluators({
+          prisma,
+          projectId,
+          page: 1,
+          limit: 50,
+          filter: [
+            {
+              column: "model",
+              type: "string",
+              operator: "contains",
+              value: "DEFAULT",
+            },
+          ],
+        }),
+      ).resolves.toMatchObject({
+        evaluators: [expect.objectContaining({ id: inheritedMatch.id })],
+        totalItems: 1,
+      });
+
+      await expect(
+        evaluatorRepository.listEvaluators({
+          prisma,
+          projectId,
+          page: 1,
+          limit: 50,
+          filter: [
+            {
+              column: "model",
+              type: "stringOptions",
+              operator: "none of",
+              value: ["selected-model", "project-default-model"],
+            },
+          ],
+        }),
+      ).resolves.toMatchObject({
+        evaluators: expect.arrayContaining([
+          expect.objectContaining({ id: historicalOnly.id }),
+          expect.objectContaining({ id: codeEvaluator.id }),
+        ]),
+        totalItems: 2,
+      });
+    });
   });
 
   describe("listEvaluatorFilterOptions", () => {
@@ -434,6 +582,36 @@ describe("evaluator v2 repository", () => {
       ).resolves.toEqual({
         name: ["Alpha evaluator", "Beta evaluator"],
         creator: ["API", "Evaluator creator"],
+        model: [],
+      });
+    });
+
+    it("returns distinct effective latest models", async () => {
+      await provisionDefaultEvalModel("project-default-model");
+      const historicalOnly = await createEvaluator({
+        definition: llmDefinition({ model: "old-model" }),
+      });
+      await Promise.all([
+        createEvaluator({
+          definition: llmDefinition({ model: "explicit-model" }),
+        }),
+        createEvaluator({ definition: llmDefinition() }),
+        createEvaluator(),
+      ]);
+      await prisma.$transaction((tx) =>
+        evaluatorRepository.appendEvaluatorVersion({
+          tx,
+          evaluatorId: historicalOnly.id,
+          version: 2,
+          definition: llmDefinition({ model: "explicit-model" }),
+          createdByUserId: null,
+        }),
+      );
+
+      await expect(
+        evaluatorRepository.listEvaluatorFilterOptions({ prisma, projectId }),
+      ).resolves.toMatchObject({
+        model: ["explicit-model", "project-default-model"],
       });
     });
   });
@@ -806,6 +984,62 @@ describe("evaluator v2 repository", () => {
           },
         ],
       });
+    });
+
+    it("round-trips ordered prompt messages across evaluator versions", async () => {
+      const evaluator = await createEvaluator({
+        definition: llmDefinition({
+          promptMessages: [
+            { role: "system", content: "Judge carefully" },
+            { role: "user", content: "Judge {{output}}" },
+          ],
+        }),
+      });
+
+      await prisma.$transaction((tx) =>
+        evaluatorRepository.appendEvaluatorVersion({
+          tx,
+          evaluatorId: evaluator.id,
+          version: 2,
+          definition: llmDefinition({
+            promptMessages: [
+              { role: "system", content: "Judge very carefully" },
+              { role: "user", content: "Judge {{output}}" },
+              { role: "assistant", content: "Return a score" },
+            ],
+          }),
+          createdByUserId: null,
+        }),
+      );
+
+      const versions = await evaluatorRepository.listEvaluatorVersions({
+        prisma,
+        projectId,
+        evaluatorId: evaluator.id,
+        limit: 10,
+      });
+      expect(
+        versions.data.map(({ version, promptMessages }) => ({
+          version,
+          promptMessages,
+        })),
+      ).toEqual([
+        {
+          version: 2,
+          promptMessages: [
+            { role: "system", content: "Judge very carefully" },
+            { role: "user", content: "Judge {{output}}" },
+            { role: "assistant", content: "Return a score" },
+          ],
+        },
+        {
+          version: 1,
+          promptMessages: [
+            { role: "system", content: "Judge carefully" },
+            { role: "user", content: "Judge {{output}}" },
+          ],
+        },
+      ]);
     });
 
     it("persists LLM evaluator fields", async () => {

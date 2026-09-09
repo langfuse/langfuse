@@ -3,7 +3,7 @@
  * Handles linked models (with external link) and unlinked models (with create form)
  */
 
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { ExternalLinkIcon, PlusCircle } from "lucide-react";
 import Link from "next/link";
 import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialog";
@@ -14,28 +14,21 @@ export function ModelBadge({
   projectId,
   usageDetails,
 }: {
-  model: string | null;
+  model: string;
   internalModelId: string | null;
   projectId: string;
   usageDetails: Record<string, number> | undefined;
 }) {
-  if (!model) return null;
-
   // Linked model - show link to model settings
   if (internalModelId) {
     return (
-      <Badge>
-        <Link
-          href={`/project/${projectId}/settings/models/${internalModelId}`}
-          className="flex items-center"
-          title="View model details"
-        >
-          <span className="truncate" title={model}>
-            {model}
-          </span>
-          <ExternalLinkIcon className="ml-1 h-3 w-3" />
-        </Link>
-      </Badge>
+      <Link
+        href={`/project/${projectId}/settings/models/${internalModelId}`}
+        className="inline-flex"
+        title="View model details"
+      >
+        <Badge text={model} trailingIcon={ExternalLinkIcon} />
+      </Link>
     );
   }
 
@@ -59,12 +52,10 @@ export function ModelBadge({
                 )
             : undefined,
       }}
-      className="cursor-pointer"
     >
-      <Badge variant="tertiary" className="flex items-center gap-1">
-        <span>{model}</span>
-        <PlusCircle className="h-3 w-3" />
-      </Badge>
+      <button type="button" className="inline-flex cursor-pointer">
+        <Badge text={model} trailingIcon={PlusCircle} />
+      </button>
     </UpsertModelFormDialog>
   );
 }

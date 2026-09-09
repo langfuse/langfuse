@@ -13,6 +13,7 @@ import { type PropsWithChildren, useEffect } from "react";
 import { useRouter } from "next/router";
 import { signOut, useSession } from "next-auth/react";
 import { signOutCleanly } from "@/src/features/auth/lib/signOut";
+import { clearV4BetaEnabledSentryTag } from "@/src/utils/sentryV4BetaTag";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { ErrorPage } from "@/src/components/error-page";
 
@@ -67,14 +68,22 @@ export function AppLayout(props: PropsWithChildren) {
   )?.title;
   const metadata = useLayoutMetadata(activePathName, navigation.navigation);
 
-  // Handle auth guard actions (redirect or sign-out)
+  // Handle auth guard actions (redirect or sign-out). Depend on the action
+  // and URL primitives so a new result object every render does not re-fire
+  // router.replace.
+  const redirectUrl =
+    authGuard.action === "redirect" ? authGuard.url : undefined;
   useEffect(() => {
-    if (authGuard.action === "redirect") {
-      router.replace(authGuard.url);
+    if (authGuard.action === "redirect" && redirectUrl !== undefined) {
+      router.replace(redirectUrl);
     } else if (authGuard.action === "sign-out") {
+      // Invalid JWT user: stay on this page (redirect: false) but still drop
+      // the pageload v4 cache so a later hard load is not tagged as the
+      // previous user.
+      clearV4BetaEnabledSentryTag();
       signOut({ redirect: false });
     }
-  }, [authGuard, router]);
+  }, [authGuard.action, redirectUrl, router]);
 
   // Loading or redirecting state. Loading only applies to a cold load: once a
   // shell has rendered, a re-check keeps it instead of unmounting it.
@@ -133,14 +142,14 @@ export function AppLayout(props: PropsWithChildren) {
   // Authenticated layout
   // At this point, all auth guards have passed and session.data is guaranteed to exist
   // The authGuard hook ensures we don't reach here without a valid session
-  if (!sessionData) {
+  if (!sessionData?.user) {
     // This should never happen due to guards above, but TypeScript needs this
     return <LoadingLayout message="Loading" />;
   }
 
   return (
     <AuthenticatedLayout
-      session={sessionData}
+      user={sessionData.user}
       navigation={navigation}
       metadata={metadata}
       onSignOut={signOutCleanly}

@@ -54,7 +54,7 @@ import {
  * a NONE member must hold no org-member bridge in SFDC.
  */
 const LangfuseRole = z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"]);
-export type LangfuseRole = z.infer<typeof LangfuseRole>;
+type LangfuseRole = z.infer<typeof LangfuseRole>;
 
 // The SFDC org-member role picklist allows only ADMIN and DEVELOPER.
 const LANGFUSE_TO_SFDC_ROLE = {

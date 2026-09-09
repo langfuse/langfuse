@@ -39,7 +39,7 @@ export const saveWindowIds = (ids: string[]): void => {
  * @param windowId - The ID of the window.
  * @returns The cached state or null if not found.
  */
-export const getWindowState = (windowId: string): PlaygroundCache | null => {
+const getWindowState = (windowId: string): PlaygroundCache | null => {
   const key = getCacheKey(windowId);
   const cachedState = sessionStorage.getItem(key);
   if (!cachedState) return null;

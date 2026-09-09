@@ -57,7 +57,7 @@ export interface SplitQueryBuilder extends QueryWithParams {
  */
 export type OrderByDirection = "ASC" | "DESC";
 export type OrderByEntry = { column: string; direction: OrderByDirection };
-export type OrderByColumnsOptions = {
+type OrderByColumnsOptions = {
   eventTableAlias?: string;
   /**
    * Prepend `<alias>.project_id, toStartOfMinute(<alias>.start_time)` so the
@@ -474,6 +474,7 @@ const FIELD_SETS = {
     "toolCalls",
     "toolCallNames",
     "experimentId",
+    "experimentName",
     "experimentItemRootSpanId",
     "experimentItemExpectedOutput",
     "experimentItemMetadata",
@@ -568,6 +569,12 @@ const EVENTS_AGGREGATION_FIELDS = {
   tags: "argMaxIf(tags, event_ts, notEmpty(tags)) AS tags",
   release: "argMaxIf(release, event_ts, release <> '') AS release",
 
+  // Evaluator execution fields are stamped on every internal evaluation span.
+  evaluator_id:
+    "argMaxIf(evaluator_id, event_ts, evaluator_id <> '') AS evaluator_id",
+  evaluation_rule_id:
+    "argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id <> '') AS evaluation_rule_id",
+
   // experiment fields
   experiment_id: "any(experiment_id) as experiment_id",
 } as const;
@@ -588,7 +595,7 @@ const AGGREGATION_FIELD_SETS = {
  * // Use when you need to query across all projects (use with caution!)
  * const builder = new EventsQueryBuilder({ projectId: NoProjectId });
  */
-export const NoProjectId = Symbol("NoProjectId");
+const NoProjectId = Symbol("NoProjectId");
 export type NoProjectIdType = typeof NoProjectId;
 
 /**

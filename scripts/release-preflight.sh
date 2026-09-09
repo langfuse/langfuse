@@ -86,10 +86,17 @@ collect_prisma_migrations_not_in_production() {
     | sort -u
 }
 
-collect_clickhouse_migrations_not_in_production() {
-  git diff --name-only origin/production..HEAD -- packages/shared/clickhouse/migrations \
-    | sed -E 's#.*/([0-9]+_[^.]+)\.(up|down)\.sql#\1#' \
+collect_clickhouse_migration_names_at_ref() {
+  local ref="$1"
+  git ls-tree -r --name-only "$ref" -- packages/shared/clickhouse/migrations \
+    | sed -nE 's#.*/([0-9]+_[^.]+)\.(up|down)\.sql$#\1#p' \
     | sort -u
+}
+
+collect_clickhouse_migrations_not_in_production() {
+  comm -23 \
+    <(collect_clickhouse_migration_names_at_ref HEAD) \
+    <(collect_clickhouse_migration_names_at_ref origin/production)
 }
 
 confirm_migrations_are_applied() {

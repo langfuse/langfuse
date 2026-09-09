@@ -33,14 +33,10 @@ let session: Session & { user: NonNullable<Session["user"]> };
 
 const definition = {
   type: "LLM_AS_JUDGE" as const,
-  prompt: "Judge {{output}}",
-  provider: null,
-  model: null,
-  modelParams: null,
-  vars: ["output"],
+  promptMessages: [{ role: "user" as const, content: "Judge {{output}}" }],
+  modelConfig: null,
   variableMapping: [{ templateVariable: "output", selectedColumnId: "output" }],
   outputDefinition: {
-    version: 2 as const,
     dataType: "NUMERIC" as const,
     score: { description: "Quality" },
     reasoning: { description: "Reasoning" },
@@ -129,7 +125,12 @@ describe("evalsV2 tRPC", () => {
       evaluatorId: created.id,
       name: "Renamed transport evaluator",
       description: "Updated through tRPC",
-      definition: { ...definition, prompt: "Judge this carefully: {{output}}" },
+      definition: {
+        ...definition,
+        promptMessages: [
+          { role: "user", content: "Judge this carefully: {{output}}" },
+        ],
+      },
     });
 
     const [listed, versions] = await Promise.all([
@@ -171,6 +172,61 @@ describe("evalsV2 tRPC", () => {
     await expect(
       caller.evalsV2.get({ projectId, evaluatorId: created.id }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("paginates evaluator gallery results", async () => {
+    const search = `Gallery pagination ${randomUUID()}`;
+    const created = await Promise.all(
+      Array.from({ length: 3 }, (_, index) =>
+        caller.evalsV2.create({
+          projectId,
+          name: `${search} ${index + 1}`,
+          description: null,
+          definition,
+        }),
+      ),
+    );
+
+    const firstPage = await caller.evalsV2.listGallery({
+      projectId,
+      search,
+      limit: 2,
+    });
+    const firstPageIds = new Set(
+      firstPage.evaluators.map((evaluator) => evaluator.id),
+    );
+    const remainingId = created.find(
+      (evaluator) => !firstPageIds.has(evaluator.id),
+    )?.id;
+    if (!remainingId) throw new Error("Expected an evaluator on the next page");
+    await prisma.evaluator.update({
+      where: { id: remainingId },
+      data: { updatedAt: new Date(Date.now() + 60_000) },
+    });
+
+    const secondPage = await caller.evalsV2.listGallery({
+      projectId,
+      search,
+      limit: 2,
+      cursor: firstPage.nextCursor,
+    });
+
+    expect(firstPage.evaluators).toHaveLength(2);
+    expect(firstPage.totalItems).toBe(3);
+    expect(firstPage.nextCursor).toEqual({
+      createdAt: expect.any(Date),
+      id: expect.any(String),
+    });
+    expect(secondPage.evaluators).toHaveLength(1);
+    expect(secondPage.totalItems).toBeUndefined();
+    expect(secondPage.nextCursor).toBeUndefined();
+    expect(
+      new Set(
+        [...firstPage.evaluators, ...secondPage.evaluators].map(
+          (evaluator) => evaluator.id,
+        ),
+      ),
+    ).toEqual(new Set(created.map((evaluator) => evaluator.id)));
   });
 
   it("rejects access to another project", async () => {
@@ -236,7 +292,7 @@ describe("evalsV2 tRPC", () => {
       createEvent({
         project_id: projectId,
         trace_id: randomUUID(),
-        trace_name: `Execute evaluator: ${evaluator.name}`,
+        evaluator_id: evaluator.id,
         type: "GENERATION",
         cost_details: { total: 0.02 },
       }),

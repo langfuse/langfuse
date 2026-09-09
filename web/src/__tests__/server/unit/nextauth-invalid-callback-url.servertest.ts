@@ -138,13 +138,26 @@ describe("[...nextauth] invalid callbackUrl handling", () => {
     expect(mockNextAuth).not.toHaveBeenCalled();
   });
 
-  it("rejects an invalid callback-url cookie with 400", async () => {
+  it("strips an invalid callback-url cookie and continues (does not 400)", async () => {
     const { res } = await callHandler({
       cookies: { "next-auth.callback-url": "z`z'z\"${{%{{\\" },
     });
 
-    expect(res._getStatusCode()).toBe(400);
-    expect(mockNextAuth).not.toHaveBeenCalled();
+    expect(res._getStatusCode()).toBe(200);
+    expect(mockNextAuth).toHaveBeenCalledTimes(1);
+    expect(getNextAuthRequest().cookies[callbackUrlCookieName]).toBeUndefined();
+  });
+
+  it("strips an invalid callback-url cookie on POST credentials and continues", async () => {
+    const { res } = await callHandler({
+      method: "POST",
+      query: { nextauth: ["callback", "credentials"] },
+      cookies: { [callbackUrlCookieName]: "javascript:alert(1)" },
+    });
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(mockNextAuth).toHaveBeenCalledTimes(1);
+    expect(getNextAuthRequest().cookies[callbackUrlCookieName]).toBeUndefined();
   });
 
   it("passes through a valid absolute callbackUrl", async () => {

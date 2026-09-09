@@ -27,10 +27,15 @@ function selectAdapter(ctx: NormalizerContext): ProviderAdapter {
     if (adapter) return adapter;
   }
 
-  // First adapter that matches wins
+  // First adapter that matches wins. Detection is best-effort: a throwing
+  // adapter is treated as a non-match so I/O preview can fall through.
   for (const adapter of adapters) {
-    if (adapter.detect(ctx)) {
-      return adapter;
+    try {
+      if (adapter.detect(ctx)) {
+        return adapter;
+      }
+    } catch {
+      continue;
     }
   }
 
@@ -39,7 +44,7 @@ function selectAdapter(ctx: NormalizerContext): ProviderAdapter {
 
 // Export selectAdapter and individual adapters for direct use
 export { selectAdapter };
-export type { NormalizerContext, ProviderAdapter } from "../types";
+export type { NormalizerContext } from "../types";
 export { langgraphAdapter } from "./langgraph";
 export { aisdkAdapter } from "./aisdk";
 export { openAIAdapter } from "./openai";

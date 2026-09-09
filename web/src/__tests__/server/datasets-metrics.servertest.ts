@@ -44,6 +44,7 @@ const session: Session = {
       experimentsV4Enabled: false,
       searchBar: false,
     },
+    v4BetaEnabled: false,
     admin: true,
   },
   environment: {} as any,

@@ -66,7 +66,7 @@ export interface ServerContext {
 }
 
 /** In-app agent MCP access is read-only unless a prior approval mints a mutating-tool allowlist. */
-export type InAppAgentContext =
+type InAppAgentContext =
   | {
       permissions: "read";
     }

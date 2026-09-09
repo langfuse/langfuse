@@ -30,7 +30,7 @@ const formatPath = (path: unknown): string => {
  * Zod 4's `ZodError.message` is a JSON array of issues. tRPC puts that string
  * on `TRPCClientError.message`, which is what the global error toast shows.
  */
-export const parseZodIssueList = (
+const parseZodIssueList = (
   message: string,
 ): Array<{ path: unknown; message: string }> | null => {
   const trimmed = message.trim();

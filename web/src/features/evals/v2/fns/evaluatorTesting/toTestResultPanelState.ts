@@ -33,9 +33,13 @@ export function toTestResultPanelState(params: {
       status: "code-success",
       scores: scores.map((score, index) => {
         const item = score as Record<string, unknown>;
+        const value =
+          item.dataType === "BOOLEAN" && typeof item.value === "number"
+            ? item.value === 1
+            : item.value;
         return {
           name: String(item.name ?? `Score ${index + 1}`),
-          value: String(item.value ?? ""),
+          value: String(value ?? ""),
           comment: item.comment == null ? null : String(item.comment),
         };
       }),

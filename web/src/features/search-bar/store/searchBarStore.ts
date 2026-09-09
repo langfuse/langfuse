@@ -99,26 +99,35 @@ export type SearchBarStoreState = {
 export type SearchBarStore = StoreApi<SearchBarStoreState>;
 
 /**
- * `resolveScoreTypes` lets draft validation route `scores.<name>` by observed
- * score type — the SAME context planCommit uses — so the store's draftValid
- * (which the editor's red-border gate reads) never disagrees with the commit
- * gate. A thunk so it always reads the latest observed options.
+ * The resolver thunks keep draft validation aligned with the same live score
+ * context and field registry that planCommit uses. This matters for registries
+ * whose allowed values arrive asynchronously.
  */
 export function createSearchBarStore(
   resolveScoreTypes?: () => ScoreTypeContext | undefined,
-  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+  registryOrResolver:
+    | FieldRegistry
+    | (() => FieldRegistry) = EVENTS_FIELD_REGISTRY,
 ): SearchBarStore {
+  const resolveRegistry =
+    typeof registryOrResolver === "function"
+      ? registryOrResolver
+      : () => registryOrResolver;
+
   return createStore<SearchBarStoreState>((set, get) => {
     // The score-type context used by the most recent validation. revalidate()
     // bails when the context is set-equal to this, so observed-identity churn
     // (a relative range + auto-refresh rebuilds the context every tick) doesn't
     // re-parse the draft and emit a fresh diagnostics array for no change.
     let lastScoreTypes: ScoreTypeContext | undefined;
+    let lastRegistry: FieldRegistry | undefined;
     let hasValidated = false;
 
     const writeDraft = (next: string) => {
       const scoreTypes = resolveScoreTypes?.();
+      const registry = resolveRegistry();
       lastScoreTypes = scoreTypes;
+      lastRegistry = registry;
       hasValidated = true;
       const res = validateQuery(next, scoreTypes, registry);
       set({
@@ -159,6 +168,7 @@ export function createSearchBarStore(
           // Number-normalize numeric (not categorical) score values. It preserves
           // structure/order, so free-text canonicalization is kept.
           const scoreTypes = resolveScoreTypes?.();
+          const registry = resolveRegistry();
           if (
             draftsSemanticallyEqual(committedText, draft, scoreTypes, registry)
           )
@@ -166,6 +176,7 @@ export function createSearchBarStore(
           writeDraft(committedText);
         },
         removeChipSpan: (from, to) => {
+          const registry = resolveRegistry();
           const next = removeToken(get().draft, { from, to }, registry);
           writeDraft(next);
           return next;
@@ -181,13 +192,19 @@ export function createSearchBarStore(
         },
         revalidate: () => {
           const scoreTypes = resolveScoreTypes?.();
+          const registry = resolveRegistry();
           // Nothing to refresh: the draft was already validated against an
-          // equal context (writeDraft and revalidate both record it), so the
-          // result would be identical. Skip the parse + set to avoid a
-          // no-op re-render from the fresh diagnostics array.
-          if (hasValidated && scoreTypeContextEqual(scoreTypes, lastScoreTypes))
+          // equal context and registry (writeDraft and revalidate both record
+          // them), so the result would be identical. Skip the parse + set to
+          // avoid a no-op re-render from the fresh diagnostics array.
+          if (
+            hasValidated &&
+            registry === lastRegistry &&
+            scoreTypeContextEqual(scoreTypes, lastScoreTypes)
+          )
             return;
           lastScoreTypes = scoreTypes;
+          lastRegistry = registry;
           hasValidated = true;
           const wasValid = get().draftValid;
           const res = validateQuery(get().draft, scoreTypes, registry);

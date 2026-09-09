@@ -224,14 +224,42 @@ const combinedState = makeSdkState({
 
 const apiUsage = [
   {
-    endpoint: "GET /api/public/traces",
-    count: 1284,
+    endpoint: "GET /api/public/traces/{id}",
+    count: 1296,
     lastSeen: new Date(Date.now() - 2 * HOUR_MS).toISOString(),
+    callers: [
+      {
+        sdkName: "python" as const,
+        sdkVersion: "3.9.0",
+        userAgent: "langfuse-python/3.9.0",
+        count: 1281,
+        lastSeen: new Date(Date.now() - 2 * HOUR_MS).toISOString(),
+      },
+      {
+        userAgent: "codex-cli/1.2.3",
+        count: 3,
+        lastSeen: new Date(Date.now() - 5 * HOUR_MS).toISOString(),
+      },
+      {
+        isOther: true as const,
+        count: 12,
+        lastSeen: new Date(Date.now() - 6 * HOUR_MS).toISOString(),
+      },
+    ],
   },
   {
-    endpoint: "POST /api/public/scores",
+    endpoint: "GET /api/public/v2/scores",
     count: 42,
     lastSeen: new Date(Date.now() - 26 * HOUR_MS).toISOString(),
+    callers: [
+      {
+        sdkName: "javascript" as const,
+        sdkVersion: "5.4.0",
+        userAgent: "langfuse-js/5.4.0",
+        count: 42,
+        lastSeen: new Date(Date.now() - 26 * HOUR_MS).toISOString(),
+      },
+    ],
   },
 ];
 

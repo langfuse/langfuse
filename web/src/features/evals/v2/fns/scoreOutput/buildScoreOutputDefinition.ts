@@ -1,7 +1,7 @@
 import {
-  PersistedEvalOutputDefinitionSchema,
+  EvalOutputDefinitionSchema,
   ScoreDataTypeEnum,
-  type PersistedEvalOutputDefinition,
+  type EvalOutputDefinition,
 } from "@langfuse/shared";
 import type { ScoreOutputFormState } from "@/src/features/evals/v2/scoreOutputTypes";
 import {
@@ -18,9 +18,8 @@ function parseNumericBound(key: "minValue" | "maxValue", raw: string) {
 
 export function buildScoreOutputDefinition(
   state: ScoreOutputFormState,
-): PersistedEvalOutputDefinition | null {
+): EvalOutputDefinition | null {
   const base = {
-    version: 2 as const,
     dataType: state.dataType,
     reasoning: {
       description:
@@ -52,6 +51,6 @@ export function buildScoreOutputDefinition(
             ...base,
             score: { description: scoreDescription },
           };
-  const parsed = PersistedEvalOutputDefinitionSchema.safeParse(candidate);
+  const parsed = EvalOutputDefinitionSchema.safeParse(candidate);
   return parsed.success ? parsed.data : null;
 }

@@ -6,6 +6,8 @@ import {
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
   getInAppAgentLlmCallObservationId,
+  parseInAppAgentToolApprovalEvent,
+  type InAppAgentToolApprovalSource,
 } from "@langfuse/shared/in-app-agent";
 import type { AgUiEvent, AgUiMessage } from "@langfuse/shared/in-app-agent";
 import {
@@ -102,6 +104,8 @@ type ObservationBody = {
   metadata?: Record<string, unknown>;
   promptName?: string;
   promptVersion?: number;
+  userId?: string;
+  sessionId?: string;
 };
 type ToolCallApprovalStatus = "approved" | "rejected";
 type AgentRunToolSpan = {
@@ -175,14 +179,18 @@ export function createInAppAgentInstrumentation({
 
 export class InAppAgentInstrumentation {
   private readonly processTracedEvents: () => Promise<void>;
+  private flushPromise?: Promise<void>;
   private readonly langfuse: InAppAgentLangfuse;
   private readonly trace: InAppAgentTrace;
   private readonly runId: string;
   private readonly traceId: string;
   private readonly rootObservationId: string;
+  private readonly userId: string;
+  private readonly sessionId: string;
   private readonly traceStartTime: Date;
   private readonly agentRunStartTime: Date;
   private agentRunInput: unknown;
+  private readonly wrappingRootInput: string | undefined;
   private readonly approvalContinuation?: ApprovalContinuation;
   private readonly prompt?: InAppAgentPromptMetadata;
   private readonly toolSpans = new Map<string, AgentRunToolSpan>();
@@ -190,7 +198,14 @@ export class InAppAgentInstrumentation {
     string,
     ToolCallApprovalStatus
   >();
+  private readonly toolCallApprovalSources = new Map<
+    string,
+    InAppAgentToolApprovalSource
+  >();
   private readonly toolExecutionTimes = new Map<string, ToolExecutionTimes>();
+  private readonly toolCallToModelObservationId = new Map<string, string>();
+  private openModelObservationId?: string;
+  private lastModelObservationId?: string;
   private readonly metadata: Record<string, unknown>;
   private readonly agentRunOutputMessages: AgentRunChatMessage[] = [];
   private readonly agentRunToolCalls: AgentRunToolCall[] = [];
@@ -237,9 +252,12 @@ export class InAppAgentInstrumentation {
         : {}),
     };
     this.agentRunInput = getAgentRunInput(params.input);
+    this.wrappingRootInput = getWrappingRootUserText(params.input);
     this.prompt = params.prompt;
     this.model = params.model;
     this.runId = params.runId;
+    this.userId = params.userId;
+    this.sessionId = params.input.threadId;
     const rootRunId = this.approvalContinuation?.rootRunId ?? params.runId;
     this.traceId = getInAppAgentInstrumentationTraceId(rootRunId);
     this.rootObservationId =
@@ -254,8 +272,10 @@ export class InAppAgentInstrumentation {
       traceName: IN_APP_AGENT_TURN_NAME,
       environment: params.environment,
       userId: params.userId,
+      sessionId: params.input.threadId,
       metadata: this.metadata,
       prompt: params.prompt,
+      aiFeatureOtelIngestion: true,
     };
     const { handler, processTracedEvents } =
       getInternalTracingHandler(traceSinkParams);
@@ -268,7 +288,7 @@ export class InAppAgentInstrumentation {
       userId: params.userId,
       sessionId: params.input.threadId,
       timestamp: this.traceStartTime,
-      input: this.getTraceInput(),
+      input: this.wrappingRootInput,
       metadata: this.metadata,
       tags: ["in-app-agent"],
     });
@@ -346,8 +366,14 @@ export class InAppAgentInstrumentation {
     }
 
     const now = new Date();
+    const callNumber =
+      this.openModelCall?.callNumber ?? ++this.nextModelCallNumber;
+    this.openModelObservationId = getInAppAgentLlmCallObservationId(
+      this.runId,
+      callNumber,
+    );
     this.openModelCall = {
-      callNumber: this.openModelCall?.callNumber ?? ++this.nextModelCallNumber,
+      callNumber,
       startTime: this.openModelCall?.startTime ?? now,
       input: getModelCallInput(options),
       textDeltas: [],
@@ -444,8 +470,8 @@ export class InAppAgentInstrumentation {
       },
     });
     this.trace.update({
-      input: this.getTraceInput(),
-      output: this.getAgentRunOutput(),
+      input: this.wrappingRootInput,
+      output: this.getWrappingRootOutput(),
       metadata: { ...this.metadata, error: message },
     });
     this.ended = true;
@@ -470,17 +496,19 @@ export class InAppAgentInstrumentation {
     };
     this.emitRootAgentObservation({ metadata });
     this.trace.update({
-      input: this.getTraceInput(),
-      output: this.getAgentRunOutput(),
+      input: this.wrappingRootInput,
+      output: this.getWrappingRootOutput(),
       metadata,
     });
     this.ended = true;
   }
 
-  flush() {
-    this.processTracedEvents().catch((error) => {
+  flush(): Promise<void> {
+    this.flushPromise ??= this.processTracedEvents().catch((error) => {
       logger.warn("Failed to flush in-app agent Langfuse tracing", error);
     });
+
+    return this.flushPromise;
   }
 
   private recordEvent(event: AgUiEvent) {
@@ -514,6 +542,15 @@ export class InAppAgentInstrumentation {
 
     if (event.type === EventType.TOOL_CALL_START) {
       this.startToolSpan(event);
+      return;
+    }
+
+    const toolApproval = parseInAppAgentToolApprovalEvent(event);
+    if (toolApproval) {
+      this.toolCallApprovalSources.set(
+        toolApproval.toolCallId,
+        toolApproval.source,
+      );
       return;
     }
 
@@ -666,6 +703,7 @@ export class InAppAgentInstrumentation {
       tool.failureMessage ??
       getToolFailureMessage(undefined, output);
     const toolCallApproval = this.toolCallApprovals.get(toolCallId);
+    const toolCallApprovalSource = this.toolCallApprovalSources.get(toolCallId);
     const executionTimes = this.toolExecutionTimes.get(toolCallId);
     const rawStartTime = executionTimes?.startTime ?? tool.startTime;
     const endTime =
@@ -677,7 +715,7 @@ export class InAppAgentInstrumentation {
     const body: ObservationBody = {
       id: toolCallId,
       traceId: this.traceId,
-      parentObservationId: this.rootObservationId,
+      parentObservationId: this.getToolParentObservationId(toolCallId),
       name: tool.name,
       startTime,
       endTime,
@@ -691,6 +729,7 @@ export class InAppAgentInstrumentation {
         ...(options?.metadata ?? {}),
         toolCallId,
         ...(toolCallApproval ? { toolCallApproval } : {}),
+        ...(toolCallApprovalSource ? { toolCallApprovalSource } : {}),
         ...(tool.argsComplete ? {} : { argsComplete: false }),
         ...(tool.parentMessageId
           ? { parentMessageId: tool.parentMessageId }
@@ -700,6 +739,7 @@ export class InAppAgentInstrumentation {
 
     this.recordToolCall(toolCallId, tool, output);
     this.toolCallApprovals.delete(toolCallId);
+    this.toolCallApprovalSources.delete(toolCallId);
     this.toolExecutionTimes.delete(toolCallId);
 
     this.enqueueObservation("tool-create", body);
@@ -743,6 +783,11 @@ export class InAppAgentInstrumentation {
     const finishReason = getModelFinishReason(finish);
     const model = call.modelId ?? this.model;
     const id = getInAppAgentLlmCallObservationId(this.runId, call.callNumber);
+    this.lastModelObservationId = id;
+    this.openModelObservationId = undefined;
+    for (const toolCall of call.toolCalls) {
+      this.toolCallToModelObservationId.set(toolCall.toolCallId, id);
+    }
     const text = call.textDeltas.join("");
     const output =
       text || call.toolCalls.length > 0
@@ -850,12 +895,25 @@ export class InAppAgentInstrumentation {
     }
   }
 
+  private getToolParentObservationId(toolCallId: string): string {
+    return (
+      this.toolCallToModelObservationId.get(toolCallId) ??
+      this.openModelObservationId ??
+      this.lastModelObservationId ??
+      this.rootObservationId
+    );
+  }
+
   private enqueueObservation(type: string, body: ObservationBody) {
     (
       this.langfuse as unknown as {
         enqueue: (type: string, body: ObservationBody) => void;
       }
-    ).enqueue(type, body);
+    ).enqueue(type, {
+      ...body,
+      userId: this.userId,
+      sessionId: this.sessionId,
+    });
   }
 
   // Reasoning that no assistant message followed (e.g. aborted or errored
@@ -952,17 +1010,34 @@ export class InAppAgentInstrumentation {
     }
   }
 
+  private getWrappingRootOutput(): string | undefined {
+    const texts = this.getAgentRunOutputMessages().flatMap((message) => {
+      if (message.role !== "assistant") {
+        return [];
+      }
+
+      const text = getRenderedMessageText(message.content);
+      return text.trim() ? [text] : [];
+    });
+
+    if (texts.length === 0) {
+      return undefined;
+    }
+
+    return texts.join("\n\n");
+  }
+
   private getAgentRunOutput() {
-    const priorMessages =
-      this.approvalContinuation && isRecord(this.agentRunInput)
-        ? getPriorAgentRunOutputMessages(this.agentRunInput.messages)
-        : [];
-    const messages = [...priorMessages, ...this.agentRunOutputMessages];
+    const messages = this.getAgentRunOutputMessages();
 
     if (messages.length === 0) {
       return undefined;
     }
 
+    const priorMessages = messages.slice(
+      0,
+      messages.length - this.agentRunOutputMessages.length,
+    );
     const priorToolCalls = priorMessages.flatMap(
       (message) => message.tool_calls ?? [],
     );
@@ -973,6 +1048,15 @@ export class InAppAgentInstrumentation {
       ...(this.output ? { text: this.output } : {}),
       ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
     };
+  }
+
+  private getAgentRunOutputMessages(): AgentRunChatMessage[] {
+    const priorMessages =
+      this.approvalContinuation && isRecord(this.agentRunInput)
+        ? getPriorAgentRunOutputMessages(this.agentRunInput.messages)
+        : [];
+
+    return [...priorMessages, ...this.agentRunOutputMessages];
   }
 
   private emitApprovalWaitObservation() {
@@ -1068,6 +1152,37 @@ function getPriorAgentRunOutputMessages(
       isRecord(message) &&
       (message.role === "assistant" || message.role === "tool"),
   );
+}
+
+function getWrappingRootUserText(input: AgUiRunAgentInput): string | undefined {
+  const lastUserMessage = input.messages.findLast(
+    (message) => message.role === "user",
+  );
+
+  if (!lastUserMessage) {
+    return undefined;
+  }
+
+  const text = getRenderedMessageText(lastUserMessage.content);
+  return text.length > 0 ? text : undefined;
+}
+
+function getRenderedMessageText(content: unknown): string {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .flatMap((part) =>
+        isRecord(part) && part.type === "text" && typeof part.text === "string"
+          ? [part.text]
+          : [],
+      )
+      .join("");
+  }
+
+  return "";
 }
 
 function getAgentRunInput(input: AgUiRunAgentInput): unknown {

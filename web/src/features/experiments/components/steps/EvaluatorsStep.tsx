@@ -11,6 +11,7 @@ import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { type EvaluatorsStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
 import { ExperimentEvaluatorAssignments } from "@/src/features/experiments/components/ExperimentEvaluatorAssignments/ExperimentEvaluatorAssignments";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
   projectId,
@@ -38,19 +39,23 @@ export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
         ) : null}
         {hasEvalReadAccess && datasetId ? (
           evaluatorState.version === "v2" ? (
-            <ExperimentEvaluatorAssignments
-              ref={evaluatorAssignmentsRef}
-              showSaveButton={false}
-              projectId={projectId}
-              datasetId={datasetId}
-              datasetVersion={datasetVersion}
-              evaluatorOptions={evaluatorState.evaluatorOptions}
-              initialAssignments={evaluatorState.selectedAssignments}
-              search={evaluatorState.search}
-              onSearchChange={evaluatorState.onSearchChange}
-              onSaveAssignments={evaluatorState.onSaveAssignments}
-              disabled={!hasEvalWriteAccess || evaluatorState.isUpdating}
-            />
+            evaluatorState.isLoadingAssignments ? (
+              <Skeleton className="h-20 w-full" />
+            ) : (
+              <ExperimentEvaluatorAssignments
+                ref={evaluatorAssignmentsRef}
+                showSaveButton={false}
+                projectId={projectId}
+                datasetId={datasetId}
+                datasetVersion={datasetVersion}
+                evaluatorOptions={evaluatorState.evaluatorOptions}
+                initialAssignments={evaluatorState.selectedAssignments}
+                search={evaluatorState.search}
+                onSearchChange={evaluatorState.onSearchChange}
+                onSaveAssignments={evaluatorState.onSaveAssignments}
+                disabled={!hasEvalWriteAccess || evaluatorState.isUpdating}
+              />
+            )
           ) : (
             <TemplateSelector
               projectId={projectId}

@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { Star } from "lucide-react";
 import type { FilterState } from "@langfuse/shared";
 
-import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { Radio } from "@/src/components/design-system/Radio/Radio";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";
@@ -10,6 +10,7 @@ import {
   SampleObservationSelectorBase,
   type SampleObservation,
 } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
+import { EVALUATOR_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 
 const preserveObservedOptions: Parameters<
   typeof SampleObservationSelectorBase
@@ -44,17 +45,20 @@ export function EvaluatorSampleObservationSelector({
   onSelect: (observation: SampleObservation | null) => void;
   onOpenTrace: (observation: SampleObservation) => void;
 }) {
+  const selectionGroupName = useId();
   const leadingColumns = useMemo<LangfuseColumnDef<SampleObservation>[]>(
     () => [
       {
         accessorKey: "sample",
         id: "sample",
         header: () => (
-          <>
+          <div className="flex w-full justify-center">
             <Star aria-hidden="true" className="h-4 w-4" />
             <span className="sr-only">Sample</span>
-          </>
+          </div>
         ),
+        headerBlock: true,
+        headerLabel: "Sample",
         size: 72,
         enableHiding: false,
         isFixedPosition: true,
@@ -62,19 +66,22 @@ export function EvaluatorSampleObservationSelector({
         cellPadding: "none",
         cell: ({ row }) => (
           <label
-            className="flex h-full w-full cursor-pointer items-center px-2"
+            className="flex h-full w-full cursor-pointer items-center justify-center px-2"
+            htmlFor={`sample-selection-${selectionGroupName}-${row.original.id}`}
             onClick={(event) => event.stopPropagation()}
           >
-            <Checkbox
+            <Radio
+              id={`sample-selection-${selectionGroupName}-${row.original.id}`}
+              name={selectionGroupName}
               checked={selectedObservationId === row.original.id}
               aria-label={`Use ${row.original.name ?? row.original.id} as sample`}
-              onCheckedChange={() => onSelect(row.original)}
+              onChange={() => onSelect(row.original)}
             />
           </label>
         ),
       },
     ],
-    [onSelect, selectedObservationId],
+    [onSelect, selectedObservationId, selectionGroupName],
   );
 
   return (
@@ -85,7 +92,7 @@ export function EvaluatorSampleObservationSelector({
       onFilterStateChange={onFilterStateChange}
       previewFilters={filterState}
       tableName="evaluator-sample-observations"
-      registry={undefined}
+      registry={EVALUATOR_FIELD_REGISTRY}
       selectedObservationId={selectedObservationId}
       onSelect={onSelect}
       onOpenTrace={onOpenTrace}

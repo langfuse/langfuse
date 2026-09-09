@@ -31,11 +31,11 @@ import type { JsonRow, RowModel, ValueResult } from "../rowModel";
 import { reportError } from "@/src/utils/reportError";
 
 /** Rows fetched for the first paint before the virtualizer reports a range. */
-export const INITIAL_ROW_COUNT = 200;
+const INITIAL_ROW_COUNT = 200;
 
-export type LoadStatus = "loading" | "ready" | "error";
+type LoadStatus = "loading" | "ready" | "error";
 
-export interface RowModelState {
+interface RowModelState {
   status: LoadStatus;
   error: string | null;
   /** Mirrors the model's revision; a bump re-renders the list and its rows. */

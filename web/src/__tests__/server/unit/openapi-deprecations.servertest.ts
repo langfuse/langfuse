@@ -126,7 +126,9 @@ describe("OpenAPI deprecations", () => {
     for (const { method, endpointPath, message } of getFernDeprecatedOperations(
       definitionDirectory,
     )) {
-      expect(message, `${method.toUpperCase()} ${endpointPath}`).toContain(
+      const operation = `${method.toUpperCase()} ${endpointPath}`;
+
+      expect(message, operation).toContain(
         `will be removed on ${V3_SUNSET_HUMAN}.`,
       );
     }

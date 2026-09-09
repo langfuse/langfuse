@@ -332,6 +332,44 @@ const fixtures: Record<string, WidgetInitialValues> = {
     chartType: "LINE_TIME_SERIES",
     chartConfig: { type: "LINE_TIME_SERIES" },
   },
+  // Historical widgets that stored count(toolCalls), the silent undercount.
+  // Opening them must not rewrite count to sum via defaultAggregation.
+  "saved toolCalls with count aggregation": {
+    name: "My tool calls widget",
+    description: "saved copy",
+    view: "observations",
+    measure: "toolCalls",
+    aggregation: "count",
+    dimension: "none",
+    filters: [],
+    chartType: "NUMBER",
+    chartConfig: { type: "NUMBER" },
+    minVersion: 1,
+  },
+  "saved toolCalls with sum aggregation": {
+    name: "Total tool calls",
+    description: "saved copy",
+    view: "observations",
+    measure: "toolCalls",
+    aggregation: "sum",
+    dimension: "none",
+    filters: [],
+    chartType: "NUMBER",
+    chartConfig: { type: "NUMBER" },
+    minVersion: 1,
+  },
+  "saved toolCallInvocations with count aggregation": {
+    name: "Invocations count",
+    description: "saved copy",
+    view: "observations",
+    measure: "toolCallInvocations",
+    aggregation: "count",
+    dimension: "calledToolNames",
+    filters: [],
+    chartType: "HORIZONTAL_BAR",
+    chartConfig: { type: "HORIZONTAL_BAR" },
+    minVersion: 1,
+  },
 };
 
 describe("widget form adapters round-trip parity", () => {
@@ -509,6 +547,59 @@ describe("toDefaultValues normalizes malformed stored/imported widgets", () => {
   });
 });
 
+describe("opening a saved widget does not apply defaultAggregation", () => {
+  it.each([
+    ["saved toolCalls with count aggregation", "toolCalls", "count"],
+    ["saved toolCalls with sum aggregation", "toolCalls", "sum"],
+    [
+      "saved toolCallInvocations with count aggregation",
+      "toolCallInvocations",
+      "count",
+    ],
+  ] as const)(
+    "%s keeps the stored %s + %s pair",
+    (fixtureName, measure, aggregation) => {
+      const iv = fixtures[fixtureName];
+      const values = toDefaultValues(iv, fixtureViewVersion(iv));
+      expect(values.metrics).toEqual([{ measure, aggregation }]);
+
+      const payload = adapterSavePayload(iv);
+      expect(payload.metrics).toEqual([{ measure, agg: aggregation }]);
+      expect(payload.name).toBe(iv.name);
+      expect(payload.description).toBe(iv.description);
+    },
+  );
+
+  it("keeps a pivot slot that stored count(toolCalls) next to avg(latency)", () => {
+    const iv: WidgetInitialValues = {
+      name: "Mixed pivot",
+      description: "saved",
+      view: "observations",
+      measure: "latency",
+      aggregation: "avg",
+      dimension: "environment",
+      filters: [],
+      chartType: "PIVOT_TABLE",
+      metrics: [
+        { measure: "latency", agg: "avg" },
+        { measure: "toolCalls", agg: "count" },
+      ],
+      dimensions: [{ field: "environment" }],
+      chartConfig: { type: "PIVOT_TABLE", row_limit: 50 },
+      minVersion: 1,
+    };
+
+    expect(toDefaultValues(iv, fixtureViewVersion(iv)).metrics).toEqual([
+      { measure: "latency", aggregation: "avg" },
+      { measure: "toolCalls", aggregation: "count" },
+    ]);
+    expect(adapterSavePayload(iv).metrics).toEqual([
+      { measure: "latency", agg: "avg" },
+      { measure: "toolCalls", agg: "count" },
+    ]);
+  });
+});
+
 describe("applyChartTypeChange dimension boundary", () => {
   const pivotWithDims: WidgetFormValues = {
     name: null,
@@ -597,5 +688,40 @@ describe("save seam: editor-space filters map to view space (double-map)", () =>
     expect(mapWidgetUiTableFilterToView(values.view, saved.filters)).toEqual(
       saved.filters,
     );
+  });
+});
+
+// --- sum(toolCalls) reads as "number of tool calls" in suggested name/copy ---
+
+describe("buildWidgetName / buildWidgetDescription for sum of tool calls", () => {
+  it("names the widget by meaning, not aggregation mechanics", () => {
+    expect(
+      buildWidgetName({
+        aggregation: "sum",
+        measure: "toolCalls",
+        dimension: "none",
+        view: "observations",
+      }),
+    ).toBe("Number of Tool Calls (Observations)");
+    expect(
+      buildWidgetDescription({
+        aggregation: "sum",
+        measure: "toolCalls",
+        dimension: "none",
+        view: "observations",
+        filters: [],
+      }),
+    ).toBe("Shows the number of tool calls of Observations");
+  });
+
+  it("keeps the generic template for other aggregations of toolCalls", () => {
+    expect(
+      buildWidgetName({
+        aggregation: "avg",
+        measure: "toolCalls",
+        dimension: "none",
+        view: "observations",
+      }),
+    ).toBe("Avg Tool Calls (Observations)");
   });
 });

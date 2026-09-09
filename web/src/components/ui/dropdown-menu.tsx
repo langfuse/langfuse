@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 "use client";
 
 import * as React from "react";
@@ -137,20 +137,28 @@ const DropdownContentWrapper = React.forwardRef<
     const { register, recompute, top, bottom } = useScrollGradients<
       React.ComponentRef<typeof DropdownMenuPrimitive.Content>
     >(maxHeight !== undefined);
+    const setContentRef = React.useCallback(
+      (
+        element: React.ComponentRef<
+          typeof DropdownMenuPrimitive.Content
+        > | null,
+      ) => {
+        register(element);
+        if (typeof ref === "function") {
+          ref(element);
+        } else if (ref) {
+          ref.current = element;
+        }
+      },
+      [ref, register],
+    );
     const content =
       typeof children === "function" ? children({ top, bottom }) : children;
 
     return (
       <DropdownMenuPrimitive.Portal container={container}>
         <DropdownMenuPrimitive.Content
-          ref={(element) => {
-            register(element);
-            if (typeof ref === "function") {
-              ref(element);
-            } else if (ref) {
-              ref.current = element;
-            }
-          }}
+          ref={setContentRef}
           sideOffset={sideOffset}
           className={cn(
             dropdownMenuContentVariants({
@@ -326,10 +334,12 @@ type DropdownMenuItemAction = {
 } & (
   | {
       href: React.ComponentProps<typeof Link>["href"];
+      target?: React.ComponentProps<typeof Link>["target"];
       onClick?: never;
     }
   | {
       href?: never;
+      target?: never;
       onClick: () => void;
     }
 );
@@ -343,6 +353,9 @@ type DropdownMenuItemWithSecondaryActionProps = {
     icon: LucideIcon;
   };
 } & DropdownMenuItemAction;
+
+const relForTarget = (target: React.ComponentProps<typeof Link>["target"]) =>
+  target === "_blank" ? "noopener noreferrer" : undefined;
 
 const dropdownMenuItemPrimaryActionVariants = cva(
   "flex min-w-0 flex-1 cursor-pointer items-center px-2 py-1.5",
@@ -384,6 +397,8 @@ const DropdownMenuItemWithSecondaryAction = (
       secondaryActionContent = (
         <Link
           href={secondaryAction.href}
+          target={secondaryAction.target}
+          rel={relForTarget(secondaryAction.target)}
           aria-label={secondaryAction.ariaLabel}
           aria-disabled={isDisabled}
           tabIndex={isDisabled ? -1 : undefined}
@@ -449,6 +464,8 @@ const DropdownMenuItemWithSecondaryAction = (
             primaryActionRef.current = element;
           }}
           href={props.href}
+          target={props.target}
+          rel={relForTarget(props.target)}
           aria-disabled={isDisabled}
           tabIndex={isDisabled ? -1 : undefined}
           className={dropdownMenuItemPrimaryActionVariants()}
@@ -597,7 +614,6 @@ export {
   DropdownMenuRadioItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuGroup,
   DropdownMenuPortal,
   DropdownMenuSub,

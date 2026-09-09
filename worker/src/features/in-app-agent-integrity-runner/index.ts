@@ -23,7 +23,7 @@ import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 
 const METRIC_PREFIX = "langfuse.in_app_agent";
 
-export const IN_APP_AGENT_INTEGRITY_RUNNER_LOCK_KEY =
+const IN_APP_AGENT_INTEGRITY_RUNNER_LOCK_KEY =
   "langfuse:in-app-agent-integrity-runner";
 
 const LOCK_TTL_SECONDS = 120;

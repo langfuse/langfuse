@@ -69,7 +69,7 @@ export const getLastProcessedPartition = async (): Promise<string | null> => {
  * Update the last processed partition timestamp in Redis.
  * This is called after successfully processing a partition.
  */
-export const updateLastProcessedPartition = async (
+const updateLastProcessedPartition = async (
   partition: string,
 ): Promise<void> => {
   try {

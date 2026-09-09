@@ -8,8 +8,12 @@ import {
   GetModelV1Response,
   GetModelsV1Response,
   PostModelsV1Response,
+  PutModelV1Response,
 } from "@/src/features/public-api/types/models";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  findModel,
+} from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import type { z } from "zod";
 
@@ -303,6 +307,220 @@ describe("/models API Endpoints", () => {
     );
   });
 
+  it("Upserts a complete custom model definition using the path id", async () => {
+    const modelId = v4();
+    const modelName = `upserted-model-${v4()}`;
+
+    const upsertedModel = await makeZodVerifiedAPICall(
+      PutModelV1Response,
+      "PUT",
+      `/api/public/models/${modelId}`,
+      {
+        modelName,
+        matchPattern: `(?i)^${modelName}$`,
+        inputPrice: 0.001,
+        outputPrice: 0.002,
+        unit: "TOKENS",
+      },
+      auth,
+    );
+
+    expect(upsertedModel.status).toBe(200);
+    expect(upsertedModel.body).toMatchObject({
+      id: modelId,
+      modelName,
+      inputPrice: 0.001,
+      outputPrice: 0.002,
+      isLangfuseManaged: false,
+    });
+    await expect(
+      prisma.model.count({ where: { id: modelId, projectId } }),
+    ).resolves.toBe(1);
+  });
+
+  it("Updates a custom model and invalidates cached pricing", async () => {
+    const customModelName = `custom-model-${v4()}`;
+    const customModel = await makeZodVerifiedAPICall(
+      PostModelsV1Response,
+      "POST",
+      "/api/public/models",
+      {
+        modelName: customModelName,
+        matchPattern: `(?i)^${customModelName}$`,
+        inputPrice: 0.002,
+        outputPrice: 0.004,
+        unit: "TOKENS",
+      },
+      auth,
+    );
+
+    const cachedModel = await findModel({
+      projectId,
+      model: customModelName,
+    });
+    expect(
+      cachedModel.pricingTiers[0].prices
+        .find((price) => price.usageType === "input")
+        ?.price.toNumber(),
+    ).toBe(0.002);
+
+    const updatedModel = await makeZodVerifiedAPICall(
+      PutModelV1Response,
+      "PUT",
+      `/api/public/models/${customModel.body.id}`,
+      {
+        modelName: customModelName,
+        matchPattern: `(?i)^${customModelName}$`,
+        totalPrice: 0.009,
+        unit: "TOKENS",
+        tokenizerId: "claude",
+      },
+      auth,
+    );
+
+    expect(updatedModel.body).toMatchObject({
+      id: customModel.body.id,
+      inputPrice: null,
+      outputPrice: null,
+      totalPrice: 0.009,
+      tokenizerId: "claude",
+      pricingTiers: [
+        expect.objectContaining({
+          name: "Standard",
+          isDefault: true,
+          priority: 0,
+          conditions: [],
+          prices: { total: 0.009 },
+        }),
+      ],
+    });
+
+    const refreshedModel = await findModel({
+      projectId,
+      model: customModelName,
+    });
+    expect(
+      refreshedModel.pricingTiers[0].prices
+        .find((price) => price.usageType === "total")
+        ?.price.toNumber(),
+    ).toBe(0.009);
+  });
+
+  it("Rolls back the model and pricing replacement together", async () => {
+    const modelName = `rollback-model-${v4()}`;
+    const customModel = await makeZodVerifiedAPICall(
+      PostModelsV1Response,
+      "POST",
+      "/api/public/models",
+      {
+        modelName,
+        matchPattern: `(?i)^${modelName}$`,
+        inputPrice: 0.001,
+        unit: "TOKENS",
+      },
+      auth,
+    );
+    const originalTierIds = (
+      await prisma.pricingTier.findMany({
+        where: { modelId: customModel.body.id },
+        select: { id: true },
+      })
+    ).map(({ id }) => id);
+
+    const response = await makeAPICall(
+      "PUT",
+      `/api/public/models/${customModel.body.id}`,
+      {
+        modelName,
+        matchPattern: `(?i)^${modelName}$`,
+        unit: "TOKENS",
+        pricingTiers: [
+          {
+            name: "Unstorable",
+            isDefault: true,
+            priority: 0,
+            conditions: [],
+            prices: { input: 1e40 },
+          },
+        ],
+      },
+      auth,
+    );
+
+    expect(response.status).toBe(500);
+    await expect(
+      prisma.pricingTier.findMany({
+        where: { modelId: customModel.body.id },
+        select: { id: true },
+      }),
+    ).resolves.toEqual(originalTierIds.map((id) => ({ id })));
+    await expect(
+      prisma.model.findUnique({ where: { id: customModel.body.id } }),
+    ).resolves.toMatchObject({
+      inputPrice: expect.anything(),
+      totalPrice: null,
+    });
+  });
+
+  it("Does not update a model owned by another project", async () => {
+    const {
+      auth: otherAuth,
+      projectId: otherProjectId,
+      orgId: otherOrgId,
+    } = await createOrgProjectAndApiKey();
+    const modelName = `other-project-model-${v4()}`;
+
+    try {
+      const otherModel = await makeZodVerifiedAPICall(
+        PostModelsV1Response,
+        "POST",
+        "/api/public/models",
+        {
+          modelName,
+          matchPattern: `(?i)^${modelName}$`,
+          totalPrice: 0.001,
+          unit: "TOKENS",
+        },
+        otherAuth,
+      );
+
+      const response = await makeAPICall(
+        "PUT",
+        `/api/public/models/${otherModel.body.id}`,
+        {
+          modelName: `${modelName}-changed`,
+          matchPattern: `(?i)^${modelName}-changed$`,
+          totalPrice: 0.002,
+          unit: "TOKENS",
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(404);
+      await expect(
+        prisma.model.findUnique({ where: { id: otherModel.body.id } }),
+      ).resolves.toMatchObject({ projectId: otherProjectId, modelName });
+    } finally {
+      await prisma.organization.delete({ where: { id: otherOrgId } });
+    }
+  });
+
+  it("Cannot update a built-in model", async () => {
+    const response = await makeAPICall(
+      "PUT",
+      `/api/public/models/${modelOneId}`,
+      {
+        modelName: fixtureModelName,
+        matchPattern: `(?i)^${fixtureModelName}$`,
+        totalPrice: 0.003,
+        unit: "TOKENS",
+      },
+      auth,
+    );
+
+    expect(response.status).toBe(404);
+  });
+
   it("Post model with invalid matchPattern", async () => {
     const customModel = await makeAPICall(
       "POST",
@@ -341,7 +559,7 @@ describe("/models API Endpoints", () => {
       "/api/public/models",
       {
         modelName: fixtureModelName,
-        matchPattern: "[][", // brackets not balanced
+        matchPattern: `(?i)^${fixtureModelName}$`,
         startDate: "2023-12-01",
         inputPrice: 0.002,
         outputPrice: 0.004,
@@ -353,6 +571,28 @@ describe("/models API Endpoints", () => {
     );
     expect(customModel.status).toBe(400);
   });
+
+  it.each([
+    { inputPrice: 0, totalPrice: 0.1 },
+    { outputPrice: 0.1, totalPrice: 0 },
+  ])(
+    "Rejects mutually exclusive flat prices containing zero",
+    async (prices) => {
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/models",
+        {
+          modelName: fixtureModelName,
+          matchPattern: `(?i)^${fixtureModelName}$`,
+          unit: "TOKENS",
+          ...prices,
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+    },
+  );
 
   it("Cannot delete built-in models", async () => {
     const getBuiltInModel = await makeZodVerifiedAPICall(

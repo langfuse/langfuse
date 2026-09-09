@@ -195,7 +195,7 @@ describe("scores trpc", () => {
       );
     });
 
-    it("filters evaluator scores by recorded evaluator and legacy rule metadata", async () => {
+    it("filters evaluator scores only by recorded evaluator metadata", async () => {
       const [evaluator, otherEvaluator] = await Promise.all(
         ["Evaluator", "Other evaluator"].map((name) =>
           prisma.evaluator.create({
@@ -256,13 +256,13 @@ describe("scores trpc", () => {
       ]);
 
       expect(new Set(scores.scores.map(({ id }) => id))).toEqual(
-        new Set([directScore.id, legacyScore.id]),
+        new Set([directScore.id]),
       );
       expect(new Set(eventScores.scores.map(({ id }) => id))).toEqual(
-        new Set([directScore.id, legacyScore.id]),
+        new Set([directScore.id]),
       );
-      expect(count.totalCount).toBe(2);
-      expect(eventCount.totalCount).toBe(2);
+      expect(count.totalCount).toBe(1);
+      expect(eventCount.totalCount).toBe(1);
     });
 
     it("does not match empty boolean representations when filtering boolean values", async () => {
@@ -728,6 +728,86 @@ describe("scores trpc", () => {
 
       expect(tiedIds).toEqual(configIds.slice().sort());
       expect(new Set(tiedIds).size).toBe(configIds.length);
+    });
+  });
+
+  describe("scoreConfigs.appendCategory", () => {
+    it("keeps both categories when two appends race", async () => {
+      const config = await prisma.scoreConfig.create({
+        data: {
+          projectId,
+          name: `append-race-${randomUUID().slice(0, 8)}`,
+          dataType: ScoreConfigDataType.CATEGORICAL,
+          categories: [{ label: "internal_user", value: 0 }],
+        },
+      });
+
+      await Promise.all([
+        caller.scoreConfigs.appendCategory({
+          projectId,
+          id: config.id,
+          label: "pen_testing",
+        }),
+        caller.scoreConfigs.appendCategory({
+          projectId,
+          id: config.id,
+          label: "just_testing",
+        }),
+      ]);
+
+      const latest = await caller.scoreConfigs.byId({
+        projectId,
+        id: config.id,
+      });
+
+      expect(
+        latest.categories?.map((category) => category.label).sort(),
+      ).toEqual(["internal_user", "just_testing", "pen_testing"]);
+    });
+
+    it("rejects a duplicate label", async () => {
+      const config = await prisma.scoreConfig.create({
+        data: {
+          projectId,
+          name: `append-dup-${randomUUID().slice(0, 8)}`,
+          dataType: ScoreConfigDataType.CATEGORICAL,
+          categories: [{ label: "internal_user", value: 0 }],
+        },
+      });
+
+      await expect(
+        caller.scoreConfigs.appendCategory({
+          projectId,
+          id: config.id,
+          label: "internal_user",
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "A category with this name already exists",
+      });
+    });
+
+    it("rejects a non-categorical config", async () => {
+      const config = await prisma.scoreConfig.create({
+        data: {
+          projectId,
+          name: `append-numeric-${randomUUID().slice(0, 8)}`,
+          dataType: ScoreConfigDataType.NUMERIC,
+          minValue: 0,
+          maxValue: 1,
+        },
+      });
+
+      await expect(
+        caller.scoreConfigs.appendCategory({
+          projectId,
+          id: config.id,
+          label: "pen_testing",
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "Only categorical score configs can append categories.",
+      });
     });
   });
 });

@@ -18,8 +18,9 @@ import {
   type RowHeight,
   getRowHeightTailwindClass,
 } from "@/src/components/table/data-table-row-height-switch";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
+  type DataTableCellBackground,
   type DataTableCellPadding,
   type LangfuseColumnDef,
 } from "@/src/components/table/types";
@@ -209,6 +210,15 @@ const getCellPaddingClassName = (padding: DataTableCellPadding) => {
       return "px-1";
   }
 };
+
+const cellBackgroundClassNames = {
+  gray: "bg-muted/50 [&_[data-slot=skeleton]]:bg-muted-foreground/20",
+  green:
+    "bg-accent-light-green [&_[data-slot=skeleton]]:bg-accent-dark-green/20",
+} satisfies Record<DataTableCellBackground, string>;
+
+const getCellBackgroundClassName = (background?: DataTableCellBackground) =>
+  background ? cellBackgroundClassNames[background] : undefined;
 
 export function DataTable<TData extends object, TValue>({
   columns,
@@ -531,21 +541,39 @@ export function DataTable<TData extends object, TValue>({
                         }}
                       >
                         {header.isPlaceholder ? null : (
-                          <div className="flex items-center select-none">
-                            <span
-                              className="truncate leading-normal"
-                              title={getPlainTextFromReactNode(
-                                flexRender(
+                          <div
+                            className={cn(
+                              "flex select-none",
+                              columnDef.headerBlock
+                                ? "items-start"
+                                : "items-center",
+                            )}
+                          >
+                            {columnDef.headerBlock ? (
+                              // Opted out of the single truncated line, so a
+                              // header can carry more than the column's name.
+                              <div className="min-w-0 flex-1 leading-normal">
+                                {flexRender(
                                   header.column.columnDef.header,
                                   header.getContext(),
-                                ),
-                              )}
-                            >
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
-                              )}
-                            </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span
+                                className="truncate leading-normal"
+                                title={getPlainTextFromReactNode(
+                                  flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext(),
+                                  ),
+                                )}
+                              >
+                                {flexRender(
+                                  header.column.columnDef.header,
+                                  header.getContext(),
+                                )}
+                              </span>
+                            )}
                             {columnDef.headerTooltip && (
                               <DocPopup
                                 description={
@@ -844,6 +872,7 @@ function TableBodyComponent<TData>({
                     ),
                     (rowHeight ?? "s") === "s" && "whitespace-nowrap",
                     getPinningClasses(column),
+                    getCellBackgroundClassName(columnDef.cellBackground),
                   )}
                   style={{
                     ...getCommonPinningStyles(column),
@@ -874,8 +903,9 @@ function TableBodyComponent<TData>({
                       }
 
                       return (
-                        <TableTextLoadingCell
+                        <Skeleton
                           className={cn(
+                            "h-4 w-1/2",
                             "min-w-[3rem]",
                             (rowIndex + columnIndex) % 4 === 0 && "w-3/4",
                             (rowIndex + columnIndex) % 4 === 1 && "w-1/2",
@@ -918,6 +948,7 @@ function TableBodyComponent<TData>({
                     ),
                     isSmallRowHeight && "whitespace-nowrap",
                     getPinningClasses(cell.column),
+                    getCellBackgroundClassName(columnDef.cellBackground),
                   )}
                   style={{
                     ...getCommonPinningStyles(cell.column),

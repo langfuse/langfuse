@@ -68,7 +68,10 @@ export function useExperimentV2EvaluatorSelection({
       limit: 100,
       search: searchQuery.trim() || undefined,
     },
-    { enabled },
+    {
+      enabled,
+      placeholderData: (previousData) => previousData,
+    },
   );
   const rules = api.evalsV2.rules.list.useQuery(
     {
@@ -145,7 +148,7 @@ export function useExperimentV2EvaluatorSelection({
   const isUpdating = createRule.isPending || updateRule.isPending;
 
   const onSaveAssignments = async (assignments: RuleDraft["assignments"]) => {
-    if (!datasetId || !canWrite || isUpdating) return;
+    if (!datasetId || !canWrite || isUpdating || rules.isPending) return;
 
     const evaluatorMappings = assignments.map((assignment) => ({
       evaluatorId: assignment.evaluatorId,
@@ -199,9 +202,8 @@ export function useExperimentV2EvaluatorSelection({
     options,
     selectedEvaluatorNames,
     selectedAssignments,
-    isPending:
-      enabled &&
-      (evaluatorOptions.isPending || (Boolean(datasetId) && rules.isPending)),
+    isPending: enabled && evaluatorOptions.isPending,
+    isLoadingAssignments: enabled && Boolean(datasetId) && rules.isPending,
     isUpdating,
     search,
     onSearchChange: (value: string) => {

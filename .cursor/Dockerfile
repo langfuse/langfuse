@@ -33,6 +33,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js 24 from NodeSource and activate the repository's pinned pnpm.
+# Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
+ARG NODE_USE_ENV_PROXY
 RUN install -m 0755 -d /etc/apt/keyrings \
     && curl --retry 3 --retry-delay 5 -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
       | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
@@ -40,9 +42,9 @@ RUN install -m 0755 -d /etc/apt/keyrings \
       > /etc/apt/sources.list.d/nodesource.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends nodejs \
-    && npm install --global corepack@0.34.0 \
+    && npm install --global corepack@0.36.0 \
     && corepack enable \
-    && corepack prepare pnpm@11.22.0 --activate \
+    && corepack prepare pnpm@12.3.1 --activate \
     && rm -rf /var/lib/apt/lists/*
 
 # Cursor Cloud runs Docker inside its own container layer. fuse-overlayfs and

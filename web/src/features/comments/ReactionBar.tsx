@@ -23,13 +23,9 @@ export function ReactionBar({
     commentId,
   });
 
-  if (!reactions || reactions.length === 0) {
-    return null;
-  }
-
   return (
     <div className="flex flex-wrap items-center gap-1">
-      {reactions.map((reaction) => {
+      {(reactions ?? []).map((reaction) => {
         const button = (
           <Button
             type="button"

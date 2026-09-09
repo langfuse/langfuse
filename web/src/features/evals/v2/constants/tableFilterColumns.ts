@@ -1,5 +1,5 @@
 import { EvalTemplateType, type ColumnDefinition } from "@langfuse/shared";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import type { FilterConfig } from "@/src/features/filters";
 
 const evaluatorStatusOptions = [
   { value: "ACTIVE", displayValue: "Active" },
@@ -36,6 +36,13 @@ export const evaluatorTableFilterColumns: ColumnDefinition[] = [
     type: "stringOptions",
     internal: "type",
     options: evaluatorTypeOptions,
+  },
+  {
+    name: "Model",
+    id: "model",
+    type: "stringOptions",
+    internal: "model",
+    options: [],
   },
   {
     name: "Creator",
@@ -83,6 +90,7 @@ export const evaluatorTableFilterConfig: FilterConfig = {
     { type: "categorical", column: "name", label: "Name" },
     { type: "categorical", column: "status", label: "Status" },
     { type: "categorical", column: "type", label: "Type" },
+    { type: "categorical", column: "model", label: "Model" },
     { type: "categorical", column: "creator", label: "Creator" },
   ],
 };

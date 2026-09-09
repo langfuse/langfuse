@@ -4,8 +4,8 @@ import type {
   CodeEvalTemplateVariable,
   ToolCallForEval,
 } from "../../features/evals/observationForEval";
-
-export const CODE_EVAL_SOURCE_MAX_BYTES = 256 * 1024;
+export { CODE_EVAL_SOURCE_MAX_BYTES } from "../../features/evals/codeEvalConstants";
+import { CODE_EVAL_SOURCE_MAX_BYTES } from "../../features/evals/codeEvalConstants";
 export const CODE_EVAL_DISPATCH_PAYLOAD_MAX_BYTES = 5.5 * 1024 * 1024;
 export const CODE_EVAL_DISPATCH_RESULT_MAX_BYTES = 256 * 1024;
 export const CODE_EVAL_DOCS_URL =
@@ -148,6 +148,7 @@ export const CodeEvalDispatcherErrorCode = z.enum([
   "RESULT_TOO_LARGE",
   "SOURCE_TOO_LARGE",
   "TIMEOUT",
+  "OUT_OF_MEMORY",
   "UNSUPPORTED_RUNTIME",
   "USER_CODE_ERROR",
   "LAMBDA_CONCURRENCY_LIMIT",

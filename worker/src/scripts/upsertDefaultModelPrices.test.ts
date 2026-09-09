@@ -10,6 +10,7 @@ import {
   type DefaultModelPrice,
   upsertModelWithTiers,
 } from "./upsertDefaultModelPrices";
+import defaultModelPrices from "../constants/default-model-prices.json";
 
 describe("upsertModelWithTiers", () => {
   beforeEach(() => {
@@ -106,5 +107,40 @@ describe("upsertModelWithTiers", () => {
       "tier.upsert:1",
       "tier.upsert:2",
     ]);
+  });
+});
+
+describe("default GPT-5.4 mini and nano prices", () => {
+  it("prices all reasoning aliases at each tier's output rate", () => {
+    const expectedStandardOutputPrices = {
+      "gpt-5.4-mini": 4.5e-6,
+      "gpt-5.4-mini-2026-03-17": 4.5e-6,
+      "gpt-5.4-nano": 1.25e-6,
+      "gpt-5.4-nano-2026-03-17": 1.25e-6,
+    };
+
+    for (const [modelName, expectedStandardOutputPrice] of Object.entries(
+      expectedStandardOutputPrices,
+    )) {
+      const model = defaultModelPrices.find(
+        (defaultModel) => defaultModel.modelName === modelName,
+      );
+
+      expect(model, modelName).toBeDefined();
+      if (!model) continue;
+
+      for (const tier of model.pricingTiers) {
+        expect(tier.prices, `${modelName}/${tier.name}`).toMatchObject({
+          output_reasoning_tokens: tier.prices.output,
+          output_reasoning: tier.prices.output,
+          reasoning_tokens: tier.prices.output,
+        });
+      }
+
+      const standardTier = model.pricingTiers.find((tier) => tier.isDefault);
+      expect(standardTier?.prices.output, modelName).toBe(
+        expectedStandardOutputPrice,
+      );
+    }
   });
 });

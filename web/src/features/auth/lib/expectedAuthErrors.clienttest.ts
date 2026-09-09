@@ -3,6 +3,8 @@
 import {
   isExpectedSignInError,
   isExpectedAuthErrorPageMessage,
+  isNextAuthMissingSignInUrlError,
+  isJsonParseSyntaxError,
 } from "@/src/features/auth/lib/expectedAuthErrors";
 import { MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE } from "@/src/features/auth/constants";
 
@@ -69,6 +71,64 @@ describe("expectedAuthErrors", () => {
           `prefix ${MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE}`,
         ),
       ).toBe(false);
+    });
+  });
+
+  describe("isNextAuthMissingSignInUrlError", () => {
+    it.each([
+      "URL constructor: undefined is not a valid URL.", // Firefox
+      "Failed to construct 'URL': Invalid URL", // Chrome
+      "undefined is not a valid URL.", // Safari / WebKit
+    ])("classifies %j as next-auth's missing data.url throw", (message) => {
+      expect(isNextAuthMissingSignInUrlError(new TypeError(message))).toBe(
+        true,
+      );
+    });
+
+    // Negative fixtures: other throws from signIn() must stay captured.
+    it.each([
+      new TypeError("Failed to fetch"),
+      new TypeError("Cannot read properties of undefined (reading 'ok')"),
+      new Error("URL constructor: undefined is not a valid URL."),
+      "URL constructor: undefined is not a valid URL.",
+    ])("keeps %s captured", (error) => {
+      expect(isNextAuthMissingSignInUrlError(error)).toBe(false);
+    });
+  });
+
+  describe("isJsonParseSyntaxError", () => {
+    it.each([
+      "JSON.parse: unexpected character at line 1 column 1 of the JSON data", // Firefox
+      "JSON.parse: unexpected end of data at line 1 column 1 of the JSON data", // Firefox truncated
+      "Unexpected token '<', \"<html>\" is not valid JSON", // Chromium
+      "Unexpected token < in JSON at position 0", // Chromium (older)
+      "Unexpected end of JSON input", // Chromium truncated
+      "JSON Parse error: Unexpected identifier", // Safari
+      "JSON Parse error: Unexpected EOF", // Safari truncated
+    ])("classifies %j as a JSON.parse transport failure", (message) => {
+      expect(isJsonParseSyntaxError(new SyntaxError(message))).toBe(true);
+    });
+
+    // Negative fixtures: real errors MUST still flow to Sentry.
+    it("does not match a non-JSON SyntaxError", () => {
+      expect(
+        isJsonParseSyntaxError(new SyntaxError("Invalid regular expression")),
+      ).toBe(false);
+    });
+
+    it("does not match a TypeError (Failed to fetch stays classified elsewhere)", () => {
+      expect(isJsonParseSyntaxError(new TypeError("Failed to fetch"))).toBe(
+        false,
+      );
+    });
+
+    it("does not match a generic Error", () => {
+      expect(isJsonParseSyntaxError(new Error("boom"))).toBe(false);
+    });
+
+    it("does not match null/undefined", () => {
+      expect(isJsonParseSyntaxError(null)).toBe(false);
+      expect(isJsonParseSyntaxError(undefined)).toBe(false);
     });
   });
 });

@@ -15,7 +15,7 @@ const placementPosition = {
   width: z.number().int().positive(),
   height: z.number().int().positive(),
 };
-export const PublicWidgetPlacementSchema = z
+const PublicWidgetPlacementSchema = z
   .object({
     type: z.literal("widget"),
     id: z.string(),
@@ -23,7 +23,7 @@ export const PublicWidgetPlacementSchema = z
     ...placementPosition,
   })
   .strict();
-export const PublicPresetPlacementSchema = z
+const PublicPresetPlacementSchema = z
   .object({
     type: z.literal("preset"),
     id: z.string(),
@@ -35,7 +35,7 @@ export const DashboardPlacementSchema = z.discriminatedUnion("type", [
   PublicWidgetPlacementSchema,
   PublicPresetPlacementSchema,
 ]);
-export const PublicDashboardDefinitionSchema = z
+const PublicDashboardDefinitionSchema = z
   .object({
     widgets: z.array(DashboardPlacementSchema),
   })

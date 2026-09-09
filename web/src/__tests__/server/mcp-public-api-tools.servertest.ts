@@ -62,12 +62,12 @@ import {
   handleListAnnotationQueueItems,
   handleListAnnotationQueues,
   handleUpdateAnnotationQueueItem,
-} from "@/src/features/mcp/features/annotationQueues/tools";
+} from "@/src/features/mcp/server/annotationQueues/tools";
 import {
   handleCreateComment,
   handleGetComment,
   handleListComments,
-} from "@/src/features/mcp/features/comments/tools";
+} from "@/src/features/mcp/server/comments/tools";
 import {
   handleCreateDatasetRunItem,
   handleDeleteDatasetItem,
@@ -82,18 +82,18 @@ import {
   handleUpsertDataset,
   handleUpsertDatasetItem,
   upsertDatasetTool,
-} from "@/src/features/mcp/features/datasets/tools";
-import { handleGetHealth } from "@/src/features/mcp/features/health/tools";
+} from "@/src/features/mcp/server/datasets/tools";
+import { handleGetHealth } from "@/src/features/mcp/server/health/tools";
 import {
   handleCreateModel,
   handleDeleteModel,
   handleGetModel,
   handleListModels,
-} from "@/src/features/mcp/features/models/tools";
-import { handleCreateScoreConfig } from "@/src/features/mcp/features/scores/tools/createScoreConfig";
-import { handleGetScoreConfig } from "@/src/features/mcp/features/scores/tools/getScoreConfig";
-import { handleListScoreConfigs } from "@/src/features/mcp/features/scores/tools/listScoreConfigs";
-import { handleUpdateScoreConfig } from "@/src/features/mcp/features/scores/tools/updateScoreConfig";
+} from "@/src/features/mcp/server/models/tools";
+import { handleCreateScoreConfig } from "@/src/features/mcp/server/scores/tools/createScoreConfig";
+import { handleGetScoreConfig } from "@/src/features/mcp/server/scores/tools/getScoreConfig";
+import { handleListScoreConfigs } from "@/src/features/mcp/server/scores/tools/listScoreConfigs";
+import { handleUpdateScoreConfig } from "@/src/features/mcp/server/scores/tools/updateScoreConfig";
 
 const createScoreConfig = async (projectId: string) =>
   prisma.scoreConfig.create({
@@ -398,7 +398,7 @@ describe("MCP public API tools", () => {
     ).resolves.toBe(assignmentAuditLogCount + 1);
 
     const auditLogCreateSpy = vi
-      .spyOn(prisma, "$transaction")
+      .spyOn(prisma.auditLog, "create")
       .mockRejectedValueOnce(new Error("audit failed"));
 
     try {

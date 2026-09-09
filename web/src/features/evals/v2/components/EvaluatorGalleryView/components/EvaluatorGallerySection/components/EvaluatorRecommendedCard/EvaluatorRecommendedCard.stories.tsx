@@ -15,10 +15,9 @@ const template = {
   maintainer: "langfuse",
   evaluator: {
     type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
-    prompt: "Classify {{input}}.",
+    promptMessages: [{ role: "user", content: "Classify {{input}}." }],
     variables: [{ name: "input", defaultMapping: { field: "input" } }],
     outputDefinition: {
-      version: 2,
       dataType: "CATEGORICAL",
       score: {
         description: "Intent.",

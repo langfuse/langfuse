@@ -77,7 +77,7 @@ export const DIMENSIONS: DimensionDef[] = [
   { key: "none", label: "Total (no breakdown)", field: null },
   { key: "model", label: "Model", field: "providedModelName" },
   { key: "name", label: "Name", field: "name" },
-  { key: "level", label: "Level", field: "level" },
+  { key: "level", label: "Status", field: "level" },
   { key: "type", label: "Type", field: "type" },
   { key: "environment", label: "Environment", field: "environment" },
 ];
@@ -141,9 +141,7 @@ export const getMetric = (key: MetricKey): MetricDef =>
 export const getDimension = (key: DimensionKey): DimensionDef =>
   DIMENSIONS.find((d) => d.key === key) ?? DIMENSIONS[0];
 
-export const getChartType = (
-  value: DashboardWidgetChartType,
-): ChartTypeOption =>
+const getChartType = (value: DashboardWidgetChartType): ChartTypeOption =>
   CHART_TYPES.find((c) => c.value === value) ?? CHART_TYPES[0];
 
 export const isTimeSeriesChartType = (

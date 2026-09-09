@@ -30,7 +30,7 @@ import { V4MigrationNavItem } from "@/src/features/v4-migration/V4MigrationNavIt
 import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
 import { BookACallButton } from "@/src/components/nav/book-a-call-button";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
@@ -68,6 +68,9 @@ export type Route = {
       | undefined;
     projectId: string | undefined;
     isLangfuseCloud: boolean;
+    hasActiveCloudIncident: boolean;
+    canToggleV4: boolean;
+    forceV3Experience: boolean;
     v4WriteMode: undefined | "legacy" | "dual" | "events_only"; // undefined until the session has loaded
     v4UpgradeUiAvailable: boolean; // deployment shows the v4 migration UI (see isV4UpgradeUiAvailable)
   }) => boolean;
@@ -169,7 +172,7 @@ export const ROUTES: Route[] = [
     title: "Evaluators",
     icon: Lightbulb,
     productModule: "evaluation",
-    projectRbacScopes: ["evalJob:read"],
+    projectRbacScopes: ["evaluator:read", "evaluationRule:read"],
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
     pathname: `/project/[projectId]/evals`,
@@ -201,30 +204,8 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    title: "Upgrade",
-    icon: Sparkle,
-    pathname: "/project/[projectId]/settings/billing",
-    section: RouteSection.Secondary,
-    entitlements: ["cloud-billing"],
-    organizationRbacScope: "langfuseCloudBilling:CRUD",
-    show: ({ organization }) => organization?.plan === "cloud:hobby",
-  },
-  {
-    title: "Upgrade",
-    icon: Sparkle,
-    pathname: "/organization/[organizationId]/settings/billing",
-    section: RouteSection.Secondary,
-    entitlements: ["cloud-billing"],
-    organizationRbacScope: "langfuseCloudBilling:CRUD",
-    show: ({ organization }) => organization?.plan === "cloud:hobby",
-  },
-  {
-    title: "Cloud Status",
-    section: RouteSection.Secondary,
-    pathname: "",
-    menuNode: <CloudStatusMenu />,
-  },
-  {
+    // Keep Action required first in the secondary nav so it is not sandwiched
+    // between regular items like Upgrade Plan and Settings.
     title: "Update",
     pathname: "",
     section: RouteSection.Secondary,
@@ -233,11 +214,40 @@ export const ROUTES: Route[] = [
     menuNode: <V4MigrationNavItem />,
   },
   {
+    title: "Cloud Status",
+    section: RouteSection.Secondary,
+    pathname: "",
+    show: ({ isLangfuseCloud, hasActiveCloudIncident }) =>
+      isLangfuseCloud && hasActiveCloudIncident,
+    menuNode: <CloudStatusMenu />,
+  },
+  {
     title: "V4 Preview",
     pathname: "",
     section: RouteSection.Secondary,
     featureFlag: "v4BetaToggleVisible",
+    // v4-upgrade users get this toggle inside the migration panel instead.
+    show: ({ canToggleV4, forceV3Experience, v4UpgradeUiAvailable }) =>
+      canToggleV4 && (!v4UpgradeUiAvailable || forceV3Experience),
     menuNode: <V4SidebarToggle />,
+  },
+  {
+    title: "Upgrade Plan",
+    icon: Sparkle,
+    pathname: "/project/[projectId]/settings/billing",
+    section: RouteSection.Secondary,
+    entitlements: ["cloud-billing"],
+    organizationRbacScope: "langfuseCloudBilling:CRUD",
+    show: ({ organization }) => organization?.plan === "cloud:hobby",
+  },
+  {
+    title: "Upgrade Plan",
+    icon: Sparkle,
+    pathname: "/organization/[organizationId]/settings/billing",
+    section: RouteSection.Secondary,
+    entitlements: ["cloud-billing"],
+    organizationRbacScope: "langfuseCloudBilling:CRUD",
+    show: ({ organization }) => organization?.plan === "cloud:hobby",
   },
   {
     title: "Settings",
@@ -282,10 +292,9 @@ function CommandMenuTrigger() {
     >
       <Search className="h-4 w-4" />
       Go to...
-      <KeyboardShortcut
-        className="ml-auto"
-        keys={[navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl", "K"]}
-      />
+      <span className="ml-auto hidden md:inline-flex">
+        <KeyboardShortcut keys={["Mod", "K"]} />
+      </span>
     </SidebarMenuButton>
   );
 }

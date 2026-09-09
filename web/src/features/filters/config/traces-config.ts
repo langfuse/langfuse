@@ -79,9 +79,8 @@ export const traceFilterConfig: FilterConfig = {
       label: "Comment Content",
     },
     {
-      // Product direction is to call observation levels "Status" everywhere
-      // (display relabel only here; the column id / grammar field stays
-      // `level` until the cross-surface rename lands).
+      // Product direction is to call observation levels "Status" everywhere.
+      // Display relabel only; the column id / grammar field stays `level`.
       type: "categorical" as const,
       column: "level",
       label: "Status",

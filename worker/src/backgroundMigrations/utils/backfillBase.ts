@@ -29,7 +29,7 @@ export interface BaseChunkTodo {
   retryCount?: number;
 }
 
-export interface ChunkedBackfillArgs {
+interface ChunkedBackfillArgs {
   concurrency?: number;
   pollIntervalMs?: number;
   maxRetries?: number;
@@ -61,7 +61,7 @@ export interface ChunkedBackfillState<T extends BaseChunkTodo> {
 // Helpers
 // ============================================================================
 
-export function generateQueryId(chunkId: string): string {
+function generateQueryId(chunkId: string): string {
   return `backfill-${chunkId}-${randomUUID().slice(0, 8)}`;
 }
 
@@ -211,7 +211,7 @@ export async function loadPartitionsFromClickhouse(
 // Fire query (long-running, abort-and-poll pattern)
 // ============================================================================
 
-export interface FireQueryRetrySettings {
+interface FireQueryRetrySettings {
   retry0?: Record<string, string | number>;
   retry1?: Record<string, string | number>;
   retry2?: Record<string, string | number>;
@@ -223,7 +223,7 @@ const DEFAULT_RETRY_SETTINGS: FireQueryRetrySettings = {
   retry2: { max_threads: 1, max_insert_threads: "1", max_block_size: "2048" },
 };
 
-export interface FireQueryOptions {
+interface FireQueryOptions {
   query: string;
   queryId: string;
   params?: Record<string, unknown>;
@@ -244,7 +244,7 @@ export interface FireQueryOptions {
  * system.processes, then aborts the HTTP connection so the query continues
  * server-side and we poll for completion via pollQueryStatus.
  */
-export async function fireQuery({
+async function fireQuery({
   query,
   queryId,
   params,
@@ -357,7 +357,7 @@ export async function fireQuery({
  * Returns the subset that ClickHouse still reports as running so the caller
  * can keep tracking them.
  */
-export async function recoverInProgressTodos<T extends BaseChunkTodo>(
+async function recoverInProgressTodos<T extends BaseChunkTodo>(
   todos: T[],
   logPrefix = "[Backfill]",
 ): Promise<T[]> {

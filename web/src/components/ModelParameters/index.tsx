@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -314,7 +315,7 @@ export const ModelParameterSettings = ({
       setModelParamEnabled={setModelParamEnabled}
       value={modelParams.max_tokens.value}
       min={1}
-      max={16384}
+      max={65535}
       step={1}
       tooltip="The maximum number of tokens that can be generated in the chat completion."
       updateModelParam={updateModelParamValue}

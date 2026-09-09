@@ -146,7 +146,7 @@ describe("in-app agent sandbox", () => {
     });
   });
 
-  it("returns the sandbox tool-call directory for silent MCP output", async () => {
+  it("returns the exact sandbox file for silent MCP output", async () => {
     const execute = async (input: { query: string }) => ({
       result: input.query,
     });
@@ -171,18 +171,20 @@ describe("in-app agent sandbox", () => {
       tool.inputSchema.safeParse({ query: "test", silent: true }).success,
     ).toBe(true);
 
-    const output = await tool.execute?.(
-      { query: "test", silent: true },
-      {} as never,
-    );
+    const output = await tool.execute?.({ query: "test", silent: true }, {
+      agent: { toolCallId: "tool-call-1" },
+    } as never);
 
     expect(output).toEqual({
       type: "silent-mcp-output",
       output: { result: "test" },
+      toolCallId: "tool-call-1",
+      toolName: "search",
     });
-    expect(tool.toModelOutput?.(output)).toBe(
-      "Output saved to /workspace/tool_calls",
-    );
+    expect(tool.toModelOutput?.(output)).toEqual({
+      type: "text",
+      value: "Output saved to /workspace/tool_calls/search_tool-call-1.json",
+    });
   });
 
   it("supports silent output for the listObservations JSON Schema", async () => {
@@ -227,13 +229,14 @@ describe("in-app agent sandbox", () => {
     });
 
     await expect(
-      tools.listObservations.execute?.(
-        { limit: 10, silent: true },
-        {} as never,
-      ),
+      tools.listObservations.execute?.({ limit: 10, silent: true }, {
+        agent: { toolCallId: "tool-call-2" },
+      } as never),
     ).resolves.toEqual({
       type: "silent-mcp-output",
       output: { data: [] },
+      toolCallId: "tool-call-2",
+      toolName: "listObservations",
     });
     expect(receivedInput).toEqual({ limit: 10 });
   });
@@ -309,7 +312,10 @@ describe("in-app agent sandbox", () => {
     // Not wrapped, so the model reads the failure inline rather than being
     // pointed at a tool_calls file that is never written for failures.
     expect(output).toEqual(mcpErrorResult);
-    expect(tools.search.toModelOutput?.(output)).toEqual(mcpErrorResult);
+    expect(tools.search.toModelOutput?.(output)).toEqual({
+      type: "json",
+      value: mcpErrorResult,
+    });
     expect(toolCallFiles.getFiles()).toEqual([]);
   });
 

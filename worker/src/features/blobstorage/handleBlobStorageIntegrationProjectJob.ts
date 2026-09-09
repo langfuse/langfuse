@@ -76,6 +76,10 @@ import { env } from "../../env";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
 import {
+  recordExportFreshnessLag,
+  windowClassFromBlobFrequency,
+} from "../../services/exportFreshnessLagMetric";
+import {
   buildBlobExportManifest,
   buildBlobExportManifestKey,
   formatBlobExportTimestamp,
@@ -85,8 +89,9 @@ import {
   buildBlobExportDeprecationNotice,
   buildBlobExportDeprecationNoticeKey,
 } from "./deprecationNotice";
+import { resolveFirstExportStart } from "./firstExportStart";
 
-export const BlobExportFormat = {
+const BlobExportFormat = {
   JSON_RAW: "json-raw",
   JSON_GZIP: "json-gzip",
   CSV_RAW: "csv-raw",
@@ -97,7 +102,7 @@ export const BlobExportFormat = {
   // Parquet, so there is no separate raw/gzip split.
   PARQUET: "parquet",
 } as const;
-export type BlobExportFormat =
+type BlobExportFormat =
   (typeof BlobExportFormat)[keyof typeof BlobExportFormat];
 
 // Text formats only; PARQUET is absent because callers branch on parquetEligible first.
@@ -133,6 +138,17 @@ function resolveBlobExportFormat(
 }
 
 export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffer
+
+// When a catch-up run lands within this distance of the frontier, treat it as
+// caught up rather than emitting a tiny trailing chunk. Object keys are truncated
+// to whole-second precision (formatBlobExportTimestamp), so a sub-second remainder
+// chunk can share a wall-clock second with the full-interval chunk it follows and
+// silently overwrite that window's files and manifest. Suppressing the remainder
+// removes the collision at its source; the deferred tail is picked up by the next
+// scheduled run (its minTimestamp = lastSyncAt already covers it). Must be >= 1000ms
+// (the key granularity) and well below any frequencyInterval so no meaningful data
+// is deferred.
+export const BLOB_STORAGE_REMAINDER_COALESCE_MS = 1000;
 
 export async function* enrichObservationStream(
   stream: AsyncGenerator<Record<string, unknown>>,
@@ -191,13 +207,15 @@ const getMinTimestampForExport = async (
     return lastSyncAt;
   }
 
-  // For first export, use the export mode to determine start date
-  switch (exportMode) {
-    case BlobStorageExportMode.FULL_HISTORY:
-      // Query ClickHouse for the actual minimum timestamp from traces, observations, and scores tables
-      try {
-        const result = await queryClickhouse<{ min_timestamp: number | null }>({
-          query: `
+  // For a first FULL_HISTORY export, probe ClickHouse for the actual minimum
+  // timestamp across every source table. This is the real data minimum, not
+  // project createdAt: projects legitimately backfill data that predates the
+  // project, and a full-history export must include it.
+  let historicalMinTimestampMs: number | null = null;
+  if (exportMode === BlobStorageExportMode.FULL_HISTORY) {
+    try {
+      const result = await queryClickhouse<{ min_timestamp: number | null }>({
+        query: `
               SELECT min(toUnixTimestamp(ts)) * 1000 as min_timestamp
               FROM (
                 SELECT min(timestamp) as ts
@@ -215,46 +233,40 @@ const getMinTimestampForExport = async (
                 SELECT min(timestamp) as ts
                 FROM scores
                 WHERE project_id = {projectId: String}
+
+                UNION ALL
+
+                SELECT min(start_time) as ts
+                FROM events_core
+                WHERE project_id = {projectId: String}
+                AND is_deleted = 0 -- match the events export query's visibility
               )
               WHERE ts > 0 -- Ignore 0 results (usually empty tables)
             `,
-          params: { projectId },
-        });
+        params: { projectId },
+      });
 
-        // Extract the minimum timestamp
-        logger.info(
-          `[BLOB INTEGRATION] ClickHouse min_timestamp for project ${projectId}: ${result[0]?.min_timestamp}, type: ${typeof result[0]?.min_timestamp}`,
-        );
-        const minTimestampValue = Number(result[0]?.min_timestamp);
-
-        if (minTimestampValue && minTimestampValue > 0) {
-          const date = new Date(minTimestampValue);
-          logger.info(
-            `[BLOB INTEGRATION] Created Date from min_timestamp for project ${projectId}: ${date}, isValid: ${!isNaN(date.getTime())}, getTime: ${date.getTime()}`,
-          );
-          return date;
-        }
-
-        // If no data exists, use current time as a fallback
-        logger.info(
-          `[BLOB INTEGRATION] No historical data found for project ${projectId}, using current time`,
-        );
-        return new Date(0);
-      } catch (error) {
-        logger.error(
-          `[BLOB INTEGRATION] Error querying ClickHouse for minimum timestamp for project ${projectId}`,
-          error,
-        );
-        throw new Error(`Failed to fetch minimum timestamp: ${error}`);
+      const minTimestampValue = Number(result[0]?.min_timestamp);
+      if (minTimestampValue && minTimestampValue > 0) {
+        historicalMinTimestampMs = minTimestampValue;
       }
-    case BlobStorageExportMode.FROM_TODAY:
-    case BlobStorageExportMode.FROM_CUSTOM_DATE:
-      return exportStartDate || new Date(); // Use export start date or current time as fallback
-    default:
-      // eslint-disable-next-line no-case-declarations
-      const _exhaustiveCheck: never = exportMode;
-      throw new Error(`Invalid export mode: ${exportMode}`);
+      logger.info(
+        `[BLOB INTEGRATION] ClickHouse min_timestamp for project ${projectId}: ${historicalMinTimestampMs}`,
+      );
+    } catch (error) {
+      logger.error(
+        `[BLOB INTEGRATION] Error querying ClickHouse for minimum timestamp for project ${projectId}`,
+        error,
+      );
+      throw new Error(`Failed to fetch minimum timestamp: ${error}`);
+    }
   }
+
+  return resolveFirstExportStart({
+    exportMode,
+    exportStartDate,
+    historicalMinTimestampMs,
+  });
 };
 
 /**
@@ -1205,9 +1217,10 @@ export const handleBlobStorageIntegrationProjectJob = async (
     return;
   }
 
+  const runStartTime = new Date();
   const { count: claimed } = await prisma.blobStorageIntegration.updateMany({
     where: { projectId },
-    data: { runStartedAt: new Date() },
+    data: { runStartedAt: runStartTime },
   });
   if (claimed === 0) {
     logger.info(
@@ -1264,6 +1277,15 @@ export const handleBlobStorageIntegrationProjectJob = async (
         lastErrorAt: null,
       },
     });
+    recordExportFreshnessLag({
+      integration: "blob_storage",
+      window: windowClassFromBlobFrequency(
+        blobStorageIntegration.exportFrequency,
+      ),
+      status: "success",
+      runStartTime,
+      maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
+    });
     return;
   }
 
@@ -1271,6 +1293,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
   // self-hosted), so the deprecation notice below is Cloud-only too.
   const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
+  let watermarkAdvanced = false;
   try {
     // The catch persists lastError and notifies admins.
     assertExportSourceWritable(
@@ -1451,8 +1474,14 @@ export const handleBlobStorageIntegrationProjectJob = async (
       }
     }
 
-    // Determine if we've caught up with present-day data
-    const caughtUp = maxTimestamp.getTime() >= uncappedMaxTimestamp.getTime();
+    // Determine if we've caught up with present-day data. A remainder below
+    // BLOB_STORAGE_REMAINDER_COALESCE_MS is treated as caught up so we never emit
+    // a sub-second trailing chunk that would collide with the full-interval chunk
+    // on the same second-precision object key (see the constant's doc comment).
+    const remainderMs = uncappedMaxTimestamp.getTime() - maxTimestamp.getTime();
+    const caughtUp =
+      maxTimestamp.getTime() >= uncappedMaxTimestamp.getTime() ||
+      remainderMs < BLOB_STORAGE_REMAINDER_COALESCE_MS;
 
     let nextSyncAt: Date;
     if (caughtUp) {
@@ -1492,6 +1521,20 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
       return;
     }
+
+    // The export watermark is committed. Catch-up enqueue below can still
+    // fail (Redis); that must not be recorded as an export-freshness failure
+    // against the pre-run lastSyncAt.
+    recordExportFreshnessLag({
+      integration: "blob_storage",
+      window: windowClassFromBlobFrequency(
+        blobStorageIntegration.exportFrequency,
+      ),
+      status: "success",
+      runStartTime,
+      maxExportedTimestamp: maxTimestamp,
+    });
+    watermarkAdvanced = true;
 
     // If still catching up, immediately queue the next chunk job
     if (!caughtUp) {
@@ -1533,6 +1576,18 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     if (outcome.kind === "integration-deleted") {
       return; // obsolete job: complete it rather than fail it
+    }
+
+    if (!watermarkAdvanced) {
+      recordExportFreshnessLag({
+        integration: "blob_storage",
+        window: windowClassFromBlobFrequency(
+          blobStorageIntegration.exportFrequency,
+        ),
+        status: "failure",
+        runStartTime,
+        maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
+      });
     }
 
     switch (outcome.kind) {

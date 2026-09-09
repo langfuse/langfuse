@@ -5,6 +5,7 @@ import {
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
   getInAppAgentLlmCallObservationId,
+  IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
 } from "@langfuse/shared/in-app-agent";
 import type { AgUiRunAgentInput } from "./types";
 import { InAppAgentInstrumentation } from "./instrumentation";
@@ -63,6 +64,7 @@ const input: AgUiRunAgentInput = {
 const expectedAgentRunInput = {
   messages: [{ role: "user", content: "hello" }],
 };
+const expectedWrappingRootInput = "hello";
 
 describe("InAppAgentInstrumentation", () => {
   beforeEach(() => {
@@ -138,6 +140,7 @@ describe("InAppAgentInstrumentation", () => {
         traceId,
         traceName: "agent-turn",
         userId: "user-1",
+        sessionId: "conversation-1",
       }),
     );
     expect(mocks.handler.langfuse.trace).toHaveBeenCalledWith(
@@ -145,7 +148,7 @@ describe("InAppAgentInstrumentation", () => {
     );
     expect(mocks.handler.langfuse.trace).toHaveBeenCalledWith(
       expect.objectContaining({
-        input: expectedAgentRunInput,
+        input: expectedWrappingRootInput,
       }),
     );
     expect(mocks.trace.generation).not.toHaveBeenCalled();
@@ -156,6 +159,8 @@ describe("InAppAgentInstrumentation", () => {
         traceId,
         parentObservationId: agentRunObservationId,
         name: "listObservations",
+        userId: "user-1",
+        sessionId: "conversation-1",
         input: { limit: 10 },
         output: toolOutput,
         startTime: expect.any(Date),
@@ -209,24 +214,8 @@ describe("InAppAgentInstrumentation", () => {
     );
     expect(mocks.trace.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        input: expectedAgentRunInput,
-        output: {
-          messages: [
-            { role: "assistant", content: "hi there" },
-            {
-              role: "assistant",
-              content: "",
-              tool_calls: [toolCall],
-            },
-            {
-              role: "tool",
-              tool_call_id: "tool-1",
-              content: toolOutput,
-            },
-          ],
-          text: "hi there",
-          tool_calls: [toolCall],
-        },
+        input: expectedWrappingRootInput,
+        output: "hi there",
       }),
     );
   });
@@ -268,6 +257,52 @@ describe("InAppAgentInstrumentation", () => {
           toolCallId: "tool-1",
           parentMessageId: "tool-1-approval-tool-call",
           toolCallApproval: "approved",
+        }),
+      }),
+    );
+  });
+
+  it("copies langfuse_tool_approval source onto the TOOL observation", () => {
+    const instrumentation = createInstrumentation();
+
+    instrumentation.recordEvents([
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "tool-1",
+        toolCallName: "read",
+        parentMessageId: "assistant-message-1",
+      },
+      {
+        type: EventType.CUSTOM,
+        name: IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
+        value: {
+          toolCallId: "tool-1",
+          toolName: "read",
+          source: "auto",
+        },
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "tool-1",
+        delta: '{"path":"README.md"}',
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: "tool-1",
+      },
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: "tool-1",
+        content: "ok",
+      },
+    ]);
+
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "tool-create",
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          toolCallId: "tool-1",
+          toolCallApprovalSource: "auto",
         }),
       }),
     );
@@ -738,11 +773,8 @@ describe("InAppAgentInstrumentation", () => {
     );
     expect(mocks.trace.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        input: expectedAgentRunInput,
-        output: {
-          messages: [{ role: "assistant", content: "second turn output" }],
-          text: "second turn output",
-        },
+        input: expectedWrappingRootInput,
+        output: "second turn output",
       }),
     );
   });
@@ -768,6 +800,12 @@ describe("InAppAgentInstrumentation", () => {
 
     expect(mocks.trace.generation).not.toHaveBeenCalled();
     expect(mocks.handler.langfuse.trace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expectedWrappingRootInput,
+      }),
+    );
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "agent-create",
       expect.objectContaining({
         input: {
           messages: [{ role: "user", content: "hello" }],
@@ -828,6 +866,12 @@ describe("InAppAgentInstrumentation", () => {
     expect(mocks.handler.langfuse.trace).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "agent-turn",
+        input: expectedWrappingRootInput,
+      }),
+    );
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "agent-create",
+      expect.objectContaining({
         input: {
           messages: [{ role: "user", content: "hello" }],
         },
@@ -938,7 +982,7 @@ describe("InAppAgentInstrumentation", () => {
           name: "agent-turn",
           sessionId: "conversation-1",
           timestamp: new Date(traceStartedAt),
-          input: expectedAgentRunInput,
+          input: expectedWrappingRootInput,
           tags: ["in-app-agent"],
           metadata: expect.objectContaining({
             approval_continuation_count: 2,
@@ -999,7 +1043,7 @@ describe("InAppAgentInstrumentation", () => {
       );
       expect(mocks.trace.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          input: expectedAgentRunInput,
+          input: expectedWrappingRootInput,
           metadata: expect.objectContaining({
             approval_continuation_count: 2,
           }),
@@ -1057,6 +1101,12 @@ describe("InAppAgentInstrumentation", () => {
             { role: "assistant", content: "The tool completed." },
           ],
         }),
+      }),
+    );
+    expect(mocks.trace.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expectedWrappingRootInput,
+        output: "I need your approval.\n\nThe tool completed.",
       }),
     );
   });
@@ -1538,7 +1588,7 @@ describe("InAppAgentInstrumentation", () => {
     expect(toolCreates[0]?.[1]).toEqual(
       expect.objectContaining({
         id: "tool-a",
-        parentObservationId: agentRunObservationId,
+        parentObservationId: getInAppAgentLlmCallObservationId(runId, 1),
         startTime: toolAStart,
         endTime: toolAEnd,
       }),
@@ -1546,7 +1596,7 @@ describe("InAppAgentInstrumentation", () => {
     expect(toolCreates[1]?.[1]).toEqual(
       expect.objectContaining({
         id: "tool-b",
-        parentObservationId: agentRunObservationId,
+        parentObservationId: getInAppAgentLlmCallObservationId(runId, 1),
         startTime: toolBStart,
         endTime: toolBEnd,
       }),

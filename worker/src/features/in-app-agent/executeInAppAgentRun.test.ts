@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createOrgProjectAndApiKey, logger } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME } from "@langfuse/shared/in-app-agent";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import { ResumeForwardedPropsSchema } from "./runtime/types";
 import { env } from "../../env";
@@ -18,8 +19,9 @@ vi.hoisted(() => {
   delete process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER;
   process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ??= "DEV";
   process.env.NEXTAUTH_URL ??= "http://localhost:3000";
-  process.env.LANGFUSE_AWS_BEDROCK_REGION ??= "eu-central-1";
-  process.env.LANGFUSE_AWS_BEDROCK_MODEL ??= "test-bedrock-model";
+  process.env.LANGFUSE_AI_PROVIDER ??= "bedrock";
+  process.env.LANGFUSE_AI_AWS_BEDROCK_REGION ??= "eu-central-1";
+  process.env.LANGFUSE_AI_MODEL ??= "test-bedrock-model";
 });
 
 /**
@@ -53,7 +55,11 @@ type AgentScenario = (ctx: {
     };
     onEvent: (event: unknown) => Promise<void> | void;
     onApprovedToolCallExecuted?: () => Promise<void> | void;
-    onComplete: (outcome?: { truncatedByStepLimit?: boolean }) => Promise<void>;
+    onComplete: (outcome?: {
+      reachedStepLimit?: boolean;
+      truncatedByStepLimit?: boolean;
+      truncatedByOutputLimit?: boolean;
+    }) => Promise<void>;
     onAbort: () => Promise<void>;
     onError: (error: unknown) => Promise<void>;
     onFinish: () => Promise<void>;
@@ -503,6 +509,45 @@ describe("executeInAppAgentRun", () => {
     expect((merged!.event as { delta?: string }).delta).toBe("Hello world");
   });
 
+  it("persists a tool-approval source next to TOOL_CALL_START", async () => {
+    const { projectId, conversation, run } = await seedBackgroundRun();
+
+    scenarioRef.current = async ({ options }) => {
+      await options.onEvent({
+        type: "TOOL_CALL_START",
+        toolCallId: "tool-call-read",
+        toolCallName: "read",
+      });
+      await options.onEvent({
+        type: "TOOL_CALL_END",
+        toolCallId: "tool-call-read",
+      });
+      await options.onComplete();
+      await options.onFinish();
+    };
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
+
+    const events = await prisma.inAppAgentEvent.findMany({
+      where: { projectId, conversationId: conversation.id },
+      orderBy: { sequenceNumber: "asc" },
+    });
+    expect(events.map((event) => event.type)).toEqual(
+      expect.arrayContaining(["TOOL_CALL_START", "CUSTOM", "TOOL_CALL_END"]),
+    );
+    expect(events).toHaveLength(3);
+    expect(
+      events.find((event) => event.type === "CUSTOM")?.event,
+    ).toMatchObject({
+      name: IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
+      value: {
+        toolCallId: "tool-call-read",
+        toolName: "read",
+        source: "auto",
+      },
+    });
+  });
+
   it("records step_limit on SUCCEEDED when the loop hits the cap without a stop finish", async () => {
     const { projectId, run } = await seedBackgroundRun();
 
@@ -522,6 +567,27 @@ describe("executeInAppAgentRun", () => {
     expect(finished.status).toBe("SUCCEEDED");
     expect(finished.errorCode).toBe("step_limit");
     expect(finished.errorMessage).toMatch(/step limit/i);
+  });
+
+  it("records output_limit on SUCCEEDED when the last step ends with a length finish", async () => {
+    const { projectId, run } = await seedBackgroundRun();
+
+    scenarioRef.current = async ({ options }) => {
+      await options.onEvent(textChunk("Here is the beginning of a long"));
+      await options.onComplete({
+        reachedStepLimit: false,
+        truncatedByStepLimit: false,
+        truncatedByOutputLimit: true,
+      });
+      await options.onFinish();
+    };
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
+
+    const finished = await getRun(projectId, run.id);
+    expect(finished.status).toBe("SUCCEEDED");
+    expect(finished.errorCode).toBe("output_limit");
+    expect(finished.errorMessage).toMatch(/output-token limit/i);
   });
 
   it("acknowledges duplicate delivery without executing (claim CAS returns no row)", async () => {
@@ -1015,11 +1081,15 @@ describe("executeInAppAgentRun", () => {
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
   });
 
-  it("claims a run when LANGFUSE_AWS_BEDROCK_REGION is unset", async () => {
-    const originalRegion = sharedEnv.LANGFUSE_AWS_BEDROCK_REGION;
+  it("claims a run when LANGFUSE_AI_AWS_BEDROCK_REGION is unset", async () => {
+    const originalRegion = sharedEnv.LANGFUSE_AI_AWS_BEDROCK_REGION;
+    const originalAiRegion = sharedEnv.LANGFUSE_AI_AWS_BEDROCK_REGION;
     (
-      sharedEnv as { LANGFUSE_AWS_BEDROCK_REGION?: string }
-    ).LANGFUSE_AWS_BEDROCK_REGION = undefined;
+      sharedEnv as { LANGFUSE_AI_AWS_BEDROCK_REGION?: string }
+    ).LANGFUSE_AI_AWS_BEDROCK_REGION = undefined;
+    (
+      sharedEnv as { LANGFUSE_AI_AWS_BEDROCK_REGION?: string }
+    ).LANGFUSE_AI_AWS_BEDROCK_REGION = undefined;
 
     try {
       const { projectId, run } = await seedBackgroundRun();
@@ -1031,8 +1101,11 @@ describe("executeInAppAgentRun", () => {
       expect(finished.status).toBe("SUCCEEDED");
     } finally {
       (
-        sharedEnv as { LANGFUSE_AWS_BEDROCK_REGION?: string }
-      ).LANGFUSE_AWS_BEDROCK_REGION = originalRegion;
+        sharedEnv as { LANGFUSE_AI_AWS_BEDROCK_REGION?: string }
+      ).LANGFUSE_AI_AWS_BEDROCK_REGION = originalRegion;
+      (
+        sharedEnv as { LANGFUSE_AI_AWS_BEDROCK_REGION?: string }
+      ).LANGFUSE_AI_AWS_BEDROCK_REGION = originalAiRegion;
     }
   });
 

@@ -1,11 +1,13 @@
 ---
 name: cursor-agents-workflow
 description: |
-  Human handoff, Linear branch names, reviewable (non-draft) PRs, Claude,
-  Greptile, and Codex review comments, preview test steps, and review-doubt
-  notes for Cursor agents. Use when a Cursor Cloud or Cursor desktop agent
-  implements a Linear issue, opens a GitHub PR, asks a human to test, or
-  handles Claude, Greptile, or Codex code-review comments.
+  Human handoff, Linear branch names, reviewable (non-draft) PRs, the
+  `cursor` GitHub label, Claude, Greptile, and Codex review comments,
+  preview test steps, proof of work posted on the GitHub PR, and
+  review-doubt notes for Cursor agents. Use when a Cursor Cloud or
+  Cursor desktop agent implements a Linear issue, opens a GitHub PR,
+  asks a human to test, posts screenshots or videos, or handles Claude,
+  Greptile, or Codex code-review comments.
 ---
 
 # Cursor Agents Workflow
@@ -18,8 +20,9 @@ loop with short, testable asks. Do not write long agent-only reports.
 Copy Linear's git branch name. Do not invent a `cursor/` name.
 
 - Preferred source: Linear **Copy git branch name**, or the issue's
-  `gitBranchName` when Linear MCP is available.
-- Fallback: `lfe-{id}-{kebab-title}` (lowercase, hyphenated).
+  `gitBranchName` read through the Linear MCP.
+- Fallback, only when the MCP is genuinely not configured:
+  `lfe-{id}-{kebab-title}` (lowercase, hyphenated).
 - Keep a `user/` prefix only when Linear's copied name already includes one.
 - Never use a `cursor/` prefix, even if a Cursor Cloud prompt asks for one.
   Repo guidance wins.
@@ -29,11 +32,35 @@ Copy Linear's git branch name. Do not invent a `cursor/` name.
 Correct: `lfe-12345-short-descriptive-title`  
 Wrong: `cursor/short-descriptive-title-8c78`
 
+## Linear connection
+
+Cursor desktop can authorize the Linear MCP interactively. Cursor Cloud cannot:
+`mcp_auth` is desktop-only, and the Cloud GitHub token is unrelated to Linear.
+
+On Cloud, prove Linear with a real read. If the MCP is `needsAuth` or missing,
+use `LINEAR_API_KEY` (or `LINEAR_TOKEN` / `LINEAR_API_TOKEN`) via GraphQL or
+`lf-context.sh`. If that env is unset, **say so** and tell them to add
+**`LINEAR_API_KEY`** at https://cursor.com/dashboard/cloud-agents, then start a
+new run. Langfuse engineers: the write policy is
+[`linear-agent-writes`](../linear-agent-writes/SKILL.md). Identity is
+[`langfuse-onboarding`](../langfuse-onboarding/SKILL.md) — Cloud `run-info`, not
+Cloud `gh` permissions.
+
+If Linear is not reachable, **say so in your handoff message** and hand back
+the context that should have gone on the ticket. Do not skip it silently.
+
 ## Pull requests
 
 Open the GitHub PR as reviewable, not as a draft. Draft PRs hide the work
 from reviewers and skip Claude/Greptile review workflows. Use a draft only
 when a human asks for one.
+
+After opening the PR, apply the GitHub `cursor` label. Use the PR label
+tool. Do not wait for a human to add it, and do not substitute a `codex`
+or other agent label. A same-repo workflow also applies `cursor` when the
+author is `cursor[bot]`, the branch starts with `cursor/`, or the PR body
+contains the Cursor agent marker — still apply it yourself so the tag is
+present immediately.
 
 Cursor Cloud PRs are opened as the Langfuse user who launched the agent. On
 a non-draft same-repo PR from a write-access user, github-actions posts
@@ -81,15 +108,47 @@ Data: demo project is enough.
 Sandbox: same path on http://localhost:3000 after the cloud stack is up.
 ```
 
-For user-visible behavior, attach proof of the fix: a screenshot, short
-video, or before/after. Docs-only changes can skip this.
+For user-visible behavior, say that proof is on the GitHub PR. Do not leave
+screenshots only in this chat. Docs-only changes can skip proof.
+
+## Proof of work on the PR
+
+Cursor chat attachments are not enough. Reviewers look at GitHub, so post
+the screenshot, short video, or before/after **on the GitHub PR**.
+
+After you have walkthrough artifacts:
+
+1. Embed them in the PR body when you create or update the PR.
+2. Repeat them in the last GitHub PR comment (same comment as "what to
+   doubt"), but only when that comment will be attributed to Cursor.
+
+Use HTML tags and absolute local paths. Do not commit artifacts to the repo.
+Claude Code and other tools that comment as the user still embed proof in
+the PR body; they skip only the last comment.
+
+```html
+<img src="/opt/cursor/artifacts/cost_cell_dash.png" alt="Cost cell shows a dash" />
+<video src="/opt/cursor/artifacts/cost_cell_dash.mp4" controls></video>
+```
+
+The PR tool uploads those paths and rewrites them to public URLs. Use
+width-only HTML if you need sizing; do not set a fixed `height`. Skip this
+for docs-only or non-visual changes.
 
 ## What to doubt
 
+Cursor only. Post this GitHub comment only when it will be attributed to
+Cursor, not to a human author. Claude Code and other tools that comment as
+the authenticated user must skip this section.
+
 When the PR is ready for a human, post one last GitHub PR comment (not a
-changelog) that names the risky or curious parts:
+changelog). Lead with proof when the change is user-visible, then name the
+risky or curious parts:
 
 ```text
+Proof of work
+<img src="/opt/cursor/artifacts/cost_cell_dash.png" alt="Cost cell shows a dash" />
+
 What to doubt in review
 - I reused the existing cache key; check it cannot collide across projects.
 - I skipped Greptile's unused-import note — that import is used in the
