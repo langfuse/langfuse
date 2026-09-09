@@ -69,7 +69,6 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { ObservationPreview } from "./ObservationPreview";
-import { ObservationAttributesTab } from "./components/ObservationAttributesTab";
 import { buildObservationAttributeRows } from "@/src/features/traces/components/ObservationAttributesList";
 
 export interface ConnectedObservationDetailViewProps {
@@ -118,7 +117,6 @@ export function ConnectedObservationDetailView({
   const showLogViewTab =
     isV4Enabled && observations.length > 0 && !isAnnotationMode;
   const showScoresTab = !isAnnotationMode;
-  const showAttributesTab = !isAnnotationMode;
   const attributeRows = buildObservationAttributeRows({
     model: observation.model,
     environment: observation.environment,
@@ -170,11 +168,9 @@ export function ConnectedObservationDetailView({
   // "log" tab only available in v4 mode when there are observations
   const selectedTab = useMemo(() => {
     if (globalSelectedTab === "scores") return "scores" as const;
-    if (globalSelectedTab === "attributes" && showAttributesTab)
-      return "attributes" as const;
     if (globalSelectedTab === "log" && showLogViewTab) return "log" as const;
     return "preview" as const;
-  }, [globalSelectedTab, showLogViewTab, showAttributesTab]);
+  }, [globalSelectedTab, showLogViewTab]);
 
   const refreshTraceScores = useCallback(() => {
     utils.traces.byIdWithObservationsAndScores.invalidate({
@@ -187,7 +183,7 @@ export function ConnectedObservationDetailView({
     });
   }, [projectId, traceId, utils]);
 
-  const setSelectedTab = (tab: "preview" | "log" | "scores" | "attributes") => {
+  const setSelectedTab = (tab: "preview" | "log" | "scores") => {
     if (tab === "scores") {
       refreshTraceScores();
     }
@@ -371,16 +367,13 @@ export function ConnectedObservationDetailView({
         value={selectedTab}
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
         onValueChange={(value) =>
-          setSelectedTab(value as "preview" | "log" | "scores" | "attributes")
+          setSelectedTab(value as "preview" | "log" | "scores")
         }
       >
         {showTabsBar && (
           <TooltipProvider>
             <TabsBarList>
               <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
-              {showAttributesTab ? (
-                <TabsBarTrigger value="attributes">Attributes</TabsBarTrigger>
-              ) : null}
               {showScoresTab ? (
                 <TabsBarTrigger value="scores" className="gap-1">
                   Scores
@@ -571,23 +564,6 @@ export function ConnectedObservationDetailView({
             }}
           />
         </TabsBarContent>
-
-        {showAttributesTab ? (
-          <TabsBarContent
-            value="attributes"
-            className="mt-0 flex max-h-full min-h-0 w-full flex-1"
-          >
-            <ObservationAttributesTab
-              projectId={projectId}
-              anchorTime={observation.startTime}
-              rows={attributeRows}
-              parsedMetadata={parsedMetadata}
-              isLoading={observationWithIOCompat.isLoading}
-              isParsing={isWaitingForParsing}
-              media={observationMedia.data}
-            />
-          </TabsBarContent>
-        ) : null}
 
         {showScoresTab ? (
           <TabsBarContent
