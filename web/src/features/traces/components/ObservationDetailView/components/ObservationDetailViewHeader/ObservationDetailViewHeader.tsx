@@ -781,12 +781,14 @@ export const ObservationDetailViewHeader = memo(
                     />
                   )}
               <VersionBadge version={observation.version} />
-              <ModelBadge
-                model={observation.model}
-                internalModelId={observation.internalModelId}
-                projectId={projectId}
-                usageDetails={observation.usageDetails}
-              />
+              {observation.model && (
+                <ModelBadge
+                  model={observation.model}
+                  internalModelId={observation.internalModelId}
+                  projectId={projectId}
+                  usageDetails={observation.usageDetails}
+                />
+              )}
               <ModelParametersBadges
                 modelParameters={observation.modelParameters}
               />
