@@ -51,6 +51,8 @@ export type GraphNodeProps = {
   compact?: boolean;
   onSelect?: (id: string) => void;
   onHover?: (id: string | null) => void;
+  /** Pointer position while hovering — feeds the pointer-anchored hover card. */
+  onHoverMove?: (id: string, event: React.PointerEvent) => void;
 };
 
 function GraphNodeComponent({
@@ -67,6 +69,7 @@ function GraphNodeComponent({
   compact,
   onSelect,
   onHover,
+  onHoverMove,
 }: GraphNodeProps) {
   const display = truncateLabel(label);
   const style: React.CSSProperties = { left: x, top: y, width, height };
@@ -89,6 +92,14 @@ function GraphNodeComponent({
         : "ring-ring ring-2 ring-offset-1"),
   );
 
+  const hoverHandlers = {
+    onMouseEnter: onHover ? () => onHover(id) : undefined,
+    onMouseLeave: onHover ? () => onHover(null) : undefined,
+    onPointerMove: onHoverMove
+      ? (event: React.PointerEvent) => onHoverMove(id, event)
+      : undefined,
+  };
+
   // Real-HTML accessibility (the win over the old canvas renderer): selectable
   // nodes are keyboard-focusable buttons announced with their type + label.
   const handlers = onSelect
@@ -108,13 +119,9 @@ function GraphNodeComponent({
             onSelect(id);
           }
         },
-        onMouseEnter: onHover ? () => onHover(id) : undefined,
-        onMouseLeave: onHover ? () => onHover(null) : undefined,
+        ...hoverHandlers,
       }
-    : {
-        onMouseEnter: onHover ? () => onHover(id) : undefined,
-        onMouseLeave: onHover ? () => onHover(null) : undefined,
-      };
+    : hoverHandlers;
 
   // Tooltip only when the label is hidden (compact) — otherwise the label
   // span's own title covers truncation (both estimator and CSS ellipsis).

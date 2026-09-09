@@ -6,10 +6,24 @@
  * and uses data from GraphDataContext.
  */
 
-import { useCallback, useEffect } from "react";
-import { TraceGraphView as TraceGraphViewComponent } from "@/src/features/trace-graph-view/components/TraceGraphView";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  TraceGraphView as TraceGraphViewComponent,
+  type TraceGraphHoverInfo,
+} from "@/src/features/trace-graph-view/components/TraceGraphView";
 import { type GraphViewMode } from "@/src/features/trace-graph-view/types";
+import { Layer } from "@/src/components/ui/layer";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import {
+  NODE_HOVER_CARD_SURFACE_CLASS,
+  NodeHoverCardContent,
+} from "@/src/features/traces/components/NodeHoverCard";
+import {
+  tooltipPlacement,
+  tooltipStyle,
+} from "@/src/features/traces/fns/timeline/tooltipPlacement";
+import { cn } from "@/src/utils/tailwind";
 import {
   useActiveObservationIds,
   usePlayhead,
@@ -22,6 +36,13 @@ import { PlaybackControls } from "../PlaybackControls";
 
 export function TraceGraphView() {
   const { agentGraphData, isLoading } = useTraceGraphData();
+  const { nodeMap } = useTraceData();
+  // Hover card, same pattern as the timeline and lanes: anchored to the
+  // pointer, rendered in the tooltip layer so the canvas never clips it. The
+  // graph resolves the hovered node to an observation id; the TreeNode lookup
+  // happens here because the graph feature has no observation data.
+  const [hovered, setHovered] = useState<TraceGraphHoverInfo | null>(null);
+  const hoveredNode = hovered ? nodeMap.get(hovered.observationId) : undefined;
   const activeObservationIds = useActiveObservationIds();
   const { stop: stopPlayback } = usePlayhead();
   const { graphViewMode, setGraphViewMode } = useViewPreferences();
@@ -63,6 +84,10 @@ export function TraceGraphView() {
   // Stop and reset it here so playback never outlives the view it belongs to.
   useEffect(() => () => stopPlayback(), [stopPlayback]);
 
+  // Stable element so the memoized graph does not re-render on every hover
+  // move (the hover state above lives in this wrapper).
+  const transport = useMemo(() => <PlaybackControls />, []);
+
   if (isLoading) {
     return (
       <div className="flex h-full w-full items-center justify-center">
@@ -76,13 +101,36 @@ export function TraceGraphView() {
   }
 
   return (
-    <TraceGraphViewComponent
-      agentGraphData={agentGraphData}
-      activeObservationIds={activeObservationIds}
-      viewMode={graphViewMode}
-      onViewModeChange={handleViewModeChange}
-      onObservationSelect={handleObservationSelect}
-      transport={<PlaybackControls />}
-    />
+    <>
+      <TraceGraphViewComponent
+        agentGraphData={agentGraphData}
+        activeObservationIds={activeObservationIds}
+        viewMode={graphViewMode}
+        onViewModeChange={handleViewModeChange}
+        onObservationSelect={handleObservationSelect}
+        transport={transport}
+        onNodeHover={setHovered}
+      />
+      {hovered && hoveredNode ? (
+        <Layer name="tooltip">
+          <div
+            className={cn(
+              NODE_HOVER_CARD_SURFACE_CLASS,
+              "pointer-events-none fixed",
+            )}
+            style={tooltipStyle(
+              tooltipPlacement({
+                clientX: hovered.clientX,
+                clientY: hovered.clientY,
+                viewportWidth: window.innerWidth,
+                viewportHeight: window.innerHeight,
+              }),
+            )}
+          >
+            <NodeHoverCardContent node={hoveredNode} />
+          </div>
+        </Layer>
+      ) : null}
+    </>
   );
 }

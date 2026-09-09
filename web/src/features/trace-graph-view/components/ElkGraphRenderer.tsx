@@ -26,6 +26,13 @@ import {
 import { requestGraphLayout } from "../layout/graphLayoutWorkerClient";
 import { GraphNode } from "./GraphNode";
 
+/** A hovered node with the pointer position to anchor a hover card to. */
+export type GraphNodeHoverInfo = {
+  id: string;
+  clientX: number;
+  clientY: number;
+};
+
 type ElkGraphRendererProps = {
   graph: GraphCanvasData;
   selectedNodeName?: string | null;
@@ -46,6 +53,13 @@ type ElkGraphRendererProps = {
    * no view switch is available (or the view is already expanded).
    */
   onShowExpanded?: (() => void) | null;
+  /**
+   * Pointer-anchored hover: fires with the node id + pointer position on every
+   * mouse move over a node (fine pointer only — touch has no hover), `null`
+   * when the pointer leaves it or a pan/click starts. The host renders the
+   * card; this module has no access to observation data.
+   */
+  onNodeHover?: (info: GraphNodeHoverInfo | null) => void;
 };
 
 type Transform = { x: number; y: number; k: number };
@@ -95,6 +109,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   activeNodeNames = null,
   layoutDirection = "DOWN",
   onShowExpanded = null,
+  onNodeHover,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
@@ -128,6 +143,10 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   // Discrete zoom derivation: labels hide below LABEL_HIDE_SCALE.
   const [compact, setCompact] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  // Ref so the layout effect can clear the host's hover card on a graph change
+  // without re-running layout when the callback identity changes.
+  const onNodeHoverRef = useRef(onNodeHover);
+  onNodeHoverRef.current = onNodeHover;
   // Keep the world hidden until the first fit is applied, so we never flash one
   // frame of the unfitted (scale-1, top-left) graph after layout resolves.
   const [fitted, setFitted] = useState(false);
@@ -174,6 +193,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     // A new graph gets a fresh fit; stale hover highlighting drops too.
     overrideRef.current = null;
     setHoveredId(null);
+    onNodeHoverRef.current?.(null);
     requestGraphLayout(
       graph,
       nodeToObservationsMap,
@@ -325,6 +345,22 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     [onCanvasNodeNameChange],
   );
 
+  const handleNodeHover = useCallback(
+    (id: string | null) => {
+      setHoveredId(id);
+      if (id === null) onNodeHover?.(null);
+    },
+    [onNodeHover],
+  );
+
+  const handleNodeHoverMove = useCallback(
+    (id: string, event: React.PointerEvent) => {
+      if (event.pointerType !== "mouse") return; // fine pointer only
+      onNodeHover?.({ id, clientX: event.clientX, clientY: event.clientY });
+    },
+    [onNodeHover],
+  );
+
   const handleBackgroundClick = (event: React.MouseEvent) => {
     // Ignore the click that ends a drag-pan.
     const down = pointerDownPos.current;
@@ -373,9 +409,11 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       // `touch-none`: d3-zoom owns pan and pinch here. Without it WebKit zooms
       // the page instead, since `preventDefault` cannot cancel its pinch.
       className="bg-background/50 relative h-full w-full cursor-grab touch-none overflow-hidden active:cursor-grabbing"
-      onPointerDown={(e) =>
-        (pointerDownPos.current = { x: e.clientX, y: e.clientY })
-      }
+      onPointerDown={(e) => {
+        pointerDownPos.current = { x: e.clientX, y: e.clientY };
+        // A press is a click or a pan — the card would only get in the way.
+        onNodeHover?.(null);
+      }}
       onClick={handleBackgroundClick}
     >
       {!layout && !layoutError && (
@@ -535,7 +573,8 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
                 active={activeNodeNames?.has(node.id) ?? false}
                 compact={compact}
                 onSelect={handleSelect}
-                onHover={setHoveredId}
+                onHover={handleNodeHover}
+                onHoverMove={onNodeHover ? handleNodeHoverMove : undefined}
               />
             );
           })}
