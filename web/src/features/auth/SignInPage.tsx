@@ -273,281 +273,285 @@ export function SSOButtons({
   const showSeparator = authProviders.credentials || action !== "sign in";
 
   return (
-    // any authprovider from props is enabled
-    Object.entries(authProviders).some(
-      ([name, enabled]) => enabled && name !== "credentials",
-    ) ? (
-      <div>
-        {showSeparator ? (
-          action === "sign in" ? (
-            <div className="border-border my-6 border-t"></div>
-          ) : (
-            <div className="text-muted-foreground my-6 text-center text-xs">
-              or {action} with
-            </div>
-          )
-        ) : null}
-        <div className="flex flex-row flex-wrap items-center justify-center gap-2">
-          {authProviders.google && (
-            <AuthProviderButton
-              icon={<SiGoogle className="mr-3" size={18} />}
-              label="Google"
-              onClick={() => handleSignIn("google")}
-              loading={providerSigningIn === "google"}
-              showLastUsedBadge={
-                hasMultipleAuthMethods && lastUsedMethod === "google"
-              }
-            />
-          )}
-          {authProviders.github && (
-            <AuthProviderButton
-              icon={<SiGithub className="mr-3" size={18} />}
-              label="GitHub"
-              onClick={() => handleSignIn("github")}
-              loading={providerSigningIn === "github"}
-              showLastUsedBadge={
-                hasMultipleAuthMethods && lastUsedMethod === "github"
-              }
-            />
-          )}
-          {authProviders.githubEnterprise && (
-            <AuthProviderButton
-              icon={<SiGithub className="mr-3" size={18} />}
-              label="GitHub Enterprise"
-              onClick={() => handleSignIn("github-enterprise")}
-              loading={providerSigningIn === "github-enterprise"}
-              showLastUsedBadge={
-                hasMultipleAuthMethods && lastUsedMethod === "github-enterprise"
-              }
-            />
-          )}
-          {authProviders.gitlab && (
-            <AuthProviderButton
-              icon={<SiGitlab className="mr-3" size={18} />}
-              label="Gitlab"
-              onClick={() => handleSignIn("gitlab")}
-              loading={providerSigningIn === "gitlab"}
-              showLastUsedBadge={
-                hasMultipleAuthMethods && lastUsedMethod === "gitlab"
-              }
-            />
-          )}
-          {authProviders.azureAd && (
-            <AuthProviderButton
-              icon={<TbBrandAzure className="mr-3" size={18} />}
-              label="Azure AD"
-              onClick={() => handleSignIn("azure-ad")}
-              loading={providerSigningIn === "azure-ad"}
-              showLastUsedBadge={
-                hasMultipleAuthMethods && lastUsedMethod === "azure-ad"
-              }
-            />
-          )}
-          {authProviders.okta && (
-            <AuthProviderButton
-              icon={<SiOkta className="mr-3" size={18} />}
-              label="Okta"
-              onClick={() => handleSignIn("okta")}
-              loading={providerSigningIn === "okta"}
-              showLastUsedBadge={
-                hasMultipleAuthMethods && lastUsedMethod === "okta"
-              }
-            />
-          )}
-          {authProviders.authentik && (
-            <AuthProviderButton
-              icon={<SiAuthentik className="mr-3" size={18} />}
-              label="Authentik"
-              onClick={() => handleSignIn("authentik")}
-              loading={providerSigningIn === "authentik"}
-              showLastUsedBadge={
-                hasMultipleAuthMethods && lastUsedMethod === "authentik"
-              }
-            />
-          )}
-          {authProviders.onelogin && (
-            <AuthProviderButton
-              icon={<Key className="mr-3" size={18} />}
-              label="OneLogin"
-              onClick={() => handleSignIn("onelogin")}
-              loading={providerSigningIn === "onelogin"}
-              showLastUsedBadge={
-                hasMultipleAuthMethods && lastUsedMethod === "onelogin"
-              }
-            />
-          )}
-          {authProviders.auth0 && (
-            <AuthProviderButton
-              icon={<SiAuth0 className="mr-3" size={18} />}
-              label="Auth0"
-              onClick={() => handleSignIn("auth0")}
-              loading={providerSigningIn === "auth0"}
-              showLastUsedBadge={
-                hasMultipleAuthMethods && lastUsedMethod === "auth0"
-              }
-            />
-          )}
-          {authProviders.clickhouseCloud && (
-            <AuthProviderButton
-              icon={<SiClickhouse className="mr-3" size={18} />}
-              label="ClickHouse Cloud"
-              onClick={() => handleSignIn("clickhouse-cloud")}
-              loading={providerSigningIn === "clickhouse-cloud"}
-              showLastUsedBadge={
-                hasMultipleAuthMethods && lastUsedMethod === "clickhouse-cloud"
-              }
-            />
-          )}
-          {authProviders.cognito && (
-            <AuthProviderButton
-              icon={<SiAmazoncognito className="mr-3" size={18} />}
-              label="Cognito"
-              onClick={() => handleSignIn("cognito")}
-              loading={providerSigningIn === "cognito"}
-              showLastUsedBadge={
-                hasMultipleAuthMethods && lastUsedMethod === "cognito"
-              }
-            />
-          )}
-          {authProviders.jumpcloud && (
-            <AuthProviderButton
-              icon={<TbBrandOauth className="mr-3" size={18} />}
-              label="JumpCloud"
-              onClick={() => handleSignIn("jumpcloud")}
-              loading={providerSigningIn === "jumpcloud"}
-              showLastUsedBadge={
-                hasMultipleAuthMethods && lastUsedMethod === "jumpcloud"
-              }
-            />
-          )}
-          {authProviders.keycloak && (
-            <AuthProviderButton
-              icon={<SiKeycloak className="mr-3" size={18} />}
-              label={
-                typeof authProviders.keycloak === "object"
-                  ? authProviders.keycloak.name
-                  : "Keycloak"
-              }
-              onClick={() => {
-                capture("sign_in:button_click", { provider: "keycloak" });
-                onProviderSelect?.("keycloak");
-                signIn("keycloak");
-              }}
-              loading={providerSigningIn === "keycloak"}
-              showLastUsedBadge={
-                hasMultipleAuthMethods && lastUsedMethod === "keycloak"
-              }
-            />
-          )}
-          {typeof authProviders.workos === "object" &&
-            "connectionId" in authProviders.workos && (
+    <>
+      {/* any authprovider from props is enabled */}
+      {Object.entries(authProviders).some(
+        ([name, enabled]) => enabled && name !== "credentials",
+      ) ? (
+        <div>
+          {showSeparator ? (
+            action === "sign in" ? (
+              <div className="border-border my-6 border-t"></div>
+            ) : (
+              <div className="text-muted-foreground my-6 text-center text-xs">
+                or {action} with
+              </div>
+            )
+          ) : null}
+          <div className="flex flex-row flex-wrap items-center justify-center gap-2">
+            {authProviders.google && (
               <AuthProviderButton
-                icon={<Code className="mr-3" size={18} />}
-                label="WorkOS"
-                onClick={() => {
-                  capture("sign_in:button_click", { provider: "workos" });
-                  onProviderSelect?.("workos");
-                  signIn("workos", undefined, {
-                    connection: (
-                      authProviders.workos as { connectionId: string }
-                    ).connectionId,
-                  });
-                }}
-                loading={providerSigningIn === "workos"}
+                icon={<SiGoogle className="mr-3" size={18} />}
+                label="Google"
+                onClick={() => handleSignIn("google")}
+                loading={providerSigningIn === "google"}
                 showLastUsedBadge={
-                  hasMultipleAuthMethods && lastUsedMethod === "workos"
+                  hasMultipleAuthMethods && lastUsedMethod === "google"
                 }
               />
             )}
-          {typeof authProviders.workos === "object" &&
-            "organizationId" in authProviders.workos && (
+            {authProviders.github && (
               <AuthProviderButton
-                icon={<Code className="mr-3" size={18} />}
-                label="WorkOS"
-                onClick={() => {
-                  capture("sign_in:button_click", { provider: "workos" });
-                  onProviderSelect?.("workos");
-                  signIn("workos", undefined, {
-                    organization: (
-                      authProviders.workos as { organizationId: string }
-                    ).organizationId,
-                  });
-                }}
-                loading={providerSigningIn === "workos"}
+                icon={<SiGithub className="mr-3" size={18} />}
+                label="GitHub"
+                onClick={() => handleSignIn("github")}
+                loading={providerSigningIn === "github"}
                 showLastUsedBadge={
-                  hasMultipleAuthMethods && lastUsedMethod === "workos"
+                  hasMultipleAuthMethods && lastUsedMethod === "github"
                 }
               />
             )}
-          {authProviders.workos === true && (
-            <>
+            {authProviders.githubEnterprise && (
               <AuthProviderButton
-                icon={<Code className="mr-3" size={18} />}
-                label="WorkOS (organization)"
+                icon={<SiGithub className="mr-3" size={18} />}
+                label="GitHub Enterprise"
+                onClick={() => handleSignIn("github-enterprise")}
+                loading={providerSigningIn === "github-enterprise"}
+                showLastUsedBadge={
+                  hasMultipleAuthMethods &&
+                  lastUsedMethod === "github-enterprise"
+                }
+              />
+            )}
+            {authProviders.gitlab && (
+              <AuthProviderButton
+                icon={<SiGitlab className="mr-3" size={18} />}
+                label="Gitlab"
+                onClick={() => handleSignIn("gitlab")}
+                loading={providerSigningIn === "gitlab"}
+                showLastUsedBadge={
+                  hasMultipleAuthMethods && lastUsedMethod === "gitlab"
+                }
+              />
+            )}
+            {authProviders.azureAd && (
+              <AuthProviderButton
+                icon={<TbBrandAzure className="mr-3" size={18} />}
+                label="Azure AD"
+                onClick={() => handleSignIn("azure-ad")}
+                loading={providerSigningIn === "azure-ad"}
+                showLastUsedBadge={
+                  hasMultipleAuthMethods && lastUsedMethod === "azure-ad"
+                }
+              />
+            )}
+            {authProviders.okta && (
+              <AuthProviderButton
+                icon={<SiOkta className="mr-3" size={18} />}
+                label="Okta"
+                onClick={() => handleSignIn("okta")}
+                loading={providerSigningIn === "okta"}
+                showLastUsedBadge={
+                  hasMultipleAuthMethods && lastUsedMethod === "okta"
+                }
+              />
+            )}
+            {authProviders.authentik && (
+              <AuthProviderButton
+                icon={<SiAuthentik className="mr-3" size={18} />}
+                label="Authentik"
+                onClick={() => handleSignIn("authentik")}
+                loading={providerSigningIn === "authentik"}
+                showLastUsedBadge={
+                  hasMultipleAuthMethods && lastUsedMethod === "authentik"
+                }
+              />
+            )}
+            {authProviders.onelogin && (
+              <AuthProviderButton
+                icon={<Key className="mr-3" size={18} />}
+                label="OneLogin"
+                onClick={() => handleSignIn("onelogin")}
+                loading={providerSigningIn === "onelogin"}
+                showLastUsedBadge={
+                  hasMultipleAuthMethods && lastUsedMethod === "onelogin"
+                }
+              />
+            )}
+            {authProviders.auth0 && (
+              <AuthProviderButton
+                icon={<SiAuth0 className="mr-3" size={18} />}
+                label="Auth0"
+                onClick={() => handleSignIn("auth0")}
+                loading={providerSigningIn === "auth0"}
+                showLastUsedBadge={
+                  hasMultipleAuthMethods && lastUsedMethod === "auth0"
+                }
+              />
+            )}
+            {authProviders.clickhouseCloud && (
+              <AuthProviderButton
+                icon={<SiClickhouse className="mr-3" size={18} />}
+                label="ClickHouse Cloud"
+                onClick={() => handleSignIn("clickhouse-cloud")}
+                loading={providerSigningIn === "clickhouse-cloud"}
+                showLastUsedBadge={
+                  hasMultipleAuthMethods &&
+                  lastUsedMethod === "clickhouse-cloud"
+                }
+              />
+            )}
+            {authProviders.cognito && (
+              <AuthProviderButton
+                icon={<SiAmazoncognito className="mr-3" size={18} />}
+                label="Cognito"
+                onClick={() => handleSignIn("cognito")}
+                loading={providerSigningIn === "cognito"}
+                showLastUsedBadge={
+                  hasMultipleAuthMethods && lastUsedMethod === "cognito"
+                }
+              />
+            )}
+            {authProviders.jumpcloud && (
+              <AuthProviderButton
+                icon={<TbBrandOauth className="mr-3" size={18} />}
+                label="JumpCloud"
+                onClick={() => handleSignIn("jumpcloud")}
+                loading={providerSigningIn === "jumpcloud"}
+                showLastUsedBadge={
+                  hasMultipleAuthMethods && lastUsedMethod === "jumpcloud"
+                }
+              />
+            )}
+            {authProviders.keycloak && (
+              <AuthProviderButton
+                icon={<SiKeycloak className="mr-3" size={18} />}
+                label={
+                  typeof authProviders.keycloak === "object"
+                    ? authProviders.keycloak.name
+                    : "Keycloak"
+                }
                 onClick={() => {
-                  const organization = window.prompt(
-                    "Please enter your organization ID",
-                  );
-                  if (organization) {
+                  capture("sign_in:button_click", { provider: "keycloak" });
+                  onProviderSelect?.("keycloak");
+                  signIn("keycloak");
+                }}
+                loading={providerSigningIn === "keycloak"}
+                showLastUsedBadge={
+                  hasMultipleAuthMethods && lastUsedMethod === "keycloak"
+                }
+              />
+            )}
+            {typeof authProviders.workos === "object" &&
+              "connectionId" in authProviders.workos && (
+                <AuthProviderButton
+                  icon={<Code className="mr-3" size={18} />}
+                  label="WorkOS"
+                  onClick={() => {
                     capture("sign_in:button_click", { provider: "workos" });
                     onProviderSelect?.("workos");
                     signIn("workos", undefined, {
-                      organization,
+                      connection: (
+                        authProviders.workos as { connectionId: string }
+                      ).connectionId,
                     });
+                  }}
+                  loading={providerSigningIn === "workos"}
+                  showLastUsedBadge={
+                    hasMultipleAuthMethods && lastUsedMethod === "workos"
                   }
-                }}
-                loading={providerSigningIn === "workos"}
-                showLastUsedBadge={
-                  hasMultipleAuthMethods && lastUsedMethod === "workos"
-                }
-              />
-              <AuthProviderButton
-                icon={<Code className="mr-3" size={18} />}
-                label="WorkOS (connection)"
-                onClick={() => {
-                  const connection = window.prompt(
-                    "Please enter your connection ID",
-                  );
-                  if (connection) {
+                />
+              )}
+            {typeof authProviders.workos === "object" &&
+              "organizationId" in authProviders.workos && (
+                <AuthProviderButton
+                  icon={<Code className="mr-3" size={18} />}
+                  label="WorkOS"
+                  onClick={() => {
                     capture("sign_in:button_click", { provider: "workos" });
                     onProviderSelect?.("workos");
                     signIn("workos", undefined, {
-                      connection,
+                      organization: (
+                        authProviders.workos as { organizationId: string }
+                      ).organizationId,
                     });
+                  }}
+                  loading={providerSigningIn === "workos"}
+                  showLastUsedBadge={
+                    hasMultipleAuthMethods && lastUsedMethod === "workos"
                   }
-                }}
-                loading={providerSigningIn === "workos"}
+                />
+              )}
+            {authProviders.workos === true && (
+              <>
+                <AuthProviderButton
+                  icon={<Code className="mr-3" size={18} />}
+                  label="WorkOS (organization)"
+                  onClick={() => {
+                    const organization = window.prompt(
+                      "Please enter your organization ID",
+                    );
+                    if (organization) {
+                      capture("sign_in:button_click", { provider: "workos" });
+                      onProviderSelect?.("workos");
+                      signIn("workos", undefined, {
+                        organization,
+                      });
+                    }
+                  }}
+                  loading={providerSigningIn === "workos"}
+                  showLastUsedBadge={
+                    hasMultipleAuthMethods && lastUsedMethod === "workos"
+                  }
+                />
+                <AuthProviderButton
+                  icon={<Code className="mr-3" size={18} />}
+                  label="WorkOS (connection)"
+                  onClick={() => {
+                    const connection = window.prompt(
+                      "Please enter your connection ID",
+                    );
+                    if (connection) {
+                      capture("sign_in:button_click", { provider: "workos" });
+                      onProviderSelect?.("workos");
+                      signIn("workos", undefined, {
+                        connection,
+                      });
+                    }
+                  }}
+                  loading={providerSigningIn === "workos"}
+                  showLastUsedBadge={
+                    hasMultipleAuthMethods && lastUsedMethod === "workos"
+                  }
+                />
+              </>
+            )}
+            {authProviders.wordpress && (
+              <AuthProviderButton
+                icon={<SiWordpress className="mr-3" size={18} />}
+                label="WordPress"
+                onClick={() => handleSignIn("wordpress")}
+                loading={providerSigningIn === "wordpress"}
                 showLastUsedBadge={
-                  hasMultipleAuthMethods && lastUsedMethod === "workos"
+                  hasMultipleAuthMethods && lastUsedMethod === "wordpress"
                 }
               />
-            </>
-          )}
-          {authProviders.wordpress && (
-            <AuthProviderButton
-              icon={<SiWordpress className="mr-3" size={18} />}
-              label="WordPress"
-              onClick={() => handleSignIn("wordpress")}
-              loading={providerSigningIn === "wordpress"}
-              showLastUsedBadge={
-                hasMultipleAuthMethods && lastUsedMethod === "wordpress"
-              }
-            />
-          )}
-          {authProviders.custom && (
-            <AuthProviderButton
-              icon={<TbBrandOauth className="mr-3" size={18} />}
-              label={authProviders.custom.name}
-              onClick={() => handleSignIn("custom")}
-              loading={providerSigningIn === "custom"}
-              showLastUsedBadge={
-                hasMultipleAuthMethods && lastUsedMethod === "custom"
-              }
-            />
-          )}
+            )}
+            {authProviders.custom && (
+              <AuthProviderButton
+                icon={<TbBrandOauth className="mr-3" size={18} />}
+                label={authProviders.custom.name}
+                onClick={() => handleSignIn("custom")}
+                loading={providerSigningIn === "custom"}
+                showLastUsedBadge={
+                  hasMultipleAuthMethods && lastUsedMethod === "custom"
+                }
+              />
+            )}
+          </div>
         </div>
-      </div>
-    ) : null
+      ) : null}
+    </>
   );
 }
 

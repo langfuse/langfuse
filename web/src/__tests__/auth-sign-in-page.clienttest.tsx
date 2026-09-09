@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import SignIn, { type PageProps } from "@/src/pages/auth/sign-in";
+import SignIn, { type PageProps } from "@/src/features/auth/SignInPage";
 
 const { captureExceptionMock, addBreadcrumbMock, signInMock, routerState } =
   vi.hoisted(() => ({
