@@ -546,6 +546,34 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   generation, embedding, native-audio, text-to-speech, and robotics endpoints, none a
   general-purpose text/chat model with standard per-token text pricing, so none were
   added, consistent with the existing modality-specific skip rule.
+- **September 9 2026 audit: full re-fetch found no price or catalog drift; Gemma
+  confirmed free-only; AWS Bedrock Amazon Nova confirmed a pre-existing, not
+  newly released, coverage gap** — Re-fetched the full Anthropic pricing table
+  (plus the models overview table), the OpenAI aggregate Standard/Fast-mode/Flex
+  pricing tables, both Gemini pricing pages (`ai.google.dev/gemini-api/docs/pricing`
+  for the 3.x family, `ai.google.dev/pricing` implicitly re-confirmed via the 2.5
+  family rows), the Gemini models catalog page, and the AWS Bedrock pricing page.
+  Every price already in the file — including all `gpt-6-astra` and `gemini-3.8-flash`
+  tiers — matched verbatim; no updates were needed. Two clarifications: (1) a
+  targeted fetch of the official pricing page confirms `Gemma 4` (and the Gemma
+  family generally) is listed with "Input price: Free of charge | Output price:
+  Free of charge" and "Paid Tier ... Not available" — it has no hosted per-token
+  API pricing on Google's own page, so it is out of scope for a Langfuse default
+  pricing entry (not merely unchecked); (2) AWS Bedrock's pricing page prominently
+  lists **Amazon Nova** as a foundation-model family, but `types.ts` and the
+  pricing file have never had a Nova entry — this is a pre-existing gap (Nova
+  launched in Dec 2024, well before this audit's history), not a newly released
+  model this run. Adding Nova would require its own model-ID/matchPattern and
+  Bedrock usage-key research (Nova is not an Anthropic-format model, per the
+  "Other Bedrock models" section below) and was left as a reportable gap rather
+  than a surgical same-run addition. Also reconfirmed the AWS Bedrock "Claude 3.5
+  Sonnet (Public Extended Access)" pricing is unchanged ($6.00/$30.00 input/output,
+  $7.50/$0.60 cache write/read) — same documented, non-representable limitation
+  as before. The Gemini models catalog also still lists the same image-generation
+  (`gemini-3.1-flash-image`, `gemini-3.1-flash-lite-image`, `gemini-3-pro-image`),
+  audio/TTS/translate, robotics, and agent-product waves noted in the September 6
+  and September 8 2026 entries above — no new modality-specific model needed
+  re-investigation.
 
 Capture:
 
