@@ -34,8 +34,8 @@ import {
 } from "./ViewPreferencesContext";
 
 // Valid tab values for detail view
-export type DetailTab = "preview" | "log" | "scores";
-const VALID_TABS: DetailTab[] = ["preview", "log", "scores"];
+export type DetailTab = "preview" | "log" | "scores" | "attributes";
+const VALID_TABS: DetailTab[] = ["preview", "log", "scores", "attributes"];
 const DEFAULT_TAB: DetailTab = "preview";
 
 // Valid view preference values
