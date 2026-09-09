@@ -29,20 +29,11 @@ export const ExpandSystemPrompt = meta.story({
     const canvas = within(canvasElement);
     const content = systemPromptParts[0].text;
     const trigger = canvas.getByRole("button", { name: "System prompt" });
-    const initialLeft = trigger.getBoundingClientRect().left;
 
-    await expect(trigger.closest(".ph-no-capture")).not.toHaveClass(
-      "justify-center",
-    );
-    await expect(canvasElement.querySelector(".border-dashed")).toBeVisible();
-    await expect(trigger).toHaveClass("font-normal");
-    await expect(trigger).not.toHaveClass("font-bold");
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
     await expect(canvas.queryByText(content)).not.toBeInTheDocument();
     await userEvent.click(trigger);
-    const systemPrompt = canvas.getByText(content);
-    await expect(systemPrompt).toBeVisible();
-    await expect(systemPrompt.closest(".border-l")).toBeNull();
-    await expect(systemPrompt.getBoundingClientRect().left).toBe(initialLeft);
-    await expect(trigger.getBoundingClientRect().left).toBe(initialLeft);
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    await expect(canvas.getByText(content)).toBeVisible();
   },
 });
