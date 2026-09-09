@@ -4,7 +4,7 @@ import { type FilterState } from "@langfuse/shared";
 import {
   ConnectedSessionConversationTimeline,
   type ConnectedSessionConversationTimelineItem,
-} from "@/src/features/annotation-queues/components/session/ConnectedSessionConversationTimeline";
+} from "@/src/features/annotation-queues/components/session/SessionConversationTimeline/ConnectedSessionConversationTimeline";
 import {
   type SessionConversationTimelineScrollTarget,
   useSessionConversationTimelineController,
