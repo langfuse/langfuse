@@ -94,8 +94,16 @@ export function NodeHoverCardContent({ node }: { node: TreeNode }) {
       value: numberFormatter(descendantCount(node), 0),
     });
 
-  const visibleScores = scores.slice(0, MAX_SCORES);
-  const hiddenScoreCount = scores.length - visibleScores.length;
+  // One line per score NAME, alphabetical — the same grouping and order the
+  // row chips use, so the card never contradicts the row it explains.
+  const scoreNames = Array.from(new Set(scores.map((s) => s.name))).sort();
+  const visibleScoreNames = scoreNames.slice(0, MAX_SCORES);
+  const hiddenScoreCount = scoreNames.length - visibleScoreNames.length;
+  const firstScoreByName = new Map<string, (typeof scores)[number]>();
+  for (const score of scores) {
+    if (!firstScoreByName.has(score.name))
+      firstScoreByName.set(score.name, score);
+  }
 
   return (
     <div className="flex flex-col gap-2">
@@ -133,22 +141,20 @@ export function NodeHoverCardContent({ node }: { node: TreeNode }) {
 
       {scores.length > 0 ? (
         <dl className="border-border/60 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 border-t pt-2">
-          {visibleScores.map((score) => (
-            <div
-              key={score.id}
-              className="col-span-full grid grid-cols-subgrid"
-            >
-              <dt className="text-muted-foreground truncate" title={score.name}>
-                {score.name}
-              </dt>
-              <dd
-                className="truncate text-right tabular-nums"
-                title={formatScoreValue(score)}
-              >
-                {formatScoreValue(score)}
-              </dd>
-            </div>
-          ))}
+          {visibleScoreNames.map((name) => {
+            const score = firstScoreByName.get(name);
+            const value = score ? formatScoreValue(score) : "";
+            return (
+              <div key={name} className="col-span-full grid grid-cols-subgrid">
+                <dt className="text-muted-foreground truncate" title={name}>
+                  {name}
+                </dt>
+                <dd className="truncate text-right tabular-nums" title={value}>
+                  {value}
+                </dd>
+              </div>
+            );
+          })}
           {hiddenScoreCount > 0 ? (
             <div className="text-muted-foreground col-span-full">
               +{hiddenScoreCount} more score{hiddenScoreCount === 1 ? "" : "s"}
