@@ -105,13 +105,23 @@ export function stripBasePath(path: string): string {
     return "/";
   }
 
-  if (!path.startsWith(basePath)) {
-    return path;
-  }
-
   // Strip ASCII control characters (0x00-0x1F, 0x7F) so a newline or
   // null byte cannot split the basePath prefix from the remainder.
   const cleaned = path.replace(/[\x00-\x1F\x7F]/g, "");
+
+  if (cleaned === basePath) {
+    return "/";
+  }
+
+  // Require a path-segment boundary so `/my-app` does not strip the
+  // prefix of `/my-application`.
+  if (
+    !cleaned.startsWith(`${basePath}/`) &&
+    !cleaned.startsWith(`${basePath}?`) &&
+    !cleaned.startsWith(`${basePath}#`)
+  ) {
+    return cleaned || "/";
+  }
 
   const stripped = cleaned.slice(basePath.length) || "/";
   return stripped.startsWith("/") ? stripped : `/${stripped}`;

@@ -445,5 +445,13 @@ describe("stripBasePath", () => {
     it("leaves paths without basePath untouched", () => {
       expect(stripBasePath("/no-base")).toBe("/no-base");
     });
+
+    it("does not strip a longer path that only shares a string prefix", () => {
+      // `/apps` must not eat the front of `/appslication`.
+      expect(stripBasePath("/appslication")).toBe("/appslication");
+      expect(stripBasePath("/appslication/dashboard")).toBe(
+        "/appslication/dashboard",
+      );
+    });
   });
 });

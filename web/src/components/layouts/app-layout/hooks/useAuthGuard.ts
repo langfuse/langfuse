@@ -88,14 +88,12 @@ export function useAuthGuard(
       return { action: "loading", message: "Loading" };
     }
 
-    // asPath already includes the base path when accessed via browser
-    // Strip the base path if present to avoid double-prepending. The
-    // redirect sanitizer drops leftover route patterns so they never
-    // land in the sign-in query string.
+    // asPath already includes the base path when accessed via browser.
+    // Sanitize first (rejects open redirects and leftover route
+    // patterns), then strip the base path so router.replace does not
+    // double-prepend it.
     const rawPath = asPath || pathname || "/";
-    const pathToStore = stripBasePath(
-      getSafeRedirectPath(stripBasePath(rawPath)),
-    );
+    const pathToStore = stripBasePath(getSafeRedirectPath(rawPath));
 
     // Only include targetPath if it's not the root
     const targetPathQuery =
