@@ -13,6 +13,8 @@
  */
 import { randomUUID } from "crypto";
 
+import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
+import { traceFilterConfig } from "@/src/features/filters/config/traces-config";
 import {
   usersEventsFilterConfig,
   usersFilterConfig,
@@ -234,4 +236,28 @@ describe("users sidebar facet coverage", () => {
     await expect(runV3(scoreFilter)).rejects.toThrow();
     await expect(runV4(scoreFilter)).rejects.toThrow();
   });
+
+  // Dropping a facet only hides it from the sidebar. `columnDefinitions` stays
+  // whole on both paths, so a filter on a dropped column that arrives by URL or
+  // saved view still decodes and still reaches the query that rejects it above.
+  // `omittedFilterColumns` is what drops it, which makes the two lists one
+  // decision: a facet this page removes is a filter this page never applies.
+  it.each([
+    ["v3", traceFilterConfig, usersFilterConfig],
+    ["v4", observationEventsFilterConfig, usersEventsFilterConfig],
+  ] as const)(
+    "%s users config never applies a facet it drops",
+    (_, base, config) => {
+      const dropped = base.facets
+        .map((facet) => facet.column)
+        .filter(
+          (column) => !config.facets.some((facet) => facet.column === column),
+        );
+
+      expect(dropped.length).toBeGreaterThan(0);
+      expect(config.omittedFilterColumns ?? []).toEqual(
+        expect.arrayContaining(dropped),
+      );
+    },
+  );
 });

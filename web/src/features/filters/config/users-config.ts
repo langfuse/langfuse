@@ -1,6 +1,9 @@
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import { traceFilterConfig } from "@/src/features/filters/config/traces-config";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import {
+  omitFilterFacets,
+  type FilterConfig,
+} from "@/src/features/filters/lib/filter-config";
 
 /**
  * The Users list is the traces/events population grouped by `user_id`, so its
@@ -17,6 +20,12 @@ import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
  * filter factory refuses to lower against this query). Those are excluded per
  * path below.
  *
+ * Exclusions go through `omitFilterFacets` rather than a local facet filter, so
+ * a dropped column is also dropped from the filter state. `columnDefinitions`
+ * stays whole on both paths, so a filter on an excluded column that arrives by
+ * URL or saved view still decodes; without the omission it would reach the
+ * query and fail there.
+ *
  * `users-facet-coverage.servertest.ts` runs every facet declared here through
  * the real query, so a newly inherited facet that needs a join fails there
  * rather than in a user's browser.
@@ -27,7 +36,7 @@ import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
  * config's `level`, `latency`, token and cost facets all map to an
  * `observations` alias the users query never joins.
  */
-const TRACE_FACET_COLUMNS_UNAVAILABLE_ON_USERS = new Set([
+const TRACE_FACET_COLUMNS_UNAVAILABLE_ON_USERS = [
   "level",
   "latency",
   "inputTokens",
@@ -41,7 +50,7 @@ const TRACE_FACET_COLUMNS_UNAVAILABLE_ON_USERS = new Set([
   "score_booleans",
   "commentCount",
   "commentContent",
-]);
+];
 
 /**
  * v4 filters `events_core e` alone. Every native event column resolves —
@@ -49,40 +58,33 @@ const TRACE_FACET_COLUMNS_UNAVAILABLE_ON_USERS = new Set([
  * so only the score aggregates (an `s.` join) and the comment facets (which
  * lower against the `comments` table this query never reaches) fall out.
  */
-const EVENT_FACET_COLUMNS_UNAVAILABLE_ON_USERS = new Set([
+const EVENT_FACET_COLUMNS_UNAVAILABLE_ON_USERS = [
   "scores_avg",
   "score_categories",
   "score_booleans",
   "commentCount",
   "commentContent",
-]);
-
-function withoutFacets(config: FilterConfig, omitted: ReadonlySet<string>) {
-  return config.facets.filter((facet) => !omitted.has(facet.column));
-}
+];
 
 export const usersFilterConfig: FilterConfig = {
+  ...omitFilterFacets(
+    traceFilterConfig,
+    TRACE_FACET_COLUMNS_UNAVAILABLE_ON_USERS,
+  ),
   // v3 and v4 expose different facet sets, so they persist under different
   // table names. Sharing one would let a v4-only filter (`level`) rehydrate on
   // a v3 project, where it is a 400 rather than a narrowed table.
   tableName: "users",
-  columnDefinitions: traceFilterConfig.columnDefinitions,
   defaultExpanded: ["environment", "traceName"],
-  facets: withoutFacets(
-    traceFilterConfig,
-    TRACE_FACET_COLUMNS_UNAVAILABLE_ON_USERS,
-  ),
 };
 
 export const usersEventsFilterConfig: FilterConfig = {
-  tableName: "users-events",
-  columnDefinitions: observationEventsFilterConfig.columnDefinitions,
-  defaultExpanded: ["environment", "name"],
-  migrateFilterState: observationEventsFilterConfig.migrateFilterState,
-  facets: withoutFacets(
+  ...omitFilterFacets(
     observationEventsFilterConfig,
     EVENT_FACET_COLUMNS_UNAVAILABLE_ON_USERS,
   ),
+  tableName: "users-events",
+  defaultExpanded: ["environment", "name"],
 };
 
 export function getUsersFilterConfig(fromEvents: boolean): FilterConfig {
