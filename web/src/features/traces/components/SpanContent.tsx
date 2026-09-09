@@ -118,7 +118,7 @@ export function SpanContent({
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
 
   return (
-    <HoverCard openDelay={500} closeDelay={0}>
+    <HoverCard openDelay={100} closeDelay={0}>
       <HoverCardTrigger asChild>
         <button
           type="button"
