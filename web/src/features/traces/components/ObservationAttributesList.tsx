@@ -10,7 +10,7 @@
  */
 
 import { useRouter } from "next/router";
-import { Copy, EllipsisVertical, Filter } from "lucide-react";
+import { Copy, EllipsisVertical, Filter, FilterX } from "lucide-react";
 import { type FilterState, type JsonNested } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -68,9 +68,16 @@ export function buildObservationAttributeRows({
   ].filter((row) => row.value !== "");
 }
 
+export type AttributeActions = MetadataFilterActions & {
+  /** Start time of the observation the rows describe; keeps the target
+   * table's window covering it. */
+  anchorTime?: Date | null;
+};
+
 type AttributeFilter = {
   target: "observations" | "traces";
-  filter: FilterState[number];
+  include: FilterState[number];
+  exclude: FilterState[number];
 };
 
 /**
@@ -82,50 +89,53 @@ function attributeFilter(
   row: AttributeRow,
   target: "observations" | "traces",
 ): AttributeFilter | null {
+  const options = (column: string, t: "observations" | "traces") => ({
+    target: t,
+    include: {
+      column,
+      type: "stringOptions" as const,
+      operator: "any of" as const,
+      value: [row.value],
+    },
+    exclude: {
+      column,
+      type: "stringOptions" as const,
+      operator: "none of" as const,
+      value: [row.value],
+    },
+  });
+  const text = (column: string, t: "observations" | "traces") => ({
+    target: t,
+    include: {
+      column,
+      type: "string" as const,
+      operator: "=" as const,
+      value: row.value,
+    },
+    exclude: {
+      column,
+      type: "string" as const,
+      operator: "does not contain" as const,
+      value: row.value,
+    },
+  });
   switch (row.key) {
     case "environment":
-      return {
-        target,
-        filter: {
-          column: "environment",
-          type: "stringOptions",
-          operator: "any of",
-          value: [row.value],
-        },
-      };
+      return options("environment", target);
     case "model":
-      return {
-        target: "observations",
-        filter: {
-          column: "model",
-          type: "stringOptions",
-          operator: "any of",
-          value: [row.value],
-        },
-      };
+      return options("model", "observations");
     case "version":
-      return {
-        target,
-        filter: {
-          column: "version",
-          type: "string",
-          operator: "=",
-          value: row.value,
-        },
-      };
+      return text("version", target);
     case "release":
-      return {
-        target: "traces",
-        filter: {
-          column: "release",
-          type: "string",
-          operator: "=",
-          value: row.value,
-        },
-      };
+      return text("release", "traces");
     default:
       return null;
   }
+}
+
+/** Search-bar grammar for the value: bare when it survives as one token. */
+function grammarValue(value: string): string {
+  return /[\s:"()]/.test(value) ? JSON.stringify(value) : value;
 }
 
 function AttributeRowActions({
@@ -133,15 +143,26 @@ function AttributeRowActions({
   actions,
 }: {
   row: AttributeRow;
-  actions: MetadataFilterActions;
+  actions: AttributeActions;
 }) {
   const router = useRouter();
   const filter = attributeFilter(row, actions.filterTarget);
-  // Same grammar the search bar shows once the filter lands: `key:value`,
-  // quoted when the value would not survive as a bare token.
-  const filterText = filter
-    ? `${row.key}:${/[\s:"]/.test(row.value) ? JSON.stringify(row.value) : row.value}`
-    : null;
+  const includeText = `${row.key}:${grammarValue(row.value)}`;
+  const excludeText = `-${includeText}`;
+
+  const navigate = (
+    clause: FilterState[number],
+    target: AttributeFilter["target"],
+  ) =>
+    router.push(
+      buildEventsTablePathForColumnFilter({
+        currentPath: router.asPath,
+        projectId: actions.projectId,
+        target,
+        filter: clause,
+        coverTime: actions.anchorTime ?? undefined,
+      }),
+    );
 
   return (
     <DropdownMenuController
@@ -161,25 +182,31 @@ function AttributeRowActions({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-xs"
-                onSelect={() =>
-                  router.push(
-                    buildEventsTablePathForColumnFilter({
-                      currentPath: router.asPath,
-                      projectId: actions.projectId,
-                      target: filter.target,
-                      filter: filter.filter,
-                    }),
-                  )
-                }
+                onSelect={() => navigate(filter.include, filter.target)}
               >
                 <Filter className="mr-2 h-3.5 w-3.5 shrink-0" />
                 <span className="flex min-w-0 flex-col">
-                  <span>Filter {filter.target}</span>
+                  <span>Include in filter</span>
                   <span
                     className="text-muted-foreground truncate"
-                    title={filterText ?? undefined}
+                    title={includeText}
                   >
-                    {filterText}
+                    {includeText}
+                  </span>
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-xs"
+                onSelect={() => navigate(filter.exclude, filter.target)}
+              >
+                <FilterX className="mr-2 h-3.5 w-3.5 shrink-0" />
+                <span className="flex min-w-0 flex-col">
+                  <span>Exclude from filter</span>
+                  <span
+                    className="text-muted-foreground truncate"
+                    title={excludeText}
+                  >
+                    {excludeText}
                   </span>
                 </span>
               </DropdownMenuItem>
@@ -215,7 +242,7 @@ export function ObservationAttributesList({
 }: {
   rows: AttributeRow[];
   /** When set, each row gets a hover menu with copy + filter shortcuts. */
-  actions?: MetadataFilterActions;
+  actions?: AttributeActions;
 }) {
   return (
     <section className="flex flex-col">

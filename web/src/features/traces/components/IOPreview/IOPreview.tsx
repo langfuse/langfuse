@@ -63,8 +63,9 @@ export interface IOPreviewProps extends ExpansionStateProps {
   parsedInput?: unknown;
   parsedOutput?: unknown;
   parsedMetadata?: unknown;
-  // Fixed-key attributes shown as a light list at the top of the pretty view
+  // Fixed-key attributes shown between output and metadata
   attributes?: AttributeRow[];
+  attributesAnchorTime?: Date | null;
   chatMLParserResult?: ChatMLParserResult;
   observationName?: string;
   isLoading?: boolean;
@@ -147,6 +148,7 @@ export function IOPreview({
   commentedPathsByField,
   showMetadata = false,
   attributes,
+  attributesAnchorTime,
   onVirtualizationChange,
   observationId,
   projectId,
@@ -284,6 +286,7 @@ export function IOPreview({
           output={output}
           status={status}
           attributes={attributes}
+          attributesAnchorTime={attributesAnchorTime}
           metadata={metadata}
           outputCorrection={outputCorrection}
           parsedInput={parsedInput}
@@ -322,6 +325,7 @@ export function IOPreview({
           observationName={observationName}
           showMetadata={showMetadata}
           attributes={attributes}
+          attributesAnchorTime={attributesAnchorTime}
           contentMode={contentMode}
           showSystemPrompt={showSystemPrompt}
         />

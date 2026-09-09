@@ -563,6 +563,7 @@ export function ConnectedObservationDetailView({
               commentedPathsByField,
               showMetadata: true,
               attributes: attributeRows,
+              attributesAnchorTime: observation.startTime,
               observationId: observation.id,
               projectId,
               traceId,
@@ -578,6 +579,7 @@ export function ConnectedObservationDetailView({
           >
             <ObservationAttributesTab
               projectId={projectId}
+              anchorTime={observation.startTime}
               rows={attributeRows}
               parsedMetadata={parsedMetadata}
               isLoading={observationWithIOCompat.isLoading}

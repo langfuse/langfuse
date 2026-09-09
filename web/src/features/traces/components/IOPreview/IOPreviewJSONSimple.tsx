@@ -30,6 +30,7 @@ export interface IOPreviewJSONSimpleProps {
   hideIfNull?: boolean;
   // Fixed-key attributes, rendered between Output and Metadata
   attributes?: AttributeRow[];
+  attributesAnchorTime?: Date | null;
   media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
@@ -75,6 +76,7 @@ export function IOPreviewJSONSimple({
   isParsing = false,
   hideIfNull = false,
   attributes,
+  attributesAnchorTime,
   hideOutput = false,
   hideInput = false,
   media,
@@ -221,6 +223,7 @@ export function IOPreviewJSONSimple({
             actions={{
               projectId,
               filterTarget: observationId ? "observations" : "traces",
+              anchorTime: attributesAnchorTime,
             }}
           />
         </div>

@@ -114,6 +114,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   showMetadata?: boolean;
   // Fixed-key attributes, rendered between Output and Metadata
   attributes?: AttributeRow[];
+  attributesAnchorTime?: Date | null;
   observationId?: string;
   projectId: string;
   traceId: string;
@@ -163,6 +164,7 @@ export function IOPreviewPretty({
   onMetadataExpansionChange,
   showMetadata = false,
   attributes,
+  attributesAnchorTime,
   observationId,
   projectId,
   traceId,
@@ -352,7 +354,7 @@ export function IOPreviewPretty({
         <div className="px-3 pt-3 pb-1">
           <ObservationAttributesList
             rows={attributes}
-            actions={metadataActions}
+            actions={{ ...metadataActions, anchorTime: attributesAnchorTime }}
           />
         </div>
       ) : null}

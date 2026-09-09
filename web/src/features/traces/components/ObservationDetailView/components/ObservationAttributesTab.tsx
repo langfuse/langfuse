@@ -13,6 +13,7 @@ import {
 
 export function ObservationAttributesTab({
   projectId,
+  anchorTime,
   rows,
   parsedMetadata,
   isLoading,
@@ -20,6 +21,7 @@ export function ObservationAttributesTab({
   media,
 }: {
   projectId: string;
+  anchorTime?: Date | null;
   rows: AttributeRow[];
   parsedMetadata: unknown;
   isLoading?: boolean;
@@ -31,7 +33,7 @@ export function ObservationAttributesTab({
       <div className="px-2">
         <ObservationAttributesList
           rows={rows}
-          actions={{ projectId, filterTarget: "observations" }}
+          actions={{ projectId, filterTarget: "observations", anchorTime }}
         />
       </div>
 
