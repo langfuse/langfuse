@@ -219,11 +219,11 @@ describe("AwsLambdaCodeEvalDispatcher observability", () => {
 
     await expect(dispatcher.dispatch(baseInput)).rejects.toMatchObject({
       code: "TIMEOUT",
-      retryable: true,
+      retryable: false,
     });
     expectSpanAttributes({
       "langfuse.code_eval.error.code": "TIMEOUT",
-      "langfuse.code_eval.error.retryable": true,
+      "langfuse.code_eval.error.retryable": false,
     });
   });
 

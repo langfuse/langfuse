@@ -41,7 +41,6 @@ type CodeEvalDispatcherErrorClassification = {
 // this is only consulted if a future runner surfaces one of them via the
 // user-code-error envelope.
 const RETRYABLE_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
-  CodeEvalDispatcherErrorCodes.TIMEOUT,
   CodeEvalDispatcherErrorCodes.LAMBDA_CONCURRENCY_LIMIT,
   CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
 ]);
@@ -429,7 +428,7 @@ function classifyLambdaFunctionError(params: {
   ) {
     return new CodeEvalDispatcherError(
       composedMessage || "Lambda task timed out",
-      { code: CodeEvalDispatcherErrorCodes.TIMEOUT, retryable: true },
+      { code: CodeEvalDispatcherErrorCodes.TIMEOUT, retryable: false },
     );
   }
 
