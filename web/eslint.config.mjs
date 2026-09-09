@@ -72,6 +72,13 @@ export default [
   },
   {
     ...tailwindcssRecommendedConfig,
+    ignores: [
+      ".storybook/**/*",
+      "src/**/__tests__/**",
+      "src/**/__e2e__/**",
+      "src/**/*.clienttest.{ts,tsx}",
+      "src/**/*.servertest.{ts,tsx}",
+    ],
     settings: {
       tailwindcss: {
         cssConfigPath: "src/styles/globals.css",
