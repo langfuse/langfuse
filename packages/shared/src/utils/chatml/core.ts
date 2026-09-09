@@ -11,12 +11,12 @@ import {
   ChatMlMessageSchema,
 } from "../IORepresentation/chatML/types";
 import { selectAdapter, type NormalizerContext } from "./adapters";
-import { safeSchemaParse } from "./helpers";
+import { failedSafeParseResult, safeSchemaParse } from "./helpers";
 
 type ChatMlParseResult = ReturnType<typeof ChatMlArraySchema.safeParse>;
 
 function failedChatMlParse(): ChatMlParseResult {
-  return { success: false } as ChatMlParseResult;
+  return failedSafeParseResult<ChatMlParseResult>();
 }
 
 type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;

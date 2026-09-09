@@ -1,8 +1,20 @@
+import { ZodError } from "zod";
 import { parseJsonIfString as parseIfString } from "../json";
 
 type SchemaWithSafeParse<T> = {
   safeParse: (data: unknown) => T;
 };
+
+/**
+ * Complete Zod failure result for paths where `safeParse` throws before
+ * returning (e.g. non-writable `Error.name` under SES/lockdown).
+ *
+ * `new ZodError([])` is safe under locked `Error.name`; only Zod 4's
+ * internal `inst.name = …` assignment during `safeParse` throws.
+ */
+export function failedSafeParseResult<T extends { success: boolean }>(): T {
+  return { success: false, error: new ZodError([]) } as unknown as T;
+}
 
 /**
  * Zod 4 `safeParse` constructs a `$ZodError` on failure and assigns
@@ -16,7 +28,7 @@ export function safeSchemaParse<T extends { success: boolean }>(
   try {
     return schema.safeParse(data);
   } catch {
-    return { success: false } as T;
+    return failedSafeParseResult<T>();
   }
 }
 
