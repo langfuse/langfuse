@@ -486,7 +486,7 @@ export const PromptDetail = ({
                       type="button"
                       variant="outline"
                       disabled={disabled}
-                      onClick={openDrawer}
+                      onClick={() => openDrawer({ type: "comments" })}
                       className="gap-1"
                     >
                       {disabled ? (
