@@ -170,7 +170,7 @@ describe("/api/public/observations API Endpoint", () => {
           });
         });
 
-        it("should GET an observation when startTime matches its UTC day", async () => {
+        it("should GET an observation when the startTime hint matches", async () => {
           const observationId = uuidv4();
           const traceId = uuidv4();
           const startTime = new Date("2024-03-15T08:30:00.000Z").getTime();
@@ -190,7 +190,7 @@ describe("/api/public/observations API Endpoint", () => {
           const getEventRes = await makeZodVerifiedAPICall(
             GetObservationV1Response,
             "GET",
-            `/api/public/observations/${observationId}?startTime=2024-03-15T23:59:59.000Z&useEventsTable=${useEventsTable}`,
+            `/api/public/observations/${observationId}?startTime=2024-03-15T08:30:00.000Z&useEventsTable=${useEventsTable}`,
           );
 
           expect(getEventRes.body).toMatchObject({
@@ -200,7 +200,7 @@ describe("/api/public/observations API Endpoint", () => {
           });
         });
 
-        it("should 404 when startTime is on a different UTC day", async () => {
+        it("should still GET an observation when the startTime hint is wrong", async () => {
           const observationId = uuidv4();
           const traceId = uuidv4();
           const startTime = new Date("2024-03-15T08:30:00.000Z").getTime();
@@ -217,12 +217,20 @@ describe("/api/public/observations API Endpoint", () => {
 
           await insertObservations(useEventsTable, [observation]);
 
-          const res = await makeAPICall(
+          // A different day than the observation: the bounded lookup misses, but
+          // the hint falls back to an unbounded lookup, so the observation is
+          // still returned.
+          const getEventRes = await makeZodVerifiedAPICall(
+            GetObservationV1Response,
             "GET",
             `/api/public/observations/${observationId}?startTime=2024-03-16T00:00:00.000Z&useEventsTable=${useEventsTable}`,
           );
 
-          expect(res.status).toBe(404);
+          expect(getEventRes.body).toMatchObject({
+            id: observationId,
+            traceId,
+            type: "GENERATION",
+          });
         });
 
         it("should 400 when startTime lacks a timezone offset", async () => {
