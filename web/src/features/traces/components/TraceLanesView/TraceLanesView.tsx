@@ -23,6 +23,10 @@ import {
   tooltipStyle,
 } from "@/src/features/traces/fns/timeline/tooltipPlacement";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import {
+  NODE_HOVER_CARD_SURFACE_CLASS,
+  NodeHoverCardContent,
+} from "@/src/features/traces/components/NodeHoverCard";
 import { type TreeNode } from "@/src/features/traces/types/treeNode";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
@@ -289,6 +293,8 @@ function LaneRows({
     clientX: number;
     clientY: number;
   } | null>(null);
+  const { nodeMap } = useTraceData();
+  const hoveredNode = hovered ? nodeMap.get(hovered.bar.id) : undefined;
 
   return (
     <div
@@ -425,7 +431,10 @@ function LaneRows({
       {hovered ? (
         <Layer name="tooltip">
           <div
-            className="border-border bg-background text-foreground pointer-events-none fixed flex flex-col gap-0.5 rounded border px-1.5 py-1 text-xs shadow-md"
+            className={cn(
+              NODE_HOVER_CARD_SURFACE_CLASS,
+              "pointer-events-none fixed",
+            )}
             style={tooltipStyle(
               tooltipPlacement({
                 clientX: hovered.clientX,
@@ -435,28 +444,13 @@ function LaneRows({
               }),
             )}
           >
-            <span className="flex items-center gap-1">
-              <ItemIcon
-                type={hovered.bar.type as LangfuseItemType}
-                className="size-3 shrink-0"
-              />
-              <span className="max-w-64 truncate" title={hovered.bar.name}>
+            {hoveredNode ? (
+              <NodeHoverCardContent node={hoveredNode} />
+            ) : (
+              <span className="truncate" title={hovered.bar.name}>
                 {hovered.bar.name}
               </span>
-            </span>
-            <span className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-              <span>
-                {formatIntervalSeconds(
-                  (hovered.bar.endMs - hovered.bar.startMs) / 1000,
-                )}
-              </span>
-              {hovered.bar.costText ? (
-                <span>{hovered.bar.costText}</span>
-              ) : null}
-              {hovered.bar.usageText ? (
-                <span>{hovered.bar.usageText}</span>
-              ) : null}
-            </span>
+            )}
           </div>
         </Layer>
       ) : null}

@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useState } from "react";
+import { NodeHoverCardContent } from "@/src/features/traces/components/NodeHoverCard";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { type RowMetrics } from "./TimelineRowMetrics";
 import { usdFormatter } from "@/src/utils/numbers";
@@ -83,6 +84,14 @@ export function TraceTimelineCompact() {
     [nodeMap, showCostTokens],
   );
 
+  const hoverContent = useCallback(
+    (nodeId: string) => {
+      const node = nodeMap.get(nodeId);
+      return node ? <NodeHoverCardContent node={node} /> : null;
+    },
+    [nodeMap],
+  );
+
   return (
     <div ref={measureRef} className="h-full w-full overflow-hidden">
       {box && box.width > 0 && box.height > 0 ? (
@@ -99,6 +108,7 @@ export function TraceTimelineCompact() {
           onSelect={selectNode}
           onHover={handleHoverNode}
           metricsOf={metricsOf}
+          hoverContent={hoverContent}
           showDuration={showDuration}
         />
       ) : null}

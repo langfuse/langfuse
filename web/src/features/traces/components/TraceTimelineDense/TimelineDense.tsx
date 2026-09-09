@@ -65,6 +65,7 @@ import {
 } from "../../fns/timeline/tooltipPlacement";
 import { Layer } from "@/src/components/ui/layer";
 import { TimelineRowMetrics, type RowMetrics } from "./TimelineRowMetrics";
+import { NODE_HOVER_CARD_SURFACE_CLASS } from "@/src/features/traces/components/NodeHoverCard";
 import { cn } from "@/src/utils/tailwind";
 import { type Density, type PointerModality } from "../../fns/timeline/density";
 import {
@@ -267,6 +268,11 @@ export type TimelineDenseProps = {
    * renderer keeps deciding only what FITS.
    */
   metricsOf?: (nodeId: string) => RowMetrics;
+  /**
+   * Replaces the hover tooltip body with app-level content (the shared node
+   * hover card). The renderer keeps placing it; the app decides what it says.
+   */
+  hoverContent?: (nodeId: string) => React.ReactNode;
   /** The view-options duration toggle; the tree honours the same one. */
   showDuration?: boolean;
   /**
@@ -325,6 +331,7 @@ export function TimelineDense({
   activeIds,
   playhead,
   metricsOf,
+  hoverContent,
   showDuration = true,
 }: TimelineDenseProps) {
   const [viewport, setViewport] = useState<Viewport | null>(null);
@@ -1693,7 +1700,12 @@ export function TimelineDense({
         {focused && pointerPos && !dragging ? (
           <Layer name="tooltip">
             <div
-              className="border-border bg-background text-foreground pointer-events-none fixed flex flex-col gap-0.5 rounded border px-1.5 py-1 shadow-md"
+              className={cn(
+                hoverContent
+                  ? NODE_HOVER_CARD_SURFACE_CLASS
+                  : "border-border bg-background text-foreground flex flex-col gap-0.5 rounded border px-1.5 py-1 shadow-md",
+                "pointer-events-none fixed",
+              )}
               style={tooltipStyle(
                 tooltipPlacement({
                   clientX: pointerPos.clientX,
@@ -1704,41 +1716,47 @@ export function TimelineDense({
               )}
               data-testid="timeline-dense-tooltip"
             >
-              {/* Two rows, like a tree row: identity, then the metrics. One row
+              {hoverContent ? (
+                hoverContent(focused.id)
+              ) : (
+                <>
+                  {/* Two rows, like a tree row: identity, then the metrics. One row
                   made the NAME the only flexible item, so adding cost and tokens
                   truncated it away — and the name is the thing you hovered for. */}
-              <span className="flex items-center gap-1">
-                <span
-                  className={cn(
-                    "h-2 w-2 shrink-0 rounded-[1px]",
-                    TYPE_COLOR[focused.type] ?? FALLBACK_COLOR,
-                  )}
-                />
-                <span className="truncate" title={focused.name}>
-                  {focused.name}
-                </span>
-                {/* What the colour means, next to the colour. */}
-                {focused.type ? (
-                  <span className="text-muted-foreground shrink-0">
-                    {typeLabel(focused.type)}
+                  <span className="flex items-center gap-1">
+                    <span
+                      className={cn(
+                        "h-2 w-2 shrink-0 rounded-[1px]",
+                        TYPE_COLOR[focused.type] ?? FALLBACK_COLOR,
+                      )}
+                    />
+                    <span className="truncate" title={focused.name}>
+                      {focused.name}
+                    </span>
+                    {/* What the colour means, next to the colour. */}
+                    {focused.type ? (
+                      <span className="text-muted-foreground shrink-0">
+                        {typeLabel(focused.type)}
+                      </span>
+                    ) : null}
                   </span>
-                ) : null}
-              </span>
-              {/* Duration and cost. NOT the start offset: the bar's own position
+                  {/* Duration and cost. NOT the start offset: the bar's own position
                   on the axis is what says when a span began, and saying it again
                   in words was one more number to read past — `@0ms` on a root
                   meaning nothing, and two unlabelled durations side by side
                   reading as one number repeated. */}
-              <span className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                <span>
-                  {focused.durationMs == null
-                    ? "—"
-                    : formatDurationMs(focused.durationMs)}
-                </span>
-                {metricsOf?.(focused.id)?.costText ? (
-                  <span>{metricsOf(focused.id).costText}</span>
-                ) : null}
-              </span>
+                  <span className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                    <span>
+                      {focused.durationMs == null
+                        ? "—"
+                        : formatDurationMs(focused.durationMs)}
+                    </span>
+                    {metricsOf?.(focused.id)?.costText ? (
+                      <span>{metricsOf(focused.id).costText}</span>
+                    ) : null}
+                  </span>
+                </>
+              )}
             </div>
           </Layer>
         ) : null}
