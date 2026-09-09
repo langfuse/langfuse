@@ -13,7 +13,8 @@ import {
   type PreparedSessionTimelineItem,
   type PreparedSessionTimelineMessages,
 } from "@/src/features/annotation-queues/components/session/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
-import { SessionTimelineMessage } from "@/src/features/annotation-queues/components/session/SessionConversationTimeline/components/SessionTimelineMessage/SessionTimelineMessage";
+import { SessionTimelineContentMessage } from "@/src/features/annotation-queues/components/session/SessionConversationTimeline/components/SessionTimelineContentMessage/SessionTimelineContentMessage";
+import { SessionTimelineSystemMessage } from "@/src/features/annotation-queues/components/session/SessionConversationTimeline/components/SessionTimelineSystemMessage/SessionTimelineSystemMessage";
 import { type EventSessionTrace } from "@/src/features/annotation-queues/components/session/sessionDetailPageTypes";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -156,12 +157,10 @@ function TruncatedObservation({
     <div className="flex flex-col gap-5">
       {phase !== "end" && hasPreviewValue(observation.input) ? (
         <div className="relative">
-          <SessionTimelineMessage
-            message={{
-              role: "user",
-              source: "input",
-              parts: [{ type: "text", text: toPreviewText(observation.input) }],
-            }}
+          <SessionTimelineContentMessage
+            role="user"
+            parts={[{ type: "text", text: toPreviewText(observation.input) }]}
+            senderName={undefined}
           />
           {phase === "complete" && !hasPreviewValue(observation.output) ? (
             <SessionTimelineRailEnd />
@@ -170,14 +169,10 @@ function TruncatedObservation({
       ) : null}
       {phase !== "start" && hasPreviewValue(observation.output) ? (
         <div className="relative">
-          <SessionTimelineMessage
-            message={{
-              role: "assistant",
-              source: "output",
-              parts: [
-                { type: "text", text: toPreviewText(observation.output) },
-              ],
-            }}
+          <SessionTimelineContentMessage
+            role="assistant"
+            parts={[{ type: "text", text: toPreviewText(observation.output) }]}
+            senderName={undefined}
           />
           <SessionTimelineRailEnd />
         </div>
@@ -468,17 +463,33 @@ function SessionTimelineConversationObservation({
             </Button>
           </div>
         ) : visibleMessages.length > 0 ? (
-          visibleMessages.map((message, index) => (
-            <div
-              key={`${message.id ?? `${message.source}-${message.role}`}-${index}`}
-              className="relative"
-            >
-              <SessionTimelineMessage message={message} />
-              {phase !== "start" && index === visibleMessages.length - 1 ? (
-                <SessionTimelineRailEnd />
-              ) : null}
-            </div>
-          ))
+          visibleMessages.map((message, index) => {
+            const messageContent =
+              message.role === "system" ? (
+                <SessionTimelineSystemMessage
+                  parts={message.parts}
+                  senderName={message.senderName}
+                />
+              ) : (
+                <SessionTimelineContentMessage
+                  role={message.role}
+                  parts={message.parts}
+                  senderName={message.senderName}
+                />
+              );
+
+            return (
+              <div
+                key={`${message.id ?? `${message.source}-${message.role}`}-${index}`}
+                className="relative"
+              >
+                {messageContent}
+                {phase !== "start" && index === visibleMessages.length - 1 ? (
+                  <SessionTimelineRailEnd />
+                ) : null}
+              </div>
+            );
+          })
         ) : null}
       </div>
     </section>
