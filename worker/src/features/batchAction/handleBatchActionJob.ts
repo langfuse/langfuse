@@ -477,6 +477,8 @@ export const handleBatchActionJob = async (
       batchActionId,
       evalVersion,
       evaluatorMappings,
+      sampling = 1,
+      rowLimit = env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
     } = batchActionEvent;
 
     if (!batchActionId) {
@@ -531,7 +533,7 @@ export const handleBatchActionJob = async (
           ruleId: null,
           projectId,
           filter: [] as [],
-          sampling: new Decimal(1),
+          sampling: new Decimal(sampling),
           status: JobConfigState.ACTIVE,
           targetObject: EvalTargetObject.EVENT,
           assignments: [
@@ -586,7 +588,7 @@ export const handleBatchActionJob = async (
               | typeof EvalTargetObject.EXPERIMENT,
             filter: [],
           }),
-          sampling: new Decimal(1),
+          sampling: new Decimal(sampling),
         }));
       }
     } catch (error) {
@@ -619,7 +621,10 @@ export const handleBatchActionJob = async (
       filter,
       searchQuery: query.searchQuery ?? undefined,
       searchType: query.searchType ?? ["id", "content"],
-      rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+      rowLimit: Math.min(
+        rowLimit,
+        env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+      ),
     });
 
     await processBatchedObservationEval({

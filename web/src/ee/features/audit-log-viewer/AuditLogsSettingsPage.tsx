@@ -1,13 +1,13 @@
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { AuditLogsTable } from "@/src/ee/features/audit-log-viewer/AuditLogsTable";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements";
 import { useHasProjectAccess } from "@/src/features/rbac";
 
 export function AuditLogsSettingsPage(props: { projectId: string }) {
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
-    scope: "auditLogs:read",
+    scope: "projectAuditLogs:read",
   });
   const hasEntitlement = useHasEntitlement("audit-logs");
 

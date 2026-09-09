@@ -193,8 +193,8 @@ kubectl annotate ns $NS downscaler/force-uptime-                   # undo later 
   your labeled PRs deploy — no admin needed.
 - **Cluster access — available to all Langfuse engineers** (only needed to
   debug with `kubectl`, not to *use* a preview). Set up local access using the
-  `~/.aws/config` profile block from the internal Langfuse doc:
-  https://linear.app/langfuse/document/connect-to-aws-instances-aurora-redis-from-local-machine-896fe46ff797
+  `~/.aws/config` profile block from the internal Langfuse tracker document
+  *"Connect to AWS instances (Aurora, Redis) from local machine"*.
   1. Open `~/.aws/config` and add the `[sso-session langfuse]` + `[profile preview]`
      blocks from that doc (keep any `[sso-session langfuse]` you already have).
   2. `aws sso login --profile preview`

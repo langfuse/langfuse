@@ -20,10 +20,15 @@ import {
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
-import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
-import { useDatasetItemFromTraceOrObservation } from "@/src/features/datasets/hooks/useDatasetItemFromTraceOrObservation";
-import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
+import {
+  ExistingDatasetItemsDropdownMenuController,
+  NewDatasetItemFromExistingObjectDialogController,
+  useDatasetItemFromTraceOrObservation,
+} from "@/src/features/datasets";
+import {
+  AnnotateDrawerController,
+  DualAnnotationContent,
+} from "@/src/features/scores";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
@@ -46,6 +51,7 @@ import {
   CostBadge,
   UsageBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import { resolveObservationCostSource } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/costSource";
 import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
 import { ModelParametersBadges } from "@/src/features/traces/components/ObservationDetailView/components/ModelParametersBadges";
 import {
@@ -56,7 +62,7 @@ import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggr
 import type Decimal from "decimal.js";
 import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
@@ -83,7 +89,6 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { DualAnnotationContent } from "@/src/features/scores/components/DualAnnotationContent";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
@@ -191,6 +196,29 @@ export const ObservationDetailViewHeader = memo(
       : totalCost;
     const displayedCostDetails =
       subtreeMetrics?.costDetails ?? observation.costDetails;
+    const showsOwnObservationCost = !subtreeMetrics;
+    const hasProvidedCostDetails =
+      Object.keys(observation.providedCostDetails).length > 0;
+    const costSource = resolveObservationCostSource({
+      hasSubtreeMetrics: Boolean(subtreeMetrics),
+      hasProvidedCostDetails,
+    });
+    const priceSource =
+      isGenerationLike(observation.type) &&
+      observation.internalModelId &&
+      observation.model &&
+      observation.usagePricingTierId &&
+      observation.usagePricingTierName &&
+      !hasProvidedCostDetails &&
+      showsOwnObservationCost
+        ? {
+            projectId,
+            modelId: observation.internalModelId,
+            modelName: observation.model,
+            pricingTierId: observation.usagePricingTierId,
+            pricingTierName: observation.usagePricingTierName,
+          }
+        : undefined;
 
     return (
       <div className="@container shrink-0 space-y-2 border-b p-2">
@@ -442,6 +470,7 @@ export const ObservationDetailViewHeader = memo(
                     projectId={projectId}
                     objectId={observation.id}
                     objectType="OBSERVATION"
+                    objectStartTime={observation.startTime}
                     count={commentCount}
                     pendingSelection={pendingSelection}
                     onSelectionUsed={onSelectionUsed}
@@ -657,6 +686,7 @@ export const ObservationDetailViewHeader = memo(
                 projectId={projectId}
                 objectId={observation.id}
                 objectType="OBSERVATION"
+                objectStartTime={observation.startTime}
                 count={commentCount}
                 pendingSelection={pendingSelection}
                 onSelectionUsed={onSelectionUsed}
@@ -727,24 +757,8 @@ export const ObservationDetailViewHeader = memo(
                 <CostBadge
                   totalCost={displayedTotalCost}
                   costDetails={displayedCostDetails}
-                  priceSource={
-                    isGenerationLike(observation.type) &&
-                    observation.internalModelId &&
-                    observation.model &&
-                    observation.usagePricingTierId &&
-                    observation.usagePricingTierName &&
-                    Object.keys(observation.providedCostDetails).length === 0 &&
-                    (!subtreeMetrics ||
-                      treeNodeTotalCost?.eq(totalCost ?? 0) === true)
-                      ? {
-                          projectId,
-                          modelId: observation.internalModelId,
-                          modelName: observation.model,
-                          pricingTierId: observation.usagePricingTierId,
-                          pricingTierName: observation.usagePricingTierName,
-                        }
-                      : undefined
-                  }
+                  costSource={costSource}
+                  priceSource={priceSource}
                 />
               )}
               {subtreeMetrics

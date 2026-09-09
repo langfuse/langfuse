@@ -190,6 +190,22 @@ describe("Token Cost Calculation", () => {
     expect(costs.total_cost).toBe(9.0);
   });
 
+  it("should apply the configured cache-creation price", () => {
+    const costs = (IngestionService as any).calculateUsageCosts(
+      [
+        {
+          price: new Decimal(0.00000375),
+          usageType: "input_cache_creation",
+        },
+      ],
+      { provided_cost_details: {} },
+      { input_cache_creation: 25 },
+    );
+
+    expect(costs.cost_details.input_cache_creation).toBe(0.00009375);
+    expect(costs.total_cost).toBe(0.00009375);
+  });
+
   it("should correctly calculate token costs with user provided costs", async () => {
     const prices = await prisma.price.findMany({
       where: {

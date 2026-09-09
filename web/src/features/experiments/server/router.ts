@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import { randomUUID } from "crypto";
+import { addDays } from "date-fns";
 import {
   type ExperimentMetadata,
   createDatasetItemFilterState,
@@ -43,6 +44,7 @@ import {
   isPresent,
   type DatasetItemDomain,
   singleFilter,
+  type FilterState,
   orderBy,
   paginationZod,
   timeFilter,
@@ -62,6 +64,13 @@ const ExperimentFilterOptions = z.object({
   orderBy: orderBy,
   ...paginationZod,
 });
+
+/**
+ * Lookback for `mostRecent`: wide enough to cover a project whose last run is
+ * months old, still bounded so the query prunes partitions instead of scanning
+ * the whole project. Deliberately wider than any table date-range preset.
+ */
+const MOST_RECENT_LOOKBACK_DAYS = 365;
 
 const ValidConfigResponse = z.object({
   isValid: z.literal(true),
@@ -326,6 +335,50 @@ export const experimentsRouter = createTRPCRouter({
       return {
         data: experiments,
       };
+    }),
+
+  /**
+   * The most recent runs regardless of the selected time range, for the empty
+   * window on the experiments list ("if there's nothing in the last X days, I
+   * still want to see the last ones"). Same scoping and filters as `all`, only
+   * the start-time bounds are replaced.
+   */
+  mostRecent: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        filter: z.array(singleFilter).nullable(),
+        limit: z.number().int().min(1).max(50),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      const filter: FilterState = [
+        // The selected window is the one that came back empty; every other
+        // filter the user applied still holds.
+        ...(input.filter ?? []).filter((f) => f.column !== "startTime"),
+        {
+          column: "startTime",
+          type: "datetime",
+          operator: ">=",
+          value: addDays(new Date(), -MOST_RECENT_LOOKBACK_DAYS),
+        },
+      ];
+
+      const experiments = await getExperimentsFromEvents({
+        projectId: input.projectId,
+        filter,
+        orderBy: { column: "startTime", order: "DESC" },
+        page: 0,
+        limit: input.limit,
+      });
+
+      return { data: experiments };
     }),
 
   byId: protectedProjectProcedure
@@ -847,6 +900,34 @@ export const experimentsRouter = createTRPCRouter({
         projectId: input.projectId,
       });
 
-      return { experimentNames: experiments };
+      // Dataset names live in Postgres only — ClickHouse carries the id — so the
+      // display name is resolved here rather than in the projection, and the
+      // pickers never have to render a raw dataset id.
+      const datasetIds = [
+        ...new Set(
+          experiments
+            .map((experiment) => experiment.datasetId)
+            .filter((datasetId): datasetId is string => Boolean(datasetId)),
+        ),
+      ];
+      const datasets = datasetIds.length
+        ? await ctx.prisma.dataset.findMany({
+            where: { projectId: input.projectId, id: { in: datasetIds } },
+            select: { id: true, name: true },
+          })
+        : [];
+      const datasetNameById = new Map(datasets.map((d) => [d.id, d.name]));
+
+      return {
+        experimentNames: experiments.map((experiment) => ({
+          experimentId: experiment.experimentId,
+          experimentName: experiment.experimentName,
+          startTime: experiment.startTime,
+          datasetId: experiment.datasetId,
+          datasetName: experiment.datasetId
+            ? (datasetNameById.get(experiment.datasetId) ?? null)
+            : null,
+        })),
+      };
     }),
 });

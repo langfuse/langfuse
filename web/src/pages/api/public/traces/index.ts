@@ -39,6 +39,7 @@ export default withMiddlewares(
   {
     POST: createAuthedProjectAPIRoute({
       name: "Create Trace (Legacy)",
+      action: "traces:create",
       bodySchema: PostTracesV1Body,
       responseSchema: PostTracesV1Response, // Adjust this if you have a specific response schema
       rateLimitResource: "legacy-ingestion",
@@ -79,6 +80,7 @@ export default withMiddlewares(
 
     GET: createAuthedProjectAPIRoute({
       name: "Get Traces",
+      action: "traces:read",
       rateLimitResource: "public-api-legacy",
       querySchema: GetTracesV1Query,
       responseSchema: GetTracesV1Response,
@@ -226,6 +228,7 @@ export default withMiddlewares(
 
     DELETE: createAuthedProjectAPIRoute({
       name: "Delete Multiple Traces",
+      action: "traces:delete",
       bodySchema: DeleteTracesV1Body,
       responseSchema: DeleteTracesV1Response,
       rateLimitResource: "trace-delete",

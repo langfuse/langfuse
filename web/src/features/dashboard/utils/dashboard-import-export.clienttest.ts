@@ -13,7 +13,7 @@ import {
 import {
   buildWidgetExport,
   type WidgetExportSource,
-} from "@/src/features/widgets/utils/import-export-utils";
+} from "@/src/features/widgets";
 
 const baseWidget: WidgetExportSource = {
   name: "Trace count",

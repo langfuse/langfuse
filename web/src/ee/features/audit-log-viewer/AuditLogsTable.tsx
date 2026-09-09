@@ -131,6 +131,7 @@ export function AuditLogsTable(props: AuditLogsTableProps) {
   return (
     <>
       <DataTableToolbar
+        tableName="audit-logs"
         columns={columns}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}

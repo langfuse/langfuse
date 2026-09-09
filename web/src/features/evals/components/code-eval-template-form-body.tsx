@@ -34,6 +34,7 @@ import {
 import { darkTheme } from "@/src/components/editor/dark-theme";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
+import { tolerateUnstableViewportPosAtCoords } from "@/src/components/editor/tolerateUnstableViewportPosAtCoords";
 import { codeMirrorSearchPanel } from "@/src/constants/codeMirrorSearchPanel";
 import {
   getCodeEvalHoverDocs,
@@ -365,6 +366,7 @@ export function CodeEvalTemplateFormBody({
   );
   const extensions = useMemo(
     () => [
+      tolerateUnstableViewportPosAtCoords,
       // The `editable` prop only blocks direct typing; readOnly also blocks
       // paste and drag-and-drop edits.
       ...(!editable ? [EditorState.readOnly.of(true)] : []),
