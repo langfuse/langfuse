@@ -229,13 +229,30 @@ export const processEventBatch = async (
       >,
       event,
     ) => {
-      if (!event.body?.id) {
+      if (!event.body) {
         return acc;
       }
+      // Score/trace/dataset-run-item bodies allow an optional client id
+      // (BaseScoreBody.id, TraceBody.id, DatasetRunItemBody.id are all
+      // nullish). An event without one used to be silently excluded here —
+      // before ever reaching S3 or the queue — even though it was already
+      // counted as a `201` success in aggregateBatchResult above (see
+      // langfuse/langfuse#14797). Backfill a random id so every validated
+      // event is actually persisted; IngestionService already assumes this
+      // field is populated downstream (e.g. validateAndInflateScore's
+      // `scoreId` comes from this same eventBodyId).
+      const eventBodyId = event.body.id ?? randomUUID();
+      const eventWithId =
+        event.body.id === eventBodyId
+          ? event
+          : ({
+              ...event,
+              body: { ...event.body, id: eventBodyId },
+            } as typeof event);
+
       const entityType = getClickhouseEntityType(event.type);
-      const dedupKey = `${entityType}-${event.body.id}`;
+      const dedupKey = `${entityType}-${eventBodyId}`;
       if (!acc[dedupKey]) {
-        const eventBodyId = event.body.id;
         const safeEventBodyId = safeBlobKeySegment(eventBodyId);
         if (safeEventBodyId !== eventBodyId) {
           // Do not log the raw or sanitized ID itself: the prefix can carry
@@ -266,7 +283,7 @@ export const processEventBatch = async (
           }),
         };
       }
-      acc[dedupKey].data.push(event);
+      acc[dedupKey].data.push(eventWithId);
       return acc;
     },
     {},
