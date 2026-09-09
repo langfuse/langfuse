@@ -71,6 +71,9 @@ fi
 
 if [[ "$mode" = "write" && -n "$workspace_identity_file" && -f "$workspace_identity_file" ]]; then
   echo "Langfuse identity: already configured at $workspace_identity_file"
+  # An OpenCode-first run may have only the workspace file. A later Cloud
+  # start or desktop postinstall should still seed the machine-level copy.
+  install_identity_file "$identity_dir" "$workspace_identity_file"
   exit 0
 fi
 

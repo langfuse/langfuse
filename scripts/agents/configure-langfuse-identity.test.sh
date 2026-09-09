@@ -205,6 +205,17 @@ LANGFUSE_WORKSPACE_IDENTITY_DIR="$opencode_workspace" \
 test ! -e "$opencode_home/.config/langfuse/me.md"
 grep -Fq -- "- **Name:** Nikita Kabardin" "$opencode_workspace/me.md"
 
+# OpenCode-first recovery leaves only the workspace file; a later normal
+# install with home access must seed the machine-level copy from it.
+opencode_then_home="$tmpdir/opencode-then-home"
+PATH="$tmpdir/bin:$PATH" \
+LINEAR_API_KEY="test-secret-that-must-not-be-written" \
+LINEAR_FIXTURE="$fixture" \
+LANGFUSE_CONFIG_DIR="$opencode_then_home" \
+LANGFUSE_WORKSPACE_IDENTITY_DIR="$opencode_workspace" \
+  bash "$repo_root/scripts/agents/configure-langfuse-identity.sh"
+grep -Fq -- "- **Name:** Nikita Kabardin" "$opencode_then_home/me.md"
+
 # Redirected LANGFUSE_CONFIG_DIR still seeds an explicit workspace copy.
 PATH="$tmpdir/bin:$PATH" \
 LINEAR_API_KEY="test-secret-that-must-not-be-written" \
