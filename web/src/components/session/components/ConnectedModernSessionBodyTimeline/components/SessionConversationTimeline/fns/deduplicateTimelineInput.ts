@@ -1,8 +1,8 @@
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 
-import { getConversationEntries } from "@/src/components/session/SessionConversationTimeline/fns/getConversationEntries";
-import { getHistoricalInputIndices } from "@/src/components/session/SessionConversationTimeline/fns/getHistoricalInputIndices";
-import { type SessionTimelineConversationMessage } from "@/src/components/session/SessionConversationTimeline/fns/processTimelineMessages";
+import { getConversationEntries } from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/fns/getConversationEntries";
+import { getHistoricalInputIndices } from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/fns/getHistoricalInputIndices";
+import { type SessionTimelineConversationMessage } from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/fns/processTimelineMessages";
 
 export function deduplicateTimelineInput(
   messages: SessionTimelineConversationMessage[],

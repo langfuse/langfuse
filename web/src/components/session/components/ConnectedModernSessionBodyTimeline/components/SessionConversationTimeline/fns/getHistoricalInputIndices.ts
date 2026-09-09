@@ -1,4 +1,4 @@
-import { type ConversationEntry } from "@/src/components/session/SessionConversationTimeline/fns/getConversationEntries";
+import { type ConversationEntry } from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/fns/getConversationEntries";
 
 export function getHistoricalInputIndices(
   previousContext: ConversationEntry[],

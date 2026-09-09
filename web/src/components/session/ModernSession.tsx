@@ -1,8 +1,8 @@
 import { type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 
-import { ConnectedModernSessionBodyLegacy } from "@/src/components/session/ConnectedModernSessionBodyLegacy";
-import { ConnectedModernSessionBodyTimeline } from "@/src/components/session/ConnectedModernSessionBodyTimeline";
+import { ConnectedModernSessionBodyLegacy } from "@/src/components/session/components/ConnectedModernSessionBodyLegacy/ConnectedModernSessionBodyLegacy";
+import { ConnectedModernSessionBodyTimeline } from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline";
 import { ModernSessionFilterControls } from "@/src/components/session/ModernSessionFilterControls";
 import { ModernSessionHeader } from "@/src/components/session/ModernSessionHeader";
 import { SessionMetadataJsonPathControl } from "@/src/components/session/SessionMetadataJsonPathControl";

@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 
-import { processTimelineMessages } from "@/src/components/session/SessionConversationTimeline/fns/processTimelineMessages";
+import { processTimelineMessages } from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/fns/processTimelineMessages";
 
 const messages = [
   {

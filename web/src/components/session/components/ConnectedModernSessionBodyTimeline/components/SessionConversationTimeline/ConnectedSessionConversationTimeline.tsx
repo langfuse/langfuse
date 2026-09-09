@@ -3,8 +3,8 @@ import { type FilterState } from "@langfuse/shared";
 import {
   SessionConversationTimeline,
   type SessionConversationTimelineController,
-} from "@/src/components/session/SessionConversationTimeline/SessionConversationTimeline";
-import { type SessionObservation } from "@/src/components/session/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
+} from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/SessionConversationTimeline";
+import { type SessionObservation } from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 

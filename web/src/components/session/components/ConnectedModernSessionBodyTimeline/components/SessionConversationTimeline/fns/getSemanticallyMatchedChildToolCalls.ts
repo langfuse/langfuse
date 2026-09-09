@@ -3,7 +3,7 @@ import { type ToolCallPart } from "@langfuse/shared/src/utils/normalized-io";
 import {
   getToolObservationCallId,
   type ToolObservation,
-} from "@/src/components/session/SessionConversationTimeline/fns/getToolObservationCallId";
+} from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/fns/getToolObservationCallId";
 
 const canonicalizeToolInput = (value: unknown): unknown => {
   let parsedValue = value;

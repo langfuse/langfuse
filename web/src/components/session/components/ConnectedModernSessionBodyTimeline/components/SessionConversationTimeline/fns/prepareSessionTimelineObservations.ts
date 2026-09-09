@@ -4,10 +4,10 @@ import {
   type ToolCallPart,
 } from "@langfuse/shared/src/utils/normalized-io";
 
-import { deduplicateTimelineInput } from "@/src/components/session/SessionConversationTimeline/fns/deduplicateTimelineInput";
-import { getSemanticallyMatchedChildToolCalls } from "@/src/components/session/SessionConversationTimeline/fns/getSemanticallyMatchedChildToolCalls";
-import { getStandaloneToolCallIds } from "@/src/components/session/SessionConversationTimeline/fns/getStandaloneToolCallIds";
-import { processTimelineMessages } from "@/src/components/session/SessionConversationTimeline/fns/processTimelineMessages";
+import { deduplicateTimelineInput } from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/fns/deduplicateTimelineInput";
+import { getSemanticallyMatchedChildToolCalls } from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/fns/getSemanticallyMatchedChildToolCalls";
+import { getStandaloneToolCallIds } from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/fns/getStandaloneToolCallIds";
+import { processTimelineMessages } from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/fns/processTimelineMessages";
 
 export type SessionTimelineObservation = {
   id: string;

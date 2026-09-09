@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { prepareSessionTimelineObservations } from "@/src/components/session/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
+import { prepareSessionTimelineObservations } from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
 
 const observation = (
   id: string,

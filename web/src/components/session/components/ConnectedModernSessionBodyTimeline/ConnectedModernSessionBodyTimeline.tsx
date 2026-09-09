@@ -4,8 +4,8 @@ import { type FilterState } from "@langfuse/shared";
 import {
   ConnectedSessionConversationTimeline,
   type ConnectedSessionConversationTimelineItem,
-} from "@/src/components/session/ConnectedSessionConversationTimeline";
-import { useSessionConversationTimelineController } from "@/src/components/session/SessionConversationTimeline/SessionConversationTimeline";
+} from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/ConnectedSessionConversationTimeline";
+import { useSessionConversationTimelineController } from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/SessionConversationTimeline";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { computeIdleGapSeconds } from "@/src/components/session/sessionIdleGap";
 import { useDebounce } from "@/src/hooks/useDebounce";

@@ -12,13 +12,19 @@ vi.mock("@/src/features/auth/hooks", () => ({
   useIsAuthenticatedAndProjectMember,
 }));
 
-vi.mock("@/src/components/session/ConnectedModernSessionBodyLegacy", () => ({
-  ConnectedModernSessionBodyLegacy: () => <div>Legacy body</div>,
-}));
+vi.mock(
+  "@/src/components/session/components/ConnectedModernSessionBodyLegacy/ConnectedModernSessionBodyLegacy",
+  () => ({
+    ConnectedModernSessionBodyLegacy: () => <div>Legacy body</div>,
+  }),
+);
 
-vi.mock("@/src/components/session/ConnectedModernSessionBodyTimeline", () => ({
-  ConnectedModernSessionBodyTimeline: () => <div>Timeline body</div>,
-}));
+vi.mock(
+  "@/src/components/session/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline",
+  () => ({
+    ConnectedModernSessionBodyTimeline: () => <div>Timeline body</div>,
+  }),
+);
 
 vi.mock("@/src/components/session/ModernSessionHeader", () => ({
   ModernSessionHeader: () => <div>Modern session header</div>,

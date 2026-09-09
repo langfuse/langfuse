@@ -12,8 +12,8 @@ import {
   type ParsedSessionTimelineObservation,
   type PreparedSessionTimelineItem,
   type PreparedSessionTimelineMessages,
-} from "@/src/components/session/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
-import { SessionTimelineMessage } from "@/src/components/session/SessionConversationTimeline/components/SessionTimelineMessage/SessionTimelineMessage";
+} from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
+import { SessionTimelineMessage } from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTimelineMessage/SessionTimelineMessage";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";

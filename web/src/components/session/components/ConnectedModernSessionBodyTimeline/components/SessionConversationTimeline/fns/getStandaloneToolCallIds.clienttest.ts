@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { getStandaloneToolCallIds } from "@/src/components/session/SessionConversationTimeline/fns/getStandaloneToolCallIds";
+import { getStandaloneToolCallIds } from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/fns/getStandaloneToolCallIds";
 
 describe("getStandaloneToolCallIds", () => {
   it("reads supported ids from non-truncated tool metadata", () => {
