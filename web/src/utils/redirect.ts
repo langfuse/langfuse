@@ -7,6 +7,18 @@ import { env } from "@/src/env.mjs";
 const REDIRECT_ORIGIN = "https://langfuse.invalid";
 
 /**
+ * A path segment that is still a Next.js pages-router dynamic param
+ * (`[id]`, `[...slug]`, `[[...slug]]`). Passing that string to
+ * `router.push`/`replace` throws href-interpolation-failed.
+ */
+const UNINTERPOLATED_ROUTE_SEGMENT =
+  /(?:^|\/)(?:\[(?:\.\.\.)?[A-Za-z_][\w]*\]|\[\[(?:\.\.\.)?[A-Za-z_][\w]*\]\])(?=\/|$)/;
+
+function pathnameHasUninterpolatedRouteParam(pathname: string): boolean {
+  return UNINTERPOLATED_ROUTE_SEGMENT.test(pathname);
+}
+
+/**
  * Validates and sanitizes a redirect path to prevent open redirect attacks.
  *
  * Security Requirements:
@@ -14,6 +26,8 @@ const REDIRECT_ORIGIN = "https://langfuse.invalid";
  * - Parses with the WHATWG URL constructor and rejects off-origin results
  *   (protocol-relative, backslash-normalized, absolute http(s), other schemes)
  * - Rejects serialized output that starts with "//" after dot-segment resolution
+ * - Rejects pathnames that still contain Next.js dynamic segments
+ *   (`[param]`, `[[...param]]`) — those are unhydrated route patterns, not URLs
  * - Automatically prepends NEXT_PUBLIC_BASE_PATH if configured
  *
  * Returned paths are URL-serialized: spaces and control characters are
@@ -61,6 +75,12 @@ export function getSafeRedirectPath(
   // Origin rejects `/\evil.com` (HTTPS parser resolves it off-site).
   // Leading `//` after serialization rejects `/x/..//evil.com`.
   if (url.origin !== REDIRECT_ORIGIN || path.startsWith("//")) {
+    return safeDefault;
+  }
+
+  // Pre-hydration asPath on a statically-optimized dynamic route is the raw
+  // pattern. router.replace(that) throws instead of navigating.
+  if (pathnameHasUninterpolatedRouteParam(url.pathname)) {
     return safeDefault;
   }
 

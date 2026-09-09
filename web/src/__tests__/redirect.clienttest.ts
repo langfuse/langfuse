@@ -278,6 +278,34 @@ describe("getSafeRedirectPath", () => {
       );
     });
 
+    it("rejects Next.js route patterns that would fail href interpolation", () => {
+      // Pre-hydration asPath on a statically-optimized dynamic route is the
+      // raw pattern. router.replace(that) throws href-interpolation-failed.
+      expect(
+        getSafeRedirectPath("/project/[projectId]/datasets/[datasetId]/items"),
+      ).toBe("/");
+      expect(
+        getSafeRedirectPath("/project/[projectId]/prompts/[[...folder]]"),
+      ).toBe("/");
+      expect(getSafeRedirectPath("/project/[projectId]/traces")).toBe("/");
+      expect(
+        getSafeRedirectPath(
+          "/project/[projectId]/datasets/[datasetId]/items?page=1",
+        ),
+      ).toBe("/");
+    });
+
+    it("still allows interpolated paths and bracketed query values", () => {
+      expect(getSafeRedirectPath("/project/abc123/datasets/ds1/items")).toBe(
+        "/project/abc123/datasets/ds1/items",
+      );
+      // Brackets in the query string are not route params. The WHATWG
+      // serializer may percent-encode the value; the path must not fall back.
+      expect(getSafeRedirectPath("/project/abc123/traces?filter=[x]")).toMatch(
+        /^\/project\/abc123\/traces\?filter=/,
+      );
+    });
+
     it("should handle non-string input gracefully", () => {
       // @ts-expect-error Testing runtime behavior with invalid input
       expect(getSafeRedirectPath(123)).toBe("/");
