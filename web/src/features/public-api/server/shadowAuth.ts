@@ -21,9 +21,8 @@ import {
 } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
 import {
   enforceAuth,
-  type AccessResult,
-  type AuthError,
   type EnforceAuthParams,
+  type EnforceAuthResult,
 } from "@/src/features/public-api/server/enforceAuth";
 import {
   diffResults,
@@ -31,7 +30,11 @@ import {
   recordCoverage,
   type Seam,
 } from "@/src/features/auth/policy/shadow";
-import { type ErrorResult } from "@/src/features/auth/policy/types";
+import {
+  type AuthorizationContext,
+  type ErrorResult,
+  type Success,
+} from "@/src/features/auth/policy/types";
 import { isPrismaException } from "@/src/utils/exceptions";
 
 /** scopeDeniedCode is the status for a key with the wrong access level. */
@@ -71,9 +74,7 @@ async function legacyOnly(params: ShadowAuthParams): Promise<ShadowAuthResult> {
 }
 
 /** runNewAuth runs the new pipeline for the request's action and route opt-ins. */
-function runNewAuth(
-  params: ShadowAuthParams,
-): Promise<AccessResult | ErrorResult<AuthError>> {
+function runNewAuth(params: ShadowAuthParams): Promise<EnforceAuthResult> {
   return enforceAuth({
     req: params.req,
     action: params.action,
@@ -174,8 +175,14 @@ export type ShadowAuthParams = EnforceAuthParams & {
   allowedAccessLevels: ApiAccessLevel[];
 };
 
+/** ShadowAuthAccessResult is a verified scope; the authorizing context rides along only when the new pipeline produced it. */
+export type ShadowAuthAccessResult = Success & {
+  scope: ApiAccessScope;
+  ctx?: AuthorizationContext;
+};
+
 /** ShadowAuthResult is the verified project or organization scope, or the error the route renders. */
-export type ShadowAuthResult = AccessResult | ErrorResult<BaseError>;
+export type ShadowAuthResult = ShadowAuthAccessResult | ErrorResult<BaseError>;
 
 /** LegacyDecision is the legacy verify captured as a value: the verified scope, or the status + error to render. */
 type LegacyDecision =

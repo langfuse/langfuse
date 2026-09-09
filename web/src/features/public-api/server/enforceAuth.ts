@@ -19,7 +19,7 @@ import {
   isOrgAction,
   type Action,
   type AuthorizationContext,
-  type ErrorResult,
+  type ErrorResult as ErrorResultOf,
   type Principal,
   type PrincipalOrganization,
   type Resource,
@@ -40,7 +40,7 @@ const headerValue = (
 /** enforceAuth authenticates the request, resolves the org or project target its action implies, authorizes it, and maps the principal onto the ApiAccessScope. */
 export async function enforceAuth(
   params: EnforceAuthParams,
-): Promise<AccessResult | ErrorResult<AuthError>> {
+): Promise<EnforceAuthResult> {
   const authn = await authenticator.authenticate({
     headers: params.req.headers,
     allowInAppAgentKey: params.allowInAppAgentKey,
@@ -62,14 +62,16 @@ export async function enforceAuth(
   if (!decision.success) {
     return { success: false, error: decision.error };
   }
-  return toApiAccessScope(context, target);
+  return "orgId" in target
+    ? toOrgApiAccessScope(context, target.orgId)
+    : toProjectApiAccessScope(context, target.projectId);
 }
 
 /** getOrgId resolves the target org from the header or the key's bound org. */
 function getOrgId(
   context: AuthorizationContext,
   headers: IncomingHttpHeaders,
-): ResolvedOrg | ErrorResult<InvalidRequestError | ForbiddenError> {
+): ResolvedOrg | ErrorResult {
   const boundOrgId = boundOrgIdOf(context);
   const header = headerValue(headers[orgIdHeader]);
   if (header && boundOrgId && header !== boundOrgId) {
@@ -96,7 +98,7 @@ function getOrgId(
 function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
-): ResolvedProject | ErrorResult<InvalidRequestError | ForbiddenError> {
+): ResolvedProject | ErrorResult {
   const urlProjectId =
     typeof req.query.projectId === "string" ? req.query.projectId : undefined;
   if (urlProjectId) return { success: true, projectId: urlProjectId };
@@ -135,19 +137,12 @@ function boundProjectIdOf(context: AuthorizationContext): string | undefined {
   return context.principal.boundResource.projectId;
 }
 
-/** toApiAccessScope maps an authorized context's principal onto the ApiAccessScope for the resolved org or project target. */
-async function toApiAccessScope(
-  context: AuthorizationContext,
-  target: Resource,
-): Promise<ScopeResult> {
-  const { principal } = context;
-  return "orgId" in target
-    ? orgScope(principal, target.orgId)
-    : projectScope(principal, target.projectId);
-}
-
-/** orgScope maps an authorized principal onto the organization-level scope. */
-function orgScope(principal: Principal, orgId: string): ScopeResult {
+/** toOrgApiAccessScope maps an authorized context onto the organization-level scope for the resolved org. */
+function toOrgApiAccessScope(
+  ctx: AuthorizationContext,
+  orgId: string,
+): EnforceAuthResult {
+  const { principal } = ctx;
   if (principal.kind !== "apiKey") {
     return invariantBreak(
       `unexpected principal kind on the org seam: ${principal.kind}`,
@@ -166,15 +161,17 @@ function orgScope(principal: Principal, orgId: string): ScopeResult {
       projectId: null,
       accessLevel: "organization",
     },
+    ctx,
   };
 }
 
-/** projectScope maps an authorized principal onto the project-level scope. */
-async function projectScope(
-  principal: Principal,
+/** toProjectApiAccessScope maps an authorized context onto the project-level scope for the resolved project. */
+async function toProjectApiAccessScope(
+  ctx: AuthorizationContext,
   projectId: string,
-): Promise<ScopeResult> {
-  if (principal.kind === "admin") return adminScope(projectId);
+): Promise<EnforceAuthResult> {
+  const { principal } = ctx;
+  if (principal.kind === "admin") return toAdminApiAccessScope(ctx, projectId);
   if (principal.kind !== "apiKey") {
     return invariantBreak(
       `unexpected principal kind on the project seam: ${principal.kind}`,
@@ -194,11 +191,15 @@ async function projectScope(
       accessLevel:
         principal.presentation === "publicKey" ? "scores" : "project",
     },
+    ctx,
   };
 }
 
-/** adminScope synthesizes the legacy self-host admin scope for a project. */
-async function adminScope(projectId: string): Promise<ScopeResult> {
+/** toAdminApiAccessScope synthesizes the legacy self-host admin scope for a project. */
+async function toAdminApiAccessScope(
+  ctx: AuthorizationContext,
+  projectId: string,
+): Promise<EnforceAuthResult> {
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     return {
       success: false,
@@ -230,6 +231,7 @@ async function adminScope(projectId: string): Promise<ScopeResult> {
       isIngestionSuspended: false,
       isInAppAgentKey: false,
     },
+    ctx,
   };
 }
 
@@ -250,7 +252,7 @@ function credentialFields(
 }
 
 /** invariantBreak is a 500 for a state that should be unreachable. */
-function invariantBreak(message: string): ErrorResult<InternalServerError> {
+function invariantBreak(message: string): ErrorResult {
   return { success: false, error: new InternalServerError(message) };
 }
 
@@ -262,16 +264,23 @@ export type EnforceAuthParams = {
   isAdminApiKeyAuthAllowed?: boolean;
 };
 
-/** AccessResult is the seam's success outcome: the resolved ApiAccessScope. */
-export type AccessResult = Success & { scope: ApiAccessScope };
+/** AccessResult is the seam's success outcome: the resolved ApiAccessScope and the context that authorized it. */
+type AccessResult = Success & {
+  scope: ApiAccessScope;
+  ctx: AuthorizationContext;
+};
 
-/** AuthError is any typed failure the pipeline surfaces. */
-export type AuthError =
+/** EnforceAuthResult is the authorized scope, or the typed error the route renders. */
+export type EnforceAuthResult = AccessResult | ErrorResult;
+
+/** ErrorResult is a failed enforceAuth outcome carrying any error the pipeline surfaces. */
+type ErrorResult = ErrorResultOf<
   | UnauthorizedError
   | InvalidRequestError
   | InternalServerError
   | ForbiddenError
-  | LangfuseNotFoundError;
+  | LangfuseNotFoundError
+>;
 
 /** ResolvedOrg is org target resolution's success outcome. */
 type ResolvedOrg = Success & { orgId: string };
@@ -279,13 +288,12 @@ type ResolvedOrg = Success & { orgId: string };
 /** ResolvedProject is project target resolution's success outcome. */
 type ResolvedProject = Success & { projectId: string };
 
-/** ScopeResult is the mapped scope, or the typed error an unmappable principal raises. */
-type ScopeResult = AccessResult | ErrorResult<ScopeError>;
-
-/** ScopeError is any typed failure the scope mapper surfaces. */
-type ScopeError = InternalServerError | ForbiddenError | LangfuseNotFoundError;
-
 /** ApiKeyPrincipal is the api-key variant of `Principal` the scope mapper consumes. */
 type ApiKeyPrincipal = Extract<Principal, { kind: "apiKey" }>;
 
-export const __test = { getOrgId, getProjectId, toApiAccessScope };
+export const __test = {
+  getOrgId,
+  getProjectId,
+  toOrgApiAccessScope,
+  toProjectApiAccessScope,
+};
