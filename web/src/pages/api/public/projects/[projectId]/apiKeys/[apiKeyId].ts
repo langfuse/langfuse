@@ -30,7 +30,6 @@ export default async function handler(
 
     const { projectId, apiKeyId } = params;
 
-    // CHECK AUTH
     const authCheck = await shadowAuth({
       req,
       action: "apiKeys:CUD",
@@ -39,7 +38,6 @@ export default async function handler(
     if (!authCheck.success) {
       return writeProjectError(res, authCheck.error);
     }
-    // END CHECK AUTH
 
     if (
       !hasEntitlementBasedOnPlan({
