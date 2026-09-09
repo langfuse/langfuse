@@ -67,6 +67,11 @@ ADD CONSTRAINT "gateway_ai_connections_organization_id_fkey"
 FOREIGN KEY ("organization_id") REFERENCES "organizations"("id")
 ON DELETE CASCADE ON UPDATE CASCADE;
 
+ALTER TABLE "gateway_ai_connections"
+ADD CONSTRAINT "gateway_ai_connections_created_by_id_fkey"
+FOREIGN KEY ("created_by_id") REFERENCES "users"("id")
+ON DELETE SET NULL ON UPDATE CASCADE;
+
 CREATE TABLE "gateway_api_key_associations" (
     "api_key_id" TEXT NOT NULL,
     "metadata" JSONB NOT NULL DEFAULT '{}',
