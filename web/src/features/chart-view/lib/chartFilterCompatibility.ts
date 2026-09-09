@@ -1,5 +1,5 @@
 import { type FilterState } from "@langfuse/shared";
-import { resolveField } from "@/src/features/search-bar/lib/fields";
+import { resolveField } from "@/src/features/search-bar";
 
 /**
  * Which of the events table's sidebar/search filters a chart can honour, and a

@@ -164,7 +164,7 @@ export class MonitorProcessor {
       metricMap["count_count"] = parseNumericValue(row["count_count"]);
     } catch (error) {
       // Resource pressure is transient, not a bad query; rethrow so the monitor stays ACTIVE and the scheduler retries.
-      if (error instanceof ClickHouseResourceError) {
+      if (ClickHouseResourceError.is(error)) {
         logger.warn("queryMetrics hit a ClickHouse resource limit; retrying", {
           errorType: error.errorType,
           projectId: event.projectId,

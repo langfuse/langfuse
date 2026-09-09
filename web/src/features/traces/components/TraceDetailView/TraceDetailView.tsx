@@ -39,7 +39,7 @@ import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
-import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";

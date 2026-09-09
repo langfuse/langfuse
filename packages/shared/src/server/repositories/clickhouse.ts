@@ -55,14 +55,23 @@ const ERROR_TYPE_CONFIG: Record<
     discriminators: string[];
   }
 > = {
-  MEMORY_LIMIT: {
-    discriminators: ["memory limit exceeded"],
-  },
+  // Order matters: matched top-to-bottom, first hit wins. OvercommitTracker
+  // kills also carry a "Memory limit … exceeded" phrase, so OVERCOMMIT must
+  // precede MEMORY_LIMIT to keep the more specific cause in the outcome metric.
   OVERCOMMIT: {
-    discriminators: ["OvercommitTracker"],
+    discriminators: ["overcommittracker"],
+  },
+  MEMORY_LIMIT: {
+    discriminators: [
+      "memory limit exceeded",
+      "memory limit (for query) exceeded",
+      "memory limit (total) exceeded",
+      "memory limit (for user) exceeded",
+      "memory limit",
+    ],
   },
   TIMEOUT: {
-    discriminators: ["Timeout", "timeout", "timed out"],
+    discriminators: ["timeout", "timed out"],
   },
 };
 
@@ -89,11 +98,18 @@ export class ClickHouseResourceError extends Error {
     }
   }
 
+  static is(error: unknown): error is ClickHouseResourceError {
+    return (
+      error instanceof ClickHouseResourceError ||
+      (error instanceof Error && error.name === "ClickHouseResourceError")
+    );
+  }
+
   static wrapIfResourceError(
     originalError: Error,
     tags?: NormalizedClickHouseQueryTags,
   ): Error {
-    const errorMessage = originalError.message || "";
+    const errorMessage = (originalError.message || "").toLowerCase();
 
     for (const [type, config] of Object.entries(ERROR_TYPE_CONFIG) as Array<
       [
@@ -102,7 +118,7 @@ export class ClickHouseResourceError extends Error {
       ]
     >) {
       const hasDiscriminator = config.discriminators.some((discriminator) =>
-        errorMessage.includes(discriminator),
+        errorMessage.includes(discriminator.toLowerCase()),
       );
 
       if (hasDiscriminator) {

@@ -55,7 +55,7 @@ import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMa
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import {
   type EvalPreviewPointer,
   buildEvalPreviewNavigationPath,

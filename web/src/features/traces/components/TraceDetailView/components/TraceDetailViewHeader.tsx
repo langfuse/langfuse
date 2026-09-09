@@ -21,10 +21,12 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
-import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
-import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
-import { useDatasetItemFromTraceOrObservation } from "@/src/features/datasets/hooks/useDatasetItemFromTraceOrObservation";
-import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
+import {
+  ExistingDatasetItemsDropdownMenuController,
+  NewDatasetItemFromExistingObjectDialogController,
+  useDatasetItemFromTraceOrObservation,
+} from "@/src/features/datasets";
+import { AnnotateDrawerController } from "@/src/features/scores";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";

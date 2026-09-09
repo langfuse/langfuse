@@ -20,10 +20,15 @@ import {
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
-import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
-import { useDatasetItemFromTraceOrObservation } from "@/src/features/datasets/hooks/useDatasetItemFromTraceOrObservation";
-import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
+import {
+  ExistingDatasetItemsDropdownMenuController,
+  NewDatasetItemFromExistingObjectDialogController,
+  useDatasetItemFromTraceOrObservation,
+} from "@/src/features/datasets";
+import {
+  AnnotateDrawerController,
+  DualAnnotationContent,
+} from "@/src/features/scores";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
@@ -57,7 +62,7 @@ import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggr
 import type Decimal from "decimal.js";
 import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
@@ -84,7 +89,6 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { DualAnnotationContent } from "@/src/features/scores/components/DualAnnotationContent";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
@@ -466,6 +470,7 @@ export const ObservationDetailViewHeader = memo(
                     projectId={projectId}
                     objectId={observation.id}
                     objectType="OBSERVATION"
+                    objectStartTime={observation.startTime}
                     count={commentCount}
                     pendingSelection={pendingSelection}
                     onSelectionUsed={onSelectionUsed}
@@ -681,6 +686,7 @@ export const ObservationDetailViewHeader = memo(
                 projectId={projectId}
                 objectId={observation.id}
                 objectType="OBSERVATION"
+                objectStartTime={observation.startTime}
                 count={commentCount}
                 pendingSelection={pendingSelection}
                 onSelectionUsed={onSelectionUsed}
