@@ -51,11 +51,7 @@ import {
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
-import {
-  CostBadge,
-  hasRenderableUsage,
-  UsageBadge,
-} from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import { CostUsageBadge } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
 import { ModelParametersBadges } from "@/src/features/traces/components/ObservationDetailView/components/ModelParametersBadges";
 import {
@@ -226,6 +222,28 @@ export const ObservationDetailViewHeader = memo(
       : totalCost;
     const displayedCostDetails =
       subtreeMetrics?.costDetails ?? observation.costDetails;
+    // Usage only exists for generation-like observations — mirror that gate
+    // here so a span/event's stray zero fields never masquerade as usage.
+    const displayedInputUsage = subtreeMetrics
+      ? subtreeMetrics.inputUsage
+      : isGenerationLike(observation.type)
+        ? inputUsage
+        : 0;
+    const displayedOutputUsage = subtreeMetrics
+      ? subtreeMetrics.outputUsage
+      : isGenerationLike(observation.type)
+        ? outputUsage
+        : 0;
+    const displayedTotalUsage = subtreeMetrics
+      ? subtreeMetrics.totalUsage
+      : isGenerationLike(observation.type)
+        ? totalUsage
+        : 0;
+    const displayedUsageDetails = subtreeMetrics
+      ? subtreeMetrics.usageDetails
+      : isGenerationLike(observation.type)
+        ? observation.usageDetails
+        : undefined;
 
     return (
       <div className="@container shrink-0 space-y-2 p-3">
@@ -749,61 +767,32 @@ export const ObservationDetailViewHeader = memo(
               <TimeToFirstTokenBadge
                 timeToFirstToken={observation.timeToFirstToken}
               />
-              {displayedTotalCost != null && displayedCostDetails && (
-                <CostBadge
-                  totalCost={displayedTotalCost}
-                  costDetails={displayedCostDetails}
-                  priceSource={
-                    isGenerationLike(observation.type) &&
-                    observation.internalModelId &&
-                    observation.model &&
-                    observation.usagePricingTierId &&
-                    observation.usagePricingTierName &&
-                    Object.keys(observation.providedCostDetails).length === 0 &&
-                    (!subtreeMetrics ||
-                      treeNodeTotalCost?.eq(totalCost ?? 0) === true)
-                      ? {
-                          projectId,
-                          modelId: observation.internalModelId,
-                          modelName: observation.model,
-                          pricingTierId: observation.usagePricingTierId,
-                          pricingTierName: observation.usagePricingTierName,
-                        }
-                      : undefined
-                  }
-                />
-              )}
-              {subtreeMetrics
-                ? subtreeMetrics.hasGenerationLike &&
-                  subtreeMetrics.usageDetails &&
-                  hasRenderableUsage({
-                    inputUsage: subtreeMetrics.inputUsage,
-                    outputUsage: subtreeMetrics.outputUsage,
-                    totalUsage: subtreeMetrics.totalUsage,
-                    usageDetails: subtreeMetrics.usageDetails,
-                  }) && (
-                    <UsageBadge
-                      inputUsage={subtreeMetrics.inputUsage}
-                      outputUsage={subtreeMetrics.outputUsage}
-                      totalUsage={subtreeMetrics.totalUsage}
-                      usageDetails={subtreeMetrics.usageDetails}
-                    />
-                  )
-                : isGenerationLike(observation.type) &&
-                  observation.usageDetails &&
-                  hasRenderableUsage({
-                    inputUsage,
-                    outputUsage,
-                    totalUsage,
-                    usageDetails: observation.usageDetails,
-                  }) && (
-                    <UsageBadge
-                      inputUsage={inputUsage}
-                      outputUsage={outputUsage}
-                      totalUsage={totalUsage}
-                      usageDetails={observation.usageDetails}
-                    />
-                  )}
+              <CostUsageBadge
+                totalCost={displayedTotalCost}
+                costDetails={displayedCostDetails}
+                inputUsage={displayedInputUsage}
+                outputUsage={displayedOutputUsage}
+                totalUsage={displayedTotalUsage}
+                usageDetails={displayedUsageDetails}
+                priceSource={
+                  isGenerationLike(observation.type) &&
+                  observation.internalModelId &&
+                  observation.model &&
+                  observation.usagePricingTierId &&
+                  observation.usagePricingTierName &&
+                  Object.keys(observation.providedCostDetails).length === 0 &&
+                  (!subtreeMetrics ||
+                    treeNodeTotalCost?.eq(totalCost ?? 0) === true)
+                    ? {
+                        projectId,
+                        modelId: observation.internalModelId,
+                        modelName: observation.model,
+                        pricingTierId: observation.usagePricingTierId,
+                        pricingTierName: observation.usagePricingTierName,
+                      }
+                    : undefined
+                }
+              />
               <EvaluatorBadge
                 evaluatorId={evaluatorId}
                 evaluatorName={evaluator.data?.name}

@@ -24,11 +24,7 @@ import {
   UserIdBadge,
 } from "@/src/features/traces/components/TraceMetadataBadges";
 import { LatencyBadge } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
-import {
-  CostBadge,
-  getCompactUsageTotal,
-  UsageBadge,
-} from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import { CostUsageBadge } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 
@@ -54,27 +50,14 @@ export function TraceSummaryStrip() {
     <div className="shrink-0 border-b px-3 py-2">
       <CollapsibleBadgeRow>
         <LatencyBadge latencySeconds={trace.latency ?? null} />
-        {aggregatedMetrics.totalCost != null &&
-          aggregatedMetrics.costDetails && (
-            <CostBadge
-              totalCost={aggregatedMetrics.totalCost}
-              costDetails={aggregatedMetrics.costDetails}
-            />
-          )}
-        {aggregatedMetrics.hasGenerationLike &&
-          aggregatedMetrics.usageDetails &&
-          getCompactUsageTotal({
-            inputUsage: aggregatedMetrics.inputUsage,
-            outputUsage: aggregatedMetrics.outputUsage,
-            totalUsage: aggregatedMetrics.totalUsage,
-          }) > 0 && (
-            <UsageBadge
-              inputUsage={aggregatedMetrics.inputUsage}
-              outputUsage={aggregatedMetrics.outputUsage}
-              totalUsage={aggregatedMetrics.totalUsage}
-              usageDetails={aggregatedMetrics.usageDetails}
-            />
-          )}
+        <CostUsageBadge
+          totalCost={aggregatedMetrics.totalCost}
+          costDetails={aggregatedMetrics.costDetails}
+          inputUsage={aggregatedMetrics.inputUsage}
+          outputUsage={aggregatedMetrics.outputUsage}
+          totalUsage={aggregatedMetrics.totalUsage}
+          usageDetails={aggregatedMetrics.usageDetails}
+        />
         <SessionBadge sessionId={trace.sessionId} projectId={trace.projectId} />
         <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
         {trace.tags.length > 0 && (

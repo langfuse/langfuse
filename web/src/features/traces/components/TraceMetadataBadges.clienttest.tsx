@@ -7,7 +7,7 @@ import {
   UserIdBadge,
 } from "./TraceMetadataBadges";
 import { EnvironmentBadge } from "./ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
-import { UsageBadge } from "./ObservationMetadataBadgesTooltip";
+import { CostUsageBadge } from "./ObservationMetadataBadgesTooltip";
 
 describe("TraceMetadataBadges session replay privacy", () => {
   it("blocks trace identifiers from PostHog session recordings", () => {
@@ -44,10 +44,12 @@ describe("TraceMetadataBadges session replay privacy", () => {
   });
 });
 
-describe("UsageBadge", () => {
-  it("keeps custom usage details accessible without aggregate token totals", () => {
+describe("CostUsageBadge", () => {
+  it("keeps custom usage details accessible without aggregate token totals, when there is no cost", () => {
     render(
-      <UsageBadge
+      <CostUsageBadge
+        totalCost={null}
+        costDetails={undefined}
         inputUsage={0}
         outputUsage={0}
         totalUsage={0}
@@ -60,9 +62,11 @@ describe("UsageBadge", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the total only, never the input/output split, inline", () => {
+  it("falls back to the total-only token face, never the input/output split, when there is no cost", () => {
     render(
-      <UsageBadge
+      <CostUsageBadge
+        totalCost={null}
+        costDetails={undefined}
         inputUsage={9618}
         outputUsage={582}
         totalUsage={10200}
@@ -73,5 +77,36 @@ describe("UsageBadge", () => {
     expect(screen.getByText("∑ 10,200")).toBeInTheDocument();
     expect(screen.queryByText(/9,618/)).not.toBeInTheDocument();
     expect(screen.queryByText(/→/)).not.toBeInTheDocument();
+  });
+
+  it("shows cost, not the token total, whenever a cost exists", () => {
+    render(
+      <CostUsageBadge
+        totalCost={0.016079}
+        costDetails={{ input: 0.01, output: 0.006079, total: 0.016079 }}
+        inputUsage={9618}
+        outputUsage={582}
+        totalUsage={10200}
+        usageDetails={{ input: 9618, output: 582, total: 10200 }}
+      />,
+    );
+
+    expect(screen.getByText("$0.016079")).toBeInTheDocument();
+    expect(screen.queryByText(/∑/)).not.toBeInTheDocument();
+  });
+
+  it("renders nothing when there is neither cost nor usage", () => {
+    const { container } = render(
+      <CostUsageBadge
+        totalCost={null}
+        costDetails={undefined}
+        inputUsage={0}
+        outputUsage={0}
+        totalUsage={0}
+        usageDetails={undefined}
+      />,
+    );
+
+    expect(container).toBeEmptyDOMElement();
   });
 });
