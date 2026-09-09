@@ -15,6 +15,8 @@ import {
   createTracesCh,
   createObservation,
   createTrace,
+  createEvent,
+  createEventsCh,
 } from "@langfuse/shared/src/server";
 
 const seedProjectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -95,6 +97,121 @@ describe("Create and get comments", () => {
       objectType: "TRACE",
       content: "hello",
       authorUserId: orgMemberUserId,
+    });
+  });
+
+  it("should create an observation comment when objectStartTime bounds the lookup", async () => {
+    const startTime = new Date("2024-05-15T12:00:00.000Z");
+    const observationId = randomUUID();
+    // Seed both tables so the lookup resolves regardless of the v4 write-mode
+    // routing the test environment happens to use.
+    await Promise.all([
+      createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: seedProjectId,
+          start_time: startTime,
+          type: "GENERATION",
+        }),
+      ]),
+      createObservationsCh([
+        createObservation({
+          id: observationId,
+          project_id: seedProjectId,
+          start_time: startTime,
+          type: "GENERATION",
+        }),
+      ]),
+    ]);
+
+    const commentResponse = await makeZodVerifiedAPICall(
+      PostCommentsV1Response,
+      "POST",
+      "/api/public/comments",
+      {
+        content: "bounded observation comment",
+        objectId: observationId,
+        objectType: "OBSERVATION",
+        projectId: seedProjectId,
+        objectStartTime: startTime.toISOString(),
+        authorUserId: orgMemberUserId,
+      },
+    );
+
+    const { id: commentId } = commentResponse.body;
+
+    const response = await makeZodVerifiedAPICall(
+      GetCommentV1Response,
+      "GET",
+      `/api/public/comments/${commentId}`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      id: commentId,
+      projectId: seedProjectId,
+      objectId: observationId,
+      objectType: "OBSERVATION",
+      content: "bounded observation comment",
+    });
+  });
+
+  it("should still create an observation comment when objectStartTime is a wrong/stale hint", async () => {
+    const actualStartTime = new Date("2024-05-15T12:00:00.000Z");
+    // A day the observation does NOT live on: the bounded lookup misses and
+    // must fall back to an unbounded lookup instead of surfacing a false 404.
+    const wrongStartTime = new Date("2024-05-20T12:00:00.000Z");
+    const observationId = randomUUID();
+    await Promise.all([
+      createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: seedProjectId,
+          start_time: actualStartTime,
+          type: "GENERATION",
+        }),
+      ]),
+      createObservationsCh([
+        createObservation({
+          id: observationId,
+          project_id: seedProjectId,
+          start_time: actualStartTime,
+          type: "GENERATION",
+        }),
+      ]),
+    ]);
+
+    const commentResponse = await makeZodVerifiedAPICall(
+      PostCommentsV1Response,
+      "POST",
+      "/api/public/comments",
+      {
+        content: "wrong-hint observation comment",
+        objectId: observationId,
+        objectType: "OBSERVATION",
+        projectId: seedProjectId,
+        objectStartTime: wrongStartTime.toISOString(),
+        authorUserId: orgMemberUserId,
+      },
+    );
+
+    const { id: commentId } = commentResponse.body;
+
+    const response = await makeZodVerifiedAPICall(
+      GetCommentV1Response,
+      "GET",
+      `/api/public/comments/${commentId}`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      id: commentId,
+      projectId: seedProjectId,
+      objectId: observationId,
+      objectType: "OBSERVATION",
+      content: "wrong-hint observation comment",
     });
   });
 

@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import type { DataPoint } from "@/src/features/widgets";
 import { Button } from "@/src/components/ui/button";
 // Chart type picker is view-agnostic (only depends on `DashboardWidgetChartType`),
 // so it's reused as-is rather than duplicated.

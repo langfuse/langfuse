@@ -1,4 +1,4 @@
-import { deleteDatasetItemForApi } from "@/src/features/datasets/server/publicDatasetService";
+import { deleteDatasetItemForApi } from "@/src/features/datasets/server";
 import {
   DeleteDatasetItemV1Query,
   DeleteDatasetItemV1Response,
