@@ -531,6 +531,7 @@ export function EvaluatorSetupPage(
         description,
         definition,
       });
+      hasCreatedRef.current = true;
       capture("evaluators:create", {
         ...getEvaluatorCreationAnalyticsProperties({
           evaluatorType: state.type,
@@ -562,7 +563,6 @@ export function EvaluatorSetupPage(
       await utils.evalsV2.filterOptions.invalidate({ projectId });
       if (!shouldOfferRuleAttachment(evaluator)) {
         await router.push(`/project/${projectId}/evals/${evaluator.id}`);
-        hasCreatedRef.current = true;
         return;
       }
       setSavedEvaluator({
@@ -576,7 +576,6 @@ export function EvaluatorSetupPage(
         hasCompletedTestCall,
         testRunCostUsd: lastTestRunCostUsd,
       });
-      hasCreatedRef.current = true;
     } catch (error) {
       hasCreatedRef.current = false;
       if (
