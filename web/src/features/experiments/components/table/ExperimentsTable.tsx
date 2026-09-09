@@ -33,6 +33,7 @@ import {
   BatchExportTableName,
   ActionId,
   BatchActionType,
+  buildExperimentPath,
 } from "@langfuse/shared";
 import { numberFormatter } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -600,13 +601,42 @@ export default function ExperimentsTable({
       size: 100,
       cell: ({ row }) => {
         const value: number = row.getValue("errorCount");
+        const formatted = numberFormatter(value, 0);
+
+        if (value <= 0) {
+          return (
+            <Badge
+              variant="secondary"
+              className="max-w-fit rounded-sm px-1 font-normal"
+            >
+              {formatted}
+            </Badge>
+          );
+        }
+
         return (
-          <Badge
-            variant={value > 0 ? "destructive" : "secondary"}
-            className="max-w-fit rounded-sm px-1 font-normal"
+          <Link
+            href={buildExperimentPath({
+              projectId,
+              experimentId: row.id,
+              filters: [
+                {
+                  column: "level",
+                  type: "stringOptions",
+                  operator: "any of",
+                  value: ["ERROR"],
+                },
+              ],
+            })}
+            aria-label={`View ${formatted} failing items`}
           >
-            {numberFormatter(value, 0)}
-          </Badge>
+            <Badge
+              variant="destructive"
+              className="hover:bg-destructive/80 max-w-fit cursor-pointer rounded-sm px-1 font-normal"
+            >
+              {formatted}
+            </Badge>
+          </Link>
         );
       },
       enableHiding: true,

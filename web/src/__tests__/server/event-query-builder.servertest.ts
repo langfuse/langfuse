@@ -942,4 +942,17 @@ describe("ExperimentsAggregationQueryBuilder", () => {
       startTimeFrom: "2026-01-01 00:00:00.000",
     });
   });
+
+  it("counts distinct items that carry an ERROR event", () => {
+    const { query } = new ExperimentsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("base")
+      .whereRaw("e.experiment_id != ''")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "uniqIf(e.experiment_item_id, e.level = 'ERROR') AS error_count",
+    );
+  });
 });
