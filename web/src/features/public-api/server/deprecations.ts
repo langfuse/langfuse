@@ -101,11 +101,12 @@ export const DATASET_RUNS_DEPRECATION: ApiDeprecationInfo = {
   sunsetAt: V3_SUNSET_DATE,
 };
 
-// Legacy batch writes of traces/observations → OTLP. Scores and SDK logs
-// stay on this endpoint, so the 207 only carries this object when the batch
-// included a sunset write type.
+// Legacy batch writes of traces/observations → OTLP. This route is never
+// removed: scores (and sdk-log) stay accepted. Trace/observation events are
+// rejected only in v4-only write mode, not dual or legacy — so this family
+// does not use V3_NOTICE ("endpoint will be removed").
 export const INGESTION_DEPRECATION: ApiDeprecationInfo = {
-  message: `${V3_NOTICE} Always prefer upgrading to the current Python and JS SDKs. If you use custom auto-instrumentation, only then write traces and observations via ${REPLACEMENT.otelTraces} (for example with curl). Retrieve the data via ${REPLACEMENT.observationsV2} and ${REPLACEMENT.metricsV2}.`,
+  message: `On Langfuse Cloud, Langfuse v3 is deprecated and v4-only write mode begins on ${V3_SUNSET_HUMAN}. ${V3_DELAY_NOTICE} This endpoint is never shut down; it continues to accept score events. Trace and observation events fail only in v4-only write mode, not in dual or legacy mode. Always prefer upgrading to the current Python and JS SDKs. If you use custom auto-instrumentation, only then write traces and observations via ${REPLACEMENT.otelTraces} (for example with curl). Retrieve the data via ${REPLACEMENT.observationsV2} and ${REPLACEMENT.metricsV2}.`,
   replacement: REPLACEMENT.otelTraces,
   docsUrl: DOCS.otelMigration,
   sunsetAt: V3_SUNSET_DATE,

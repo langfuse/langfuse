@@ -136,6 +136,16 @@ describe("OpenAPI deprecations", () => {
       definitionDirectory,
     )) {
       const operation = `${method.toUpperCase()} ${endpointPath}`;
+      const isIngestion =
+        method === "post" && endpointPath === "/api/public/ingestion";
+
+      // Ingestion is not removed: v4-only write mode rejects traces, scores stay.
+      if (isIngestion) {
+        expect(message, operation).toContain(V3_SUNSET_HUMAN);
+        expect(message, operation).not.toContain("will be removed");
+        expect(message, operation).not.toContain("becomes unavailable");
+        continue;
+      }
 
       expect(message, operation).toContain(
         `will be removed on ${V3_SUNSET_HUMAN}.`,
@@ -204,6 +214,16 @@ describe("OpenAPI deprecations", () => {
     );
     expect(ingestion?.message).toContain("custom auto-instrumentation");
     expect(ingestion?.message).toContain("curl");
+    expect(INGESTION_DEPRECATION.message).toContain("never shut down");
+    expect(INGESTION_DEPRECATION.message).toContain("score events");
+    expect(INGESTION_DEPRECATION.message).toContain("v4-only write mode");
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "not in dual or legacy mode",
+    );
+    expect(ingestion?.message).toContain("never shut down");
+    expect(ingestion?.message).toContain("score events");
+    expect(ingestion?.message).toContain("v4-only write mode");
+    expect(ingestion?.message).toContain("not in dual or legacy mode");
   });
 
   it("supports deprecated endpoints at a service base path", () => {
