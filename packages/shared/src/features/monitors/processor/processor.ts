@@ -168,10 +168,7 @@ export class MonitorProcessor {
       // HTTP client aborts on request_timeout) is treated as a bad/expensive
       // query so a perpetually aborting monitor pauses as ERROR_BAD_QUERY
       // instead of retrying forever.
-      if (
-        ClickHouseResourceError.is(error) &&
-        error.errorType !== "TIMEOUT"
-      ) {
+      if (ClickHouseResourceError.is(error) && error.errorType !== "TIMEOUT") {
         logger.warn("queryMetrics hit a ClickHouse resource limit; retrying", {
           errorType: error.errorType,
           projectId: event.projectId,

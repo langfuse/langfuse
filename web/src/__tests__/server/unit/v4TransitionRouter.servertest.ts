@@ -214,6 +214,12 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     contextWithLangfuseProps: () => ROOT_CONTEXT,
     ClickHouseResourceError: class ClickHouseResourceError extends Error {
       static ERROR_ADVICE_MESSAGE = "ClickHouse resource limit exceeded.";
+      static is(error: unknown): error is Error {
+        return (
+          error instanceof ClickHouseResourceError ||
+          (error instanceof Error && error.name === "ClickHouseResourceError")
+        );
+      }
       errorType = "unknown";
       tags = {};
     },
