@@ -1,11 +1,14 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { type FilterState } from "@langfuse/shared";
 
 import {
   ConnectedSessionConversationTimeline,
   type ConnectedSessionConversationTimelineItem,
 } from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/ConnectedSessionConversationTimeline";
-import { useSessionConversationTimelineController } from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/SessionConversationTimeline";
+import {
+  type SessionConversationTimelineScrollTarget,
+  useSessionConversationTimelineController,
+} from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/SessionConversationTimeline";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { computeIdleGapSeconds } from "@/src/components/session/sessionIdleGap";
 import { useDebounce } from "@/src/hooks/useDebounce";
@@ -64,6 +67,9 @@ export function ConnectedModernSessionBodyTimeline({
     new Set(),
   );
   const [visibleTraceIds, setVisibleTraceIds] = useState<string[]>([]);
+  const [scrollTarget, setScrollTarget] =
+    useState<SessionConversationTimelineScrollTarget | null>(null);
+  const scrollRequestIdRef = useRef(0);
   const [loadedTracePrefix, setLoadedTracePrefix] = useState({
     sessionId,
     chunkIndex: -1,
@@ -380,6 +386,18 @@ export function ConnectedModernSessionBodyTimeline({
   );
   const timelineController =
     useSessionConversationTimelineController(timelineTraces);
+  const handleSelect = (index: number, observationId?: string) => {
+    const traceId = timelineTraces[index]?.trace.id;
+    if (observationId && traceId) {
+      scrollRequestIdRef.current += 1;
+      setScrollTarget({
+        traceId,
+        observationId,
+        requestId: scrollRequestIdRef.current,
+      });
+    }
+    timelineController.onSelect(index, observationId);
+  };
 
   return (
     <div className="bg-background relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden lg:grid-cols-[clamp(200px,24vw,296px)_minmax(0,1fr)] lg:grid-rows-1">
@@ -396,7 +414,7 @@ export function ConnectedModernSessionBodyTimeline({
           expandedTraceIds={expandedTraceIds}
           onToggleTraceExpanded={toggleTraceExpanded}
           onFilterObservationByName={onFilterObservationByName}
-          onSelect={timelineController.onSelect}
+          onSelect={handleSelect}
           onVisibleTraceIdsChange={handleVisibleTraceIdsChange}
           hasMoreObservations={hasMoreObservations}
           isLoadingMoreObservations={
@@ -419,6 +437,7 @@ export function ConnectedModernSessionBodyTimeline({
           viewLabel={viewLabel}
           openPeek={openPeek}
           controller={timelineController}
+          scrollTarget={scrollTarget}
           onFilterObservationByName={onFilterObservationByName}
         />
       </div>

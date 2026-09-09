@@ -3,6 +3,7 @@ import { type FilterState } from "@langfuse/shared";
 import {
   SessionConversationTimeline,
   type SessionConversationTimelineController,
+  type SessionConversationTimelineScrollTarget,
 } from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/SessionConversationTimeline";
 import { type SessionObservation } from "@/src/components/session/components/ConnectedModernSessionBodyTimeline/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
@@ -30,6 +31,7 @@ export function ConnectedSessionConversationTimeline({
   viewLabel,
   openPeek,
   controller,
+  scrollTarget,
   onFilterObservationByName,
 }: {
   traces: readonly ConnectedSessionConversationTimelineItem[];
@@ -43,6 +45,7 @@ export function ConnectedSessionConversationTimeline({
     row: EventSessionTrace & { observationId?: string },
   ) => void;
   controller: SessionConversationTimelineController;
+  scrollTarget: SessionConversationTimelineScrollTarget | null;
   onFilterObservationByName: (
     name: string,
     operator: "any of" | "none of",
@@ -161,6 +164,7 @@ export function ConnectedSessionConversationTimeline({
         openPeek(trace.id, { ...trace, observationId })
       }
       controller={controller}
+      scrollTarget={scrollTarget}
       observationActions={{
         onFilterByName: onFilterObservationByName,
       }}

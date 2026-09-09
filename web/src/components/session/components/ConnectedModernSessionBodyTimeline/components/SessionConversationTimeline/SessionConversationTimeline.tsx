@@ -27,6 +27,12 @@ export type SessionConversationTimelineItem = {
 export type SessionConversationTimelineObservationActions =
   SessionObservationActions;
 
+export type SessionConversationTimelineScrollTarget = {
+  traceId: string;
+  observationId: string;
+  requestId: number;
+};
+
 export function useSessionConversationTimelineController(
   traces: readonly Pick<SessionConversationTimelineItem, "trace">[],
 ) {
@@ -129,6 +135,7 @@ export function SessionConversationTimeline({
   onOpenObservation,
   controller,
   observationActions,
+  scrollTarget,
 }: {
   traces: readonly SessionConversationTimelineItem[];
   filterMeasurementKey: string;
@@ -137,6 +144,7 @@ export function SessionConversationTimeline({
   onOpenObservation: (trace: EventSessionTrace, observationId: string) => void;
   controller: SessionConversationTimelineController;
   observationActions?: SessionConversationTimelineObservationActions;
+  scrollTarget?: SessionConversationTimelineScrollTarget | null;
 }) {
   const preparedObservations = prepareSessionTimelineObservations(
     traces.flatMap(({ observations }) => observations ?? []),
@@ -187,6 +195,7 @@ export function SessionConversationTimeline({
       onOpenObservation={onOpenObservation}
       controller={controller}
       observationActions={observationActions}
+      scrollTarget={scrollTarget ?? null}
     />
   );
 }
@@ -199,6 +208,7 @@ function SessionConversationTimelineFeed({
   onOpenObservation,
   controller,
   observationActions,
+  scrollTarget,
 }: {
   traces: readonly SessionConversationTimelineItem[];
   states: readonly PreparedSessionConversationTimelineTraceState[];
@@ -207,6 +217,7 @@ function SessionConversationTimelineFeed({
   onOpenObservation: (trace: EventSessionTrace, observationId: string) => void;
   controller: SessionConversationTimelineController;
   observationActions?: SessionConversationTimelineObservationActions;
+  scrollTarget: SessionConversationTimelineScrollTarget | null;
 }) {
   const { feedRef, virtualItems, virtualizer } = controller;
 
@@ -243,6 +254,9 @@ function SessionConversationTimelineFeed({
                   onOpenObservation(trace, observationId)
                 }
                 observationActions={observationActions}
+                scrollTarget={
+                  scrollTarget?.traceId === trace.id ? scrollTarget : null
+                }
               />
             </SessionVirtualizedRow>
           );

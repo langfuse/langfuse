@@ -540,32 +540,48 @@ function LoadedSessionConversationTimeline({
   observations,
   onOpenObservation,
   observationActions,
+  scrollTarget,
 }: {
   observations: readonly PreparedSessionTimelineItem<SessionObservation>[];
   onOpenObservation: (observationId: string) => void;
   observationActions?: SessionObservationActions;
+  scrollTarget: { observationId: string; requestId: number } | null;
 }) {
-  const [collapsedObservationIds, setCollapsedObservationIds] = useState(
-    () =>
-      new Set(
-        observations.flatMap(
-          ({ observation, phase, ancestorObservationIds }) => {
-            if (phase !== "start") return [];
-            if (ancestorObservationIds.length > 0) return [observation.id];
-            if (
-              hasPreviewValue(observation.input) ||
-              hasPreviewValue(observation.output)
-            ) {
-              return [observation.id];
-            }
-            return [];
-          },
-        ),
-      ),
-  );
+  const [collapseState, setCollapseState] = useState(() => ({
+    scrollRequestId: null as number | null,
+    observationIds: new Set(
+      observations.flatMap(({ observation, phase, ancestorObservationIds }) => {
+        if (phase !== "start") return [];
+        if (ancestorObservationIds.length > 0) return [observation.id];
+        if (
+          hasPreviewValue(observation.input) ||
+          hasPreviewValue(observation.output)
+        ) {
+          return [observation.id];
+        }
+        return [];
+      }),
+    ),
+  }));
   const [expandedToolObservationIds, setExpandedToolObservationIds] = useState(
     () => new Set<string>(),
   );
+  let collapsedObservationIds = collapseState.observationIds;
+  if (
+    scrollTarget &&
+    scrollTarget.requestId !== collapseState.scrollRequestId
+  ) {
+    const target = observations.find(
+      ({ observation }) => observation.id === scrollTarget.observationId,
+    );
+    const observationIds = new Set(collapseState.observationIds);
+    target?.ancestorObservationIds.forEach((id) => observationIds.delete(id));
+    collapsedObservationIds = observationIds;
+    setCollapseState({
+      scrollRequestId: scrollTarget.requestId,
+      observationIds,
+    });
+  }
 
   return (
     <TooltipProvider>
@@ -702,11 +718,14 @@ function LoadedSessionConversationTimeline({
                         aria-expanded={!isCollapsed}
                         aria-label={`${isCollapsed ? "Show" : "Hide"} ${formatNestedObservationCounts(nestedObservationCounts)}`}
                         onClick={() =>
-                          setCollapsedObservationIds((current) => {
-                            const next = new Set(current);
-                            if (isCollapsed) next.delete(observation.id);
-                            else next.add(observation.id);
-                            return next;
+                          setCollapseState((current) => {
+                            const observationIds = new Set(
+                              current.observationIds,
+                            );
+                            if (isCollapsed) {
+                              observationIds.delete(observation.id);
+                            } else observationIds.add(observation.id);
+                            return { ...current, observationIds };
                           })
                         }
                       >
@@ -745,6 +764,7 @@ export function SessionConversationTimelineTrace({
   onOpenTrace,
   onOpenObservation,
   observationActions,
+  scrollTarget,
 }: {
   trace: EventSessionTrace;
   turnNumber: number;
@@ -752,6 +772,7 @@ export function SessionConversationTimelineTrace({
   onOpenTrace: () => void;
   onOpenObservation: (observationId: string) => void;
   observationActions?: SessionObservationActions;
+  scrollTarget: { observationId: string; requestId: number } | null;
 }) {
   return (
     <div
@@ -852,6 +873,7 @@ export function SessionConversationTimelineTrace({
           observations={state.observations}
           onOpenObservation={onOpenObservation}
           observationActions={observationActions}
+          scrollTarget={scrollTarget}
         />
       )}
     </div>
