@@ -14,10 +14,10 @@ import isEqual from "lodash/isEqual";
 import {
   ModernSessionFilterDialogContent,
   type ModernSessionFilterDialogViewActions,
-} from "@/src/features/annotation-queues/components/session/ModernSessionFilterDialogContent";
-import { ModernSessionSaveViewDialogContent } from "@/src/features/annotation-queues/components/session/ModernSessionSaveViewDialogContent";
-import { SESSION_DETAIL_SYSTEM_PRESETS } from "@/src/features/annotation-queues/components/session/session-detail-presets";
-import { type ModernSessionSidebarFilterControls } from "@/src/features/annotation-queues/components/session/ModernSessionSidebar";
+} from "@/src/features/sessions/ModernSessionFilterDialogContent";
+import { ModernSessionSaveViewDialogContent } from "@/src/features/sessions/ModernSessionSaveViewDialogContent";
+import { SESSION_DETAIL_SYSTEM_PRESETS } from "@/src/features/sessions/session-detail-presets";
+import { type ModernSessionSidebarFilterControls } from "@/src/features/sessions/ModernSessionSidebar";
 import {
   TableViewPresetsDrawerContent,
   TableViewPresetsDrawerRoot,

@@ -2,7 +2,7 @@ import { type ComponentProps } from "react";
 import { fn } from "storybook/test";
 
 import preview from "@/.storybook/preview";
-import { ModernSessionSaveViewDialogContent } from "@/src/features/annotation-queues/components/session/ModernSessionSaveViewDialogContent";
+import { ModernSessionSaveViewDialogContent } from "@/src/features/sessions/ModernSessionSaveViewDialogContent";
 import { Dialog } from "@/src/components/ui/dialog";
 
 const defaultArgs = {

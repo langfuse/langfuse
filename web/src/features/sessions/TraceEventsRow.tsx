@@ -6,14 +6,14 @@ import Link from "next/link";
 import React from "react";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { deepParseJson, type FilterState } from "@langfuse/shared";
-import { SessionObservationIO } from "@/src/features/annotation-queues/components/session/SessionObservationIO";
+import { SessionObservationIO } from "@/src/features/sessions/SessionObservationIO";
 import { FilterX } from "lucide-react";
-import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/features/annotation-queues/components/session/session-detail-presets";
-import { SessionTraceActionButtons } from "@/src/features/annotation-queues/components/session/SessionTraceActionButtons";
+import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/features/sessions/session-detail-presets";
+import { SessionTraceActionButtons } from "@/src/features/sessions/SessionTraceActionButtons";
 import {
   getVisibleSessionObservations,
   SESSION_CARD_OBSERVATIONS_NOTICE_COUNT,
-} from "@/src/features/annotation-queues/components/session/sessionVisibleObservations";
+} from "@/src/features/sessions/sessionVisibleObservations";
 import {
   hasRenderableConversationMessages,
   type IOPreviewContentMode,

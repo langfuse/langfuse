@@ -4,7 +4,7 @@ import preview from "@/.storybook/preview";
 import {
   ModernSessionViewDropdownMenu,
   type ModernSessionViewDropdownMenuControls,
-} from "@/src/features/annotation-queues/components/session/ModernSessionViewDropdownMenu";
+} from "@/src/features/sessions/ModernSessionViewDropdownMenu";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
