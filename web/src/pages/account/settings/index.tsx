@@ -26,10 +26,7 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { useSession } from "next-auth/react";
-import {
-  redirectToSignIn,
-  signOutCleanly,
-} from "@/src/features/auth/lib/signOut";
+import { signOutCleanly } from "@/src/features/auth/lib/signOut";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { useRouter } from "next/router";
@@ -262,11 +259,12 @@ function SignOutAllSessionsButton() {
       return;
     }
 
+    // Sessions are already revoked server-side at this point, so a failure to
+    // clear local state must not be reported as a failed revocation.
     try {
       await signOutCleanly();
     } catch (error) {
       reportNonTrpcError(error, "account");
-      redirectToSignIn();
     }
   };
 

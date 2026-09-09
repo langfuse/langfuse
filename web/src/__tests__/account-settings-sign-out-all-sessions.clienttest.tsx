@@ -4,14 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mutateAsyncMock,
   signOutCleanlyMock,
-  redirectToSignInMock,
   showSuccessToastMock,
   showErrorToastMock,
   reportNonTrpcErrorMock,
 } = vi.hoisted(() => ({
   mutateAsyncMock: vi.fn(),
   signOutCleanlyMock: vi.fn(),
-  redirectToSignInMock: vi.fn(),
   showSuccessToastMock: vi.fn(),
   showErrorToastMock: vi.fn(),
   reportNonTrpcErrorMock: vi.fn(),
@@ -50,7 +48,6 @@ vi.mock("@/src/components/PagedSettingsContainer", () => ({
 }));
 
 vi.mock("@/src/features/auth/lib/signOut", () => ({
-  redirectToSignIn: redirectToSignInMock,
   signOutCleanly: signOutCleanlyMock,
 }));
 
@@ -132,7 +129,7 @@ describe("SignOutAllSessionsButton", () => {
       "Failed to Sign Out of All Sessions",
       expect.anything(),
     );
-    expect(redirectToSignInMock).toHaveBeenCalledOnce();
+    expect(reportNonTrpcErrorMock).toHaveBeenCalled();
   });
 
   it("reports mutation failure without attempting local sign-out", async () => {
