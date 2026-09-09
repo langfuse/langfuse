@@ -6,9 +6,6 @@ import {
   FileWarning,
   MessageSquareOff,
   MoreHorizontal,
-  Plus,
-  SquarePen,
-  MessageSquare,
 } from "lucide-react";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import {
@@ -24,7 +21,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import {
@@ -66,13 +62,7 @@ export type PreparedSessionConversationTimelineTraceState =
     };
 
 export type SessionObservationActions = {
-  canAnnotate: boolean;
-  canAddComment: boolean;
-  canAddToDataset: boolean;
   onFilterByName: (name: string, operator: "any of" | "none of") => void;
-  onAnnotate: (observation: SessionObservation) => void;
-  onAddComment: (observation: SessionObservation) => void;
-  onAddToDataset: (observation: SessionObservation) => void;
 };
 
 const toPreviewText = (value: unknown) =>
@@ -93,45 +83,23 @@ function SessionObservationActionsMenuContent({
   return (
     <DropdownMenuContent align="end" sideOffset={0}>
       {observation.name ? (
-        <>
-          <DropdownMenuItem
-            onSelect={() =>
-              actions.onFilterByName(observation.name as string, "any of")
-            }
-          >
-            Only show observations with the same name
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={() =>
-              actions.onFilterByName(observation.name as string, "none of")
-            }
-          >
-            Exclude observations with the same name
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-        </>
+        <DropdownMenuItem
+          onSelect={() =>
+            actions.onFilterByName(observation.name as string, "any of")
+          }
+        >
+          Only show observations with the same name
+        </DropdownMenuItem>
       ) : null}
-      <DropdownMenuItem
-        disabled={!actions.canAnnotate}
-        onSelect={() => actions.onAnnotate(observation)}
-      >
-        <SquarePen className="mr-2 h-3.5 w-3.5" aria-hidden="true" />
-        Annotate
-      </DropdownMenuItem>
-      <DropdownMenuItem
-        disabled={!actions.canAddComment}
-        onSelect={() => actions.onAddComment(observation)}
-      >
-        <MessageSquare className="mr-2 h-3.5 w-3.5" aria-hidden="true" />
-        Add comment
-      </DropdownMenuItem>
-      <DropdownMenuItem
-        disabled={!actions.canAddToDataset}
-        onSelect={() => actions.onAddToDataset(observation)}
-      >
-        <Plus className="mr-2 h-3.5 w-3.5" aria-hidden="true" />
-        Add to dataset
-      </DropdownMenuItem>
+      {observation.name ? (
+        <DropdownMenuItem
+          onSelect={() =>
+            actions.onFilterByName(observation.name as string, "none of")
+          }
+        >
+          Exclude observations with the same name
+        </DropdownMenuItem>
+      ) : null}
     </DropdownMenuContent>
   );
 }
@@ -292,7 +260,7 @@ function SessionTimelineToolRow({
           <time className="text-muted-foreground font-mono text-[10px]">
             {startTime.toLocaleTimeString()}
           </time>
-          {observation && actions ? (
+          {observation?.name && actions ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button

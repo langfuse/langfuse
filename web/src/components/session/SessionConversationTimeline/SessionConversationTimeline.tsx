@@ -24,23 +24,8 @@ export type SessionConversationTimelineItem = {
   observations: readonly SessionObservation[] | null | undefined;
 };
 
-export type SessionConversationTimelineObservationActions = Pick<
-  SessionObservationActions,
-  "canAnnotate" | "canAddComment" | "canAddToDataset" | "onFilterByName"
-> & {
-  onAnnotate: (
-    trace: EventSessionTrace,
-    observation: SessionObservation,
-  ) => void;
-  onAddComment: (
-    trace: EventSessionTrace,
-    observation: SessionObservation,
-  ) => void;
-  onAddToDataset: (
-    trace: EventSessionTrace,
-    observation: SessionObservation,
-  ) => void;
-};
+export type SessionConversationTimelineObservationActions =
+  SessionObservationActions;
 
 export function useSessionConversationTimelineController(
   traces: readonly Pick<SessionConversationTimelineItem, "trace">[],
@@ -257,19 +242,7 @@ function SessionConversationTimelineFeed({
                 onOpenObservation={(observationId) =>
                   onOpenObservation(trace, observationId)
                 }
-                observationActions={
-                  observationActions
-                    ? {
-                        ...observationActions,
-                        onAnnotate: (observation) =>
-                          observationActions.onAnnotate(trace, observation),
-                        onAddComment: (observation) =>
-                          observationActions.onAddComment(trace, observation),
-                        onAddToDataset: (observation) =>
-                          observationActions.onAddToDataset(trace, observation),
-                      }
-                    : undefined
-                }
+                observationActions={observationActions}
               />
             </SessionVirtualizedRow>
           );

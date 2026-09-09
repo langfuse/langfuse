@@ -188,8 +188,6 @@ type DialogControllerProps = {
   onDismiss?: () => void;
   renderContent: (control: { closeDialog: () => void }) => React.ReactNode;
   size: React.ComponentProps<typeof DialogContent>["size"];
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
 };
 
 const DialogController = ({
@@ -199,12 +197,8 @@ const DialogController = ({
   onDismiss,
   renderContent,
   size,
-  open: controlledOpen,
-  onOpenChange: controlledOnOpenChange,
 }: DialogControllerProps) => {
-  const [internalIsOpen, setInternalIsOpen] = React.useState(false);
-  const isOpen = controlledOpen ?? internalIsOpen;
-  const setIsOpen = controlledOnOpenChange ?? setInternalIsOpen;
+  const [isOpen, setIsOpen] = React.useState(false);
   const closeDialog = () => {
     if (onBeforeClose?.() === false) return false;
     setIsOpen(false);

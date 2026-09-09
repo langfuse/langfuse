@@ -1784,13 +1784,7 @@ const implementationCodingAgentTrace = {
 } satisfies TimelineProps["traces"][number]["trace"];
 
 const observationActions = {
-  canAnnotate: true,
-  canAddComment: true,
-  canAddToDataset: true,
   onFilterByName: fn(),
-  onAnnotate: fn(),
-  onAddComment: fn(),
-  onAddToDataset: fn(),
 } satisfies NonNullable<TimelineProps["observationActions"]>;
 
 const loadedArgs = {
@@ -2140,18 +2134,12 @@ export const TruncatedObservation = meta.story({
   },
 });
 
-export const UseObservationActions = meta.story({
-  name: "(Test) Uses Observation Actions",
+export const UseObservationFilters = meta.story({
+  name: "(Test) Uses Observation Filters",
   args: {
     ...loadedArgs,
     observationActions: {
-      canAnnotate: true,
-      canAddComment: true,
-      canAddToDataset: true,
       onFilterByName: fn(),
-      onAnnotate: fn(),
-      onAddComment: fn(),
-      onAddToDataset: fn(),
     },
   },
   play: async ({ args, canvasElement }) => {
@@ -2173,14 +2161,14 @@ export const UseObservationActions = meta.story({
       }),
     ).toBeInTheDocument();
     await expect(
-      page.getByRole("menuitem", { name: "Annotate" }),
-    ).toBeInTheDocument();
+      page.queryByRole("menuitem", { name: "Annotate" }),
+    ).not.toBeInTheDocument();
     await expect(
-      page.getByRole("menuitem", { name: "Add comment" }),
-    ).toBeInTheDocument();
+      page.queryByRole("menuitem", { name: "Add comment" }),
+    ).not.toBeInTheDocument();
     await expect(
-      page.getByRole("menuitem", { name: "Add to dataset" }),
-    ).toBeInTheDocument();
+      page.queryByRole("menuitem", { name: "Add to dataset" }),
+    ).not.toBeInTheDocument();
 
     await userEvent.click(
       page.getByRole("menuitem", {
@@ -2190,29 +2178,6 @@ export const UseObservationActions = meta.story({
     await expect(args.observationActions?.onFilterByName).toHaveBeenCalledWith(
       "Plan support response",
       "any of",
-    );
-
-    await userEvent.click(actionsButton);
-    await userEvent.click(page.getByRole("menuitem", { name: "Annotate" }));
-    await expect(args.observationActions?.onAnnotate).toHaveBeenCalledWith(
-      trace,
-      observations[0],
-    );
-
-    await userEvent.click(actionsButton);
-    await userEvent.click(page.getByRole("menuitem", { name: "Add comment" }));
-    await expect(args.observationActions?.onAddComment).toHaveBeenCalledWith(
-      trace,
-      observations[0],
-    );
-
-    await userEvent.click(actionsButton);
-    await userEvent.click(
-      page.getByRole("menuitem", { name: "Add to dataset" }),
-    );
-    await expect(args.observationActions?.onAddToDataset).toHaveBeenCalledWith(
-      trace,
-      observations[0],
     );
     await waitFor(() =>
       expect(

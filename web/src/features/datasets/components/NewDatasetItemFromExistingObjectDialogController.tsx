@@ -19,8 +19,6 @@ export function NewDatasetItemFromExistingObjectDialogController(props: {
   input: Prisma.JsonValue | null;
   output: Prisma.JsonValue | null;
   metadata: MetadataDomainClient;
-  isOpen?: boolean;
-  onOpenChange?: (open: boolean) => void;
   children: (control: {
     openDialog: () => void;
     Trigger: typeof DialogTrigger;
@@ -45,8 +43,6 @@ export function NewDatasetItemFromExistingObjectDialogController(props: {
     <DialogController
       closeOnInteractionOutside={false}
       size="xxl"
-      open={props.isOpen}
-      onOpenChange={props.onOpenChange}
       renderContent={({ closeDialog }) => (
         <>
           <DialogHeader>
