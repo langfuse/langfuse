@@ -170,8 +170,8 @@ export function PromptEditorContent({
       onDragCancel={() => setActiveMessageId(null)}
       onDragEnd={handleDragEnd}
     >
-      <div className="rounded-md border">
-        <div className="bg-muted/30 flex flex-wrap items-center justify-between gap-2 rounded-t-md border-b px-2 py-1.5">
+      <div className="bg-card text-card-foreground rounded-md border">
+        <div className="bg-secondary text-secondary-foreground flex min-h-9 flex-wrap items-center justify-between gap-2 rounded-t-md border-b px-2 py-1.5">
           <span className="text-muted-foreground text-xs">
             {state.promptMessages.length}{" "}
             {state.promptMessages.length === 1 ? "message" : "messages"}
@@ -233,18 +233,6 @@ export function PromptEditorContent({
                 {combinedPrepared.promptPreviewDisabledReason}
               </span>
             ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                state.actions.setPromptPreviewEnabled(false);
-                state.actions.addPromptMessage();
-              }}
-            >
-              <Plus className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-              Add message
-            </Button>
           </div>
         </div>
         <div className="flex flex-col gap-2 p-2">
@@ -272,6 +260,19 @@ export function PromptEditorContent({
               />
             ))}
           </SortableContext>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-foreground hover:text-foreground h-6 w-full justify-start gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
+            onClick={() => {
+              state.actions.setPromptPreviewEnabled(false);
+              state.actions.addPromptMessage();
+            }}
+          >
+            <Plus className="h-3.5 w-3.5 shrink-0" />
+            Add message
+          </Button>
         </div>
       </div>
       <DragOverlay dropAnimation={null}>
