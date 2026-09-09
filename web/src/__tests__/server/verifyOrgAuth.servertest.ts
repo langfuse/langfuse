@@ -58,8 +58,11 @@ let projectPublicKey = "";
 let originalMigration: string | undefined;
 let originalAdminApiKey: string | undefined;
 
-const reqWith = (headers: Record<string, string | undefined>): NextApiRequest =>
-  ({ headers, method: "GET" }) as unknown as NextApiRequest;
+const reqWith = (
+  headers: Record<string, string | undefined>,
+  query: Record<string, string> = {},
+): NextApiRequest =>
+  ({ headers, method: "GET", query }) as unknown as NextApiRequest;
 
 const setMode = (mode: string) => {
   (env as any).API_AUTH_MIGRATION = mode;
@@ -116,8 +119,7 @@ const projectNestedUnderModes = async (
   action: ProjectAction = "apiKeys:read",
 ) => {
   const params: VerifyOrgAuthParams = {
-    req: reqWith({ authorization }),
-    projectId: target,
+    req: reqWith({ authorization }, { projectId: target }),
     action,
   };
   setMode("legacy");

@@ -9,13 +9,13 @@ import { ForbiddenError, InvalidRequestError } from "@langfuse/shared";
 const {
   env,
   mockVerifyScope,
-  mockEnforceOrgAuth,
+  mockEnforceAuth,
   mockDiffResults,
   mockRecordCoverage,
 } = vi.hoisted(() => ({
   env: { API_AUTH_MIGRATION: "legacy" as string },
   mockVerifyScope: vi.fn(),
-  mockEnforceOrgAuth: vi.fn(),
+  mockEnforceAuth: vi.fn(),
   mockDiffResults: vi.fn(),
   mockRecordCoverage: vi.fn(),
 }));
@@ -28,8 +28,8 @@ vi.mock("@/src/features/public-api/server/apiAuth", () => ({
   },
 }));
 
-vi.mock("@/src/features/auth/policy/enforceOrgAuth", () => ({
-  enforceOrgAuth: mockEnforceOrgAuth,
+vi.mock("@/src/features/auth/policy/enforceAuth", () => ({
+  enforceAuth: mockEnforceAuth,
 }));
 
 vi.mock("@/src/features/auth/policy/shadow", async (importOriginal) => ({
@@ -92,13 +92,13 @@ describe("org direct seam verifyOrgAuth", () => {
   const legacyInvalid = () =>
     mockVerifyScope.mockResolvedValue({ validKey: false, error: "bad key" });
   const authzAllows = () =>
-    mockEnforceOrgAuth.mockResolvedValue({
+    mockEnforceAuth.mockResolvedValue({
       success: true,
       context: { principal: apiKeyPrincipal("ORGANIZATION"), policies: [] },
-      orgId: "org_1",
+      target: { orgId: "org_1" },
     });
   const authzDenies = () =>
-    mockEnforceOrgAuth.mockResolvedValue({
+    mockEnforceAuth.mockResolvedValue({
       success: false,
       error: new ForbiddenError("nope"),
     });
@@ -109,10 +109,10 @@ describe("org direct seam verifyOrgAuth", () => {
   });
 
   describe("legacy mode never runs the new pipeline", () => {
-    it("returns the legacy scope and skips enforceOrgAuth", async () => {
+    it("returns the legacy scope and skips enforceAuth", async () => {
       legacyOrgKey();
       expect(await call()).toEqual({ validKey: true, scope: orgScope });
-      expect(mockEnforceOrgAuth).not.toHaveBeenCalled();
+      expect(mockEnforceAuth).not.toHaveBeenCalled();
     });
 
     it("returns the legacy 401 with the auth message", async () => {
@@ -135,11 +135,11 @@ describe("org direct seam verifyOrgAuth", () => {
   });
 
   describe("an unset migration mode falls back to legacy", () => {
-    it("returns the legacy scope and skips enforceOrgAuth", async () => {
+    it("returns the legacy scope and skips enforceAuth", async () => {
       env.API_AUTH_MIGRATION = undefined as unknown as string;
       legacyOrgKey();
       expect(await call()).toEqual({ validKey: true, scope: orgScope });
-      expect(mockEnforceOrgAuth).not.toHaveBeenCalled();
+      expect(mockEnforceAuth).not.toHaveBeenCalled();
     });
   });
 
@@ -188,17 +188,17 @@ describe("org direct seam verifyOrgAuth", () => {
     it("passes the route's action to the new pipeline", async () => {
       authzAllows();
       await call();
-      expect(mockEnforceOrgAuth).toHaveBeenCalledWith({
-        headers: req.headers,
+      expect(mockEnforceAuth).toHaveBeenCalledWith({
+        req,
         action: "projects:read",
       });
     });
 
     it("500s when the resolved org is absent from the principal", async () => {
-      mockEnforceOrgAuth.mockResolvedValue({
+      mockEnforceAuth.mockResolvedValue({
         success: true,
         context: { principal: apiKeyPrincipal("ORGANIZATION"), policies: [] },
-        orgId: "org_2",
+        target: { orgId: "org_2" },
       });
       expect(await call()).toMatchObject({ validKey: false, status: 500 });
     });
@@ -213,7 +213,7 @@ describe("org direct seam verifyOrgAuth", () => {
     });
 
     it("surfaces a non-403 new denial with its own message", async () => {
-      mockEnforceOrgAuth.mockResolvedValue({
+      mockEnforceAuth.mockResolvedValue({
         success: false,
         error: new InvalidRequestError("no target"),
       });

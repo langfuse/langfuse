@@ -6,13 +6,13 @@ import { ForbiddenError } from "@langfuse/shared";
 const {
   env,
   mockLegacyVerifyAuth,
-  mockEnforceProjectAuth,
+  mockEnforceAuth,
   mockDiffResults,
   mockRecordCoverage,
 } = vi.hoisted(() => ({
   env: { API_AUTH_MIGRATION: "legacy" as string },
   mockLegacyVerifyAuth: vi.fn(),
-  mockEnforceProjectAuth: vi.fn(),
+  mockEnforceAuth: vi.fn(),
   mockDiffResults: vi.fn(),
   mockRecordCoverage: vi.fn(),
 }));
@@ -23,8 +23,8 @@ vi.mock("@/src/features/public-api/server/verifyProjectApiKeyAuth", () => ({
   verifyAuth: mockLegacyVerifyAuth,
 }));
 
-vi.mock("@/src/features/auth/policy/enforceProjectAuth", () => ({
-  enforceProjectAuth: mockEnforceProjectAuth,
+vi.mock("@/src/features/auth/policy/enforceAuth", () => ({
+  enforceAuth: mockEnforceAuth,
 }));
 
 vi.mock("@/src/features/auth/policy/shadow", async (importOriginal) => ({
@@ -46,9 +46,9 @@ describe("project seam verifyProjectAuth", () => {
   const legacyDenies = (status: number) =>
     mockLegacyVerifyAuth.mockRejectedValue({ status, message: "legacy" });
   const authzAllows = () =>
-    mockEnforceProjectAuth.mockResolvedValue({ success: true });
+    mockEnforceAuth.mockResolvedValue({ success: true });
   const authzDenies = () =>
-    mockEnforceProjectAuth.mockResolvedValue({
+    mockEnforceAuth.mockResolvedValue({
       success: false,
       error: new ForbiddenError("nope"),
     });
@@ -62,7 +62,7 @@ describe("project seam verifyProjectAuth", () => {
   };
   const apiKeyContextResult = (presentation: "privateKey" | "publicKey") => ({
     success: true as const,
-    projectId: "p1",
+    target: { projectId: "p1" },
     context: {
       principal: {
         kind: "apiKey" as const,
@@ -79,7 +79,7 @@ describe("project seam verifyProjectAuth", () => {
     },
   });
   const authzAllowsApiKey = (presentation: "privateKey" | "publicKey") =>
-    mockEnforceProjectAuth.mockResolvedValue(apiKeyContextResult(presentation));
+    mockEnforceAuth.mockResolvedValue(apiKeyContextResult(presentation));
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -87,16 +87,16 @@ describe("project seam verifyProjectAuth", () => {
   });
 
   describe("legacy mode never runs the new pipeline", () => {
-    it("returns the legacy scope and skips enforceProjectAuth", async () => {
+    it("returns the legacy scope and skips enforceAuth", async () => {
       legacyAllows();
       expect(await call()).toBe(legacyScope);
-      expect(mockEnforceProjectAuth).not.toHaveBeenCalled();
+      expect(mockEnforceAuth).not.toHaveBeenCalled();
     });
 
     it("rethrows the legacy error unchanged", async () => {
       legacyDenies(403);
       await expect(call()).rejects.toEqual({ status: 403, message: "legacy" });
-      expect(mockEnforceProjectAuth).not.toHaveBeenCalled();
+      expect(mockEnforceAuth).not.toHaveBeenCalled();
     });
   });
 
@@ -109,7 +109,7 @@ describe("project seam verifyProjectAuth", () => {
       legacyAllows();
       authzDenies();
       expect(await call()).toBe(legacyScope);
-      expect(mockEnforceProjectAuth).not.toHaveBeenCalled();
+      expect(mockEnforceAuth).not.toHaveBeenCalled();
       expect(mockDiffResults).not.toHaveBeenCalled();
       expect(mockRecordCoverage).not.toHaveBeenCalled();
     });

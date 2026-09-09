@@ -135,7 +135,7 @@ function invariantBreak(message: string): ErrorResult<InternalServerError> {
 }
 
 /** ScopeTarget is the resolved resource a seam maps the principal onto. */
-export type ScopeTarget = { orgId: string } | { projectId: string };
+type ScopeTarget = { orgId: string } | { projectId: string };
 
 /** ScopeResult is the mapped scope, or the typed error an unmappable principal raises. */
 export type ScopeResult =

@@ -24,6 +24,13 @@ export const allOrganizationActions: OrganizationAction[] = [
   ...organizationScopes,
 ];
 
+/** organizationActionSet is allOrganizationActions indexed for membership tests. */
+const organizationActionSet: ReadonlySet<string> = new Set(organizationScopes);
+
+/** isOrgAction reports whether an action belongs to the disjoint org vocabulary. */
+export const isOrgAction = (action: Action): action is OrganizationAction =>
+  organizationActionSet.has(action);
+
 /** Wildcard is the type of the wildcard resource matcher literal. */
 type Wildcard = typeof wildcard;
 

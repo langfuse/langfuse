@@ -7,7 +7,7 @@ import {
   verifyAuth as verifyLegacyAuth,
   type RouteAccessLevel,
 } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
-import { enforceProjectAuth } from "@/src/features/auth/policy/enforceProjectAuth";
+import { enforceAuth } from "@/src/features/auth/policy/enforceAuth";
 import { toApiAccessScope } from "@/src/features/auth/policy/toApiAccessScope";
 import {
   diffResults,
@@ -33,9 +33,7 @@ async function enforceOnly(
   if (!authz.success) {
     throw { status: authz.error.httpCode, message: authz.error.message };
   }
-  const mapped = await toApiAccessScope(authz.context, {
-    projectId: authz.projectId,
-  });
+  const mapped = await toApiAccessScope(authz.context, authz.target);
   if (!mapped.success) {
     throw { status: mapped.error.httpCode, message: mapped.error.message };
   }
@@ -64,10 +62,10 @@ async function legacyOnly(params: VerifyAuthParams): Promise<VerifyAuthResult> {
   return legacy.auth;
 }
 
-/** runNewAuth runs the new project pipeline for the request's action and route opt-ins. */
+/** runNewAuth runs the new pipeline for the request's action and route opt-ins. */
 function runNewAuth(params: VerifyAuthParams) {
-  return enforceProjectAuth({
-    headers: params.req.headers,
+  return enforceAuth({
+    req: params.req,
     action: params.action,
     allowInAppAgentKey: params.allowInAppAgentKey,
     isAdminApiKeyAuthAllowed: params.isAdminApiKeyAuthAllowed,
