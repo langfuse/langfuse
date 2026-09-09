@@ -5,21 +5,11 @@ type PrismaQueryable = {
 };
 
 /**
- * Read the Postgres clock so login and revocation timestamps share one
- * authoritative timeline across web replicas.
+ * Login and revocation timestamps are both read from the Postgres clock so
+ * they share one authoritative timeline across web replicas. A login is
+ * ordered strictly after any existing revocation boundary, which
+ * `sessions_valid_after` stores at millisecond precision.
  */
-export async function getDatabaseNow(
-  db: PrismaQueryable = prisma,
-): Promise<Date> {
-  const [row] = await db.$queryRaw<{ now: Date }[]>`
-    SELECT timezone('UTC', clock_timestamp()) AS now
-  `;
-  if (!row?.now) {
-    throw new Error("Failed to read database clock");
-  }
-  return row.now;
-}
-
 export async function getSessionLoginAt(
   email: string,
   db: PrismaQueryable = prisma,

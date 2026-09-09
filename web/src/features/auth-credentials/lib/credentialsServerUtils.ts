@@ -1,9 +1,6 @@
 import { createHash } from "crypto";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
-import {
-  advanceSessionsValidAfterForEmail,
-  getDatabaseNow,
-} from "@/src/features/auth/lib/databaseClock";
+import { advanceSessionsValidAfterForEmail } from "@/src/features/auth/lib/databaseClock";
 import type { AdClickIds } from "@/src/features/auth";
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
@@ -86,9 +83,9 @@ export async function consumeEmailOtpAndUpdatePassword({
 
   const identifier = email.toLowerCase();
   const hashedToken = hashEmailOtpToken(token);
+  const now = new Date();
 
   const passwordUpdated = await prisma.$transaction(async (tx) => {
-    const now = await getDatabaseNow(tx);
     const consumed = await tx.verificationToken.deleteMany({
       where: {
         identifier,

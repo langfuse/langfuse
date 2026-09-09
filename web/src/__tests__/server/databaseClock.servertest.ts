@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   advanceSessionsValidAfterForUser,
-  getDatabaseNow,
   getSessionLoginAt,
 } from "@/src/features/auth/lib/databaseClock";
 import { prisma } from "@langfuse/shared/src/db";
@@ -14,16 +13,6 @@ describe("database session clock", () => {
   afterEach(async () => {
     await prisma.user.deleteMany({ where: { id: { in: userIds } } });
     userIds.length = 0;
-  });
-
-  it("returns a Date from Postgres clock_timestamp", async () => {
-    const before = Date.now() - 5_000;
-    const now = await getDatabaseNow(prisma);
-    const after = Date.now() + 5_000;
-
-    expect(now).toBeInstanceOf(Date);
-    expect(now.getTime()).toBeGreaterThanOrEqual(before);
-    expect(now.getTime()).toBeLessThanOrEqual(after);
   });
 
   it("orders a new login strictly after the revocation boundary", async () => {
