@@ -148,6 +148,7 @@ export const listCommentsForApi = async ({
   objectType,
   objectId,
   authorUserId,
+  content,
   limit,
   page,
 }: ListCommentsInput) => {
@@ -156,6 +157,9 @@ export const listCommentsForApi = async ({
     objectType: objectType ?? undefined,
     objectId: objectId ?? undefined,
     authorUserId: authorUserId ?? undefined,
+    ...(content && {
+      content: { contains: content, mode: "insensitive" as const },
+    }),
   };
 
   const [comments, totalItems] = await Promise.all([
