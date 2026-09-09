@@ -1,5 +1,5 @@
 import type { UIFilter } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { filterRank } from "@/src/features/search-bar/lib/rank";
+import { filterRank } from "@/src/features/search-bar";
 
 // Pure display helpers for the faceted filter sidebar
 // (data-table-controls.tsx). No React, no state — unit-testable.

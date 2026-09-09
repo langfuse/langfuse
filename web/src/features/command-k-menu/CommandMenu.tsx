@@ -21,7 +21,7 @@ import { useAccountSettingsPages } from "@/src/pages/account/settings";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 
 type IdNavigationItem = {
   type: "trace_id" | "observation_id";
