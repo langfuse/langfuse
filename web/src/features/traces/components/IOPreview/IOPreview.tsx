@@ -283,6 +283,7 @@ export function IOPreview({
           input={input}
           output={output}
           status={status}
+          attributes={attributes}
           metadata={metadata}
           outputCorrection={outputCorrection}
           parsedInput={parsedInput}

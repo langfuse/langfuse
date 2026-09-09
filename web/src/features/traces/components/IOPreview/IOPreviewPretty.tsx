@@ -112,7 +112,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   hideInput?: boolean;
   // Whether to show metadata section (default: false)
   showMetadata?: boolean;
-  // Fixed-key attributes rendered as a light list above the IO sections
+  // Fixed-key attributes, rendered between Output and Metadata
   attributes?: AttributeRow[];
   observationId?: string;
   projectId: string;
@@ -292,12 +292,6 @@ export function IOPreviewPretty({
 
   return (
     <div>
-      {showData && attributes && attributes.length > 0 ? (
-        <div className="px-2 pt-1 pb-3">
-          <ObservationAttributesList rows={attributes} />
-        </div>
-      ) : null}
-
       {showData && status ? (
         <StatusMessageSection status={status} currentView="pretty" />
       ) : null}
@@ -354,6 +348,12 @@ export function IOPreviewPretty({
       ) : null}
 
       {/* Metadata Section */}
+      {showData && attributes && attributes.length > 0 ? (
+        <div className="px-2 pt-3 pb-1">
+          <ObservationAttributesList rows={attributes} />
+        </div>
+      ) : null}
+
       {showData && shouldShowMetadata && (
         <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
           <PrettyJsonView

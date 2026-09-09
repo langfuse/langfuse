@@ -1,6 +1,10 @@
 import { useMemo } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import {
+  type AttributeRow,
+  ObservationAttributesList,
+} from "@/src/features/traces/components/ObservationAttributesList";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
@@ -24,6 +28,8 @@ export interface IOPreviewJSONSimpleProps {
   isLoading?: boolean;
   isParsing?: boolean;
   hideIfNull?: boolean;
+  // Fixed-key attributes, rendered between Output and Metadata
+  attributes?: AttributeRow[];
   media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
@@ -68,6 +74,7 @@ export function IOPreviewJSONSimple({
   isLoading = false,
   isParsing = false,
   hideIfNull = false,
+  attributes,
   hideOutput = false,
   hideInput = false,
   media,
@@ -207,6 +214,11 @@ export function IOPreviewJSONSimple({
           environment={environment}
         />
       )}
+      {attributes && attributes.length > 0 ? (
+        <div className="px-2 pt-3 pb-1">
+          <ObservationAttributesList rows={attributes} />
+        </div>
+      ) : null}
       {showMetadata &&
         (metadataTooLarge ? (
           <LargeJsonFieldFallback
