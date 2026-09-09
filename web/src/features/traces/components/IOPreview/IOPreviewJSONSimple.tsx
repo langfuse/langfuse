@@ -139,7 +139,7 @@ export function IOPreviewJSONSimple({
   const downloadName = observationId ?? traceId;
 
   return (
-    <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+    <div className="[&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
       {status ? (
         <StatusMessageSection status={status} currentView="json" />
       ) : null}
@@ -215,7 +215,7 @@ export function IOPreviewJSONSimple({
         />
       )}
       {attributes && attributes.length > 0 ? (
-        <div className="px-2 pt-3 pb-1">
+        <div className="px-3 pt-3 pb-1">
           <ObservationAttributesList
             rows={attributes}
             actions={{

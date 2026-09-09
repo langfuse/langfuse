@@ -137,8 +137,10 @@ function AttributeRowActions({
 }) {
   const router = useRouter();
   const filter = attributeFilter(row, actions.filterTarget);
+  // Same grammar the search bar shows once the filter lands: `key:value`,
+  // quoted when the value would not survive as a bare token.
   const filterText = filter
-    ? `${row.key} ${filter.filter.operator} ${row.value}`
+    ? `${row.key}:${/[\s:"]/.test(row.value) ? JSON.stringify(row.value) : row.value}`
     : null;
 
   return (

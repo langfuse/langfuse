@@ -349,7 +349,7 @@ export function IOPreviewPretty({
 
       {/* Metadata Section */}
       {showData && attributes && attributes.length > 0 ? (
-        <div className="px-2 pt-3 pb-1">
+        <div className="px-3 pt-3 pb-1">
           <ObservationAttributesList
             rows={attributes}
             actions={metadataActions}
@@ -358,7 +358,7 @@ export function IOPreviewPretty({
       ) : null}
 
       {showData && shouldShowMetadata && (
-        <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+        <div className="[&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
           <PrettyJsonView
             title="Metadata"
             json={parsedMetadata}
