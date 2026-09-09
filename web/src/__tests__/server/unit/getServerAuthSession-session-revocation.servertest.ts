@@ -79,7 +79,16 @@ async function getCallbacks() {
   if (!callbacks?.jwt || !callbacks.session) {
     throw new Error("Expected jwt and session callbacks");
   }
-  return callbacks;
+  return {
+    jwt: callbacks.jwt as (params: {
+      token: JWT;
+      user?: { id: string };
+    }) => JWT | Promise<JWT>,
+    session: callbacks.session as (params: {
+      session: Session;
+      token: JWT;
+    }) => Session | Promise<Session>,
+  };
 }
 
 describe("NextAuth JWT session revocation", () => {
@@ -100,17 +109,11 @@ describe("NextAuth JWT session revocation", () => {
     const initialToken = await jwt({
       token: { email: "user@example.com" },
       user: { id: "user-1" },
-      account: null,
-      profile: undefined,
-      isNewUser: false,
-      trigger: "signIn",
     });
     expect(initialToken.loginAt).toBe(now.getTime());
 
     const refreshedToken = await jwt({
       token: initialToken,
-      trigger: "update",
-      session: baseSession,
     });
     expect(refreshedToken.loginAt).toBe(now.getTime());
   });
