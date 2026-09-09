@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import waitForExpect from "wait-for-expect";
 
 import { env } from "@/src/env.mjs";
+import { OPENROUTER_ENABLED } from "@/src/features/ai-gateway/constants/providerAvailability";
 import { GetMediaUploadUrlResponseSchema } from "@/src/features/media/validation";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import {
@@ -46,44 +47,52 @@ const PROVIDER_CREDENTIALS: Partial<Record<GatewayProviderName, string>> = {
   ANTHROPIC: process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY,
   OPENROUTER: process.env.LANGFUSE_LLM_CONNECTION_OPENROUTER_KEY,
 };
+const ENABLED_PROVIDERS = Object.values(GatewayProvider).filter(
+  (provider) => provider !== GatewayProvider.OPENROUTER || OPENROUTER_ENABLED,
+);
 
-const PROVIDER_FORMATS = [
-  {
-    provider: GatewayProvider.OPENAI,
-    apiFormat: "openai.responses",
-    baseUrl: "https://api.openai.com/v1",
-    authType: "Bearer",
-  },
-  {
-    provider: GatewayProvider.OPENAI,
-    apiFormat: "openai.chat-completions",
-    baseUrl: "https://api.openai.com/v1",
-    authType: "Bearer",
-  },
-  {
-    provider: GatewayProvider.OPENROUTER,
-    apiFormat: "openai.responses",
-    baseUrl: "https://openrouter.ai/api/v1",
-    authType: "Bearer",
-  },
-  {
-    provider: GatewayProvider.OPENROUTER,
-    apiFormat: "openai.chat-completions",
-    baseUrl: "https://openrouter.ai/api/v1",
-    authType: "Bearer",
-  },
-  {
-    provider: GatewayProvider.ANTHROPIC,
-    apiFormat: "anthropic.messages",
-    baseUrl: "https://api.anthropic.com/v1",
-    authType: "x-api-key",
-  },
-] as const satisfies ReadonlyArray<{
-  provider: GatewayProviderName;
-  apiFormat: GatewayApiFormat;
-  baseUrl: string;
-  authType: "Bearer" | "x-api-key";
-}>;
+const PROVIDER_FORMATS = (
+  [
+    {
+      provider: GatewayProvider.OPENAI,
+      apiFormat: "openai.responses",
+      baseUrl: "https://api.openai.com/v1",
+      authType: "Bearer",
+    },
+    {
+      provider: GatewayProvider.OPENAI,
+      apiFormat: "openai.chat-completions",
+      baseUrl: "https://api.openai.com/v1",
+      authType: "Bearer",
+    },
+    {
+      provider: GatewayProvider.OPENROUTER,
+      apiFormat: "openai.responses",
+      baseUrl: "https://openrouter.ai/api/v1",
+      authType: "Bearer",
+    },
+    {
+      provider: GatewayProvider.OPENROUTER,
+      apiFormat: "openai.chat-completions",
+      baseUrl: "https://openrouter.ai/api/v1",
+      authType: "Bearer",
+    },
+    {
+      provider: GatewayProvider.ANTHROPIC,
+      apiFormat: "anthropic.messages",
+      baseUrl: "https://api.anthropic.com/v1",
+      authType: "x-api-key",
+    },
+  ] as const satisfies ReadonlyArray<{
+    provider: GatewayProviderName;
+    apiFormat: GatewayApiFormat;
+    baseUrl: string;
+    authType: "Bearer" | "x-api-key";
+  }>
+).filter(
+  ({ provider }) =>
+    provider !== GatewayProvider.OPENROUTER || OPENROUTER_ENABLED,
+);
 
 type ConnectionSnapshot = {
   id: string;
@@ -122,7 +131,7 @@ describe("AI gateway live end-to-end", () => {
       );
     }
     if (process.env.CI) {
-      const missingProviders = Object.values(GatewayProvider).filter(
+      const missingProviders = ENABLED_PROVIDERS.filter(
         (provider) => !PROVIDER_CREDENTIALS[provider],
       );
       if (missingProviders.length > 0) {
@@ -209,7 +218,7 @@ describe("AI gateway live end-to-end", () => {
         -1,
         ...connections.map(({ routingPriority }) => routingPriority),
       ) + 1;
-    for (const provider of Object.values(GatewayProvider)) {
+    for (const provider of ENABLED_PROVIDERS) {
       const credential = PROVIDER_CREDENTIALS[provider];
       const existingConnection = connections.find(
         (candidate) => candidate.provider === provider,

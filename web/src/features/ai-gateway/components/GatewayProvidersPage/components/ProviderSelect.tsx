@@ -6,6 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import { OPENROUTER_ENABLED } from "@/src/features/ai-gateway/constants/providerAvailability";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
@@ -27,11 +28,15 @@ export function ProviderSelect({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {Object.entries(providerLabels).map(([provider, label]) => (
-            <SelectItem key={provider} value={provider}>
-              {label}
-            </SelectItem>
-          ))}
+          {Object.entries(providerLabels)
+            .filter(
+              ([provider]) => provider !== "OPENROUTER" || OPENROUTER_ENABLED,
+            )
+            .map(([provider, label]) => (
+              <SelectItem key={provider} value={provider}>
+                {label}
+              </SelectItem>
+            ))}
         </SelectContent>
       </Select>
     </div>

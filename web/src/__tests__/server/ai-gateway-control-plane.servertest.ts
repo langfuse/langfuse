@@ -588,17 +588,17 @@ describe("AI gateway control plane", () => {
       defaultIngestionProjectId: project.id,
       instrumentationMode: "FULL",
     });
-    const openRouter = await caller.aiGateway.createConnection({
+    const openAiPrimary = await caller.aiGateway.createConnection({
       orgId: org.id,
-      name: "OpenRouter first",
-      provider: "OPENROUTER",
-      credential: "sk-test-openrouter",
+      name: "OpenAI first",
+      provider: "OPENAI",
+      credential: "sk-test-openai-primary",
     });
     await caller.aiGateway.createConnection({
       orgId: org.id,
       name: "OpenAI second",
       provider: "OPENAI",
-      credential: "sk-test-openai",
+      credential: "sk-test-openai-secondary",
     });
     const gatewayKey = await caller.aiGateway.createApiKey({
       orgId: org.id,
@@ -640,13 +640,13 @@ describe("AI gateway control plane", () => {
         apiFormat,
       });
 
-      expect(openRouter.routingPriority).toBe(0);
+      expect(openAiPrimary.routingPriority).toBe(0);
       expect(result.connection).toEqual({
-        id: openRouter.id,
-        provider: "openrouter",
+        id: openAiPrimary.id,
+        provider: "openai",
         api_format: apiFormat,
-        base_url: "https://openrouter.ai/api/v1",
-        auth: { type: "Bearer", token: "sk-test-openrouter" },
+        base_url: "https://api.openai.com/v1",
+        auth: { type: "Bearer", token: "sk-test-openai-primary" },
       });
       const ingestionToken = result.ingestion!.access_token;
       const ingestionClaims = jwtVerifier.verify({ token: ingestionToken });
@@ -1030,12 +1030,6 @@ describe("AI gateway control plane", () => {
     });
     await caller.aiGateway.createConnection({
       orgId: org.id,
-      name: "OpenRouter",
-      provider: "OPENROUTER",
-      credential: "sk-openrouter",
-    });
-    await caller.aiGateway.createConnection({
-      orgId: org.id,
       name: "Anthropic",
       provider: "ANTHROPIC",
       credential: "sk-anthropic",
@@ -1046,24 +1040,6 @@ describe("AI gateway control plane", () => {
     });
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async (url) => {
       const hostname = new URL(String(url)).hostname;
-      if (hostname === "openrouter.ai") {
-        return Response.json({
-          data: [
-            {
-              id: "shared-model",
-              canonical_slug: "openrouter/shared-model",
-              name: "Shared Model",
-              created: 20,
-            },
-            {
-              id: "z-model",
-              canonical_slug: "openrouter/z-model",
-              name: "Z Model",
-              created: 30,
-            },
-          ],
-        });
-      }
       if (hostname === "api.openai.com") {
         return Response.json({
           data: [
@@ -1127,13 +1103,6 @@ describe("AI gateway control plane", () => {
           displayName: "shared-model",
           createdAt: "1970-01-01T00:00:15.000Z",
         },
-        {
-          id: "z-model",
-          provider: "OPENROUTER",
-          canonicalSlug: "openrouter/z-model",
-          displayName: "Z Model",
-          createdAt: "1970-01-01T00:00:30.000Z",
-        },
       ],
     });
     const anthropicResult = await service.list({
@@ -1156,23 +1125,9 @@ describe("AI gateway control plane", () => {
           displayName: "Claude B",
           createdAt: "2026-02-01T00:00:00.000Z",
         },
-        {
-          id: "shared-model",
-          provider: "OPENROUTER",
-          canonicalSlug: "openrouter/shared-model",
-          displayName: "Shared Model",
-          createdAt: "1970-01-01T00:00:20.000Z",
-        },
-        {
-          id: "z-model",
-          provider: "OPENROUTER",
-          canonicalSlug: "openrouter/z-model",
-          displayName: "Z Model",
-          createdAt: "1970-01-01T00:00:30.000Z",
-        },
       ],
     });
-    expect(fetcher).toHaveBeenCalledTimes(4);
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
   it("fails model discovery instead of returning a partial catalog", async () => {
@@ -1185,21 +1140,22 @@ describe("AI gateway control plane", () => {
     });
     await caller.aiGateway.createConnection({
       orgId: org.id,
-      name: "OpenRouter",
-      provider: "OPENROUTER",
-      credential: "sk-openrouter",
+      name: "OpenAI fallback",
+      provider: "OPENAI",
+      credential: "sk-openai-fallback",
     });
     const key = await caller.aiGateway.createApiKey({
       orgId: org.id,
       metadata: {},
     });
-    const fetcher = vi.fn<typeof fetch>().mockImplementation(async (url) =>
-      String(url).includes("openrouter")
-        ? new Response(null, { status: 500 })
-        : Response.json({
-            data: [{ id: "available-model", created: 10 }],
-          }),
-    );
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValue(
+        Response.json({
+          data: [{ id: "available-model", created: 10 }],
+        }),
+      );
 
     await expect(
       new GatewayModelsService(prisma, fetcher, null).list({

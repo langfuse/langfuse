@@ -9,6 +9,7 @@ import { LLMAdapter, testModelCall } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { auditLog } from "@/src/features/audit-logs/server";
+import { OPENROUTER_ENABLED } from "@/src/features/ai-gateway/constants/providerAvailability";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import {
   type GatewayProviderName,
@@ -58,6 +59,11 @@ export class GatewayProviderService {
   }
 
   testCredential(params: { provider: GatewayProvider; credential: string }) {
+    if (params.provider === "OPENROUTER" && !OPENROUTER_ENABLED) {
+      throw new InvalidRequestError(
+        "OpenRouter is not enabled for the AI Gateway",
+      );
+    }
     return this.validateCredential(params);
   }
 
