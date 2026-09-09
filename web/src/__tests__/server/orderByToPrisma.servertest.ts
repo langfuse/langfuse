@@ -2,6 +2,7 @@ import {
   dashboardColumnDefinitions,
   createFilterFromFilterState,
   FilterList,
+  observationsTableUiColumnDefinitions,
   orderByToClickhouseSql,
   orderByToPrismaSql,
   scoresTableUiColumnDefinitions,
@@ -77,6 +78,30 @@ describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {
       orderByToPrismaSql(
         { column: "createdAt", order: "DESC" },
         promptsTableCols,
+      ),
+    );
+  });
+
+  test("observations list remaps leaked timestamp orderBy onto startTime", () => {
+    expect(() =>
+      orderByToClickhouseSql(
+        { column: "timestamp", order: "DESC" },
+        observationsTableUiColumnDefinitions,
+      ),
+    ).toThrow(InvalidRequestError);
+
+    expect(
+      orderByToClickhouseSql(
+        normalizeOrderByForTable({
+          orderBy: { column: "timestamp", order: "DESC" },
+          expectedTimeColumn: "startTime",
+        }),
+        observationsTableUiColumnDefinitions,
+      ),
+    ).toEqual(
+      orderByToClickhouseSql(
+        { column: "startTime", order: "DESC" },
+        observationsTableUiColumnDefinitions,
       ),
     );
   });
