@@ -29,6 +29,7 @@ pnpm run seed -- outlier-traffic --days 90   # diurnal v4 traffic w/ cost/latenc
 pnpm run seed -- scored-traces --traces 24 --v4   # scores w/ spaces in the name
 pnpm run seed -- score-density --v4  # three traces differing only in SCORE density, sized from prod percentiles: trace-only (p90: ~13 on the trace, ~6 names), sporadic (p50: 3 on the trace + 4 obs x 2), extreme (p99: ~49 scores, ~16 names, two obs w/ 6-13); --shape <slug> for one
 pnpm run seed -- custom-models --v4  # project-level model definitions (tiered + single-tier, one price at 0) + a trace whose generations link to them, plus one unpriced model
+pnpm run seed -- help-assistant --v4  # 80 production-shaped help-assistant traces over the last 3h (sessions, prod env, nested metadata, gpt-4.1 / gpt-4.1-mini classifier pipeline w/ per-step inclusion odds, EVAL scores on the answer generation only); --count <n>
 NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- evaluator-gallery --count 200  # project-owned evaluators via the seeded public API key
 ```
 
