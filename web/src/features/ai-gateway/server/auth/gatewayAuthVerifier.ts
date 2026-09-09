@@ -16,7 +16,7 @@ const SIGNATURE_DOMAIN = "gateway-web-v1";
 const SIGNATURE_MAX_AGE_SECONDS = 5 * 60;
 const resolveBodySchema = z
   .object({
-    api_format: GatewayApiFormatSchema,
+    apiFormat: GatewayApiFormatSchema,
     model: z.string().min(1).optional(),
   })
   .strict();
@@ -78,7 +78,7 @@ function verifyGatewayControlPlaneRequest(input: {
 
 export function withGatewayResolveAuth(handler: GatewayResolveHandler) {
   return withGatewayControlPlaneAuth(
-    ({ body, ...params }) => handler({ ...params, apiFormat: body.api_format }),
+    ({ body, ...params }) => handler({ ...params, apiFormat: body.apiFormat }),
     resolveBodySchema,
   );
 }
@@ -126,7 +126,7 @@ export function withGatewayModelsAuth(handler: GatewayModelsHandler) {
 }
 
 function withGatewayControlPlaneAuth<
-  Body extends { api_format: GatewayApiFormat },
+  Body extends { apiFormat: GatewayApiFormat },
 >(
   handler: (
     params: GatewayControlPlaneHandlerParams & { body: Body },

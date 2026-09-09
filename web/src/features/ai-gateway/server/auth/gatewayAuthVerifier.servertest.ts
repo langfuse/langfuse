@@ -91,7 +91,7 @@ describe("withGatewayResolveAuth", () => {
     await withGatewayResolveAuth(handler)(
       request({
         authorization,
-        body: '{"api_format":"openai.responses"}',
+        body: '{"apiFormat":"openai.responses"}',
       }),
       res,
     );
@@ -105,7 +105,7 @@ describe("withGatewayResolveAuth", () => {
     async (secret) => {
       vi.useFakeTimers();
       vi.setSystemTime(now);
-      const body = '{ "api_format": "openai.responses" }\n';
+      const body = '{ "apiFormat": "openai.responses" }\n';
       const req = request({
         authorization: "  Bearer   sk-gateway  ",
         gatewayAuthorization: gatewayAuthorization({ secret }),
@@ -162,7 +162,7 @@ describe("withGatewayResolveAuth", () => {
           secret: "current-service-secret",
           key: "sk-other-gateway",
         }),
-        body: '{"api_format":"openai.responses"}',
+        body: '{"apiFormat":"openai.responses"}',
       }),
       res,
     );
@@ -174,7 +174,7 @@ describe("withGatewayResolveAuth", () => {
   it("rejects stale signatures and headers containing a key id", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(now);
-    const body = '{"api_format":"openai.responses"}';
+    const body = '{"apiFormat":"openai.responses"}';
     const staleHeader = gatewayAuthorization({
       secret: "current-service-secret",
       timestamp: Math.floor(now.getTime() / 1000) - 301,

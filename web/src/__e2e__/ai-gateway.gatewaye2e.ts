@@ -573,7 +573,7 @@ async function gatewayControlPlaneRequest(input: {
     },
     body: isModelsRequest
       ? undefined
-      : JSON.stringify({ api_format: input.apiFormat }),
+      : JSON.stringify({ apiFormat: input.apiFormat }),
   });
   return readJsonResponse(response, 200, input.path);
 }

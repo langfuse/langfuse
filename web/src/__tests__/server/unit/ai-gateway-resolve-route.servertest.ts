@@ -36,7 +36,7 @@ const post = async (body: unknown, authorization = "Bearer test-key") => {
 
 describe("POST /api/internal/ai-gateway/v1/resolve", () => {
   it("rejects malformed requests with no-store headers", async () => {
-    const res = await post({ api_format: "unsupported" });
+    const res = await post({ apiFormat: "unsupported" });
 
     expect(res.statusCode).toBe(400);
     expect(res.getHeader("cache-control")).toBe("no-store");
@@ -44,11 +44,11 @@ describe("POST /api/internal/ai-gateway/v1/resolve", () => {
   });
 
   it.each([
-    { case: "unknown api format", body: { api_format: "openai.completions" } },
+    { case: "unknown api format", body: { apiFormat: "openai.completions" } },
     { case: "missing api format", body: {} },
     {
       case: "unknown extra field",
-      body: { api_format: "openai.responses", limit: 10 },
+      body: { apiFormat: "openai.responses", limit: 10 },
     },
     { case: "not an object", body: "openai.responses" },
   ])("rejects an invalid body: $case", async ({ body }) => {
@@ -62,14 +62,14 @@ describe("POST /api/internal/ai-gateway/v1/resolve", () => {
   ])("accepts api format %s and advances to authorization", async (format) => {
     // 401 rather than 400 proves the body passed the schema: the route only
     // reaches signature verification after parsing succeeds.
-    expect((await post({ api_format: format })).statusCode).toBe(401);
+    expect((await post({ apiFormat: format })).statusCode).toBe(401);
   });
 
   it("accepts a model without using it for resolution", async () => {
     expect(
       (
         await post({
-          api_format: "openai.responses",
+          apiFormat: "openai.responses",
           model: "gpt-4o-mini",
         })
       ).statusCode,
@@ -100,8 +100,8 @@ describe("POST /api/internal/ai-gateway/v1/resolve", () => {
   });
 
   it("rejects missing bearer authentication", async () => {
-    expect(
-      (await post({ api_format: "openai.responses" }, "")).statusCode,
-    ).toBe(401);
+    expect((await post({ apiFormat: "openai.responses" }, "")).statusCode).toBe(
+      401,
+    );
   });
 });
