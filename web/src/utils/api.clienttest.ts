@@ -576,15 +576,19 @@ describe("isExpectedTrpcClientError", () => {
   });
 
   it("does not treat a non-Zod BAD_REQUEST as validation", () => {
-    expect(
-      isTrpcZodValidationError(
-        trpcServerError({
-          code: "BAD_REQUEST",
-          httpStatus: 400,
-          message: "Invalid input, projectId is required",
-        }),
-      ),
-    ).toBe(false);
+    // Protected-project middleware throws this when `projectId` is missing.
+    // That is a client call-site bug (queries firing before pages-router
+    // params hydrate), not expected user input — keep capturing until the
+    // remaining unguarded pages gate on useReadyRouteParams.
+    const error = trpcServerError({
+      code: "BAD_REQUEST",
+      httpStatus: 400,
+      path: "datasets.runsByDatasetId",
+      message: "Invalid input, projectId is required",
+    });
+
+    expect(isTrpcZodValidationError(error)).toBe(false);
+    expect(isExpectedTrpcClientError(error)).toBe(false);
   });
 
   it("does not suppress an unrecognized tRPC code", () => {
