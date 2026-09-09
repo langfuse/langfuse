@@ -80,6 +80,9 @@ const EnvSchema = z.object({
   LANGFUSE_BULLMQ_SKIP_REDIS_VERSION_CHECK: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_BULLMQ_LEGACY_REPEATABLE_JOB_CLEANUP: z
+    .enum(["true", "false"])
+    .default("true"),
   // Redis Cluster Configuration
   REDIS_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_CLUSTER_NODES: z.string().optional(),

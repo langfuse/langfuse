@@ -1,6 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Queue } from "bullmq";
+import { logger } from "../logger";
 import { scheduleRecurringJob } from "./scheduleRecurringJob";
+
+const { env } = vi.hoisted(() => ({
+  env: {
+    LANGFUSE_BULLMQ_LEGACY_REPEATABLE_JOB_CLEANUP: "true",
+  },
+}));
+
+vi.mock("../../env", () => ({ env }));
 
 vi.mock("../logger", () => ({
   logger: {
@@ -13,22 +22,38 @@ vi.mock("../logger", () => ({
 
 const createQueueMock = () => {
   const removeRepeatable = vi.fn().mockResolvedValue(true);
+  const getRepeatableJobs = vi.fn().mockResolvedValue([]);
   const upsertJobScheduler = vi.fn().mockResolvedValue({});
   const queue = {
     name: "test-queue",
     removeRepeatable,
+    getRepeatableJobs,
     upsertJobScheduler,
   } as unknown as Queue;
-  return { queue, removeRepeatable, upsertJobScheduler };
+  return {
+    queue,
+    removeRepeatable,
+    getRepeatableJobs,
+    upsertJobScheduler,
+  };
 };
 
 describe("scheduleRecurringJob", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    env.LANGFUSE_BULLMQ_LEGACY_REPEATABLE_JOB_CLEANUP = "true";
   });
 
   it("removes legacy schedules for the current and previous patterns before upserting", async () => {
-    const { queue, removeRepeatable, upsertJobScheduler } = createQueueMock();
+    const { queue, getRepeatableJobs, removeRepeatable, upsertJobScheduler } =
+      createQueueMock();
+    getRepeatableJobs.mockResolvedValue([
+      {
+        key: "legacy-repeat-key",
+        name: "my-job",
+        pattern: "5 * * * *",
+      },
+    ]);
 
     await scheduleRecurringJob(queue, {
       jobName: "my-job",
@@ -36,12 +61,15 @@ describe("scheduleRecurringJob", () => {
       previousPatterns: ["25 * * * *"],
     });
 
-    expect(removeRepeatable).toHaveBeenCalledTimes(2);
+    expect(removeRepeatable).toHaveBeenCalledTimes(3);
     expect(removeRepeatable).toHaveBeenCalledWith("my-job", {
       pattern: "*/15 * * * *",
     });
     expect(removeRepeatable).toHaveBeenCalledWith("my-job", {
       pattern: "25 * * * *",
+    });
+    expect(removeRepeatable).toHaveBeenCalledWith("my-job", {
+      pattern: "5 * * * *",
     });
     expect(upsertJobScheduler).toHaveBeenCalledWith(
       "my-job",
@@ -71,6 +99,109 @@ describe("scheduleRecurringJob", () => {
       { pattern: "* * * * *" },
       { name: "my-job", data: { type: "recurring" } },
     );
+  });
+
+  it("removes discovered legacy interval schedules before upserting", async () => {
+    const { queue, getRepeatableJobs, removeRepeatable } = createQueueMock();
+    getRepeatableJobs.mockResolvedValue([
+      {
+        key: "legacy-repeat-key",
+        name: "my-job",
+        pattern: null,
+        every: "60000",
+      },
+    ]);
+
+    await scheduleRecurringJob(queue, {
+      jobName: "my-job",
+      pattern: "*/15 * * * *",
+    });
+
+    expect(removeRepeatable).toHaveBeenCalledWith("my-job", { every: 60000 });
+  });
+
+  it("skips legacy cleanup when it was completed before a FIPS rollout", async () => {
+    env.LANGFUSE_BULLMQ_LEGACY_REPEATABLE_JOB_CLEANUP = "false";
+    const { queue, removeRepeatable, upsertJobScheduler } = createQueueMock();
+
+    await scheduleRecurringJob(queue, {
+      jobName: "my-job",
+      pattern: "*/15 * * * *",
+      previousPatterns: ["25 * * * *"],
+    });
+
+    expect(removeRepeatable).not.toHaveBeenCalled();
+    expect(upsertJobScheduler).toHaveBeenCalledWith(
+      "my-job",
+      { pattern: "*/15 * * * *" },
+      { name: "my-job", data: {} },
+    );
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it("updates a scheduler with a previous pattern during a FIPS rollout", async () => {
+    env.LANGFUSE_BULLMQ_LEGACY_REPEATABLE_JOB_CLEANUP = "false";
+    const { queue, getRepeatableJobs, upsertJobScheduler } = createQueueMock();
+    getRepeatableJobs.mockResolvedValue([
+      {
+        // BullMQ exposes job schedulers through getRepeatableJobs too. The
+        // scheduler id is the job name, unlike an MD5-keyed legacy schedule.
+        key: "my-job",
+        name: "my-job",
+        pattern: "25 * * * *",
+      },
+    ]);
+
+    await scheduleRecurringJob(queue, {
+      jobName: "my-job",
+      pattern: "*/15 * * * *",
+      previousPatterns: ["25 * * * *"],
+    });
+
+    expect(upsertJobScheduler).toHaveBeenCalledWith(
+      "my-job",
+      { pattern: "*/15 * * * *" },
+      { name: "my-job", data: {} },
+    );
+  });
+
+  it("does not create a scheduler when an unknown legacy pattern remains in a FIPS rollout", async () => {
+    env.LANGFUSE_BULLMQ_LEGACY_REPEATABLE_JOB_CLEANUP = "false";
+    const { queue, removeRepeatable, getRepeatableJobs, upsertJobScheduler } =
+      createQueueMock();
+    getRepeatableJobs.mockResolvedValue([
+      {
+        key: "legacy-repeat-key",
+        name: "my-job",
+        pattern: "5 * * * *",
+      },
+    ]);
+
+    await scheduleRecurringJob(queue, {
+      jobName: "my-job",
+      pattern: "*/15 * * * *",
+    });
+
+    expect(removeRepeatable).not.toHaveBeenCalled();
+    expect(upsertJobScheduler).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("legacy-repeat-key"),
+    );
+  });
+
+  it("does not create a scheduler when it cannot verify legacy cleanup for a FIPS rollout", async () => {
+    env.LANGFUSE_BULLMQ_LEGACY_REPEATABLE_JOB_CLEANUP = "false";
+    const { queue, removeRepeatable, getRepeatableJobs, upsertJobScheduler } =
+      createQueueMock();
+    getRepeatableJobs.mockRejectedValue(new Error("redis down"));
+
+    await scheduleRecurringJob(queue, {
+      jobName: "my-job",
+      pattern: "*/15 * * * *",
+    });
+
+    expect(removeRepeatable).not.toHaveBeenCalled();
+    expect(upsertJobScheduler).not.toHaveBeenCalled();
   });
 
   it("still upserts the scheduler when legacy cleanup fails", async () => {
