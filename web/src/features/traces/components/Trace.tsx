@@ -1,7 +1,10 @@
 import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { TraceDataProvider } from "@/src/features/traces/contexts/TraceDataContext";
+import {
+  TraceDataProvider,
+  useTraceData,
+} from "@/src/features/traces/contexts/TraceDataContext";
 import {
   ViewPreferencesProvider,
   useViewPreferences,
@@ -28,12 +31,14 @@ import { TraceTimelineCompact } from "@/src/features/traces/components/TraceTime
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
 import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
+import { TraceSummaryBar } from "@/src/features/traces/components/TraceSummaryBar";
 
 import { useMemo } from "react";
 
 export type TraceProps = {
   observations: Array<ObservationReturnTypeWithMetadata>;
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
+    latency?: number;
     input: string | null;
     output: string | null;
   };
@@ -189,17 +194,44 @@ function TraceWithSelection({
  */
 function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const isMobile = useIsMobile();
-  const { showGraph } = useViewPreferences();
+  const { showGraph, isAnnotationMode, isPeekMode } = useViewPreferences();
+  const { trace, aggregatedMetrics } = useTraceData();
   const { isGraphViewAvailable } = useTraceGraphData();
   const shouldShowGraph = showGraph && isGraphViewAvailable;
+  const hasTraceSummary =
+    trace.latency != null ||
+    Boolean(trace.sessionId) ||
+    Boolean(trace.userId) ||
+    Boolean(trace.environment) ||
+    (aggregatedMetrics.totalCost != null &&
+      aggregatedMetrics.costDetails != null);
 
-  return isMobile ? (
-    <MobileTraceContent shouldShowGraph={shouldShowGraph} />
-  ) : (
-    <DesktopTraceContent
-      shouldShowGraph={shouldShowGraph}
-      desktopLayout={desktopLayout}
-    />
+  return (
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+      {isPeekMode && !isAnnotationMode && hasTraceSummary ? (
+        <div className="bg-background shrink-0 border-b px-3 py-1.5">
+          <TraceSummaryBar
+            projectId={trace.projectId}
+            latencySeconds={trace.latency ?? null}
+            sessionId={trace.sessionId}
+            userId={trace.userId}
+            environment={trace.environment}
+            totalCost={aggregatedMetrics.totalCost}
+            costDetails={aggregatedMetrics.costDetails}
+          />
+        </div>
+      ) : null}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {isMobile ? (
+          <MobileTraceContent shouldShowGraph={shouldShowGraph} />
+        ) : (
+          <DesktopTraceContent
+            shouldShowGraph={shouldShowGraph}
+            desktopLayout={desktopLayout}
+          />
+        )}
+      </div>
+    </div>
   );
 }
 

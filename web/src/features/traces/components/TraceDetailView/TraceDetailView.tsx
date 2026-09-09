@@ -128,7 +128,7 @@ export function TraceDetailView({
   );
 
   // Context hooks
-  const { comments } = useTraceData();
+  const { comments, aggregatedMetrics } = useTraceData();
   const {
     formattedExpansion,
     setFormattedFieldExpansion,
@@ -222,7 +222,7 @@ export function TraceDetailView({
       {/* Header section (extracted component) */}
       <TraceDetailViewHeader
         trace={trace}
-        observations={observations}
+        aggregatedMetrics={aggregatedMetrics}
         parsedMetadata={parsedMetadata}
         projectId={projectId}
         traceScores={traceScores}

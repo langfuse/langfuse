@@ -45,6 +45,7 @@ export const MobilePageTitle = ({
     actionButtonsRight,
     actionButtonsMenu,
     titleBadges,
+    titleMetadata,
     breadcrumb,
     breadcrumbBadges,
     tabsProps,
@@ -146,6 +147,8 @@ export const MobilePageTitle = ({
           </Popover>
         )}
       </div>
+
+      {titleMetadata ? <div className="mt-2">{titleMetadata}</div> : null}
 
       {/* Hoisted page controls (time range, auto-refresh). The assistant
           launcher lives in the sticky MobileTopBar now (prominent + always
