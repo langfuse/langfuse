@@ -1,34 +1,28 @@
-import { ZodError } from "zod";
 import { parseJsonIfString as parseIfString } from "../json";
 
 type SchemaWithSafeParse<T> = {
   safeParse: (data: unknown) => T;
 };
 
-/**
- * Complete Zod failure result for paths where `safeParse` throws before
- * returning (e.g. non-writable `Error.name` under SES/lockdown).
- *
- * `new ZodError([])` is safe under locked `Error.name`; only Zod 4's
- * internal `inst.name = …` assignment during `safeParse` throws.
- */
-export function failedSafeParseResult<T extends { success: boolean }>(): T {
-  return { success: false, error: new ZodError([]) } as unknown as T;
-}
+/** Failure from a `safeParse` path that threw before Zod returned a result. */
+export type SafeParseCatchFailure = { success: false };
 
 /**
  * Zod 4 `safeParse` constructs a `$ZodError` on failure and assigns
  * `inst.name`. That assignment throws when `Error.name` is non-writable
  * (SES/lockdown and some browser extensions). Treat a throw as a failed parse.
+ *
+ * Catch returns `{ success: false }` only — do not invent a `ZodError` here;
+ * constructing one can hit the same non-writable `Error.name` path under SES.
  */
 export function safeSchemaParse<T extends { success: boolean }>(
   schema: SchemaWithSafeParse<T>,
   data: unknown,
-): T {
+): T | SafeParseCatchFailure {
   try {
     return schema.safeParse(data);
   } catch {
-    return failedSafeParseResult<T>();
+    return { success: false };
   }
 }
 
