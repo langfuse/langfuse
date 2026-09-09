@@ -114,7 +114,7 @@ overrides:
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
   # Remove once next-auth allows nodemailer ^9.
-  "next-auth>nodemailer": "^9.0.3"
+  "next-auth>nodemailer": "^9.1.1"
 patchedDependencies:
   # focusFirst crashes on null item refs (items unmounting while entry focus
   # runs), e.g. opening a row-actions dropdown while a table re-renders.

@@ -209,7 +209,7 @@
     "lossless-json": "^4.1.1",
     "lru-cache": "^11.2.7",
     "next-auth": "^4.24.14",
-    "nodemailer": "^9.0.3",
+    "nodemailer": "^9.1.1",
     "oci-common": "^2.140.0",
     "oci-objectstorage": "^2.140.0",
     "safe-regex2": "^5.0.0",
