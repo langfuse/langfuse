@@ -12,7 +12,7 @@ vi.mock("@/src/features/traces/TracePage", () => ({
   ),
 }));
 
-vi.mock("@/src/features/annotation-queues/components/session", () => ({
+vi.mock("@/src/features/sessions/SessionPages", () => ({
   SessionPage: ({ sessionId }: { sessionId: string }) => (
     <div data-testid="session-page">{sessionId}</div>
   ),

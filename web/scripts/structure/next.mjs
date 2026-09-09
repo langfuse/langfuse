@@ -96,9 +96,16 @@ function headlineFor(ruleId, items, path) {
       return `Fold ${path} into the kind folders`;
     case 6: {
       const dests = new Set(items.map((a) => a.viol.paths[1]));
-      return dests.size === 1
-        ? `Move ${path} home → ${[...dests][0]} (its only consumer)`
-        : `Send the files in ${path} home — each has exactly one consumer`;
+      const pageOwned = items.some((a) =>
+        a.viol.key.includes("page-owned feature"),
+      );
+      if (dests.size === 1) {
+        const dest = [...dests][0];
+        return pageOwned
+          ? `Move ${path} into ${dest} — pages under that route own the feature`
+          : `Move ${path} home → ${dest} (its only consumer)`;
+      }
+      return `Send the files in ${path} home — each has exactly one consumer`;
     }
     case 7:
       return `Stop reaching into ${name}'s internals — import its root, or promote the shared bits to siblings`;

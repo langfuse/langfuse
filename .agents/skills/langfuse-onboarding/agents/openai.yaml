@@ -1,4 +1,4 @@
 interface:
   display_name: "Langfuse Onboarding"
-  short_description: "Name you, then check Linear, including Cursor Cloud"
-  default_prompt: "Use $langfuse-onboarding to work out who I am (Cloud run owner, not Cloud gh permissions), whether Linear answers, and if not tell me to set LINEAR_API_KEY."
+  short_description: "Name you, then check Linear, without leaving the project"
+  default_prompt: "Use $langfuse-onboarding to work out who I am from the workspace identity file or Cloud run owner (not Cloud gh permissions), whether Linear answers, and if not tell me to set LINEAR_API_KEY. Do not read ~/.config."
