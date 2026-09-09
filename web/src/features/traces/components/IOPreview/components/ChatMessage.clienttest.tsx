@@ -38,7 +38,6 @@ import { ChatMlArraySchema } from "@langfuse/shared";
 
 import { ChatMessage } from "./ChatMessage";
 import { type ChatMlMessage } from "../../../fns/chatMessageUtils";
-import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { type IOPreviewContentMode } from "../IOPreview";
 
 function createMemoryStorage(): Storage {
@@ -78,14 +77,12 @@ function renderChatMessage(
   } = {},
 ) {
   return render(
-    <MarkdownContextProvider>
-      <ChatMessage
-        message={message}
-        shouldRenderMarkdown={shouldRenderMarkdown}
-        currentView="pretty"
-        contentMode={contentMode}
-      />
-    </MarkdownContextProvider>,
+    <ChatMessage
+      message={message}
+      shouldRenderMarkdown={shouldRenderMarkdown}
+      currentView="pretty"
+      contentMode={contentMode}
+    />,
   );
 }
 
