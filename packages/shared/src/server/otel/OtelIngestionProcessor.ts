@@ -67,6 +67,56 @@ function parseObservationLevel(
   return OBSERVATION_LEVEL_ALIASES[value.trim().toUpperCase()];
 }
 
+/**
+ * Extracts plain text from a parts array as emitted by Google/Gemini,
+ * Microsoft Agent, and LiteLLM (each part carrying its text in `text` or
+ * `content`). Non-text parts are dropped rather than coerced.
+ */
+function textFromParts(parts: unknown): string {
+  if (!Array.isArray(parts)) return "";
+  return parts
+    .map((part: unknown) => {
+      if (typeof part === "string" || typeof part === "number") {
+        return String(part);
+      }
+      if (part && typeof part === "object") {
+        const p = part as Record<string, unknown>;
+        if (typeof p.text === "string") return p.text;
+        if (typeof p.content === "string") return p.content;
+      }
+      return "";
+    })
+    .filter((text: string) => text !== "")
+    .join("\n");
+}
+
+/**
+ * Converts a single gen_ai.system_instructions element to text. Providers
+ * emit several shapes: plain strings, {type: "text", content}, and complete
+ * messages shaped {role, parts: [...]} (LiteLLM). Objects that match none of
+ * these are JSON-serialized so structured instructions are preserved instead
+ * of being destroyed by string coercion ("[object Object]").
+ */
+function systemInstructionToText(instruction: unknown): string {
+  if (typeof instruction === "string" || typeof instruction === "number") {
+    return String(instruction);
+  }
+  if (instruction && typeof instruction === "object") {
+    const rec = instruction as Record<string, unknown>;
+    if (typeof rec.content === "string" && rec.content) return rec.content;
+    if (Array.isArray(rec.content)) {
+      const fromContent = textFromParts(rec.content);
+      if (fromContent) return fromContent;
+    }
+    if (Array.isArray(rec.parts)) {
+      const fromParts = textFromParts(rec.parts);
+      if (fromParts) return fromParts;
+    }
+    return JSON.stringify(instruction);
+  }
+  return "";
+}
+
 // Type definitions for internal processor state
 interface TraceState {
   hasFullTrace: boolean;
@@ -2357,20 +2407,19 @@ export class OtelIngestionProcessor {
           typeof systemInstructions === "string"
             ? JSON.parse(systemInstructions)
             : systemInstructions;
-        if (Array.isArray(parsed)) {
-          content = parsed
-            .map((p: Record<string, unknown>) =>
-              typeof p === "object" && p?.content
-                ? String(p.content)
-                : String(p),
-            )
-            .join("\n");
-        } else {
-          content = String(parsed);
-        }
+        content = Array.isArray(parsed)
+          ? parsed
+              .map((p: unknown) => systemInstructionToText(p))
+              .filter((text: string) => text !== "")
+              .join("\n")
+          : systemInstructionToText(parsed);
       } catch {
         content = String(systemInstructions);
       }
+
+      // Nothing extractable (e.g. an empty instruction list): skip instead of
+      // prepending an empty system message.
+      if (!content) return input;
 
       const systemMessage = { role: "system", content };
       const merged = [systemMessage, ...messages];

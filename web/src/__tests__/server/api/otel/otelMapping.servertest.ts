@@ -2778,6 +2778,295 @@ describe("OTel Resource Span Mapping", () => {
       expect(observationEvent?.body.input).toBe(JSON.stringify(allMessages));
     });
 
+    it("should extract text from structured {role, parts} system instructions (LiteLLM)", async () => {
+      const traceId = "abcdef1234567890abcdef1234567892";
+
+      const allMessages = [
+        {
+          role: "user",
+          parts: [{ type: "text", content: "Hello" }],
+        },
+      ];
+
+      // LiteLLM emits gen_ai.system_instructions as complete messages shaped
+      // {role, parts: [...]} without a top-level content field. Previously
+      // these were coerced with String() and rendered as "[object Object]",
+      // silently destroying the instructions.
+      const systemInstructions = [
+        {
+          role: "system",
+          parts: [
+            {
+              type: "text",
+              text: "You are a helpful assistant routed through LiteLLM.",
+            },
+          ],
+        },
+      ];
+
+      const pydanticAiSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "1.66.0",
+              attributes: [],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("80854cd6bd218bf7", "hex"),
+                name: "agent run",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "logfire.msg",
+                    value: { stringValue: "agent run" },
+                  },
+                  {
+                    key: "final_result",
+                    value: { stringValue: "result" },
+                  },
+                  {
+                    key: "pydantic_ai.all_messages",
+                    value: {
+                      stringValue: JSON.stringify(allMessages),
+                    },
+                  },
+                  {
+                    key: "gen_ai.system_instructions",
+                    value: {
+                      stringValue: JSON.stringify(systemInstructions),
+                    },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        pydanticAiSpan,
+        new Set(),
+      );
+
+      const observationEvent = events.find((e) => e.type === "span-create");
+      expect(observationEvent).toBeDefined();
+
+      const expectedMessages = [
+        {
+          role: "system",
+          content: "You are a helpful assistant routed through LiteLLM.",
+        },
+        ...allMessages,
+      ];
+
+      expect(observationEvent?.body.input).toBe(
+        JSON.stringify(expectedMessages),
+      );
+      // The extracted text must not fall back to object string coercion
+      expect(observationEvent?.body.input).not.toContain("[object Object]");
+    });
+
+    it("should prepend plain string system instructions", async () => {
+      const traceId = "abcdef1234567890abcdef1234567893";
+
+      const allMessages = [
+        {
+          role: "user",
+          parts: [{ type: "text", content: "Hello" }],
+        },
+      ];
+
+      const systemInstructions = ["You are a concise assistant."];
+
+      const pydanticAiSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "1.66.0",
+              attributes: [],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("80854cd6bd218bf8", "hex"),
+                name: "agent run",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "logfire.msg",
+                    value: { stringValue: "agent run" },
+                  },
+                  {
+                    key: "final_result",
+                    value: { stringValue: "result" },
+                  },
+                  {
+                    key: "pydantic_ai.all_messages",
+                    value: {
+                      stringValue: JSON.stringify(allMessages),
+                    },
+                  },
+                  {
+                    key: "gen_ai.system_instructions",
+                    value: {
+                      stringValue: JSON.stringify(systemInstructions),
+                    },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        pydanticAiSpan,
+        new Set(),
+      );
+
+      const observationEvent = events.find((e) => e.type === "span-create");
+      expect(observationEvent).toBeDefined();
+
+      const expectedMessages = [
+        { role: "system", content: "You are a concise assistant." },
+        ...allMessages,
+      ];
+
+      expect(observationEvent?.body.input).toBe(
+        JSON.stringify(expectedMessages),
+      );
+    });
+
+    it("should not prepend a system message when the instruction list is empty", async () => {
+      const traceId = "abcdef1234567890abcdef1234567894";
+
+      const allMessages = [
+        {
+          role: "user",
+          parts: [{ type: "text", content: "Hello" }],
+        },
+      ];
+
+      const systemInstructions: unknown[] = [];
+
+      const pydanticAiSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "1.66.0",
+              attributes: [],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("80854cd6bd218bf9", "hex"),
+                name: "agent run",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "logfire.msg",
+                    value: { stringValue: "agent run" },
+                  },
+                  {
+                    key: "final_result",
+                    value: { stringValue: "result" },
+                  },
+                  {
+                    key: "pydantic_ai.all_messages",
+                    value: {
+                      stringValue: JSON.stringify(allMessages),
+                    },
+                  },
+                  {
+                    key: "gen_ai.system_instructions",
+                    value: {
+                      stringValue: JSON.stringify(systemInstructions),
+                    },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        pydanticAiSpan,
+        new Set(),
+      );
+
+      const observationEvent = events.find((e) => e.type === "span-create");
+      expect(observationEvent).toBeDefined();
+
+      // Empty instruction list must not yield an empty system message
+      expect(observationEvent?.body.input).toBe(JSON.stringify(allMessages));
+    });
+
     it("should prioritize OpenInference over OTel GenAI and model detection", async () => {
       const resourceSpan = {
         scopeSpans: [
