@@ -18,7 +18,7 @@ import {
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { verifyOrgAuth } from "@/src/features/auth/policy/shadow.direct";
+import { verifyOrgAuth } from "@/src/features/auth/policy/verifyOrgAuth";
 
 /** orgKeyRequired is the 403 body when a non-organization key hits a blob-storage endpoint. */
 const orgKeyRequired =
@@ -34,17 +34,6 @@ async function handleGetBlobStorageIntegrations(
   res: NextApiResponse,
 ) {
   const scope = await authorizeBlobStorageRequest(req);
-
-  if (
-    !hasEntitlementBasedOnPlan({
-      plan: scope.plan,
-      entitlement: "scheduled-blob-exports",
-    })
-  ) {
-    throw new ForbiddenError(
-      "scheduled-blob-exports entitlement required for this feature.",
-    );
-  }
 
   // Get all projects for the organization
   const projects = await prisma.project.findMany({
@@ -99,17 +88,6 @@ async function handleUpsertBlobStorageIntegration(
   res: NextApiResponse,
 ) {
   const scope = await authorizeBlobStorageRequest(req);
-
-  if (
-    !hasEntitlementBasedOnPlan({
-      plan: scope.plan,
-      entitlement: "scheduled-blob-exports",
-    })
-  ) {
-    throw new ForbiddenError(
-      "scheduled-blob-exports entitlement required for this feature.",
-    );
-  }
 
   // Validate request body
   const validatedData = CreateBlobStorageIntegrationRequest.parse(req.body);
@@ -214,7 +192,7 @@ async function handleUpsertBlobStorageIntegration(
   return res.status(200).json(responseData);
 }
 
-/** authorizeBlobStorageRequest gates a blob-storage request on an organization key, returning the verified scope. */
+/** authorizeBlobStorageRequest gates a blob-storage request on an organization key and the blob-export entitlement, returning the verified scope. */
 async function authorizeBlobStorageRequest(
   req: NextApiRequest,
 ): Promise<ApiAccessScope> {
@@ -224,6 +202,16 @@ async function authorizeBlobStorageRequest(
       throw new UnauthorizedError(authCheck.error);
     }
     throw new ForbiddenError(orgKeyRequired);
+  }
+  if (
+    !hasEntitlementBasedOnPlan({
+      plan: authCheck.scope.plan,
+      entitlement: "scheduled-blob-exports",
+    })
+  ) {
+    throw new ForbiddenError(
+      "scheduled-blob-exports entitlement required for this feature.",
+    );
   }
   return authCheck.scope;
 }

@@ -12,7 +12,7 @@ import {
 } from "@langfuse/shared";
 import type { BlobStorageIntegrationStatusResponseType } from "@/src/features/public-api/types/blob-storage-integrations";
 import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
-import { verifyOrgAuth } from "@/src/features/auth/policy/shadow.direct";
+import { verifyOrgAuth } from "@/src/features/auth/policy/verifyOrgAuth";
 
 /** orgKeyRequired is the 403 body when a non-organization key hits a blob-storage endpoint. */
 const orgKeyRequired =
@@ -28,17 +28,6 @@ async function handleDeleteBlobStorageIntegration(
   res: NextApiResponse,
 ) {
   const scope = await authorizeBlobStorageRequest(req);
-
-  if (
-    !hasEntitlementBasedOnPlan({
-      plan: scope.plan,
-      entitlement: "scheduled-blob-exports",
-    })
-  ) {
-    throw new ForbiddenError(
-      "scheduled-blob-exports entitlement required for this feature.",
-    );
-  }
 
   const { id } = req.query;
 
@@ -85,17 +74,6 @@ async function handleGetBlobStorageIntegrationStatus(
 ) {
   const scope = await authorizeBlobStorageRequest(req);
 
-  if (
-    !hasEntitlementBasedOnPlan({
-      plan: scope.plan,
-      entitlement: "scheduled-blob-exports",
-    })
-  ) {
-    throw new ForbiddenError(
-      "scheduled-blob-exports entitlement required for this feature.",
-    );
-  }
-
   const { id } = req.query;
   if (!id || typeof id !== "string") {
     throw new InvalidRequestError("Invalid integration ID");
@@ -128,7 +106,7 @@ async function handleGetBlobStorageIntegrationStatus(
   return res.status(200).json(responseData);
 }
 
-/** authorizeBlobStorageRequest gates a blob-storage request on an organization key, returning the verified scope. */
+/** authorizeBlobStorageRequest gates a blob-storage request on an organization key and the blob-export entitlement, returning the verified scope. */
 async function authorizeBlobStorageRequest(
   req: NextApiRequest,
 ): Promise<ApiAccessScope> {
@@ -138,6 +116,16 @@ async function authorizeBlobStorageRequest(
       throw new UnauthorizedError(authCheck.error);
     }
     throw new ForbiddenError(orgKeyRequired);
+  }
+  if (
+    !hasEntitlementBasedOnPlan({
+      plan: authCheck.scope.plan,
+      entitlement: "scheduled-blob-exports",
+    })
+  ) {
+    throw new ForbiddenError(
+      "scheduled-blob-exports entitlement required for this feature.",
+    );
   }
   return authCheck.scope;
 }
