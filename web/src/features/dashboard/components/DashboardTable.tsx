@@ -66,19 +66,14 @@ export function DashboardTable() {
   });
 
   useEffect(() => {
+    const resolved = resolveDashboardListOrderBy(orderByState);
     if (
-      orderByState?.column !== resolvedOrderBy.column ||
-      orderByState?.order !== resolvedOrderBy.order
+      orderByState?.column !== resolved.column ||
+      orderByState?.order !== resolved.order
     ) {
-      setOrderByState(resolvedOrderBy);
+      setOrderByState(resolved);
     }
-  }, [
-    orderByState?.column,
-    orderByState?.order,
-    resolvedOrderBy.column,
-    resolvedOrderBy.order,
-    setOrderByState,
-  ]);
+  }, [orderByState, setOrderByState]);
 
   const dashboards = api.dashboard.allDashboards.useQuery(
     {
