@@ -361,7 +361,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
           messagePlaceholders,
         );
 
-        if (finalMessages.length === 0) {
+        if (finalMessages.every(isBlankMessage)) {
           throw new Error("Please add at least one message with content.");
         }
 
@@ -610,16 +610,15 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
 
     const handleGlobalExecute = () => {
       if (!isStreamingRef.current) {
-        // Check if this window has any content at all (including placeholders)
-        const hasAnyContent = messages.some((message) => {
-          if (message.type === ChatMessageType.Placeholder) {
-            return true; // Placeholders are considered content
-          }
-          if (typeof message.content === "string") {
-            return message.content.trim().length > 0;
-          }
-          return true; // Non-string content (tool calls, etc.) is considered valid
-        });
+        // Check if this window has any content at all (including placeholders).
+        // Whitespace counts as content: a window replayed from a trace may
+        // consist of a whitespace-only turn, and skipping it would drop the
+        // very thing being reproduced.
+        const hasAnyContent = messages.some(
+          (message) =>
+            message.type === ChatMessageType.Placeholder ||
+            !isBlankMessage(message),
+        );
 
         if (hasAnyContent) {
           // Read streaming preference from localStorage (same key as SubmitButton in Messages.tsx)
@@ -989,28 +988,22 @@ function getFinalMessages(
     {} as Record<string, string>,
   );
 
-  const compiledMessages = compileChatMessagesWithIds(
-    messages,
-    placeholderValues,
-    textVariables,
+  // Blank messages are kept: a conversation opened from a trace must be sent
+  // with the turns it was recorded with, and a blank turn is often the very
+  // thing being reproduced. Placeholders left unfilled are already rejected
+  // above, so there is nothing left here that is safe to silently drop.
+  return compileChatMessagesWithIds(messages, placeholderValues, textVariables);
+}
+
+function isBlankMessage(message: ChatMessageWithIdNoPlaceholders): boolean {
+  if (typeof message.content !== "string") return false;
+  if (message.content.length > 0) return false;
+
+  return !(
+    "toolCalls" in message &&
+    Array.isArray(message.toolCalls) &&
+    message.toolCalls.length > 0
   );
-
-  // Filter empty messages (except tool calls), e.g. if placeholder value was empty
-  return compiledMessages.filter((m) => {
-    // Standard ChatMessage filtering
-    if (typeof m.content === "string") {
-      return (
-        m.content.length > 0 ||
-        ("toolCalls" in m &&
-          m.toolCalls &&
-          Array.isArray(m.toolCalls) &&
-          m.toolCalls.length > 0)
-      );
-    }
-
-    // For arbitrary objects, keep them (assume they have meaningful content)
-    return true;
-  });
 }
 
 function getOutputJson(
