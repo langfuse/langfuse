@@ -279,7 +279,7 @@ const EVENTS_ONLY_ALLOWED_TYPES = new Set<string>([
   eventTypes.SDK_LOG,
 ]);
 
-const TRACE_OR_OBSERVATION_EVENT_TYPES = new Set(
+const TRACE_OR_OBSERVATION_EVENT_TYPES = new Set<string>(
   Object.values(eventTypes).filter(
     (type) =>
       type !== eventTypes.SCORE_CREATE &&
