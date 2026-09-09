@@ -170,6 +170,15 @@ describe("ChatML Integration", () => {
         observationName: "openrouter-completion",
       });
       expect(result.success).toBe(true);
+
+      // Mismatch path: safeParse throws under locked Error.name; failure must
+      // still expose a Zod `error` (not a bare `{ success: false }`).
+      const failed = normalizeInput({ not: "chatml" }, { metadata });
+      expect(failed.success).toBe(false);
+      if (!failed.success) {
+        expect(failed.error).toBeDefined();
+        expect(Array.isArray(failed.error.issues)).toBe(true);
+      }
     } finally {
       if (descriptor) {
         Object.defineProperty(Error.prototype, "name", descriptor);
