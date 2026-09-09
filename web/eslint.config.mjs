@@ -112,12 +112,17 @@ export default [
             "peer",
             // Valid named Tailwind peer marker; eslint-plugin-tailwindcss v4 misses it with Tailwind v4.
             "peer/menu-button",
+            // Component hooks used by the command and dialog primitives.
+            "cmdk-input-wrapper",
+            "dialog-header",
+            "dialog-footer",
           ],
         },
       ],
       "tailwindcss/enforces-negative-arbitrary-values": "warn",
       // TODO: Enable these rule later
       "tailwindcss/classnames-order": "off",
+      "tailwindcss/enforces-canonical-classname": "off",
       "tailwindcss/enforces-shorthand": "off",
       "tailwindcss/no-unnecessary-arbitrary-value": "off",
       "tailwindcss/no-contradicting-classname": "off",
