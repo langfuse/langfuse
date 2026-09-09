@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
-import config from "../../../../vitest.config.mjs";
+import { describe, expect, it, vi } from "vitest";
+import type { ViteUserConfig } from "vitest/config";
 import packageJson from "../../../../package.json";
+
+// Load build-tool configuration only in Vitest, not in the application type graph.
+const { default: config } = await vi.importActual<{ default: ViteUserConfig }>(
+  "../../../../vitest.config.mjs",
+);
 
 // Global cache invalidation must not overlap any other server test's fixtures.
 describe("server test scheduling", () => {
