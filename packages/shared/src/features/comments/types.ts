@@ -27,6 +27,10 @@ export const CreateCommentData = z
     content: z.string().trim().min(1).max(MAX_COMMENT_LENGTH),
     objectId: z.string(),
     objectType: z.enum(COMMENT_OBJECT_TYPES),
+    // Optional start time of the referenced object (e.g. an observation's
+    // start_time). When present it bounds the reference-existence lookup to a
+    // narrow time range so ClickHouse can prune partitions/parts.
+    objectStartTime: z.coerce.date().nullish(),
     // Optional inline positioning (parallel arrays)
     dataField: z.enum(COMMENT_DATA_FIELDS).nullish(),
     path: z.array(jsonPathSchema).nullish(),

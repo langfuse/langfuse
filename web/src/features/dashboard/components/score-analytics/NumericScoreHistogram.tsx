@@ -8,7 +8,7 @@ import { type ViewVersion } from "@langfuse/shared/query";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import React from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { Chart } from "@/src/features/widgets";
 import { scoreHistogramToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 
 export function NumericScoreHistogram(props: {

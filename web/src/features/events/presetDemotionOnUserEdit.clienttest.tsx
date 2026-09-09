@@ -6,8 +6,10 @@ import {
   type TableViewPresetState,
 } from "@langfuse/shared";
 import { useCallback, useRef } from "react";
-import { useSidebarFilterState } from "../filters/hooks/useSidebarFilterState";
-import type { FilterConfig } from "../filters/lib/filter-config";
+import {
+  type FilterConfig,
+  useSidebarFilterState,
+} from "@/src/features/filters";
 import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
 import {
   demoteViewOnUserFilterEdit,

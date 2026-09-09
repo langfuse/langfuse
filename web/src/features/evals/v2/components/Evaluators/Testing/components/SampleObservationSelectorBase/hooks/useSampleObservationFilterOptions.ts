@@ -8,15 +8,13 @@ import {
   type TimeFilter,
 } from "@langfuse/shared";
 
-import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import { useEventsFilterOptions } from "@/src/features/events";
 import {
   type FieldRegistry,
-  withFieldOptions,
-} from "@/src/features/search-bar/lib/fields";
-import {
-  toObservedOptions,
   type ObservedOptions,
-} from "@/src/features/search-bar/lib/observed-options";
+  toObservedOptions,
+  withFieldOptions,
+} from "@/src/features/search-bar";
 import {
   removeInternalEvaluationEnvironmentColumnOptions,
   removeInternalEvaluationEnvironmentOptions,

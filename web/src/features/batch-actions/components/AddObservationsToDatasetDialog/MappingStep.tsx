@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { MappingModeSelector } from "./components/MappingModeSelector";
 import { CustomMappingEditor } from "./components/CustomMappingEditor";
 import { MappingPreviewPanel } from "./components/MappingPreviewPanel";
-import { DatasetSchemaHoverCard } from "@/src/features/datasets/components/DatasetSchemaHoverCard";
+import { DatasetSchemaHoverCard } from "@/src/features/datasets";
 import {
   extractSchemaFields,
   isObjectSchema,
