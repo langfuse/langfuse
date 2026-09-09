@@ -101,11 +101,24 @@ export async function signupApiHandler(
       { adClickIds: getAdClickIdsFromRequest(req) },
     );
   } catch (error) {
-    const message =
+    const logMessage =
       "Signup: Error creating user: " +
       (error instanceof Error ? error.message : JSON.stringify(error));
-    logger.warn(message, body.email.toLowerCase(), body.name);
-    res.status(422).json({ message: message });
+    logger.warn(logMessage, body.email.toLowerCase(), body.name);
+
+    // Only forward messages we authored ourselves (validation, duplicate
+    // account). Everything else can carry Prisma/Postgres internals, so it
+    // gets a generic response while the details stay in the server logs.
+    const knownMessages = [
+      "Password needs to be at least 8 characters long.",
+      "User with email already exists. Please sign in.",
+      "You have already signed up via an identity provider. Please sign in.",
+    ];
+    const safeMessage =
+      error instanceof Error && knownMessages.includes(error.message)
+        ? error.message
+        : "Signup failed. Please check your input and try again.";
+    res.status(422).json({ message: safeMessage });
 
     return;
   }
