@@ -1,7 +1,7 @@
 import { type ComponentProps, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
-import preview from "../../../.storybook/preview";
+import preview from "@/.storybook/preview";
 import { ModernSessionHeader } from "@/src/components/session/ModernSessionHeader";
 import { sessionHeaderVisibilityStorageKey } from "@/src/components/session/sessionHeaderVisibility";
 

@@ -1,4 +1,5 @@
 /* eslint-disable @repo/no-null-render */
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React, { useState } from "react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useForm, useFieldArray } from "react-hook-form";
@@ -26,8 +27,6 @@ import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { type Prisma, WebhookProtectedHeaders } from "@langfuse/shared";

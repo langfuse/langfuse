@@ -1,6 +1,12 @@
 /* eslint-disable @repo/no-style-props */
 import { useCallback, useMemo, useState, type UIEvent } from "react";
-import { EyeOff, FlaskConical, ListTree, Sparkles, Wrench } from "lucide-react";
+import {
+  Database,
+  FlaskConical,
+  ListTree,
+  Sparkles,
+  Wrench,
+} from "lucide-react";
 import {
   type FilterState,
   type TimeFilter,
@@ -16,21 +22,22 @@ import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
-import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
-import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import {
-  type FieldRegistry,
+  buildAiContext,
   EVENTS_FIELD_REGISTRY,
-} from "@/src/features/search-bar/lib/fields";
-import { observedScoreNamesFromOptions } from "@/src/features/search-bar/lib/observed-options";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+  EventsSearchBarRow,
+  type FieldRegistry,
+  observedScoreNamesFromOptions,
+  useEventsSearchBar,
+} from "@/src/features/search-bar";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "@/src/features/evals/v2/constants/evaluatorFilterExperience";
-import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
 import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
 import { buildSampleQueryFilters } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/buildSampleQueryFilters";
@@ -97,11 +104,6 @@ const EXAMPLES = [
         value: ["TOOL"],
       },
     ] satisfies FilterState,
-  },
-  {
-    label: "Exclude experiments & evals",
-    icon: EyeOff,
-    filters: EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS,
   },
 ] as const;
 
@@ -192,6 +194,26 @@ export function SampleObservationSelectorBase(
     },
   );
   const datasetOptions = useMemo(() => datasets.data ?? [], [datasets.data]);
+  const examples = useMemo(() => {
+    const firstDataset = datasetOptions[0];
+    return firstDataset
+      ? [
+          ...EXAMPLES,
+          {
+            label: "Datasets",
+            icon: Database,
+            filters: [
+              {
+                column: "experimentDatasetId",
+                type: "stringOptions",
+                operator: "any of",
+                value: [firstDataset.id],
+              },
+            ] satisfies FilterState,
+          },
+        ]
+      : EXAMPLES;
+  }, [datasetOptions]);
   const setFilters = (
     next: FilterState | ((current: FilterState) => FilterState),
   ) => {
@@ -519,7 +541,7 @@ export function SampleObservationSelectorBase(
         )}
         {filterMode === "query" ? (
           <div className="flex flex-wrap gap-2">
-            {EXAMPLES.map((example) => (
+            {examples.map((example) => (
               <Button
                 key={example.label}
                 type="button"
@@ -554,6 +576,8 @@ export function SampleObservationSelectorBase(
           tooltip={matchingTooltip}
           trailing={
             <DataTableColumnVisibilityFilter
+              tableName="evaluator-sample-observations"
+              isV4
               columns={columns}
               columnVisibility={columnVisibility}
               setColumnVisibility={setColumnVisibility}

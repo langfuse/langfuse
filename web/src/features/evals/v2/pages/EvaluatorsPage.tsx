@@ -1,3 +1,4 @@
+import { showSuccessToast } from "@/src/features/notifications";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
   type OrderByState,
@@ -31,15 +32,16 @@ import { EvaluatorStatusBadge } from "../components/Evaluators/EvaluatorStatusBa
 import { EvaluatorTypeBadge } from "../components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
 import { EvaluatorExecutionHistory } from "@/src/features/evals/v2/components/Rules/EvaluatorExecutionHistory/EvaluatorExecutionHistory";
 import { OverviewSelectionBar } from "../components/OverviewSelectionBar/OverviewSelectionBar";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useEvaluatorAlerts } from "@/src/features/evals/v2/hooks/useEvaluatorAlerts";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { useSidebarFilterState } from "@/src/features/filters";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import {
   createEvaluatorsTableStore,
@@ -154,6 +156,7 @@ function EvaluatorsTableToolbar({
 
   return (
     <DataTableToolbar
+      tableName="evaluators-v2"
       {...toolbarProps}
       multiSelect={{
         selectAll,

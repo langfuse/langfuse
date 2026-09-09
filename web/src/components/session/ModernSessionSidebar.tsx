@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-margin-on-root-elements */
 import React, { useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
@@ -102,7 +101,7 @@ function ObservationListRows({
     }) {
   if (state.type === "loading") {
     return (
-      <div className="-mx-1 flex flex-col gap-1 px-1 py-2">
+      <div className="flex flex-col gap-1 px-1 py-2">
         <div className="bg-muted h-3 w-3/4 animate-pulse rounded-sm" />
         <div className="bg-muted h-3 w-1/2 animate-pulse rounded-sm" />
       </div>
@@ -111,7 +110,7 @@ function ObservationListRows({
 
   if (state.type === "empty") {
     return (
-      <p className="text-muted-foreground -mx-1 px-1 py-2 text-xs">
+      <p className="text-muted-foreground px-1 py-2 text-xs">
         {state.hasFilters
           ? "No matching child observations"
           : "No child observations"}
@@ -121,7 +120,7 @@ function ObservationListRows({
 
   if (state.type === "trace-io-only") {
     return (
-      <div className="border-border bg-border/40 text-foreground -mx-1 mt-2 rounded-sm border px-2 py-1.5 text-xs">
+      <div className="border-border bg-border/40 text-foreground rounded-sm border px-2 py-1.5 text-xs">
         Trace-level I/O only
       </div>
     );
@@ -129,7 +128,7 @@ function ObservationListRows({
 
   if (state.type === "error") {
     return (
-      <p className="text-muted-foreground -mx-1 px-1 py-2 text-xs">
+      <p className="text-muted-foreground px-1 py-2 text-xs">
         Failed to load observations
       </p>
     );
@@ -140,7 +139,7 @@ function ObservationListRows({
   }
 
   return (
-    <div className="mt-2 flex flex-col">
+    <div className="flex flex-col">
       {state.rows.map((observation) => (
         <div
           key={observation.id}
@@ -234,6 +233,13 @@ const TurnCard = React.memo(
       sidebarTrace;
     const isTraceLevelIOOnly =
       hasMatchingTraceLevelIO && observations?.length === 0;
+    let observationListClassName = "-mx-1";
+    if (observations?.length) {
+      observationListClassName = "mt-2";
+    }
+    if (isTraceLevelIOOnly) {
+      observationListClassName = "-mx-1 mt-2";
+    }
 
     return (
       <div
@@ -284,27 +290,29 @@ const TurnCard = React.memo(
           </button>
         </div>
         {!isCollapsed ? (
-          observations === undefined ? (
-            <ObservationListRows state={{ type: "loading" }} />
-          ) : observations === null ? (
-            <ObservationListRows state={{ type: "error" }} />
-          ) : observations.length === 0 ? (
-            <ObservationListRows
-              state={
-                isTraceLevelIOOnly
-                  ? { type: "trace-io-only" }
-                  : { type: "empty", hasFilters }
-              }
-            />
-          ) : (
-            <ObservationListRows
-              state={{ type: "loaded", rows: observations }}
-              onSelectObservation={(observationId) =>
-                onSelect(selectIndex, observationId)
-              }
-              onFilterObservationByName={onFilterObservationByName}
-            />
-          )
+          <div className={observationListClassName}>
+            {observations === undefined ? (
+              <ObservationListRows state={{ type: "loading" }} />
+            ) : observations === null ? (
+              <ObservationListRows state={{ type: "error" }} />
+            ) : observations.length === 0 ? (
+              <ObservationListRows
+                state={
+                  isTraceLevelIOOnly
+                    ? { type: "trace-io-only" }
+                    : { type: "empty", hasFilters }
+                }
+              />
+            ) : (
+              <ObservationListRows
+                state={{ type: "loaded", rows: observations }}
+                onSelectObservation={(observationId) =>
+                  onSelect(selectIndex, observationId)
+                }
+                onFilterObservationByName={onFilterObservationByName}
+              />
+            )}
+          </div>
         ) : null}
       </div>
     );

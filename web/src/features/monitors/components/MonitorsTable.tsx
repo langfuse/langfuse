@@ -18,10 +18,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { getMonitorFilterConfig } from "@/src/features/filters/config/monitors-config";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import {
+  getMonitorFilterConfig,
+  useSidebarFilterState,
+} from "@/src/features/filters";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import TagList from "@/src/features/tag/components/TagList";

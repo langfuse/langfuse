@@ -21,7 +21,7 @@ import {
   useCallback,
   type RefObject,
 } from "react";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { useMediaTagChips } from "@/src/components/editor/mediaTagWidget";
@@ -42,22 +42,9 @@ import {
 } from "./DatasetItemMediaAttachments";
 import { DatasetItemFieldSchemaErrors } from "./DatasetItemFieldSchemaErrors";
 import { generateSchemaExample } from "../lib/generateSchemaExample";
-import {
-  InputCommand,
-  InputCommandEmpty,
-  InputCommandGroup,
-  InputCommandInput,
-  InputCommandItem,
-} from "@/src/components/ui/input-command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import { Check, ChevronsUpDown } from "lucide-react";
-import { Badge } from "@/src/components/ui/badge";
-import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
+import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
+import { Badge } from "@/src/components/ui/badge";
 import {
   isValidDatasetJson,
   parseDatasetJson,
@@ -351,84 +338,38 @@ export const NewDatasetItemForm = (props: {
               render={({ field }) => (
                 <FormItem className="flex flex-col">
                   <FormLabel>Target datasets</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          className={cn(
-                            "w-full justify-between",
-                            !field.value.length && "text-muted-foreground",
-                          )}
-                        >
-                          {field.value.length > 0
-                            ? `${field.value.length} dataset${field.value.length > 1 ? "s" : ""} selected`
-                            : "Select datasets"}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="p-0">
-                      <InputCommand>
-                        <InputCommandInput
-                          placeholder="Search datasets..."
-                          variant="bottom"
-                        />
-                        <InputCommandEmpty>
-                          No datasets found.
-                        </InputCommandEmpty>
-                        <InputCommandGroup>
-                          <ScrollArea className="h-fit">
-                            {datasets.data?.map((dataset) => (
-                              <InputCommandItem
-                                value={dataset.name}
-                                key={dataset.id}
-                                onSelect={() => {
-                                  const newValue = field.value.includes(
-                                    dataset.id,
-                                  )
-                                    ? field.value.filter(
-                                        (id) => id !== dataset.id,
-                                      )
-                                    : [...field.value, dataset.id];
-                                  field.onChange(newValue);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    field.value.includes(dataset.id)
-                                      ? "opacity-100"
-                                      : "opacity-0",
-                                  )}
-                                />
-                                {dataset.name}
-                                {dataset.id === props.currentDatasetId && (
-                                  <span className="text-muted-foreground ml-1">
-                                    (current)
-                                  </span>
-                                )}
-                              </InputCommandItem>
-                            ))}
-                          </ScrollArea>
-                        </InputCommandGroup>
-                      </InputCommand>
-                    </PopoverContent>
-                  </Popover>
+                  <FormControl>
+                    <MultiSelectInput
+                      value={field.value}
+                      options={(datasets.data ?? []).map((dataset) => ({
+                        value: dataset.id,
+                        label: dataset.name,
+                        secondaryLabel:
+                          dataset.id === props.currentDatasetId
+                            ? "(current)"
+                            : undefined,
+                      }))}
+                      onValueChange={field.onChange}
+                      placeholder="Select datasets"
+                      selectedLabel={`${field.value.length} dataset${field.value.length > 1 ? "s" : ""} selected`}
+                      searchPlaceholder="Search datasets..."
+                      emptyMessage="No datasets found."
+                    />
+                  </FormControl>
                   {field.value.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1">
                       {field.value.map((datasetId) => {
                         const dataset = datasets.data?.find(
-                          (d) => d.id === datasetId,
+                          (item) => item.id === datasetId,
                         );
+
                         return (
                           <Badge
                             key={datasetId}
                             variant="secondary"
                             className="mr-1 mb-1"
                           >
-                            {dataset?.name || datasetId}
+                            {dataset?.name ?? datasetId}
                           </Badge>
                         );
                       })}

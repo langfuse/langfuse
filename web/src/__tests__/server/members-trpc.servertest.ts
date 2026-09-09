@@ -806,6 +806,91 @@ describe("membersRouter.updateProjectRole - orgMembership/userId consistency", (
   });
 });
 
+describe("membersRouter.create - duplicate project membership", () => {
+  it("returns BAD_REQUEST when re-adding an existing org member to a project they already belong to", async () => {
+    const { org, project, caller } = await prepare("cloud:team");
+    const user = await createTestUser();
+    const orgMembership = await prisma.organizationMembership.create({
+      data: {
+        userId: user.id,
+        orgId: org.id,
+        role: Role.MEMBER,
+      },
+    });
+    await prisma.projectMembership.create({
+      data: {
+        userId: user.id,
+        projectId: project.id,
+        role: Role.VIEWER,
+        orgMembershipId: orgMembership.id,
+      },
+    });
+
+    await expect(
+      caller.members.create({
+        orgId: org.id,
+        email: user.email!,
+        orgRole: Role.NONE,
+        projectId: project.id,
+        projectRole: Role.VIEWER,
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "User is already a member of this project",
+    });
+  });
+
+  it("returns BAD_REQUEST when adding a new org member who already has a project membership", async () => {
+    const { org, project, caller } = await prepare("cloud:team");
+    const user = await createTestUser();
+    // Project memberships require an orgMembershipId FK. Seed the unique
+    // (project_id, user_id) collision via a membership in another org so this
+    // request still takes the "create org membership, then project
+    // membership" branch.
+    const otherOrg = await prisma.organization.create({
+      data: {
+        id: uuidv4(),
+        name: `Other Org ${uuidv4().substring(0, 8)}`,
+      },
+    });
+    const otherOrgMembership = await prisma.organizationMembership.create({
+      data: {
+        userId: user.id,
+        orgId: otherOrg.id,
+        role: Role.MEMBER,
+      },
+    });
+    await prisma.projectMembership.create({
+      data: {
+        userId: user.id,
+        projectId: project.id,
+        role: Role.VIEWER,
+        orgMembershipId: otherOrgMembership.id,
+      },
+    });
+
+    await expect(
+      caller.members.create({
+        orgId: org.id,
+        email: user.email!,
+        orgRole: Role.MEMBER,
+        projectId: project.id,
+        projectRole: Role.VIEWER,
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "User is already a member of this project",
+    });
+
+    // The duplicate is rejected before the org membership is created, so no
+    // partial write (or consumed seat) is left behind in the target org.
+    const orgMembership = await prisma.organizationMembership.findFirst({
+      where: { orgId: org.id, userId: user.id },
+    });
+    expect(orgMembership).toBeNull();
+  });
+});
+
 describe("membersRouter.updateProjectRole - project organization consistency", () => {
   it("rejects a project from another organization without writing membership or audit log", async () => {
     const { org, ownerUser, caller } = await prepare("cloud:team");

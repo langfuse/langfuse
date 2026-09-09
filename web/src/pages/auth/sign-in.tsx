@@ -42,6 +42,7 @@ import { reportError } from "@/src/utils/reportError";
 import {
   isExpectedSignInError,
   isNextAuthMissingSignInUrlError,
+  isJsonParseSyntaxError,
 } from "@/src/features/auth/lib/expectedAuthErrors";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -848,7 +849,13 @@ export default function SignIn({
         }
       }, 100);
     } catch (error) {
-      captureUnknownError("auth.signIn.checkSso", error);
+      // JSON.parse of a non-JSON 200 (proxy/WAF HTML) is transport, not an
+      // app bug — breadcrumb it. Unknown failures still capture.
+      reportError(error, {
+        area: "auth.signIn.checkSso",
+        expected: isJsonParseSyntaxError(error),
+        extra: { context: "auth.signIn.checkSso" },
+      });
       setCredentialsFormError(
         "Unable to check SSO configuration. Please try again.",
       );
@@ -896,7 +903,7 @@ export default function SignIn({
           </div>
         )}
 
-        <CloudRegionSwitch />
+        {isLangfuseCloud && <CloudRegionSwitch />}
 
         <div className="bg-background mt-14 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
           <div className="space-y-6">
@@ -1025,7 +1032,9 @@ export default function SignIn({
             </p>
           ) : null}
         </div>
-        <CloudPrivacyNotice action="signing in" />
+        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined && (
+          <CloudPrivacyNotice action="signing in" />
+        )}
       </div>
     </>
   );

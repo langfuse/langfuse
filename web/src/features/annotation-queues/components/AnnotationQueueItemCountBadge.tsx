@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import { cn } from "@/src/utils/tailwind";
 
 type AnnotationQueueItemCountBadgeProps = {
@@ -10,8 +9,6 @@ export function AnnotationQueueItemCountBadge({
   totalCount,
   layout,
 }: AnnotationQueueItemCountBadgeProps) {
-  if (totalCount <= 0) return null;
-
   return (
     <span
       className={cn(

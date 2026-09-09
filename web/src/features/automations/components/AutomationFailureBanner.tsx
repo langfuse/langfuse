@@ -1,30 +1,16 @@
-/* eslint-disable @repo/no-null-render */
-import React from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { api } from "@/src/utils/api";
 
 interface AutomationFailureBannerProps {
-  projectId: string;
-  automationId: string;
+  failureCount: number;
+  onDismiss: () => void;
 }
 
-export const AutomationFailureBanner: React.FC<
-  AutomationFailureBannerProps
-> = ({ projectId, automationId }) => {
-  const [dismissed, setDismissed] = React.useState(false);
-
-  const { data: failureData } =
-    api.automations.getCountOfConsecutiveFailures.useQuery({
-      projectId,
-      automationId,
-    });
-
-  if (dismissed || !failureData || failureData.count < 5) {
-    return null;
-  }
-
+export const AutomationFailureBanner = ({
+  failureCount,
+  onDismiss,
+}: AutomationFailureBannerProps) => {
   return (
     <div className="mb-4">
       <Alert variant="destructive" icon={AlertTriangle}>
@@ -33,7 +19,7 @@ export const AutomationFailureBanner: React.FC<
             <div className="flex-1">
               <strong>
                 This automation was automatically disabled due to at least{" "}
-                {failureData.count} consecutive webhook failures.
+                {failureCount} consecutive webhook failures.
               </strong>
               <div className="mt-2 text-sm">
                 Check the execution history below, fix any issues with your
@@ -43,7 +29,7 @@ export const AutomationFailureBanner: React.FC<
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setDismissed(true)}
+              onClick={onDismiss}
               className="ml-4 h-6 w-6 p-0"
             >
               <X className="h-4 w-4" />

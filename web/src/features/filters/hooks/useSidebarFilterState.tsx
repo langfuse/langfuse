@@ -31,7 +31,8 @@ import { normalizeFilterColumnNames } from "../lib/filter-transform";
 import {
   buildEffectiveEnvironmentFilter,
   buildManagedEnvironmentPolicyConfig,
-  stripImplicitEnvironmentFilterFromExplicitState,
+  canonicalizeExplicitEnvironmentFilters,
+  toSearchBarEnvironmentFilters,
   type ManagedEnvironmentPolicyInput,
 } from "../lib/managedEnvironmentPolicy";
 import { useKeyedSessionStorageState } from "./useKeyedSessionStorageState";
@@ -690,19 +691,34 @@ export function useSidebarFilterStateCore(
         ? memoryFilterState
         : urlFilterState;
 
+  const managedEnvironmentPolicyConfig = useMemo(
+    () => buildManagedEnvironmentPolicyConfig(implicitDefaultConfig),
+    [implicitDefaultConfig],
+  );
+
   const explicitFilterState = useMemo(() => {
     const defaultFilters = hookOptions.defaultExplicitFilterState ?? [];
-    if (defaultFilters.length === 0) return persistedExplicitFilterState;
+    const merged = (() => {
+      if (defaultFilters.length === 0) return persistedExplicitFilterState;
+      const explicitlyOwnedColumns = new Set(
+        persistedExplicitFilterState.map((filter) => filter.column),
+      );
+      return persistedExplicitFilterState.concat(
+        defaultFilters.filter(
+          (filter) => !explicitlyOwnedColumns.has(filter.column),
+        ),
+      );
+    })();
 
-    const explicitlyOwnedColumns = new Set(
-      persistedExplicitFilterState.map((filter) => filter.column),
-    );
-    return persistedExplicitFilterState.concat(
-      defaultFilters.filter(
-        (filter) => !explicitlyOwnedColumns.has(filter.column),
-      ),
-    );
-  }, [hookOptions.defaultExplicitFilterState, persistedExplicitFilterState]);
+    return canonicalizeExplicitEnvironmentFilters({
+      explicitFilters: merged,
+      config: managedEnvironmentPolicyConfig,
+    });
+  }, [
+    hookOptions.defaultExplicitFilterState,
+    persistedExplicitFilterState,
+    managedEnvironmentPolicyConfig,
+  ]);
 
   // LFE-10164: When arriving via a URL/deep link that already carries applied
   // filters, expand the sidebar sections that have an active filter. Sidebar
@@ -772,11 +788,6 @@ export function useSidebarFilterStateCore(
     });
   }
 
-  const managedEnvironmentPolicyConfig = useMemo(
-    () => buildManagedEnvironmentPolicyConfig(implicitDefaultConfig),
-    [implicitDefaultConfig],
-  );
-
   const managedEnvironmentColumn =
     managedEnvironmentPolicyConfig.managedEnvironmentColumn;
 
@@ -801,6 +812,23 @@ export function useSidebarFilterStateCore(
     ],
   );
 
+  // Display projection for the search bar: persist the full
+  // `none of [hidden ∪ extras]` exclusion, but show only extras
+  // (`-environment:production`) so implicit hidden envs stay off the chip.
+  const projectFiltersForSearchBar = useCallback(
+    (filters: FilterState) =>
+      toSearchBarEnvironmentFilters({
+        explicitFilters: filters,
+        config: managedEnvironmentPolicyConfig,
+      }),
+    [managedEnvironmentPolicyConfig],
+  );
+
+  const searchBarFilterState: FilterState = useMemo(
+    () => projectFiltersForSearchBar(explicitFilterState),
+    [explicitFilterState, projectFiltersForSearchBar],
+  );
+
   // `options.updateType` controls the history semantics of the URL write:
   // user-initiated filter edits keep the default (push — a Back-able step);
   // programmatic writes (e.g. the session default-view auto-apply) pass
@@ -815,7 +843,7 @@ export function useSidebarFilterStateCore(
       },
     ) => {
       const explicitFilters = stripOmittedColumns(
-        stripImplicitEnvironmentFilterFromExplicitState({
+        canonicalizeExplicitEnvironmentFilters({
           explicitFilters: newFilters,
           config: managedEnvironmentPolicyConfig,
         }),
@@ -980,6 +1008,8 @@ export function useSidebarFilterStateCore(
     /** Effective applied filters: explicit + defaults + managed-env policy. */
     filterState,
     explicitFilterState,
+    searchBarFilterState,
+    projectFiltersForSearchBar,
     setFilterState,
     expandedState,
     onExpandedChange,
@@ -1013,6 +1043,8 @@ export function useSidebarFilterPresentation(
   const {
     filterState,
     explicitFilterState,
+    searchBarFilterState,
+    projectFiltersForSearchBar,
     setFilterState,
     expandedState,
     onExpandedChange,
@@ -1032,6 +1064,10 @@ export function useSidebarFilterPresentation(
       managedEnvironmentColumn:
         managedEnvironmentPolicyConfig.hiddenEnvironments.length > 0
           ? managedEnvironmentColumn
+          : undefined,
+      hiddenEnvironments:
+        managedEnvironmentPolicyConfig.hiddenEnvironments.length > 0
+          ? managedEnvironmentPolicyConfig.hiddenEnvironments
           : undefined,
     }),
     [
@@ -1854,11 +1890,13 @@ export function useSidebarFilterPresentation(
         // A user-authored environment filter lives in EXPLICIT state; the
         // implicit hidden-env default (`none of [hidden]`) is added to EFFECTIVE
         // state only and stripped from explicit state by the managed-environment
-        // policy. So "explicit env filter present" is exactly "the user committed
-        // to an environment selection" — including `environment:default` (any-of
-        // the default set), which now persists. Keying the facet's active state
-        // off this keeps it in sync with the search bar, which renders any
-        // explicit env filter as a chip.
+        // policy. Extra exclusions on top of that default persist as
+        // `none of [hidden ∪ extras]`; the search bar display projection shows
+        // only extras. So "explicit env filter present" is exactly
+        // "the user committed to an environment selection" — including
+        // `environment:default` (any-of the default set), which now persists.
+        // Keying the facet's active state off this keeps it in sync with the
+        // search bar, which renders any explicit env filter as a chip.
         const hasExplicitManagedEnvironmentFilter =
           isManagedEnvironmentFacet &&
           explicitFilterState.some(
@@ -1983,6 +2021,8 @@ export function useSidebarFilterPresentation(
     filterState,
     effectiveFilterState: filterState,
     explicitFilterState,
+    searchBarFilterState,
+    projectFiltersForSearchBar,
     setFilterState,
     updateFilter,
     updateFilterOnly,

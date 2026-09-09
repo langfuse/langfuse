@@ -49,11 +49,14 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
   }
 
   // Viewing the list only needs apiKeys:read, which project MEMBERs hold.
-  // Create, delete, and note editing stay behind apiKeys:CUD and are gated
-  // individually by CreateApiKeyButton, DeleteApiKeyButton, and ApiKeyNote.
+  // Create, delete, and note editing stay behind apiKeys:CUD.
   const hasProjectReadAccess = useHasProjectAccess({
     projectId: props.entityId,
     scope: "apiKeys:read",
+  });
+  const hasProjectWriteAccess = useHasProjectAccess({
+    projectId: props.entityId,
+    scope: "apiKeys:CUD",
   });
   const hasOrganizationAccess = useHasOrganizationAccess({
     organizationId: props.entityId,
@@ -62,6 +65,8 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
 
   const hasAccess =
     props.scope === "project" ? hasProjectReadAccess : hasOrganizationAccess;
+  const hasCreateAccess =
+    props.scope === "project" ? hasProjectWriteAccess : hasOrganizationAccess;
 
   const projectApiKeysQuery = api.projectApiKeys.byProjectId.useQuery(
     { projectId: entityId },
@@ -100,7 +105,11 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
               ? "https://langfuse.com/docs/api#authentication"
               : "https://langfuse.com/docs/api#org-scoped-routes",
         }}
-        actionButtons={<CreateApiKeyButton entityId={entityId} scope={scope} />}
+        actionButtons={
+          hasCreateAccess ? (
+            <CreateApiKeyButton entityId={entityId} scope={scope} />
+          ) : undefined
+        }
       />
       <CodeView
         content={envCode}

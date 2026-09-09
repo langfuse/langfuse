@@ -2,8 +2,29 @@
 export type MetricOption = {
   id: string;
   label: string;
-  group: "Base Metrics" | "Observation Scores" | "Experiment Scores";
+  group: "Base Metrics" | "Scores";
+  /**
+   * The level the score was recorded at, absent on base metrics. Presentation
+   * only: the metric still resolves to one level to plot, but the dropdown
+   * tags the entry with the level instead of splitting the list by it — the
+   * tracing tables' score facets read the same way.
+   */
+  level?: ScoreLevel;
+  /**
+   * How the score's values read, absent on base metrics. Boolean scores share
+   * the numeric bucket (they are stored as 0/1) but summarise as a share
+   * rather than a magnitude, so they rank below a true numeric as a default.
+   */
+  valueKind?: "numeric" | "boolean" | "categorical";
 };
+
+/**
+ * How many values each score name carries across the runs in view, per level.
+ * Keyed by normalized score name, as `collectScoreNameCoverage` returns it.
+ */
+export type ScoreCoverageByLevel = Partial<
+  Record<ScoreLevel, ReadonlyMap<string, number>>
+>;
 
 export type ScoreFilterOptions = {
   obs_scores_avg?: string[];
@@ -29,6 +50,12 @@ export type ExperimentItemScoreFilterOptions = {
   score_name_levels_boolean?: ScoreNameLevels;
 };
 
+/**
+ * Levels the strip can chart. Trace level is deliberately absent: grouping a
+ * trace-attached score by experiment needs a single-row-per-trace join the
+ * query builder's relation model cannot express, so those scores are read from
+ * the score columns and the score matrix instead of plotted here.
+ */
 export type ScoreLevel = "obs" | "experiment";
 export type ScoreChartDataType = "numeric" | "categorical";
 
@@ -38,6 +65,5 @@ export type ScoreMetricSpec = Record<
     level: ScoreLevel;
     dataType: ScoreChartDataType;
     filterKey: keyof ScoreFilterOptions;
-    group: Exclude<MetricOption["group"], "Base Metrics">;
   }
 >;

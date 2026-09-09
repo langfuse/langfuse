@@ -178,10 +178,12 @@ export function SetPromptVersionLabels({
           )}
         >
           {title && title}
-          <TruncatedLabels
-            labels={promptLabels}
-            maxVisibleLabels={maxVisibleLabels}
-          />
+          {promptLabels.length > 0 && (
+            <TruncatedLabels
+              labels={promptLabels}
+              maxVisibleLabels={maxVisibleLabels}
+            />
+          )}
           <Button
             variant="outline"
             title="Add prompt label"

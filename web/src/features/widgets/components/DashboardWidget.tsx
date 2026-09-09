@@ -1,3 +1,4 @@
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
 import {
@@ -32,8 +33,6 @@ import {
   buildViewAsTableHint,
 } from "@/src/features/dashboard/lib/buildTableFilterHref";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
 import {
   buildWidgetExport,
@@ -62,7 +61,7 @@ import {
   getChartLoadingProgress,
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
-import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
+import type { ResolvedReadPath } from "@/src/features/events";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";

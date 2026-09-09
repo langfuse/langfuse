@@ -2,7 +2,7 @@ import posthog from "posthog-js";
 
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { readPathToggleStore } from "@/src/features/events/stores/readPathToggleStore";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics";
 import { setV4BetaEnabledSentryTag } from "@/src/utils/sentryV4BetaTag";
 

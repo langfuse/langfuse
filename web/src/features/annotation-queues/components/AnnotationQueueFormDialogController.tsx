@@ -1,3 +1,4 @@
+import { showErrorToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   type CreateQueueWithAssignments,
@@ -7,7 +8,6 @@ import { type ReactNode, useRef, useState } from "react";
 
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { AnnotationQueueFormDialogContent } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogContent";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import { api } from "@/src/utils/api";
@@ -70,7 +70,7 @@ export function AnnotationQueueFormDialogController(
   );
   const allQueueNamesAndIds = api.annotationQueues.allNamesAndIds.useQuery(
     { projectId },
-    { enabled: hasQueueAccess && mode === "create" && open },
+    { enabled: hasQueueAccess && open },
   );
 
   const utils = api.useUtils();
@@ -170,9 +170,7 @@ export function AnnotationQueueFormDialogController(
             projectId={projectId}
             queueId={queueId}
             queueNames={
-              mode === "create"
-                ? (allQueueNamesAndIds.data?.map((queue) => queue.name) ?? [])
-                : []
+              allQueueNamesAndIds.data?.map((queue) => queue.name) ?? []
             }
             onManageScoreConfigsClick={() => {
               capture("score_configs:manage_configs_item_click", {

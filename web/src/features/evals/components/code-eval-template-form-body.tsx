@@ -1,3 +1,4 @@
+import { showErrorToast } from "@/src/features/notifications";
 import CodeMirror, {
   Decoration,
   EditorView,
@@ -33,8 +34,8 @@ import {
 import { darkTheme } from "@/src/components/editor/dark-theme";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
+import { tolerateUnstableViewportPosAtCoords } from "@/src/components/editor/tolerateUnstableViewportPosAtCoords";
 import { codeMirrorSearchPanel } from "@/src/constants/codeMirrorSearchPanel";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import {
   getCodeEvalHoverDocs,
   PROPERTY_ACCESS_ONLY_HOVER_KEYS,
@@ -257,6 +258,12 @@ export function CodeEvalTemplateFormBody({
     sourceCodeRef.current = sourceCode;
   });
   const handleSourceCodeChange = useCallback((value: string) => {
+    // CodeMirror's MutationObserver can echo the current document back through
+    // onChange while React is already committing the same value. Pushing that
+    // echo into form state nests setState until React hits max update depth.
+    if (value === sourceCodeRef.current) {
+      return;
+    }
     sourceCodeRef.current = value;
     onSourceCodeChangeRef.current(value);
   }, []);
@@ -365,6 +372,7 @@ export function CodeEvalTemplateFormBody({
   );
   const extensions = useMemo(
     () => [
+      tolerateUnstableViewportPosAtCoords,
       // The `editable` prop only blocks direct typing; readOnly also blocks
       // paste and drag-and-drop edits.
       ...(!editable ? [EditorState.readOnly.of(true)] : []),

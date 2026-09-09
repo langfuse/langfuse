@@ -4,7 +4,7 @@ import {
   type WindowCoordinationReturn,
   PLAYGROUND_EVENTS,
 } from "../types";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 
 /**
  * Playground window registry for coordinating actions across multiple playground windows

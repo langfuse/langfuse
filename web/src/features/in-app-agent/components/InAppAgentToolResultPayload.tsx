@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 "use client";
 
 import { InAppAgentToolPayload } from "./InAppAgentToolPayload";
@@ -18,20 +17,22 @@ const TOOL_CALL_RESULT_PRESENTATION = {
 >;
 
 export function InAppAgentToolResultPayload({
-  tool,
+  status,
+  value,
+  toolName,
 }: {
-  tool: InAppAgentToolCallContent;
+  status: InAppAgentToolCallContent["status"];
+  value: string;
+  toolName?: string;
 }) {
-  if (tool.result === undefined && tool.error === undefined) {
-    return null;
-  }
-
-  const presentation = TOOL_CALL_RESULT_PRESENTATION[tool.status];
+  const presentation = TOOL_CALL_RESULT_PRESENTATION[status];
 
   return (
     <InAppAgentToolPayload
+      toolName={toolName}
+      kind="result"
       label={presentation.label}
-      value={tool.error ?? tool.result ?? ""}
+      value={value}
       variant={presentation.variant}
     />
   );

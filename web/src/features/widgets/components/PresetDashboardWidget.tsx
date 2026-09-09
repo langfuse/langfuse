@@ -1,3 +1,4 @@
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useMemo } from "react";
 import {
@@ -9,7 +10,7 @@ import {
 } from "lucide-react";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
-import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
+import type { ResolvedReadPath } from "@/src/features/events";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import {
   getHomePreset,
@@ -17,8 +18,6 @@ import {
 } from "@/src/features/dashboard/components/home-preset-registry";
 import { buildPresetExport } from "@/src/features/dashboard/utils/dashboard-import-export";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   DropdownMenu,

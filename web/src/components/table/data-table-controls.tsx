@@ -9,7 +9,7 @@ import {
   useCallback,
 } from "react";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   Select,
   SelectContent,
@@ -1870,13 +1870,9 @@ function CategoricalSelectContent({
               onOperatorChange(newOperator as "any of" | "all of" | "none of")
             }
           >
-            <TabsList className="grid h-6 w-full grid-cols-3 p-0.5">
-              <TabsTrigger value="any of" className="h-5 px-1 text-xs">
-                Any of
-              </TabsTrigger>
-              <TabsTrigger value="all of" className="h-5 px-1 text-xs">
-                All of
-              </TabsTrigger>
+            <Tabs.List layout="full" size="sm">
+              <Tabs.Trigger value="any of" size="sm" label="Any of" />
+              <Tabs.Trigger value="all of" size="sm" label="All of" />
               {/* Without a persisted selection, switching to "none of" is a
                   deliberate no-op in the state model (an empty exclusion
                   would persist a vacuous filter — LFE-10717), which used to
@@ -1885,14 +1881,13 @@ function CategoricalSelectContent({
                   engages by itself when a value is unchecked. */}
               <Tooltip delayDuration={80}>
                 <TooltipTrigger asChild>
-                  <span className="min-w-0">
-                    <TabsTrigger
+                  <span className="w-full min-w-0">
+                    <Tabs.Trigger
                       value="none of"
                       disabled={operator === undefined}
-                      className="h-5 w-full px-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      None of
-                    </TabsTrigger>
+                      size="sm"
+                      label="None of"
+                    />
                   </span>
                 </TooltipTrigger>
                 {operator === undefined && (
@@ -1902,7 +1897,7 @@ function CategoricalSelectContent({
                   </TooltipContent>
                 )}
               </Tooltip>
-            </TabsList>
+            </Tabs.List>
           </Tabs>
         </div>
       )}
@@ -2515,14 +2510,10 @@ function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
         value={mode}
         onValueChange={(newMode) => onModeChange(newMode as "select" | "text")}
       >
-        <TabsList className="grid h-6 w-full grid-cols-2 p-0.5">
-          <TabsTrigger value="select" className="h-5 px-2 text-xs">
-            Select
-          </TabsTrigger>
-          <TabsTrigger value="text" className="h-5 px-2 text-xs">
-            Text
-          </TabsTrigger>
-        </TabsList>
+        <Tabs.List layout="full" size="sm">
+          <Tabs.Trigger value="select" size="sm" label="Select" />
+          <Tabs.Trigger value="text" size="sm" label="Text" />
+        </Tabs.List>
       </Tabs>
     </div>
   );

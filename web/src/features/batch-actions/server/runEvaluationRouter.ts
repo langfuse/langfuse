@@ -1,4 +1,4 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
@@ -23,6 +23,7 @@ import {
 import { env } from "@/src/env.mjs";
 import { CreateObservationBatchEvaluationActionSchema } from "../validation";
 import { batchEligibleEvaluatorWhere } from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
+import { prepareBatchEvalEvaluatorMappings } from "./prepareBatchEvalEvaluatorMappings";
 
 export const runEvaluationRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -40,6 +41,9 @@ export const runEvaluationRouter = createTRPCRouter({
           query,
           evaluatorIds: rawEvaluatorIds,
           sourceTable = BatchEvalSourceTable.EVENTS,
+          evaluatorMappings: rawEvaluatorMappings,
+          sampling,
+          rowLimit,
         } = input;
 
         if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
@@ -111,6 +115,15 @@ export const runEvaluationRouter = createTRPCRouter({
           });
         }
 
+        const evaluatorMappings =
+          input.evalVersion === "v2" && rawEvaluatorMappings
+            ? await prepareBatchEvalEvaluatorMappings({
+                prisma: ctx.prisma,
+                projectId,
+                mappings: rawEvaluatorMappings,
+              })
+            : undefined;
+
         // Event comments live in Postgres, so resolve them for the preflight
         // count while retaining the original query for the queued worker.
         const commentFilterResult =
@@ -134,7 +147,10 @@ export const runEvaluationRouter = createTRPCRouter({
           ? 0
           : await getObservationsCountFromEventsTable(countQueryOpts);
 
-        if (observationCount > env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT) {
+        if (
+          rowLimit === undefined &&
+          observationCount > env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT
+        ) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: `Too many observations selected. Maximum allowed is ${env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT}, but ${observationCount} observations match your filters. Please refine your filters to reduce the count.`,
@@ -145,6 +161,9 @@ export const runEvaluationRouter = createTRPCRouter({
         const batchConfig = {
           evaluatorIds,
           ...(input.evalVersion ? { evalVersion: input.evalVersion } : {}),
+          ...(evaluatorMappings ? { evaluatorMappings } : {}),
+          ...(sampling !== undefined ? { sampling } : {}),
+          ...(rowLimit !== undefined ? { rowLimit } : {}),
         };
 
         logger.info(
@@ -193,6 +212,9 @@ export const runEvaluationRouter = createTRPCRouter({
               ...(batchConfig.evalVersion
                 ? { evalVersion: batchConfig.evalVersion }
                 : {}),
+              ...(evaluatorMappings ? { evaluatorMappings } : {}),
+              ...(sampling !== undefined ? { sampling } : {}),
+              ...(rowLimit !== undefined ? { rowLimit } : {}),
             },
           },
           {

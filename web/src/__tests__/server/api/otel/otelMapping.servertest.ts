@@ -8109,6 +8109,77 @@ describe("OTel Resource Span Mapping", () => {
       expect(usageDetails.output_reasoning_tokens).toBe(25);
       expect(usageDetails["reasoning.output_tokens"]).toBeUndefined();
     });
+
+    it("should normalize the official cache-write token attribute", async () => {
+      const traceId = "abcdef1234567890abcdef1234567893";
+      const officialCacheUsageSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "opentelemetry",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde2", "hex"),
+                name: "official-cache-usage",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 300, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read.input_tokens",
+                    value: { intValue: { low: 40, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_write.input_tokens",
+                    value: { intValue: { low: 25, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        officialCacheUsageSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (event) =>
+          event.type === "generation-create" || event.type === "span-create",
+      );
+
+      expect(observationEvent?.body.usageDetails).toEqual({
+        input: 235,
+        input_cached_tokens: 40,
+        input_cache_creation: 25,
+      });
+    });
+
     it("should normalize raw Anthropic cache_read_input_tokens / cache_creation_input_tokens into Langfuse canonical keys", async () => {
       // flat Anthropic cache spellings must map to cache aliases, not opaque passthrough buckets
       const traceId = "abcdef1234567890abcdef1234567893";

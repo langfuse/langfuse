@@ -1,4 +1,4 @@
-import preview from "../../../.storybook/preview";
+import preview from "@/.storybook/preview";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { type ComponentProps, useState } from "react";
 

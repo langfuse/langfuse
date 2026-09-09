@@ -9,7 +9,7 @@ import { prepareReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/
 import {
   EVENTS_FIELD_REGISTRY,
   withFieldOptions,
-} from "@/src/features/search-bar/lib/fields";
+} from "@/src/features/search-bar";
 
 const reusableFilters = [
   {

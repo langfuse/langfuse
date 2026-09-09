@@ -1,3 +1,4 @@
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useEffect, useState } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -15,8 +16,6 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Copy, Edit, Trash2, User as UserIcon } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { DeleteDialogDashboardContent } from "@/src/features/dashboard/components/DeleteDialogDashboardContent";
 import { EditDialogDashboardContent } from "@/src/features/dashboard/components/EditDialogDashboardContent";

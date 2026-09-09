@@ -1,3 +1,4 @@
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
@@ -29,8 +30,6 @@ import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/pr
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
@@ -64,6 +63,7 @@ import {
   getJudgePromptAnalyticsProperties,
   type EvaluatorCreationSource,
 } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
+import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
 
 type InitialEvaluator = {
   id: string;
@@ -504,6 +504,7 @@ export function EvaluatorSetupPage(
         capture("evaluators:update", {
           evaluatorType: state.type,
           filterExperience,
+          ...getFilterAnalyticsProperties(state.sampleFilter),
           ...(definition.type === "LLM_AS_JUDGE"
             ? getJudgePromptAnalyticsProperties(definition.promptMessages)
             : {}),
@@ -551,6 +552,7 @@ export function EvaluatorSetupPage(
               : undefined,
         }),
         filterExperience,
+        ...getFilterAnalyticsProperties(state.sampleFilter),
       });
       initialSnapshot.current = getCurrentSnapshot(state);
       await utils.evalsV2.filterOptions.invalidate({ projectId });

@@ -213,6 +213,8 @@ describe("event batch-action comment filter wiring", () => {
       ...createPayload("observation-run-batched-evaluation"),
       evaluatorIds: ["evaluator-with-rule", "standalone-evaluator"],
       evalVersion: "v2",
+      sampling: 0.25,
+      rowLimit: 5_000,
     });
 
     expect(mocks.findEvaluators).toHaveBeenCalledWith(
@@ -237,6 +239,55 @@ describe("event batch-action comment filter wiring", () => {
           expect.objectContaining({
             id: "standalone-evaluator",
             ruleId: null,
+          }),
+        ],
+      }),
+    );
+    expect(
+      mocks.processBatchedObservationEval.mock.calls[0]?.[0].evaluators[0].sampling.toString(),
+    ).toBe("0.25");
+    expect(mocks.getEventsStreamForEval).toHaveBeenCalledWith(
+      expect.objectContaining({ rowLimit: 5_000 }),
+    );
+  });
+
+  it("applies mapping overrides to ruleless in-memory assignments", async () => {
+    const mapping = [{ templateVariable: "output", selectedColumnId: "input" }];
+    mocks.findEvaluators.mockResolvedValue([
+      {
+        id: "standalone-evaluator",
+        name: "Standalone evaluator",
+        projectId: "project-1",
+        type: "LLM_AS_JUDGE",
+        blockedAt: null,
+        versions: [{ id: "version-2", variableMapping: [] }],
+        assignments: [],
+      },
+    ]);
+
+    await runBatchAction({
+      ...createPayload("observation-run-batched-evaluation"),
+      evaluatorIds: ["standalone-evaluator"],
+      evalVersion: "v2",
+      evaluatorMappings: [
+        {
+          evaluatorId: "standalone-evaluator",
+          variableMapping: mapping,
+        },
+      ],
+    });
+
+    expect(mocks.processBatchedObservationEval).toHaveBeenCalledWith(
+      expect.objectContaining({
+        evaluators: [
+          expect.objectContaining({
+            ruleId: null,
+            assignments: [
+              expect.objectContaining({
+                evaluatorId: "standalone-evaluator",
+                variableMapping: mapping,
+              }),
+            ],
           }),
         ],
       }),

@@ -2,7 +2,7 @@ import { type ColumnDefinition, type FilterState } from "@langfuse/shared";
 import { type ComponentProps } from "react";
 import { fn } from "storybook/test";
 
-import preview from "../../../.storybook/preview";
+import preview from "@/.storybook/preview";
 import { ModernSessionFilterDialogContent } from "@/src/components/session/ModernSessionFilterDialogContent";
 import { Dialog } from "@/src/components/ui/dialog";
 

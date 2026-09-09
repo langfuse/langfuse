@@ -147,11 +147,14 @@ const PeekViewEvaluatorConfigDetail = ({
         ) : null}
       </div>
 
-      <EvaluatorPausedCallout
-        projectId={projectId}
-        evalConfig={evalConfig}
-        allowReactivation={!readOnly}
-      />
+      {evalConfig.blockedAt && (
+        <EvaluatorPausedCallout
+          projectId={projectId}
+          evalConfig={evalConfig}
+          blockedAt={evalConfig.blockedAt}
+          allowReactivation={!readOnly}
+        />
+      )}
 
       <CardDescription className="flex items-center text-sm">
         <span className="mr-2 text-sm font-bold">Referenced Evaluator</span>

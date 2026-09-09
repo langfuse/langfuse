@@ -1,3 +1,4 @@
+import { showSuccessToast } from "@/src/features/notifications";
 import { type ReactNode, useState } from "react";
 
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
@@ -5,7 +6,6 @@ import { DeleteOrganizationDialogContent } from "@/src/features/organizations/co
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { env } from "@/src/env.mjs";
 

@@ -1,3 +1,4 @@
+import { showErrorToast } from "@/src/features/notifications";
 import React, {
   createContext,
   useCallback,
@@ -13,7 +14,6 @@ import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEm
 import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   ChatMessageRole,

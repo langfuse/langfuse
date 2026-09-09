@@ -20,6 +20,7 @@ import {
 } from "../clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
+import { OBSERVATIONS_TO_TRACE_INTERVAL } from "./constants";
 import {
   convertClickhouseToDomain,
   convertClickhouseTracesListToDomain,
@@ -925,6 +926,7 @@ export const getObservationByIdFromEventsTable = async ({
   projectId,
   fetchWithInputOutput = false,
   startTime,
+  startTimeLowerBound,
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
@@ -934,6 +936,7 @@ export const getObservationByIdFromEventsTable = async ({
   projectId: string;
   fetchWithInputOutput?: boolean;
   startTime?: Date;
+  startTimeLowerBound?: Date;
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
@@ -944,6 +947,7 @@ export const getObservationByIdFromEventsTable = async ({
     projectId,
     fetchWithInputOutput,
     startTime,
+    startTimeLowerBound,
     type,
     traceId,
     renderingProps,
@@ -992,6 +996,7 @@ async function getObservationByIdFromEventsTableInternal({
   projectId,
   fetchWithInputOutput = false,
   startTime,
+  startTimeLowerBound,
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
@@ -1001,6 +1006,7 @@ async function getObservationByIdFromEventsTableInternal({
   projectId: string;
   fetchWithInputOutput?: boolean;
   startTime?: Date;
+  startTimeLowerBound?: Date;
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
@@ -1019,6 +1025,19 @@ async function getObservationByIdFromEventsTableInternal({
       b.whereRaw("toDate(start_time) = toDate({startTime: DateTime64(3)})", {
         startTime: convertDateToClickhouseDateTime(startTime!),
       }),
+    )
+    // Lower-bound start_time on an anchor (e.g. the parent trace's timestamp) so
+    // the lookup can prune events_full parts/partitions. Subtract the skew
+    // interval because an observation may start slightly before its anchor.
+    .when(Boolean(startTimeLowerBound), (b) =>
+      b.whereRaw(
+        `start_time >= {startTimeLowerBound: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}`,
+        {
+          startTimeLowerBound: convertDateToClickhouseDateTime(
+            startTimeLowerBound!,
+          ),
+        },
+      ),
     )
     .when(Boolean(type), (b) => b.whereRaw("type = {type: String}", { type }))
     .when(Boolean(traceId), (b) =>

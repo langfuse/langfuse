@@ -1,3 +1,4 @@
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React from "react";
 import {
   Card,
@@ -42,15 +43,12 @@ import {
   TriggerEventSourceSchema,
   webhookActionFilterOptions,
 } from "@langfuse/shared";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { InlineFilterBuilder, MultiSelect } from "@/src/features/filters";
 import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { ActionHandlerRegistry } from "./actions";
 import { webhookSchema } from "./actions/WebhookActionForm";
-import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import Link from "next/link";
 import { Info } from "lucide-react";

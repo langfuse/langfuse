@@ -19,7 +19,6 @@ import {
 } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import SetupTracingButton from "@/src/features/setup/components/SetupTracingButton";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import Page from "@/src/components/layouts/page";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
@@ -40,13 +39,15 @@ import {
   useDashboardQueryScheduler,
 } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import Link from "next/link";
-import { PencilIcon } from "lucide-react";
+import { LockIcon, PencilIcon } from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Button } from "@/src/components/ui/button";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
 
 // Controller: no widget query may fire before the session resolves the v3/v4
 // read path — an unresolved session used to read as v3, fire a full wave of
@@ -69,6 +70,28 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
+  const { project } = useQueryProjectOrOrganization();
+  const { data: hasTracingConfigured, isLoading: isTracingCheckLoading } =
+    api.traces.hasTracingConfigured.useQuery(
+      { projectId },
+      {
+        enabled: Boolean(projectId),
+        trpc: {
+          context: {
+            skipBatch: true,
+          },
+        },
+      },
+    );
+  const tracingCheckCaptured = useRef(false);
+  useEffect(() => {
+    if (hasTracingConfigured !== undefined && !tracingCheckCaptured.current) {
+      capture("onboarding:tracing_check_active", {
+        active: hasTracingConfigured,
+      });
+      tracingCheckCaptured.current = true;
+    }
+  }, [hasTracingConfigured, capture]);
   const { timeRange, setTimeRange } = useDashboardDateRange();
   const isV4 = readPath === "v4";
   const metricsVersion: ViewVersion = isV4 ? "v2" : "v1";
@@ -197,6 +220,10 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
   const hasRbacCUDAccess = useHasProjectAccess({
     projectId,
     scope: "dashboards:CUD",
+  });
+  const hasSetupTracingAccess = useHasProjectAccess({
+    projectId: project?.id,
+    scope: "apiKeys:CUD",
   });
 
   // Silent on success: the "Set default" button disappearing is the feedback.
@@ -367,7 +394,22 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                   </span>
                 </Link>
               </Button>
-              <SetupTracingButton />
+              {!isTracingCheckLoading &&
+                !hasTracingConfigured &&
+                project &&
+                (hasSetupTracingAccess ? (
+                  <Link href={setupTracingRoute(project.id)}>
+                    <Button>Configure Tracing</Button>
+                  </Link>
+                ) : (
+                  <Button disabled>
+                    <LockIcon
+                      className="mr-2 -ml-0.5 h-4 w-4"
+                      aria-hidden="true"
+                    />
+                    Configure Tracing
+                  </Button>
+                ))}
             </>
           ),
         }}

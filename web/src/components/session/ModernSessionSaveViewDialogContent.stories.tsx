@@ -1,7 +1,7 @@
 import { type ComponentProps } from "react";
 import { fn } from "storybook/test";
 
-import preview from "../../../.storybook/preview";
+import preview from "@/.storybook/preview";
 import { ModernSessionSaveViewDialogContent } from "@/src/components/session/ModernSessionSaveViewDialogContent";
 import { Dialog } from "@/src/components/ui/dialog";
 

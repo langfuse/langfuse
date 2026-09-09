@@ -1,9 +1,7 @@
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useSession } from "next-auth/react";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
-import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
+import { useReadPath, V4_PREVIEW_LABEL } from "@/src/features/events";
 import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
 import { api } from "@/src/utils/api";
 
@@ -60,6 +58,19 @@ export function ControlledFeaturePreviewModal({
           ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
           : undefined,
       onToggle: onToggle("modernSession"),
+      isToggling: setFeaturePreviewEnabled.isPending,
+    },
+    normalizedIoPreview: {
+      enabled:
+        authSession.data?.user?.featureFlags.normalizedIoPreview === true ||
+        authSession.data?.environment.enableExperimentalFeatures === true,
+      disabled:
+        authSession.data?.environment.enableExperimentalFeatures === true,
+      warningReason:
+        authSession.data?.environment.enableExperimentalFeatures === true
+          ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
+          : undefined,
+      onToggle: onToggle("normalizedIoPreview"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
   };

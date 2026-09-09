@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { SiSlack } from "react-icons/si";
 import { api } from "@/src/utils/api";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 
 /**
  * Props for the SlackConnectButton component

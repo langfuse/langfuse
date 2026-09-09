@@ -1,3 +1,4 @@
+import { showSuccessToast } from "@/src/features/notifications";
 import { type ReactNode, useState } from "react";
 
 import { Dialog } from "@/src/components/ui/dialog";
@@ -7,7 +8,6 @@ import {
   hasOrganizationAccess,
   useHasOrganizationAccess,
 } from "@/src/features/rbac";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
 
