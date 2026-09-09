@@ -1,7 +1,5 @@
-import {
-  DataTable,
-  shouldIgnoreRowClickTarget,
-} from "@/src/components/table/data-table";
+import { DataTable } from "@/src/components/table/data-table";
+import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { Badge } from "@/src/components/ui/badge";
