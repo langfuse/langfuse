@@ -62,6 +62,7 @@ const GatewayIngestionClaimsSchema = z.object({
   version: z.literal(1),
   organization_id: z.string(),
   project_id: z.string(),
+  api_key_id: z.string(),
   scope: z.literal("gateway-ingest"),
   exp: z.number().int(),
   iss: z.string(),
@@ -658,6 +659,7 @@ describe("AI gateway control plane", () => {
       expect(ingestionClaims).toMatchObject({
         organization_id: org.id,
         project_id: project.id,
+        api_key_id: gatewayKey.id,
       });
       expect(result.ingestion_mode).toBe("full");
       expect(result.ingestion?.expires_at).toBe(ingestionClaims.exp);

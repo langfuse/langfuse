@@ -18,6 +18,7 @@ const GatewayIngestionClaimsSchema = z.object({
   version: z.literal(1),
   organization_id: z.string(),
   project_id: z.string(),
+  api_key_id: z.string(),
   ingestion_mode: z.enum(["usage", "full"]),
   scope: z.literal("gateway-ingest"),
   exp: z.number().int(),
@@ -159,7 +160,7 @@ export async function verifyGatewayIngestionAuthorization(
       orgId: project.organization.id,
       plan: getOrganizationPlanServerSide(cloudConfig),
       rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
-      apiKeyId: claims.jti,
+      apiKeyId: claims.api_key_id,
       publicKey: `gateway:${claims.jti}`,
       isIngestionSuspended:
         project.organization.cloudFreeTierUsageThresholdState === "BLOCKED",

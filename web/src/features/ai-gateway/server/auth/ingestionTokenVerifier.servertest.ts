@@ -51,6 +51,7 @@ function token(organizationId = "org-1") {
       version: 1,
       organization_id: organizationId,
       project_id: "project-1",
+      api_key_id: "gateway-api-key-1",
       ingestion_mode: "full",
       scope: "gateway-ingest",
     },
@@ -179,7 +180,7 @@ describe("verifyGatewayIngestionAuthorization", () => {
     expect(db.project.findFirst).not.toHaveBeenCalled();
   });
 
-  it("returns project authorization without a gateway key claim", async () => {
+  it("returns project authorization for the originating gateway API key", async () => {
     const db = database();
 
     const request = signedRequest();
@@ -193,7 +194,7 @@ describe("verifyGatewayIngestionAuthorization", () => {
       scope: {
         projectId: "project-1",
         orgId: "org-1",
-        apiKeyId: expect.any(String),
+        apiKeyId: "gateway-api-key-1",
         publicKey: expect.stringMatching(/^gateway:/),
         accessLevel: "project",
       },
@@ -275,12 +276,26 @@ describe("verifyGatewayIngestionAuthorization", () => {
     ).rejects.toBeInstanceOf(UnauthorizedError);
   });
 
-  it("rejects a malformed JWT", async () => {
-    const malformedToken = "header.payload.signature";
+  it.each([
+    ["a malformed JWT", "header.payload.signature"],
+    [
+      "a JWT without an API key ID",
+      signer.sign({
+        expiresInSeconds: 60,
+        claims: {
+          version: 1,
+          organization_id: "org-1",
+          project_id: "project-1",
+          ingestion_mode: "full",
+          scope: "gateway-ingest",
+        },
+      }),
+    ],
+  ])("rejects %s", async (_label, ingestionToken) => {
     await expect(
       verifyGatewayIngestionAuthorization(
-        `Bearer ${malformedToken}`,
-        gatewayAuthorization(malformedToken),
+        `Bearer ${ingestionToken}`,
+        gatewayAuthorization(ingestionToken),
         database(),
       ),
     ).rejects.toBeInstanceOf(UnauthorizedError);

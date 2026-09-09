@@ -148,6 +148,7 @@ export class GatewayResolveService {
           mode: context.ingestionMode,
           organizationId: context.organizationId,
           projectId: context.ingestionProjectId,
+          apiKeyId: context.apiKeyId,
         }),
       };
     });
@@ -236,6 +237,7 @@ export class GatewayResolveService {
     mode: GatewayIngestionMode;
     organizationId: string;
     projectId: string;
+    apiKeyId: string;
   }) {
     if (params.mode === "NONE") return undefined;
     const signer = getGatewayIngestionTokenSigner();
@@ -252,6 +254,7 @@ export class GatewayResolveService {
           version: 1,
           organization_id: params.organizationId,
           project_id: params.projectId,
+          api_key_id: params.apiKeyId,
           ingestion_mode: params.mode.toLowerCase() as "usage" | "full",
           scope: "gateway-ingest",
         },
