@@ -140,10 +140,7 @@ export class GatewayResolveService {
           key_id: context.apiKeyId,
           key_metadata: context.keyMetadata,
         },
-        ingestion_mode: context.ingestionMode.toLowerCase() as
-          | "usage"
-          | "full"
-          | "none",
+        ingestion_mode: context.ingestionMode.toLowerCase() as "usage" | "full",
         ingestion: this.createIngestionResponse({
           mode: context.ingestionMode,
           organizationId: context.organizationId,
@@ -239,7 +236,6 @@ export class GatewayResolveService {
     projectId: string;
     apiKeyId: string;
   }) {
-    if (params.mode === "NONE") return undefined;
     const signer = getGatewayIngestionTokenSigner();
     if (!signer) {
       throw new GatewayResolveError(

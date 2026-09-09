@@ -14,7 +14,7 @@ BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '30s';
 
-CREATE TYPE "GatewayIngestionMode" AS ENUM ('usage', 'full', 'none');
+CREATE TYPE "GatewayIngestionMode" AS ENUM ('usage', 'full');
 
 CREATE TYPE "GatewayProvider" AS ENUM ('openai', 'anthropic');
 

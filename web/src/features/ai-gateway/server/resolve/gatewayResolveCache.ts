@@ -28,7 +28,7 @@ export const CachedResolveContext = z.object({
   apiKeyId: z.string(),
   keyMetadata: GatewayMetadataSchema,
   ingestionProjectId: z.string().nullable(),
-  ingestionMode: z.enum(["USAGE", "FULL", "NONE"]).nullable(),
+  ingestionMode: z.enum(["USAGE", "FULL"]).nullable(),
   connection: z
     .object({
       id: z.string(),

@@ -1,11 +1,8 @@
 import { expect, fn, userEvent, within } from "storybook/test";
 
-import { Dialog, DialogContent } from "@/src/components/ui/dialog";
-import preview from "../../../../.storybook/preview";
-import {
-  DeleteProjectDialog,
-  type DeleteProjectDialogProps,
-} from "./DeleteProjectDialog";
+import preview from "@/.storybook/preview";
+import { Button } from "@/src/components/ui/button";
+import { DeleteProjectDialog } from "./DeleteProjectDialog";
 
 const meta = preview.meta({
   component: DeleteProjectDialog,
@@ -13,40 +10,51 @@ const meta = preview.meta({
 
 export default meta;
 
-const renderDialog = (args: DeleteProjectDialogProps) => (
-  <Dialog open onOpenChange={fn()}>
-    <DialogContent className="sm:max-w-[425px]">
-      <DeleteProjectDialog {...args} />
-    </DialogContent>
-  </Dialog>
-);
+const trigger = <Button>Open deletion dialog</Button>;
 
 export const Default = meta.story({
   args: {
+    open: true,
+    onOpenChange: fn(),
+    trigger,
     confirmMessage: "acme/my-project",
     isPending: false,
     onSubmit: fn(),
   },
-  render: renderDialog,
 });
 
 export const Loading = meta.story({
   args: {
+    open: true,
+    onOpenChange: fn(),
+    trigger,
     confirmMessage: "acme/my-project",
     isPending: true,
     onSubmit: fn(),
   },
-  render: renderDialog,
+});
+
+export const GatewayIngestionProject = meta.story({
+  name: "Gateway ingestion project",
+  args: {
+    open: true,
+    onOpenChange: fn(),
+    trigger,
+    blocked: true,
+    onOpenGatewaySettings: fn(),
+  },
 });
 
 export const ConfirmsDeletion = meta.story({
   name: "(Test) Confirms deletion",
   args: {
+    open: true,
+    onOpenChange: fn(),
+    trigger,
     confirmMessage: "acme/my-project",
     isPending: false,
     onSubmit: fn(),
   },
-  render: renderDialog,
   play: async ({ args, canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
 
@@ -56,6 +64,7 @@ export const ConfirmsDeletion = meta.story({
     );
     await userEvent.click(body.getByRole("button", { name: "Delete project" }));
 
+    if (!("onSubmit" in args)) throw new Error("Expected deletion dialog");
     await expect(args.onSubmit).toHaveBeenCalledOnce();
   },
 });

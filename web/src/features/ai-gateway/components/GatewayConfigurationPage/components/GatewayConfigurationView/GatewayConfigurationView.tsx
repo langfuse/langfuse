@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   Check,
   Copy,
-  EyeOff,
   Gauge,
   Plus,
   ScanText,
@@ -35,7 +34,7 @@ import { cn } from "@/src/utils/tailwind";
 
 const GATEWAY_BASE_URL = "https://gateway.langfuse.com/v1";
 
-type IngestionMode = "NONE" | "USAGE" | "FULL";
+type IngestionMode = "USAGE" | "FULL";
 type Project = {
   id: string;
   name: string;
@@ -48,12 +47,6 @@ const ingestionModes: Array<{
   description: string;
   icon: LucideIcon;
 }> = [
-  {
-    value: "NONE",
-    title: "None",
-    description: "Proxy requests without creating Langfuse observations.",
-    icon: EyeOff,
-  },
   {
     value: "USAGE",
     title: "Usage",
@@ -176,7 +169,7 @@ export function GatewayConfigurationView({
 
       <div>
         <CardTitle className="mb-4 text-base">Ingestion mode</CardTitle>
-        <div className="grid gap-2 md:grid-cols-3">
+        <div className="grid gap-2 md:grid-cols-2">
           {ingestionModes.map((option) => {
             const Icon = option.icon;
             const selected = ingestionMode === option.value;

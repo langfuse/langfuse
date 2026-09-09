@@ -48,15 +48,14 @@ export const GatewayResolveResponseSchema = z
         key_metadata: GatewayMetadataSchema,
       })
       .strict(),
-    ingestion_mode: z.enum(["usage", "full", "none"]),
+    ingestion_mode: z.enum(["usage", "full"]),
     ingestion: z
       .object({
         access_token: z.string(),
         token_type: z.literal("Bearer"),
         expires_at: z.number().int().positive(),
       })
-      .strict()
-      .optional(),
+      .strict(),
   })
   .strict();
 

@@ -10,7 +10,19 @@ vi.mock("@/src/env.mjs", () => ({
     // these cases are about what the service does with a database row.
     LANGFUSE_CACHE_GATEWAY_RESOLVE_ENABLED: "false",
     LANGFUSE_GATEWAY_RESOLVE_TIMEOUT_MS: 20,
+    LANGFUSE_GATEWAY_JWT_PRIVATE_KEY: "private-key",
+    LANGFUSE_GATEWAY_JWT_PUBLIC_KEY: "public-key",
+    LANGFUSE_GATEWAY_JWT_KEY_ID: "key-id",
+    LANGFUSE_GATEWAY_JWT_ISSUER: "test-issuer",
+    LANGFUSE_GATEWAY_JWT_AUDIENCE: "test-audience",
   },
+}));
+
+vi.mock("@/src/server/utils/jwt", () => ({
+  createEs256JwtSigner: vi.fn(() => ({
+    sign: vi.fn(() => "ingestion-token"),
+  })),
+  createEs256JwtVerifier: vi.fn(() => ({ verify: vi.fn() })),
 }));
 
 vi.mock("@langfuse/shared/encryption", () => ({
@@ -35,7 +47,7 @@ const row = (overrides: {
     organization: {
       gatewayConfig: {
         defaultIngestionProjectId: "project-1",
-        ingestionMode: overrides.ingestionMode ?? "NONE",
+        ingestionMode: overrides.ingestionMode ?? "USAGE",
         defaultIngestionProject: {
           id: "project-1",
           orgId: overrides.projectOrgId ?? "org-1",
@@ -83,9 +95,12 @@ describe("GatewayResolveService", () => {
         key_id: "key-1",
         key_metadata: { team: "platform", project_id: "spoofed-project" },
       },
-      ingestion_mode: "none",
-      // Ingestion is off, so no ingestion token is minted.
-      ingestion: undefined,
+      ingestion_mode: "usage",
+      ingestion: {
+        access_token: "ingestion-token",
+        token_type: "Bearer",
+        expires_at: expect.any(Number),
+      },
     });
   });
 

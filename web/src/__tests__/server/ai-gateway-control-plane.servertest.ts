@@ -121,7 +121,18 @@ async function prepare(role: Role = Role.OWNER) {
           metadata: {},
           aiFeaturesEnabled: false,
           aiTelemetryEnabled: true,
-          projects: [],
+          projects: [
+            {
+              id: project.id,
+              role,
+              retentionDays: 0,
+              deletedAt: null,
+              hasTraces: false,
+              name: project.name,
+              metadata: {},
+              createdAt: project.createdAt.toISOString(),
+            },
+          ],
         },
       ],
     },
@@ -926,7 +937,7 @@ describe("AI gateway control plane", () => {
     await caller.aiGateway.updateConfig({
       orgId: org.id,
       defaultIngestionProjectId: project.id,
-      ingestionMode: "NONE",
+      ingestionMode: "USAGE",
     });
     const connection = await caller.aiGateway.createConnection({
       orgId: org.id,
@@ -990,12 +1001,31 @@ describe("AI gateway control plane", () => {
     lookup.mockRestore();
   });
 
+  it("blocks deletion of the default ingestion project", async () => {
+    const { caller, org, project } = await prepare();
+    await caller.aiGateway.updateConfig({
+      orgId: org.id,
+      defaultIngestionProjectId: project.id,
+      ingestionMode: "USAGE",
+    });
+
+    await expect(
+      caller.projects.deletionProtection({ projectId: project.id }),
+    ).resolves.toEqual({ isGatewayIngestionProject: true });
+    await expect(
+      caller.projects.delete({ projectId: project.id }),
+    ).rejects.toThrow("Select another ingestion project before deleting it");
+    await expect(
+      prisma.project.findUnique({ where: { id: project.id } }),
+    ).resolves.toMatchObject({ deletedAt: null });
+  });
+
   it("blocks resolve after the default ingestion project is deleted", async () => {
     const { caller, org, project } = await prepare();
     await caller.aiGateway.updateConfig({
       orgId: org.id,
       defaultIngestionProjectId: project.id,
-      ingestionMode: "NONE",
+      ingestionMode: "USAGE",
     });
     await caller.aiGateway.createConnection({
       orgId: org.id,

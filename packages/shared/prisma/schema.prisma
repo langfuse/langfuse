@@ -238,7 +238,6 @@ model ApiKey {
 enum GatewayIngestionMode {
   USAGE @map("usage")
   FULL  @map("full")
-  NONE  @map("none")
 }
 
 enum GatewayProvider {
