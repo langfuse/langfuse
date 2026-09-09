@@ -216,6 +216,23 @@ LANGFUSE_WORKSPACE_IDENTITY_DIR="$opencode_workspace" \
   bash "$repo_root/scripts/agents/configure-langfuse-identity.sh"
 grep -Fq -- "- **Name:** Nikita Kabardin" "$opencode_then_home/me.md"
 
+# Deleting the workspace file must re-query Linear, not copy a stale home
+# file back. The home copy is left as the human last edited it.
+printf '\nstale home focus\n' >>"$opencode_then_home/me.md"
+rm -f "$opencode_workspace/me.md"
+PATH="$tmpdir/bin:$PATH" \
+LINEAR_API_KEY="test-secret-that-must-not-be-written" \
+LINEAR_FIXTURE="$fixture" \
+LANGFUSE_CONFIG_DIR="$opencode_then_home" \
+LANGFUSE_WORKSPACE_IDENTITY_DIR="$opencode_workspace" \
+  bash "$repo_root/scripts/agents/configure-langfuse-identity.sh"
+grep -Fq -- "- **Name:** Nikita Kabardin" "$opencode_workspace/me.md"
+if grep -Fq "stale home focus" "$opencode_workspace/me.md"; then
+  echo "Workspace identity was refilled from the home copy"
+  exit 1
+fi
+grep -Fq "stale home focus" "$opencode_then_home/me.md"
+
 # Redirected LANGFUSE_CONFIG_DIR still seeds an explicit workspace copy.
 PATH="$tmpdir/bin:$PATH" \
 LINEAR_API_KEY="test-secret-that-must-not-be-written" \

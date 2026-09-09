@@ -58,21 +58,21 @@ install_identity_file() {
     return 0
   fi
   chmod 700 "$dest_dir" || true
-  if cp "$source" "$dest_file"; then
+  local tmp_file
+  tmp_file="$(mktemp "$dest_dir/.me.md.XXXXXX")" || return 0
+  if cp "$source" "$tmp_file" && mv -f "$tmp_file" "$dest_file"; then
     echo "Langfuse identity: wrote $dest_file"
+  else
+    rm -f "$tmp_file"
   fi
 }
 
-if [[ "$mode" = "write" && -n "$identity_file" && -f "$identity_file" ]]; then
-  echo "Langfuse identity: already configured at $identity_file"
-  install_identity_file "$workspace_identity_dir" "$identity_file"
-  exit 0
-fi
-
+# The workspace file is what agents edit and delete. Do not refill it from
+# the home copy — that would undo "delete to be asked again". A missing
+# workspace copy falls through to Linear. If only the workspace file
+# exists, still seed a missing home copy.
 if [[ "$mode" = "write" && -n "$workspace_identity_file" && -f "$workspace_identity_file" ]]; then
   echo "Langfuse identity: already configured at $workspace_identity_file"
-  # An OpenCode-first run may have only the workspace file. A later Cloud
-  # start or desktop postinstall should still seed the machine-level copy.
   install_identity_file "$identity_dir" "$workspace_identity_file"
   exit 0
 fi

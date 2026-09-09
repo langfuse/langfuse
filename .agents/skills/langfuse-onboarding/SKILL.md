@@ -124,7 +124,8 @@ it. If a home-dir write is denied, ignore it and keep the workspace file.
 **Never commit this file, and never put a secret in it.** `.langfuse/` is
 gitignored. It is notes, not config: no tokens, no keys. A repo `.env` is
 the wrong home — those are app configuration and one careless `git add`
-publishes them.
+publishes them. Delete the workspace `me.md` to be asked again — recovery
+re-queries Linear and does not copy `~/.config/langfuse/me.md` back over it.
 
 **Ask for Focus — once — rather than deriving it.** What someone owns on paper
 and what they are responsible for this quarter are different things, and only
