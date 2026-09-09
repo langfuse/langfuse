@@ -12,7 +12,7 @@ import {
 } from "@langfuse/shared";
 import type { BlobStorageIntegrationStatusResponseType } from "@/src/features/public-api/types/blob-storage-integrations";
 import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
-import { verifyOrgAuth } from "@/src/features/auth/policy/verifyOrgAuth";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 
 /** orgKeyRequired is the 403 body when a non-organization key hits a blob-storage endpoint. */
 const orgKeyRequired =
@@ -110,10 +110,14 @@ async function handleGetBlobStorageIntegrationStatus(
 async function authorizeBlobStorageRequest(
   req: NextApiRequest,
 ): Promise<ApiAccessScope> {
-  const authCheck = await verifyOrgAuth({ req, action: "projects:read" });
-  if (!authCheck.validKey) {
-    if (authCheck.status === 401) {
-      throw new UnauthorizedError(authCheck.error);
+  const authCheck = await shadowAuth({
+    req,
+    action: "projects:read",
+    allowedAccessLevels: ["organization"],
+  });
+  if (!authCheck.success) {
+    if (authCheck.error.httpCode === 401) {
+      throw new UnauthorizedError(authCheck.error.message);
     }
     throw new ForbiddenError(orgKeyRequired);
   }

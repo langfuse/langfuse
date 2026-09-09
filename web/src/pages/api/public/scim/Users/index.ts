@@ -8,7 +8,7 @@ import { type Role } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { verifyOrgAuth } from "@/src/features/auth/policy/verifyOrgAuth";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 
 /** orgKeyRequired is the 403 detail when a non-organization key hits a SCIM endpoint. */
 const orgKeyRequired =
@@ -32,18 +32,20 @@ export default async function handler(
   }
 
   // CHECK AUTH
-  const authCheck = await verifyOrgAuth({
+  const authCheck = await shadowAuth({
     req,
     action:
       req.method === "GET"
         ? "organizationMembers:read"
         : "organizationMembers:CUD",
+    allowedAccessLevels: ["organization"],
   });
-  if (!authCheck.validKey) {
-    return res.status(authCheck.status).json({
+  if (!authCheck.success) {
+    const status = authCheck.error.httpCode;
+    return res.status(status).json({
       schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail: authCheck.status === 403 ? orgKeyRequired : authCheck.error,
-      status: authCheck.status,
+      detail: status === 403 ? orgKeyRequired : authCheck.error.message,
+      status,
     });
   }
   // END CHECK AUTH

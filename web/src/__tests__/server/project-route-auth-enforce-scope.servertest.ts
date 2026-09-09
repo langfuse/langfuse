@@ -6,15 +6,15 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
-import { type VerifyProjectAuthParams } from "@/src/features/public-api/server/verifyProjectAuth";
+import { type ShadowAuthParams } from "@/src/features/public-api/server/shadowAuth";
 
 // Proves the enforce mapper returns a scope byte-identical to legacy's across
 // credential kinds. The parity matrix asserts status; this asserts scope
-// fields. verifyAuth is imported dynamically so the authenticator singleton
+// fields. shadowAuth is imported dynamically so the authenticator singleton
 // captures the admin key set in beforeAll.
 
 type VerifyAuth = (
-  params: VerifyProjectAuthParams,
+  params: ShadowAuthParams,
 ) => Promise<
   | { success: true; scope: Record<string, unknown> }
   | { success: false; error: { httpCode: number; message: string } }
@@ -43,7 +43,7 @@ const dropScopeKey = ({
   ...rest
 }: Record<string, unknown>) => rest;
 
-const scopeUnderModes = async (params: VerifyProjectAuthParams) => {
+const scopeUnderModes = async (params: ShadowAuthParams) => {
   setMode("legacy");
   const legacy = await verifyAuth(params);
   setMode("enforce");
@@ -59,9 +59,9 @@ describe("enforce maps principals to legacy-identical scopes", () => {
     originalCloudRegion = (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     (env as any).ADMIN_API_KEY = adminApiKey;
 
-    ({ verifyProjectAuth: verifyAuth } =
-      (await import("@/src/features/public-api/server/verifyProjectAuth")) as unknown as {
-        verifyProjectAuth: VerifyAuth;
+    ({ shadowAuth: verifyAuth } =
+      (await import("@/src/features/public-api/server/shadowAuth")) as unknown as {
+        shadowAuth: VerifyAuth;
       });
 
     const base = await createOrgProjectAndApiKey();
@@ -109,6 +109,7 @@ describe("enforce maps principals to legacy-identical scopes", () => {
       }),
       action: "models:read",
       isAdminApiKeyAuthAllowed: true,
+      allowedAccessLevels: ["project"],
     });
     expect(enforce.apiKeyId).toBe("ADMIN_API_KEY");
     expect(enforce.projectId).toBe(projectId);
@@ -117,7 +118,7 @@ describe("enforce maps principals to legacy-identical scopes", () => {
 
   it("admin key on Langfuse Cloud is refused in legacy and enforce", async () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
-    const params: VerifyProjectAuthParams = {
+    const params: ShadowAuthParams = {
       req: reqWith({
         authorization: `Bearer ${adminApiKey}`,
         "x-langfuse-admin-api-key": adminApiKey,
@@ -125,6 +126,7 @@ describe("enforce maps principals to legacy-identical scopes", () => {
       }),
       action: "models:read",
       isAdminApiKeyAuthAllowed: true,
+      allowedAccessLevels: ["project"],
     };
     const cloudDenial = {
       success: false,

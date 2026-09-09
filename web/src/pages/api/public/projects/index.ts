@@ -4,8 +4,7 @@ import { logger } from "@langfuse/shared/src/server";
 import { handleCreateProject } from "@/src/ee/features/admin-api/server/projects/createProject";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { verifyOrgAuth } from "@/src/features/auth/policy/verifyOrgAuth";
-import { verifyProjectAuth } from "@/src/features/public-api/server/verifyProjectAuth";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 
 /** projectKeyRequired is the 403 body when the project-scoped GET receives a non-project key. */
 const projectKeyRequired =
@@ -29,9 +28,10 @@ export default async function handler(
   }
 
   if (req.method === "GET") {
-    const auth = await verifyProjectAuth({
+    const auth = await shadowAuth({
       req,
       action: "project:read",
+      allowedAccessLevels: ["project"],
     });
     if (!auth.success) {
       const status = auth.error.httpCode;
@@ -85,13 +85,15 @@ export default async function handler(
   }
 
   if (req.method === "POST") {
-    const authCheck = await verifyOrgAuth({
+    const authCheck = await shadowAuth({
       req,
       action: "projects:create",
+      allowedAccessLevels: ["organization"],
     });
-    if (!authCheck.validKey) {
-      return res.status(authCheck.status).json({
-        message: authCheck.status === 403 ? orgKeyRequired : authCheck.error,
+    if (!authCheck.success) {
+      const status = authCheck.error.httpCode;
+      return res.status(status).json({
+        message: status === 403 ? orgKeyRequired : authCheck.error.message,
       });
     }
 

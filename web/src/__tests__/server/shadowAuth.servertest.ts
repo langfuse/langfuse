@@ -12,30 +12,21 @@ import {
 
 import { env } from "@/src/env.mjs";
 import { authorize } from "@/src/features/auth/policy/authorize";
-import {
-  type DirectAuthResult,
-  type VerifyOrgAuthParams,
-} from "@/src/features/auth/policy/verifyOrgAuth";
+import { type ShadowAuthParams } from "@/src/features/public-api/server/shadowAuth";
 import {
   type AuthorizationContext,
   type OrganizationAction,
   type ProjectAction,
 } from "@/src/features/auth/policy/types";
-import { type VerifyProjectAuthParams } from "@/src/features/public-api/server/verifyProjectAuth";
 
-// The seams are imported dynamically so the authenticator singleton captures
+// The seam is imported dynamically so the authenticator singleton captures
 // the admin key set in beforeAll.
 
-type OrgSeam = {
-  verifyOrgAuth: (params: VerifyOrgAuthParams) => Promise<DirectAuthResult>;
-};
-
-type ProjectVerify = (
-  params: VerifyProjectAuthParams,
-) => Promise<
+type ShadowResult =
   | { success: true; scope: Record<string, unknown> }
-  | { success: false; error: { httpCode: number; message: string } }
->;
+  | { success: false; error: { httpCode: number; message: string } };
+
+type ShadowAuth = (params: ShadowAuthParams) => Promise<ShadowResult>;
 
 type Authenticator = {
   authenticate: (params: {
@@ -47,8 +38,7 @@ type Authenticator = {
 
 const adminApiKey = "test-admin-api-key-direct-enforce-scope";
 
-let orgSeam: OrgSeam;
-let verifyProjectAuth: ProjectVerify;
+let shadowAuth: ShadowAuth;
 let authenticator: Authenticator;
 let orgId = "";
 let projectId = "";
@@ -75,38 +65,19 @@ const dropScopeKey = ({
   ...rest
 }: Record<string, unknown>) => rest;
 
-const asResult = async (
-  fn: () => Promise<
-    | { success: true; scope: Record<string, unknown> }
-    | { success: false; error: { httpCode: number; message: string } }
-  >,
-): Promise<DirectAuthResult> => {
-  const result = await fn();
-  if (result.success) {
-    return {
-      validKey: true,
-      scope: result.scope,
-    } as unknown as DirectAuthResult;
-  }
-  return {
-    validKey: false,
-    status: result.error.httpCode,
-    error: result.error.message,
-  };
-};
-
 const orgResultUnderModes = async (
   authorization: string,
   action: OrganizationAction = "projects:read",
 ) => {
-  const params: VerifyOrgAuthParams = {
+  const params: ShadowAuthParams = {
     req: reqWith({ authorization }),
     action,
+    allowedAccessLevels: ["organization"],
   };
   setMode("legacy");
-  const legacy = await orgSeam.verifyOrgAuth(params);
+  const legacy = await shadowAuth(params);
   setMode("enforce");
-  const enforce = await orgSeam.verifyOrgAuth(params);
+  const enforce = await shadowAuth(params);
   return { legacy, enforce };
 };
 
@@ -114,14 +85,15 @@ const projectResultUnderModes = async (
   authorization: string,
   target?: string,
 ) => {
-  const params: VerifyProjectAuthParams = {
+  const params: ShadowAuthParams = {
     req: reqWith({ authorization, "x-langfuse-project-id": target }),
     action: "project:read",
+    allowedAccessLevels: ["project"],
   };
   setMode("legacy");
-  const legacy = await asResult(() => verifyProjectAuth(params));
+  const legacy = await shadowAuth(params);
   setMode("enforce");
-  const enforce = await asResult(() => verifyProjectAuth(params));
+  const enforce = await shadowAuth(params);
   return { legacy, enforce };
 };
 
@@ -130,20 +102,21 @@ const projectNestedUnderModes = async (
   target: string,
   action: ProjectAction = "apiKeys:read",
 ) => {
-  const params: VerifyOrgAuthParams = {
+  const params: ShadowAuthParams = {
     req: reqWith({ authorization }, { projectId: target }),
     action,
+    allowedAccessLevels: ["organization"],
   };
   setMode("legacy");
-  const legacy = await orgSeam.verifyOrgAuth(params);
+  const legacy = await shadowAuth(params);
   setMode("enforce");
-  const enforce = await orgSeam.verifyOrgAuth(params);
+  const enforce = await shadowAuth(params);
   return { legacy, enforce };
 };
 
-const scopeOf = (result: DirectAuthResult): Record<string, unknown> => {
-  if (!result.validKey) throw new Error(`denied with ${result.status}`);
-  return result.scope as unknown as Record<string, unknown>;
+const scopeOf = (result: ShadowResult): Record<string, unknown> => {
+  if (!result.success) throw new Error(`denied with ${result.error.httpCode}`);
+  return result.scope;
 };
 
 const createOrgApiKey = async (targetOrgId: string) => {
@@ -185,17 +158,15 @@ const ownedProjectIds = (context: AuthorizationContext): string[] =>
     ? context.principal.organizations.flatMap((o) => o.projectIds)
     : [];
 
-describe("the direct seams map principals to legacy-identical scopes", () => {
+describe("shadowAuth maps principals to legacy-identical scopes", () => {
   beforeAll(async () => {
     originalMigration = (env as any).API_AUTH_MIGRATION;
     originalAdminApiKey = (env as any).ADMIN_API_KEY;
     (env as any).ADMIN_API_KEY = adminApiKey;
 
-    orgSeam =
-      (await import("@/src/features/auth/policy/verifyOrgAuth")) as unknown as OrgSeam;
-    ({ verifyProjectAuth } =
-      (await import("@/src/features/public-api/server/verifyProjectAuth")) as unknown as {
-        verifyProjectAuth: ProjectVerify;
+    ({ shadowAuth } =
+      (await import("@/src/features/public-api/server/shadowAuth")) as unknown as {
+        shadowAuth: ShadowAuth;
       });
     ({ authenticator } =
       (await import("@/src/features/apiKey/authenticator")) as unknown as {
@@ -253,8 +224,14 @@ describe("the direct seams map principals to legacy-identical scopes", () => {
         projectAuth,
         action,
       );
-      expect(legacy).toMatchObject({ validKey: false, status: 403 });
-      expect(enforce).toMatchObject({ validKey: false, status: 403 });
+      expect(legacy).toMatchObject({
+        success: false,
+        error: { httpCode: 403 },
+      });
+      expect(enforce).toMatchObject({
+        success: false,
+        error: { httpCode: 403 },
+      });
     },
   );
 
@@ -269,8 +246,8 @@ describe("the direct seams map principals to legacy-identical scopes", () => {
 
   it("a project key on an org route 403s in both modes", async () => {
     const { legacy, enforce } = await orgResultUnderModes(projectAuth);
-    expect(legacy).toMatchObject({ validKey: false, status: 403 });
-    expect(enforce).toMatchObject({ validKey: false, status: 403 });
+    expect(legacy).toMatchObject({ success: false, error: { httpCode: 403 } });
+    expect(enforce).toMatchObject({ success: false, error: { httpCode: 403 } });
   });
 
   it("an organization key naming a project it owns is 403 in legacy and authorized in enforce", async () => {
@@ -278,7 +255,7 @@ describe("the direct seams map principals to legacy-identical scopes", () => {
       orgAuth,
       projectId,
     );
-    expect(legacy).toMatchObject({ validKey: false, status: 403 });
+    expect(legacy).toMatchObject({ success: false, error: { httpCode: 403 } });
     expect(scopeOf(enforce).accessLevel).toBe("project");
     expect(scopeOf(enforce).projectId).toBe(projectId);
     expect(scopeOf(enforce).orgId).toBe(orgId);
@@ -286,16 +263,16 @@ describe("the direct seams map principals to legacy-identical scopes", () => {
 
   it("an organization key naming no project 403s in both modes", async () => {
     const { legacy, enforce } = await projectResultUnderModes(orgAuth);
-    expect(legacy).toMatchObject({ validKey: false, status: 403 });
-    expect(enforce).toMatchObject({ validKey: false, status: 403 });
+    expect(legacy).toMatchObject({ success: false, error: { httpCode: 403 } });
+    expect(enforce).toMatchObject({ success: false, error: { httpCode: 403 } });
   });
 
   it("a bearer-presented project key on a project route 403s in both modes", async () => {
     const { legacy, enforce } = await projectResultUnderModes(
       `Bearer ${projectPublicKey}`,
     );
-    expect(legacy).toMatchObject({ validKey: false, status: 403 });
-    expect(enforce).toMatchObject({ validKey: false, status: 403 });
+    expect(legacy).toMatchObject({ success: false, error: { httpCode: 403 } });
+    expect(enforce).toMatchObject({ success: false, error: { httpCode: 403 } });
   });
 
   it("an organization key on a project-nested route stays org-gated in legacy and authorizes its own project in enforce", async () => {
@@ -313,7 +290,7 @@ describe("the direct seams map principals to legacy-identical scopes", () => {
       orgAuth,
       foreignProjectId,
     );
-    expect(enforce).toMatchObject({ validKey: false, status: 403 });
+    expect(enforce).toMatchObject({ success: false, error: { httpCode: 403 } });
   });
 
   it("a project key on a project-nested route 403s in both modes", async () => {
@@ -321,8 +298,8 @@ describe("the direct seams map principals to legacy-identical scopes", () => {
       projectAuth,
       projectId,
     );
-    expect(legacy).toMatchObject({ validKey: false, status: 403 });
-    expect(enforce).toMatchObject({ validKey: false, status: 403 });
+    expect(legacy).toMatchObject({ success: false, error: { httpCode: 403 } });
+    expect(enforce).toMatchObject({ success: false, error: { httpCode: 403 } });
   });
 
   it("an organization key is granted project:read on a project it owns", async () => {
@@ -346,13 +323,25 @@ describe("the direct seams map principals to legacy-identical scopes", () => {
     expect(ownedProjectIds(await contextFor(auth))).toEqual([]);
   });
 
-  it("the admin key is refused on both direct seams in both modes", async () => {
+  it("the admin key is refused on both dispatch families in both modes", async () => {
     const admin = `Bearer ${adminApiKey}`;
     const org = await orgResultUnderModes(admin);
     const project = await projectResultUnderModes(admin);
-    expect(org.legacy).toMatchObject({ validKey: false, status: 401 });
-    expect(org.enforce).toMatchObject({ validKey: false, status: 401 });
-    expect(project.legacy).toMatchObject({ validKey: false, status: 401 });
-    expect(project.enforce).toMatchObject({ validKey: false, status: 401 });
+    expect(org.legacy).toMatchObject({
+      success: false,
+      error: { httpCode: 401 },
+    });
+    expect(org.enforce).toMatchObject({
+      success: false,
+      error: { httpCode: 401 },
+    });
+    expect(project.legacy).toMatchObject({
+      success: false,
+      error: { httpCode: 401 },
+    });
+    expect(project.enforce).toMatchObject({
+      success: false,
+      error: { httpCode: 401 },
+    });
   });
 });

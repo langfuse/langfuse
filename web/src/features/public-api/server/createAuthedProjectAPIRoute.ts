@@ -27,7 +27,7 @@ import {
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
 import { type RouteAccessLevel } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
-import { verifyProjectAuth } from "@/src/features/public-api/server/verifyProjectAuth";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { type ProjectAction } from "@/src/features/auth/policy/types";
 
 // Next's res.json uses JSON.stringify; V8 throws this when the JSON string
@@ -132,11 +132,11 @@ export const createAuthedProjectAPIRoute = <
       return;
     }
 
-    const result = await verifyProjectAuth({
+    const result = await shadowAuth({
       req,
       action: routeConfig.action,
       isAdminApiKeyAuthAllowed: routeConfig.isAdminApiKeyAuthAllowed || false,
-      allowedAccessLevels: routeConfig.allowedAccessLevels || ["project"],
+      allowedAccessLevels: routeConfig.allowedAccessLevels ?? ["project"],
       allowInAppAgentKey: routeConfig.allowInAppAgentKey === true,
     });
 

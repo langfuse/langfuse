@@ -6,7 +6,7 @@ import {
   handleUpdateMembership,
   handleDeleteMembership,
 } from "@/src/ee/features/admin-api/server/memberships";
-import { verifyOrgAuth } from "@/src/features/auth/policy/verifyOrgAuth";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
@@ -31,16 +31,18 @@ export default async function handler(
   }
 
   // CHECK AUTH
-  const authCheck = await verifyOrgAuth({
+  const authCheck = await shadowAuth({
     req,
     action:
       req.method === "GET"
         ? "organizationMembers:read"
         : "organizationMembers:CUD",
+    allowedAccessLevels: ["organization"],
   });
-  if (!authCheck.validKey) {
-    return res.status(authCheck.status).json({
-      error: authCheck.status === 403 ? orgKeyRequired : authCheck.error,
+  if (!authCheck.success) {
+    const status = authCheck.error.httpCode;
+    return res.status(status).json({
+      error: status === 403 ? orgKeyRequired : authCheck.error.message,
     });
   }
   // END CHECK AUTH
