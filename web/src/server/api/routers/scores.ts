@@ -381,26 +381,49 @@ export const scoresRouter = createTRPCRouter({
         );
       }
 
-      // Bound the scored-traces semi-join by the same both-sided window the
-      // scores list view applies on scores.timestamp, so the offered options
-      // match what the windowed view can actually display. The UI sends `>=`
-      // for the lower bound and `<=` for the upper; take the tightest of each.
-      const lowerBounds = (timestampFilter ?? [])
+      // Bound the scored-traces semi-join by the same window the scores list
+      // view applies on scores.timestamp, so the offered options match what the
+      // windowed view can actually display. Preserve the caller's operator (not
+      // just the instant) so a score exactly on a strict boundary is offered iff
+      // the view would show it. Take the tightest bound on each side; on a tie
+      // the strict operator wins because it excludes the boundary instant.
+      const timestamps = timestampFilter ?? [];
+      const lowerBound = timestamps
         .filter((tf) => tf.operator === ">=" || tf.operator === ">")
-        .map((tf) => tf.value);
-      const upperBounds = (timestampFilter ?? [])
+        .reduce<{ operator: ">=" | ">"; value: Date } | undefined>(
+          (tightest, tf) => {
+            const candidate = {
+              operator: tf.operator as ">=" | ">",
+              value: tf.value,
+            };
+            if (!tightest) return candidate;
+            const diff = candidate.value.getTime() - tightest.value.getTime();
+            if (diff > 0) return candidate;
+            if (diff === 0 && candidate.operator === ">") return candidate;
+            return tightest;
+          },
+          undefined,
+        );
+      const upperBound = timestamps
         .filter((tf) => tf.operator === "<=" || tf.operator === "<")
-        .map((tf) => tf.value);
+        .reduce<{ operator: "<=" | "<"; value: Date } | undefined>(
+          (tightest, tf) => {
+            const candidate = {
+              operator: tf.operator as "<=" | "<",
+              value: tf.value,
+            };
+            if (!tightest) return candidate;
+            const diff = candidate.value.getTime() - tightest.value.getTime();
+            if (diff < 0) return candidate;
+            if (diff === 0 && candidate.operator === "<") return candidate;
+            return tightest;
+          },
+          undefined,
+        );
       const scope = {
         type: "scoredTraces" as const,
-        fromTime:
-          lowerBounds.length > 0
-            ? new Date(Math.max(...lowerBounds.map((d) => d.getTime())))
-            : undefined,
-        toTime:
-          upperBounds.length > 0
-            ? new Date(Math.min(...upperBounds.map((d) => d.getTime())))
-            : undefined,
+        fromTime: lowerBound,
+        toTime: upperBound,
       };
 
       const [names, tags, traceNames, userIds, stringValues] =

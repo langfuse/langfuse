@@ -238,8 +238,8 @@ export type EventFilterOptionRow = {
 // scanning all history).
 export type EventFilterOptionScope = {
   type: "scoredTraces";
-  fromTime?: Date;
-  toTime?: Date;
+  fromTime?: { operator: ">=" | ">"; value: Date };
+  toTime?: { operator: "<=" | "<"; value: Date };
 };
 
 const EVENTS_FILTER_OPTION_COLUMN_IDENTIFIER_PATTERN = /^[A-Za-z]+$/;
@@ -392,16 +392,18 @@ const eventFilterOptionScopeCondition = (
       const params: Record<string, unknown> = {};
       if (scope.fromTime) {
         clauses.push(
-          "timestamp >= {scoredTracesFromTime: DateTime64(3, 'UTC')}",
+          `timestamp ${scope.fromTime.operator} {scoredTracesFromTime: DateTime64(3, 'UTC')}`,
         );
         params.scoredTracesFromTime = convertDateToClickhouseDateTime(
-          scope.fromTime,
+          scope.fromTime.value,
         );
       }
       if (scope.toTime) {
-        clauses.push("timestamp <= {scoredTracesToTime: DateTime64(3, 'UTC')}");
+        clauses.push(
+          `timestamp ${scope.toTime.operator} {scoredTracesToTime: DateTime64(3, 'UTC')}`,
+        );
         params.scoredTracesToTime = convertDateToClickhouseDateTime(
-          scope.toTime,
+          scope.toTime.value,
         );
       }
       return {

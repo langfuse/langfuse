@@ -279,7 +279,11 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       filter: [],
       column: "traceName",
       limit: 100,
-      scope: { type: "scoredTraces", fromTime, toTime },
+      scope: {
+        type: "scoredTraces",
+        fromTime: { operator: ">=", value: fromTime },
+        toTime: { operator: "<=", value: toTime },
+      },
     });
 
     expect(built).not.toBeNull();
@@ -298,6 +302,30 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       scoredTracesFromTime: "2026-01-01 00:00:00.000",
       scoredTracesToTime: "2026-01-01 00:30:00.000",
     });
+  });
+
+  it("preserves strict scores timestamp operators", () => {
+    const built = buildEventsFilterOptionColumnQuery({
+      projectId: "test-project",
+      filter: [],
+      column: "traceName",
+      limit: 100,
+      scope: {
+        type: "scoredTraces",
+        fromTime: {
+          operator: ">",
+          value: new Date("2026-01-01T00:00:00.000Z"),
+        },
+        toTime: { operator: "<", value: new Date("2026-01-01T00:30:00.000Z") },
+      },
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain(
+      "AND timestamp > {scoredTracesFromTime: DateTime64(3, 'UTC')} AND timestamp < {scoredTracesToTime: DateTime64(3, 'UTC')}",
+    );
   });
 
   it("omits scores timestamp bounds the view did not supply", () => {
