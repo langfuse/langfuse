@@ -1,3 +1,3 @@
-import SettingsPage from "@/src/pages/project/[projectId]/settings";
+import SettingsPage from "@/src/features/projects/ProjectSettingsPage";
 
 export default SettingsPage;

@@ -15,7 +15,7 @@ import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
-import { useProjectSettingsPages } from "@/src/pages/project/[projectId]/settings";
+import { useProjectSettingsPages } from "@/src/features/projects/ProjectSettingsPage";
 import { useOrganizationSettingsPages } from "@/src/pages/organization/[organizationId]/settings";
 import { useAccountSettingsPages } from "@/src/pages/account/settings";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";

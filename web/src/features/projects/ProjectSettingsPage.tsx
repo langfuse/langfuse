@@ -26,6 +26,7 @@ import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/AuditL
 import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
 import ContainerPage from "@/src/components/layouts/container-page";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import ProtectedLabelsSettings from "@/src/features/prompts/components/ProtectedLabelsSettings";
 import { SiSlack } from "react-icons/si";
 import { ScoreConfigSettings } from "@/src/features/score-configs/components/ScoreConfigSettings";
@@ -323,7 +324,9 @@ export default function SettingsPage() {
   const router = useRouter();
   const pages = useProjectSettingsPages();
 
-  if (!project || !organization) return null;
+  if (!project || !organization) {
+    return <NoDataOrLoading isLoading />;
+  }
 
   return (
     <ContainerPage
