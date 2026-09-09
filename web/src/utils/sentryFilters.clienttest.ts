@@ -3,6 +3,7 @@ import { type ErrorEvent } from "@sentry/nextjs";
 import {
   isDenylistedNoiseEvent,
   isKitesurfInternalEvent,
+  isNoisyHttpClientGatewayEvent,
   isNoisyHttpClientPollEvent,
   isPosthogRecorderInternalEvent,
   isReactDevtoolsInternalEvent,
@@ -106,6 +107,17 @@ describe("isNoisyHttpClientPollEvent", () => {
       ).toBe(false);
     });
 
+    it("does not drop a tRPC 502 by path (gateway statuses are a separate predicate)", () => {
+      expect(
+        isNoisyHttpClientPollEvent(
+          httpClientEvent(
+            "https://us.cloud.langfuse.com/api/trpc/annotationQueues.byObjectId",
+            502,
+          ),
+        ),
+      ).toBe(false);
+    });
+
     it("keeps a public API 5xx (ingestion / traces)", () => {
       expect(
         isNoisyHttpClientPollEvent(
@@ -181,6 +193,190 @@ describe("isNoisyHttpClientPollEvent", () => {
         },
       } as ErrorEvent;
       expect(isNoisyHttpClientPollEvent(event)).toBe(false);
+    });
+  });
+});
+
+describe("isNoisyHttpClientGatewayEvent", () => {
+  describe("drops proxy/LB 502/503/504 from httpClientIntegration on app URLs", () => {
+    it("drops a tRPC 502 (annotationQueues.byObjectId shape)", () => {
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent(
+            "https://us.cloud.langfuse.com/api/trpc/annotationQueues.byObjectId",
+            502,
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops 503 and 504 on tRPC (xhr included)", () => {
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent(
+            "https://cloud.langfuse.com/api/trpc/traces.all?batch=1",
+            503,
+          ),
+        ),
+      ).toBe(true);
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent(
+            "https://cloud.langfuse.com/api/trpc/traces.all?batch=1",
+            504,
+            "xhr",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops tRPC behind a NEXT_PUBLIC_BASE_PATH prefix", () => {
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent(
+            "https://example.com/self-hosted/api/trpc/traces.all",
+            502,
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops a same-origin public API 502 (LB blip, not an app 500)", () => {
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent(`${window.location.origin}/api/public/traces`, 502),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops a poll-path 503 (overlaps poll filter; still URL-scoped)", () => {
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent("https://cloud.langfuse.com/api/auth/session", 503),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops when status lives only on the exception message (no response context)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: "HTTP Client Error with status code: 502",
+              mechanism: { type: "auto.http.client.fetch", handled: false },
+            },
+          ],
+        },
+        request: {
+          url: "https://us.cloud.langfuse.com/api/trpc/annotationQueues.byObjectId",
+        },
+      } as ErrorEvent;
+      expect(isNoisyHttpClientGatewayEvent(event)).toBe(true);
+    });
+  });
+
+  describe("KEEPS genuine application 5xx, third-party gateways, and non-httpClient events", () => {
+    it("keeps an application HTTP 500 on tRPC", () => {
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent(
+            "https://cloud.langfuse.com/api/trpc/traces.all?batch=1",
+            500,
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps an application HTTP 500 on the public API", () => {
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent(
+            "https://cloud.langfuse.com/api/public/ingestion",
+            500,
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a third-party S3 presigned-upload 503", () => {
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent(
+            "https://my-bucket.s3.us-east-1.amazonaws.com/media/item.bin?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc",
+            503,
+            "fetch",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a third-party GCS presigned-upload 503", () => {
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent(
+            "https://storage.googleapis.com/my-bucket/media/item.bin?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Signature=abc",
+            503,
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a cross-origin non-tRPC /api/public 502 (not same-origin)", () => {
+      // Path alone is not enough outside tRPC / noise paths — only same-origin
+      // covers other app routes. A foreign host must not be suppressed.
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent("https://other.example.com/api/public/traces", 502),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a genuine thrown exception even if response context is 502", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined",
+              mechanism: { type: "onunhandledrejection", handled: false },
+            },
+          ],
+        },
+        contexts: { response: { status_code: 502 } },
+      } as ErrorEvent;
+      expect(isNoisyHttpClientGatewayEvent(event)).toBe(false);
+    });
+
+    it("keeps an httpClient event with no readable status", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: "HTTP Client Error with status code: unknown",
+              mechanism: { type: "auto.http.client.fetch", handled: false },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isNoisyHttpClientGatewayEvent(event)).toBe(false);
+    });
+
+    it("keeps an httpClient gateway event with no request url", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: "HTTP Client Error with status code: 503",
+              mechanism: { type: "auto.http.client.fetch", handled: false },
+            },
+          ],
+        },
+        contexts: { response: { status_code: 503 } },
+      } as ErrorEvent;
+      expect(isNoisyHttpClientGatewayEvent(event)).toBe(false);
     });
   });
 });
