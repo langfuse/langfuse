@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   AuthMethod,
   CreateLlmApiKey,

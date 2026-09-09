@@ -136,6 +136,10 @@ const NOISE_MESSAGE_PREFIXES: readonly string[] = [
   "[next-auth][error][CLIENT_FETCH_ERROR]",
   // PostHog analytics SDK notices / client-side rate-limit logs. Third-party.
   "[PostHog.js]",
+  // Cloudflare / Cursor Kitesurf console-errors its own localhost CORS probe
+  // with this unbracketed prefix (LANGFUSE-610). Distinct from bracketed
+  // `[kitesurf]` listener wraps — those go through {@link isKitesurfInternalEvent}.
+  "kitesurf:",
   // `Response.json()` on a non-JSON body (a 5xx / HTML proxy page returned where
   // JSON was expected). This is the response not being ours-as-JSON, i.e. a
   // transport/infra artifact, not app logic.
@@ -193,6 +197,44 @@ const BENIGN_NON_ERROR_REJECTION_VALUE_PREFIXES: readonly string[] = [
  */
 const ANDROID_WEBVIEW_JAVA_BRIDGE_ERROR_RE =
   /^Error invoking [A-Za-z_][\w$]*: Java bridge method invocation error$/;
+
+/**
+ * Chromium wording when `new URL(input, base)` rejects the base. A `data:`
+ * document URL cannot resolve a path-absolute URL, so Next.js App Router's
+ * `new URL(canonicalUrl, window.location.href)` throws during hydrate.
+ * Observed: LANGFUSE-60K (Electron health probe loading the app HTML as a
+ * `data:` URL; stack is Next.js `Router` only, 0 users).
+ */
+const CHROMIUM_INVALID_URL_CONSTRUCTOR_MESSAGE =
+  "Failed to construct 'URL': Invalid URL";
+
+/**
+ * Firefox wording for the same `new URL` rejection (`URL constructor: <x>
+ * is not a valid URL`).
+ */
+const FIREFOX_INVALID_URL_CONSTRUCTOR_RE =
+  /^URL constructor: .+ is not a valid URL\.?$/;
+
+function isInvalidUrlConstructorMessage(value: string): boolean {
+  return (
+    value === CHROMIUM_INVALID_URL_CONSTRUCTOR_MESSAGE ||
+    FIREFOX_INVALID_URL_CONSTRUCTOR_RE.test(value)
+  );
+}
+
+/**
+ * True when the event's page URL is a `data:` document. Checks `request.url`
+ * first, then `tags.url` — Sentry's transaction/culprit often strips the
+ * `data:` scheme, so those fields are not used.
+ */
+function isDataDocumentUrl(event: ErrorEvent): boolean {
+  const requestUrl = event.request?.url;
+  if (typeof requestUrl === "string" && requestUrl.startsWith("data:")) {
+    return true;
+  }
+  const taggedUrl = event.tags?.url;
+  return typeof taggedUrl === "string" && taggedUrl.startsWith("data:");
+}
 
 /**
  * A `TRPCClientError` re-wraps its cause's message. Depending on capture path
@@ -259,8 +301,9 @@ export function isReactDevtoolsInternalEvent(event: ErrorEvent): boolean {
 /**
  * True for known-benign CLIENT-side noise that cannot be a real Langfuse app
  * bug: browser-level network/transport failures, transient framework/vendor
- * poll logs, and expected browser-permission / cancellation artifacts. Returning
- * `true` drops the event in `beforeSend`.
+ * poll logs, expected browser-permission / cancellation artifacts, and
+ * native HTMLMediaElement codec failures. Returning `true` drops the event
+ * in `beforeSend`.
  *
  * Design rule (safety first): only signatures that CANNOT represent a real app
  * error are listed, each keyed on an unambiguous signature (whole-message match,
@@ -366,6 +409,25 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       return true;
     }
 
+    // Browser cannot decode an <audio>/<video> resource (codec missing, empty
+    // source list). Firefox and Chromium reject HTMLMediaElement resource
+    // selection / autoplay as an unhandled NotSupportedError with no app
+    // stack. Onboarding splash videos and inline media players already hide
+    // or fall back in the UI; this is an expected capability gap, not an
+    // application bug. Guarded to the global handler so an app-captured
+    // NotSupportedError with the same wording is KEPT. Other
+    // NotSupportedError families (WebGL, WebRTC, "The operation is not
+    // supported.") have different messages and are KEPT.
+    if (
+      isGlobalHandlerUnsupportedMediaResourceEvent(
+        exceptionType,
+        exceptionValue,
+        exception?.mechanism?.type,
+      )
+    ) {
+      return true;
+    }
+
     // Known-benign non-Error promise rejections. The `UnhandledRejection`
     // exception type is SDK-synthesized (a real `Error` rejection keeps its own
     // type, e.g. `TypeError`), and the value denylist is exact/prefix-anchored:
@@ -431,9 +493,61 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     ) {
       return true;
     }
+
+    // Next.js App Router hydrates with
+    // `new URL(canonicalUrl, window.location.href)`. A `data:` document is
+    // not a valid base for a path-absolute canonical URL, so Chromium throws
+    // TypeError. Observed only from third-party Electron probes that load the
+    // app HTML as a data: URL (LANGFUSE-60K) — 0 users, Next.js frames only.
+    // We cannot fix Next.js here, and the page is not a real session.
+    //
+    // Requires TypeError + exact constructor wording + a data: page URL +
+    // a Sentry browser/global-handler mechanism so:
+    //  - the same TypeError on an https:// page is KEPT (real app bug);
+    //  - an app-captured exception that merely quotes the phrase is KEPT.
+    if (
+      exceptionType === "TypeError" &&
+      typeof mechanismType === "string" &&
+      mechanismType.startsWith("auto.browser.") &&
+      isInvalidUrlConstructorMessage(exceptionValue) &&
+      isDataDocumentUrl(event)
+    ) {
+      return true;
+    }
   }
 
   return false;
+}
+
+/**
+ * Exact browser-generated HTMLMediaElement messages. Whole-string match only:
+ * an app error that quotes a phrase is longer and is therefore KEPT.
+ */
+const UNSUPPORTED_MEDIA_RESOURCE_MESSAGES: readonly string[] = [
+  // Firefox
+  "The media resource indicated by the src attribute or assigned media provider object was not suitable.",
+  // Chromium / WebKit
+  "Failed to load because no supported source was found.",
+];
+
+/**
+ * True for a native HTMLMediaElement NotSupportedError delivered by the
+ * browser global handlers (`onunhandledrejection` / `onerror`). See the
+ * call site in {@link isDenylistedNoiseEvent} for why this is dropped.
+ */
+function isGlobalHandlerUnsupportedMediaResourceEvent(
+  exceptionType: string | undefined,
+  exceptionValue: string,
+  mechanismType: string | undefined,
+): boolean {
+  if (exceptionType !== "NotSupportedError") return false;
+  if (
+    typeof mechanismType !== "string" ||
+    !mechanismType.startsWith("auto.browser.global_handlers")
+  ) {
+    return false;
+  }
+  return UNSUPPORTED_MEDIA_RESOURCE_MESSAGES.includes(exceptionValue);
 }
 
 /**
@@ -554,4 +668,70 @@ export function isPosthogRecorderInternalEvent(event: ErrorEvent): boolean {
     return false;
   }
   return sawRecorderFrame;
+}
+
+/**
+ * Kitesurf's injected page-world scripts. Served as root-relative paths on our
+ * origin (`/__ks_user_classic_regular.js`), so `denyUrls` never matches them.
+ */
+const KITESURF_USER_SCRIPT_RE = /(?:^|\/)__ks_user[^/]*\.js$/i;
+const KITESURF_DOM_SHIM_RE = /(?:^|\/)dom-shim\.js$/i;
+
+/**
+ * Bare `page.js` as Sentry reports Kitesurf's page controller. Must NOT match
+ * a Next.js `/_next/.../page.js` — basename-only matching is intentional.
+ */
+function isKitesurfPageControllerFilename(path: string): boolean {
+  return path === "page.js" || path === "/page.js";
+}
+
+function isKitesurfVendorFilename(path: string): boolean {
+  return KITESURF_USER_SCRIPT_RE.test(path) || KITESURF_DOM_SHIM_RE.test(path);
+}
+
+/**
+ * True for Kitesurf (Cursor / Cloudflare agent-browser) internals that mint
+ * production Sentry noise without involving Langfuse app code:
+ *
+ *  1. Console: `[kitesurf] …` via `captureConsoleIntegration` (LANGFUSE-60W).
+ *     Dropped only when the text has no `/_next/` chunk — a wrap of a real
+ *     app listener throw usually quotes our chunk and is KEPT.
+ *  2. Stack: every attributable frame in `__ks_user_*.js` / `dom-shim.js`
+ *     (plus opaque / bare `page.js` controller frames). Covers
+ *     `ReferenceError: DOMRect is not defined` (LANGFUSE-60Z) and the
+ *     iframe-load `Proxy` TypeError (LANGFUSE-60X).
+ *
+ * Unbracketed `kitesurf:` CORS probes are handled by
+ * {@link NOISE_MESSAGE_PREFIXES} (LANGFUSE-610).
+ *
+ * Same posture as {@link isPosthogRecorderInternalEvent}.
+ */
+export function isKitesurfInternalEvent(event: ErrorEvent): boolean {
+  const text = eventText(event);
+  if (text.length > 0) {
+    const core = coreMessage(text);
+    if (core.startsWith("[kitesurf]") && !text.includes("/_next/")) {
+      return true;
+    }
+  }
+
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+
+  let sawKitesurfVendorFrame = false;
+  for (const stackFrame of frames) {
+    const filename = stackFrame?.filename;
+    if (typeof filename !== "string" || filename.length === 0) continue;
+    const path = filename.split(/[?#]/)[0];
+    if (isKitesurfVendorFilename(path)) {
+      sawKitesurfVendorFrame = true;
+      continue;
+    }
+    if (isOpaqueOrSdkFrame(filename)) continue;
+    // Bare `page.js` is Kitesurf's controller only when a vendor script is
+    // also on the stack. An all-`page.js` stack is kept.
+    if (isKitesurfPageControllerFilename(path)) continue;
+    return false;
+  }
+  return sawKitesurfVendorFrame;
 }

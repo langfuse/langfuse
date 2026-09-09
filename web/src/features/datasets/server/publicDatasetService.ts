@@ -1,7 +1,7 @@
 import type { NextApiResponse } from "next";
 import { createHash } from "node:crypto";
 import { v4 } from "uuid";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { addDatasetRunItemsToEvalQueue } from "@/src/features/evals/server/addDatasetRunItemsToEvalQueue";
 import {
   createOrFetchDatasetRun,
