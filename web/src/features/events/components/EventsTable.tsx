@@ -78,7 +78,10 @@ import {
 } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
-import { usePaginationWindowPin } from "@/src/components/table/hooks/usePaginationWindowPin";
+import {
+  isLiveTailTimeSort,
+  usePaginationWindowPin,
+} from "@/src/components/table/hooks/usePaginationWindowPin";
 import {
   type TableDateRange,
   TABLE_AGGREGATION_OPTIONS,
@@ -493,7 +496,11 @@ export default function ObservationsEventsTable({
   // row/count queries take the pinned upper bound instead, so offset paging does
   // not repeat or skip rows while the window keeps taking in newly ingested ones.
   const { range: rowsDateRange, pinOnLeavingFirstPage } =
-    usePaginationWindowPin(dateRange, limitRows ? 0 : paginationState.page - 1);
+    usePaginationWindowPin(
+      dateRange,
+      limitRows ? 0 : paginationState.page - 1,
+      { enabled: isLiveTailTimeSort(orderByState, "startTime") },
+    );
   const dateRangeFilter: FilterState = toStartTimeFilterState(rowsDateRange);
 
   const appRootDefault = useAppRootDefault({
