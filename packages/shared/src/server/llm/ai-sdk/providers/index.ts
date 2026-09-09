@@ -8,6 +8,7 @@ import { buildAzureModel } from "./azure";
 import { buildBedrockModel } from "./bedrock";
 import { buildGoogleAIStudioModel } from "./google";
 import { buildOpenAIModel } from "./openai";
+import { buildOrcaRouterModel } from "./orcarouter";
 import type { LLMCredentialSource } from "./types";
 import { buildVertexModel, isClaudeModel } from "./vertex";
 
@@ -61,6 +62,15 @@ export async function buildAiSdkModel(params: {
         extraHeaders,
         apiMode: modelConfig.openAIApiMode ?? "chat-completions",
         fetch: createFetch("OpenAI LLM base URL"),
+      });
+
+    case LLMAdapter.OrcaRouter:
+      return buildOrcaRouterModel({
+        modelId: model.id,
+        apiKey,
+        baseURL,
+        extraHeaders,
+        fetch: createFetch("OrcaRouter LLM base URL"),
       });
 
     case LLMAdapter.Azure:
