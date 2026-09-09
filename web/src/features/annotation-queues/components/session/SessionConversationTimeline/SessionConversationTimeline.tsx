@@ -1,4 +1,4 @@
-import { useEffect, useRef, type UIEvent } from "react";
+import { useEffect, useMemo, useRef, type UIEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import {
@@ -17,6 +17,17 @@ import { useElementSize } from "@/src/hooks/useElementSize";
 import { useVirtualizedScrollSpy } from "@/src/hooks/useVirtualizedScrollSpy";
 
 const SESSION_TIMELINE_OVERSCAN = 5;
+const observationIdentityByReference = new WeakMap<object, number>();
+let nextObservationIdentity = 0;
+
+const getObservationIdentity = (observation: SessionObservation) => {
+  const existingIdentity = observationIdentityByReference.get(observation);
+  if (existingIdentity !== undefined) return existingIdentity;
+
+  const identity = nextObservationIdentity++;
+  observationIdentityByReference.set(observation, identity);
+  return identity;
+};
 
 export type SessionConversationTimelineItem = {
   trace: EventSessionTrace;
@@ -148,45 +159,55 @@ export function SessionConversationTimeline({
   scrollTarget?: SessionConversationTimelineScrollTarget | null;
   onLoadMoreObservations?: () => void;
 }) {
-  const preparedObservations = prepareSessionTimelineObservations(
-    traces.flatMap(({ observations }) => observations ?? []),
-  );
-  const traceIndexByObservation = new Map<SessionObservation, number>();
-  traces.forEach(({ observations }, traceIndex) => {
-    observations?.forEach((observation) => {
-      traceIndexByObservation.set(observation, traceIndex);
-    });
-  });
-  const preparedObservationGroups: Array<
-    PreparedSessionTimelineItem<SessionObservation>[] | null | undefined
-  > = traces.map(({ observations }) =>
-    observations === undefined || observations === null ? observations : [],
-  );
-  preparedObservations.forEach((preparedObservation) => {
-    const traceIndex = traceIndexByObservation.get(
-      preparedObservation.observation,
+  const observationFingerprint = traces
+    .flatMap(({ observations }) => observations ?? [])
+    .map(getObservationIdentity)
+    .join(",");
+  const { states } = useMemo(() => {
+    const preparedObservations = prepareSessionTimelineObservations(
+      traces.flatMap(({ observations }) => observations ?? []),
     );
-    if (traceIndex === undefined) return;
+    const traceIndexByObservation = new Map<SessionObservation, number>();
+    traces.forEach(({ observations }, traceIndex) => {
+      observations?.forEach((observation) => {
+        traceIndexByObservation.set(observation, traceIndex);
+      });
+    });
+    const preparedObservationGroups: Array<
+      PreparedSessionTimelineItem<SessionObservation>[] | null | undefined
+    > = traces.map(({ observations }) =>
+      observations === undefined || observations === null ? observations : [],
+    );
+    preparedObservations.forEach((preparedObservation) => {
+      const traceIndex = traceIndexByObservation.get(
+        preparedObservation.observation,
+      );
+      if (traceIndex === undefined) return;
 
-    preparedObservationGroups[traceIndex]?.push(preparedObservation);
-  });
-  const states = traces.map(
-    (
-      { observations },
-      traceIndex,
-    ): PreparedSessionConversationTimelineTraceState => {
-      if (observations === undefined) return { type: "loading" };
-      if (observations === null) return { type: "error" };
-      if (observations.length === 0) {
-        return { type: "empty", message: emptyMessage };
-      }
+      preparedObservationGroups[traceIndex]?.push(preparedObservation);
+    });
 
-      return {
-        type: "loaded",
-        observations: preparedObservationGroups[traceIndex] ?? [],
-      };
-    },
-  );
+    return {
+      observationFingerprint,
+      states: traces.map(
+        (
+          { observations },
+          traceIndex,
+        ): PreparedSessionConversationTimelineTraceState => {
+          if (observations === undefined) return { type: "loading" };
+          if (observations === null) return { type: "error" };
+          if (observations.length === 0) {
+            return { type: "empty", message: emptyMessage };
+          }
+
+          return {
+            type: "loaded",
+            observations: preparedObservationGroups[traceIndex] ?? [],
+          };
+        },
+      ),
+    };
+  }, [emptyMessage, observationFingerprint, traces]);
 
   return (
     <SessionConversationTimelineFeed
