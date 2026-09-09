@@ -50,10 +50,18 @@ const sharedSourceUnitTestFiles = sharedSourceTestFiles.filter((file) =>
 const sharedSourceIntegrationTestFiles = sharedSourceTestFiles.filter(
   (file) => !sharedSourceUnitTestFiles.includes(file),
 );
+// These suites delete the entire API-key cache, including other tests' keys.
+// A separate scheduling group protects other projects in this test invocation,
+// on both standalone and cluster Redis.
+const exclusiveCacheTestFiles = [
+  "src/__tests__/server/admin-api-keys.servertest.ts",
+  "src/__tests__/server/api-auth.servertest.ts",
+];
 const serverTestFiles = allServerTestFiles.filter(
   (file) =>
     !file.startsWith("src/__tests__/server/unit/") &&
-    !sharedSourceIntegrationTestFiles.includes(file),
+    !sharedSourceIntegrationTestFiles.includes(file) &&
+    !exclusiveCacheTestFiles.includes(file),
 );
 const isolatedServerTestFiles = serverTestFiles.filter((file) =>
   GLOBAL_STATE_PATTERN.test(
@@ -67,8 +75,8 @@ const sharedContextServerTestFiles = serverTestFiles.filter(
 function markdownRawPlugin() {
   return {
     name: "markdown-raw",
-    enforce: "pre",
-    load(id) {
+    enforce: "pre" as const,
+    load(id: string) {
       const path = id.split("?", 1)[0];
       if (!path?.endsWith(".md")) return null;
 
@@ -130,11 +138,7 @@ const sharedSourceResolve = {
   ],
   // Runtime source resolves these through shared's node_modules symlinks.
   // Dedupe keeps one module identity so mocks registered from web intercept.
-  dedupe: [
-    "@ag-ui/core",
-    "@ag-ui/client",
-    "langfuse",
-  ],
+  dedupe: ["@ag-ui/core", "@ag-ui/client", "langfuse"],
 };
 
 function serverProject(
@@ -145,6 +149,7 @@ function serverProject(
     env?: Record<string, string>;
     exclude?: string[];
     isolate?: boolean;
+    exclusive?: boolean;
     resolve?: typeof sharedSourceResolve;
   } = {},
 ) {
@@ -157,6 +162,9 @@ function serverProject(
       exclude: [...sharedExclude, ...(options.exclude ?? [])],
       ...(options.isolate === undefined ? {} : { isolate: options.isolate }),
       ...(options.env ? { env: options.env } : {}),
+      ...(options.exclusive
+        ? { fileParallelism: false, sequence: { groupOrder: 1 } }
+        : {}),
       environment: "node" as const,
       setupFiles: ["./src/__tests__/after-teardown.ts"],
       ...(options.database
@@ -238,6 +246,10 @@ export default defineConfig({
       }),
       serverProject("server-isolated", isolatedServerTestFiles, {
         database: true,
+      }),
+      serverProject("server-cache-exclusive", exclusiveCacheTestFiles, {
+        database: true,
+        exclusive: true,
       }),
       serverProject("server-shared-source", sharedSourceIntegrationTestFiles, {
         database: true,
