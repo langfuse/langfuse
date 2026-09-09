@@ -1,4 +1,5 @@
 import type { IncomingMessage } from "node:http";
+import { addAbortSignal } from "node:stream";
 import { gunzip } from "node:zlib";
 
 import {
@@ -77,9 +78,10 @@ function isRawBodyTooLargeError(error: unknown): error is RawBodyError {
 export async function readOtelRequestBody(
   req: IncomingMessage,
   maxBytes: number,
+  signal?: AbortSignal,
 ): Promise<Buffer> {
   try {
-    return await getRawBody(req, {
+    return await getRawBody(signal ? addAbortSignal(signal, req) : req, {
       length: req.headers["content-length"],
       limit: maxBytes,
     });

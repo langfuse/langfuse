@@ -34,4 +34,13 @@ export async function register() {
   if (isNodeRuntime && isInitLoadingEnabled) {
     await import("./initialize");
   }
+
+  if (
+    process.env.NEXT_RUNTIME === "nodejs" &&
+    process.env.LANGFUSE_OTEL_INGESTION_USE_WORKER === "true"
+  ) {
+    const { preloadOtelIngestionWorker } =
+      await import("./server/otel/otelIngestionWorkerPool");
+    await preloadOtelIngestionWorker();
+  }
 }
