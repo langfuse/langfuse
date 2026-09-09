@@ -120,3 +120,84 @@ export const updateScoreConfig = async ({
 
   return validateDbScoreConfig(config);
 };
+
+// Soft-archive a score config by flipping `isArchived` to true. Mirrors the
+// semantic of the existing MCP `mcp.score_configs.delete` tool so the public
+// API exposes a symmetric surface. Hard delete is intentionally out of scope;
+// see https://github.com/langfuse/langfuse/issues/15642.
+export const archiveScoreConfigForApi = async ({
+  context,
+  configId,
+}: {
+  context: ApiKeyProjectContext;
+  configId: string;
+}) => {
+  const existingConfig = await prisma.scoreConfig.findUnique({
+    where: {
+      id: configId,
+      projectId: context.projectId,
+    },
+  });
+
+  if (!existingConfig) {
+    throw new LangfuseNotFoundError(
+      "Score config not found within authorized project",
+    );
+  }
+
+  // If the config is already archived, treat the request as a no-op rather
+  // than an error. This keeps the verb idempotent and avoids surprising
+  // callers that re-issue the same DELETE.
+  if (existingConfig.isArchived) {
+    return { message: "Score config successfully archived" as const };
+  }
+
+  // Wrap the conditional archive + audit-log in a single transaction so
+  // the read-then-write race (two DELETEs both seeing isArchived=false
+  // and each writing a delete audit record) collapses to a single
+  // transition with a single audit entry. The conditional updateMany
+  // returns the count of rows actually changed; only emit the audit
+  // log when the count is 1 (i.e. we won the race).
+  // Wrap the conditional archive + audit-log in a single transaction so
+  // the read-then-write race (two DELETEs both seeing isArchived=false
+  // and each writing a delete audit record) collapses to a single
+  // transition with a single audit entry. The conditional updateMany
+  // returns the count of rows actually changed; only emit the audit
+  // log when the count is 1 (i.e. we won the race).
+  await prisma.$transaction(async (tx) => {
+    const updateResult = await tx.scoreConfig.updateMany({
+      where: {
+        id: configId,
+        projectId: context.projectId,
+        isArchived: false,
+      },
+      data: {
+        isArchived: true,
+      },
+    });
+
+    if (updateResult.count === 0) {
+      // Lost the race: a concurrent DELETE already archived the row.
+      // The pre-check above still saw isArchived=false because the
+      // other transaction had not committed yet. Treat as a no-op so
+      // the verb stays idempotent and no duplicate audit entry is
+      // emitted.
+      return;
+    }
+
+    await auditLog(
+      {
+        action: "delete",
+        resourceType: "scoreConfig",
+        resourceId: existingConfig.id,
+        projectId: context.projectId,
+        orgId: context.orgId,
+        apiKeyId: context.apiKeyId,
+        before: existingConfig,
+      },
+      tx,
+    );
+  });
+
+  return { message: "Score config successfully archived" as const };
+};
