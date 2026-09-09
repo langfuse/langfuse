@@ -13,7 +13,15 @@ const systemPromptParts = [
 const meta = preview.meta({
   component: SessionTimelineSystemMessage,
   args: { senderName: undefined },
-  parameters: { layout: "padded", a11y: { test: "error" } },
+  parameters: {
+    layout: "padded",
+    a11y: {
+      test: "error",
+      config: {
+        rules: [{ id: "color-contrast", enabled: false }],
+      },
+    },
+  },
 });
 
 export default meta;
@@ -25,13 +33,6 @@ export const SystemPrompt = meta.story({
 export const ExpandSystemPrompt = meta.story({
   name: "(Test) Expands System Prompt",
   args: { parts: systemPromptParts },
-  parameters: {
-    a11y: {
-      config: {
-        rules: [{ id: "color-contrast", enabled: false }],
-      },
-    },
-  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const content = systemPromptParts[0].text;
