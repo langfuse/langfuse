@@ -282,7 +282,7 @@ function TracePanelNavigationHeaderExpanded({
   );
 }
 
-export type TraceViewMode = "tree" | "timeline" | "graph" | "lanes";
+type TraceViewMode = "tree" | "timeline" | "graph" | "lanes";
 
 function ViewModeSwitch({
   activeView,
