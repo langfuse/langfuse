@@ -5,10 +5,11 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
+import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 
 function renderPrettyJson(ui: ReactNode) {
-  return render(ui);
+  return render(<MarkdownContextProvider>{ui}</MarkdownContextProvider>);
 }
 
 function prettyTable() {

@@ -3,6 +3,7 @@ import {
   MarkdownView,
   prependBasePathToInternalHref,
 } from "@/src/components/ui/MarkdownViewer";
+import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 
 vi.mock("next/router", () => ({
   useRouter: () => ({ query: {} }),
@@ -17,7 +18,11 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 }));
 
 const renderMarkdown = (markdown: string) =>
-  render(<MarkdownView markdown={markdown} />);
+  render(
+    <MarkdownContextProvider>
+      <MarkdownView markdown={markdown} />
+    </MarkdownContextProvider>,
+  );
 
 describe("MarkdownView link rendering", () => {
   it("renders an external link as a native anchor opening in a new tab", () => {
@@ -156,13 +161,19 @@ describe("MarkdownView code blocks", () => {
   it("reuses the same code block instance across re-renders", () => {
     const markdown = "```js\nconst x = 1;\n```";
     const { container, rerender } = render(
-      <MarkdownView markdown={markdown} />,
+      <MarkdownContextProvider>
+        <MarkdownView markdown={markdown} />
+      </MarkdownContextProvider>,
     );
 
     const codeblock = container.querySelector(".codeblock");
     expect(codeblock).not.toBeNull();
 
-    rerender(<MarkdownView markdown={markdown} />);
+    rerender(
+      <MarkdownContextProvider>
+        <MarkdownView markdown={markdown} />
+      </MarkdownContextProvider>,
+    );
 
     expect(container.querySelector(".codeblock")).toBe(codeblock);
   });

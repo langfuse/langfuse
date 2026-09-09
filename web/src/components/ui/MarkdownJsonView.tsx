@@ -164,8 +164,8 @@ export const canRenderContentAsMarkdown = (
   // Don't render if markdown content is huge
   JSON.stringify(content || {}).length <= characterLimit;
 
-// MarkdownJsonView renders markdown whenever the content is valid markdown
-// (see canRenderContentAsMarkdown), otherwise it falls back to JSON.
+// MarkdownJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown
+// otherwise, if content is valid markdown will render JSON with switch to enable markdown globally
 export function MarkdownJsonView({
   content,
   title,

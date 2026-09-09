@@ -12,6 +12,7 @@ import { ExternalLinkIcon } from "lucide-react";
 import {
   EnvironmentBadge,
   ReleaseBadge,
+  VersionBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 
 const META_LINK_CLASSES =
@@ -90,6 +91,6 @@ export function TargetTraceBadge({
   );
 }
 
-// Context text (env/release) is shared with the observation header so both
-// surfaces speak the same visual grammar.
-export { EnvironmentBadge, ReleaseBadge };
+// Context text (env/release/version) is shared with the observation header so
+// both surfaces speak the same visual grammar.
+export { EnvironmentBadge, ReleaseBadge, VersionBadge };

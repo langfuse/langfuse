@@ -14,6 +14,7 @@ import {
 import { SessionProvider } from "next-auth/react";
 import { TooltipProvider } from "../src/components/ui/tooltip";
 import { ThemeProvider } from "../src/features/theming/ThemeProvider";
+import { MarkdownContextProvider } from "../src/features/theming/useMarkdownContext";
 import { LAYER_ORDER } from "../src/components/ui/layer";
 import "./storybook.css";
 import "./docs.css";
@@ -154,13 +155,19 @@ export default definePreview({
         fullHeight={context.viewMode !== "docs"}
         theme={context.globals.theme === "dark" ? "dark" : "light"}
       >
+        {/* MarkdownContextProvider mirrors the app: pages render inside it so
+              the JSON/IO viewers (CodeJsonViewer's JSONView calls
+              useMarkdownContext) work identically to production. Without it,
+              multi-line IOTableCell renders (rowHeight m/l) throw. */}
         {/* SessionProvider mirrors _app.tsx: components reading feature
               flags call useSession, which throws without a provider. A null
               session resolves every flag to false (regular-user behavior). */}
         <SessionProvider session={null}>
-          <TooltipProvider>
-            <Story />
-          </TooltipProvider>
+          <MarkdownContextProvider>
+            <TooltipProvider>
+              <Story />
+            </TooltipProvider>
+          </MarkdownContextProvider>
         </SessionProvider>
       </StorybookThemeProvider>
     ),

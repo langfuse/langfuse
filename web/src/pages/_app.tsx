@@ -83,6 +83,7 @@ import { ResilientSessionProvider } from "@/src/features/auth/components/Resilie
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
+import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { MarkdownRenderCharacterLimitProvider } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
 import { V4MigrationPanelProvider } from "@/src/features/v4-migration/V4MigrationPanelProvider";
@@ -198,29 +199,31 @@ const MyApp: AppType<{ session: Session | null }> = ({
               >
                 <ResilientSessionProvider basePath={authBasePath}>
                   <DetailPageListsProvider>
-                    <MarkdownRenderCharacterLimitProvider>
-                      <ThemeProvider
-                        attribute="class"
-                        enableSystem
-                        disableTransitionOnChange
-                      >
-                        <ScoreCacheProvider>
-                          <CorrectionCacheProvider>
-                            <SupportDrawerProvider defaultOpen={false}>
-                              <V4MigrationPanelProvider defaultOpen={false}>
-                                <InAppAiAgentProvider defaultOpen={false}>
-                                  {skipAppLayout ? (
-                                    page
-                                  ) : (
-                                    <AppLayout>{page}</AppLayout>
-                                  )}
-                                </InAppAiAgentProvider>
-                              </V4MigrationPanelProvider>
-                            </SupportDrawerProvider>
-                          </CorrectionCacheProvider>
-                        </ScoreCacheProvider>
-                      </ThemeProvider>
-                    </MarkdownRenderCharacterLimitProvider>
+                    <MarkdownContextProvider>
+                      <MarkdownRenderCharacterLimitProvider>
+                        <ThemeProvider
+                          attribute="class"
+                          enableSystem
+                          disableTransitionOnChange
+                        >
+                          <ScoreCacheProvider>
+                            <CorrectionCacheProvider>
+                              <SupportDrawerProvider defaultOpen={false}>
+                                <V4MigrationPanelProvider defaultOpen={false}>
+                                  <InAppAiAgentProvider defaultOpen={false}>
+                                    {skipAppLayout ? (
+                                      page
+                                    ) : (
+                                      <AppLayout>{page}</AppLayout>
+                                    )}
+                                  </InAppAiAgentProvider>
+                                </V4MigrationPanelProvider>
+                              </SupportDrawerProvider>
+                            </CorrectionCacheProvider>
+                          </ScoreCacheProvider>
+                        </ThemeProvider>
+                      </MarkdownRenderCharacterLimitProvider>
+                    </MarkdownContextProvider>
                   </DetailPageListsProvider>
                 </ResilientSessionProvider>
               </SessionProvider>
