@@ -8,20 +8,20 @@ evaluating, and debugging AI applications.
 This repo serves two different people, and they get different halves of it.
 Work out which before anything else, and never guess silently.
 
-It is a configuration question, not an interview. Read `.langfuse/me.md` if
-it exists in this checkout. Do **not** Read or Write
-`~/.config/langfuse/me.md` — that path is outside the project, and
-workspace-scoped harnesses (OpenCode) prompt on it. Identity there is
-optional; if the workspace file is missing, `langfuse-onboarding` step 1
-names them. On Cursor Cloud that is the run owner (`cursor-cloud`
-`run-info`) plus the team roster — **not** `gh api …permissions`, because
-Cloud's GitHub token is a read-only integration and reports `push: false`
-for maintainers. Desktop still uses `gh api user` then `.permissions.push`.
-For anything those cannot tell you — which areas they work on — **just
-ask, once**, and write the answer to `.langfuse/me.md` so nobody asks
-again. Someone who has worked here for a year does not need onboarding;
-they need you to know their name. `langfuse-onboarding` is for people who
-are actually new.
+It is a configuration question, not an interview. Read the workspace
+identity file in `.langfuse/` (`me.md`, gitignored) if it exists. Do
+**not** Read or Write `~/.config/langfuse/me.md` — that path is outside
+the project, and workspace-scoped harnesses (OpenCode) prompt on it.
+Identity there is optional; if the workspace file is missing,
+`langfuse-onboarding` step 1 names them. On Cursor Cloud that is the run
+owner (`cursor-cloud` `run-info`) plus the team roster — **not**
+`gh api …permissions`, because Cloud's GitHub token is a read-only
+integration and reports `push: false` for maintainers. Desktop still uses
+`gh api user` then `.permissions.push`. For anything those cannot tell
+you — which areas they work on — **just ask, once**, and write the
+answer into `.langfuse/` so nobody asks again. Someone who has worked
+here for a year does not need onboarding; they need you to know their
+name. `langfuse-onboarding` is for people who are actually new.
 
 **An outside contributor** gets the code and `CONTRIBUTING.md`: how to build it,
 what the checks require, how to open a pull request. Nothing about the tracker,
@@ -62,9 +62,10 @@ than two sentences they read.
 
 - Know who you are working for before you assume what they may do. An outside
   contributor and a Langfuse maintainer get different halves of this repo, and
-  the difference is derivable — `.langfuse/me.md` if it exists, else
-  `langfuse-onboarding` step 1 (Cloud run owner, not Cloud `gh` permissions).
-  Do not Read `~/.config/langfuse/me.md`. Never guess it silently.
+  the difference is derivable — the workspace identity file in `.langfuse/`
+  if it exists, else `langfuse-onboarding` step 1 (Cloud run owner, not
+  Cloud `gh` permissions). Do not Read `~/.config/langfuse/me.md`. Never
+  guess it silently.
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
 - Delegate exploratory or noisy work — broad code search, multi-file
@@ -205,11 +206,11 @@ langfuse/
 ### Cursor Cloud specific instructions
 
 - Identity: `cursor-cloud` `run-info` (`owningUserName`, `owningUserEmail`),
-  then the roster. Repo postinstall and Cloud start normally recover
-  `.langfuse/me.md` from `LINEAR_API_KEY` first (and a machine-level copy
-  under `~/.config/langfuse` when the harness allows it). Read the
-  workspace file. Ignore `git config` (`cursoragent@cursor.com`) and Cloud
-  `gh` `.permissions.push`.
+  then the roster. Repo postinstall and Cloud start normally recover the
+  workspace identity file in `.langfuse/` from `LINEAR_API_KEY` first (and
+  a machine-level copy under `~/.config/langfuse` when the harness allows
+  it). Read the workspace file. Ignore `git config`
+  (`cursoragent@cursor.com`) and Cloud `gh` `.permissions.push`.
 - Linear: MCP if already authorized; else a real read with `LINEAR_API_KEY`
   (or `LINEAR_TOKEN` / `LINEAR_API_TOKEN`). Interactive `mcp_auth` does not
   work in Cloud. If neither works, tell them to add **`LINEAR_API_KEY`** as a
