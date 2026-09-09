@@ -97,6 +97,10 @@ export default [
             "toast",
             // Playground window selector hook used for page/window coordination.
             "playground-window",
+            // Command and dialog structural selector hooks used by descendant variants.
+            "cmdk-input-wrapper",
+            "dialog-header",
+            "dialog-footer",
             // react-grid-layout requires this wrapper class for grid layout behavior.
             "layout",
             // react-grid-layout draggableHandle points at this selector.
