@@ -123,6 +123,9 @@ export function instrumentSync<T>(
 
 export const getCurrentSpan = () => opentelemetry.trace.getActiveSpan();
 
+export const getActiveTraceId = () =>
+  opentelemetry.trace.getActiveSpan()?.spanContext().traceId;
+
 export const addTagsToCurrentSpan = (
   attributes: Parameters<opentelemetry.Span["setAttributes"]>[0],
 ) => {

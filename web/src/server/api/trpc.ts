@@ -89,6 +89,7 @@ import {
   addUserToSpan,
   contextWithLangfuseProps,
   ClickHouseResourceError,
+  getActiveTraceId,
 } from "@langfuse/shared/src/server";
 
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
@@ -107,6 +108,9 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
       ...shape,
       data: {
         ...shape.data,
+        // OTEL trace id of the failing request, for frontend/support correlation
+        // with Datadog. Absent when OTEL is not running (e.g. some self-hosted).
+        traceId: getActiveTraceId(),
         zodError:
           error.cause instanceof ZodError ? z.flattenError(error.cause) : null,
         errorName:
