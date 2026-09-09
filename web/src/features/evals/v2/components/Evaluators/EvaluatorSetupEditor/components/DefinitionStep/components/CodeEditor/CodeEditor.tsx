@@ -58,16 +58,19 @@ export function CodeEditor({
       context={assistantContext}
       onAssistantSubmit={onAssistantSubmit}
     >
-      <InAppAgentUpdateHighlight updateId={codeUpdateId}>
-        <CodeEvalTemplateFormBody
-          sourceCode={state.sourceCode}
-          sourceCodeLanguage={state.sourceCodeLanguage}
-          onSourceCodeChange={state.setSourceCode}
-          editable
-          validationResult={validationResult}
-          ctxSample={ctxSample}
-        />
-      </InAppAgentUpdateHighlight>
+      {(assistantAction) => (
+        <InAppAgentUpdateHighlight updateId={codeUpdateId}>
+          <CodeEvalTemplateFormBody
+            sourceCode={state.sourceCode}
+            sourceCodeLanguage={state.sourceCodeLanguage}
+            onSourceCodeChange={state.setSourceCode}
+            editable
+            validationResult={validationResult}
+            ctxSample={ctxSample}
+            headerAction={assistantAction}
+          />
+        </InAppAgentUpdateHighlight>
+      )}
     </CodeEvaluatorAssistantExperience>
   );
 }

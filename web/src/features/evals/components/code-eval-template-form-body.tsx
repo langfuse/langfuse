@@ -407,25 +407,27 @@ export function CodeEvalTemplateFormBody({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="text-muted-foreground text-sm">{languageLabel}</span>
-          {headerAction}
         </div>
-        {shouldShowFormatButton ? (
-          formatDisabledReason ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex cursor-not-allowed">
-                  {formatButton}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>{formatDisabledReason}</TooltipContent>
-            </Tooltip>
-          ) : (
-            formatButton
-          )
-        ) : null}
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          {headerAction}
+          {shouldShowFormatButton ? (
+            formatDisabledReason ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex cursor-not-allowed">
+                    {formatButton}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{formatDisabledReason}</TooltipContent>
+              </Tooltip>
+            ) : (
+              formatButton
+            )
+          ) : null}
+        </div>
       </div>
       <CodeMirror
         value={sourceCode}

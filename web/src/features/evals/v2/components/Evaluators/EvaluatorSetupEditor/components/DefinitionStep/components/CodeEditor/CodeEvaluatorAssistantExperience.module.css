@@ -1,0 +1,51 @@
+.bracketed {
+  position: relative;
+}
+
+.bracketed::after {
+  pointer-events: none;
+  position: absolute;
+  inset: -1px;
+  background:
+    linear-gradient(
+        hsl(var(--foreground) / 0.55),
+        hsl(var(--foreground) / 0.55)
+      )
+      top left / 12px 2px no-repeat,
+    linear-gradient(
+        hsl(var(--foreground) / 0.55),
+        hsl(var(--foreground) / 0.55)
+      )
+      top left / 2px 12px no-repeat,
+    linear-gradient(
+        hsl(var(--foreground) / 0.55),
+        hsl(var(--foreground) / 0.55)
+      )
+      top right / 12px 2px no-repeat,
+    linear-gradient(
+        hsl(var(--foreground) / 0.55),
+        hsl(var(--foreground) / 0.55)
+      )
+      top right / 2px 12px no-repeat,
+    linear-gradient(
+        hsl(var(--foreground) / 0.55),
+        hsl(var(--foreground) / 0.55)
+      )
+      bottom right / 12px 2px no-repeat,
+    linear-gradient(
+        hsl(var(--foreground) / 0.55),
+        hsl(var(--foreground) / 0.55)
+      )
+      bottom right / 2px 12px no-repeat,
+    linear-gradient(
+        hsl(var(--foreground) / 0.55),
+        hsl(var(--foreground) / 0.55)
+      )
+      bottom left / 12px 2px no-repeat,
+    linear-gradient(
+        hsl(var(--foreground) / 0.55),
+        hsl(var(--foreground) / 0.55)
+      )
+      bottom left / 2px 12px no-repeat;
+  content: "";
+}

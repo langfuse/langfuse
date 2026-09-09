@@ -1,4 +1,4 @@
-import { Fragment, useState, type CSSProperties } from "react";
+import { Fragment, useId, useState, type CSSProperties } from "react";
 import {
   Check,
   ChevronDown,
@@ -33,6 +33,7 @@ import { useShallow } from "zustand/react/shallow";
 
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   Tooltip,
   TooltipContent,
@@ -107,6 +108,7 @@ export function PromptEditorContent({
     sampleObject,
   });
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
+  const previewDisabledDescriptionId = useId();
   const activeMessageIndex = activeMessageId
     ? state.promptMessageIds.indexOf(activeMessageId)
     : -1;
@@ -141,6 +143,69 @@ export function PromptEditorContent({
       onDragEnd={handleDragEnd}
     >
       <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-muted-foreground text-xs">
+            {state.promptMessages.length}{" "}
+            {state.promptMessages.length === 1 ? "message" : "messages"}
+          </span>
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <label
+                  className={cn(
+                    "text-muted-foreground flex h-8 items-center gap-1.5 px-2 text-xs",
+                    combinedPrepared.promptPreviewDisabledReason
+                      ? "cursor-not-allowed opacity-60"
+                      : "cursor-pointer",
+                  )}
+                  tabIndex={
+                    combinedPrepared.promptPreviewDisabledReason ? 0 : undefined
+                  }
+                  aria-disabled={Boolean(
+                    combinedPrepared.promptPreviewDisabledReason,
+                  )}
+                  aria-describedby={
+                    combinedPrepared.promptPreviewDisabledReason
+                      ? previewDisabledDescriptionId
+                      : undefined
+                  }
+                >
+                  <Switch
+                    size="sm"
+                    checked={state.promptPreviewEnabled}
+                    disabled={Boolean(
+                      combinedPrepared.promptPreviewDisabledReason,
+                    )}
+                    onCheckedChange={state.actions.setPromptPreviewEnabled}
+                  />
+                  Preview
+                </label>
+              </TooltipTrigger>
+              {combinedPrepared.promptPreviewDisabledReason ? (
+                <TooltipContent>
+                  {combinedPrepared.promptPreviewDisabledReason}
+                </TooltipContent>
+              ) : null}
+            </Tooltip>
+            {combinedPrepared.promptPreviewDisabledReason ? (
+              <span id={previewDisabledDescriptionId} className="sr-only">
+                {combinedPrepared.promptPreviewDisabledReason}
+              </span>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                state.actions.setPromptPreviewEnabled(false);
+                state.actions.addPromptMessage();
+              }}
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+              Add message
+            </Button>
+          </div>
+        </div>
         <SortableContext
           items={state.promptMessageIds}
           strategy={verticalListSortingStrategy}
@@ -160,25 +225,11 @@ export function PromptEditorContent({
                 sampleObject,
               })}
               previewEnabled={state.promptPreviewEnabled}
-              onPreviewEnabledChange={state.actions.setPromptPreviewEnabled}
               onChange={(next) => state.actions.setPromptMessage(index, next)}
               onRemove={() => state.actions.removePromptMessage(index)}
             />
           ))}
         </SortableContext>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="text-foreground hover:text-foreground h-6 w-full justify-start gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
-          onClick={() => {
-            state.actions.setPromptPreviewEnabled(false);
-            state.actions.addPromptMessage();
-          }}
-        >
-          <Plus className="h-3.5 w-3.5 shrink-0" />
-          Add message
-        </Button>
       </div>
       <DragOverlay dropAnimation={null}>
         {activeMessage ? (
@@ -211,7 +262,6 @@ function SortablePromptMessage({
   combinedPrepared,
   prepared,
   previewEnabled,
-  onPreviewEnabledChange,
   onChange,
   onRemove,
 }: {
@@ -222,7 +272,6 @@ function SortablePromptMessage({
   combinedPrepared: PreparedPromptEditorState;
   prepared: PreparedPromptEditorState;
   previewEnabled: boolean;
-  onPreviewEnabledChange: (enabled: boolean) => void;
   onChange: (message: EvaluatorPromptMessage) => void;
   onRemove: () => void;
 }) {
@@ -294,10 +343,7 @@ function SortablePromptMessage({
         onChange={(content) => onChange({ ...message, content })}
         variableStatus={combinedPrepared.promptVariableStatus}
         variableMappings={combinedPrepared.promptVariableMappings}
-        showPreviewToggle
         previewEnabled={previewEnabled}
-        onPreviewEnabledChange={onPreviewEnabledChange}
-        previewDisabledReason={combinedPrepared.promptPreviewDisabledReason}
         preview={prepared.promptPreview}
         renderPreviewText={renderMediaAwareText}
         collapsed={!expanded}

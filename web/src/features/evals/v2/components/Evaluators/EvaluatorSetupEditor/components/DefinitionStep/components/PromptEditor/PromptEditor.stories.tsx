@@ -142,10 +142,9 @@ export const SharedPreviewStateAndHeight = meta.story({
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const previewSwitches = canvas.getAllByRole("switch", {
+    const previewSwitch = canvas.getByRole("switch", {
       name: "Preview",
     });
-    await expect(previewSwitches).toHaveLength(2);
 
     const promptSurfaces = canvas
       .getAllByRole("button", { name: /Collapse .* prompt message/ })
@@ -158,10 +157,8 @@ export const SharedPreviewStateAndHeight = meta.story({
       canvasElement.querySelectorAll<HTMLElement>(".cm-content"),
     );
 
-    await userEvent.click(previewSwitches[1]);
-    for (const previewSwitch of previewSwitches) {
-      await expect(previewSwitch).toBeChecked();
-    }
+    await userEvent.click(previewSwitch);
+    await expect(previewSwitch).toBeChecked();
 
     const previews = Array.from(canvasElement.querySelectorAll("pre"));
     await expect(previews).toHaveLength(2);
@@ -172,10 +169,30 @@ export const SharedPreviewStateAndHeight = meta.story({
       );
     });
 
-    await userEvent.click(previewSwitches[0]);
-    for (const previewSwitch of previewSwitches) {
-      await expect(previewSwitch).not.toBeChecked();
-    }
+    await userEvent.click(previewSwitch);
+    await expect(previewSwitch).not.toBeChecked();
+  },
+});
+
+export const PreviewUnavailable = meta.story({
+  name: "(Test) Preview unavailable",
+  render: () => (
+    <PromptEditorStory
+      messages={[{ role: "user", content: "Judge {{output}}." }]}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    const previewSwitch = canvas.getByRole("switch", { name: "Preview" });
+    const previewLabel = previewSwitch.closest("label");
+    if (!previewLabel) throw new Error("Preview label not found");
+
+    await expect(previewSwitch).toBeDisabled();
+    await expect(previewLabel).toHaveAttribute("tabindex", "0");
+    await expect(previewLabel).toHaveAttribute("aria-describedby");
+    await userEvent.hover(previewLabel);
+    await expect(page.getByRole("tooltip")).not.toBeEmptyDOMElement();
   },
 });
 

@@ -28,7 +28,7 @@ describe("CodeEvaluatorAssistantExperience", () => {
         context="scratch"
         onAssistantSubmit={submitRequest}
       >
-        <div>Code editor</div>
+        {() => <div>Code editor</div>}
       </CodeEvaluatorAssistantExperience>,
     );
 
@@ -63,7 +63,7 @@ describe("CodeEvaluatorAssistantExperience", () => {
         context="scratch"
         onAssistantSubmit={submitRequest}
       >
-        <div>Code editor</div>
+        {() => <div>Code editor</div>}
       </CodeEvaluatorAssistantExperience>,
     );
 
@@ -81,9 +81,47 @@ describe("CodeEvaluatorAssistantExperience", () => {
     expect(
       screen.getByRole("button", { name: "Create with Langfuse Assistant" }),
     ).toBeDisabled();
+    expect(
+      screen.getByRole("button", {
+        name: "Answer cites a retrieved document",
+      }),
+    ).toBeDisabled();
 
     resolveSubmission(true);
     await waitFor(() => expect(input).toHaveValue(""));
+    expect(screen.queryByText("Code editor")).not.toBeInTheDocument();
+  });
+
+  it("does not remember manual mode after successful AI generation", async () => {
+    const firstRender = render(
+      <CodeEvaluatorAssistantExperience
+        context="scratch"
+        onAssistantSubmit={submitRequest}
+      >
+        {() => <div>Code editor</div>}
+      </CodeEvaluatorAssistantExperience>,
+    );
+    fireEvent.change(
+      screen.getByLabelText("Describe the code evaluator you want"),
+      { target: { value: "Score empty responses" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create with Langfuse Assistant" }),
+    );
+    await waitFor(() => expect(submitRequest).toHaveBeenCalledOnce());
+    firstRender.unmount();
+
+    render(
+      <CodeEvaluatorAssistantExperience
+        context="scratch"
+        onAssistantSubmit={submitRequest}
+      >
+        {() => <div>Code editor</div>}
+      </CodeEvaluatorAssistantExperience>,
+    );
+    expect(
+      screen.getByText("Describe what this evaluator should check."),
+    ).toBeInTheDocument();
   });
 
   it("remembers when the user chooses to code scratch evaluators", () => {
@@ -92,11 +130,11 @@ describe("CodeEvaluatorAssistantExperience", () => {
         context="scratch"
         onAssistantSubmit={submitRequest}
       >
-        <div>Code editor</div>
+        {() => <div>Code editor</div>}
       </CodeEvaluatorAssistantExperience>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Write it myself" }));
     expect(screen.getByText("Code editor")).toBeInTheDocument();
     unmount();
 
@@ -105,36 +143,101 @@ describe("CodeEvaluatorAssistantExperience", () => {
         context="scratch"
         onAssistantSubmit={submitRequest}
       >
-        <div>Code editor</div>
+        {(assistantAction) => (
+          <>
+            <div>Code editor</div>
+            {assistantAction}
+          </>
+        )}
       </CodeEvaluatorAssistantExperience>,
     );
 
     expect(screen.getByText("Code editor")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "AI input" }),
+      screen.getByRole("button", { name: "Write with AI" }),
     ).toBeInTheDocument();
   });
 
-  it("keeps edit mode on the code editor until AI editing is requested", () => {
+  it("keeps edit mode on the code editor until AI editing is requested", async () => {
     render(
       <CodeEvaluatorAssistantExperience
         context="edit"
         onAssistantSubmit={submitRequest}
       >
-        <div>Code editor</div>
+        {(assistantAction) => (
+          <>
+            <div>Code editor</div>
+            {assistantAction}
+          </>
+        )}
       </CodeEvaluatorAssistantExperience>,
     );
 
     expect(screen.getByText("Code editor")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "AI input" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit with AI" }));
 
-    expect(screen.queryByText("Code editor")).not.toBeInTheDocument();
+    expect(screen.getByText("Code editor")).toBeInTheDocument();
     expect(
       screen.getByLabelText("Describe how to change this code evaluator"),
     ).toBeInTheDocument();
     expect(
       screen.queryByText("Edit with Langfuse Assistant"),
     ).not.toBeInTheDocument();
+    fireEvent.keyDown(
+      screen.getByLabelText("Describe how to change this code evaluator"),
+      { key: "Escape" },
+    );
+    expect(
+      screen.queryByLabelText("Describe how to change this code evaluator"),
+    ).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Edit with AI" }),
+      ).toHaveFocus(),
+    );
+    expect(capture.mock.calls).toEqual([
+      [
+        "evaluators:code_editor_mode_switch",
+        { context: "edit", mode: "assistant" },
+      ],
+      ["evaluators:code_editor_mode_switch", { context: "edit", mode: "code" }],
+    ]);
+  });
+
+  it("keeps the floating palette open while submission is pending", async () => {
+    let resolveSubmission: (started: boolean) => void = () => undefined;
+    submitRequest.mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        resolveSubmission = resolve;
+      }),
+    );
+    render(
+      <CodeEvaluatorAssistantExperience
+        context="edit"
+        onAssistantSubmit={submitRequest}
+      >
+        {(assistantAction) => assistantAction}
+      </CodeEvaluatorAssistantExperience>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Edit with AI" }));
+    const input = screen.getByLabelText(
+      "Describe how to change this code evaluator",
+    );
+    fireEvent.change(input, { target: { value: "Handle empty outputs" } });
+    fireEvent.submit(input.closest("form")!);
+
+    expect(
+      screen.getByRole("button", { name: "Dismiss AI editor" }),
+    ).toBeDisabled();
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(input).toBeInTheDocument();
+
+    resolveSubmission(false);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Dismiss AI editor" }),
+      ).toBeEnabled(),
+    );
   });
 
   it("shows the code editor when the Assistant launcher is unavailable", () => {
@@ -145,13 +248,18 @@ describe("CodeEvaluatorAssistantExperience", () => {
         context="scratch"
         onAssistantSubmit={submitRequest}
       >
-        <div>Code editor</div>
+        {(assistantAction) => (
+          <>
+            <div>Code editor</div>
+            {assistantAction}
+          </>
+        )}
       </CodeEvaluatorAssistantExperience>,
     );
 
     expect(screen.getByText("Code editor")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "AI input" }),
+      screen.queryByRole("button", { name: "Write with AI" }),
     ).not.toBeInTheDocument();
   });
 });
