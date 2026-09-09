@@ -58,9 +58,9 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: bash "scripts/validate-release-tag-branch.sh" "${RELEASE_TAG}" "${RELEASE_COMMIT}" "origin/v3"
 
-  # Skips runs whose git tree was already tested in a prior successful run of
-  # this workflow (replaces fkirc/skip-duplicate-actions). This fires almost
-  # exclusively on pushes to main, whose tree the merge queue just tested, so
+  # Skips main pushes already tested by a successful merge-queue run of this
+  # workflow; other push refs use a recent successful tree match. This fires
+  # almost exclusively on main, whose tree the merge queue just tested, so
   # the job only runs for push events: pull_request and merge_group runs skip
   # it instantly and their jobs start without waiting for it (~45-100s of
   # wall clock per run).
@@ -71,25 +71,57 @@ jobs:
       should_skip: ${{ steps.skip_check.outputs.should_skip }}
     timeout-minutes: 15
     permissions:
+      actions: read
       contents: read
     steps:
       - id: skip_check
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           COMMIT_SHA: ${{ github.sha }}
           RUN_ID: ${{ github.run_id }}
         run: |
-          CURRENT_TREE=$(gh api "repos/$REPOSITORY/git/commits/$COMMIT_SHA" --jq '.tree.sha')
+          if ! CURRENT_TREE=$(timeout 10s gh api "repos/$REPOSITORY/git/commits/$COMMIT_SHA" --jq '.tree.sha // empty') \
+            || [[ ! "$CURRENT_TREE" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::warning::Cannot verify the current tree; running CI"
+            echo "should_skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
-          MATCH=$(gh api "repos/$REPOSITORY/actions/workflows/pipeline.yml/runs?status=success&per_page=20" \
-            | jq -r --argjson run_id "$RUN_ID" --arg current_tree "$CURRENT_TREE" \
-              '[.workflow_runs[] | select(.id != $run_id and .head_commit.tree_id == $current_tree)] | first | .head_sha // empty')
+          QUERY="status=success&per_page=20"
+          ATTEMPTS=1
+          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            # Scope the lookup to this commit and evaluate status locally so
+            # a just-completed queue run is not lost in a global success list.
+            QUERY="head_sha=$COMMIT_SHA&per_page=100"
+            ATTEMPTS=3
+          fi
+
+          MATCH=""
+          for ((ATTEMPT=1; ATTEMPT<=ATTEMPTS; ATTEMPT++)); do
+            if MATCH=$(timeout 10s gh api "repos/$REPOSITORY/actions/workflows/pipeline.yml/runs?$QUERY" \
+              -H "Cache-Control: no-cache" \
+              | jq -r --argjson run_id "$RUN_ID" --arg current_tree "$CURRENT_TREE" \
+                --arg sha "$COMMIT_SHA" --arg ref "$GITHUB_REF" \
+                '[.workflow_runs[] | select(.id != $run_id
+                  and .status == "completed" and .conclusion == "success"
+                  and .head_commit.tree_id == $current_tree
+                  and ($ref != "refs/heads/main" or (.head_sha == $sha and .event == "merge_group")))]
+                  | first | .id // empty'); then
+              if [[ -n "$MATCH" ]]; then break; fi
+            else
+              MATCH=""
+              echo "::warning::Duplicate lookup $ATTEMPT/$ATTEMPTS failed"
+            fi
+            if ((ATTEMPT < ATTEMPTS)); then sleep 5; fi
+          done
 
           if [[ -n "$MATCH" ]]; then
-            echo "::notice::Tree $CURRENT_TREE already tested in a prior successful run (commit $MATCH) — skipping"
+            echo "::notice::Tree $CURRENT_TREE already tested in successful run $MATCH — skipping"
             echo "should_skip=true" >> "$GITHUB_OUTPUT"
           else
+            echo "::notice::No verified duplicate after $ATTEMPTS lookup(s); running CI"
             echo "should_skip=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -120,7 +152,7 @@ jobs:
 
   lint:
     timeout-minutes: 12
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: blacksmith-16vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -175,14 +207,14 @@ jobs:
       # by every AGENTS.md are resolved.
       - name: agent guidance paths resolve
         run: pnpm run agents:check
+      - name: cursor PR label tests
+        run: node --test scripts/github/label-cursor-prs.test.mjs
       - name: Load default env
         run: |
           cp .env.dev.example .env
       - name: lint web
-        # Turbo runs up to three packages at once. The largest overlap is web's
-        # four ESLint workers plus two packages with two workers each, matching
-        # this runner's eight vCPUs.
-        run: pnpm turbo run lint --concurrency=3
+        # Three packages with four ESLint workers leave headroom on 16 vCPUs.
+        run: pnpm turbo run lint --concurrency=3 -- --concurrency=4
       - name: typecheck
         run: pnpm run typecheck
 
@@ -369,7 +401,7 @@ jobs:
         run: pnpm --filter @repo/in-app-agent-sandbox-runtime run test:e2e
 
   tests-storybook:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -378,6 +410,7 @@ jobs:
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     timeout-minutes: 10
     env:
+      VITEST_MAX_WORKERS: "4"
       NODE_ENV: test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -441,7 +474,7 @@ jobs:
 
   tests-shared:
     timeout-minutes: 15
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -449,6 +482,7 @@ jobs:
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
+      VITEST_MAX_WORKERS: "6"
       NODE_ENV: test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -614,7 +648,7 @@ jobs:
           if-no-files-found: ignore
   tests-web:
     timeout-minutes: 30
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: blacksmith-16vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -623,6 +657,7 @@ jobs:
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
+      VITEST_MAX_WORKERS: "12"
       NODE_ENV: test
     strategy:
       matrix:
@@ -775,7 +810,7 @@ jobs:
         # invocation, so they run in their own parallel job below.
         env:
           NODE_COMPILE_CACHE: /tmp/node-compile-cache
-        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers=8
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers="${VITEST_MAX_WORKERS:-8}"
       - name: Prune stale turbo cache entries
         if: env.CI_CACHE_ALLOWED == 'true'
         # Each run saves the restored archive plus new entries, so the cache
@@ -784,10 +819,12 @@ jobs:
 
   tests-web-client:
     timeout-minutes: 10
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    env:
+      VITEST_MAX_WORKERS: "6"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -824,7 +861,7 @@ jobs:
 
   tests-worker:
     timeout-minutes: 20
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ matrix.deploy-mode == '-redis-cluster' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -833,6 +870,7 @@ jobs:
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
+      VITEST_MAX_WORKERS: ${{ matrix.deploy-mode == '-redis-cluster' && '8' || '4' }}
       NODE_ENV: test
     strategy:
       matrix:
@@ -1130,7 +1168,7 @@ jobs:
         run: pnpm --filter=web run test:e2e
 
   e2e-server-tests:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -1138,6 +1176,7 @@ jobs:
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
+      VITEST_MAX_WORKERS: "4"
       NODE_ENV: test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

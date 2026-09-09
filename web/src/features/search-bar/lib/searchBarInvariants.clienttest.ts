@@ -12,7 +12,7 @@ import {
   EVALUATOR_FIELD_REGISTRY,
   RULE_SAMPLE_FIELD_REGISTRY,
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
-import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
+import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters";
 import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
 import { validateQuery } from "./validate";
 import { planCommit } from "./commit";

@@ -7,6 +7,11 @@ compose_file="${CURSOR_COMPOSE_FILE:-$repo_root/docker-compose.build.yml}"
 wait_timeout="${CURSOR_COMPOSE_WAIT_TIMEOUT_SECONDS:-600}"
 compose_project_name="${CURSOR_COMPOSE_PROJECT_NAME:-langfuse-cursor}"
 
+# Environment builds do not rerun install when a new agent boots. Recover the
+# developer identity before starting services so every fresh Cloud run has it.
+# Best-effort: a missing HOME or a blocked Linear route must not abort the stack.
+bash "$repo_root/scripts/agents/configure-langfuse-identity.sh" || true
+
 # The workspace .env is for processes running on the host and therefore uses
 # localhost service URLs. Compose services need container-network hostnames.
 # Start from a clean environment and explicitly preserve only Docker and
