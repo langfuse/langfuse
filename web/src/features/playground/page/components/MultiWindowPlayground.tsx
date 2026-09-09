@@ -161,9 +161,7 @@ function PlaygroundWindowContent({
   const windowContainerRef = useRef<HTMLDivElement | null>(null);
   const { messages, sourcePrompt } = playgroundContext;
 
-  // Whether this window still holds the prompt version it was opened from.
-  // Scoped to the messages because they are what a save back would write.
-  const isEdited = useMemo(
+  const isSourcePromtEdited = useMemo(
     () =>
       Boolean(sourcePrompt) &&
       getMessagesFingerprint(messages) !==
@@ -264,7 +262,7 @@ function PlaygroundWindowContent({
               <div className="absolute top-1 flex max-w-[calc(100%-4rem)] justify-end">
                 <SourcePromptHeading
                   sourcePrompt={playgroundContext.sourcePrompt}
-                  isEdited={isEdited}
+                  isEdited={isSourcePromtEdited}
                 />
               </div>
             )}

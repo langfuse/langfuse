@@ -69,7 +69,6 @@ type PlaygroundContextType = {
   structuredOutputSchema: PlaygroundSchema | null;
   setStructuredOutputSchema: (schema: PlaygroundSchema | null) => void;
 
-  /** The stored prompt this window was opened from, if any. */
   sourcePrompt: PlaygroundSourcePrompt | null;
 
   output: string;
