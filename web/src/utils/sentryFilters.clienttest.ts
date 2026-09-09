@@ -2,6 +2,7 @@ import { type ErrorEvent } from "@sentry/nextjs";
 
 import {
   isDenylistedNoiseEvent,
+  isKitesurfInternalEvent,
   isNoisyHttpClientPollEvent,
   isPosthogRecorderInternalEvent,
   isReactDevtoolsInternalEvent,
@@ -335,6 +336,26 @@ describe("isDenylistedNoiseEvent", () => {
           messageEvent("[PostHog.js] was already loaded elsewhere."),
         ),
       ).toBe(true);
+    });
+
+    it("drops a kitesurf: localhost CORS console error (message event)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "kitesurf: Access to fetch at 'http://127.0.0.1:8765/' from origin 'https://example.com' has been blocked by CORS policy: Response to preflight request doesn't pass access control check (preflight response status 403 is not ok)",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("does not treat [kitesurf] wraps as denylist prefixes (dedicated predicate)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "[kitesurf] event listener for load threw: TypeError: Cannot create proxy with a non-object as target or handler",
+          ),
+        ),
+      ).toBe(false);
     });
 
     it("drops the @sentry/nextjs '_error.js called with falsy error (…)' artifact", () => {
@@ -710,6 +731,24 @@ describe("isDenylistedNoiseEvent", () => {
       expect(
         isDenylistedNoiseEvent(
           exceptionEvent("Failed to fetch traces (batch 3 of 5)"),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a CORS console error that is not namespaced by kitesurf", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "Access to fetch at 'https://example.com/api' from origin 'https://example.com' has been blocked by CORS policy",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps an app error that merely mentions kitesurf mid-message", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent("Failed to load kitesurf: connection timed out"),
         ),
       ).toBe(false);
     });
@@ -1551,6 +1590,206 @@ describe("isPosthogRecorderInternalEvent", () => {
         isPosthogRecorderInternalEvent(exceptionEvent("boom", "TypeError")),
       ).toBe(false);
       expect(isPosthogRecorderInternalEvent(messageEvent("boom"))).toBe(false);
+    });
+  });
+});
+
+describe("isKitesurfInternalEvent", () => {
+  const PROXY_TYPEERROR =
+    "Cannot create proxy with a non-object as target or handler";
+  const KS_USER = "/__ks_user_classic_regular.js";
+  const KS_SHIM = "dom-shim.js";
+  const KS_PAGE = "page.js";
+
+  describe("drops Kitesurf recorder / agent-browser internals", () => {
+    it("drops the [kitesurf] console.error message event (LANGFUSE-60W)", () => {
+      expect(
+        isKitesurfInternalEvent(
+          messageEvent(
+            `[kitesurf] event listener for load threw: TypeError: ${PROXY_TYPEERROR}`,
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same [kitesurf] text on event.logentry.message", () => {
+      expect(
+        isKitesurfInternalEvent(
+          logentryEvent("[kitesurf] event listener for click threw: boom"),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops ReferenceError: DOMRect is not defined from the user script (LANGFUSE-60Z)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value: "DOMRect is not defined",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+              stacktrace: {
+                frames: [
+                  frame(KS_USER, "h"),
+                  frame(KS_USER, "o1"),
+                  frame(KS_USER, "sl"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(true);
+    });
+
+    it("drops the proxy TypeError spanning page.js / dom-shim.js / user script (LANGFUSE-60X)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: PROXY_TYPEERROR,
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  frame(KS_PAGE, "fireIframeLoad"),
+                  frame(KS_SHIM, "invokeListeners"),
+                  frame(KS_USER, "e.recordDOM.c.win"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(true);
+    });
+
+    it("drops the same TypeError when the injector has an origin + query", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: PROXY_TYPEERROR,
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  frame(
+                    "https://us.cloud.langfuse.com/__ks_user_classic_regular.js?v=1",
+                    "e.recordDOM.c.win",
+                  ),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(true);
+    });
+  });
+
+  describe("KEEPS real errors (never masks a genuine app error)", () => {
+    it("keeps a [kitesurf] wrap that quotes a first-party /_next/ frame", () => {
+      expect(
+        isKitesurfInternalEvent(
+          messageEvent(
+            `[kitesurf] event listener for click threw: TypeError: Cannot read properties of undefined (reading 'map')\n    at handleSubmit (https://us.cloud.langfuse.com/_next/static/chunks/app.js:1:1)`,
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps the same TypeError when a first-party /_next/ frame is present", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: PROXY_TYPEERROR,
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  frame(KS_USER, "e.recordDOM.c.win"),
+                  frame(
+                    "app:///_next/static/chunks/0r47ep231kqhy.js",
+                    "createStore",
+                  ),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps a first-party Proxy TypeError with no __ks_ frames", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: PROXY_TYPEERROR,
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  frame(
+                    "https://us.cloud.langfuse.com/_next/static/chunks/app.js",
+                    "createStore",
+                  ),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps an all-page.js stack (too generic without a vendor script)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: PROXY_TYPEERROR,
+              stacktrace: {
+                frames: [frame(KS_PAGE, "fireIframeLoad")],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps a message that quotes Proxy wording without the [kitesurf] prefix", () => {
+      expect(
+        isKitesurfInternalEvent(
+          messageEvent(`Proxy setup failed: ${PROXY_TYPEERROR}`),
+        ),
+      ).toBe(false);
+    });
+
+    it("does not let the generic denylist swallow this TypeError on its own", () => {
+      expect(
+        isDenylistedNoiseEvent(exceptionEvent(PROXY_TYPEERROR, "TypeError")),
+      ).toBe(false);
     });
   });
 });
