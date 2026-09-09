@@ -4,6 +4,10 @@ import { logger } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { handleGetProjects } from "@/src/ee/features/admin-api/server/projects";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import {
+  writeOrgError,
+  ErrorOrgApiKeyRequired,
+} from "@/src/features/public-api/server/writeError";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
@@ -16,10 +20,6 @@ import {
   recordCoverage,
   type NewResult,
 } from "@/src/features/auth/policy/shadow";
-
-/** orgKeyRequired is the 403 body when a non-organization key hits an organization endpoint. */
-const orgKeyRequired =
-  "Invalid API key. Organization-scoped API key required for this operation.";
 
 export default async function handler(
   req: NextApiRequest,
@@ -43,10 +43,7 @@ export default async function handler(
     allowedAccessLevels: ["organization"],
   });
   if (!authCheck.success) {
-    const status = authCheck.error.httpCode;
-    return res.status(status).json({
-      error: status === 403 ? orgKeyRequired : authCheck.error.message,
-    });
+    return writeOrgError(res, authCheck.error);
   }
   // END CHECK AUTH
 
@@ -72,7 +69,7 @@ export default async function handler(
     }
     if (env.API_AUTH_MIGRATION === "enforce" && !authz.success) {
       return res.status(403).json({
-        error: orgKeyRequired,
+        error: ErrorOrgApiKeyRequired,
       });
     }
   }

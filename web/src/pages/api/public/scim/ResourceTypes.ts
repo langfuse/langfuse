@@ -1,12 +1,9 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { logger } from "@langfuse/shared/src/server";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { writeScimError } from "@/src/features/public-api/server/writeError";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
-
-/** orgKeyRequired is the 403 detail when a non-organization key hits a SCIM endpoint. */
-const orgKeyRequired =
-  "Invalid API key. Organization-scoped API key required for this operation.";
 
 export default async function handler(
   req: NextApiRequest,
@@ -32,12 +29,7 @@ export default async function handler(
     allowedAccessLevels: ["organization"],
   });
   if (!authCheck.success) {
-    const status = authCheck.error.httpCode;
-    return res.status(status).json({
-      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail: status === 403 ? orgKeyRequired : authCheck.error.message,
-      status,
-    });
+    return writeScimError(res, authCheck.error);
   }
   // END CHECK AUTH
 

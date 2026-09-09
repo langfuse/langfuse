@@ -10,10 +10,7 @@ import {
 } from "@/src/ee/features/admin-api/server/projects/projectById/apiKeys";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
-
-/** orgKeyRequired is the 403 body when a non-organization key hits an organization endpoint. */
-const orgKeyRequired =
-  "Invalid API key. Organization-scoped API key required for this operation.";
+import { writeProjectError } from "@/src/features/public-api/server/writeError";
 
 export default async function handler(
   req: NextApiRequest,
@@ -39,10 +36,7 @@ export default async function handler(
       allowedAccessLevels: ["organization"],
     });
     if (!authCheck.success) {
-      const status = authCheck.error.httpCode;
-      return res.status(status).json({
-        message: status === 403 ? orgKeyRequired : authCheck.error.message,
-      });
+      return writeProjectError(res, authCheck.error);
     }
     // END CHECK AUTH
 

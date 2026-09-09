@@ -5,14 +5,11 @@ import { handleCreateProject } from "@/src/ee/features/admin-api/server/projects
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { writeProjectError } from "@/src/features/public-api/server/writeError";
 
 /** projectKeyRequired is the 403 body when the project-scoped GET receives a non-project key. */
 const projectKeyRequired =
   "Invalid API key. Are you using an organization key?";
-
-/** orgKeyRequired is the 403 body when the organization-scoped POST receives a non-organization key. */
-const orgKeyRequired =
-  "Invalid API key. Organization-scoped API key required for this operation.";
 
 export default async function handler(
   req: NextApiRequest,
@@ -91,10 +88,7 @@ export default async function handler(
       allowedAccessLevels: ["organization"],
     });
     if (!authCheck.success) {
-      const status = authCheck.error.httpCode;
-      return res.status(status).json({
-        message: status === 403 ? orgKeyRequired : authCheck.error.message,
-      });
+      return writeProjectError(res, authCheck.error);
     }
 
     if (

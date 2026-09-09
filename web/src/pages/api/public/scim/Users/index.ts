@@ -9,10 +9,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
-
-/** orgKeyRequired is the 403 detail when a non-organization key hits a SCIM endpoint. */
-const orgKeyRequired =
-  "Invalid API key. Organization-scoped API key required for this operation.";
+import { writeScimError } from "@/src/features/public-api/server/writeError";
 
 export default async function handler(
   req: NextApiRequest,
@@ -41,12 +38,7 @@ export default async function handler(
     allowedAccessLevels: ["organization"],
   });
   if (!authCheck.success) {
-    const status = authCheck.error.httpCode;
-    return res.status(status).json({
-      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail: status === 403 ? orgKeyRequired : authCheck.error.message,
-      status,
-    });
+    return writeScimError(res, authCheck.error);
   }
   // END CHECK AUTH
 
