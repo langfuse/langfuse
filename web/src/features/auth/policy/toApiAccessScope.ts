@@ -8,17 +8,19 @@ import { prisma } from "@langfuse/shared/src/db";
 
 import { env } from "@/src/env.mjs";
 import {
+  type AuthorizationContext,
   type ErrorResult,
   type Principal,
   type PrincipalOrganization,
   type Success,
 } from "./types";
 
-/** principalScope maps an authorized principal onto the ApiAccessScope for the resolved org or project target. */
-export async function principalScope(
-  principal: Principal,
+/** toApiAccessScope maps an authorized context's principal onto the ApiAccessScope for the resolved org or project target. */
+export async function toApiAccessScope(
+  context: AuthorizationContext,
   target: ScopeTarget,
 ): Promise<ScopeResult> {
+  const { principal } = context;
   return "orgId" in target
     ? orgScope(principal, target.orgId)
     : projectScope(principal, target.projectId);

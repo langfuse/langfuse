@@ -14,7 +14,7 @@ import {
   enforceProjectAuth,
   type ProjectAccessResult,
 } from "./enforceProjectAuth";
-import { principalScope, type ScopeTarget } from "./principalScope";
+import { toApiAccessScope, type ScopeTarget } from "./toApiAccessScope";
 import { diffResults, legacyFromStatus, recordCoverage } from "./shadow";
 import {
   type ErrorResult,
@@ -54,15 +54,15 @@ async function enforceNew(
 ): Promise<DirectAuthResult> {
   const authz = await runNewPipeline(params);
   if (!authz.success) {
-    return enforceDenial(authz.error);
+    return deny(authz.error);
   }
   const target: ScopeTarget =
     "orgId" in authz ? { orgId: authz.orgId } : { projectId: authz.projectId };
-  const mapped = await principalScope(authz.context.principal, target);
+  const mapped = await toApiAccessScope(authz.context, target);
   if (!mapped.success) {
-    return enforceDenial(mapped.error);
+    return deny(mapped.error);
   }
-  return { validKey: true, scope: mapped.scope };
+  return allow(mapped.scope);
 }
 
 /** runNewPipeline routes to the project pipeline when given a projectId, else the org pipeline. */
@@ -103,16 +103,21 @@ async function runLegacyScope(req: NextApiRequest): Promise<LegacyDecision> {
 /** legacyResult lifts a legacy decision into the handler-facing result. */
 function legacyResult(legacy: LegacyDecision): DirectAuthResult {
   if (legacy.status === 200) {
-    return { validKey: true, scope: legacy.scope };
+    return allow(legacy.scope);
   }
   if (legacy.status === 401) {
-    return { validKey: false, status: 401, error: legacy.authError };
+    return deny({ httpCode: 401, message: legacy.authError });
   }
-  return { validKey: false, status: scopeDeniedCode, error: "" };
+  return deny({ httpCode: scopeDeniedCode, message: "" });
 }
 
-/** enforceDenial renders a new-pipeline denial as the error's status and message. */
-function enforceDenial(error: EnforceError): DirectAuthResult {
+/** allow lifts a verified scope into the seam's success result. */
+function allow(scope: ApiAccessScope): DirectAuthResult {
+  return { validKey: true, scope };
+}
+
+/** deny renders a failure as the status and message the seam returns. */
+function deny(error: EnforceError): DirectAuthResult {
   return { validKey: false, status: error.httpCode, error: error.message };
 }
 

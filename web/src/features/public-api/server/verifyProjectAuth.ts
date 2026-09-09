@@ -8,7 +8,7 @@ import {
   type RouteAccessLevel,
 } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
 import { enforceProjectAuth } from "@/src/features/auth/policy/enforceProjectAuth";
-import { principalScope } from "@/src/features/auth/policy/principalScope";
+import { toApiAccessScope } from "@/src/features/auth/policy/toApiAccessScope";
 import {
   diffResults,
   legacyFromStatus,
@@ -33,7 +33,7 @@ async function enforceOnly(
   if (!authz.success) {
     throw { status: authz.error.httpCode, message: authz.error.message };
   }
-  const mapped = await principalScope(authz.context.principal, {
+  const mapped = await toApiAccessScope(authz.context, {
     projectId: authz.projectId,
   });
   if (!mapped.success) {

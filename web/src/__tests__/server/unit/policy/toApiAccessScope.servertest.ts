@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { InternalServerError } from "@langfuse/shared";
 
-import { principalScope } from "@/src/features/auth/policy/principalScope";
-import { type Principal } from "@/src/features/auth/policy/types";
+import { toApiAccessScope } from "@/src/features/auth/policy/toApiAccessScope";
+import {
+  type AuthorizationContext,
+  type Principal,
+} from "@/src/features/auth/policy/types";
 
 const organization = {
   orgId: "org_1",
@@ -33,10 +36,15 @@ const apiKey = (
 
 const admin: Principal = { kind: "admin", userId: null };
 
-describe("principalScope on an org target", () => {
+const ctx = (principal: Principal): AuthorizationContext => ({
+  principal,
+  policies: [],
+});
+
+describe("toApiAccessScope on an org target", () => {
   it("maps the key and its organization onto the organization scope", async () => {
     expect(
-      await principalScope(apiKey("ORGANIZATION"), { orgId: "org_1" }),
+      await toApiAccessScope(ctx(apiKey("ORGANIZATION")), { orgId: "org_1" }),
     ).toEqual({
       success: true,
       scope: {
@@ -55,22 +63,24 @@ describe("principalScope on an org target", () => {
 
   it("500s a target the principal does not carry", async () => {
     expect(
-      await principalScope(apiKey("ORGANIZATION"), { orgId: "org_2" }),
+      await toApiAccessScope(ctx(apiKey("ORGANIZATION")), { orgId: "org_2" }),
     ).toMatchObject({ success: false, error: expect.any(InternalServerError) });
   });
 
   it("500s a non-api-key principal", async () => {
-    expect(await principalScope(admin, { orgId: "org_1" })).toMatchObject({
+    expect(
+      await toApiAccessScope(ctx(admin), { orgId: "org_1" }),
+    ).toMatchObject({
       success: false,
       error: expect.any(InternalServerError),
     });
   });
 });
 
-describe("principalScope on a project target", () => {
+describe("toApiAccessScope on a project target", () => {
   it("maps the key and its organization onto the project scope", async () => {
     expect(
-      await principalScope(apiKey("PROJECT"), { projectId: "prj_1" }),
+      await toApiAccessScope(ctx(apiKey("PROJECT")), { projectId: "prj_1" }),
     ).toEqual({
       success: true,
       scope: {
@@ -88,7 +98,7 @@ describe("principalScope on a project target", () => {
   });
 
   it("maps a public-key presentation to the scores access level", async () => {
-    const result = await principalScope(apiKey("PROJECT", "publicKey"), {
+    const result = await toApiAccessScope(ctx(apiKey("PROJECT", "publicKey")), {
       projectId: "prj_1",
     });
     expect(result).toMatchObject({ success: true });
@@ -97,7 +107,9 @@ describe("principalScope on a project target", () => {
 
   it("maps an org-scoped key onto the project scope of a project it owns", async () => {
     expect(
-      await principalScope(apiKey("ORGANIZATION"), { projectId: "prj_1" }),
+      await toApiAccessScope(ctx(apiKey("ORGANIZATION")), {
+        projectId: "prj_1",
+      }),
     ).toEqual({
       success: true,
       scope: {

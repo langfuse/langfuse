@@ -38,7 +38,7 @@ vi.mock("@/src/features/auth/policy/shadow", async (importOriginal) => ({
   recordCoverage: mockRecordCoverage,
 }));
 
-import { verifyOrgAuth } from "@/src/features/auth/policy/shadow.direct";
+import { verifyOrgAuth } from "@/src/features/auth/policy/verifyOrgAuth";
 import { type Principal } from "@/src/features/auth/policy/types";
 
 const organization = {
@@ -241,7 +241,7 @@ describe("the migration-mode gate reads a declared env var", () => {
     );
 
   it("reads only env keys env.mjs declares", () => {
-    const seam = source("features/auth/policy/shadow.direct.ts");
+    const seam = source("features/auth/policy/verifyOrgAuth.ts");
     const schema = source("env.mjs");
     const keys = [...seam.matchAll(/\benv\.([A-Z][A-Z0-9_]*)/g)].map(
       (match) => match[1],

@@ -15,7 +15,7 @@ import { authorize } from "@/src/features/auth/policy/authorize";
 import {
   type DirectAuthResult,
   type VerifyOrgAuthParams,
-} from "@/src/features/auth/policy/shadow.direct";
+} from "@/src/features/auth/policy/verifyOrgAuth";
 import {
   type AuthorizationContext,
   type OrganizationAction,
@@ -178,7 +178,7 @@ describe("the direct seams map principals to legacy-identical scopes", () => {
     (env as any).ADMIN_API_KEY = adminApiKey;
 
     orgSeam =
-      (await import("@/src/features/auth/policy/shadow.direct")) as unknown as OrgSeam;
+      (await import("@/src/features/auth/policy/verifyOrgAuth")) as unknown as OrgSeam;
     ({ verifyProjectAuth } =
       (await import("@/src/features/public-api/server/verifyProjectAuth")) as unknown as {
         verifyProjectAuth: ProjectVerify;

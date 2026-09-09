@@ -4,7 +4,7 @@ import { logger } from "@langfuse/shared/src/server";
 import { handleCreateProject } from "@/src/ee/features/admin-api/server/projects/createProject";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { verifyOrgAuth } from "@/src/features/auth/policy/shadow.direct";
+import { verifyOrgAuth } from "@/src/features/auth/policy/verifyOrgAuth";
 import { verifyProjectAuth } from "@/src/features/public-api/server/verifyProjectAuth";
 
 /** projectKeyRequired is the 403 body when the project-scoped GET receives a non-project key. */
