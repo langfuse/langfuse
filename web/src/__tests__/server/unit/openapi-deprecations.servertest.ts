@@ -12,6 +12,14 @@ import {
   stampDeprecations,
 } from "../../../../scripts/openapi/stamp-deprecations";
 import {
+  DATASET_RUN_ITEMS_DEPRECATION,
+  DATASET_RUNS_DEPRECATION,
+  METRICS_DEPRECATION,
+  OBSERVATIONS_V1_DEPRECATION,
+  SCORES_DEPRECATION,
+  SESSIONS_DEPRECATION,
+  TRACES_DEPRECATION,
+  V3_DELAY_NOTICE,
   V3_SUNSET_DATE,
   V3_SUNSET_HUMAN,
 } from "@/src/features/public-api/server/deprecations";
@@ -156,6 +164,24 @@ describe("OpenAPI deprecations", () => {
         timeZone: "UTC",
       }),
     ).toBe(V3_SUNSET_HUMAN);
+  });
+
+  // Every family that already stamps `_deprecation` shares V3_NOTICE, so a new
+  // family that forgets it would ship without the delay warning.
+  it("puts the 10-minute delay on every legacy `_deprecation.message`", () => {
+    const families = [
+      OBSERVATIONS_V1_DEPRECATION,
+      TRACES_DEPRECATION,
+      SESSIONS_DEPRECATION,
+      SCORES_DEPRECATION,
+      METRICS_DEPRECATION,
+      DATASET_RUN_ITEMS_DEPRECATION,
+      DATASET_RUNS_DEPRECATION,
+    ];
+
+    for (const family of families) {
+      expect(family.message).toContain(V3_DELAY_NOTICE);
+    }
   });
 
   it("supports deprecated endpoints at a service base path", () => {

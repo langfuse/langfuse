@@ -13,7 +13,10 @@ export const V3_SUNSET_HUMAN = "November 16, 2026";
 
 // Shared deprecation reason — references the deprecated Langfuse v3 system
 // version (not an API version). Customer-facing wording lives here — edit once.
-const V3_NOTICE = `On Langfuse Cloud, Langfuse v3 is deprecated and this endpoint will be removed on ${V3_SUNSET_HUMAN}.`;
+export const V3_DELAY_NOTICE =
+  "Data on this API is delayed by about 10 minutes. Real-time is only OpenTelemetry writes plus v2 observations and v2 metrics reads.";
+
+const V3_NOTICE = `On Langfuse Cloud, Langfuse v3 is deprecated and this endpoint will be removed on ${V3_SUNSET_HUMAN}. ${V3_DELAY_NOTICE}`;
 
 // v4 replacement endpoints, referenced by both the message and `replacement`.
 // Placeholder style matches rateLimitUpgradePaths (<from>, <to>, filters).
