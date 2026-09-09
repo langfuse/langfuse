@@ -1,15 +1,34 @@
 #!/usr/bin/env bash
 # Probe identity signals for langfuse-onboarding. Never prints secret values.
+#
+# Do not stat $HOME/.config unless the caller opted in. Workspace-scoped
+# harnesses (OpenCode and similar) prompt on any path outside the project,
+# and identity is optional there — skip it rather than ask the human.
 set -euo pipefail
 
-me="${HOME}/.config/langfuse/me.md"
-if [[ -f "${me}" ]]; then
-  echo "me.md: present (${me})"
-else
-  echo "me.md: absent"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+workspace_me="${LANGFUSE_WORKSPACE_IDENTITY_DIR:-$repo_root/.langfuse}/me.md"
+
+me_reported=0
+report_me() {
+  echo "me.md: present (${1})"
+  me_reported=1
+}
+
+if [[ -n "${LANGFUSE_CONFIG_DIR:-}" && -f "${LANGFUSE_CONFIG_DIR}/me.md" ]]; then
+  report_me "${LANGFUSE_CONFIG_DIR}/me.md"
+elif [[ -f "${workspace_me}" ]]; then
+  report_me "${workspace_me}"
+elif [[ "${LANGFUSE_ALLOW_HOME_IDENTITY:-}" == "1" ]]; then
+  home_me="${HOME}/.config/langfuse/me.md"
+  if [[ -f "${home_me}" ]]; then
+    report_me "${home_me}"
+  fi
 fi
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+if [[ "${me_reported}" -eq 0 ]]; then
+  echo "me.md: absent"
+fi
 
 # Every signal below is independent, so no probe may abort the others: a
 # blocked Linear route must not hide the GitHub lines, and vice versa.

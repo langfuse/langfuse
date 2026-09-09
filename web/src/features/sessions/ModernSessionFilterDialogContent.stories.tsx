@@ -3,7 +3,7 @@ import { type ComponentProps } from "react";
 import { fn } from "storybook/test";
 
 import preview from "@/.storybook/preview";
-import { ModernSessionFilterDialogContent } from "@/src/features/annotation-queues/components/session/ModernSessionFilterDialogContent";
+import { ModernSessionFilterDialogContent } from "@/src/features/sessions/ModernSessionFilterDialogContent";
 import { Dialog } from "@/src/components/ui/dialog";
 
 const filterColumns = [
