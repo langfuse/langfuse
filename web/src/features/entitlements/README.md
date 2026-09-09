@@ -4,7 +4,7 @@ This feature allows to control for availability of features. Entitlements are ma
 
 ## Concepts
 
-- `Plan`: A plan is a a tier of features. Eg. `oss`, `cloud:pro`, `self-hosted:enterprise`. They are managed in `plans.ts`.
+- `Plan`: A plan is a tier of features. Eg. `oss`, `cloud:pro`, `self-hosted:enterprise`. They are managed in `plans.ts`.
 - `Entitlement`: An entitlement is a feature that is available to a user. Eg. `playground`. They are managed in `constants/entitlements.ts`. `entitlements.ts` also includes the mapping of entitlements to plans.
   - `EntitlementLimit`: An entitlement limit is a limit on the number of resources that can be created/used. Eg. `annotation-queue-count`. They are managed in `constants/entitlements.ts`.
 
