@@ -8,7 +8,7 @@ type PrismaQueryable = {
  * Login and revocation timestamps are both read from the Postgres clock so
  * they share one authoritative timeline across web replicas. A login is
  * ordered strictly after any existing revocation boundary, which
- * `sessions_expire_before` stores at millisecond precision.
+ * `sessions_expired_at` stores at millisecond precision.
  */
 export async function getSessionLoginAt(
   email: string,
@@ -18,7 +18,7 @@ export async function getSessionLoginAt(
     SELECT GREATEST(
       timezone('UTC', clock_timestamp()),
       COALESCE(
-        "sessions_expire_before" + INTERVAL '1 millisecond',
+        "sessions_expired_at" + INTERVAL '1 millisecond',
         '-infinity'::timestamp
       )
     ) AS "loginAt"
@@ -31,34 +31,34 @@ export async function getSessionLoginAt(
   return row.loginAt;
 }
 
-export async function advanceSessionsExpireBeforeForUser(
+export async function advanceSessionsExpiredAtForUser(
   userId: string,
   db: PrismaQueryable = prisma,
 ): Promise<Date> {
-  const [row] = await db.$queryRaw<{ sessionsExpireBefore: Date }[]>`
+  const [row] = await db.$queryRaw<{ sessionsExpiredAt: Date }[]>`
     UPDATE "users"
-    SET "sessions_expire_before" = timezone('UTC', clock_timestamp())
+    SET "sessions_expired_at" = timezone('UTC', clock_timestamp())
     WHERE "id" = ${userId}
-    RETURNING "sessions_expire_before" AS "sessionsExpireBefore"
+    RETURNING "sessions_expired_at" AS "sessionsExpiredAt"
   `;
-  if (!row?.sessionsExpireBefore) {
+  if (!row?.sessionsExpiredAt) {
     throw new Error("Failed to advance session revocation timestamp");
   }
-  return row.sessionsExpireBefore;
+  return row.sessionsExpiredAt;
 }
 
-export async function advanceSessionsExpireBeforeForEmail(
+export async function advanceSessionsExpiredAtForEmail(
   email: string,
   db: PrismaQueryable = prisma,
 ): Promise<Date> {
-  const [row] = await db.$queryRaw<{ sessionsExpireBefore: Date }[]>`
+  const [row] = await db.$queryRaw<{ sessionsExpiredAt: Date }[]>`
     UPDATE "users"
-    SET "sessions_expire_before" = timezone('UTC', clock_timestamp())
+    SET "sessions_expired_at" = timezone('UTC', clock_timestamp())
     WHERE "email" = ${email.toLowerCase()}
-    RETURNING "sessions_expire_before" AS "sessionsExpireBefore"
+    RETURNING "sessions_expired_at" AS "sessionsExpiredAt"
   `;
-  if (!row?.sessionsExpireBefore) {
+  if (!row?.sessionsExpiredAt) {
     throw new Error("Failed to advance session revocation timestamp");
   }
-  return row.sessionsExpireBefore;
+  return row.sessionsExpiredAt;
 }

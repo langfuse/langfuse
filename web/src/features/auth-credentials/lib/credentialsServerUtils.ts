@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
-import { advanceSessionsExpireBeforeForEmail } from "@/src/features/auth/lib/databaseClock";
+import { advanceSessionsExpiredAtForEmail } from "@/src/features/auth/lib/databaseClock";
 import type { AdClickIds } from "@/src/features/auth";
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
@@ -115,7 +115,7 @@ export async function consumeEmailOtpAndUpdatePassword({
     });
 
     if (updated.count === 1) {
-      await advanceSessionsExpireBeforeForEmail(identifier, tx);
+      await advanceSessionsExpiredAtForEmail(identifier, tx);
     }
 
     return updated.count === 1;

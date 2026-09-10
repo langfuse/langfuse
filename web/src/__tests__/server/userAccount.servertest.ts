@@ -95,9 +95,9 @@ describe("userAccountRouter.signOutAllSessions", () => {
 
     const user = await prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { sessionsExpireBefore: true },
+      select: { sessionsExpiredAt: true },
     });
-    expect(user.sessionsExpireBefore?.getTime()).toBeGreaterThanOrEqual(
+    expect(user.sessionsExpiredAt?.getTime()).toBeGreaterThanOrEqual(
       beforeRevocation.getTime(),
     );
   });
