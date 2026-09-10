@@ -32,7 +32,6 @@ export type EventFilterScoreNameOptions = {
   numericNames: { name: string }[];
   booleanNames: { name: string }[];
   categoricalNames: { label: string; values: string[] }[];
-  traceScoreColumns: EventFilterScoreColumn[];
   traceCategoricalNames: { label: string; values: string[] }[];
   traceBooleanNames: { name: string }[];
   observationLevelScores: EventFilterScoreColumn[];
@@ -44,7 +43,6 @@ export const EMPTY_EVENT_FILTER_SCORE_NAME_OPTIONS: EventFilterScoreNameOptions 
     numericNames: [],
     booleanNames: [],
     categoricalNames: [],
-    traceScoreColumns: [],
     traceCategoricalNames: [],
     traceBooleanNames: [],
     observationLevelScores: [],

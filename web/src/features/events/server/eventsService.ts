@@ -690,7 +690,6 @@ export async function getEventFilterOptions(
   const numericScoreNames = scoreNameOptions?.numericNames ?? [];
   const booleanScoreNames = scoreNameOptions?.booleanNames ?? [];
   const categoricalScoreNames = scoreNameOptions?.categoricalNames ?? [];
-  const traceScoreColumns = scoreNameOptions?.traceScoreColumns ?? [];
   const traceCategoricalScoreColumns =
     scoreNameOptions?.traceCategoricalNames ?? [];
   const traceBooleanScoreColumns = scoreNameOptions?.traceBooleanNames ?? [];
@@ -699,7 +698,7 @@ export async function getEventFilterOptions(
   const traceLevelScoreNames = scoreNameOptions?.traceLevelScores ?? [];
   const traceNumericScoreNames = Array.from(
     new Set(
-      traceScoreColumns
+      traceLevelScoreNames
         .filter(
           (score) =>
             score.dataType === "NUMERIC" || score.dataType === "BOOLEAN",

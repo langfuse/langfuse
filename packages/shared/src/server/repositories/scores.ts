@@ -1294,7 +1294,6 @@ export const getScoresFilterOptionsForEventFacets = async ({
     numericNames,
     booleanNames,
     categoricalNames: mergedCategoricalNames,
-    traceScoreColumns: traceLevelScores,
     traceCategoricalNames: mergedTraceCategoricalNames,
     traceBooleanNames,
     observationLevelScores,
