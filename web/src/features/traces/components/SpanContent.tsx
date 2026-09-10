@@ -134,10 +134,12 @@ export function SpanContent({
           className,
         )}
       >
-        <HoverCardTrigger asChild>
-          <div className="flex min-w-0 flex-col">
-            {/* Name and badges row */}
-            <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+        <div className="flex min-w-0 flex-col">
+          {/* Name and badges row */}
+          <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+            {/* The hover card anchors to the NAME, not the row, so it opens
+                  right beside what was hovered instead of at the panel edge. */}
+            <HoverCardTrigger asChild>
               <span
                 // Medium weight approved for the tree name: bold read too heavy
                 // at 12px, regular gave no hierarchy over the metrics line.
@@ -147,114 +149,111 @@ export function SpanContent({
               >
                 {nodeDisplayName}
               </span>
+            </HoverCardTrigger>
 
-              <div className="flex items-center gap-x-2">
-                {/* Comment count */}
-                {showComments &&
-                  commentCount !== undefined &&
-                  commentCount !== 0 && (
-                    <CommentCountIcon count={commentCount} />
-                  )}
+            <div className="flex items-center gap-x-2">
+              {/* Comment count */}
+              {showComments &&
+                commentCount !== undefined &&
+                commentCount !== 0 && <CommentCountIcon count={commentCount} />}
 
-                {/* Level badge */}
-                {node.type !== "TRACE" &&
-                  node.level &&
-                  node.level !== "DEFAULT" && (
-                    <ObservationLevelBadge level={node.level} size="sm" />
-                  )}
-              </div>
+              {/* Level badge */}
+              {node.type !== "TRACE" &&
+                node.level &&
+                node.level !== "DEFAULT" && (
+                  <ObservationLevelBadge level={node.level} size="sm" />
+                )}
             </div>
+          </div>
 
-            {/* Metrics row */}
-            {shouldRenderAnyMetrics && (
-              <div className="flex flex-wrap gap-x-2">
-                {/* Duration (own span) */}
-                {shouldRenderDuration && (duration || node.latency) ? (
-                  <span
-                    title={
-                      node.type === "TRACE"
-                        ? "Total trace duration"
-                        : "Own span duration"
-                    }
-                    className={cn(
-                      "text-foreground-tertiary text-xs",
-                      parentTotalDuration &&
-                        colorCodeMetrics &&
-                        heatMapTextColor({
-                          max: parentTotalDuration,
-                          value:
-                            duration ||
-                            (node.latency ? node.latency * 1000 : 0),
-                        }),
-                    )}
-                  >
-                    {formatIntervalSeconds(
-                      (duration || (node.latency ? node.latency * 1000 : 0)) /
-                        1000,
-                    )}
-                  </span>
-                ) : null}
+          {/* Metrics row */}
+          {shouldRenderAnyMetrics && (
+            <div className="flex flex-wrap gap-x-2">
+              {/* Duration (own span) */}
+              {shouldRenderDuration && (duration || node.latency) ? (
+                <span
+                  title={
+                    node.type === "TRACE"
+                      ? "Total trace duration"
+                      : "Own span duration"
+                  }
+                  className={cn(
+                    "text-foreground-tertiary text-xs",
+                    parentTotalDuration &&
+                      colorCodeMetrics &&
+                      heatMapTextColor({
+                        max: parentTotalDuration,
+                        value:
+                          duration || (node.latency ? node.latency * 1000 : 0),
+                      }),
+                  )}
+                >
+                  {formatIntervalSeconds(
+                    (duration || (node.latency ? node.latency * 1000 : 0)) /
+                      1000,
+                  )}
+                </span>
+              ) : null}
 
-                {/* Subtree wall-clock duration — async descendants outlive the parent span */}
-                {shouldRenderSubtreeDuration ? (
-                  <span
-                    title="Subtree wall-clock duration (first start → last end)"
-                    className="text-foreground-tertiary text-xs"
-                  >
-                    {"∑ "}
-                    {formatIntervalSeconds(subtreeWallClockOverflowMs / 1000)}
-                  </span>
-                ) : null}
+              {/* Subtree wall-clock duration — async descendants outlive the parent span */}
+              {shouldRenderSubtreeDuration ? (
+                <span
+                  title="Subtree wall-clock duration (first start → last end)"
+                  className="text-foreground-tertiary text-xs"
+                >
+                  {"∑ "}
+                  {formatIntervalSeconds(subtreeWallClockOverflowMs / 1000)}
+                </span>
+              ) : null}
 
-                {/* Cost */}
-                {shouldRenderCost && totalCost ? (
-                  <span
-                    title={
-                      node.children.length > 0 || node.type === "TRACE"
-                        ? "Aggregated cost of all child observations"
-                        : undefined
-                    }
-                    className={cn(
-                      "text-foreground-tertiary text-xs",
-                      parentTotalCost &&
-                        colorCodeMetrics &&
-                        heatMapTextColor({
-                          max: parentTotalCost,
-                          value: totalCost,
-                        }),
-                    )}
-                  >
-                    {usdFormatter(totalCost.toNumber())}
-                  </span>
-                ) : null}
+              {/* Cost */}
+              {shouldRenderCost && totalCost ? (
+                <span
+                  title={
+                    node.children.length > 0 || node.type === "TRACE"
+                      ? "Aggregated cost of all child observations"
+                      : undefined
+                  }
+                  className={cn(
+                    "text-foreground-tertiary text-xs",
+                    parentTotalCost &&
+                      colorCodeMetrics &&
+                      heatMapTextColor({
+                        max: parentTotalCost,
+                        value: totalCost,
+                      }),
+                  )}
+                >
+                  {usdFormatter(totalCost.toNumber())}
+                </span>
+              ) : null}
 
-                {/* Model (generations only) */}
-                {shouldRenderModel ? (
-                  <span
-                    title={`Model: ${node.model}`}
-                    className="text-foreground-tertiary max-w-40 truncate text-xs"
-                  >
-                    {node.model}
-                  </span>
-                ) : null}
-              </div>
-            )}
+              {/* Model (generations only) */}
+              {shouldRenderModel ? (
+                <span
+                  title={`Model: ${node.model}`}
+                  className="text-foreground-tertiary max-w-40 truncate text-xs"
+                >
+                  {node.model}
+                </span>
+              ) : null}
+            </div>
+          )}
 
-            {/* Scores row. Cap the inline badges and roll the rest into a "+N"
+          {/* Scores row. Cap the inline badges and roll the rest into a "+N"
             pill (hover to see them) so a node with many scores stays a compact
             one/two-line row instead of a tall wrapping grid. */}
-            {showScores && nodeScores.length > 0 && (
-              <div className="mt-1 flex flex-wrap gap-1">
-                <GroupedScoreBadges
-                  compact
-                  hideLevels
-                  scores={nodeScores}
-                  maxVisible={MAX_INLINE_SCORE_GROUPS}
-                />
-              </div>
-            )}
-          </div>
-        </HoverCardTrigger>
+          {showScores && nodeScores.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              <GroupedScoreBadges
+                compact
+                hideLevels
+                scores={nodeScores}
+                maxVisible={MAX_INLINE_SCORE_GROUPS}
+              />
+            </div>
+          )}
+        </div>
       </button>
       <HoverCardContent
         side="right"
