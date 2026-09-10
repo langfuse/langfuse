@@ -20,11 +20,13 @@ describe("TraceMetadataBadges session replay privacy", () => {
       </>,
     );
 
-    // The session id renders as visible quiet text, so the mask must sit
-    // directly on the link, not just in a title attr.
-    expect(screen.getByText("customer-session").closest("a")).toHaveClass(
-      "ph-no-capture",
-    );
+    // The session link shows only the label; the id lives in its title, and
+    // the mask still sits directly on the link.
+    const sessionLink = screen.getByTitle("Session customer-session");
+    expect(sessionLink.tagName).toBe("A");
+    expect(sessionLink).toHaveClass("ph-no-capture");
+    expect(sessionLink).toHaveTextContent("session");
+    expect(sessionLink).not.toHaveTextContent("customer-session");
     // The user id renders in full (it is often an email) — link still masked.
     expect(screen.getByText("customer-user").closest("a")).toHaveClass(
       "ph-no-capture",
@@ -32,10 +34,8 @@ describe("TraceMetadataBadges session replay privacy", () => {
     expect(screen.getByText("target-trace").closest("a")).toHaveClass(
       "ph-no-capture",
     );
-    // Quiet reference-link styling: muted mono text, no pill box.
-    expect(screen.getByText("customer-session").closest("a")).toHaveClass(
-      "text-muted-foreground",
-    );
+    // Quiet reference-link styling: muted text, no pill box.
+    expect(sessionLink).toHaveClass("text-muted-foreground");
     // Environment renders as quiet key/value text, not a boxed chip.
     expect(screen.getByText("production").closest("span")).not.toBeNull();
     expect(

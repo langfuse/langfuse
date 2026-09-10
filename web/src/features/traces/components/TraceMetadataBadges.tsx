@@ -28,11 +28,9 @@ export function SessionBadge({
     <Link
       href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
       className={`ph-no-capture ${REFERENCE_LINK_CLASS}`}
+      title={`Session ${sessionId}`}
     >
-      session{" "}
-      <span className="truncate" title={sessionId}>
-        {sessionId}
-      </span>
+      session
       <ArrowUpRight className="h-3 w-3 shrink-0" />
     </Link>
   );
