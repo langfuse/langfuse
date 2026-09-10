@@ -8,6 +8,12 @@
 
 import { Clock } from "lucide-react";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import {
   buildLocalIsoDatePresentation,
   formatIntervalSeconds,
 } from "@/src/utils/dates";
@@ -55,9 +61,16 @@ export function TimeToFirstTokenBadge({
   if (timeToFirstToken == null) return null;
 
   return (
-    <span title="Time to first token" className={METRIC_TEXT_CLASS}>
-      TTFT {formatIntervalSeconds(timeToFirstToken)}
-    </span>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className={METRIC_TEXT_CLASS}>
+            TTFT {formatIntervalSeconds(timeToFirstToken)}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="text-xs">Time to first token</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
