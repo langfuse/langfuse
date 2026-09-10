@@ -21,8 +21,10 @@ import {
   isOrgAction,
   type Action,
   type AuthorizationContext,
+  type Decision,
   type ErrorResult as ErrorResultOf,
   type Principal,
+  type Resource,
   type Success,
 } from "@/src/features/auth/policy/types";
 
@@ -86,12 +88,10 @@ async function enforceAdminAuth(
   if (!project.success) return project;
   const org = await lookupProjectOrgId(project.projectId);
   if (!org.success) return org;
-  if (params.action !== undefined) {
-    const decision = authorize(context, params.action, {
-      projectId: project.projectId,
-    });
-    if (!decision.success) return decision;
-  }
+  const decision = authorizeAction(context, params.action, {
+    projectId: project.projectId,
+  });
+  if (!decision.success) return decision;
   return {
     success: true,
     scope: adminScope(org.orgId, project.projectId),
@@ -107,10 +107,10 @@ function enforceOrgAuth(
 ): EnforceAuthResult {
   const org = getOrgId(context, params.req);
   if (!org.success) return org;
-  if (params.action !== undefined) {
-    const decision = authorize(context, params.action, { orgId: org.orgId });
-    if (!decision.success) return { success: false, error: decision.error };
-  }
+  const decision = authorizeAction(context, params.action, {
+    orgId: org.orgId,
+  });
+  if (!decision.success) return { success: false, error: decision.error };
   return {
     success: true,
     scope: apiKeyScope(principal, org.orgId, null),
@@ -136,12 +136,10 @@ function enforceProjectAuth(
       ),
     );
   }
-  if (params.action !== undefined) {
-    const decision = authorize(context, params.action, {
-      projectId: project.projectId,
-    });
-    if (!decision.success) return { success: false, error: decision.error };
-  }
+  const decision = authorizeAction(context, params.action, {
+    projectId: project.projectId,
+  });
+  if (!decision.success) return { success: false, error: decision.error };
   return {
     success: true,
     scope: apiKeyScope(
@@ -151,6 +149,16 @@ function enforceProjectAuth(
     ),
     ctx: context,
   };
+}
+
+/** authorizeAction authorizes against a given action, or passes when the route asserts none and authorizes each item itself. */
+function authorizeAction(
+  context: AuthorizationContext,
+  action: Action | undefined,
+  resource: Resource,
+): Decision {
+  if (action === undefined) return { success: true };
+  return authorize(context, action, resource);
 }
 
 /** getOrgId resolves the target org from the header, falling back to the key's bound org; whether the key may act on it is the policy's call. */

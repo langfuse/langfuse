@@ -35,6 +35,7 @@ export const [listMonitorsTool, handleListMonitors] = defineTool({
   name: "listAlerts",
   description:
     "List alerts, optionally filtered by severity or tags and ordered by alert properties.",
+  action: "alerts:read",
   baseSchema: ListMonitorsBaseSchema,
   inputSchema: ListMonitorsInputSchema,
   handler: async (input, context) =>

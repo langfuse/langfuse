@@ -72,6 +72,7 @@ export const createPromptReadTool = <const TName extends string>(
   return defineTool({
     name,
     description,
+    action: "prompts:read",
     baseSchema: PromptReadBaseSchema,
     inputSchema: PromptReadInputSchema,
     handler: async (input, context) => {
