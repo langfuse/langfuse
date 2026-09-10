@@ -258,6 +258,12 @@ export function CodeEvalTemplateFormBody({
     sourceCodeRef.current = sourceCode;
   });
   const handleSourceCodeChange = useCallback((value: string) => {
+    // CodeMirror's MutationObserver can echo the current document back through
+    // onChange while React is already committing the same value. Pushing that
+    // echo into form state nests setState until React hits max update depth.
+    if (value === sourceCodeRef.current) {
+      return;
+    }
     sourceCodeRef.current = value;
     onSourceCodeChangeRef.current(value);
   }, []);

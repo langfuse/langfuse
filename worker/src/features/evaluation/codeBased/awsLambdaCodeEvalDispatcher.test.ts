@@ -196,7 +196,7 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 
-  it("classifies timeouts via errorType Function.TimedOut as retryable", async () => {
+  it("classifies timeouts via errorType Function.TimedOut as non-retryable", async () => {
     // Envelope shape captured empirically from Floci probes.
     const send = vi.fn().mockResolvedValue({
       FunctionError: "Unhandled",
@@ -214,11 +214,11 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
     await expect(dispatcher.dispatch(baseInput)).rejects.toMatchObject({
       code: "TIMEOUT",
       message: "Function.TimedOut: Task timed out after 30 seconds",
-      retryable: true,
+      retryable: false,
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 
-  it("classifies timeouts via errorType Sandbox.Timedout as retryable", async () => {
+  it("classifies timeouts via errorType Sandbox.Timedout as non-retryable", async () => {
     const send = vi.fn().mockResolvedValue({
       FunctionError: "Unhandled",
       Payload: Buffer.from(
@@ -235,11 +235,11 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
     await expect(dispatcher.dispatch(baseInput)).rejects.toMatchObject({
       code: "TIMEOUT",
       message: "Sandbox.Timedout: Task timed out after 30 seconds",
-      retryable: true,
+      retryable: false,
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 
-  it("classifies timeouts via errorMessage substring as retryable", async () => {
+  it("classifies timeouts via errorMessage substring as non-retryable", async () => {
     // Defensive fallback for runtimes that don't populate errorType.
     const send = vi.fn().mockResolvedValue({
       FunctionError: "Unhandled",
@@ -251,7 +251,7 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
 
     await expect(dispatcher.dispatch(baseInput)).rejects.toMatchObject({
       code: "TIMEOUT",
-      retryable: true,
+      retryable: false,
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 

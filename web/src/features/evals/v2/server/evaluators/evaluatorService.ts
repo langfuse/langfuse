@@ -282,8 +282,8 @@ export class EvaluatorService {
 
   async create(input: CreateEvaluatorInput, createdByUserId: string | null) {
     const block = await validateEvaluatorForPersistence(input);
-    const evaluator = await this.prisma
-      .$transaction((prisma) =>
+    try {
+      const evaluator = await this.prisma.$transaction((prisma) =>
         repository.createEvaluator({
           prisma,
           input: {
@@ -295,28 +295,48 @@ export class EvaluatorService {
           createdByUserId,
           block,
         }),
-      )
-      .catch((error) => {
-        // Callers may pre-generate the id so test runs can be attributed
-        // before the first save. Ids are globally unique, so a collision with
-        // another project must not surface as an unhandled 500.
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2002"
-        ) {
-          throw new LangfuseConflictError(
-            "An evaluator with this id already exists",
-          );
-        }
-        throw error;
+      );
+      await invalidateProjectEvalConfigCaches(input.projectId);
+      await this.audit({
+        action: "create",
+        projectId: input.projectId,
+        evaluatorId: evaluator.id,
       });
-    await invalidateProjectEvalConfigCaches(input.projectId);
-    await this.audit({
-      action: "create",
-      projectId: input.projectId,
-      evaluatorId: evaluator.id,
-    });
-    return normalizeEvaluatorPromptMessages(evaluator);
+      return normalizeEvaluatorPromptMessages(evaluator);
+    } catch (error) {
+      // Callers may pre-generate the id so test runs can be attributed
+      // before the first save. An exact retry returns the existing evaluator.
+      // Reusing the id with different content remains a conflict.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        if (input.evaluatorId) {
+          const existing = await repository.findEvaluator({
+            prisma: this.prisma,
+            projectId: input.projectId,
+            evaluatorId: input.evaluatorId,
+          });
+          const latest = existing?.versions[0];
+          if (
+            existing &&
+            latest &&
+            existing.name === input.name &&
+            existing.description === input.description &&
+            isDeepStrictEqual(
+              toEvaluatorDefinition(existing.type, latest),
+              input.definition,
+            )
+          ) {
+            return normalizeEvaluatorPromptMessages(existing);
+          }
+        }
+        throw new LangfuseConflictError(
+          "An evaluator with this id already exists",
+        );
+      }
+      throw error;
+    }
   }
 
   // Temporary fallback for the unstable Evaluators API until the final API

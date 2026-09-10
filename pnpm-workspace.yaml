@@ -46,9 +46,6 @@ packageExtensions:
   "eslint-plugin-storybook@10.3.6":
     dependencies:
       typescript: npm:@typescript/typescript6@^6.0.2
-  "eslint-plugin-tailwindcss@4.0.2":
-    dependencies:
-      typescript: npm:@typescript/typescript6@^6.0.2
   "vite-tsconfig-paths@6.1.1":
     dependencies:
       typescript: npm:@typescript/typescript6@^6.0.2
@@ -80,6 +77,9 @@ overrides:
   browserslist: 4.28.7
   postcss: 8.5.25
   esbuild: "0.28.1"
+  # @ai-sdk/provider-utils depends on undici ^6.28.0 and resolves to the
+  # vulnerable 6.28.0; 6.28.1 is the last release of the 6.x line.
+  "undici@6": 6.28.1
   "undici@7": 7.29.1
   zod: 4.3.6
   nanoid: 3.3.18
@@ -110,6 +110,10 @@ overrides:
   # evaluation needs exports (validatorSymbol) that only exist in its own
   # provider-utils 2.x line — exempt it from the blanket 4.0.33 lift above.
   "@ai-sdk/ui-utils>@ai-sdk/provider-utils": 2.2.8
+  # addon-vitest accepts any @vitest/browser ^3 || ^4 as an optional peer, so
+  # pnpm keeps the already-resolved 4.1.10 copy, which pulls in a vulnerable
+  # @vitest/mocker 4.1.10 (CVE-2026-84373). Pin it to the fixed patch.
+  "@storybook/addon-vitest>@vitest/browser": 4.1.11
   # next-auth 4.24.x caps its optional nodemailer peer at ^7 but contains no
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
@@ -158,3 +162,7 @@ minimumReleaseAgeExclude:
   # Certificate validation, request smuggling, and resource-exhaustion fixes
   # in the 7.x line (CVE-2026-84961, CVE-2026-18540, CVE-2026-84890 and more).
   - undici@7.29.1
+  # Uncaught-exception and request-smuggling fixes for the 6.x line pulled in
+  # transitively by @ai-sdk/provider-utils (CVE-2026-85024, CVE-2026-19534,
+  # CVE-2026-18540).
+  - undici@6.28.1

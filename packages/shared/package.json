@@ -31,6 +31,10 @@
       "import": "./dist/src/server/index.js",
       "require": "./dist/src/server/index.js"
     },
+    "./src/server/clickhouse": {
+      "import": "./dist/src/server/clickhouse/index.js",
+      "require": "./dist/src/server/clickhouse/index.js"
+    },
     "./src/server/clickhouse/clickhouseIdentifiers": {
       "import": "./dist/src/server/clickhouse/clickhouseIdentifiers.js",
       "require": "./dist/src/server/clickhouse/clickhouseIdentifiers.js"
@@ -228,7 +232,7 @@
     "prisma": "^6.19.3",
     "tsx": "^4.20.5",
     "typescript": "catalog:",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "peerDependencies": {
     "@types/react": "~19.2.14",

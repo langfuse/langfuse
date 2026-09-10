@@ -500,7 +500,8 @@ const getObservationByIdInternal = async ({
   FROM observations
   WHERE id = {id: String}
   AND project_id = {projectId: String}
-  ${startTime ? `AND toDate(start_time) = toDate({startTime: DateTime64(3)})` : ""}
+  ${/* Matched at minute resolution: minute is the finest the primary key can prune on, and flooring absorbs sub-minute precision differences in the caller-supplied start time. */ ""}
+  ${startTime ? `AND toStartOfMinute(start_time) = toStartOfMinute({startTime: DateTime64(3)})` : ""}
   ${startTimeLowerBound ? `AND start_time >= {startTimeLowerBound: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
   ${type ? `AND type = {type: String}` : ""}
   ${traceId ? `AND trace_id = {traceId: String}` : ""}
