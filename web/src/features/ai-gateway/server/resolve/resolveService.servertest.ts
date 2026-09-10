@@ -7,15 +7,15 @@ import { GatewayResolveService } from "./resolveService";
 
 vi.mock("@/src/env.mjs", () => ({
   env: {
-    LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST: ["org-1"],
+    LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: ["org-1"],
     // Caching is covered against real Redis in the control-plane servertest;
     // these cases are about what the service does with a database row.
-    LANGFUSE_CACHE_GATEWAY_RESOLVE_ENABLED: "false",
-    LANGFUSE_GATEWAY_JWT_PRIVATE_KEY: "private-key",
-    LANGFUSE_GATEWAY_JWT_PUBLIC_KEY: "public-key",
-    LANGFUSE_GATEWAY_JWT_KEY_ID: "key-id",
-    LANGFUSE_GATEWAY_JWT_ISSUER: "test-issuer",
-    LANGFUSE_GATEWAY_JWT_AUDIENCE: "test-audience",
+    LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "false",
+    LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY: "private-key",
+    LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY: "public-key",
+    LANGFUSE_AI_GATEWAY_JWT_KEY_ID: "key-id",
+    LANGFUSE_AI_GATEWAY_JWT_ISSUER: "test-issuer",
+    LANGFUSE_AI_GATEWAY_JWT_AUDIENCE: "test-audience",
   },
 }));
 

@@ -48,16 +48,16 @@ function verifyGatewayRequestSignatureAndHashApiKey(input: {
   virtualSecretKey: string;
   gatewayAuthorization: string | undefined;
 }): string {
-  if (!env.LANGFUSE_GATEWAY_SERVICE_KEY) {
+  if (!env.LANGFUSE_AI_GATEWAY_SERVICE_KEY) {
     throw new GatewayControlPlaneError(
       "Gateway service is not configured",
       503,
     );
   }
   const serviceKeys = [
-    env.LANGFUSE_GATEWAY_SERVICE_KEY,
-    ...(env.LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS
-      ? [env.LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS]
+    env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
+    ...(env.LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS
+      ? [env.LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS]
       : []),
   ];
 

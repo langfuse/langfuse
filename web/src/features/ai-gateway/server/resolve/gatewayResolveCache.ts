@@ -65,7 +65,7 @@ export class GatewayResolveCache {
   private get enabled() {
     return (
       this.redis !== null &&
-      env.LANGFUSE_CACHE_GATEWAY_RESOLVE_ENABLED === "true"
+      env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED === "true"
     );
   }
 
@@ -107,7 +107,7 @@ export class GatewayResolveCache {
     if (!this.enabled) return;
 
     const key = contextCacheKey(params.fastHashedSecretKey, params.apiFormat);
-    const ttl = env.LANGFUSE_CACHE_GATEWAY_RESOLVE_TTL_SECONDS;
+    const ttl = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS;
     try {
       if (params.context === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
         await this.redis!.set(key, JSON.stringify(params.context), "EX", ttl);

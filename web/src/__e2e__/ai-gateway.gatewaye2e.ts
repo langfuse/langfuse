@@ -31,11 +31,11 @@ import {
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
 const BASE_URL = (
-  process.env.LANGFUSE_GATEWAY_E2E_BASE_URL ?? "http://localhost:3000"
+  process.env.LANGFUSE_AI_GATEWAY_E2E_BASE_URL ?? "http://localhost:3000"
 ).replace(/\/$/, "");
 const ORGANIZATION_ID =
-  process.env.LANGFUSE_GATEWAY_E2E_ORGANIZATION_ID ?? "seed-org-id";
-const PROJECT_ID_OVERRIDE = process.env.LANGFUSE_GATEWAY_E2E_PROJECT_ID;
+  process.env.LANGFUSE_AI_GATEWAY_E2E_ORGANIZATION_ID ?? "seed-org-id";
+const PROJECT_ID_OVERRIDE = process.env.LANGFUSE_AI_GATEWAY_E2E_PROJECT_ID;
 const DEFAULT_PROJECT_ID = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const MODELS_PATH = "/api/internal/ai-gateway/v1/models";
 const RESOLVE_PATH = "/api/internal/ai-gateway/v1/resolve";
@@ -96,15 +96,17 @@ let connectionSnapshots: ConnectionSnapshot[] = [];
 const createdConnectionIds = new Set<string>();
 const connectionIdsByProvider = new Map<GatewayProviderName, string>();
 const apiKeyIds = new Set<string>();
-const originalAllowlist = [...env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST];
+const originalAllowlist = [
+  ...env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
+];
 
 describe("AI gateway live end-to-end", () => {
   beforeAll(async () => {
     assertLocalTestTarget();
 
-    if (!env.LANGFUSE_GATEWAY_SERVICE_KEY) {
+    if (!env.LANGFUSE_AI_GATEWAY_SERVICE_KEY) {
       throw new Error(
-        "Set LANGFUSE_GATEWAY_SERVICE_KEY in .env and restart the web server before running the gateway E2E suite.",
+        "Set LANGFUSE_AI_GATEWAY_SERVICE_KEY in .env and restart the web server before running the gateway E2E suite.",
       );
     }
     if (process.env.CI) {
@@ -149,7 +151,7 @@ describe("AI gateway live end-to-end", () => {
     });
     if (!project) {
       throw new Error(
-        `Set LANGFUSE_GATEWAY_E2E_PROJECT_ID to an active project in organization ${ORGANIZATION_ID}.`,
+        `Set LANGFUSE_AI_GATEWAY_E2E_PROJECT_ID to an active project in organization ${ORGANIZATION_ID}.`,
       );
     }
     defaultProjectId = project.id;
@@ -240,9 +242,11 @@ describe("AI gateway live end-to-end", () => {
     }
 
     if (
-      !env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST.includes(ORGANIZATION_ID)
+      !env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.includes(
+        ORGANIZATION_ID,
+      )
     ) {
-      env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST.push(ORGANIZATION_ID);
+      env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.push(ORGANIZATION_ID);
     }
     admin = await createGatewayAdmin();
   }, 30_000);
@@ -257,9 +261,9 @@ describe("AI gateway live end-to-end", () => {
         try {
           await restoreGatewayConfig();
         } finally {
-          env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST.splice(
+          env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.splice(
             0,
-            env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST.length,
+            env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.length,
             ...originalAllowlist,
           );
         }
@@ -541,7 +545,7 @@ async function gatewayControlPlaneRequest(input: {
   ].join("\n");
   const gatewayAuthorization = `HMAC timestamp=${timestamp},signature=${signHmacSha256(
     canonicalMessage,
-    env.LANGFUSE_GATEWAY_SERVICE_KEY!,
+    env.LANGFUSE_AI_GATEWAY_SERVICE_KEY!,
   )}`;
   const isModelsRequest = input.path === MODELS_PATH;
   const url = new URL(`${BASE_URL}${input.path}`);
@@ -652,7 +656,7 @@ function gatewayIngestionAuthorization(token: string) {
   ].join("\n");
   return `HMAC timestamp=${timestamp},signature=${signHmacSha256(
     canonicalMessage,
-    env.LANGFUSE_GATEWAY_SERVICE_KEY!,
+    env.LANGFUSE_AI_GATEWAY_SERVICE_KEY!,
   )}`;
 }
 

@@ -56,23 +56,23 @@ function configuredPublicKey(input: {
 const gatewayIngestionTokenVerifier = (() => {
   const publicKeys = [
     ...configuredPublicKey({
-      keyId: env.LANGFUSE_GATEWAY_JWT_KEY_ID,
-      publicKey: env.LANGFUSE_GATEWAY_JWT_PUBLIC_KEY,
-      keyIdVariable: "LANGFUSE_GATEWAY_JWT_KEY_ID",
-      publicKeyVariable: "LANGFUSE_GATEWAY_JWT_PUBLIC_KEY",
+      keyId: env.LANGFUSE_AI_GATEWAY_JWT_KEY_ID,
+      publicKey: env.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY,
+      keyIdVariable: "LANGFUSE_AI_GATEWAY_JWT_KEY_ID",
+      publicKeyVariable: "LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY",
     }),
     ...configuredPublicKey({
-      keyId: env.LANGFUSE_GATEWAY_JWT_PREVIOUS_KEY_ID,
-      publicKey: env.LANGFUSE_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY,
-      keyIdVariable: "LANGFUSE_GATEWAY_JWT_PREVIOUS_KEY_ID",
-      publicKeyVariable: "LANGFUSE_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY",
+      keyId: env.LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID,
+      publicKey: env.LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY,
+      keyIdVariable: "LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID",
+      publicKeyVariable: "LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY",
     }),
   ];
 
   return publicKeys.length > 0
     ? createEs256JwtVerifier({
-        issuer: env.LANGFUSE_GATEWAY_JWT_ISSUER,
-        audience: env.LANGFUSE_GATEWAY_JWT_AUDIENCE,
+        issuer: env.LANGFUSE_AI_GATEWAY_JWT_ISSUER,
+        audience: env.LANGFUSE_AI_GATEWAY_JWT_AUDIENCE,
         publicKeys,
         claimsSchema: GatewayIngestionClaimsSchema,
       })
@@ -95,11 +95,11 @@ export async function verifyGatewayIngestionAuthorization(
   if (!gatewayIngestionTokenVerifier) return null;
 
   const serviceKeys = [
-    ...(env.LANGFUSE_GATEWAY_SERVICE_KEY
-      ? [env.LANGFUSE_GATEWAY_SERVICE_KEY]
+    ...(env.LANGFUSE_AI_GATEWAY_SERVICE_KEY
+      ? [env.LANGFUSE_AI_GATEWAY_SERVICE_KEY]
       : []),
-    ...(env.LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS
-      ? [env.LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS]
+    ...(env.LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS
+      ? [env.LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS]
       : []),
   ];
   if (

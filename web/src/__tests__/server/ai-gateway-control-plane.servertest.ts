@@ -39,14 +39,14 @@ import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 const cleanupOrganizations: string[] = [];
 const cleanupUsers: string[] = [];
 const originalGatewayOrganizationAllowlist = [
-  ...env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
+  ...env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
 ];
 const originalGatewayJwtConfig = {
-  privateKey: env.LANGFUSE_GATEWAY_JWT_PRIVATE_KEY,
-  publicKey: env.LANGFUSE_GATEWAY_JWT_PUBLIC_KEY,
-  keyId: env.LANGFUSE_GATEWAY_JWT_KEY_ID,
-  issuer: env.LANGFUSE_GATEWAY_JWT_ISSUER,
-  audience: env.LANGFUSE_GATEWAY_JWT_AUDIENCE,
+  privateKey: env.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY,
+  publicKey: env.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY,
+  keyId: env.LANGFUSE_AI_GATEWAY_JWT_KEY_ID,
+  issuer: env.LANGFUSE_AI_GATEWAY_JWT_ISSUER,
+  audience: env.LANGFUSE_AI_GATEWAY_JWT_AUDIENCE,
 };
 const gatewaySigningKeys = generateKeyPairSync("ec", { namedCurve: "P-256" });
 const gatewayPrivateKey = gatewaySigningKeys.privateKey
@@ -58,11 +58,11 @@ const gatewayPublicKey = gatewaySigningKeys.publicKey
 
 function configureGatewayJwtSigning() {
   Object.assign(env, {
-    LANGFUSE_GATEWAY_JWT_PRIVATE_KEY: gatewayPrivateKey,
-    LANGFUSE_GATEWAY_JWT_PUBLIC_KEY: gatewayPublicKey,
-    LANGFUSE_GATEWAY_JWT_KEY_ID: "current",
-    LANGFUSE_GATEWAY_JWT_ISSUER: "test-issuer",
-    LANGFUSE_GATEWAY_JWT_AUDIENCE: "test-audience",
+    LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY: gatewayPrivateKey,
+    LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY: gatewayPublicKey,
+    LANGFUSE_AI_GATEWAY_JWT_KEY_ID: "current",
+    LANGFUSE_AI_GATEWAY_JWT_ISSUER: "test-issuer",
+    LANGFUSE_AI_GATEWAY_JWT_AUDIENCE: "test-audience",
   });
 }
 
@@ -85,17 +85,17 @@ afterEach(async () => {
   await prisma.user.deleteMany({
     where: { id: { in: cleanupUsers.splice(0) } },
   });
-  env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST.splice(
+  env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.splice(
     0,
-    env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST.length,
+    env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.length,
     ...originalGatewayOrganizationAllowlist,
   );
   Object.assign(env, {
-    LANGFUSE_GATEWAY_JWT_PRIVATE_KEY: originalGatewayJwtConfig.privateKey,
-    LANGFUSE_GATEWAY_JWT_PUBLIC_KEY: originalGatewayJwtConfig.publicKey,
-    LANGFUSE_GATEWAY_JWT_KEY_ID: originalGatewayJwtConfig.keyId,
-    LANGFUSE_GATEWAY_JWT_ISSUER: originalGatewayJwtConfig.issuer,
-    LANGFUSE_GATEWAY_JWT_AUDIENCE: originalGatewayJwtConfig.audience,
+    LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY: originalGatewayJwtConfig.privateKey,
+    LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY: originalGatewayJwtConfig.publicKey,
+    LANGFUSE_AI_GATEWAY_JWT_KEY_ID: originalGatewayJwtConfig.keyId,
+    LANGFUSE_AI_GATEWAY_JWT_ISSUER: originalGatewayJwtConfig.issuer,
+    LANGFUSE_AI_GATEWAY_JWT_AUDIENCE: originalGatewayJwtConfig.audience,
   });
   vi.clearAllMocks();
 });
@@ -128,7 +128,7 @@ async function prepare(role: Role = Role.OWNER) {
   });
   cleanupOrganizations.push(org.id);
   cleanupUsers.push(user.id);
-  env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST.push(org.id);
+  env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.push(org.id);
 
   const session: Session = {
     expires: "1",
@@ -183,8 +183,8 @@ async function prepare(role: Role = Role.OWNER) {
 describe("AI gateway control plane", () => {
   it("applies the environment-specific organization allowlist", async () => {
     const { caller, org } = await prepare();
-    env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST.splice(
-      env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST.indexOf(org.id),
+    env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.splice(
+      env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.indexOf(org.id),
       1,
     );
 

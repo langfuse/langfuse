@@ -25,15 +25,15 @@ h43lffFINeGD6Mfs79wwFXo7W8iRLCyupUc1rjImFJkds2Q9DsP21R7O2g==
 
 vi.mock("@/src/env.mjs", () => ({
   env: {
-    LANGFUSE_GATEWAY_JWT_PUBLIC_KEY: publicKey,
-    LANGFUSE_GATEWAY_JWT_KEY_ID: "current",
-    LANGFUSE_GATEWAY_JWT_PREVIOUS_KEY_ID: undefined,
-    LANGFUSE_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY: undefined,
-    LANGFUSE_GATEWAY_JWT_ISSUER: "test-issuer",
-    LANGFUSE_GATEWAY_JWT_AUDIENCE: "test-audience",
-    LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST: ["org-1"],
-    LANGFUSE_GATEWAY_SERVICE_KEY: "current-service-key",
-    LANGFUSE_GATEWAY_SERVICE_KEY_PREVIOUS: "previous-service-key",
+    LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY: publicKey,
+    LANGFUSE_AI_GATEWAY_JWT_KEY_ID: "current",
+    LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID: undefined,
+    LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY: undefined,
+    LANGFUSE_AI_GATEWAY_JWT_ISSUER: "test-issuer",
+    LANGFUSE_AI_GATEWAY_JWT_AUDIENCE: "test-audience",
+    LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: ["org-1"],
+    LANGFUSE_AI_GATEWAY_SERVICE_KEY: "current-service-key",
+    LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS: "previous-service-key",
   },
 }));
 
@@ -107,17 +107,17 @@ describe("verifyGatewayIngestionAuthorization without signing keys", () => {
     vi.resetModules();
     vi.doMock("@/src/env.mjs", () => ({
       env: {
-        LANGFUSE_GATEWAY_JWT_PUBLIC_KEY: publicKey,
-        LANGFUSE_GATEWAY_JWT_KEY_ID: undefined,
-        LANGFUSE_GATEWAY_JWT_PREVIOUS_KEY_ID: undefined,
-        LANGFUSE_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY: undefined,
-        LANGFUSE_GATEWAY_JWT_ISSUER: "test-issuer",
-        LANGFUSE_GATEWAY_JWT_AUDIENCE: "test-audience",
+        LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY: publicKey,
+        LANGFUSE_AI_GATEWAY_JWT_KEY_ID: undefined,
+        LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID: undefined,
+        LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY: undefined,
+        LANGFUSE_AI_GATEWAY_JWT_ISSUER: "test-issuer",
+        LANGFUSE_AI_GATEWAY_JWT_AUDIENCE: "test-audience",
       },
     }));
 
     await expect(import("./ingestionTokenVerifier")).rejects.toThrow(
-      "LANGFUSE_GATEWAY_JWT_KEY_ID and LANGFUSE_GATEWAY_JWT_PUBLIC_KEY must be set together",
+      "LANGFUSE_AI_GATEWAY_JWT_KEY_ID and LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY must be set together",
     );
 
     vi.doUnmock("@/src/env.mjs");
@@ -130,7 +130,7 @@ describe("verifyGatewayIngestionAuthorization without signing keys", () => {
     // normal auth path ever ran.
     vi.resetModules();
     vi.doMock("@/src/env.mjs", () => ({
-      env: { LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST: [] },
+      env: { LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: [] },
     }));
     const { verifyGatewayIngestionAuthorization: verifyWithoutKeys } =
       await import("./ingestionTokenVerifier");

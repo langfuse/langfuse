@@ -30,22 +30,22 @@ let cachedGatewayIngestionTokenSigner:
   | undefined;
 
 function getGatewayIngestionTokenSigner() {
-  const privateKey = env.LANGFUSE_GATEWAY_JWT_PRIVATE_KEY;
+  const privateKey = env.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY;
   if (!privateKey) return undefined;
 
-  const publicKey = env.LANGFUSE_GATEWAY_JWT_PUBLIC_KEY;
-  const keyId = env.LANGFUSE_GATEWAY_JWT_KEY_ID;
+  const publicKey = env.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY;
+  const keyId = env.LANGFUSE_AI_GATEWAY_JWT_KEY_ID;
   if (!publicKey || !keyId) {
     throw new Error(
-      "LANGFUSE_GATEWAY_JWT_PRIVATE_KEY, LANGFUSE_GATEWAY_JWT_PUBLIC_KEY, and LANGFUSE_GATEWAY_JWT_KEY_ID must be set together",
+      "LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY, LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY, and LANGFUSE_AI_GATEWAY_JWT_KEY_ID must be set together",
     );
   }
 
   const config = {
     privateKey,
     keyId,
-    issuer: env.LANGFUSE_GATEWAY_JWT_ISSUER,
-    audience: env.LANGFUSE_GATEWAY_JWT_AUDIENCE,
+    issuer: env.LANGFUSE_AI_GATEWAY_JWT_ISSUER,
+    audience: env.LANGFUSE_AI_GATEWAY_JWT_AUDIENCE,
   };
   if (
     !cachedGatewayIngestionTokenSigner ||

@@ -1335,15 +1335,15 @@ jobs:
           openssl pkey -in /tmp/gateway-jwt-private.pem -pubout -out /tmp/gateway-jwt-public.pem
           delimiter="GATEWAY_KEY_$(openssl rand -hex 12)"
           {
-            echo "LANGFUSE_GATEWAY_SERVICE_KEY=$(openssl rand -hex 32)"
-            echo "LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST=seed-org-id"
-            echo "LANGFUSE_GATEWAY_JWT_KEY_ID=ci"
-            echo "LANGFUSE_GATEWAY_JWT_ISSUER=langfuse-gateway-ci"
-            echo "LANGFUSE_GATEWAY_JWT_AUDIENCE=langfuse-ingestion-ci"
-            echo "LANGFUSE_GATEWAY_JWT_PRIVATE_KEY<<$delimiter"
+            echo "LANGFUSE_AI_GATEWAY_SERVICE_KEY=$(openssl rand -hex 32)"
+            echo "LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST=seed-org-id"
+            echo "LANGFUSE_AI_GATEWAY_JWT_KEY_ID=ci"
+            echo "LANGFUSE_AI_GATEWAY_JWT_ISSUER=langfuse-gateway-ci"
+            echo "LANGFUSE_AI_GATEWAY_JWT_AUDIENCE=langfuse-ingestion-ci"
+            echo "LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY<<$delimiter"
             cat /tmp/gateway-jwt-private.pem
             echo "$delimiter"
-            echo "LANGFUSE_GATEWAY_JWT_PUBLIC_KEY<<$delimiter"
+            echo "LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY<<$delimiter"
             cat /tmp/gateway-jwt-public.pem
             echo "$delimiter"
           } >> "$GITHUB_ENV"

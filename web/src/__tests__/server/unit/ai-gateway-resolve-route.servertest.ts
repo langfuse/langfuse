@@ -7,17 +7,17 @@ import handler from "@/src/pages/api/internal/ai-gateway/v1/resolve";
 
 // `env` is typed readonly, but the route reads it at call time, so overriding
 // the field is how a test controls configuration.
-const mutableEnv = env as { LANGFUSE_GATEWAY_SERVICE_KEY?: string };
-const originalServiceKey = mutableEnv.LANGFUSE_GATEWAY_SERVICE_KEY;
+const mutableEnv = env as { LANGFUSE_AI_GATEWAY_SERVICE_KEY?: string };
+const originalServiceKey = mutableEnv.LANGFUSE_AI_GATEWAY_SERVICE_KEY;
 
 // Without a configured service key the route answers 503 for everything, which
 // would hide the 400-vs-401 distinction the assertions below rely on.
 beforeAll(() => {
-  mutableEnv.LANGFUSE_GATEWAY_SERVICE_KEY = "0".repeat(64);
+  mutableEnv.LANGFUSE_AI_GATEWAY_SERVICE_KEY = "0".repeat(64);
 });
 
 afterAll(() => {
-  mutableEnv.LANGFUSE_GATEWAY_SERVICE_KEY = originalServiceKey;
+  mutableEnv.LANGFUSE_AI_GATEWAY_SERVICE_KEY = originalServiceKey;
 });
 
 // The route reads the raw body itself (`bodyParser: false`), so bodies must be

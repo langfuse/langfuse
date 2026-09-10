@@ -13,7 +13,8 @@ const getGatewayAvailabilityEnvironment =
 
 export const isGatewayEnabledForOrganization = (
   organizationId: string,
-  allowedOrganizationIds = env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST ?? [],
+  allowedOrganizationIds = env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST ??
+    [],
   environment = getGatewayAvailabilityEnvironment(),
 ): boolean =>
   environment.nodeEnv === "development" ||
@@ -21,7 +22,8 @@ export const isGatewayEnabledForOrganization = (
 
 export const requireGatewayEnabledForOrganization = (
   organizationId: string,
-  allowedOrganizationIds = env.LANGFUSE_GATEWAY_ORGANIZATION_ID_ALLOWLIST ?? [],
+  allowedOrganizationIds = env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST ??
+    [],
   environment = getGatewayAvailabilityEnvironment(),
 ): void => {
   if (
