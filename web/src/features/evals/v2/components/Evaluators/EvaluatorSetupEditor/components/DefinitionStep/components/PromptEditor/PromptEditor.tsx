@@ -170,7 +170,7 @@ export function PromptEditorContent({
       onDragCancel={() => setActiveMessageId(null)}
       onDragEnd={handleDragEnd}
     >
-      <div className="bg-secondary text-secondary-foreground rounded-md border">
+      <div className="bg-tertiary text-tertiary-foreground rounded-md border">
         <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 rounded-t-md border-b px-2">
           <span className="text-muted-foreground text-xs">
             {state.promptMessages.length}{" "}
