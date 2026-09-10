@@ -76,10 +76,7 @@ export const ScoreBadge = <
       {levels.map((level) => (
         <ScoreTag key={level} level={level} />
       ))}
-      <BadgeShell
-        color={compact ? "muted" : "neutral"}
-        size={compact ? "sm" : "default"}
-      >
+      <BadgeShell color="neutral" size={compact ? "sm" : "default"}>
         <span className="min-w-0 flex-1 truncate" title={name}>
           {name}:
         </span>
@@ -98,7 +95,7 @@ export const ScoreBadge = <
                   <HoverCard openDelay={100}>
                     <HoverCardTrigger asChild>
                       <span
-                        className="decoration-muted-foreground/50 truncate underline decoration-dotted underline-offset-2"
+                        className="truncate"
                         title={value}
                         aria-label={`View comment for ${name}: ${value}`}
                       >
