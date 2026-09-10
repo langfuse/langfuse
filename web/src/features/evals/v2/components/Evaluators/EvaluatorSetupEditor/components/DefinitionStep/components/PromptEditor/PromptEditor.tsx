@@ -170,7 +170,7 @@ export function PromptEditorContent({
       onDragCancel={() => setActiveMessageId(null)}
       onDragEnd={handleDragEnd}
     >
-      <div className="bg-card text-card-foreground rounded-md border">
+      <div className="bg-secondary text-secondary-foreground rounded-md border">
         <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 rounded-t-md border-b px-2">
           <span className="text-muted-foreground text-xs">
             {state.promptMessages.length}{" "}
@@ -259,21 +259,21 @@ export function PromptEditorContent({
               />
             ))}
           </SortableContext>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="text-foreground hover:text-foreground h-8 w-full justify-start gap-1.5 rounded-none px-2 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
-            onClick={() => {
-              state.actions.setPromptPreviewEnabled(false);
-              state.actions.addPromptMessage();
-            }}
-          >
-            <Plus className="h-3.5 w-3.5 shrink-0" />
-            Add message
-          </Button>
         </div>
       </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="text-foreground hover:text-foreground mt-2 h-6 w-full justify-start gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
+        onClick={() => {
+          state.actions.setPromptPreviewEnabled(false);
+          state.actions.addPromptMessage();
+        }}
+      >
+        <Plus className="h-3.5 w-3.5 shrink-0" />
+        Add message
+      </Button>
       <DragOverlay dropAnimation={null}>
         {activeMessage ? (
           <div

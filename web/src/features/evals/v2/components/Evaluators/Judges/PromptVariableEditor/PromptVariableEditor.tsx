@@ -251,7 +251,7 @@ export function PromptVariableEditor({
             collapsed && surfaceVariant === "standalone" && "rounded-b-md",
             !collapsed && "border-b-transparent",
             surfaceVariant === "nested" &&
-              "bg-tertiary text-tertiary-foreground rounded-none border-x-0 border-t-0",
+              "bg-card text-card-foreground rounded-none border-x-0 border-t-0",
             onToolbarClick && "cursor-pointer",
           )}
           onClick={(event) => {
