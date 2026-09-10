@@ -106,6 +106,14 @@ const EnvSchema = z.object({
   LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_OTEL_TRACE_ACTIVITY_MAP_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_OTEL_TRACE_ACTIVITY_MAP_SAMPLE_PERCENT: z.coerce
+    .number()
+    .min(0)
+    .max(100)
+    .default(100),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),
