@@ -1,23 +1,27 @@
 import { describe, expect, it } from "vitest";
-import type { ChatMLParserResult } from "./useChatMLParser";
+import type { ChatMLParserResult, ChatMlMessage } from "./useChatMLParser";
 import {
   hasRenderableChatMessages,
   selectIOPreviewParserResult,
 } from "./useIOPreviewParser";
 
-const result = (overrides: Partial<ChatMLParserResult> = {}) =>
-  ({
-    canDisplayAsChat: true,
-    allMessages: [{ role: "user", content: "hello" }],
-    additionalInput: undefined,
-    allTools: [],
-    toolCallCounts: new Map(),
-    toolCallsByName: new Map(),
-    messageToToolCallNumbers: new Map(),
-    toolNameToDefinitionNumber: new Map(),
-    inputMessageCount: 1,
-    ...overrides,
-  }) satisfies ChatMLParserResult;
+const createMessage = (fields: Partial<ChatMlMessage>): ChatMlMessage =>
+  fields as ChatMlMessage;
+
+const result = (
+  overrides: Partial<ChatMLParserResult> = {},
+): ChatMLParserResult => ({
+  canDisplayAsChat: true,
+  allMessages: [createMessage({ role: "user", content: "hello" })],
+  additionalInput: undefined,
+  allTools: [],
+  toolCallCounts: new Map(),
+  toolCallsByName: new Map(),
+  messageToToolCallNumbers: new Map(),
+  toolNameToDefinitionNumber: new Map(),
+  inputMessageCount: 1,
+  ...overrides,
+});
 
 describe("IO preview parser comparison", () => {
   it.each([
@@ -40,10 +44,10 @@ describe("IO preview parser comparison", () => {
       hasRenderableChatMessages(
         result({
           allMessages: [
-            {
+            createMessage({
               role: "user",
               json: { raw: "value" },
-            },
+            }),
           ],
         }),
       ),
