@@ -13,10 +13,11 @@ export const heatMapTextColor = (p: {
   // A soft tint behind the number rather than coloured text: the metric stays
   // legible in the row's own grey and does not collide with the error red used
   // for observation levels.
-  // One tint only: the point is "this is where the parent's time or cost
-  // went", not a severity scale.
+  // Emphasis, not alarm: the dominant number steps up to foreground colour and
+  // medium weight; everything else stays in the row's muted grey.
   const cutOffs: [number, string][] = [
-    [0.75, "bg-dark-yellow/15 rounded-sm px-1 -mx-1"], // 75%+ — amber tint
+    // eslint-disable-next-line @repo/no-raw-font-weight -- approved: medium is the tree's emphasis weight
+    [0.75, "text-foreground font-medium"], // 75%+
   ];
   const standardizedValueOnStartEndScale = valueDecimal
     .sub(minDecimal)
