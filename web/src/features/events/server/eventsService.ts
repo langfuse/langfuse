@@ -10,14 +10,11 @@ import {
 import {
   getObservationsCountsFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
-  getCategoricalScoresGroupedByName,
   getEventsFilterOptionsForColumns,
   getEventsFilterOptionValuesPage,
   getEventsMetadataValues,
   getEventsNumericStatsByFilterColumn,
-  getNumericScoresGroupedByName,
-  getBooleanScoresGroupedByName,
-  getScoresGroupedByNameSourceType,
+  getScoresFilterOptionsForEventFacets,
   getObservationsBatchIOFromEventsTable,
   getScoresForObservations,
   getScoresForTraces,
@@ -30,51 +27,6 @@ import {
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 type TimeFilter = z.infer<typeof timeFilter>;
-
-const TRACE_SCORE_SCOPE_FILTER: FilterCondition[] = [
-  {
-    type: "null",
-    column: "traceId",
-    operator: "is not null",
-    value: "",
-  },
-  {
-    type: "null",
-    column: "observationId",
-    operator: "is null",
-    value: "",
-  },
-];
-
-const OBSERVATION_SCORE_SCOPE_FILTER: FilterCondition[] = [
-  {
-    type: "null",
-    column: "traceId",
-    operator: "is not null",
-    value: "",
-  },
-  {
-    type: "null",
-    column: "observationId",
-    operator: "is not null",
-    value: "",
-  },
-];
-
-// The level-agnostic "Scores" groups (`scores_avg` / `score_categories`) match a
-// score whether it sits at observation or trace level, but only if it rolls up
-// into a trace — i.e. `trace_id IS NOT NULL`. Session-level and dataset-run
-// scores (`trace_id IS NULL`) can never match the events union, so scope
-// discovery to trace-attached scores to keep offered-set == matchable-set
-// (LFE-10596). Mirrors `scoreFilters.forTraceScopedAggregates`.
-const TRACE_SCOPED_SCORE_FILTER: FilterCondition[] = [
-  {
-    type: "null",
-    column: "traceId",
-    operator: "is not null",
-    value: "",
-  },
-];
 
 interface GetObservationsListBaseParams {
   projectId: string;
@@ -597,15 +549,10 @@ const getEventFilterOptionsScope = (
     startTimeFilter,
     "Timestamp",
   );
-  const traceScoreTimestampFilters = toScoreTimestampFilters(
-    startTimeFilter,
-    "timestamp",
-  );
 
   return {
     eventsFilter,
     traceTimestampFilters,
-    traceScoreTimestampFilters,
   };
 };
 
@@ -684,7 +631,7 @@ export async function getEventFilterOptions(
   const { participatingFilter, omitCounts } = partitionEventFilterOptionsFilter(
     scopedParams.filter,
   );
-  const { eventsFilter, traceTimestampFilters, traceScoreTimestampFilters } =
+  const { eventsFilter, traceTimestampFilters } =
     getEventFilterOptionsScope(scopedParams);
   const refinedEventsFilter = eventsFilter.concat(participatingFilter);
   const requestedColumns = new Set<EventFilterOptionsColumn>(columns);
@@ -706,77 +653,28 @@ export async function getEventFilterOptions(
   // with its level (ScoreTag, LFE-10596). Loaded with the agnostic groups.
   const shouldLoadScoreNameLevels =
     shouldLoadScoresAvg || shouldLoadScoreCategories || shouldLoadScoreBooleans;
+  const shouldLoadAnyScores =
+    shouldLoadScoreNameLevels ||
+    shouldLoadTraceScores ||
+    shouldLoadTraceScoreCategories ||
+    shouldLoadTraceScoreBooleans;
 
   // The `scores_avg` / `score_categories` / `score_booleans` groups are
   // level-agnostic (their filter matches observation- OR trace-level scores;
   // see `toLevelAgnosticScoreFilter` in events-observation-row-selection.ts),
   // so they offer every score that rolls up into a trace — matchable-set ==
-  // offered-set (LFE-10596). Scoping to trace-attached scores (`trace_id IS
+  // offered-set. Scoping to trace-attached scores (`trace_id IS
   // NOT NULL`) excludes session-/dataset-run scores the union can never match.
   // The trace-scoped discovery below stays trace-only to back the search bar's
-  // `traceScores.` escape hatch.
-  const [
-    numericScoreNames,
-    booleanScoreNames,
-    categoricalScoreNames,
-    traceScoreColumns,
-    traceCategoricalScoreColumns,
-    traceBooleanScoreColumns,
-    observationLevelScoreNames,
-    traceLevelScoreNames,
-    eventFilterOptions,
-  ] = await Promise.all([
-    shouldLoadScoresAvg
-      ? getNumericScoresGroupedByName(projectId, [
-          ...TRACE_SCOPED_SCORE_FILTER,
-          ...traceTimestampFilters,
-        ])
-      : Promise.resolve([]),
-    shouldLoadScoreBooleans
-      ? getBooleanScoresGroupedByName(projectId, [
-          ...TRACE_SCOPED_SCORE_FILTER,
-          ...traceTimestampFilters,
-        ])
-      : Promise.resolve([]),
-    shouldLoadScoreCategories
-      ? getCategoricalScoresGroupedByName(projectId, [
-          ...TRACE_SCOPED_SCORE_FILTER,
-          ...traceTimestampFilters,
-        ])
-      : Promise.resolve([]),
-    shouldLoadTraceScores
-      ? getScoresGroupedByNameSourceType({
+  // `traceScores.` escape hatch. All of those score-name scans share one
+  // `scores` pass with conditional aggregation.
+  const [scoreNameOptions, eventFilterOptions] = await Promise.all([
+    shouldLoadAnyScores
+      ? getScoresFilterOptionsForEventFacets({
           projectId,
-          filter: [...TRACE_SCORE_SCOPE_FILTER, ...traceScoreTimestampFilters],
+          timestampFilter: traceTimestampFilters,
         })
-      : Promise.resolve([]),
-    shouldLoadTraceScoreCategories
-      ? getCategoricalScoresGroupedByName(projectId, [
-          ...TRACE_SCORE_SCOPE_FILTER,
-          ...traceTimestampFilters,
-        ])
-      : Promise.resolve([]),
-    shouldLoadTraceScoreBooleans
-      ? getBooleanScoresGroupedByName(projectId, [
-          ...TRACE_SCORE_SCOPE_FILTER,
-          ...traceTimestampFilters,
-        ])
-      : Promise.resolve([]),
-    shouldLoadScoreNameLevels
-      ? getScoresGroupedByNameSourceType({
-          projectId,
-          filter: [
-            ...OBSERVATION_SCORE_SCOPE_FILTER,
-            ...traceScoreTimestampFilters,
-          ],
-        })
-      : Promise.resolve([]),
-    shouldLoadScoreNameLevels
-      ? getScoresGroupedByNameSourceType({
-          projectId,
-          filter: [...TRACE_SCORE_SCOPE_FILTER, ...traceScoreTimestampFilters],
-        })
-      : Promise.resolve([]),
+      : Promise.resolve(undefined),
     eventColumns.length > 0
       ? getEventsFilterOptionsForColumns({
           projectId,
@@ -789,6 +687,16 @@ export async function getEventFilterOptions(
         })
       : Promise.resolve([]),
   ]);
+  const numericScoreNames = scoreNameOptions?.numericNames ?? [];
+  const booleanScoreNames = scoreNameOptions?.booleanNames ?? [];
+  const categoricalScoreNames = scoreNameOptions?.categoricalNames ?? [];
+  const traceScoreColumns = scoreNameOptions?.traceScoreColumns ?? [];
+  const traceCategoricalScoreColumns =
+    scoreNameOptions?.traceCategoricalNames ?? [];
+  const traceBooleanScoreColumns = scoreNameOptions?.traceBooleanNames ?? [];
+  const observationLevelScoreNames =
+    scoreNameOptions?.observationLevelScores ?? [];
+  const traceLevelScoreNames = scoreNameOptions?.traceLevelScores ?? [];
   const traceNumericScoreNames = Array.from(
     new Set(
       traceScoreColumns

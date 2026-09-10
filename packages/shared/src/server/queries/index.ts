@@ -83,6 +83,7 @@ export {
   type EventFilterOptionColumn,
   type EventFilterOptionScope,
 } from "./clickhouse-sql/event-filter-options";
+export { buildScoresFilterOptionsForEventFacetsQuery } from "./clickhouse-sql/score-filter-options";
 export {
   eventsScoresAggregation,
   eventsSessionsAggregation,

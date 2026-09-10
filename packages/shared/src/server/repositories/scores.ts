@@ -79,9 +79,11 @@ import {
   findUiColumnMapping,
   matchesUiColumnMapping,
 } from "../../tableDefinitions";
-
-const FILTER_OPTION_SCORE_NAME_LIMIT = 200;
-const FILTER_OPTION_CATEGORICAL_VALUE_LIMIT = 20;
+import {
+  buildScoresFilterOptionsForEventFacetsQuery,
+  FILTER_OPTION_CATEGORICAL_VALUE_LIMIT,
+  FILTER_OPTION_SCORE_NAME_LIMIT,
+} from "../queries/clickhouse-sql/score-filter-options";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -1132,10 +1134,15 @@ export const getCategoricalScoresGroupedByName = async (
     preferredClickhouseService: "ReadOnly",
   });
 
-  // Get score names from ClickHouse results to query score configs
+  return mergeCategoricalScoreConfigValues(projectId, rows);
+};
+
+const mergeCategoricalScoreConfigValues = async (
+  projectId: string,
+  rows: { label: string; values: string[] }[],
+): Promise<{ label: string; values: string[] }[]> => {
   const scoreNames = rows.map((row) => row.label);
 
-  // Query score_configs table for categorical configurations
   const scoreConfigs =
     scoreNames.length > 0
       ? await prisma.scoreConfig.findMany({
@@ -1154,23 +1161,18 @@ export const getCategoricalScoresGroupedByName = async (
         })
       : [];
 
-  // Create a map of score configs for easy lookup
   const configMap = new Map(
     scoreConfigs.map((config) => [config.name, config.categories]),
   );
 
-  // Enhance the results with all possible category values from score configs
   return rows.map((row) => {
     const configCategories = configMap.get(row.label);
 
     if (configCategories && Array.isArray(configCategories)) {
-      // Extract all possible category labels from the score config
       const allPossibleValues = (
         configCategories as Array<{ label: string; value: number }>
       ).map((category) => category.label);
 
-      // Merge actual values from ClickHouse with all possible values from config
-      // Use Set to ensure uniqueness
       const mergedValues = Array.from(
         new Set([...row.values, ...allPossibleValues]),
       ).slice(0, FILTER_OPTION_CATEGORICAL_VALUE_LIMIT);
@@ -1181,9 +1183,217 @@ export const getCategoricalScoresGroupedByName = async (
       };
     }
 
-    // If no config found, return original values
     return row;
   });
+};
+
+type EventFilterScoreNameRow = {
+  name: string;
+  source: string;
+  data_type: string;
+  count: string;
+  trace_count: string;
+  observation_count: string;
+  categorical_values: string[];
+  trace_categorical_values: string[];
+  boolean_value_count: string;
+  trace_boolean_value_count: string;
+};
+
+type EventFilterScoreColumn = {
+  name: string;
+  source: ScoreSourceType;
+  dataType: ListableScoreDataType;
+};
+
+type EventFilterScoreNameOptions = {
+  numericNames: { name: string }[];
+  booleanNames: { name: string }[];
+  categoricalNames: { label: string; values: string[] }[];
+  traceScoreColumns: EventFilterScoreColumn[];
+  traceCategoricalNames: { label: string; values: string[] }[];
+  traceBooleanNames: { name: string }[];
+  observationLevelScores: EventFilterScoreColumn[];
+  traceLevelScores: EventFilterScoreColumn[];
+};
+
+const EMPTY_EVENT_FILTER_SCORE_NAME_OPTIONS: EventFilterScoreNameOptions = {
+  numericNames: [],
+  booleanNames: [],
+  categoricalNames: [],
+  traceScoreColumns: [],
+  traceCategoricalNames: [],
+  traceBooleanNames: [],
+  observationLevelScores: [],
+  traceLevelScores: [],
+};
+
+const compareNameCount = (
+  left: { name: string; count: number },
+  right: { name: string; count: number },
+) => right.count - left.count || left.name.localeCompare(right.name);
+
+const topNamesByCount = (
+  rows: { name: string; count: number }[],
+): { name: string }[] => {
+  const byName = new Map<string, number>();
+  for (const row of rows) {
+    byName.set(row.name, (byName.get(row.name) ?? 0) + row.count);
+  }
+
+  return [...byName.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort(compareNameCount)
+    .slice(0, FILTER_OPTION_SCORE_NAME_LIMIT)
+    .map(({ name }) => ({ name }));
+};
+
+const topCategoricalByCount = (
+  rows: { name: string; count: number; values: string[] }[],
+): { label: string; values: string[] }[] => {
+  const byName = new Map<string, { count: number; values: Set<string> }>();
+  for (const row of rows) {
+    const existing = byName.get(row.name) ?? { count: 0, values: new Set() };
+    existing.count += row.count;
+    for (const value of row.values) {
+      existing.values.add(value);
+    }
+    byName.set(row.name, existing);
+  }
+
+  return [...byName.entries()]
+    .map(([name, aggregate]) => ({
+      name,
+      count: aggregate.count,
+      values: [...aggregate.values].slice(
+        0,
+        FILTER_OPTION_CATEGORICAL_VALUE_LIMIT,
+      ),
+    }))
+    .sort(compareNameCount)
+    .slice(0, FILTER_OPTION_SCORE_NAME_LIMIT)
+    .map(({ name, values }) => ({ label: name, values }));
+};
+
+const toScoreColumn = (
+  row: EventFilterScoreNameRow,
+): EventFilterScoreColumn => ({
+  name: row.name,
+  source: row.source as ScoreSourceType,
+  dataType: row.data_type as ListableScoreDataType,
+});
+
+const topScoreColumnsByCount = (
+  rows: { row: EventFilterScoreNameRow; count: number }[],
+): EventFilterScoreColumn[] =>
+  rows
+    .sort(
+      (left, right) =>
+        right.count - left.count ||
+        left.row.name.localeCompare(right.row.name) ||
+        left.row.source.localeCompare(right.row.source) ||
+        left.row.data_type.localeCompare(right.row.data_type),
+    )
+    .slice(0, FILTER_OPTION_SCORE_NAME_LIMIT)
+    .map(({ row }) => toScoreColumn(row));
+
+/**
+ * One ClickHouse round-trip for every score-name facet used by
+ * `events.filterOptions`. Callers split the returned groups.
+ */
+export const getScoresFilterOptionsForEventFacets = async ({
+  projectId,
+  timestampFilter,
+}: {
+  projectId: string;
+  timestampFilter: FilterState;
+}): Promise<EventFilterScoreNameOptions> => {
+  const queryWithParams = buildScoresFilterOptionsForEventFacetsQuery({
+    projectId,
+    timestampFilter,
+  });
+
+  const rows = await queryClickhouse<EventFilterScoreNameRow>({
+    query: queryWithParams.query,
+    params: queryWithParams.params,
+    tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
+  });
+
+  if (rows.length === 0) {
+    return EMPTY_EVENT_FILTER_SCORE_NAME_OPTIONS;
+  }
+
+  const numericNames = topNamesByCount(
+    rows
+      .filter(
+        (row) => row.data_type === "NUMERIC" || row.data_type === "BOOLEAN",
+      )
+      .map((row) => ({ name: row.name, count: Number(row.count) })),
+  );
+  const booleanNames = topNamesByCount(
+    rows
+      .filter((row) => Number(row.boolean_value_count) > 0)
+      .map((row) => ({
+        name: row.name,
+        count: Number(row.boolean_value_count),
+      })),
+  );
+  const categoricalNames = topCategoricalByCount(
+    rows
+      .filter((row) => row.data_type === "CATEGORICAL")
+      .map((row) => ({
+        name: row.name,
+        count: Number(row.count),
+        values: row.categorical_values,
+      })),
+  );
+  const traceCategoricalNames = topCategoricalByCount(
+    rows
+      .filter(
+        (row) => row.data_type === "CATEGORICAL" && Number(row.trace_count) > 0,
+      )
+      .map((row) => ({
+        name: row.name,
+        count: Number(row.trace_count),
+        values: row.trace_categorical_values,
+      })),
+  );
+  const traceBooleanNames = topNamesByCount(
+    rows
+      .filter((row) => Number(row.trace_boolean_value_count) > 0)
+      .map((row) => ({
+        name: row.name,
+        count: Number(row.trace_boolean_value_count),
+      })),
+  );
+  const observationLevelScores = topScoreColumnsByCount(
+    rows
+      .filter((row) => Number(row.observation_count) > 0)
+      .map((row) => ({ row, count: Number(row.observation_count) })),
+  );
+  const traceLevelScores = topScoreColumnsByCount(
+    rows
+      .filter((row) => Number(row.trace_count) > 0)
+      .map((row) => ({ row, count: Number(row.trace_count) })),
+  );
+
+  const [mergedCategoricalNames, mergedTraceCategoricalNames] =
+    await Promise.all([
+      mergeCategoricalScoreConfigValues(projectId, categoricalNames),
+      mergeCategoricalScoreConfigValues(projectId, traceCategoricalNames),
+    ]);
+
+  return {
+    numericNames,
+    booleanNames,
+    categoricalNames: mergedCategoricalNames,
+    traceScoreColumns: traceLevelScores,
+    traceCategoricalNames: mergedTraceCategoricalNames,
+    traceBooleanNames,
+    observationLevelScores,
+    traceLevelScores,
+  };
 };
 
 export const getScoresUiCount = async (props: {

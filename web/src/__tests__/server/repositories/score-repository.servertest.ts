@@ -3,7 +3,10 @@ import {
   createScoresCh,
   getScoreById,
   getScoresByIds,
+  getBooleanScoresGroupedByName,
   getCategoricalScoresGroupedByName,
+  getNumericScoresGroupedByName,
+  getScoresFilterOptionsForEventFacets,
   getScoresGroupedByNameSourceType,
   getScoresUiTable,
   getScoresForTraces,
@@ -1476,6 +1479,177 @@ describe("Clickhouse Scores Repository Test", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].dataType).toBe("BOOLEAN");
+    });
+  });
+
+  describe("getScoresFilterOptionsForEventFacets", () => {
+    it("matches the per-column score-name helpers on the same fixture", async () => {
+      const isolatedProjectId = v4();
+      const observationId = v4();
+      const timestampFilter = [
+        {
+          column: "Timestamp" as const,
+          type: "datetime" as const,
+          operator: ">=" as const,
+          value: new Date(Date.now() - 60 * 60 * 1000),
+        },
+      ];
+      const traceScopedFilter = [
+        {
+          type: "null" as const,
+          column: "traceId",
+          operator: "is not null" as const,
+          value: "",
+        },
+        ...timestampFilter,
+      ];
+      const traceLevelFilter = [
+        ...traceScopedFilter,
+        {
+          type: "null" as const,
+          column: "observationId",
+          operator: "is null" as const,
+          value: "",
+        },
+      ];
+      const observationLevelFilter = [
+        ...traceScopedFilter,
+        {
+          type: "null" as const,
+          column: "observationId",
+          operator: "is not null" as const,
+          value: "",
+        },
+      ];
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: isolatedProjectId,
+          name: "accuracy",
+          data_type: "NUMERIC",
+          value: 0.9,
+          source: "API",
+        }),
+        createTraceScore({
+          project_id: isolatedProjectId,
+          observation_id: observationId,
+          name: "accuracy",
+          data_type: "NUMERIC",
+          value: 0.8,
+          source: "EVAL",
+        }),
+        createTraceScore({
+          project_id: isolatedProjectId,
+          name: "thumbs",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+          source: "API",
+        }),
+        createTraceScore({
+          project_id: isolatedProjectId,
+          observation_id: observationId,
+          name: "empty-bool",
+          data_type: "BOOLEAN",
+          value: 0,
+          string_value: "",
+          source: "API",
+        }),
+        createTraceScore({
+          project_id: isolatedProjectId,
+          name: "sentiment",
+          data_type: "CATEGORICAL",
+          value: 1,
+          string_value: "positive",
+          source: "API",
+        }),
+        createTraceScore({
+          project_id: isolatedProjectId,
+          observation_id: observationId,
+          name: "sentiment",
+          data_type: "CATEGORICAL",
+          value: 0,
+          string_value: "negative",
+          source: "EVAL",
+        }),
+        createSessionScore({
+          project_id: isolatedProjectId,
+          name: "session-only",
+          data_type: "NUMERIC",
+          value: 1,
+          source: "API",
+        }),
+      ]);
+
+      const [
+        combined,
+        numericNames,
+        booleanNames,
+        categoricalNames,
+        traceCategoricalNames,
+        traceBooleanNames,
+        observationLevelScores,
+        traceLevelScores,
+      ] = await Promise.all([
+        getScoresFilterOptionsForEventFacets({
+          projectId: isolatedProjectId,
+          timestampFilter,
+        }),
+        getNumericScoresGroupedByName(isolatedProjectId, traceScopedFilter),
+        getBooleanScoresGroupedByName(isolatedProjectId, traceScopedFilter),
+        getCategoricalScoresGroupedByName(isolatedProjectId, traceScopedFilter),
+        getCategoricalScoresGroupedByName(isolatedProjectId, traceLevelFilter),
+        getBooleanScoresGroupedByName(isolatedProjectId, traceLevelFilter),
+        getScoresGroupedByNameSourceType({
+          projectId: isolatedProjectId,
+          filter: observationLevelFilter,
+        }),
+        getScoresGroupedByNameSourceType({
+          projectId: isolatedProjectId,
+          filter: traceLevelFilter,
+        }),
+      ]);
+
+      const byName = (rows: { name: string }[]) =>
+        rows.map((row) => row.name).sort();
+      const byLabel = (rows: { label: string; values: string[] }[]) =>
+        rows
+          .map((row) => ({
+            label: row.label,
+            values: [...row.values].sort(),
+          }))
+          .sort((left, right) => left.label.localeCompare(right.label));
+      const byColumn = (
+        rows: { name: string; source: string; dataType: string }[],
+      ) =>
+        rows.map((row) => `${row.name}:${row.source}:${row.dataType}`).sort();
+
+      expect(byName(combined.numericNames)).toEqual(byName(numericNames));
+      expect(byName(combined.booleanNames)).toEqual(byName(booleanNames));
+      expect(byLabel(combined.categoricalNames)).toEqual(
+        byLabel(categoricalNames),
+      );
+      expect(byLabel(combined.traceCategoricalNames)).toEqual(
+        byLabel(traceCategoricalNames),
+      );
+      expect(byName(combined.traceBooleanNames)).toEqual(
+        byName(traceBooleanNames),
+      );
+      expect(byColumn(combined.observationLevelScores)).toEqual(
+        byColumn(observationLevelScores),
+      );
+      expect(byColumn(combined.traceLevelScores)).toEqual(
+        byColumn(traceLevelScores),
+      );
+      expect(combined.numericNames.map((row) => row.name)).not.toContain(
+        "session-only",
+      );
+      expect(combined.booleanNames.map((row) => row.name)).not.toContain(
+        "empty-bool",
+      );
+      expect(combined.numericNames.map((row) => row.name)).toContain(
+        "empty-bool",
+      );
     });
   });
 });
