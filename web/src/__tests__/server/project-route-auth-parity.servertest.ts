@@ -13,11 +13,9 @@ import {
 } from "@langfuse/shared/src/server";
 
 // Pins the public-API authorization seam to legacy: sweeps every route across
-// migration modes and key kinds, recording each cell's status. Shadow must
-// equal legacy everywhere; enforce must equal legacy on project routes and may
-// diverge on org routes only at snapshotted cells: an org key naming a project
-// it owns is admitted, and one it does not own is 403 instead of 404. A
-// baseline-captured snapshot pins legacy across the refactor. Value is status only.
+// migration modes and key kinds, recording each cell's status. Shadow and
+// enforce must equal legacy (cross-mode); a main-captured snapshot pins legacy
+// across the refactor (cross-branch). Value is status only.
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -309,29 +307,6 @@ function walkRoutes(): string[] {
   return routes;
 }
 
-/** pick returns the subset of a matrix whose cells belong to the given routes. */
-function pick(
-  matrix: Record<string, number>,
-  routes: Route[],
-): Record<string, number> {
-  const keys = new Set(matrixCells(routes).map((cell) => cell.key));
-  return Object.fromEntries(
-    Object.entries(matrix).filter(([key]) => keys.has(key)),
-  );
-}
-
-/** divergence lists the cells where two matrices disagree as "legacy -> enforce". */
-function divergence(
-  legacy: Record<string, number>,
-  enforce: Record<string, number>,
-): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(legacy)
-      .filter(([key, status]) => enforce[key] !== status)
-      .map(([key, status]) => [key, `${status} -> ${enforce[key]}`]),
-  );
-}
-
 describe("public-route auth parity", () => {
   beforeAll(async () => {
     originalMigration = (env as any).API_AUTH_MIGRATION;
@@ -369,7 +344,7 @@ describe("public-route auth parity", () => {
     (env as any).ADMIN_API_KEY = originalAdminApiKey;
   });
 
-  it("legacy matches the baseline captured before the seam", () => {
+  it("legacy matches the main-captured baseline", () => {
     expect(matrices.legacy).toMatchSnapshot();
   });
 
@@ -377,19 +352,8 @@ describe("public-route auth parity", () => {
     expect(matrices.shadow).toEqual(matrices.legacy);
   });
 
-  it("enforce is byte-identical to legacy on project routes", () => {
-    expect(pick(matrices.enforce, projectRoutes)).toEqual(
-      pick(matrices.legacy, projectRoutes),
-    );
-  });
-
-  it("enforce diverges from legacy on org routes only at the snapshotted cells", () => {
-    expect(
-      divergence(
-        pick(matrices.legacy, orgRoutes),
-        pick(matrices.enforce, orgRoutes),
-      ),
-    ).toMatchSnapshot();
+  it("enforce is byte-identical to legacy", () => {
+    expect(matrices.enforce).toEqual(matrices.legacy);
   });
 
   it("covers every public route", () => {

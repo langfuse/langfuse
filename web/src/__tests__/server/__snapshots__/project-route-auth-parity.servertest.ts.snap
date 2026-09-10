@@ -1,20 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`public-route auth parity > enforce diverges from legacy on org routes only at the snapshotted cells 1`] = `
-{
-  "DELETE projects/[projectId]/apiKeys/[apiKeyId] | org/basic": "404 -> 403",
-  "DELETE projects/[projectId]/index | org/basic": "404 -> 403",
-  "DELETE projects/[projectId]/memberships/index | org/basic": "404 -> 403",
-  "GET projects/[projectId]/apiKeys/index | org/basic": "404 -> 403",
-  "GET projects/[projectId]/memberships/index | org/basic": "404 -> 403",
-  "GET projects/index | org/basic": "403 -> 200",
-  "POST projects/[projectId]/apiKeys/index | org/basic": "404 -> 403",
-  "PUT projects/[projectId]/index | org/basic": "404 -> 403",
-  "PUT projects/[projectId]/memberships/index | org/basic": "404 -> 403",
-}
-`;
-
-exports[`public-route auth parity > legacy matches the baseline captured before the seam 1`] = `
+exports[`public-route auth parity > legacy matches the main-captured baseline 1`] = `
 {
   "DELETE annotation-queues/[queueId]/assignments | admin/admin": 401,
   "DELETE annotation-queues/[queueId]/assignments | agent/basic": 401,
