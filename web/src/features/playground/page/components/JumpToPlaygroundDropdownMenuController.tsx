@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/router";
+import { v4 as uuidv4 } from "uuid";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import { DropdownMenuController } from "@/src/components/ui/dropdown-menu";
@@ -11,6 +12,11 @@ import {
   type PlaygroundTool,
 } from "@/src/features/playground/page/types";
 import { getMessagesFingerprint } from "@/src/features/playground/page/utils/messagesFingerprint";
+import { shouldOpenAdditionalWindow } from "@/src/features/playground/page/utils/shouldOpenAdditionalWindow";
+import {
+  getWindowState,
+  setWindowState,
+} from "@/src/features/playground/page/storage/windowStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
@@ -32,7 +38,6 @@ import { normalizeInput, normalizeOutput } from "@/src/utils/chatml";
 import { extractTools } from "@/src/utils/chatml/extractTools";
 import { convertChatMlToPlayground } from "@/src/utils/chatml/playgroundConverter";
 import { api } from "@/src/utils/api";
-import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import {
   type MetadataDomainClient,
   type WithStringifiedMetadata,
@@ -77,7 +82,7 @@ export const JumpToPlaygroundDropdownMenuController = (
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
-  const { addWindowWithId, clearAllCache } = usePersistedWindowIds();
+  const { windowIds, addWindowWithId, clearAllCache } = usePersistedWindowIds();
   const [includeOutput, setIncludeOutput] = useState(false);
 
   // Generate a stable window ID based on the source data
@@ -86,7 +91,6 @@ export const JumpToPlaygroundDropdownMenuController = (
   const stableWindowId = useMemo(() => {
     return `playground-${props.source}-${sourceId}`;
   }, [props.source, sourceId]);
-  const { setPlaygroundCache } = usePlaygroundCache(stableWindowId);
 
   const apiKeys = api.llmApiKey.all.useQuery(
     {
@@ -139,12 +143,26 @@ export const JumpToPlaygroundDropdownMenuController = (
       return;
     }
 
+    let targetWindowId = stableWindowId;
+
     if (useFreshPlayground) {
       // Clear all existing playground data and reset to single window
       clearAllCache(stableWindowId);
     } else {
-      // Add to existing playground
-      const addedWindowId = addWindowWithId(stableWindowId);
+      // Add to existing playground. The window this prompt addresses may already
+      // be open with unsaved edits, which writing the stored prompt over would
+      // destroy, so that case gets a window of its own.
+      if (
+        shouldOpenAdditionalWindow({
+          isTargetWindowOpen: windowIds.includes(stableWindowId),
+          cachedMessages: getWindowState(stableWindowId)?.messages,
+          incomingMessages: capturedState.messages,
+        })
+      ) {
+        targetWindowId = `${stableWindowId}-${uuidv4()}`;
+      }
+
+      const addedWindowId = addWindowWithId(targetWindowId);
 
       if (!addedWindowId) {
         console.warn(
@@ -157,9 +175,9 @@ export const JumpToPlaygroundDropdownMenuController = (
     // Use requestAnimationFrame to ensure the state update has been processed
     requestAnimationFrame(() => {
       try {
-        setPlaygroundCache(capturedState);
+        setWindowState(targetWindowId, capturedState);
         console.log(
-          `Cache saved for existing playground window ${stableWindowId}`,
+          `Cache saved for existing playground window ${targetWindowId}`,
         );
 
         // Navigate after cache is successfully saved

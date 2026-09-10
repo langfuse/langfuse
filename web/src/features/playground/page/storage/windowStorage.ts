@@ -39,7 +39,7 @@ export const saveWindowIds = (ids: string[]): void => {
  * @param windowId - The ID of the window.
  * @returns The cached state or null if not found.
  */
-const getWindowState = (windowId: string): PlaygroundCache | null => {
+export const getWindowState = (windowId: string): PlaygroundCache | null => {
   const key = getCacheKey(windowId);
   const cachedState = sessionStorage.getItem(key);
   if (!cachedState) return null;
@@ -50,6 +50,24 @@ const getWindowState = (windowId: string): PlaygroundCache | null => {
     sessionStorage.removeItem(key);
     return null;
   }
+};
+
+/**
+ * Writes the cached state for a specific window, for callers that resolve the
+ * target window at call time rather than at render time.
+ * @param windowId - The ID of the window.
+ * @param cache - The state to store, or null to drop it.
+ */
+export const setWindowState = (
+  windowId: string,
+  cache: PlaygroundCache,
+): void => {
+  const key = getCacheKey(windowId);
+  if (cache === null) {
+    sessionStorage.removeItem(key);
+    return;
+  }
+  sessionStorage.setItem(key, JSON.stringify(cache));
 };
 
 /**
