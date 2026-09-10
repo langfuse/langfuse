@@ -215,7 +215,7 @@ export function IOPreviewJSONSimple({
         />
       )}
       {attributes && Object.keys(attributes).length > 0 ? (
-        <div className="[&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
+        <div className="mt-2 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
           <PrettyJsonView
             hideHeader
             title="Attributes"

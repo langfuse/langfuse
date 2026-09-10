@@ -19,11 +19,12 @@
  */
 
 import { type TreeNode } from "../types/treeNode";
+import { useState } from "react";
+import { Layer } from "@/src/components/ui/layer";
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+  tooltipPlacement,
+  tooltipStyle,
+} from "@/src/features/traces/fns/timeline/tooltipPlacement";
 import {
   NODE_HOVER_CARD_SURFACE_CLASS,
   NodeHoverCardContent,
@@ -117,8 +118,13 @@ export function SpanContent({
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
 
+  const [hovered, setHovered] = useState<{
+    clientX: number;
+    clientY: number;
+  } | null>(null);
+
   return (
-    <HoverCard openDelay={0} closeDelay={0}>
+    <>
       <button
         type="button"
         onClick={(e) => {
@@ -126,6 +132,14 @@ export function SpanContent({
           onSelect?.();
         }}
         onMouseEnter={onHover}
+        // Hover card follows the pointer, like the timeline's: it appears
+        // where you are looking, not at a fixed edge of a variable-width row.
+        onPointerMove={(event) => {
+          if (event.pointerType !== "mouse") return;
+          setHovered({ clientX: event.clientX, clientY: event.clientY });
+        }}
+        onPointerLeave={() => setHovered(null)}
+        onPointerDown={() => setHovered(null)}
         // No row-level title: it would pop a native tooltip from ANYWHERE in the
         // row — stacking on the score chips' own titles and the ScoreTag level
         // tooltip. The truncating name span below carries its own title.
@@ -137,19 +151,15 @@ export function SpanContent({
         <div className="flex min-w-0 flex-col">
           {/* Name and badges row */}
           <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-            {/* The hover card anchors to the NAME, not the row, so it opens
-                  right beside what was hovered instead of at the panel edge. */}
-            <HoverCardTrigger asChild>
-              <span
-                // Medium weight approved for the tree name: bold read too heavy
-                // at 12px, regular gave no hierarchy over the metrics line.
-                // eslint-disable-next-line @repo/no-raw-font-weight
-                className="shrink truncate text-xs font-medium"
-                title={nodeDisplayName}
-              >
-                {nodeDisplayName}
-              </span>
-            </HoverCardTrigger>
+            <span
+              // Medium weight approved for the tree name: bold read too heavy
+              // at 12px, regular gave no hierarchy over the metrics line.
+              // eslint-disable-next-line @repo/no-raw-font-weight
+              className="shrink truncate text-xs font-medium"
+              title={nodeDisplayName}
+            >
+              {nodeDisplayName}
+            </span>
 
             <div className="flex items-center gap-x-2">
               {/* Comment count */}
@@ -255,14 +265,26 @@ export function SpanContent({
           )}
         </div>
       </button>
-      <HoverCardContent
-        side="right"
-        align="start"
-        sideOffset={8}
-        className={NODE_HOVER_CARD_SURFACE_CLASS}
-      >
-        <NodeHoverCardContent node={node} />
-      </HoverCardContent>
-    </HoverCard>
+      {hovered ? (
+        <Layer name="tooltip">
+          <div
+            className={cn(
+              NODE_HOVER_CARD_SURFACE_CLASS,
+              "pointer-events-none fixed",
+            )}
+            style={tooltipStyle(
+              tooltipPlacement({
+                clientX: hovered.clientX,
+                clientY: hovered.clientY,
+                viewportWidth: window.innerWidth,
+                viewportHeight: window.innerHeight,
+              }),
+            )}
+          >
+            <NodeHoverCardContent node={node} />
+          </div>
+        </Layer>
+      ) : null}
+    </>
   );
 }

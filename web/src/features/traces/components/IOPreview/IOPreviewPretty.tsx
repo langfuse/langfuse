@@ -349,7 +349,7 @@ export function IOPreviewPretty({
 
       {/* Metadata Section */}
       {showData && attributes && Object.keys(attributes).length > 0 ? (
-        <div className="[&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
+        <div className="mt-2 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
           <PrettyJsonView
             hideHeader
             title="Attributes"
@@ -365,7 +365,7 @@ export function IOPreviewPretty({
       ) : null}
 
       {showData && shouldShowMetadata && (
-        <div className="[&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
+        <div className="mt-4 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
           <PrettyJsonView
             hideHeader
             title="Metadata"
