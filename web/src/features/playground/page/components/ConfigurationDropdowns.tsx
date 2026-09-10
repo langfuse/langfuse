@@ -17,10 +17,12 @@ import {
 import {
   StructuredOutputSchemaSection,
   StructuredOutputSchemaPopover,
+  type StructuredOutputSchemaDialogRequest,
 } from "./StructuredOutputSchemaSection";
 import { Variables } from "./Variables";
 import { MessagePlaceholders } from "./MessagePlaceholders";
 import { CreateOrEditLLMToolDialog } from "./CreateOrEditLLMToolDialog";
+import { CreateOrEditLLMSchemaDialog } from "./CreateOrEditLLMSchemaDialog";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 
 function usePopoverToDialog<T>() {
@@ -58,6 +60,8 @@ export const ConfigurationDropdowns: React.FC = () => {
   } = usePlaygroundContext();
   const projectId = useProjectIdFromURL();
   const toolsOverlay = usePopoverToDialog<PlaygroundToolDialogRequest>();
+  const schemaOverlay =
+    usePopoverToDialog<StructuredOutputSchemaDialogRequest>();
 
   const toolsCount = tools.length;
   const hasSchema = structuredOutputSchema ? 1 : 0;
@@ -151,7 +155,10 @@ export const ConfigurationDropdowns: React.FC = () => {
         )}
 
         {/* Structured Output Dropdown */}
-        <Popover>
+        <Popover
+          open={schemaOverlay.popoverOpen}
+          onOpenChange={schemaOverlay.setPopoverOpen}
+        >
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="h-8 gap-2">
               {getResponsiveContent("Schema", Braces)}
@@ -172,7 +179,9 @@ export const ConfigurationDropdowns: React.FC = () => {
             </div>
             {structuredOutputSchema ? (
               <div className="mb-3">
-                <StructuredOutputSchemaSection />
+                <StructuredOutputSchemaSection
+                  onOpenSchemaDialog={schemaOverlay.openDialog}
+                />
               </div>
             ) : (
               <div className="mb-3">
@@ -182,10 +191,23 @@ export const ConfigurationDropdowns: React.FC = () => {
               </div>
             )}
             <div className="border-t pt-3">
-              <StructuredOutputSchemaPopover />
+              <StructuredOutputSchemaPopover
+                onOpenSchemaDialog={schemaOverlay.openDialog}
+              />
             </div>
           </PopoverContent>
         </Popover>
+        {schemaOverlay.dialog && projectId && (
+          <CreateOrEditLLMSchemaDialog
+            projectId={projectId}
+            open
+            onOpenChange={schemaOverlay.handleDialogOpenChange}
+            onSave={schemaOverlay.dialog.onSave}
+            onDelete={schemaOverlay.dialog.onDelete}
+            existingLlmSchema={schemaOverlay.dialog.existingLlmSchema}
+            defaultValues={schemaOverlay.dialog.defaultValues}
+          />
+        )}
 
         {/* Variables & Placeholders Dropdown */}
         <Popover>

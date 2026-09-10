@@ -73,6 +73,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
   const [open, setOpen] = useState(false);
   const [selectedSchema, setSelectedSchema] = useState<LlmSchema | null>(null);
   const [schemaPopoverOpen, setSchemaPopoverOpen] = useState(false);
+  const [schemaDialogOpen, setSchemaDialogOpen] = useState(false);
   const hasToolStructuredOutputConflict = hasPromptToolStructuredOutputConflict(
     selectedPromptToolConfig,
     structuredOutputEnabled,
@@ -375,46 +376,65 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                     </Popover>
 
                     {selectedSchema && (
-                      <CreateOrEditLLMSchemaDialog
-                        projectId={projectId}
-                        existingLlmSchema={selectedSchema}
-                        onSave={(updatedSchema) => {
-                          setSelectedSchema(updatedSchema);
-                          setSelectedSchemaName(updatedSchema.name);
-                          field.onChange(
-                            updatedSchema.schema as Record<string, unknown>,
-                          );
-                        }}
-                        onDelete={() => {
-                          setSelectedSchema(null);
-                          setSelectedSchemaName(null);
-                          field.onChange(undefined);
-                        }}
-                      >
-                        <Button variant="ghost" size="icon">
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`View schema ${selectedSchema.name}`}
+                          onClick={() => setSchemaDialogOpen(true)}
+                        >
                           <EyeIcon className="h-4 w-4" />
                         </Button>
-                      </CreateOrEditLLMSchemaDialog>
+                        {schemaDialogOpen && (
+                          <CreateOrEditLLMSchemaDialog
+                            projectId={projectId}
+                            open
+                            onOpenChange={setSchemaDialogOpen}
+                            existingLlmSchema={selectedSchema}
+                            onSave={(updatedSchema) => {
+                              setSelectedSchema(updatedSchema);
+                              setSelectedSchemaName(updatedSchema.name);
+                              field.onChange(
+                                updatedSchema.schema as Record<string, unknown>,
+                              );
+                            }}
+                            onDelete={() => {
+                              setSelectedSchema(null);
+                              setSelectedSchemaName(null);
+                              field.onChange(undefined);
+                            }}
+                          />
+                        )}
+                      </>
                     )}
                   </div>
                 ) : (
-                  <CreateOrEditLLMSchemaDialog
-                    projectId={projectId}
-                    onSave={(newSchema) => {
-                      setSelectedSchema(newSchema);
-                      setSelectedSchemaName(newSchema.name);
-                      field.onChange(
-                        newSchema.schema as Record<string, unknown>,
-                      );
-                      // Toggle is already ON if we're seeing this button
-                      // No need to set it again
-                    }}
-                  >
-                    <Button variant="outline" className="w-full">
+                  <>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => setSchemaDialogOpen(true)}
+                    >
                       <PlusIcon className="mr-2 h-4 w-4" />
                       Add schema
                     </Button>
-                  </CreateOrEditLLMSchemaDialog>
+                    {schemaDialogOpen && (
+                      <CreateOrEditLLMSchemaDialog
+                        projectId={projectId}
+                        open
+                        onOpenChange={setSchemaDialogOpen}
+                        onSave={(newSchema) => {
+                          setSelectedSchema(newSchema);
+                          setSelectedSchemaName(newSchema.name);
+                          field.onChange(
+                            newSchema.schema as Record<string, unknown>,
+                          );
+                          // Toggle is already ON if we're seeing this button
+                          // No need to set it again
+                        }}
+                      />
+                    )}
+                  </>
                 )}
               </>
             )}

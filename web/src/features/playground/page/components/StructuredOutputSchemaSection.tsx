@@ -7,7 +7,6 @@ import { PlusIcon, PencilIcon, MinusCircle, BoxIcon } from "lucide-react";
 import { type LlmSchema } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground/page/components/CreateOrEditLLMSchemaDialog";
 import {
   Command,
   CommandEmpty,
@@ -19,8 +18,25 @@ import {
 } from "@/src/components/ui/command";
 import { type PlaygroundSchema } from "@/src/features/playground/page/types";
 
+export type StructuredOutputSchemaDialogRequest = {
+  existingLlmSchema?: LlmSchema;
+  defaultValues?: {
+    name: string;
+    description: string;
+    schema: string;
+  };
+  onSave: (llmSchema: LlmSchema) => void;
+  onDelete?: (llmSchema: LlmSchema) => void;
+};
+
+type StructuredOutputSchemaProps = {
+  onOpenSchemaDialog: (request: StructuredOutputSchemaDialogRequest) => void;
+};
+
 // Popover content component for use in CollapsibleSection action buttons
-export const StructuredOutputSchemaPopover = () => {
+export const StructuredOutputSchemaPopover = ({
+  onOpenSchemaDialog,
+}: StructuredOutputSchemaProps) => {
   const { structuredOutputSchema, setStructuredOutputSchema } =
     usePlaygroundContext();
   const projectId = useProjectIdFromURL();
@@ -117,43 +133,46 @@ export const StructuredOutputSchemaPopover = () => {
                   </div>
                 </div>
               </div>
-              <CreateOrEditLLMSchemaDialog
-                projectId={projectId as string}
-                onSave={handleSelectSchema}
-                onDelete={() => handleRemoveSchema()}
-                existingLlmSchema={schema}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="ml-2 h-7 w-7 shrink-0"
+                aria-label={`Edit schema ${schema.name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenSchemaDialog({
+                    existingLlmSchema: schema,
+                    onSave: handleSelectSchema,
+                    onDelete: () => handleRemoveSchema(),
+                  });
+                }}
               >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="ml-2 h-7 w-7 shrink-0"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <PencilIcon className="h-3.5 w-3.5" />
-                </Button>
-              </CreateOrEditLLMSchemaDialog>
+                <PencilIcon className="h-3.5 w-3.5" />
+              </Button>
             </CommandItem>
           ))}
         </CommandGroup>
         <CommandSeparator />
       </CommandList>
       <div className="mt-auto p-1">
-        <CreateOrEditLLMSchemaDialog
-          projectId={projectId as string}
-          onSave={handleSelectSchema}
+        <Button
+          variant="outline"
+          size="default"
+          className="w-full"
+          onClick={() => onOpenSchemaDialog({ onSave: handleSelectSchema })}
         >
-          <Button variant="outline" size="default" className="w-full">
-            <PlusIcon className="mr-2 h-4 w-4" />
-            Create new schema
-          </Button>
-        </CreateOrEditLLMSchemaDialog>
+          <PlusIcon className="mr-2 h-4 w-4" />
+          Create new schema
+        </Button>
       </div>
     </Command>
   );
 };
 
 // Main component for embedding in CollapsibleSection content
-export const StructuredOutputSchemaSection = () => {
+export const StructuredOutputSchemaSection = ({
+  onOpenSchemaDialog,
+}: StructuredOutputSchemaProps) => {
   const { structuredOutputSchema, setStructuredOutputSchema } =
     usePlaygroundContext();
   const projectId = useProjectIdFromURL();
@@ -239,6 +258,23 @@ export const StructuredOutputSchemaSection = () => {
     setStructuredOutputSchema(null);
   };
 
+  const openAttachedSchema = () => {
+    if (!structuredOutputSchema) return;
+
+    onOpenSchemaDialog({
+      existingLlmSchema: structuredOutputSchema.existingLlmSchema,
+      defaultValues: !isSchemaSaved(structuredOutputSchema)
+        ? {
+            name: structuredOutputSchema.name,
+            description: structuredOutputSchema.description,
+            schema: JSON.stringify(structuredOutputSchema.schema, null, 2),
+          }
+        : undefined,
+      onSave: handleSelectSchema,
+      onDelete: () => handleRemoveSchema(),
+    });
+  };
+
   return (
     <ScrollArea className="max-h-[min(45vh,18rem)]">
       {!structuredOutputSchema ? (
@@ -247,63 +283,54 @@ export const StructuredOutputSchemaSection = () => {
         </div>
       ) : (
         <div className="space-y-1">
-          <CreateOrEditLLMSchemaDialog
-            projectId={projectId as string}
-            onSave={handleSelectSchema}
-            onDelete={() => handleRemoveSchema()}
-            existingLlmSchema={structuredOutputSchema.existingLlmSchema}
-            defaultValues={
-              !isSchemaSaved(structuredOutputSchema)
-                ? {
-                    name: structuredOutputSchema.name,
-                    description: structuredOutputSchema.description,
-                    schema: JSON.stringify(
-                      structuredOutputSchema.schema,
-                      null,
-                      2,
-                    ),
-                  }
-                : undefined
-            }
+          <div
+            role="button"
+            tabIndex={0}
+            className="bg-background hover:bg-accent/50 relative cursor-pointer rounded-md border p-2 pr-10 text-left transition-colors duration-200"
+            onClick={openAttachedSchema}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                openAttachedSchema();
+              }
+            }}
           >
-            <div className="bg-background hover:bg-accent/50 relative cursor-pointer rounded-md border p-2 pr-10 transition-colors duration-200">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute top-2 right-3 h-6 w-6 p-0"
-                aria-label={`Remove schema ${structuredOutputSchema.name}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  handleRemoveSchema();
-                }}
-              >
-                <MinusCircle className="h-4 w-4" />
-              </Button>
-              <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1">
-                <BoxIcon className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
-                <div className="min-w-0">
-                  <h3
-                    className="truncate text-sm font-bold"
-                    title={structuredOutputSchema.name}
-                  >
-                    {structuredOutputSchema.name}
-                  </h3>
-                  {!isSchemaSaved(structuredOutputSchema) ? (
-                    <span className="bg-muted text-muted-foreground mt-1 inline-flex rounded px-1 py-0.5 text-xs">
-                      Unsaved
-                    </span>
-                  ) : null}
-                </div>
-                <p
-                  className="text-muted-foreground col-start-2 line-clamp-2 text-xs break-words"
-                  title={structuredOutputSchema.description}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute top-2 right-3 h-6 w-6 p-0"
+              aria-label={`Remove schema ${structuredOutputSchema.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                handleRemoveSchema();
+              }}
+            >
+              <MinusCircle className="h-4 w-4" />
+            </Button>
+            <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1">
+              <BoxIcon className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+              <div className="min-w-0">
+                <h3
+                  className="truncate text-sm font-bold"
+                  title={structuredOutputSchema.name}
                 >
-                  {structuredOutputSchema.description}
-                </p>
+                  {structuredOutputSchema.name}
+                </h3>
+                {!isSchemaSaved(structuredOutputSchema) ? (
+                  <span className="bg-muted text-muted-foreground mt-1 inline-flex rounded px-1 py-0.5 text-xs">
+                    Unsaved
+                  </span>
+                ) : null}
               </div>
+              <p
+                className="text-muted-foreground col-start-2 line-clamp-2 text-xs break-words"
+                title={structuredOutputSchema.description}
+              >
+                {structuredOutputSchema.description}
+              </p>
             </div>
-          </CreateOrEditLLMSchemaDialog>
+          </div>
         </div>
       )}
     </ScrollArea>

@@ -1,9 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import { LAYER_ORDER } from "@/src/components/ui/layer";
-import { type PlaygroundTool } from "@/src/features/playground/page/types";
+import {
+  type PlaygroundSchema,
+  type PlaygroundTool,
+} from "@/src/features/playground/page/types";
 
-const { playgroundState, savedTool } = vi.hoisted(() => {
+const { playgroundState, savedTool, savedSchema } = vi.hoisted(() => {
   const savedTool = {
     id: "tool-1",
     name: "get_weather",
@@ -14,10 +17,22 @@ const { playgroundState, savedTool } = vi.hoisted(() => {
     updatedAt: new Date("2026-01-01"),
   };
 
+  const savedSchema = {
+    id: "schema-1",
+    name: "weather_report",
+    description: "Shape of the weather report",
+    schema: { type: "object", properties: {} },
+    projectId: "p1",
+    createdAt: new Date("2026-01-01"),
+    updatedAt: new Date("2026-01-01"),
+  };
+
   return {
     savedTool,
+    savedSchema,
     playgroundState: {
       tools: [] as PlaygroundTool[],
+      structuredOutputSchema: null as PlaygroundSchema | null,
     },
   };
 });
@@ -35,7 +50,8 @@ vi.mock("../context", () => ({
   usePlaygroundContext: () => ({
     tools: playgroundState.tools,
     setTools: vi.fn(),
-    structuredOutputSchema: null,
+    structuredOutputSchema: playgroundState.structuredOutputSchema,
+    setStructuredOutputSchema: vi.fn(),
     promptVariables: [],
     messagePlaceholders: [],
   }),
@@ -61,7 +77,7 @@ vi.mock("@/src/utils/api", () => ({
     },
     llmSchemas: {
       getAll: {
-        useQuery: () => ({ data: [] }),
+        useQuery: () => ({ data: [savedSchema] }),
       },
       create: { useMutation: () => ({ mutateAsync: vi.fn() }) },
       update: { useMutation: () => ({ mutateAsync: vi.fn() }) },
@@ -91,6 +107,10 @@ const openToolsPopover = () => {
   fireEvent.click(screen.getByRole("button", { name: /tools/i }));
 };
 
+const openSchemaPopover = () => {
+  fireEvent.click(screen.getByRole("button", { name: /schema/i }));
+};
+
 const expectDialogWithoutToolsPopover = (title: string) => {
   expect(screen.getByRole("heading", { name: title })).toBeTruthy();
   expect(
@@ -98,7 +118,14 @@ const expectDialogWithoutToolsPopover = (title: string) => {
   ).toBeNull();
 };
 
-describe("ConfigurationDropdowns tools overlay", () => {
+const expectDialogWithoutSchemaPopover = (title: string) => {
+  expect(screen.getByRole("heading", { name: title })).toBeTruthy();
+  expect(
+    screen.queryByText("Configure JSON schema for structured output."),
+  ).toBeNull();
+};
+
+describe("ConfigurationDropdowns overlays", () => {
   beforeAll(() => {
     vi.stubGlobal(
       "ResizeObserver",
@@ -115,6 +142,7 @@ describe("ConfigurationDropdowns tools overlay", () => {
 
   beforeEach(() => {
     playgroundState.tools = [];
+    playgroundState.structuredOutputSchema = null;
     installOverlayLayers();
   });
 
@@ -158,5 +186,41 @@ describe("ConfigurationDropdowns tools overlay", () => {
     fireEvent.click(screen.getByRole("heading", { name: "get_weather" }));
 
     expectDialogWithoutToolsPopover("Edit LLM Tool");
+  });
+
+  it("closes the schema popover when creating a schema", () => {
+    render(<ConfigurationDropdowns />);
+    openSchemaPopover();
+
+    fireEvent.click(screen.getByRole("button", { name: /create new schema/i }));
+
+    expectDialogWithoutSchemaPopover("Create LLM Schema");
+  });
+
+  it("closes the schema popover when editing a saved schema", () => {
+    render(<ConfigurationDropdowns />);
+    openSchemaPopover();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit schema weather_report" }),
+    );
+
+    expectDialogWithoutSchemaPopover("Edit LLM Schema");
+  });
+
+  it("closes the schema popover when editing the attached schema card", () => {
+    playgroundState.structuredOutputSchema = {
+      id: savedSchema.id,
+      name: savedSchema.name,
+      description: savedSchema.description,
+      schema: savedSchema.schema,
+      existingLlmSchema: savedSchema,
+    };
+    render(<ConfigurationDropdowns />);
+    openSchemaPopover();
+
+    fireEvent.click(screen.getByRole("heading", { name: "weather_report" }));
+
+    expectDialogWithoutSchemaPopover("Edit LLM Schema");
   });
 });
