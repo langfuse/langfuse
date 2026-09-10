@@ -1230,58 +1230,66 @@ export const getScoresFilterOptionsForEventFacets = async ({
     return EMPTY_EVENT_FILTER_SCORE_NAME_OPTIONS;
   }
 
+  // Counts arrive as strings from ClickHouse; coerce them once here so each
+  // facet below reads plain numbers. Keep the raw row for the score-column
+  // facets, which also need source and data_type.
+  const stats = rows.map((row) => ({
+    row,
+    name: row.name,
+    dataType: row.data_type,
+    count: Number(row.count),
+    traceCount: Number(row.trace_count),
+    observationCount: Number(row.observation_count),
+    booleanValueCount: Number(row.boolean_value_count),
+    traceBooleanValueCount: Number(row.trace_boolean_value_count),
+    categoricalValues: row.categorical_values,
+    traceCategoricalValues: row.trace_categorical_values,
+  }));
+
   const numericNames = topNamesByCount(
-    rows
+    stats
       .filter(
-        (row) => row.data_type === "NUMERIC" || row.data_type === "BOOLEAN",
+        (stat) => stat.dataType === "NUMERIC" || stat.dataType === "BOOLEAN",
       )
-      .map((row) => ({ name: row.name, count: Number(row.count) })),
+      .map((stat) => ({ name: stat.name, count: stat.count })),
   );
   const booleanNames = topNamesByCount(
-    rows
-      .filter((row) => Number(row.boolean_value_count) > 0)
-      .map((row) => ({
-        name: row.name,
-        count: Number(row.boolean_value_count),
-      })),
+    stats
+      .filter((stat) => stat.booleanValueCount > 0)
+      .map((stat) => ({ name: stat.name, count: stat.booleanValueCount })),
   );
   const categoricalNames = topCategoricalByCount(
-    rows
-      .filter((row) => row.data_type === "CATEGORICAL")
-      .map((row) => ({
-        name: row.name,
-        count: Number(row.count),
-        values: row.categorical_values,
+    stats
+      .filter((stat) => stat.dataType === "CATEGORICAL")
+      .map((stat) => ({
+        name: stat.name,
+        count: stat.count,
+        values: stat.categoricalValues,
       })),
   );
   const traceCategoricalNames = topCategoricalByCount(
-    rows
-      .filter(
-        (row) => row.data_type === "CATEGORICAL" && Number(row.trace_count) > 0,
-      )
-      .map((row) => ({
-        name: row.name,
-        count: Number(row.trace_count),
-        values: row.trace_categorical_values,
+    stats
+      .filter((stat) => stat.dataType === "CATEGORICAL" && stat.traceCount > 0)
+      .map((stat) => ({
+        name: stat.name,
+        count: stat.traceCount,
+        values: stat.traceCategoricalValues,
       })),
   );
   const traceBooleanNames = topNamesByCount(
-    rows
-      .filter((row) => Number(row.trace_boolean_value_count) > 0)
-      .map((row) => ({
-        name: row.name,
-        count: Number(row.trace_boolean_value_count),
-      })),
+    stats
+      .filter((stat) => stat.traceBooleanValueCount > 0)
+      .map((stat) => ({ name: stat.name, count: stat.traceBooleanValueCount })),
   );
   const observationLevelScores = topScoreColumnsByCount(
-    rows
-      .filter((row) => Number(row.observation_count) > 0)
-      .map((row) => ({ row, count: Number(row.observation_count) })),
+    stats
+      .filter((stat) => stat.observationCount > 0)
+      .map((stat) => ({ row: stat.row, count: stat.observationCount })),
   );
   const traceLevelScores = topScoreColumnsByCount(
-    rows
-      .filter((row) => Number(row.trace_count) > 0)
-      .map((row) => ({ row, count: Number(row.trace_count) })),
+    stats
+      .filter((stat) => stat.traceCount > 0)
+      .map((stat) => ({ row: stat.row, count: stat.traceCount })),
   );
 
   const [mergedCategoricalNames, mergedTraceCategoricalNames] =

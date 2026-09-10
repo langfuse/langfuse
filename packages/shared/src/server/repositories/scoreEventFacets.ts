@@ -7,7 +7,7 @@ import {
 /**
  * One row of the combined score-name facet scan run by
  * `getScoresFilterOptionsForEventFacets`. Counts arrive as strings from
- * ClickHouse and are coerced by the callers that shape each facet.
+ * ClickHouse and are coerced once by the caller before it shapes each facet.
  */
 export type EventFilterScoreNameRow = {
   name: string;
