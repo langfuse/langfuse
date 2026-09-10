@@ -246,13 +246,13 @@ const Base = (props: {
                 >
                   {props.isPublic ? (
                     <Globe
-                      className="h-4 w-4"
+                      className="h-3.5 w-3.5"
                       fill="#b3d9ff"
                       stroke="#4d94ff"
                       strokeWidth={2}
                     />
                   ) : (
-                    <Share2 className="h-4 w-4" />
+                    <Share2 className="h-3.5 w-3.5" />
                   )}
                   {props.label ? (
                     <span className="text-sm">{props.label}</span>
