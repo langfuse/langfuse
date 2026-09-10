@@ -371,7 +371,7 @@ const CHROME_EXTENSION_PORT_MESSAGES: readonly string[] = [
  * does `addMore.click()` and `addMore` is undefined. WebKit uniquely
  * includes the expression in the TypeError. Langfuse has no `addMore`
  * identifier. Observed as a global-handler TypeError with
- * document-attributed frames (LANGFUSE-619) — `denyUrls` cannot match.
+ * document-attributed frames — `denyUrls` cannot match.
  *
  * Whole-message only. An app error that quotes the phrase is longer
  * and is KEPT.
@@ -652,9 +652,9 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // no stack, `denyUrls` cannot match. Sibling message is the other
     // documented lastError for a torn-down extension port.
     //
-    // Safari password-manager `addMore.click` (LANGFUSE-619) is the same
-    // class: WebKit's exact TypeError for an injected `addMore` that is
-    // undefined. Stack is document-attributed global code, not a chunk.
+    // Safari password-manager `addMore.click` is the same class: WebKit's
+    // exact TypeError for an injected `addMore` that is undefined. Stack is
+    // document-attributed global code, not a chunk.
     //
     // All three are anchored to a Sentry browser-API / global-handler
     // mechanism so an app-captured exception that merely quotes the

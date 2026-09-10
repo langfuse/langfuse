@@ -999,7 +999,7 @@ describe("isDenylistedNoiseEvent", () => {
   });
 
   describe("J. drops Safari password-manager addMore.click (document-attributed)", () => {
-    // Real shape (LANGFUSE-619): Safari 26.5 on settings API keys. Injected
+    // Real shape: Safari 26.5 on settings API keys. Injected
     // password-manager / autofill JS does `addMore.click()` after a key is
     // created. `addMore` is undefined. WebKit's TypeError includes the
     // expression. Stack is document-attributed global code — no /_next/
@@ -1031,7 +1031,7 @@ describe("isDenylistedNoiseEvent", () => {
         },
       }) as ErrorEvent;
 
-    it("drops the LANGFUSE-619 WebKit TypeError", () => {
+    it("drops the WebKit addMore.click TypeError", () => {
       expect(
         isDenylistedNoiseEvent(
           safariAddMoreClickEvent(
