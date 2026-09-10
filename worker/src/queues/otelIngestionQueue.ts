@@ -776,7 +776,10 @@ export const otelIngestionQueueProcessorBuilder = (
       const shouldWriteToEventsTable =
         v4WritesToEventsTable(env) && useDirectEventWrite;
 
-      if (shouldWriteToEventsTable) {
+      if (
+        shouldWriteToEventsTable &&
+        env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_ENABLED === "true"
+      ) {
         await scheduleDelayedTraceExecution(projectId, eventInputs);
       }
 
