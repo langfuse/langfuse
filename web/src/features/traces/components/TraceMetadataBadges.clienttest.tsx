@@ -25,7 +25,7 @@ describe("TraceMetadataBadges session replay privacy", () => {
     const sessionLink = screen.getByTitle("Session customer-session");
     expect(sessionLink.tagName).toBe("A");
     expect(sessionLink).toHaveClass("ph-no-capture");
-    expect(sessionLink).toHaveTextContent("session");
+    expect(sessionLink).toHaveTextContent("Session");
     expect(sessionLink).not.toHaveTextContent("customer-session");
     // The user id renders in full (it is often an email) — link still masked.
     expect(screen.getByText("customer-user").closest("a")).toHaveClass(

@@ -22,7 +22,7 @@ import {
 // Metrics tier (latency, time-to-first-token): uniform muted mono text,
 // matching the numeric feel of the session header without its pill box.
 const METRIC_TEXT_CLASS =
-  "text-muted-foreground inline-flex shrink-0 items-center gap-1 font-mono text-[11px] whitespace-nowrap";
+  "text-muted-foreground inline-flex shrink-0 items-center gap-1 text-[11px] whitespace-nowrap";
 
 /** Absolute start time, quiet text like the other metrics; full ISO on hover. */
 export function StartTimeBadge({ startTime }: { startTime: Date | null }) {
@@ -89,7 +89,7 @@ function KeyValueText({
   if (!value) return null;
 
   return (
-    <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1 font-mono text-[11px] whitespace-nowrap">
+    <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1 text-[11px] whitespace-nowrap">
       {label}{" "}
       <span className="text-foreground/80 max-w-40 truncate" title={value}>
         {value}

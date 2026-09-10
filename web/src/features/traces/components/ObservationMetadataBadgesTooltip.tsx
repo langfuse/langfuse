@@ -32,7 +32,7 @@ import { usdFormatter, numberFormatter } from "@/src/utils/numbers";
 // Matches the metrics-tier scale in ObservationMetadataBadgesSimple.tsx —
 // uniform muted mono text, no borders/boxes.
 const METRIC_TEXT_CLASS =
-  "text-muted-foreground inline-flex shrink-0 items-center gap-1 font-mono text-[11px] whitespace-nowrap";
+  "text-muted-foreground inline-flex shrink-0 items-center gap-1 text-[11px] whitespace-nowrap";
 
 // Values that own a hover breakdown get a faint dotted underline at rest so
 // they read as "more here" next to plain metrics (latency) that have nothing.
@@ -95,7 +95,7 @@ function sumMatchingKeys(
   );
 }
 
-const tableCellClass = "py-1 pr-3 text-right font-mono tabular-nums";
+const tableCellClass = "py-1.5 pl-5 text-right tabular-nums";
 
 function CostUsageTable({
   inputUsage,
@@ -150,37 +150,43 @@ function CostUsageTable({
           <ExternalLink className="h-3 w-3 shrink-0" />
         </Link>
       )}
-      <table className="text-xs">
+      <table className="mt-1 w-full text-xs">
         <thead>
           <tr className="text-muted-foreground">
-            <th className="pr-3 text-left font-normal" />
-            <th className="pr-3 text-right font-normal">Tokens</th>
-            <th className="pr-3 text-right font-normal">Cost</th>
-            <th className="text-right font-normal">% total</th>
+            <th className="pb-1 text-left font-normal" />
+            <th className="pb-1 pl-5 text-right font-normal">Tokens</th>
+            <th className="pb-1 pl-5 text-right font-normal">Cost</th>
+            <th className="pb-1 pl-5 text-right font-normal">% of cost</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => (
             <tr key={row.label}>
-              <td className="py-1 pr-3">{row.label}</td>
+              <td className="text-muted-foreground py-1.5 text-left">
+                {row.label}
+              </td>
               <td className={tableCellClass}>
                 {numberFormatter(row.tokens, 0)}
               </td>
               <td className={tableCellClass}>{usdFormatter(row.cost)}</td>
-              <td className="py-1 text-right font-mono tabular-nums">
+              <td className={tableCellClass}>
                 {totalCost > 0
                   ? `${((row.cost / totalCost) * 100).toFixed(0)}%`
                   : "—"}
               </td>
             </tr>
           ))}
-          <tr className="border-t border-double font-bold">
-            <td className="py-1 pr-3">Total</td>
-            <td className={tableCellClass}>
+          <tr className="border-border/60 border-t">
+            <td className="pt-2 pb-0.5 text-left font-bold">Total</td>
+            <td className="pt-2 pb-0.5 pl-5 text-right font-bold tabular-nums">
               {numberFormatter(totalTokens, 0)}
             </td>
-            <td className={tableCellClass}>{usdFormatter(totalCost)}</td>
-            <td className="py-1 text-right font-mono tabular-nums">100%</td>
+            <td className="pt-2 pb-0.5 pl-5 text-right font-bold tabular-nums">
+              {usdFormatter(totalCost)}
+            </td>
+            <td className="pt-2 pb-0.5 pl-5 text-right font-bold tabular-nums">
+              100%
+            </td>
           </tr>
         </tbody>
       </table>
