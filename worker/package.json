@@ -60,7 +60,7 @@
     "ai-sdk-openai-v4": "npm:@ai-sdk/openai@3.0.99",
     "bullmq": "^5.76.3",
     "cors": "^2.8.5",
-    "csv-parse": "^5.6.0",
+    "csv-parse": "^7.0.2",
     "dd-trace": "5.109.0",
     "decimal.js": "^10.4.3",
     "dockerode": "^4.0.9",
