@@ -263,10 +263,7 @@ export function PromptEditorContent({
         )}
       >
         {!isSingleMessage ? (
-          <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 rounded-t-md border-b px-2">
-            <span className="text-muted-foreground text-xs">
-              {state.promptMessages.length} messages
-            </span>
+          <div className="flex min-h-9 flex-wrap items-center justify-end gap-2 rounded-t-md border-b px-2">
             <div className="flex flex-wrap items-center justify-end gap-1.5">
               {assistantAction}
               {previewAction}
@@ -295,13 +292,6 @@ export function PromptEditorContent({
                 previewEnabled={state.promptPreviewEnabled}
                 onChange={(next) => state.actions.setPromptMessage(index, next)}
                 onRemove={() => state.actions.removePromptMessage(index)}
-                toolbarPrefix={
-                  isSingleMessage ? (
-                    <span className="text-muted-foreground shrink-0 text-[10px]">
-                      1 message
-                    </span>
-                  ) : null
-                }
                 toolbarActionsBeforeMenu={
                   isSingleMessage ? (
                     <>
@@ -371,7 +361,6 @@ function SortablePromptMessage({
   previewEnabled,
   onChange,
   onRemove,
-  toolbarPrefix,
   toolbarActionsBeforeMenu,
   toolbarVariant,
 }: {
@@ -384,7 +373,6 @@ function SortablePromptMessage({
   previewEnabled: boolean;
   onChange: (message: EvaluatorPromptMessage) => void;
   onRemove: () => void;
-  toolbarPrefix?: ReactNode;
   toolbarActionsBeforeMenu?: ReactNode;
   toolbarVariant: "message" | "group";
 }) {
@@ -465,7 +453,6 @@ function SortablePromptMessage({
         toolbarVariant={toolbarVariant}
         toolbarStart={
           <>
-            {toolbarPrefix}
             <Button
               type="button"
               variant="ghost"

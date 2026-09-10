@@ -74,6 +74,7 @@ export const MultipleMessages = meta.story({
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await expect(canvas.queryByText("3 messages")).not.toBeInTheDocument();
     const collapseButton = canvas.getByRole("button", {
       name: "Collapse system prompt message",
     });
@@ -183,7 +184,7 @@ export const NewJudgeAssistantModal = meta.story({
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
 
-    await expect(canvas.getByText("1 message")).toBeVisible();
+    await expect(canvas.queryByText("1 message")).not.toBeInTheDocument();
     await userEvent.click(canvas.getByRole("button", { name: "Edit with AI" }));
     await waitFor(() =>
       expect(
@@ -505,7 +506,7 @@ export const SingleMessage = meta.story({
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText("1 message")).toBeVisible();
+    await expect(canvas.queryByText("1 message")).not.toBeInTheDocument();
     await expect(canvas.getByText("User")).toBeVisible();
     await expect(
       canvas.getByRole("button", { name: "Prompt message settings" }),
