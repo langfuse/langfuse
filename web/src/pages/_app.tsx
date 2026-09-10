@@ -16,6 +16,7 @@ import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuProvider";
 
 import { api } from "@/src/utils/api";
+import { getPageMetadata } from "@/src/features/auth/pageMetadata";
 
 import { NextAdapterPagesWithReadyGuard } from "@/src/utils/nextAdapterPagesWithReadyGuard";
 import { QueryParamProvider } from "use-query-params";
@@ -169,6 +170,12 @@ const MyApp: AppType<{ session: Session | null }> = ({
     </>
   );
 
+  // AppLayout gates every page behind `useSession()`, which is always
+  // "loading" on the server, so it renders a spinner and the page's own
+  // `next/head` block is absent from the served HTML. This <Head> sits outside
+  // that gate; page-level blocks still take over once they mount client-side.
+  const pageMetadata = getPageMetadata(router.pathname);
+
   return (
     <>
       {/* Replaces Next's default `width=device-width` (next/head dedupes by
@@ -183,6 +190,10 @@ const MyApp: AppType<{ session: Session | null }> = ({
           name="viewport"
           content="width=device-width, height=device-height, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no, viewport-fit=cover"
         />
+        <title>{pageMetadata.title}</title>
+        {pageMetadata.description ? (
+          <meta name="description" content={pageMetadata.description} />
+        ) : null}
       </Head>
       <QueryParamProvider
         adapter={NextAdapterPagesWithReadyGuard}
