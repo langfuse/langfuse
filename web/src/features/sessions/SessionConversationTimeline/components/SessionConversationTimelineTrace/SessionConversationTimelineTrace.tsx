@@ -647,34 +647,31 @@ function LoadedSessionConversationTimeline({
               }
               data-session-observation-depth={depth}
               className="relative"
-              style={{ paddingLeft: `${depth * 24}px` }}
             >
-              {ancestorObservationIds.map((ancestorId, ancestorDepth) => (
+              {ancestorObservationIds.length > 0 ? (
                 <span
-                  key={ancestorId}
-                  data-session-observation-rail-depth={ancestorDepth}
-                  className="bg-border pointer-events-none absolute -top-1 -bottom-1 w-px"
-                  style={{ left: `${ancestorDepth * 24 + 7}px` }}
-                  aria-hidden="true"
-                />
-              ))}
-              {(phase === "start" && !isToolStart) ||
-              (phase === "complete" && (hasChatBubbles || isToolExpanded)) ? (
-                <span
-                  data-session-observation-rail-depth={depth}
-                  className={cn(
-                    "bg-border pointer-events-none absolute top-[22px] w-px",
-                    phase === "start" ? "-bottom-1" : "bottom-0",
-                  )}
-                  style={{ left: `${depth * 24 + 7}px` }}
+                  data-session-observation-rail-depth={depth - 1}
+                  className="bg-border pointer-events-none absolute -top-1 -bottom-1 left-[7px] w-px"
                   aria-hidden="true"
                 />
               ) : null}
-              {phase === "end" ? (
+              {depth === 0 &&
+              ((phase === "start" && !isToolStart) ||
+                (phase === "complete" &&
+                  (hasChatBubbles || isToolExpanded))) ? (
                 <span
                   data-session-observation-rail-depth={depth}
-                  className="bg-border pointer-events-none absolute -top-1 bottom-0 w-px"
-                  style={{ left: `${depth * 24 + 7}px` }}
+                  className={cn(
+                    "bg-border pointer-events-none absolute top-[22px] left-[7px] w-px",
+                    phase === "start" ? "-bottom-1" : "bottom-0",
+                  )}
+                  aria-hidden="true"
+                />
+              ) : null}
+              {depth === 0 && phase === "end" ? (
+                <span
+                  data-session-observation-rail-depth={depth}
+                  className="bg-border pointer-events-none absolute -top-1 bottom-0 left-[7px] w-px"
                   aria-hidden="true"
                 />
               ) : null}
@@ -717,7 +714,7 @@ function LoadedSessionConversationTimeline({
                 />
               ) : null}
               {phase === "start" && hasNestedObservations ? (
-                <div className={cn("relative", isCollapsed ? "h-7" : "h-0")}>
+                <div className="relative h-7">
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button

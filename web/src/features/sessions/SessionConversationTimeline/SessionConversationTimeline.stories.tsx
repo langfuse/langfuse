@@ -2322,13 +2322,10 @@ export const ExpandRolledUpTool = meta.story({
       "data-session-observation-depth",
       "1",
     );
-    await expect(toolRow).toHaveStyle({ paddingLeft: "24px" });
+    await expect(toolRow).not.toHaveAttribute("style");
     await expect(
       toolRow?.querySelector('[data-session-observation-rail-depth="0"]'),
-    ).toBeInTheDocument();
-    await expect(
-      toolRow?.querySelector('[data-session-observation-rail-depth="1"]'),
-    ).not.toBeInTheDocument();
+    ).toHaveClass("left-[7px]");
     await expect(toolIcon).not.toBeNull();
     await userEvent.hover(unavailableActionsIcon);
     await expect(
@@ -2339,8 +2336,8 @@ export const ExpandRolledUpTool = meta.story({
     await userEvent.click(expandButton);
 
     await expect(
-      toolRow?.querySelector('[data-session-observation-rail-depth="1"]'),
-    ).toBeInTheDocument();
+      toolRow?.querySelectorAll("[data-session-observation-rail-depth]"),
+    ).toHaveLength(1);
     await expect(
       toolRow?.querySelector("[data-session-observation-rail-end]"),
     ).toBeInTheDocument();
@@ -2450,7 +2447,7 @@ export const ExpandNestedObservations = meta.story({
     await expect(canvas.getByText("generation-1")).toBeInTheDocument();
     await expect(canvas.getByText("generation-2")).toBeInTheDocument();
     await expect(canvas.queryByText("tool-1")).not.toBeInTheDocument();
-    await expect(rootToggle.parentElement).toHaveClass("h-0");
+    await expect(rootToggle.parentElement).toHaveClass("h-7");
     await expect(
       rootToggle.querySelector(".lucide-chevrons-down-up"),
     ).not.toBeNull();
@@ -2461,24 +2458,16 @@ export const ExpandNestedObservations = meta.story({
       "data-session-observation-depth",
       "1",
     );
-    await expect(nestedGeneration).toHaveStyle({ paddingLeft: "24px" });
+    await expect(nestedGeneration).not.toHaveAttribute("style");
     await expect(
       nestedGeneration?.querySelectorAll(
         "[data-session-observation-rail-depth]",
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     const nestedObservationIcon = nestedGeneration?.querySelector(
       '[data-session-observation-id="generation-1"] button svg',
     );
     await expect(nestedObservationIcon).not.toBeNull();
-    const rootToggleRect = rootToggle.getBoundingClientRect();
-    const nestedObservationIconRect = (
-      nestedObservationIcon as SVGElement
-    ).getBoundingClientRect();
-    // The rail toggle stays vertically centered with the child observation icon beside it.
-    await expect(rootToggleRect.top + rootToggleRect.height / 2).toBe(
-      nestedObservationIconRect.top + nestedObservationIconRect.height / 2,
-    );
     const nestedToggle = canvas.getByRole("button", { name: "Show 3 tools" });
     const initialNestedToggleTop = nestedToggle.getBoundingClientRect().top;
 
@@ -2497,20 +2486,20 @@ export const ExpandNestedObservations = meta.story({
       "data-session-observation-depth",
       "2",
     );
-    await expect(nestedTool).toHaveStyle({ paddingLeft: "48px" });
+    await expect(nestedTool).not.toHaveAttribute("style");
     await expect(
       nestedTool?.querySelectorAll("[data-session-observation-rail-depth]"),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     await expect(
-      nestedTool?.querySelector('[data-session-observation-rail-depth="2"]'),
-    ).not.toBeInTheDocument();
+      nestedTool?.querySelector("[data-session-observation-rail-depth]"),
+    ).toHaveClass("left-[7px]");
 
     await userEvent.click(
       canvas.getByRole("button", { name: "Expand tool-1" }),
     );
     await expect(
-      nestedTool?.querySelector('[data-session-observation-rail-depth="2"]'),
-    ).toHaveClass("top-[22px]");
+      nestedTool?.querySelectorAll("[data-session-observation-rail-depth]"),
+    ).toHaveLength(1);
     await expect(
       nestedTool?.querySelector("[data-session-observation-rail-end]"),
     ).toBeInTheDocument();
@@ -2519,8 +2508,8 @@ export const ExpandNestedObservations = meta.story({
       canvas.getByRole("button", { name: "Collapse tool-1" }),
     );
     await expect(
-      nestedTool?.querySelector('[data-session-observation-rail-depth="2"]'),
-    ).not.toBeInTheDocument();
+      nestedTool?.querySelectorAll("[data-session-observation-rail-depth]"),
+    ).toHaveLength(1);
     await expect(
       nestedTool?.querySelector("[data-session-observation-rail-end]"),
     ).not.toBeInTheDocument();
