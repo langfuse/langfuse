@@ -61,7 +61,7 @@ export function TimeToFirstTokenBadge({
   if (timeToFirstToken == null) return null;
 
   return (
-    <TooltipProvider>
+    <TooltipProvider delayDuration={0}>
       <Tooltip>
         <TooltipTrigger asChild>
           <span className={METRIC_TEXT_CLASS}>

@@ -241,7 +241,7 @@ export function CostUsageBadge({
   }
 
   return (
-    <TooltipProvider>
+    <TooltipProvider delayDuration={100}>
       <Tooltip open={isOpen} onOpenChange={setIsOpen}>
         <TooltipTrigger
           className="flex cursor-pointer"
