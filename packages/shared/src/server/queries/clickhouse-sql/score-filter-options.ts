@@ -23,12 +23,15 @@ export const buildScoresFilterOptionsForEventFacetsQuery = (params: {
   );
   const filterRes = new FilterList(chFilter).apply();
 
-  // The repository sums each (name, source) group's count across sources before
-  // ranking names, so bound by the per-name summed count — not by raw per-source
-  // rows. Ranking rows before the roll-up would drop a name whose total is the
-  // project's highest but is split thinly across sources. Rank names within each
-  // data_type by summed count (name as the tiebreak, matching the JS cap), keep
-  // the top-N names, and return all their source rows for the roll-up.
+  // The repository rolls these rows up into seven facets, each with a different
+  // pool and count measure, and caps each independently. One shared cap cannot
+  // reproduce all seven: a name outside one facet's top-N can top another, and a
+  // name whose measure splits across sources or across NUMERIC/BOOLEAN can lead
+  // its facet while trailing on every single (source, data_type) row. Rank each
+  // facet on its own measure and keep a row that survives ANY cap, so each
+  // roll-up reads a superset of its true top-N. Name-facet ranks partition per
+  // name so a name's rows share one rank; column facets rank rows directly.
+  const cap = FILTER_OPTION_SCORE_NAME_LIMIT;
   const query = `
     WITH grouped AS (
       SELECT
@@ -64,20 +67,40 @@ export const buildScoresFilterOptionsForEventFacetsQuery = (params: {
         ${filterRes.query ? `AND ${filterRes.query}` : ""}
       GROUP BY name, source, data_type
     ),
-    with_name_total AS (
+    name_totals AS (
       SELECT
         grouped.*,
-        sum(count) OVER (PARTITION BY data_type, name) AS name_total
+        sumIf(count, data_type IN ('NUMERIC', 'BOOLEAN'))
+          OVER (PARTITION BY name) AS numeric_name_total,
+        sum(boolean_value_count) OVER (PARTITION BY name) AS boolean_name_total,
+        sumIf(count, data_type = 'CATEGORICAL')
+          OVER (PARTITION BY name) AS categorical_name_total,
+        sumIf(trace_count, data_type = 'CATEGORICAL')
+          OVER (PARTITION BY name) AS trace_categorical_name_total,
+        sum(trace_boolean_value_count)
+          OVER (PARTITION BY name) AS trace_boolean_name_total
       FROM grouped
     ),
     ranked AS (
       SELECT
-        with_name_total.*,
+        name_totals.*,
+        dense_rank() OVER (ORDER BY numeric_name_total DESC, name ASC)
+          AS numeric_name_rank,
+        dense_rank() OVER (ORDER BY boolean_name_total DESC, name ASC)
+          AS boolean_name_rank,
+        dense_rank() OVER (ORDER BY categorical_name_total DESC, name ASC)
+          AS categorical_name_rank,
+        dense_rank() OVER (ORDER BY trace_categorical_name_total DESC, name ASC)
+          AS trace_categorical_name_rank,
+        dense_rank() OVER (ORDER BY trace_boolean_name_total DESC, name ASC)
+          AS trace_boolean_name_rank,
         dense_rank() OVER (
-          PARTITION BY data_type
-          ORDER BY name_total DESC, name ASC
-        ) AS name_rank
-      FROM with_name_total
+          ORDER BY observation_count DESC, name ASC, source ASC, data_type ASC
+        ) AS observation_column_rank,
+        dense_rank() OVER (
+          ORDER BY trace_count DESC, name ASC, source ASC, data_type ASC
+        ) AS trace_column_rank
+      FROM name_totals
     )
     SELECT
       name,
@@ -91,7 +114,13 @@ export const buildScoresFilterOptionsForEventFacetsQuery = (params: {
       boolean_value_count,
       trace_boolean_value_count
     FROM ranked
-    WHERE name_rank <= {maxNamesPerType: UInt32}
+    WHERE numeric_name_rank <= {cap: UInt32}
+      OR boolean_name_rank <= {cap: UInt32}
+      OR categorical_name_rank <= {cap: UInt32}
+      OR trace_categorical_name_rank <= {cap: UInt32}
+      OR trace_boolean_name_rank <= {cap: UInt32}
+      OR observation_column_rank <= {cap: UInt32}
+      OR trace_column_rank <= {cap: UInt32}
   `.trim();
 
   return {
@@ -99,7 +128,7 @@ export const buildScoresFilterOptionsForEventFacetsQuery = (params: {
     params: {
       projectId: params.projectId,
       dataTypes: [...LISTABLE_SCORE_TYPES],
-      maxNamesPerType: FILTER_OPTION_SCORE_NAME_LIMIT,
+      cap,
       ...filterRes.params,
     },
   };

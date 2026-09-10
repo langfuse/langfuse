@@ -1066,20 +1066,19 @@ describe("buildScoresFilterOptionsForEventFacetsQuery", () => {
     expect(built.query).toContain("countIf(isNull(s.observation_id))");
     expect(built.query).toContain("countIf(isNotNull(s.observation_id))");
     expect(built.query).toContain("GROUP BY name, source, data_type");
-    // Names are ranked by summed count across sources, then capped — bounding by
-    // raw per-source rows would drop a split name whose total is the highest.
+    // Each facet is ranked on its own measure and a row is kept if it survives
+    // any cap, so no facet's roll-up can drop its true top-N.
     expect(built.query).toContain(
-      "sum(count) OVER (PARTITION BY data_type, name)",
+      "sumIf(count, data_type IN ('NUMERIC', 'BOOLEAN'))",
     );
-    expect(built.query).toContain("dense_rank() OVER (");
-    expect(built.query).toContain(
-      "WHERE name_rank <= {maxNamesPerType: UInt32}",
-    );
+    expect(built.query).toContain("numeric_name_rank <= {cap: UInt32}");
+    expect(built.query).toContain("trace_column_rank <= {cap: UInt32}");
+    expect(built.query.match(/dense_rank\(\) OVER \(/g)).toHaveLength(7);
     expect(built.query).not.toContain("FINAL");
     expect(built.query).not.toMatch(/\bJOIN\b/i);
     expect(built.params).toMatchObject({
       projectId: "test-project",
-      maxNamesPerType: FILTER_OPTION_SCORE_NAME_LIMIT,
+      cap: FILTER_OPTION_SCORE_NAME_LIMIT,
     });
     expect(built.params.dataTypes).toEqual([
       "NUMERIC",

@@ -1805,6 +1805,85 @@ describe("Clickhouse Scores Repository Test", () => {
       expect(combined.numericNames[0]?.name).toBe("split-hot");
     });
 
+    it("keeps a name split across NUMERIC and BOOLEAN whose combined count is the project's highest", async () => {
+      const isolatedProjectId = v4();
+      const timestampFilter: FilterState = [
+        {
+          column: "Timestamp",
+          type: "datetime",
+          operator: ">=",
+          value: new Date(Date.now() - 60 * 60 * 1000),
+        },
+      ];
+      const traceScopedFilter: FilterState = [
+        {
+          type: "null",
+          column: "traceId",
+          operator: "is not null",
+          value: "",
+        },
+        ...timestampFilter,
+      ];
+
+      // numericNames pools NUMERIC and BOOLEAN and ranks names by their combined
+      // count. A name that exists as both types can sit outside each type's own
+      // top-N while its combined count is the project's highest, so a per-type
+      // cap drops it from both. Seed that: cross-hot with NUMERIC count 3 and
+      // BOOLEAN count 3 (combined 6), behind a full name cap of single-type
+      // fillers at count 4 in each type.
+      const fillerNames = (prefix: string) =>
+        Array.from(
+          { length: FILTER_OPTION_SCORE_NAME_LIMIT },
+          (_, i) => `${prefix}-${String(i).padStart(4, "0")}`,
+        );
+      const numericFillers = fillerNames("cross-num");
+      const booleanFillers = fillerNames("cross-bool");
+      const numericScore = (name: string) =>
+        createTraceScore({
+          project_id: isolatedProjectId,
+          name,
+          data_type: "NUMERIC",
+          value: 1,
+          source: "API",
+        });
+      const booleanScore = (name: string) =>
+        createTraceScore({
+          project_id: isolatedProjectId,
+          name,
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "true",
+          source: "API",
+        });
+
+      await createScoresCh([
+        ...Array.from({ length: 3 }, () => numericScore("cross-hot")),
+        ...Array.from({ length: 3 }, () => booleanScore("cross-hot")),
+        ...numericFillers.flatMap((name) =>
+          Array.from({ length: 4 }, () => numericScore(name)),
+        ),
+        ...booleanFillers.flatMap((name) =>
+          Array.from({ length: 4 }, () => booleanScore(name)),
+        ),
+      ]);
+
+      const [combined, oldNumeric] = await Promise.all([
+        getScoresFilterOptionsForEventFacets({
+          projectId: isolatedProjectId,
+          timestampFilter,
+        }),
+        getNumericScoresGroupedByName(isolatedProjectId, traceScopedFilter),
+      ]);
+
+      // The per-column helper ranks the merged NUMERIC+BOOLEAN pool, so cross-hot
+      // (combined 6) is the unambiguous #1. The combined scan must agree.
+      expect(oldNumeric[0]?.name).toBe("cross-hot");
+      expect(combined.numericNames.map((row) => row.name)).toContain(
+        "cross-hot",
+      );
+      expect(combined.numericNames[0]?.name).toBe("cross-hot");
+    });
+
     it("truncates categorical values at the value limit like the per-column helper", async () => {
       const isolatedProjectId = v4();
       const timestampFilter: FilterState = [
