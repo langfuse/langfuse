@@ -106,14 +106,20 @@ const EnvSchema = z.object({
   LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
-  LANGFUSE_OTEL_TRACE_OBSERVATION_READ_ENABLED: z
+  LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
-  LANGFUSE_OTEL_TRACE_OBSERVATION_READ_SAMPLE_PERCENT: z.coerce
+  LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_SAMPLE_PERCENT: z.coerce
     .number()
     .min(0)
     .max(100)
     .default(10),
+  LANGFUSE_DELAYED_TRACE_EXECUTION_PROCESSING_DELAY_MS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(2_147_483_647)
+    .default(0),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),

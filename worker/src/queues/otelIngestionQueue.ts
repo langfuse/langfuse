@@ -35,7 +35,7 @@ import {
   v4WritesToLegacyTables,
 } from "../env";
 import { IngestionService } from "../services/IngestionService";
-import { scheduleTraceObservationReads } from "../features/traces/traceObservationRead";
+import { scheduleDelayedTraceExecution } from "../features/traces/delayedTraceExecution";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import {
@@ -777,7 +777,7 @@ export const otelIngestionQueueProcessorBuilder = (
         v4WritesToEventsTable(env) && useDirectEventWrite;
 
       if (shouldWriteToEventsTable) {
-        await scheduleTraceObservationReads(projectId, eventInputs);
+        await scheduleDelayedTraceExecution(projectId, eventInputs);
       }
 
       const evalConfigs = await fetchObservationEvalRules(projectId).catch(

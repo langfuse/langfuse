@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import {
   logger,
   QueueJobs,
-  TraceObservationReadQueue,
+  DelayedTraceExecutionQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 
@@ -16,28 +16,28 @@ end
 return 1
 `;
 
-export function traceObservationReadId(projectId: string, traceId: string) {
+export function delayedTraceExecutionId(projectId: string, traceId: string) {
   return createHash("sha256")
     .update(JSON.stringify([projectId, traceId]))
     .digest("hex");
 }
 
-export function isTraceObservationReadEnabled(id: string): boolean {
+export function isDelayedTraceExecutionEnabled(id: string): boolean {
   return (
-    env.LANGFUSE_OTEL_TRACE_OBSERVATION_READ_ENABLED === "true" &&
+    env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_ENABLED === "true" &&
     parseInt(id.slice(0, 8), 16) / 2 ** 32 <
-      env.LANGFUSE_OTEL_TRACE_OBSERVATION_READ_SAMPLE_PERCENT / 100
+      env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_SAMPLE_PERCENT / 100
   );
 }
 
 /** Best-effort experiment: no more than 100ms of additional ingestion wait. */
-export async function scheduleTraceObservationReads(
+export async function scheduleDelayedTraceExecution(
   projectId: string,
   events: ReadonlyArray<{ traceId: string; startTimeISO: string }>,
 ): Promise<void> {
   if (
-    env.LANGFUSE_OTEL_TRACE_OBSERVATION_READ_ENABLED !== "true" ||
-    env.LANGFUSE_OTEL_TRACE_OBSERVATION_READ_SAMPLE_PERCENT === 0
+    env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_ENABLED !== "true" ||
+    env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_SAMPLE_PERCENT === 0
   )
     return;
 
@@ -61,7 +61,7 @@ export async function scheduleTraceObservationReads(
         Math.min(minimums.get(event.traceId) ?? start, start),
       );
     }
-    const queue = TraceObservationReadQueue.getInstance();
+    const queue = DelayedTraceExecutionQueue.getInstance();
     if (!queue) return;
     const client = await Promise.race([queue.client, budget]);
     const entries = minimums.entries();
@@ -77,8 +77,8 @@ export async function scheduleTraceObservationReads(
           break;
         }
         const [traceId, start] = entry.value;
-        const id = traceObservationReadId(projectId, traceId);
-        if (isTraceObservationReadEnabled(id))
+        const id = delayedTraceExecutionId(projectId, traceId);
+        if (isDelayedTraceExecutionEnabled(id))
           selected.push({ traceId, id, start });
       }
       if (!selected.length) continue;
@@ -97,9 +97,9 @@ export async function scheduleTraceObservationReads(
       await Promise.race([
         queue.addBulk(
           selected.map(({ traceId, id }) => ({
-            name: QueueJobs.TraceObservationRead,
+            name: QueueJobs.DelayedTraceExecution,
             data: {
-              name: QueueJobs.TraceObservationRead,
+              name: QueueJobs.DelayedTraceExecution,
               id: randomUUID(),
               timestamp: new Date(now),
               payload: { projectId, traceId, lastSeenAt: now },

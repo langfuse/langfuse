@@ -7,15 +7,15 @@ import {
   getQueuePrefix,
   QueueName,
   recordDistribution,
-  TraceObservationReadQueue,
+  DelayedTraceExecutionQueue,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
 import {
-  scheduleTraceObservationReads,
-  traceObservationReadId,
-} from "../features/traces/traceObservationRead";
-import { traceObservationReadProcessor } from "../queues/traceObservationReadQueue";
+  scheduleDelayedTraceExecution,
+  delayedTraceExecutionId,
+} from "../features/traces/delayedTraceExecution";
+import { delayedTraceExecutionProcessor } from "../queues/delayedTraceExecutionQueue";
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
@@ -24,35 +24,38 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
 }));
 
 describe("sampled trace observation reads", () => {
-  const originalEnabled = env.LANGFUSE_OTEL_TRACE_OBSERVATION_READ_ENABLED;
+  const originalEnabled = env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_ENABLED;
   const originalSample =
-    env.LANGFUSE_OTEL_TRACE_OBSERVATION_READ_SAMPLE_PERCENT;
+    env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_SAMPLE_PERCENT;
+  const originalDelay =
+    env.LANGFUSE_DELAYED_TRACE_EXECUTION_PROCESSING_DELAY_MS;
   let connection: NonNullable<ReturnType<typeof createNewRedisInstance>>;
-  let queue: Queue<TQueueJobTypes[QueueName.TraceObservationRead]>;
+  let queue: Queue<TQueueJobTypes[QueueName.DelayedTraceExecution]>;
   const minimumKeys = new Set<string>();
 
   function minimumKey(projectId: string, traceId: string) {
     const key = queue.toKey(
-      `minimum:${traceObservationReadId(projectId, traceId)}`,
+      `minimum:${delayedTraceExecutionId(projectId, traceId)}`,
     );
     minimumKeys.add(key);
     return key;
   }
 
   beforeEach(async () => {
-    env.LANGFUSE_OTEL_TRACE_OBSERVATION_READ_ENABLED = "true";
-    env.LANGFUSE_OTEL_TRACE_OBSERVATION_READ_SAMPLE_PERCENT = 100;
+    env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_ENABLED = "true";
+    env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_SAMPLE_PERCENT = 100;
+    env.LANGFUSE_DELAYED_TRACE_EXECUTION_PROCESSING_DELAY_MS = 0;
     const redis = createNewRedisInstance();
     if (!redis) throw new Error("Redis is required for this integration test");
     connection = redis;
-    const name = `trace-observation-read-test-${randomUUID()}`;
+    const name = `delayed-trace-execution-test-${randomUUID()}`;
     queue = new Queue(name, {
       connection,
       prefix: getQueuePrefix(name),
     });
     await queue.waitUntilReady();
     await connection.ping();
-    vi.spyOn(TraceObservationReadQueue, "getInstance").mockReturnValue(queue);
+    vi.spyOn(DelayedTraceExecutionQueue, "getInstance").mockReturnValue(queue);
     vi.mocked(getObservationsForTraceFromEventsTable).mockReset();
     vi.mocked(recordDistribution).mockClear();
   });
@@ -60,8 +63,9 @@ describe("sampled trace observation reads", () => {
   afterEach(async () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
-    env.LANGFUSE_OTEL_TRACE_OBSERVATION_READ_ENABLED = originalEnabled;
-    env.LANGFUSE_OTEL_TRACE_OBSERVATION_READ_SAMPLE_PERCENT = originalSample;
+    env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_ENABLED = originalEnabled;
+    env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_SAMPLE_PERCENT = originalSample;
+    env.LANGFUSE_DELAYED_TRACE_EXECUTION_PROCESSING_DELAY_MS = originalDelay;
     for (const key of minimumKeys) await connection.del(key);
     minimumKeys.clear();
     await queue.obliterate({ force: true });
@@ -78,7 +82,7 @@ describe("sampled trace observation reads", () => {
     const earliest = Date.parse("2026-09-10T10:00:00.000Z");
     await Promise.all(
       [30, 0, 20, 10].map((minutes) =>
-        scheduleTraceObservationReads(projectId, [
+        scheduleDelayedTraceExecution(projectId, [
           {
             traceId,
             startTimeISO: new Date(earliest + minutes * 60_000).toISOString(),
@@ -94,10 +98,10 @@ describe("sampled trace observation reads", () => {
     const [initialJob] = await queue.getDelayed();
     expect(initialJob).toBeDefined();
     await connection.expire(key, 1);
-    await scheduleTraceObservationReads(projectId, [
+    await scheduleDelayedTraceExecution(projectId, [
       { traceId, startTimeISO: new Date(earliest + 60_000).toISOString() },
     ]);
-    await scheduleTraceObservationReads(otherProjectId, [
+    await scheduleDelayedTraceExecution(otherProjectId, [
       { traceId, startTimeISO: new Date(earliest + 120_000).toISOString() },
     ]);
     expect(await connection.get(key)).toBe(String(earliest));
@@ -113,9 +117,9 @@ describe("sampled trace observation reads", () => {
       initialJob.timestamp + initialJob.delay,
     );
 
-    env.LANGFUSE_OTEL_TRACE_OBSERVATION_READ_SAMPLE_PERCENT = 0;
+    env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_SAMPLE_PERCENT = 0;
     const unsampledTraceId = randomUUID();
-    await scheduleTraceObservationReads(projectId, [
+    await scheduleDelayedTraceExecution(projectId, [
       {
         traceId: unsampledTraceId,
         startTimeISO: new Date(earliest).toISOString(),
@@ -132,11 +136,11 @@ describe("sampled trace observation reads", () => {
     const traceId = randomUUID();
     minimumKey(projectId, traceId);
     const event = { traceId, startTimeISO: "2026-09-10T10:00:00.000Z" };
-    await scheduleTraceObservationReads(projectId, [event]);
+    await scheduleDelayedTraceExecution(projectId, [event]);
     const [delayed] = await queue.getDelayed();
     // Simulate the delay and matching deduplication TTL having elapsed.
     await connection.del(
-      queue.toKey(`de:${traceObservationReadId(projectId, traceId)}`),
+      queue.toKey(`de:${delayedTraceExecutionId(projectId, traceId)}`),
     );
     await delayed.promote();
     const worker = new Worker(queue.name, undefined, {
@@ -147,14 +151,14 @@ describe("sampled trace observation reads", () => {
     try {
       const active = await worker.getNextJob("test-lock", { block: false });
       expect(active).toBeDefined();
-      await scheduleTraceObservationReads(projectId, [event]);
+      await scheduleDelayedTraceExecution(projectId, [event]);
       const [next] = await queue.getDelayed();
       expect(next).toBeDefined();
       expect(next.id).not.toBe(active!.id);
       await active!.moveToCompleted({}, "test-lock", false);
       expect(
         await queue.getDeduplicationJobId(
-          traceObservationReadId(projectId, traceId),
+          delayedTraceExecutionId(projectId, traceId),
         ),
       ).toBe(next.id);
       expect(await queue.getDelayedCount()).toBe(1);
@@ -168,13 +172,13 @@ describe("sampled trace observation reads", () => {
     const traceId = randomUUID();
     const key = minimumKey(projectId, traceId);
     const startTimeISO = "2026-09-10T10:00:00.000Z";
-    await scheduleTraceObservationReads(projectId, [{ traceId, startTimeISO }]);
+    await scheduleDelayedTraceExecution(projectId, [{ traceId, startTimeISO }]);
     const [job] = await queue.getDelayed();
     vi.mocked(getObservationsForTraceFromEventsTable).mockResolvedValue({
       observations: [],
       totalCount: 1,
     });
-    expect(await traceObservationReadProcessor(job)).toEqual({
+    expect(await delayedTraceExecutionProcessor(job)).toEqual({
       observationCount: 0,
       hasMore: true,
     });
@@ -186,33 +190,73 @@ describe("sampled trace observation reads", () => {
       selectToolData: true,
     });
     expect(recordDistribution).toHaveBeenLastCalledWith(
-      "langfuse.trace_observation_read.duration_ms",
+      "langfuse.delayed_trace_execution.observation_lookup_duration_ms",
       expect.any(Number),
       { outcome: "success" },
     );
     await connection.del(key);
-    await traceObservationReadProcessor(job);
+    await delayedTraceExecutionProcessor(job);
     expect(getObservationsForTraceFromEventsTable).toHaveBeenLastCalledWith(
       expect.objectContaining({ timestamp: undefined }),
     );
-    env.LANGFUSE_OTEL_TRACE_OBSERVATION_READ_ENABLED = "false";
-    await traceObservationReadProcessor(job);
-    env.LANGFUSE_OTEL_TRACE_OBSERVATION_READ_ENABLED = "true";
-    env.LANGFUSE_OTEL_TRACE_OBSERVATION_READ_SAMPLE_PERCENT = 0;
-    await traceObservationReadProcessor(job);
+    env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_ENABLED = "false";
+    await delayedTraceExecutionProcessor(job);
+    env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_ENABLED = "true";
+    env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_SAMPLE_PERCENT = 0;
+    await delayedTraceExecutionProcessor(job);
     expect(getObservationsForTraceFromEventsTable).toHaveBeenCalledTimes(2);
-    env.LANGFUSE_OTEL_TRACE_OBSERVATION_READ_SAMPLE_PERCENT = 100;
+    env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_SAMPLE_PERCENT = 100;
     vi.mocked(getObservationsForTraceFromEventsTable).mockRejectedValueOnce(
       new Error("query failed"),
     );
-    await expect(traceObservationReadProcessor(job)).rejects.toThrow(
+    await expect(delayedTraceExecutionProcessor(job)).rejects.toThrow(
       "query failed",
     );
     expect(recordDistribution).toHaveBeenLastCalledWith(
-      "langfuse.trace_observation_read.duration_ms",
+      "langfuse.delayed_trace_execution.observation_lookup_duration_ms",
       expect.any(Number),
       { outcome: "failure" },
     );
+  });
+
+  it("keeps simulated processing time out of lookup timing while keeping the job active", async () => {
+    const projectId = randomUUID();
+    const traceId = randomUUID();
+    minimumKey(projectId, traceId);
+    await scheduleDelayedTraceExecution(projectId, [
+      { traceId, startTimeISO: "2026-09-10T10:00:00.000Z" },
+    ]);
+    const [job] = await queue.getDelayed();
+    env.LANGFUSE_DELAYED_TRACE_EXECUTION_PROCESSING_DELAY_MS = 500;
+    let markQueryStarted!: () => void;
+    const queryStarted = new Promise<void>((resolve) => {
+      markQueryStarted = resolve;
+    });
+    vi.mocked(getObservationsForTraceFromEventsTable).mockImplementationOnce(
+      async () => {
+        markQueryStarted();
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return { observations: [], totalCount: 0 };
+      },
+    );
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    let completed = false;
+    const processing = delayedTraceExecutionProcessor(job).then(() => {
+      completed = true;
+    });
+    await queryStarted;
+    await vi.advanceTimersByTimeAsync(20);
+    expect(recordDistribution).toHaveBeenLastCalledWith(
+      "langfuse.delayed_trace_execution.observation_lookup_duration_ms",
+      20,
+      { outcome: "success" },
+    );
+    await vi.advanceTimersByTimeAsync(499);
+    expect(completed).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await processing;
+    expect(completed).toBe(true);
+    expect(recordDistribution).toHaveBeenCalledTimes(1);
   });
 
   it("returns after the scheduling budget and never submits another chunk after an outstanding write resolves", async () => {
@@ -225,7 +269,7 @@ describe("sampled trace observation reads", () => {
     );
     const enqueue = vi.spyOn(queue, "addBulk");
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
-    const pending = scheduleTraceObservationReads(
+    const pending = scheduleDelayedTraceExecution(
       randomUUID(),
       Array.from({ length: 101 }, (_, i) => ({
         traceId: `trace-${i}`,

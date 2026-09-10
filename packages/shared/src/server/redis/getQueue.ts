@@ -7,7 +7,7 @@ import { CloudFreeTierUsageThresholdQueue } from "./cloudFreeTierUsageThresholdQ
 import { DatasetRunItemUpsertQueue } from "./datasetRunItemUpsert";
 import { ExperimentCreateQueue } from "./experimentCreateQueue";
 import { TraceDeleteQueue } from "./traceDelete";
-import { TraceObservationReadQueue } from "./traceObservationRead";
+import { DelayedTraceExecutionQueue } from "./delayedTraceExecution";
 import { ProjectDeleteQueue } from "./projectDelete";
 import { PostHogIntegrationQueue } from "./postHogIntegrationQueue";
 import { PostHogIntegrationProcessingQueue } from "./postHogIntegrationProcessingQueue";
@@ -49,8 +49,8 @@ export function getQueue(
   >,
 ): Queue | null {
   switch (queueName) {
-    case QueueName.TraceObservationRead:
-      return TraceObservationReadQueue.getInstance();
+    case QueueName.DelayedTraceExecution:
+      return DelayedTraceExecutionQueue.getInstance();
     case QueueName.BatchExport:
       return BatchExportQueue.getInstance();
     case QueueName.CloudUsageMeteringQueue:

@@ -1,5 +1,74 @@
-import { describe, it, expect } from "vitest";
-import { ClickHouseResourceError } from "./clickhouse";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { ClickHouseResourceError, queryClickhouse } from "./clickhouse";
+
+const { query, recordDistribution } = vi.hoisted(() => ({
+  query: vi.fn(),
+  recordDistribution: vi.fn(),
+}));
+
+vi.mock("../clickhouse/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../clickhouse/client")>()),
+  clickhouseClient: () => ({ query }),
+}));
+
+vi.mock("../instrumentation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../instrumentation")>()),
+  recordDistribution,
+  recordIncrement: vi.fn(),
+}));
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  query.mockReset();
+  recordDistribution.mockReset();
+});
+
+describe("ClickHouse query duration", () => {
+  it.each(["success", "memory_limit"] as const)(
+    "records %s query latency including response parsing with bounded queue tags",
+    async (outcome) => {
+      vi.spyOn(performance, "now")
+        .mockReturnValueOnce(10)
+        .mockReturnValueOnce(85);
+      query.mockResolvedValue({
+        query_id: "query-1",
+        response_headers: {},
+        json: async () => {
+          expect(recordDistribution).not.toHaveBeenCalled();
+          if (outcome === "memory_limit") {
+            throw new Error("memory limit exceeded");
+          }
+          return [{ value: 1 }];
+        },
+      });
+      const result = queryClickhouse({
+        query: "SELECT value FROM events_full",
+        tags: {
+          surface: "worker",
+          route: "langfuse.queue.delayed_trace_execution",
+          projectId: "must-not-be-a-metric-tag",
+        },
+      });
+
+      if (outcome === "success") {
+        await expect(result).resolves.toEqual([{ value: 1 }]);
+      } else {
+        await expect(result).rejects.toBeInstanceOf(ClickHouseResourceError);
+      }
+      expect(recordDistribution).toHaveBeenCalledExactlyOnceWith(
+        "langfuse.clickhouse.query.duration_ms",
+        75,
+        {
+          outcome,
+          surface: "worker",
+          route: "langfuse.queue.delayed_trace_execution",
+          table: "events_full",
+          unit: "milliseconds",
+        },
+      );
+    },
+  );
+});
 
 describe("ClickHouseResourceError", () => {
   describe("wrapIfResourceError", () => {

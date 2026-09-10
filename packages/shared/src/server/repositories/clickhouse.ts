@@ -707,6 +707,9 @@ export async function queryClickhouse<T>(
     async (span) => {
       setSpanQueryAttributes(span, opts.query);
 
+      // Client-side query latency includes retries and response parsing, but
+      // excludes the repository's subsequent enrichment and processing.
+      const startedAt = performance.now();
       const rows = await backOff(
         async () => {
           const res = await sendClickhouseQuery({
@@ -764,11 +767,17 @@ export async function queryClickhouse<T>(
             : "error",
           normalizedTags,
           table,
+          performance.now() - startedAt,
         );
         throw wrapped;
       });
 
-      recordClickHouseQueryOutcome("success", normalizedTags, table);
+      recordClickHouseQueryOutcome(
+        "success",
+        normalizedTags,
+        table,
+        performance.now() - startedAt,
+      );
       return rows;
     },
   );
