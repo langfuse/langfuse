@@ -5,13 +5,9 @@ import { type ChatMessage, type PlaceholderMessage } from "@langfuse/shared";
 import { getMessagesFingerprint } from "./messagesFingerprint";
 
 type ResolveJumpTargetWindowIdArgs = {
-  /** The id a jump from this source addresses by default. */
   stableWindowId: string;
-  /** Windows currently open in the playground. */
   openWindowIds: string[];
-  /** Messages the jump is about to write. */
   incomingMessages: (ChatMessage | PlaceholderMessage)[];
-  /** What a window currently holds, or undefined while it has no cache. */
   getCachedMessages: (
     windowId: string,
   ) => (ChatMessage | PlaceholderMessage)[] | undefined;
@@ -21,9 +17,8 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * A window opened by an earlier jump from the same source. Matching on the
- * prefix alone would also claim the stable window of a source whose own id
- * starts with this one, so the suffix has to be a uuid as minted below.
+ * we track if a window exists for current prompt by having a stable window id + random string
+ * we use UUID as random string because it's easy to validate against
  */
 const isSiblingOf = (stableWindowId: string, windowId: string): boolean =>
   windowId.startsWith(`${stableWindowId}-`) &&

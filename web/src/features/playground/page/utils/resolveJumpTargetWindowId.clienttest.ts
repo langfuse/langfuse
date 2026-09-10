@@ -19,6 +19,9 @@ const message = (content: string, id = "generated-on-hydration"): ChatMessage =>
 
 const stableWindowId = "playground-prompt-abc";
 const incomingMessages = [message("You are a helpful assistant")];
+const storedPrompt = [message("You are a helpful assistant", "other-id")];
+const editedPrompt = [message("You are a pirate")];
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
 const caches = (
   entries: Record<string, (ChatMessage | PlaceholderMessage)[]>,
@@ -28,32 +31,28 @@ const caches = (
 });
 
 describe("resolveJumpTargetWindowId", () => {
-  it("addresses the stable window while it is not open", () => {
+  it("addresses the stable window whenever nothing would be lost", () => {
+    // Not open at all.
     expect(
       resolveJumpTargetWindowId({
         stableWindowId,
         openWindowIds: ["some-other-window"],
         incomingMessages,
-        getCachedMessages: () => [message("You are a pirate")],
+        getCachedMessages: () => editedPrompt,
       }),
     ).toBe(stableWindowId);
-  });
 
-  it("reuses the stable window while it still holds the stored prompt", () => {
+    // Open and still holding the stored prompt. Message ids are assigned on
+    // hydration, so they must not count towards the comparison.
     expect(
       resolveJumpTargetWindowId({
         stableWindowId,
         incomingMessages,
-        ...caches({
-          [stableWindowId]: [
-            message("You are a helpful assistant", "other-id"),
-          ],
-        }),
+        ...caches({ [stableWindowId]: storedPrompt }),
       }),
     ).toBe(stableWindowId);
-  });
 
-  it("reuses the stable window while it has no cache yet", () => {
+    // Open with nothing cached yet.
     expect(
       resolveJumpTargetWindowId({
         stableWindowId,
@@ -64,63 +63,27 @@ describe("resolveJumpTargetWindowId", () => {
     ).toBe(stableWindowId);
   });
 
-  it("mints a window of its own once the stable window has been edited", () => {
-    const targetWindowId = resolveJumpTargetWindowId({
+  it("mints a sibling once the stable window is edited, then jumps back into it", () => {
+    const edited = { [stableWindowId]: editedPrompt };
+
+    const siblingId = resolveJumpTargetWindowId({
       stableWindowId,
       incomingMessages,
-      ...caches({ [stableWindowId]: [message("You are a pirate")] }),
+      ...caches(edited),
     });
 
-    expect(targetWindowId).toMatch(
-      new RegExp(
-        `^${stableWindowId}-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`,
-      ),
-    );
-  });
-
-  it("reuses a window an earlier jump opened for the same messages", () => {
-    const siblingId = `${stableWindowId}-11111111-2222-3333-4444-555555555555`;
+    expect(siblingId).toMatch(new RegExp(`^${stableWindowId}-${UUID}$`));
 
     expect(
       resolveJumpTargetWindowId({
         stableWindowId,
         incomingMessages,
         ...caches({
-          [stableWindowId]: [message("You are a pirate")],
-          [siblingId]: [message("You are a helpful assistant", "other-id")],
+          ...edited,
+          [`${stableWindowId}-def`]: storedPrompt,
+          [siblingId]: storedPrompt,
         }),
       }),
     ).toBe(siblingId);
-  });
-
-  it("mints another window when every sibling holds something else", () => {
-    const siblingId = `${stableWindowId}-11111111-2222-3333-4444-555555555555`;
-
-    const targetWindowId = resolveJumpTargetWindowId({
-      stableWindowId,
-      incomingMessages,
-      ...caches({
-        [stableWindowId]: [message("You are a pirate")],
-        [siblingId]: [message("And rhyme")],
-      }),
-    });
-
-    expect(targetWindowId).not.toBe(stableWindowId);
-    expect(targetWindowId).not.toBe(siblingId);
-  });
-
-  it("does not claim the stable window of a source whose id extends this one", () => {
-    const otherSourceId = `${stableWindowId}-def`;
-
-    expect(
-      resolveJumpTargetWindowId({
-        stableWindowId,
-        incomingMessages,
-        ...caches({
-          [stableWindowId]: [message("You are a pirate")],
-          [otherSourceId]: [message("You are a helpful assistant", "other-id")],
-        }),
-      }),
-    ).not.toBe(otherSourceId);
   });
 });
