@@ -35,11 +35,11 @@ const promptFontTheme = EditorView.theme({
   ".cm-line": { padding: "0 12px" },
 });
 
-// Prompt message bodies use the same muted fill as saved prompt versions. This
-// has to go through CodeMirror's own theming at matching selector specificity:
+// A saved prompt is a static surface, so use the muted read-only fill. This has
+// to go through CodeMirror's own theming at matching selector specificity:
 // createTheme paints the editor background from an injected stylesheet that a
 // Tailwind class cannot outrank.
-const mutedPromptSurfaceTheme = EditorView.theme({
+const readOnlySurfaceTheme = EditorView.theme({
   "&.cm-editor, &.cm-editor .cm-gutters": {
     backgroundColor: "hsl(var(--muted) / 0.5)",
   },
@@ -230,17 +230,9 @@ export function PromptVariableEditor({
       ),
       variableTheme,
       Prec.highest(promptFontTheme),
-      ...(readOnly || surfaceVariant !== "standalone"
-        ? [Prec.highest(mutedPromptSurfaceTheme)]
-        : []),
+      ...(readOnly ? [Prec.highest(readOnlySurfaceTheme)] : []),
     ];
-  }, [
-    statusKey,
-    mappingsKey,
-    readOnly,
-    surfaceVariant,
-    validateVariableMappings,
-  ]);
+  }, [statusKey, mappingsKey, readOnly, validateVariableMappings]);
 
   const hasToolbar =
     !readOnly &&

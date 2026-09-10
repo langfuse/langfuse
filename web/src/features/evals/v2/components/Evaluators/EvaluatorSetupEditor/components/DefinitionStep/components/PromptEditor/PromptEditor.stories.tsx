@@ -84,6 +84,24 @@ export const MultipleMessages = meta.story({
     const roleTag = canvas.getByText("System");
     const toolbar = collapseButton.parentElement?.parentElement;
     if (!toolbar) throw new Error("Prompt toolbar not found");
+    const outerGroup = canvas.getByRole("button", {
+      name: "Add message",
+    }).previousElementSibling;
+    const editor =
+      toolbar.parentElement?.querySelector<HTMLElement>(".cm-editor");
+    if (!(outerGroup instanceof HTMLElement) || !editor) {
+      throw new Error("Prompt surfaces not found");
+    }
+    await expect(outerGroup).toHaveClass("bg-secondary");
+    await expect(toolbar).toHaveClass("bg-muted/50");
+    await expect(toolbar).not.toHaveClass("bg-secondary");
+    await expect(
+      new Set(
+        [outerGroup, toolbar, editor].map(
+          (surface) => getComputedStyle(surface).backgroundColor,
+        ),
+      ).size,
+    ).toBe(3);
 
     const expandedMetrics = {
       toolbarHeight: toolbar.getBoundingClientRect().height,
@@ -516,6 +534,25 @@ export const SingleMessage = meta.story({
     ).toHaveTextContent("Edit with AI");
     await expect(canvas.getByText("Preview")).toBeVisible();
     await expect(canvas.getByRole("switch", { name: "Preview" })).toBeVisible();
+
+    const collapseButton = canvas.getByRole("button", {
+      name: "Collapse user prompt message",
+    });
+    const toolbar = collapseButton.parentElement?.parentElement;
+    const editor =
+      toolbar?.parentElement?.querySelector<HTMLElement>(".cm-editor");
+    const outerGroup = canvas.getByRole("button", {
+      name: "Add message",
+    }).previousElementSibling;
+    if (!toolbar || !editor || !(outerGroup instanceof HTMLElement)) {
+      throw new Error("Prompt surfaces not found");
+    }
+    await expect(outerGroup).toHaveClass("bg-secondary");
+    await expect(toolbar).toHaveClass("bg-secondary");
+    await expect(toolbar).not.toHaveClass("bg-muted/50");
+    await expect(getComputedStyle(editor).backgroundColor).not.toBe(
+      getComputedStyle(toolbar).backgroundColor,
+    );
   },
 });
 
