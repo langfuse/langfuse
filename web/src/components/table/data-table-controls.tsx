@@ -2076,15 +2076,18 @@ function NumericFacet({
     setLocalValue(value);
   }
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const [appliedMin, appliedMax] = value;
 
-  // Cleanup timeout on unmount
+  // An external reset or replacement cancels the pending draft.
   useEffect(() => {
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, []);
+  }, [appliedMin, appliedMax]);
 
   const updateWithDebounce = (newValue: [number, number]) => {
     setLocalValue(newValue);
@@ -2096,7 +2099,7 @@ function NumericFacet({
 
     // Set new timeout
     timeoutRef.current = setTimeout(() => {
-      onChange(newValue);
+      onChangeRef.current(newValue);
     }, 120);
   };
 
@@ -2241,15 +2244,17 @@ function StringFacet({
     setLocalValue(value);
   }
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
-  // Cleanup timeout on unmount
+  // An external reset or replacement cancels the pending draft.
   useEffect(() => {
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, []);
+  }, [value]);
 
   const updateWithDebounce = (newValue: string) => {
     setLocalValue(newValue);
@@ -2261,7 +2266,7 @@ function StringFacet({
 
     // Set new timeout
     timeoutRef.current = setTimeout(() => {
-      onChange(newValue);
+      onChangeRef.current(newValue);
     }, 500);
   };
 

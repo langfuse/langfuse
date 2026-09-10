@@ -10,6 +10,12 @@ Users can now:
 - Delete views they no longer need
 - Generate permalinks to share specific views
 
+The My Views button names the selected view, including a default applied on
+page load. Its selection stays visible after edits, matching category preset
+chips: it identifies the originating view, not equality with its saved state.
+`TableViewPresetsButton` owns this presentation; the drawer resolves the name
+and default assignment from its existing queries.
+
 ## Robustness to Table Changes
 
 The table view presets system is designed to gracefully handle changes to table structure:

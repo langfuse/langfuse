@@ -1,13 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import {
-  X,
-  Plus,
-  ChevronDown,
-  Link,
-  MoreVertical,
-  Pen,
-  Lock,
-} from "lucide-react";
+import { X, Plus, Link, MoreVertical, Pen, Lock } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import {
@@ -84,9 +76,9 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import isEqual from "lodash/isEqual";
 import { useDefaultViewMutations } from "../hooks/useDefaultViewMutations";
 import { summarizeTableViewPreset } from "../lib/viewPreview";
+import { TableViewPresetsButton } from "./TableViewPresetsButton";
 
 /**
  * Prefix for system preset IDs. These are page-specific presets defined in code
@@ -115,21 +107,6 @@ const copyPermalinkAndToast = (href: string) => {
       ),
     );
 };
-
-/** Recursively remove undefined values for consistent comparison */
-function normalizeForComparison<T>(obj: T): T {
-  if (Array.isArray(obj)) {
-    return obj.map(normalizeForComparison) as T;
-  }
-  if (obj !== null && typeof obj === "object") {
-    return Object.fromEntries(
-      Object.entries(obj)
-        .filter(([, v]) => v !== undefined)
-        .map(([k, v]) => [k, normalizeForComparison(v)]),
-    ) as T;
-  }
-  return obj;
-}
 
 interface SystemPreset {
   id: string;
@@ -266,20 +243,33 @@ export function TableViewPresetsDrawer({
         view.id === defaultAssignments?.userDefaultViewId ||
         view.id === defaultAssignments?.projectDefaultViewId,
     ).length ?? 0;
+  const selectedView =
+    TableViewPresetsList?.find(
+      (view) => view.id === controllers.selectedViewId,
+    ) ??
+    systemFilterPresets?.find((view) => view.id === controllers.selectedViewId);
 
   return (
     <TableViewPresetsDrawerRoot tableName={tableName}>
       <DrawerTrigger asChild>
-        <Button variant="outline" id={triggerId} title="My Views">
-          <span>My Views</span>
-          {controllers.selectedViewId ? (
-            <ChevronDown className="ml-1 h-4 w-4" />
-          ) : (
-            <div className="bg-input ml-1 rounded-sm px-1 text-xs">
-              {drawerPresetCount}
-            </div>
-          )}
-        </Button>
+        <TableViewPresetsButton
+          id={triggerId}
+          count={drawerPresetCount}
+          selectedView={
+            selectedView
+              ? {
+                  name: selectedView.name,
+                  defaultLabel:
+                    selectedView.id === defaultAssignments?.userDefaultViewId
+                      ? "Your default"
+                      : selectedView.id ===
+                          defaultAssignments?.projectDefaultViewId
+                        ? "Project default"
+                        : null,
+                }
+              : null
+          }
+        />
       </DrawerTrigger>
       <TableViewPresetsDrawerContentBody
         viewConfig={viewConfig}
@@ -637,12 +627,7 @@ function TableViewPresetsDrawerContentBody({
                     onSelect={() => handleSelectSystemFilterPreset(preset)}
                     className={cn(
                       "hover:bg-muted/50 group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
-                      selectedViewId === preset.id &&
-                        isEqual(
-                          normalizeForComparison(currentState.filters),
-                          normalizeForComparison(preset.filters),
-                        ) &&
-                        "bg-muted",
+                      selectedViewId === preset.id && "bg-muted",
                     )}
                   >
                     <div className="flex flex-col">
