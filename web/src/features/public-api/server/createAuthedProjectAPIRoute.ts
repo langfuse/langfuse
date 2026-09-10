@@ -44,6 +44,31 @@ import {
   type ProjectAction,
 } from "@/src/features/auth/policy/types";
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  recordAccessEvent,
+  type AccessEventAction,
+} from "@/src/features/audit-logs/accessEvents";
+
+/**
+ * Declares that a successful call to the route is a data access worth an
+ * audit log access event. `route` is the REST route pattern so records stay
+ * stable across renamed handlers.
+ */
+export type AuthedProjectAPIRouteAudit<TQuery extends ZodType<any>> = {
+  route: string;
+  resourceType: string;
+  action: AccessEventAction;
+  /** Picks the accessed entity id from the parsed query. Omit for lists. */
+  resourceId?: (query: z.infer<TQuery>) => string | undefined;
+  /** Counts returned entities. Omit when the handler returns exactly one. */
+  resultCount?: (response: unknown) => number;
+};
+
+/** Counts the `data` array of a paginated public API list response. */
+export const publicApiListResultCount = (response: unknown): number => {
+  const data = (response as { data?: unknown } | null | undefined)?.data;
+  return Array.isArray(data) ? data.length : 0;
+};
 
 // Next's res.json uses JSON.stringify; V8 throws this when the JSON string
 // exceeds the engine limit. Keep this check scoped to the response write.
@@ -103,6 +128,8 @@ export type AuthedProjectAPIRouteConfig<
   rejectInEventsOnlyMode?: boolean;
   /** Stamps a top-level `_deprecation` object onto responses. */
   deprecation?: ApiDeprecationInfo;
+  /** Records an audit log access event once the handler has succeeded. */
+  audit?: AuthedProjectAPIRouteAudit<TQuery>;
   fn: (params: {
     query: z.infer<TQuery>;
     body: z.infer<TBody>;
@@ -467,6 +494,24 @@ export const createAuthedProjectAPIRoute = <
         }
 
         throw error;
+      }
+
+      // Recorded only once the body has been serialized, so a payload that
+      // was too large to deliver never shows up as a successful access.
+      if (routeConfig.audit) {
+        const { audit } = routeConfig;
+        await recordAccessEvent({
+          actor: { type: "API_KEY", apiKeyId: auth.scope.apiKeyId },
+          orgId: auth.scope.orgId,
+          projectId: auth.scope.projectId,
+          surface: "public-api",
+          route: audit.route,
+          resourceType: audit.resourceType,
+          resourceId: audit.resourceId?.(query),
+          action: audit.action,
+          params: query,
+          resultCount: audit.resultCount ? audit.resultCount(response) : 1,
+        });
       }
     });
   };

@@ -22,6 +22,12 @@ export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
       name: "Get Observation",
+      audit: {
+        route: "GET /api/public/observations/{observationId}",
+        resourceType: "observation",
+        action: "read",
+        resourceId: (query) => query.observationId,
+      },
       action: "traces:read",
       allowInAppAgentKey: true,
       rateLimitResource: "public-api-legacy",

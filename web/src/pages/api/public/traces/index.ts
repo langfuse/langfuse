@@ -13,7 +13,10 @@ import {
   LEGACY_PUBLIC_API_OBSERVATIONS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
   withMiddlewares,
 } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import {
+  createAuthedProjectAPIRoute,
+  publicApiListResultCount,
+} from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   processEventBatch,
   createIngestionAttribution,
@@ -80,6 +83,12 @@ export default withMiddlewares(
 
     GET: createAuthedProjectAPIRoute({
       name: "Get Traces",
+      audit: {
+        route: "GET /api/public/traces",
+        resourceType: "trace",
+        action: "list",
+        resultCount: publicApiListResultCount,
+      },
       action: "traces:read",
       rateLimitResource: "public-api-legacy",
       querySchema: GetTracesV1Query,

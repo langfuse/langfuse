@@ -4,7 +4,10 @@ import {
   GetSessionsV1Response,
 } from "@/src/features/public-api/types/sessions";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import {
+  createAuthedProjectAPIRoute,
+  publicApiListResultCount,
+} from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { SESSIONS_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
@@ -12,6 +15,12 @@ import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEnt
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Sessions",
+    audit: {
+      route: "GET /api/public/sessions",
+      resourceType: "session",
+      action: "list",
+      resultCount: publicApiListResultCount,
+    },
     action: "sessions:read",
     deprecation: SESSIONS_DEPRECATION,
     rateLimitResource: "public-api-legacy",
