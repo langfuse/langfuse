@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import {
   prisma as _prisma,
   type Role,
@@ -7,6 +8,7 @@ import {
   AuditLogQueue,
   convertPostgresAuditLogToClickhouse,
   QueueJobs,
+  type AuditLogChangeRow,
   type AuditLogRecordInsertType,
 } from "@langfuse/shared/src/server";
 
@@ -108,16 +110,22 @@ async function enqueueAuditLogRecord(
   });
 }
 
+type ChangeEventData = Omit<AuditLogChangeRow, "id" | "createdAt">;
+
 /**
  * Writes the change event to Postgres and queues the same row (same id and
- * created_at) for ClickHouse, where the read path lives.
+ * created_at) for ClickHouse, where the read path lives. The id and timestamp
+ * are assigned here rather than read back from Postgres so both stores receive
+ * the identical row regardless of what the insert returns.
  */
-async function writeChangeEvent(
-  db: typeof _prisma,
-  data: Parameters<typeof db.auditLog.create>[0]["data"],
-) {
-  const created = await db.auditLog.create({ data });
-  await enqueueAuditLogRecord(convertPostgresAuditLogToClickhouse(created));
+async function writeChangeEvent(db: typeof _prisma, data: ChangeEventData) {
+  const row: AuditLogChangeRow = {
+    id: randomUUID(),
+    createdAt: new Date(),
+    ...data,
+  };
+  await db.auditLog.create({ data: row });
+  await enqueueAuditLogRecord(convertPostgresAuditLogToClickhouse(row));
 }
 
 export async function auditLog(log: AuditLog, prisma?: typeof _prisma) {
