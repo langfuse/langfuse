@@ -215,6 +215,8 @@ types:
       costDetails: optional<map<string, double>>
       promptName: optional<string>
       promptVersion: optional<integer>
+      trustScore: optional<double>
+      provenance: optional<unknown>
 
   UpdateGenerationBody:
     extends: UpdateSpanBody
@@ -227,6 +229,8 @@ types:
       usageDetails: optional<UsageDetails>
       costDetails: optional<map<string, double>>
       promptVersion: optional<integer>
+      trustScore: optional<double>
+      provenance: optional<unknown>
 
   ObservationBody:
     properties:

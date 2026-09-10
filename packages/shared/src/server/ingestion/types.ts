@@ -492,6 +492,8 @@ const createAllIngestionSchemas = ({
     costDetails: CostDetails,
     promptName: z.string().nullish(),
     promptVersion: z.number().int().nullish(),
+    trustScore: z.number().min(0).max(1).nullish(),
+    provenance: jsonSchema.nullish(),
   }).refine((value) => {
     // ensure that either promptName and promptVersion are set, or none
     if (!value.promptName && !value.promptVersion) return true;
@@ -521,6 +523,8 @@ const createAllIngestionSchemas = ({
     costDetails: CostDetails,
     promptName: z.string().nullish(),
     promptVersion: z.number().int().nullish(),
+    trustScore: z.number().min(0).max(1).nullish(),
+    provenance: jsonSchema.nullish(),
   }).refine((value) => {
     // ensure that either promptName and promptVersion are set, or none
     if (!value.promptName && !value.promptVersion) return true;
