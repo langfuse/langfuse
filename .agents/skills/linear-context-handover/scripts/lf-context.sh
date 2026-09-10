@@ -8,7 +8,7 @@
 #               ->  ticket, parent, subtickets, relations, project, AI handover
 #
 # Shipped with the `linear-context-handover` skill, which is the reading and
-# writing practice around it; the planning practice is `linear-planning`.
+# writing practice around it.
 # Provenance: LFE-15914 ("Agentic Coding and Linear: an RFC").
 #
 # Run it from inside the checkout you are about to change, or point it at one
@@ -384,8 +384,7 @@ else
   note ""
   note "then read each description's '🤖 AI post-context' block before designing anything:"
   note "a reversal already litigated once does not need re-litigating."
-  note "practice: the linear-context-handover skill (reconstruct + handover),"
-  note "          the linear-planning skill (slicing a feature into a PR stack)."
+  note "practice: the linear-context-handover skill (reconstruct + handover)."
 fi
 
 printf '\n'
