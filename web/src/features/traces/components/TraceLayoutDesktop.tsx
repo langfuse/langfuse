@@ -39,8 +39,8 @@ const RESIZABLE_PANEL_PREVIEW_ID = "trace-layout-panel-preview";
 // measure first, which on a peek is a transient mid-open value — so the
 // resolved ratio (and thus what gets persisted) was non-deterministic. A
 // percentage is width-independent, so the default is stable across opens.
-const INFO_COMFORTABLE_TARGET_PX = 560; // info wants ~this to read JSON/scores
-const NAV_COMFORTABLE_MIN_PX = 340; // tree's comfortable floor (> the 260 hard min)
+const INFO_COMFORTABLE_TARGET_PX = 620; // info wants ~this to read JSON/scores
+const NAV_COMFORTABLE_MIN_PX = 320; // tree's comfortable floor (> the 260 hard min)
 const NAV_COMFORTABLE_MAX_PX = 460; // never default the tree wider than this
 
 // Tree/info split (as a nav-panel percentage) for a container of
