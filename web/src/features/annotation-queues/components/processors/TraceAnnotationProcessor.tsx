@@ -1,4 +1,4 @@
-import { Trace } from "@/src/features/traces";
+import { TraceViewSwitch } from "@/src/components/trace-detail-view-switch";
 import {
   type AnnotationQueueItem,
   AnnotationQueueObjectType,
@@ -38,7 +38,7 @@ export const TraceAnnotationProcessor: React.FC<
   if (!data) return <div className="p-3">Loading...</div>;
 
   const leftPanel = (
-    <Trace
+    <TraceViewSwitch
       key={data.id}
       trace={data}
       scores={data.scores}

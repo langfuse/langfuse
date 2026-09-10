@@ -6,8 +6,9 @@ vi.mock("next/router", () => ({
   useRouter: vi.fn(),
 }));
 
-vi.mock("@/src/features/traces/TracePage", () => ({
-  TracePage: ({ traceId }: { traceId: string }) => (
+// The route renders the flag switch, not a trace view directly.
+vi.mock("@/src/components/trace-detail-view-switch", () => ({
+  TracePageSwitch: ({ traceId }: { traceId: string }) => (
     <div data-testid="trace-page">{traceId}</div>
   ),
 }));

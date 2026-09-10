@@ -1,11 +1,8 @@
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { useRouter } from "next/router";
 import { useRef } from "react";
-import {
-  TraceDetailActions,
-  TraceDetailBody,
-  traceDetailTitle,
-} from "@/src/features/traces";
+import { TraceDetailActions, traceDetailTitle } from "@/src/features/traces";
+import { TraceDetailBodySwitch } from "@/src/components/trace-detail-view-switch";
 import {
   TablePeekView,
   shouldClosePeekAfterDelete,
@@ -76,7 +73,8 @@ export const TablePeekViewTraceDetail = (
         ) : undefined
       }
     >
-      <TraceDetailBody
+      <TraceDetailBodySwitch
+        projectId={projectId}
         trace={trace.data}
         context="peek"
         truncatedAtObservations={trace.truncatedAtObservations}

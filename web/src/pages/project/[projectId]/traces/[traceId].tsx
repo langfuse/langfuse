@@ -1,4 +1,4 @@
-import { TracePage } from "@/src/features/traces/TracePage";
+import { TracePageSwitch } from "@/src/components/trace-detail-view-switch";
 import { parseTraceTimestampFromQuery } from "@/src/fns/parseTraceTimestampFromQuery/parseTraceTimestampFromQuery";
 import {
   RouteParamsPendingFallback,
@@ -13,5 +13,11 @@ export default function Trace() {
 
   if (!route.ready) return <RouteParamsPendingFallback />;
 
-  return <TracePage traceId={route.params.traceId} timestamp={timestamp} />;
+  return (
+    <TracePageSwitch
+      projectId={route.params.projectId}
+      traceId={route.params.traceId}
+      timestamp={timestamp}
+    />
+  );
 }

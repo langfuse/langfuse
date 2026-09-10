@@ -3,11 +3,8 @@ import {
   shouldClosePeekAfterDelete,
 } from "@/src/components/table/peek";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
-import {
-  TraceDetailActions,
-  TraceDetailBody,
-  traceDetailTitle,
-} from "@/src/features/traces";
+import { TraceDetailActions, traceDetailTitle } from "@/src/features/traces";
+import { TraceDetailBodySwitch } from "@/src/components/trace-detail-view-switch";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { buildTracePath } from "@langfuse/shared";
 import { useRouter } from "next/router";
@@ -82,7 +79,8 @@ export const TablePeekViewObservationDetail = (
         ) : undefined
       }
     >
-      <TraceDetailBody
+      <TraceDetailBodySwitch
+        projectId={projectId}
         trace={trace.data}
         context="peek"
         keySuffix={peekObservationId}
