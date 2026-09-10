@@ -45,6 +45,13 @@ export async function enforceAuth(
 
   const { context } = authn;
   const { principal } = context;
+  if (!params.allowedAccessLevels.includes(principalAccessLevel(principal))) {
+    return errorResult(
+      new ForbiddenError(
+        "Access denied - insufficient permissions for this endpoint",
+      ),
+    );
+  }
   if (principal.kind === "admin") {
     return enforceAdminAuth(context, params);
   }
@@ -107,7 +114,7 @@ function enforceOrgAuth(
   };
 }
 
-/** enforceProjectAuth resolves, authorizes, and scopes a project-scoped api-key request against its bound org. */
+/** enforceProjectAuth resolves, authorizes, and scopes a project-scoped api-key request against its bound org; an organization key naming a project outside its org is told the project does not exist, as the route handlers do. */
 function enforceProjectAuth(
   context: AuthorizationContext,
   principal: ApiKeyPrincipal,
@@ -115,6 +122,16 @@ function enforceProjectAuth(
 ): EnforceAuthResult {
   const project = getProjectId(context, params.req);
   if (!project.success) return project;
+  if (
+    !principal.boundResource.projectId &&
+    !ownsProject(principal, project.projectId)
+  ) {
+    return errorResult(
+      new LangfuseNotFoundError(
+        "Project not found or you don't have access to it",
+      ),
+    );
+  }
   const decision = authorize(context, params.action, {
     projectId: project.projectId,
   });
@@ -211,6 +228,17 @@ function apiKeyScope(
   };
 }
 
+/** principalAccessLevel is the access level a credential's kind and presentation carry, which the route's allowed levels gate. */
+function principalAccessLevel(principal: Principal): ApiAccessLevel {
+  if (principal.kind !== "apiKey") return "project";
+  if (principal.scope === "ORGANIZATION") return "organization";
+  return principal.presentation === "publicKey" ? "scores" : "project";
+}
+
+/** ownsProject reports whether the project belongs to one of the key's organizations. */
+const ownsProject = (principal: ApiKeyPrincipal, projectId: string) =>
+  principal.organizations.some((o) => o.projectIds.includes(projectId));
+
 /** apiKeyAccessLevel is the access level a key's presentation grants on the target. */
 const apiKeyAccessLevel = (
   principal: ApiKeyPrincipal,
@@ -278,10 +306,11 @@ function invariantBreak(message: string): ErrorResult {
   return { success: false, error: new InternalServerError(message) };
 }
 
-/** EnforceAuthParams is the request, the checked action, and the route's key-kind opt-ins. */
+/** EnforceAuthParams is the request, the checked action, the access levels the route admits, and its key-kind opt-ins. */
 export type EnforceAuthParams = {
   req: NextApiRequest;
   action: Action;
+  allowedAccessLevels: ApiAccessLevel[];
   allowInAppAgentKey?: boolean;
   isAdminApiKeyAuthAllowed?: boolean;
 };

@@ -261,15 +261,13 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
     expect(enforce).toMatchObject({ success: false, error: { httpCode: 403 } });
   });
 
-  it("an organization key naming a project it owns is 403 in legacy and authorized in enforce", async () => {
+  it("an organization key naming a project it owns on a project route 403s in both modes", async () => {
     const { legacy, enforce } = await projectResultUnderModes(
       orgAuth,
       projectId,
     );
     expect(legacy).toMatchObject({ success: false, error: { httpCode: 403 } });
-    expect(scopeOf(enforce).accessLevel).toBe("project");
-    expect(scopeOf(enforce).projectId).toBe(projectId);
-    expect(scopeOf(enforce).orgId).toBe(orgId);
+    expect(enforce).toMatchObject({ success: false, error: { httpCode: 403 } });
   });
 
   it("an organization key naming no project 403s in both modes", async () => {
@@ -296,12 +294,13 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
     expect(scopeOf(enforce).orgId).toBe(orgId);
   });
 
-  it("an organization key on a project-nested route is 403 in enforce for a project it does not own", async () => {
-    const { enforce } = await projectNestedUnderModes(
+  it("an organization key on a project-nested route 404s in enforce for a project it does not own, as the legacy handler does", async () => {
+    const { legacy, enforce } = await projectNestedUnderModes(
       orgAuth,
       foreignProjectId,
     );
-    expect(enforce).toMatchObject({ success: false, error: { httpCode: 403 } });
+    expect(scopeOf(legacy).accessLevel).toBe("organization");
+    expect(enforce).toMatchObject({ success: false, error: { httpCode: 404 } });
   });
 
   it("a project key on a project-nested route 403s in both modes", async () => {

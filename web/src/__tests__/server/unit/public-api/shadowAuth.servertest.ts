@@ -174,8 +174,7 @@ describe("org-family dispatch (allowedAccessLevels ['organization'])", () => {
       expect(mockEnforceAuth).toHaveBeenCalledWith({
         req,
         action: "projects:read",
-        allowInAppAgentKey: undefined,
-        isAdminApiKeyAuthAllowed: undefined,
+        allowedAccessLevels: ["organization"],
       });
     });
 

@@ -66,12 +66,7 @@ async function legacyOnly(params: ShadowAuthParams): Promise<ShadowAuthResult> {
 
 /** runNewAuth runs the new pipeline for the request's action and route opt-ins. */
 function runNewAuth(params: ShadowAuthParams): Promise<EnforceAuthResult> {
-  return enforceAuth({
-    req: params.req,
-    action: params.action,
-    allowInAppAgentKey: params.allowInAppAgentKey,
-    isAdminApiKeyAuthAllowed: params.isAdminApiKeyAuthAllowed,
-  });
+  return enforceAuth(params);
 }
 
 /** runLegacyAuth dispatches to the legacy verify the route's access levels select. */
@@ -156,10 +151,8 @@ function isOrgFamily(allowedAccessLevels: ApiAccessLevel[]): boolean {
   );
 }
 
-/** ShadowAuthParams is enforceAuth's params plus the access levels the legacy verify and telemetry read; the shim field is deleted at cutover. */
-export type ShadowAuthParams = EnforceAuthParams & {
-  allowedAccessLevels: ApiAccessLevel[];
-};
+/** ShadowAuthParams is enforceAuth's params; the legacy verify reads the same access levels. */
+export type ShadowAuthParams = EnforceAuthParams;
 
 /** ShadowAuthAccessResult is a verified scope; the authorizing context rides along only when the new pipeline produced it. */
 export type ShadowAuthAccessResult = Success & {
