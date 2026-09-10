@@ -33,6 +33,13 @@ def main() -> None:
         zf.write(
             RUNNERS_DIR / "python" / python_handler_file, python_handler_file
         )
+        # Include the typed error hierarchy so the handler can import it in Lambda
+        langfuse_errors_file = "langfuse_errors.py"
+        if (RUNNERS_DIR / "python" / langfuse_errors_file).exists():
+            zf.write(
+                RUNNERS_DIR / "python" / langfuse_errors_file,
+                langfuse_errors_file,
+            )
 
     upsert_lambda(
         NODE_FUNCTION, "nodejs24.x", "code-based-eval-handler.handler", node_zip
