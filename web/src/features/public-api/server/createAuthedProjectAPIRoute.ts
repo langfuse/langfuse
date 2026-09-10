@@ -479,22 +479,6 @@ export const createAuthedProjectAPIRoute = <
         }
       }
 
-      if (routeConfig.audit) {
-        const { audit } = routeConfig;
-        await recordAccessEvent({
-          actor: { type: "API_KEY", apiKeyId: auth.scope.apiKeyId },
-          orgId: auth.scope.orgId,
-          projectId: auth.scope.projectId,
-          surface: "public-api",
-          route: audit.route,
-          resourceType: audit.resourceType,
-          resourceId: audit.resourceId?.(query),
-          action: audit.action,
-          params: query,
-          resultCount: audit.resultCount ? audit.resultCount(response) : 1,
-        });
-      }
-
       res.status(
         // Check whether status code was already set inside handler to non default value
         res.statusCode !== 200
@@ -510,6 +494,24 @@ export const createAuthedProjectAPIRoute = <
         }
 
         throw error;
+      }
+
+      // Recorded only once the body has been serialized, so a payload that
+      // was too large to deliver never shows up as a successful access.
+      if (routeConfig.audit) {
+        const { audit } = routeConfig;
+        await recordAccessEvent({
+          actor: { type: "API_KEY", apiKeyId: auth.scope.apiKeyId },
+          orgId: auth.scope.orgId,
+          projectId: auth.scope.projectId,
+          surface: "public-api",
+          route: audit.route,
+          resourceType: audit.resourceType,
+          resourceId: audit.resourceId?.(query),
+          action: audit.action,
+          params: query,
+          resultCount: audit.resultCount ? audit.resultCount(response) : 1,
+        });
       }
     });
   };
