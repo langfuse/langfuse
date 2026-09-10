@@ -1,6 +1,10 @@
 import { type IncomingHttpHeaders } from "http";
 
-import { type InternalServerError, UnauthorizedError } from "@langfuse/shared";
+import {
+  type BaseError,
+  type InternalServerError,
+  UnauthorizedError,
+} from "@langfuse/shared";
 
 import { ContextResolver } from "@/src/features/auth/policy/contextResolver";
 import {
@@ -28,20 +32,22 @@ export class Authenticator {
   async authenticate(params: ApiKeyAuthParams): Promise<ApiKeyAuthResults> {
     const credential = parseAuthorizationHeader(params.headers.authorization);
     if (credential.kind === "malformed") {
-      return {
-        success: false,
-        error: new UnauthorizedError(invalidCredentials),
-      };
+      return errorResult(new UnauthorizedError(invalidCredentials));
     }
 
-    const result =
-      (await this.cache.get(credential)) ??
-      (await this.verifyAndResolve(credential));
-    if (result.success) {
-      const denied = enforceRouteSettings(result.context.principal, params);
-      if (denied) return denied;
+    let authResult = await this.cache.get(credential);
+    if (!authResult) {
+      authResult = await this.verifyAndResolve(credential);
     }
-    return result;
+
+    if (authResult.success) {
+      const denied = enforceRouteSettings(authResult.context.principal, params);
+      if (denied) {
+        return denied;
+      }
+    }
+
+    return authResult;
   }
 
   /** verifyAndResolve authenticates and materializes on a cache miss, writing every cacheable outcome back to the cache. */
@@ -68,25 +74,29 @@ function enforceRouteSettings(
   params: ApiKeyAuthParams,
 ): ErrorResult<UnauthorizedError> | null {
   if (principal.kind === "admin" && !params.isAdminApiKeyAuthAllowed) {
-    return {
-      success: false,
-      error: new UnauthorizedError("Admin API key auth is not allowed here"),
-    };
+    return errorResult(
+      new UnauthorizedError("Admin API key auth is not allowed here"),
+    );
   }
   if (
     principal.kind === "apiKey" &&
     principal.isInAppAgentKey &&
     !params.allowInAppAgentKey
   ) {
-    return {
-      success: false,
-      error: new UnauthorizedError(
+    return errorResult(
+      new UnauthorizedError(
         "Access denied - in-app agent keys are not allowed for this endpoint",
       ),
-    };
+    );
   }
   return null;
 }
+
+/** errorResult wraps a BaseError subclass into a typed ErrorResult. */
+const errorResult = <E extends BaseError>(e: E): ErrorResult<E> => ({
+  success: false,
+  error: e,
+});
 
 /** ApiKeyAuthParams is the request headers plus the route's key-kind opt-ins. */
 export type ApiKeyAuthParams = {

@@ -1,15 +1,17 @@
-import { type IncomingHttpHeaders } from "http";
-
 import { type NextApiRequest } from "next";
 
 import {
+  type BaseError,
   ForbiddenError,
   InternalServerError,
   InvalidRequestError,
   LangfuseNotFoundError,
   type UnauthorizedError,
 } from "@langfuse/shared";
-import { type ApiAccessScope } from "@langfuse/shared/src/server";
+import {
+  type ApiAccessLevel,
+  type ApiAccessScope,
+} from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
 import { env } from "@/src/env.mjs";
@@ -21,8 +23,6 @@ import {
   type AuthorizationContext,
   type ErrorResult as ErrorResultOf,
   type Principal,
-  type PrincipalOrganization,
-  type Resource,
   type Success,
 } from "@/src/features/auth/policy/types";
 
@@ -32,12 +32,7 @@ const orgIdHeader = "x-langfuse-organization-id";
 /** projectIdHeader selects the target project for keys without a bound project. */
 const projectIdHeader = "x-langfuse-project-id";
 
-/** headerValue normalizes a possibly-repeated header to its first value. */
-const headerValue = (
-  value: string | string[] | undefined,
-): string | undefined => (Array.isArray(value) ? value[0] : value);
-
-/** enforceAuth authenticates the request, resolves the org or project target its action implies, authorizes it, and maps the principal onto the ApiAccessScope. */
+/** enforceAuth authenticates the request, then routes it to the admin, organization, or project flow its principal and action select. */
 export async function enforceAuth(
   params: EnforceAuthParams,
 ): Promise<EnforceAuthResult> {
@@ -48,207 +43,244 @@ export async function enforceAuth(
   });
   if (!authn.success) return authn;
 
-  const context = authn.context;
-  const resolved = isOrgAction(params.action)
-    ? getOrgId(context, params.req.headers)
-    : getProjectId(context, params.req);
-  if (!resolved.success) return resolved;
-
-  const target: Resource =
-    "orgId" in resolved
-      ? { orgId: resolved.orgId }
-      : { projectId: resolved.projectId };
-  const decision = authorize(context, params.action, target);
-  if (!decision.success) {
-    return { success: false, error: decision.error };
+  const { context } = authn;
+  const { principal } = context;
+  if (principal.kind === "admin") {
+    return enforceAdminAuth(context, params);
   }
-  return "orgId" in target
-    ? toOrgApiAccessScope(context, target.orgId)
-    : toProjectApiAccessScope(context, target.projectId);
+  if (principal.kind !== "apiKey") {
+    return invariantBreak(
+      `unexpected principal on the public-API seam: ${principal.kind}`,
+    );
+  }
+  return isOrgAction(params.action)
+    ? enforceOrgAuth(context, principal, params)
+    : enforceProjectAuth(context, principal, params);
 }
 
-/** getOrgId resolves the target org from the header or the key's bound org. */
+/** enforceAdminAuth resolves, authorizes, and scopes a self-host admin-key request against its target project, 500ing on organization-scoped actions it cannot serve. */
+async function enforceAdminAuth(
+  context: AuthorizationContext,
+  params: EnforceAuthParams,
+): Promise<EnforceAuthResult> {
+  if (isOrgAction(params.action)) {
+    return invariantBreak(
+      "admin API key cannot serve an organization-scoped action",
+    );
+  }
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+    return errorResult(
+      new ForbiddenError(
+        "Admin API key auth is not available on Langfuse Cloud",
+      ),
+    );
+  }
+  const project = getProjectId(context, params.req);
+  if (!project.success) return project;
+  const org = await lookupProjectOrgId(project.projectId);
+  if (!org.success) return org;
+  const decision = authorize(context, params.action, {
+    projectId: project.projectId,
+  });
+  if (!decision.success) return decision;
+  return {
+    success: true,
+    scope: adminScope(org.orgId, project.projectId),
+    ctx: context,
+  };
+}
+
+/** enforceOrgAuth resolves, authorizes, and scopes an organization-scoped api-key request. */
+function enforceOrgAuth(
+  context: AuthorizationContext,
+  principal: ApiKeyPrincipal,
+  params: EnforceAuthParams,
+): EnforceAuthResult {
+  const org = getOrgId(context, params.req);
+  if (!org.success) return org;
+  const decision = authorize(context, params.action, { orgId: org.orgId });
+  if (!decision.success) return { success: false, error: decision.error };
+  return {
+    success: true,
+    scope: apiKeyScope(principal, org.orgId, null),
+    ctx: context,
+  };
+}
+
+/** enforceProjectAuth resolves, authorizes, and scopes a project-scoped api-key request against its bound org. */
+function enforceProjectAuth(
+  context: AuthorizationContext,
+  principal: ApiKeyPrincipal,
+  params: EnforceAuthParams,
+): EnforceAuthResult {
+  const project = getProjectId(context, params.req);
+  if (!project.success) return project;
+  const decision = authorize(context, params.action, {
+    projectId: project.projectId,
+  });
+  if (!decision.success) return { success: false, error: decision.error };
+  return {
+    success: true,
+    scope: apiKeyScope(
+      principal,
+      principal.boundResource.orgId,
+      project.projectId,
+    ),
+    ctx: context,
+  };
+}
+
+/** getOrgId resolves the target org from the header and the key's bound org, requiring the two to agree. */
 function getOrgId(
   context: AuthorizationContext,
-  headers: IncomingHttpHeaders,
+  req: NextApiRequest,
 ): ResolvedOrg | ErrorResult {
-  const boundOrgId = boundOrgIdOf(context);
-  const header = headerValue(headers[orgIdHeader]);
-  if (header && boundOrgId && header !== boundOrgId) {
-    return {
-      success: false,
-      error: new InvalidRequestError(
-        `${orgIdHeader} disagrees with the API key's organization`,
-      ),
-    };
+  const orgIdSources = [getBoundOrgId(context), getHeaderOrgId(req)];
+  if (!equal(orgIdSources)) {
+    return errorResult(
+      new InvalidRequestError(`Organization id parameters disagree`),
+    );
   }
-  const orgId = header ?? boundOrgId;
+  const orgId = first(orgIdSources);
   if (!orgId) {
-    return {
-      success: false,
-      error: new ForbiddenError(
-        `No organization target: send ${orgIdHeader} or use an organization-scoped API key`,
-      ),
-    };
+    return errorResult(new ForbiddenError(`Missing '${orgIdHeader}' header`));
   }
   return { success: true, orgId };
 }
 
-/** getProjectId resolves the target project from the URL param, the header, or the key's bound project. */
+/** getProjectId resolves the target project from the URL param, the header, and the key's bound project, requiring all to agree. */
 function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
 ): ResolvedProject | ErrorResult {
-  const urlProjectId =
-    typeof req.query.projectId === "string" ? req.query.projectId : undefined;
-  if (urlProjectId) return { success: true, projectId: urlProjectId };
-
-  const boundProjectId = boundProjectIdOf(context);
-  const header = headerValue(req.headers[projectIdHeader]) || undefined;
-  if (header && boundProjectId && header !== boundProjectId) {
-    return {
-      success: false,
-      error: new InvalidRequestError(
-        `${projectIdHeader} disagrees with the API key's project`,
-      ),
-    };
+  const projectIdSources = [
+    getBoundProjectId(context),
+    getUrlProjectId(req),
+    getHeaderProjectId(req),
+  ];
+  if (!equal(projectIdSources)) {
+    return errorResult(
+      new InvalidRequestError(`Project id parameters disagree`),
+    );
   }
-  const projectId = header ?? boundProjectId;
+  const projectId = first(projectIdSources);
   if (!projectId) {
-    return {
-      success: false,
-      error: new ForbiddenError(
-        `No project target: send ${projectIdHeader} or use a project-scoped API key`,
-      ),
-    };
+    return errorResult(
+      new ForbiddenError(`Missing '${projectIdHeader}' header`),
+    );
   }
   return { success: true, projectId };
 }
 
-/** boundOrgIdOf returns the org an api key is bound to. */
-function boundOrgIdOf(context: AuthorizationContext): string | undefined {
-  if (context.principal.kind !== "apiKey") return undefined;
-  return context.principal.boundResource.orgId;
-}
-
-/** boundProjectIdOf returns the project an api key is bound to, when it is project-scoped. */
-function boundProjectIdOf(context: AuthorizationContext): string | undefined {
-  if (context.principal.kind !== "apiKey") return undefined;
-  return context.principal.boundResource.projectId;
-}
-
-/** toOrgApiAccessScope maps an authorized context onto the organization-level scope for the resolved org. */
-function toOrgApiAccessScope(
-  ctx: AuthorizationContext,
-  orgId: string,
-): EnforceAuthResult {
-  const { principal } = ctx;
-  if (principal.kind !== "apiKey") {
-    return invariantBreak(
-      `unexpected principal kind on the org seam: ${principal.kind}`,
-    );
-  }
-  const org = principal.organizations.find((o) => o.orgId === orgId);
-  if (!org) {
-    return invariantBreak(
-      `api key ${principal.apiKeyId} resolved to no organization ${orgId}`,
-    );
-  }
-  return {
-    success: true,
-    scope: {
-      ...credentialFields(principal, org),
-      projectId: null,
-      accessLevel: "organization",
-    },
-    ctx,
-  };
-}
-
-/** toProjectApiAccessScope maps an authorized context onto the project-level scope for the resolved project. */
-async function toProjectApiAccessScope(
-  ctx: AuthorizationContext,
+/** lookupProjectOrgId reads a project's org from the database, 404ing when the project is absent. */
+async function lookupProjectOrgId(
   projectId: string,
-): Promise<EnforceAuthResult> {
-  const { principal } = ctx;
-  if (principal.kind === "admin") return toAdminApiAccessScope(ctx, projectId);
-  if (principal.kind !== "apiKey") {
-    return invariantBreak(
-      `unexpected principal kind on the project seam: ${principal.kind}`,
-    );
-  }
-  const org = principal.organizations[0];
-  if (!org) {
-    return invariantBreak(
-      `api key ${principal.apiKeyId} resolved to no organization`,
-    );
-  }
-  return {
-    success: true,
-    scope: {
-      ...credentialFields(principal, org),
-      projectId,
-      accessLevel:
-        principal.presentation === "publicKey" ? "scores" : "project",
-    },
-    ctx,
-  };
-}
-
-/** toAdminApiAccessScope synthesizes the legacy self-host admin scope for a project. */
-async function toAdminApiAccessScope(
-  ctx: AuthorizationContext,
-  projectId: string,
-): Promise<EnforceAuthResult> {
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-    return {
-      success: false,
-      error: new ForbiddenError(
-        "Admin API key auth is not available on Langfuse Cloud",
-      ),
-    };
-  }
+): Promise<ResolvedOrg | ErrorResult> {
   const project = await prisma.project.findUnique({
     where: { id: projectId, deletedAt: null },
-    select: { id: true, orgId: true },
+    select: { orgId: true },
   });
   if (!project) {
-    return {
-      success: false,
-      error: new LangfuseNotFoundError("Project not found"),
-    };
+    return errorResult(new LangfuseNotFoundError("Project not found"));
   }
+  return { success: true, orgId: project.orgId };
+}
+
+/** adminScope is the legacy self-host admin scope for a resolved project. */
+function adminScope(orgId: string, projectId: string): ApiAccessScope {
   return {
-    success: true,
-    scope: {
-      projectId: project.id,
-      accessLevel: "project",
-      orgId: project.orgId,
-      plan: "oss",
-      rateLimitOverrides: [],
-      apiKeyId: "ADMIN_API_KEY",
-      publicKey: "ADMIN_API_KEY",
-      isIngestionSuspended: false,
-      isInAppAgentKey: false,
-    },
-    ctx,
+    orgId,
+    projectId,
+    accessLevel: "project",
+    plan: "oss",
+    rateLimitOverrides: [],
+    apiKeyId: "ADMIN_API_KEY",
+    publicKey: "ADMIN_API_KEY",
+    isIngestionSuspended: false,
+    isInAppAgentKey: false,
   };
 }
 
-/** credentialFields are the scope fields both access levels read off the key and its organization. */
-function credentialFields(
+/** apiKeyScope maps an api-key principal and its resolved target onto the ApiAccessScope. */
+function apiKeyScope(
   principal: ApiKeyPrincipal,
-  org: PrincipalOrganization,
-) {
+  orgId: string,
+  projectId: string | null,
+): ApiAccessScope {
+  const [org] = principal.organizations;
   return {
-    orgId: org.orgId,
+    orgId,
+    projectId,
     plan: org.plan,
     rateLimitOverrides: org.rateLimitOverrides,
     apiKeyId: principal.apiKeyId,
     publicKey: principal.publicKey,
     isIngestionSuspended: org.isIngestionSuspended,
     isInAppAgentKey: principal.isInAppAgentKey,
+    accessLevel: apiKeyAccessLevel(principal, projectId),
   };
+}
+
+/** apiKeyAccessLevel is the access level a key's presentation grants on the target. */
+const apiKeyAccessLevel = (
+  principal: ApiKeyPrincipal,
+  projectId: string | null,
+): ApiAccessLevel =>
+  projectId === null
+    ? "organization"
+    : principal.presentation === "publicKey"
+      ? "scores"
+      : "project";
+
+/** getBoundOrgId returns the org an api key is bound to. */
+function getBoundOrgId(context: AuthorizationContext): string | undefined {
+  if (context.principal.kind !== "apiKey") return undefined;
+  return context.principal.boundResource.orgId;
+}
+
+/** getBoundProjectId returns the project an api key is bound to, when it is project-scoped. */
+function getBoundProjectId(context: AuthorizationContext): string | undefined {
+  if (context.principal.kind !== "apiKey") return undefined;
+  return context.principal.boundResource.projectId;
+}
+
+function getHeaderOrgId(req: NextApiRequest): string | undefined {
+  return getHeaderValue(req.headers[orgIdHeader]) || undefined;
+}
+
+function getHeaderProjectId(req: NextApiRequest): string | undefined {
+  return getHeaderValue(req.headers[projectIdHeader]) || undefined;
+}
+
+function getUrlProjectId(req: NextApiRequest): string | undefined {
+  return typeof req.query.projectId === "string"
+    ? req.query.projectId
+    : undefined;
+}
+
+/** getHeaderValue normalizes a possibly-repeated header to its first value. */
+const getHeaderValue = (
+  value: string | string[] | undefined,
+): string | undefined => (Array.isArray(value) ? value[0] : value);
+
+/** equal returns true when every defined value agrees. */
+function equal(os: (string | undefined)[]): boolean {
+  let prev: string | undefined;
+  for (const o of os) {
+    if (prev && o && prev !== o) return false;
+    if (o) prev = o;
+  }
+  return true;
+}
+
+/** first returns the first defined value. */
+function first(os: (string | undefined)[]): string | undefined {
+  return os.find((o) => o !== undefined);
+}
+
+/** errorResult wraps a BaseError subclass into a typed ErrorResult. */
+function errorResult<E extends BaseError>(e: E): ErrorResultOf<E> {
+  return { success: false, error: e };
 }
 
 /** invariantBreak is a 500 for a state that should be unreachable. */
@@ -282,18 +314,17 @@ type ErrorResult = ErrorResultOf<
   | LangfuseNotFoundError
 >;
 
+/** ApiKeyPrincipal is the api-key arm of the principal union. */
+type ApiKeyPrincipal = Extract<Principal, { kind: "apiKey" }>;
+
 /** ResolvedOrg is org target resolution's success outcome. */
 type ResolvedOrg = Success & { orgId: string };
 
 /** ResolvedProject is project target resolution's success outcome. */
 type ResolvedProject = Success & { projectId: string };
 
-/** ApiKeyPrincipal is the api-key variant of `Principal` the scope mapper consumes. */
-type ApiKeyPrincipal = Extract<Principal, { kind: "apiKey" }>;
-
 export const __test = {
   getOrgId,
   getProjectId,
-  toOrgApiAccessScope,
-  toProjectApiAccessScope,
+  apiKeyScope,
 };

@@ -1,11 +1,7 @@
 import { type NextApiRequest } from "next";
 import { describe, expect, it } from "vitest";
 
-import {
-  ForbiddenError,
-  InternalServerError,
-  InvalidRequestError,
-} from "@langfuse/shared";
+import { ForbiddenError, InvalidRequestError } from "@langfuse/shared";
 
 import { __test } from "@/src/features/public-api/server/enforceAuth";
 import {
@@ -14,8 +10,7 @@ import {
   type Principal,
 } from "@/src/features/auth/policy/types";
 
-const { getOrgId, getProjectId, toOrgApiAccessScope, toProjectApiAccessScope } =
-  __test;
+const { getOrgId, getProjectId, apiKeyScope } = __test;
 
 const orgIdHeader = "x-langfuse-organization-id";
 const projectIdHeader = "x-langfuse-project-id";
@@ -54,19 +49,24 @@ const req = (query = {}, headers = {}) =>
 
 describe("getOrgId", () => {
   it("resolves the bound org without a header", () => {
-    expect(getOrgId(orgKey(), {})).toEqual({ success: true, orgId: ORG });
+    expect(getOrgId(orgKey(), req())).toEqual({ success: true, orgId: ORG });
   });
   it("resolves a project-scoped key to its own organization", () => {
-    expect(getOrgId(projectKey(), {})).toEqual({ success: true, orgId: ORG });
+    expect(getOrgId(projectKey(), req())).toEqual({
+      success: true,
+      orgId: ORG,
+    });
   });
   it("400s a header disagreeing with the bound org", () => {
-    expect(getOrgId(orgKey(), { [orgIdHeader]: "org_2" })).toMatchObject({
+    expect(
+      getOrgId(orgKey(), req({}, { [orgIdHeader]: "org_2" })),
+    ).toMatchObject({
       success: false,
       error: expect.any(InvalidRequestError),
     });
   });
   it("403s a principal carrying no binding", () => {
-    expect(getOrgId(adminKey(), {})).toMatchObject({
+    expect(getOrgId(adminKey(), req())).toMatchObject({
       success: false,
       error: expect.any(ForbiddenError),
     });
@@ -87,16 +87,19 @@ describe("getProjectId", () => {
   });
   it("resolves an unbound principal from the header", () => {
     expect(getProjectId(orgKey(), req({}, { [projectIdHeader]: PRJ }))).toEqual(
-      { success: true, projectId: PRJ },
+      {
+        success: true,
+        projectId: PRJ,
+      },
     );
   });
-  it("resolves the URL projectId ahead of header and bound", () => {
+  it("resolves when URL, header, and bound project agree", () => {
     expect(
       getProjectId(
         projectKey(),
-        req({ projectId: "prj_url" }, { [projectIdHeader]: "prj_hdr" }),
+        req({ projectId: PRJ }, { [projectIdHeader]: PRJ }),
       ),
-    ).toEqual({ success: true, projectId: "prj_url" });
+    ).toEqual({ success: true, projectId: PRJ });
   });
   it("400s a header disagreeing with the bound project", () => {
     expect(
@@ -122,7 +125,7 @@ const scopeOrg = {
 const scopeApiKey = (
   scope: "ORGANIZATION" | "PROJECT",
   presentation: "privateKey" | "publicKey" = "privateKey",
-): Principal => ({
+): Extract<Principal, { kind: "apiKey" }> => ({
   kind: "apiKey",
   apiKeyId: "key_1",
   userId: null,
@@ -137,92 +140,49 @@ const scopeApiKey = (
       : { orgId: "org_1", projectId: "prj_1" },
 });
 
-const scopeAdmin: Principal = { kind: "admin", userId: null };
+const projectScope = {
+  projectId: "prj_1",
+  accessLevel: "project",
+  orgId: "org_1",
+  plan: "oss",
+  rateLimitOverrides: [],
+  apiKeyId: "key_1",
+  publicKey: "pk-lf-1",
+  isIngestionSuspended: false,
+  isInAppAgentKey: false,
+};
 
-const scopeCtx = (principal: Principal): AuthorizationContext => ({
-  principal,
-  policies: [],
-});
-
-describe("toOrgApiAccessScope", () => {
+describe("apiKeyScope", () => {
   it("maps the key and its organization onto the organization scope", () => {
-    const ctx = scopeCtx(scopeApiKey("ORGANIZATION"));
-    expect(toOrgApiAccessScope(ctx, "org_1")).toEqual({
-      success: true,
-      scope: {
-        projectId: null,
-        accessLevel: "organization",
-        orgId: "org_1",
-        plan: "oss",
-        rateLimitOverrides: [],
-        apiKeyId: "key_1",
-        publicKey: "pk-lf-1",
-        isIngestionSuspended: false,
-        isInAppAgentKey: false,
-      },
-      ctx,
+    expect(apiKeyScope(scopeApiKey("ORGANIZATION"), "org_1", null)).toEqual({
+      projectId: null,
+      accessLevel: "organization",
+      orgId: "org_1",
+      plan: "oss",
+      rateLimitOverrides: [],
+      apiKeyId: "key_1",
+      publicKey: "pk-lf-1",
+      isIngestionSuspended: false,
+      isInAppAgentKey: false,
     });
   });
 
-  it("500s a target the principal does not carry", () => {
-    expect(
-      toOrgApiAccessScope(scopeCtx(scopeApiKey("ORGANIZATION")), "org_2"),
-    ).toMatchObject({ success: false, error: expect.any(InternalServerError) });
-  });
-
-  it("500s a non-api-key principal", () => {
-    expect(toOrgApiAccessScope(scopeCtx(scopeAdmin), "org_1")).toMatchObject({
-      success: false,
-      error: expect.any(InternalServerError),
-    });
-  });
-});
-
-describe("toProjectApiAccessScope", () => {
-  it("maps the key and its organization onto the project scope", async () => {
-    const ctx = scopeCtx(scopeApiKey("PROJECT"));
-    expect(await toProjectApiAccessScope(ctx, "prj_1")).toEqual({
-      success: true,
-      scope: {
-        projectId: "prj_1",
-        accessLevel: "project",
-        orgId: "org_1",
-        plan: "oss",
-        rateLimitOverrides: [],
-        apiKeyId: "key_1",
-        publicKey: "pk-lf-1",
-        isIngestionSuspended: false,
-        isInAppAgentKey: false,
-      },
-      ctx,
-    });
-  });
-
-  it("maps a public-key presentation to the scores access level", async () => {
-    const result = await toProjectApiAccessScope(
-      scopeCtx(scopeApiKey("PROJECT", "publicKey")),
-      "prj_1",
+  it("maps the key and its organization onto the project scope", () => {
+    expect(apiKeyScope(scopeApiKey("PROJECT"), "org_1", "prj_1")).toEqual(
+      projectScope,
     );
-    expect(result).toMatchObject({ success: true });
-    if (result.success) expect(result.scope.accessLevel).toBe("scores");
   });
 
-  it("maps an org-scoped key onto the project scope of a project it owns", async () => {
-    const ctx = scopeCtx(scopeApiKey("ORGANIZATION"));
-    expect(await toProjectApiAccessScope(ctx, "prj_1")).toEqual({
-      success: true,
-      scope: {
-        projectId: "prj_1",
-        accessLevel: "project",
-        orgId: "org_1",
-        plan: "oss",
-        rateLimitOverrides: [],
-        apiKeyId: "key_1",
-        publicKey: "pk-lf-1",
-        isIngestionSuspended: false,
-        isInAppAgentKey: false,
-      },
-      ctx,
-    });
+  it("maps a public-key presentation to the scores access level", () => {
+    expect(
+      apiKeyScope(scopeApiKey("PROJECT", "publicKey"), "org_1", "prj_1")
+        .accessLevel,
+    ).toBe("scores");
+  });
+
+  it("maps an org-scoped key onto the project scope of a project it owns", () => {
+    expect(apiKeyScope(scopeApiKey("ORGANIZATION"), "org_1", "prj_1")).toEqual(
+      projectScope,
+    );
   });
 });
