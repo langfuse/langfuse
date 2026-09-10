@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/router";
-import { v4 as uuidv4 } from "uuid";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import { DropdownMenuController } from "@/src/components/ui/dropdown-menu";
@@ -12,7 +11,7 @@ import {
   type PlaygroundTool,
 } from "@/src/features/playground/page/types";
 import { getMessagesFingerprint } from "@/src/features/playground/page/utils/messagesFingerprint";
-import { shouldOpenAdditionalWindow } from "@/src/features/playground/page/utils/shouldOpenAdditionalWindow";
+import { resolveJumpTargetWindowId } from "@/src/features/playground/page/utils/resolveJumpTargetWindowId";
 import {
   getWindowState,
   setWindowState,
@@ -149,18 +148,12 @@ export const JumpToPlaygroundDropdownMenuController = (
       // Clear all existing playground data and reset to single window
       clearAllCache(stableWindowId);
     } else {
-      // Add to existing playground. The window this prompt addresses may already
-      // be open with unsaved edits, which writing the stored prompt over would
-      // destroy, so that case gets a window of its own.
-      if (
-        shouldOpenAdditionalWindow({
-          isTargetWindowOpen: windowIds.includes(stableWindowId),
-          cachedMessages: getWindowState(stableWindowId)?.messages,
-          incomingMessages: capturedState.messages,
-        })
-      ) {
-        targetWindowId = `${stableWindowId}-${uuidv4()}`;
-      }
+      targetWindowId = resolveJumpTargetWindowId({
+        stableWindowId,
+        openWindowIds: windowIds,
+        incomingMessages: capturedState.messages,
+        getCachedMessages: (windowId) => getWindowState(windowId)?.messages,
+      });
 
       const addedWindowId = addWindowWithId(targetWindowId);
 
