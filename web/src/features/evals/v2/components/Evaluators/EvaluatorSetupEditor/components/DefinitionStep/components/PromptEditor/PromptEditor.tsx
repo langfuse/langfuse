@@ -171,7 +171,7 @@ export function PromptEditorContent({
       onDragEnd={handleDragEnd}
     >
       <div className="bg-card text-card-foreground rounded-md border">
-        <div className="bg-header text-header-foreground flex min-h-9 flex-wrap items-center justify-between gap-2 rounded-t-md border-b px-2 py-1.5">
+        <div className="bg-card text-card-foreground flex min-h-9 flex-wrap items-center justify-between gap-2 rounded-t-md border-b px-2 py-1.5">
           <span className="text-muted-foreground text-xs">
             {state.promptMessages.length}{" "}
             {state.promptMessages.length === 1 ? "message" : "messages"}
