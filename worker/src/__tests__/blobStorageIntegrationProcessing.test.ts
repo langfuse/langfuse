@@ -23,6 +23,10 @@ const mockRecordDistribution = vi.hoisted(() => vi.fn());
 // Stubbable endpoint preflight — the customer-fault tests reject it to drive an
 // in-try failure without infra. Defaults to the real impl for other tests.
 const mockValidateBlobStorageEndpoint = vi.hoisted(() => vi.fn());
+// Spy on the failure notification dispatch so the part-limit test can assert it
+// fired (a cooldown-bypassed notification leaves no lastFailureNotificationSentAt
+// stamp to observe). Defaults to a no-op so real notification infra isn't needed.
+const mockDispatchProjectNotification = vi.hoisted(() => vi.fn());
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
@@ -31,12 +35,16 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
       actual.validateBlobStorageEndpoint,
     );
   }
+  if (mockDispatchProjectNotification.getMockImplementation() === undefined) {
+    mockDispatchProjectNotification.mockResolvedValue(undefined);
+  }
   return {
     ...actual,
     recordIncrement: mockRecordIncrement,
     recordHistogram: mockRecordHistogram,
     recordDistribution: mockRecordDistribution,
     validateBlobStorageEndpoint: mockValidateBlobStorageEndpoint,
+    dispatchProjectNotification: mockDispatchProjectNotification,
   };
 });
 
@@ -60,11 +68,12 @@ import {
 } from "@langfuse/shared/src/server";
 import { EXPORT_FRESHNESS_LAG_METRIC } from "../services/exportFreshnessLagMetric";
 import { prisma } from "@langfuse/shared/src/db";
-import { Job } from "bullmq";
+import { Job, UnrecoverableError } from "bullmq";
 import {
   handleBlobStorageIntegrationProjectJob,
   BLOB_STORAGE_LAG_BUFFER_MS,
   BLOB_STORAGE_REMAINDER_COALESCE_MS,
+  BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE,
 } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
 import { BLOB_INTEGRATION_DISABLED_METRIC } from "../features/blobstorage/isCustomerFaultError";
 import {
@@ -543,6 +552,100 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       // No email either: its "will retry at the next scheduled export" text is
       // the only thing we can still vouch for, and the rethrow delivers that.
       expect(row.lastFailureNotificationSentAt).toBeNull();
+    });
+  });
+
+  // A multipart part-count-limit exhaustion is terminal: retrying re-queries a
+  // retention-shrinking window until a truncated object commits as success. The
+  // run must fail loud (UnrecoverableError, no retry, notification) and stop —
+  // without auto-disabling or advancing the export watermark.
+  describe("multipart part-limit failure", () => {
+    const lastSyncAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+
+    const createIntegration = async (projectId: string) => {
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: projectId,
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region ? region : "auto",
+          // endpoint null -> skip the persisted-endpoint preflight; the storage
+          // service is mocked anyway.
+          endpoint: null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          // Non-enriched source: runs outside the V4-preview guard on every leg.
+          exportSource: "TRACES_OBSERVATIONS",
+          lastSyncAt,
+        },
+      });
+    };
+
+    // The exact @aws-sdk/lib-storage message, wrapped the way
+    // StorageService.handleStorageError wraps the SDK cause.
+    const partLimitError = () =>
+      new Error("Failed to upload file to S3", {
+        cause: new Error(
+          "Exceeded 10000 parts in multipart upload to Bucket: b Key: k.",
+        ),
+      });
+
+    const settleBackgroundTasks = () =>
+      new Promise((resolve) => setTimeout(resolve, 200));
+
+    it("fails terminally without retry, persists lastError, notifies, keeps enabled, and does not advance the watermark", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      // No s3Prefix: the storage service is mocked, so nothing is uploaded and
+      // the MinIO cleanup in afterEach must not run.
+      await createIntegration(projectId);
+      mockDispatchProjectNotification.mockClear();
+
+      const getInstanceSpy = vi
+        .spyOn(StorageServiceFactory, "getInstance")
+        .mockReturnValue({
+          uploadFileBuffered: vi.fn().mockRejectedValue(partLimitError()),
+        } as unknown as StorageService);
+
+      try {
+        // Attempt 0 of 5: a transient error would retry, so rejecting with
+        // UnrecoverableError here is the proof that no retry will happen.
+        await expect(
+          handleBlobStorageIntegrationProjectJob({
+            data: { payload: { projectId } },
+            attemptsMade: 0,
+            opts: { attempts: 5 },
+          } as Job),
+        ).rejects.toBeInstanceOf(UnrecoverableError);
+        await settleBackgroundTasks();
+      } finally {
+        getInstanceSpy.mockRestore();
+      }
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.lastError).toBe(BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE);
+      expect(row.lastErrorAt).not.toBeNull();
+      // Not a customer-config fault: the integration stays on.
+      expect(row.enabled).toBe(true);
+      // Watermark untouched so the failed window is not skipped on the next run.
+      expect(row.lastSyncAt?.getTime()).toBe(lastSyncAt.getTime());
+
+      // Notification fired, as a failure (not the disabled variant).
+      expect(mockDispatchProjectNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId,
+          event: expect.objectContaining({
+            eventType: "blob-export-failed",
+            disabled: false,
+          }),
+        }),
+      );
     });
   });
 
