@@ -4,7 +4,7 @@ description: |
   Use Linear as the org's memory: reconstruct a feature's history before
   touching it, and leave the reasoning behind finished work in the ticket
   description so the next agent inherits it. Use when starting work on an
-  existing feature, when planning multi-PR work, and always when wrapping up —
+  existing feature, when splitting a large change, and always when wrapping up —
   "what happened to this screen before", "write the handover", "why is this
   code like this".
 ---
@@ -28,8 +28,10 @@ it before your first write. This file is the *craft* — where post-context goes
 what earns a place in it, and the two mechanics that stop it being destroyed on
 the way in.
 
-How to slice a big change into PRs, and what a planning subticket must contain,
-are the sibling skill: [`linear-planning`](../linear-planning/SKILL.md).
+How to slice a big change into PRs is
+[`pr-stack-workflow`](../pr-stack-workflow/SKILL.md). That is git/PR
+mechanics. Reconstructing history is not a reason to file a stack of
+subtickets.
 
 ## Before you touch a feature: reconstruct its history
 
