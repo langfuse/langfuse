@@ -56,7 +56,7 @@ export function TimeToFirstTokenBadge({
 
   return (
     <span title="Time to first token" className={METRIC_TEXT_CLASS}>
-      ttft {formatIntervalSeconds(timeToFirstToken)}
+      TTFT {formatIntervalSeconds(timeToFirstToken)}
     </span>
   );
 }
