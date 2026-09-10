@@ -11,6 +11,8 @@ import {
   traceExecutionId,
 } from "../features/traces/traceExecution";
 
+const TRACE_QUERY_BUFFER_MS = 2 * 60_000;
+
 export const traceExecutionProcessor: Processor<
   TQueueJobTypes[QueueName.TraceExecution]
 > = async (job) => {
@@ -25,8 +27,11 @@ export const traceExecutionProcessor: Processor<
   const result = await getObservationsForTraceFromEventsTable({
     projectId,
     traceId,
-    timestamp: minimum === null ? undefined : new Date(Number(minimum)),
-    maxStartTime: new Date(lastSeenStartTime),
+    minStartTime:
+      minimum === null
+        ? undefined
+        : new Date(Number(minimum) - TRACE_QUERY_BUFFER_MS),
+    maxStartTime: new Date(lastSeenStartTime + TRACE_QUERY_BUFFER_MS),
     selectIOAndMetadata: true,
     selectToolData: true,
   });

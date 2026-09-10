@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Queue, Worker } from "bullmq";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -94,10 +94,7 @@ describe("sampled trace observation reads", () => {
     expect(initialJob.data.payload.lastSeenStartTime).toBe(
       earliest + 60 * 60_000,
     );
-    expect(initialJob.delay).toBe(600_000);
     await minimumRedis.expire(key, 1);
-    const secondArrival = initialJob.timestamp + 60_000;
-    vi.spyOn(Date, "now").mockReturnValue(secondArrival);
     await scheduleTraceExecution(projectId, [
       { traceId, startTimeISO: new Date(earliest + 60_000).toISOString() },
     ]);
@@ -120,10 +117,6 @@ describe("sampled trace observation reads", () => {
     expect(replacement.opts.deduplication?.id).toBe(
       initialJob.opts.deduplication?.id,
     );
-    expect(replacement.timestamp + replacement.delay).toBe(
-      secondArrival + 600_000,
-    );
-    vi.mocked(Date.now).mockRestore();
 
     await minimumRedis.pexpire(key, 0);
     await scheduleTraceExecution(projectId, [
@@ -149,6 +142,114 @@ describe("sampled trace observation reads", () => {
       ),
     ).toBeNull();
     expect(await queue.getDelayedCount()).toBe(2);
+  });
+
+  it("restarts the full ten-minute delay when the same project and trace arrive again", async () => {
+    const projectId = randomUUID();
+    const traceId = randomUUID().replaceAll("-", "");
+    minimumKey(projectId, traceId);
+    const firstArrival = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(firstArrival);
+    await scheduleTraceExecution(projectId, [
+      { traceId, startTimeISO: "2026-09-10T10:00:00.000Z" },
+    ]);
+    const secondArrival = firstArrival + 60_000;
+    clock.mockReturnValue(secondArrival);
+    await scheduleTraceExecution(projectId, [
+      { traceId, startTimeISO: "2026-09-10T10:01:00.000Z" },
+    ]);
+    const jobs = await queue.getDelayed();
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].timestamp + jobs[0].delay).toBe(secondArrival + 600_000);
+    const worker = new Worker(queue.name, undefined, {
+      connection,
+      prefix: queue.opts.prefix,
+      autorun: false,
+    });
+    try {
+      clock.mockReturnValue(firstArrival + 600_001);
+      expect(
+        await worker.getNextJob("test-lock", { block: false }),
+      ).toBeUndefined();
+      clock.mockReturnValue(secondArrival + 600_001);
+      const ready = await worker.getNextJob("test-lock", { block: false });
+      expect(ready?.data.payload).toEqual({
+        projectId,
+        traceId,
+        lastSeenStartTime: Date.parse("2026-09-10T10:01:00.000Z"),
+      });
+      await ready!.moveToCompleted({}, "test-lock", false);
+    } finally {
+      await worker.close();
+    }
+  });
+
+  it("samples custom trace IDs consistently across batches and projects, with nested rollout rates", async () => {
+    const projectIds = Array.from(
+      { length: 2 },
+      () => `c${randomUUID().replaceAll("-", "").slice(0, 24)}`,
+    );
+    const traceIds = Array.from({ length: 100 }, (_, i) => {
+      const hex = createHash("sha256").update(`trace-${i}`).digest("hex");
+      return [
+        hex.slice(0, 32),
+        (i + 1).toString(16).padStart(32, "0"),
+        `aaaaaaaaaaaaaaaaaaaaaaaa${i.toString(16).padStart(8, "0")}`,
+        `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`,
+        `customer-order:${i}`,
+      ];
+    }).flat();
+    const identities = projectIds.flatMap((projectId) =>
+      traceIds.map((traceId) => ({
+        projectId,
+        traceId,
+        key: minimumKey(projectId, traceId),
+      })),
+    );
+    const events = traceIds.map((traceId) => ({
+      traceId,
+      startTimeISO: "2026-09-10T10:00:00.000Z",
+    }));
+    let previous = new Set<string>();
+    for (const percent of [0, 10, 10, 50, 100]) {
+      env.LANGFUSE_OTEL_TRACE_EXECUTION_SAMPLE_PERCENT = percent;
+      await Promise.all(
+        projectIds.map((projectId) =>
+          scheduleTraceExecution(
+            projectId,
+            previous.size ? events.toReversed() : events,
+          ),
+        ),
+      );
+      const jobs = await queue.getDelayed();
+      const selected = new Set(
+        jobs.map((job) =>
+          minimumKey(job.data.payload.projectId, job.data.payload.traceId),
+        ),
+      );
+      expect(selected.size).toBe(jobs.length);
+      for (const key of previous) expect(selected.has(key)).toBe(true);
+      if (percent === 0) expect(selected.size).toBe(0);
+      if (percent === 10) {
+        expect(selected.size).toBeGreaterThan(0);
+        expect(selected.size).toBeLessThan(identities.length);
+        if (previous.size) expect(selected).toEqual(previous);
+      }
+      if (percent === 50) {
+        expect(selected.size).toBeGreaterThan(previous.size);
+        expect(selected.size).toBeLessThan(identities.length);
+      }
+      if (percent === 100) expect(selected.size).toBe(identities.length);
+      // Check the observable map contents as well as the queued identities.
+      await Promise.all(
+        identities.map(async ({ key }) => {
+          expect(await minimumRedis.exists(key)).toBe(
+            selected.has(key) ? 1 : 0,
+          );
+        }),
+      );
+      previous = selected;
+    }
   });
 
   it("retains a fresh delayed job when another arrival follows activation and survives the older job completing", async () => {
@@ -207,8 +308,8 @@ describe("sampled trace observation reads", () => {
     expect(getObservationsForTraceFromEventsTable).toHaveBeenLastCalledWith({
       projectId,
       traceId,
-      timestamp: new Date(startTimeISO),
-      maxStartTime: new Date(lastStartTimeISO),
+      minStartTime: new Date("2026-09-10T09:58:00.000Z"),
+      maxStartTime: new Date("2026-09-10T10:07:00.000Z"),
       selectIOAndMetadata: true,
       selectToolData: true,
     });
@@ -216,8 +317,8 @@ describe("sampled trace observation reads", () => {
     await traceExecutionProcessor(job);
     expect(getObservationsForTraceFromEventsTable).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        timestamp: undefined,
-        maxStartTime: new Date(lastStartTimeISO),
+        minStartTime: undefined,
+        maxStartTime: new Date("2026-09-10T10:07:00.000Z"),
       }),
     );
     env.LANGFUSE_OTEL_TRACE_EXECUTION_ENABLED = "false";

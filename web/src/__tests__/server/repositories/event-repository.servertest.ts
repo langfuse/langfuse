@@ -3354,6 +3354,8 @@ describe("Clickhouse Events Repository Test", () => {
 
       const bounded = await getObservationsForTraceFromEventsTable({
         ...params,
+        timestamp: new Date(upper + 2 * 60 * 60_000),
+        minStartTime: new Date(lower),
         maxStartTime: new Date(upper),
       });
       expect(bounded.observations.map((observation) => observation.id)).toEqual(
