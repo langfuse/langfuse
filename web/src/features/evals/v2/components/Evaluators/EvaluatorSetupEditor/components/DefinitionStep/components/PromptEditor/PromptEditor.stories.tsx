@@ -95,13 +95,23 @@ export const MultipleMessages = meta.story({
     await expect(outerGroup).toHaveClass("bg-secondary");
     await expect(toolbar).toHaveClass("bg-muted/50");
     await expect(toolbar).not.toHaveClass("bg-secondary");
-    await expect(
-      new Set(
-        [outerGroup, toolbar, editor].map(
-          (surface) => getComputedStyle(surface).backgroundColor,
-        ),
-      ).size,
-    ).toBe(3);
+    const surfaceColors = () =>
+      [outerGroup, toolbar, editor].map(
+        (surface) => getComputedStyle(surface).backgroundColor,
+      );
+    const lightSurfaceColors = surfaceColors();
+    await expect(new Set(lightSurfaceColors).size).toBe(3);
+    const root = canvasElement.ownerDocument.documentElement;
+    root.classList.add("dark");
+    try {
+      await waitFor(() => {
+        const darkSurfaceColors = surfaceColors();
+        expect(darkSurfaceColors).not.toEqual(lightSurfaceColors);
+        expect(new Set(darkSurfaceColors).size).toBe(3);
+      });
+    } finally {
+      root.classList.remove("dark");
+    }
 
     const expandedMetrics = {
       toolbarHeight: toolbar.getBoundingClientRect().height,
