@@ -1,9 +1,6 @@
 import { type ReactNode } from "react";
 
-import {
-  DialogController,
-  type DialogTrigger,
-} from "@/src/components/ui/dialog";
+import { DialogController } from "@/src/components/ui/dialog";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useQueryProject } from "@/src/features/projects/hooks";
@@ -14,7 +11,7 @@ import { DeleteProjectDialog } from "./DeleteProjectDialog";
 type DeleteProjectDialogControllerProps = {
   children: (control: {
     hasAccess: boolean;
-    Trigger: typeof DialogTrigger;
+    openDialog: () => void;
   }) => ReactNode;
 };
 
@@ -58,7 +55,7 @@ export function DeleteProjectDialogController({
         />
       )}
     >
-      {({ Trigger }) => children({ hasAccess, Trigger })}
+      {({ openDialog }) => children({ hasAccess, openDialog })}
     </DialogController>
   );
 }
