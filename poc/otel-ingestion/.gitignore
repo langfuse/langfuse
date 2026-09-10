@@ -1,0 +1,4 @@
+out/checksum-*.json
+out/transfer-cache/
+out/transfer-bench/
+out/transfer-bench-results.json
