@@ -1,8 +1,8 @@
 /**
  * Observation attributes: the fixed-key facts Langfuse knows (model,
- * environment, release, version, model parameters). Rendered with the same
- * PrettyJsonView table as metadata; this module supplies the object to render
- * and the column-filter mapping its value menu uses.
+ * environment, release, version, session, user, model parameters). Rendered
+ * with the same PrettyJsonView table as metadata; this module supplies the
+ * object to render and the column-filter mapping its value menu uses.
  */
 
 import { type FilterState, type JsonNested } from "@langfuse/shared";
@@ -14,12 +14,17 @@ export function buildObservationAttributes({
   environment,
   release,
   version,
+  sessionId,
+  userId,
   modelParameters,
 }: {
   model: string | null;
   environment: string | null;
   release: string | null | undefined;
   version: string | null;
+  /** Trace-level; v4 events carry them on every observation. */
+  sessionId?: string | null;
+  userId?: string | null;
   modelParameters: JsonNested | null | undefined;
 }): Record<string, unknown> {
   const attributes: Record<string, unknown> = {};
@@ -27,6 +32,9 @@ export function buildObservationAttributes({
   if (environment) attributes.environment = environment;
   if (release) attributes.release = release;
   if (version) attributes.version = version;
+  // SDK spelling (`session_id`, `user_id`); both are search-bar aliases.
+  if (sessionId) attributes.session_id = sessionId;
+  if (userId) attributes.user_id = userId;
   if (
     modelParameters &&
     typeof modelParameters === "object" &&
@@ -50,8 +58,9 @@ export type AttributeColumnFilter = {
 
 /**
  * Maps an attribute to the table column that can filter on it. Model only
- * exists on observations; release only on traces; environment and version on
- * both, so those follow the caller's target. Model parameters have no column.
+ * exists on observations; release only on traces; environment, version,
+ * session and user on both, so those follow the caller's target. Model
+ * parameters have no column.
  */
 export function attributeColumnFilter(
   key: string,
@@ -93,6 +102,10 @@ export function attributeColumnFilter(
       return options("environment", target);
     case "model":
       return options("model", "observations");
+    case "session_id":
+      return options("sessionId", target);
+    case "user_id":
+      return options("userId", target);
     case "version":
       return text("version", target);
     case "release":

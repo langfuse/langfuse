@@ -121,6 +121,8 @@ export function ConnectedObservationDetailView({
     environment: observation.environment,
     release: observation.release,
     version: observation.version,
+    sessionId: observation.sessionId,
+    userId: observation.userId,
     modelParameters: observation.modelParameters,
   });
 
