@@ -7,6 +7,7 @@
  */
 
 import { Clock } from "lucide-react";
+import { format } from "date-fns";
 import {
   Tooltip,
   TooltipContent,
@@ -33,7 +34,7 @@ export function StartTimeBadge({ startTime }: { startTime: Date | null }) {
   if (!prepared) return null;
   return (
     <span title={prepared.title} className={METRIC_TEXT_CLASS}>
-      {prepared.display}
+      {format(startTime, "MMM d h:mm:ss a")}
     </span>
   );
 }
