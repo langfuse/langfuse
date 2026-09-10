@@ -108,7 +108,9 @@ export function VirtualizedTreeNodeWrapper({
           </div>
         )}
 
-        {/* 2. Current element bars: up/down/horizontal connectors */}
+        {/* 2. Current element bars: up/down/horizontal connectors. The 10px
+            offsets are the icon's centre on the row's first text line, so the
+            elbow meets the icon and the spine stays continuous. */}
         {visualDepth > 0 && (
           <div className="relative w-5 shrink-0">
             <>
@@ -116,21 +118,24 @@ export function VirtualizedTreeNodeWrapper({
               <div
                 className={cn(
                   "bg-border-contrast absolute top-0 left-3 w-px",
-                  isLastSibling ? "h-3" : "bottom-3",
+                  isLastSibling ? "h-2.5" : "bottom-2.5",
                 )}
               />
               {/* Vertical bar connecting downwards if not last sibling */}
               {!isLastSibling && (
-                <div className="bg-border-contrast absolute top-3 bottom-0 left-3 w-px" />
+                <div className="bg-border-contrast absolute top-2.5 bottom-0 left-3 w-px" />
               )}
               {/* Horizontal bar connecting to icon */}
-              <div className="bg-border-contrast absolute top-3 left-3 h-px w-2" />
+              <div className="bg-border-contrast absolute top-2.5 left-3 h-px w-2" />
             </>
           </div>
         )}
 
-        {/* 3. Icon + child connector: fixed width container */}
-        <div className="relative flex w-6 shrink-0 flex-col py-1.5">
+        {/* 3. Icon + child connector: fixed width container.
+            py-0.5 matches the content's own row padding, so the icon box sits
+            on the first text line instead of centring against a multi-line
+            block (metrics row, score badges, a name wrapped over two lines). */}
+        <div className="relative flex w-6 shrink-0 flex-col py-0.5">
           <div className="relative z-10 flex h-4 items-center justify-center">
             <ItemBadge type={nodeType} isSmall className="size-3!" />
           </div>
@@ -138,20 +143,22 @@ export function VirtualizedTreeNodeWrapper({
               when children render capped at this same indent — the spine
               would point at nothing) */}
           {hasChildren && !isCollapsed && !childrenAreCapped && (
-            <div className="bg-border-contrast absolute top-3 bottom-0 left-1/2 w-px" />
+            <div className="bg-border-contrast absolute top-2.5 bottom-0 left-1/2 w-px" />
           )}
           {/* Root node downward connector */}
           {depth === 0 && hasChildren && !isCollapsed && !childrenAreCapped && (
-            <div className="bg-border-contrast absolute top-3 bottom-0 left-1/2 w-px" />
+            <div className="bg-border-contrast absolute top-2.5 bottom-0 left-1/2 w-px" />
           )}
         </div>
 
-        {/* 4. Content area (passed as children - completely decoupled) */}
-        <div className="flex min-w-0 flex-1">{children}</div>
+        {/* 4. Content area (passed as children - completely decoupled).
+            items-start keeps the first text line at the top of the row so it
+            stays level with the icon and the chevron. */}
+        <div className="flex min-w-0 flex-1 items-start">{children}</div>
 
         {/* 5. Expand/Collapse button */}
         {hasChildren && (
-          <div className="flex items-center justify-end py-1 pr-1">
+          <div className="flex items-start justify-end py-0.5 pr-1">
             <Button
               aria-expanded={!isCollapsed}
               data-expand-button
@@ -161,7 +168,9 @@ export function VirtualizedTreeNodeWrapper({
                 ev.stopPropagation();
                 onToggleCollapse();
               }}
-              className="hover:bg-primary/10 h-6 w-6 shrink-0"
+              // -my-1 keeps the 24px hit target while its layout box shrinks to
+              // the 16px first line, so the chevron centres on the name.
+              className="hover:bg-primary/10 -my-1 h-6 w-6 shrink-0"
             >
               <span
                 className={cn(
