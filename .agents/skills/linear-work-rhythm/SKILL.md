@@ -257,9 +257,7 @@ it is asking for, and propose the next step — do not ask which skill applies.
 
 - **A tracker ticket** → reconstruct its history first
   ([`linear-context-handover`](../linear-context-handover/SKILL.md)), then
-  propose the next step. If it looks larger than one commit, you may offer
-  [`linear-planning`](../linear-planning/SKILL.md) — do not start that skill
-  unless they ask to plan it for implementation.
+  propose the next step.
 - **A Slack permalink** → read the thread if a Slack tool is connected. If it is
   not, say so in one line and ask them to paste it; do not guess from the URL.
   What usually follows is a ticket, so offer to draft one — and remember a

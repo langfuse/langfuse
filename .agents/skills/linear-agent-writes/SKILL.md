@@ -35,11 +35,8 @@ Ordinary Linear writes are short. A new ticket or subticket is a title and
 two to four sentences: what to do, and why in one line if it is not obvious.
 Comments stay to the thing the watcher needs today.
 
-Expand — research, file lists, implementation-ready briefs — only when they
-ask ("expand this", "add context", "plan it so an agent can implement it").
-The long planning template is
-[`linear-planning`](../linear-planning/SKILL.md), and it is opt-in: propose
-it, do not start it on "create a subticket".
+Expand — research, file lists — only when they ask ("expand this", "add
+context"). Do not invent an implementation-ready brief.
 
 Wrong (they said "create a subticket"): six fields, entry-point files, a
 stack position, a research essay.
@@ -95,14 +92,7 @@ Label `AI created`. Say in the description that an agent created it and who it i
 for. Default length is the short human ticket in *Default length* above.
 
 **A subticket of an existing ticket needs no permission.** File the short
-ticket. "Create a subticket" / "file this" / "add a ticket" is this shape,
-not a planning session.
-
-**Planning a PR stack is a different ask.**
-[`linear-planning`](../linear-planning/SKILL.md) is how — and only when they
-explicitly ask to plan it for implementation with context, or they accept a
-proposal to do that. Propose it in chat; do not start it because the parent
-is large.
+ticket. "Create a subticket" / "file this" / "add a ticket" is this shape.
 
 **A ticket with no parent needs the human's yes first** — a top-level issue, or
 one filed straight into a project. Show the title and the short description you

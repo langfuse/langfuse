@@ -1,4 +1,0 @@
-interface:
-  display_name: "Linear Planning"
-  short_description: "Opt-in: plan a feature as implementation-ready subtickets"
-  default_prompt: "Use $linear-planning only if I explicitly asked to plan a feature as Linear subtickets mapped to a PR stack. If I asked to create a ticket or subticket, write a short human description instead."
