@@ -8,7 +8,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  type DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
@@ -32,7 +31,7 @@ export function ProviderDialogController({
 }: {
   organizationId: string;
   connection?: GatewayConnection;
-  children: (control: { Trigger: typeof DialogTrigger }) => ReactNode;
+  children: (control: { openDialog: () => void }) => ReactNode;
 }) {
   const [provider, setProvider] = useState<GatewayProvider>(
     connection?.provider ?? "OPENAI",
@@ -181,7 +180,7 @@ export function ProviderDialogController({
         </>
       )}
     >
-      {({ Trigger }) => children({ Trigger })}
+      {({ openDialog }) => children({ openDialog })}
     </DialogController>
   );
 }

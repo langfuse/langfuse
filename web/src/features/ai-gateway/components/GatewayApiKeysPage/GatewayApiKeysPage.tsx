@@ -52,13 +52,11 @@ export function GatewayApiKeysPage({
       onLoadMore={() => apiKeysQuery.fetchNextPage()}
       createAction={
         <CreateGatewayApiKeyDialogController organizationId={organizationId}>
-          {({ Trigger }) => (
-            <Trigger asChild>
-              <Button>
-                <Plus className="mr-1.5 size-4" />
-                Create gateway key
-              </Button>
-            </Trigger>
+          {({ openDialog }) => (
+            <Button onClick={openDialog}>
+              <Plus className="mr-1.5 size-4" />
+              Create gateway key
+            </Button>
           )}
         </CreateGatewayApiKeyDialogController>
       }

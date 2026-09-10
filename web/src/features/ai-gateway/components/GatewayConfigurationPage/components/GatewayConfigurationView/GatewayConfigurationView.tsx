@@ -291,23 +291,22 @@ function CreateIngestionProjectDialog({
         </>
       )}
     >
-      {({ Trigger }) => (
-        <Trigger asChild>
-          {showIcon ? (
-            <Button>
-              <Plus className="mr-1.5 size-4" />
-              {triggerLabel}
-            </Button>
-          ) : (
-            <button
-              type="button"
-              className="text-primary text-sm hover:underline"
-            >
-              {triggerLabel}
-            </button>
-          )}
-        </Trigger>
-      )}
+      {({ openDialog }) =>
+        showIcon ? (
+          <Button onClick={openDialog}>
+            <Plus className="mr-1.5 size-4" />
+            {triggerLabel}
+          </Button>
+        ) : (
+          <button
+            type="button"
+            className="text-primary text-sm hover:underline"
+            onClick={openDialog}
+          >
+            {triggerLabel}
+          </button>
+        )
+      }
     </DialogController>
   );
 }

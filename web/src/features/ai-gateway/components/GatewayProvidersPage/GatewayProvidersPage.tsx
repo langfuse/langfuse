@@ -103,13 +103,11 @@ export function GatewayProvidersPage({
       }}
       createAction={
         <ProviderDialogController organizationId={organizationId}>
-          {({ Trigger }) => (
-            <Trigger asChild>
-              <Button>
-                <Plus className="mr-1.5 size-4" />
-                Add credential
-              </Button>
-            </Trigger>
+          {({ openDialog }) => (
+            <Button onClick={openDialog}>
+              <Plus className="mr-1.5 size-4" />
+              Add credential
+            </Button>
           )}
         </ProviderDialogController>
       }
@@ -131,16 +129,15 @@ export function GatewayProvidersPage({
               organizationId={organizationId}
               connection={connection}
             >
-              {({ Trigger }) => (
-                <Trigger asChild>
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    aria-label="Edit credential"
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
-                </Trigger>
+              {({ openDialog }) => (
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  aria-label="Edit credential"
+                  onClick={openDialog}
+                >
+                  <Pencil className="size-4" />
+                </Button>
               )}
             </ProviderDialogController>
             <DeleteProviderDialog

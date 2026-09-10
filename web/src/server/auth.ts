@@ -18,6 +18,7 @@ import {
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
+import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import {
   type AdapterUser,
@@ -751,11 +752,28 @@ export async function getAuthOptions(signupAttribution?: {
         }
         return baseUrl;
       },
+      async jwt({ token, user }) {
+        if (user) {
+          const loginAt = await getSessionLoginAt(token.email!);
+          token.loginAt = loginAt.getTime();
+        }
+        return token;
+      },
       async session({ session, token }): Promise<Session> {
         return instrumentAsync({ name: "next-auth-session" }, async (span) => {
           const dbUser = await prisma.user.findUnique({
             where: {
               email: token.email!.toLowerCase(),
+              OR: [
+                { sessionsExpiredAt: null },
+                {
+                  // Strict: a token issued in the same millisecond as revocation
+                  // is treated as revoked.
+                  sessionsExpiredAt: {
+                    lt: new Date(token.loginAt ?? 0),
+                  },
+                },
+              ],
             },
             select: {
               id: true,

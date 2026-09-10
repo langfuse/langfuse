@@ -241,11 +241,7 @@ describe("gateway mutation local error handling", () => {
   it("tests a provider credential without saving", async () => {
     render(
       <ProviderDialogController organizationId="org-1">
-        {({ Trigger }) => (
-          <Trigger asChild>
-            <Button>Add provider</Button>
-          </Trigger>
-        )}
+        {({ openDialog }) => <Button onClick={openDialog}>Add provider</Button>}
       </ProviderDialogController>,
     );
 
@@ -270,11 +266,7 @@ describe("gateway mutation local error handling", () => {
   it("create provider dialog routes tRPC failures locally without a global toast", async () => {
     render(
       <ProviderDialogController organizationId="org-1">
-        {({ Trigger }) => (
-          <Trigger asChild>
-            <Button>Add provider</Button>
-          </Trigger>
-        )}
+        {({ openDialog }) => <Button onClick={openDialog}>Add provider</Button>}
       </ProviderDialogController>,
     );
 
@@ -309,10 +301,8 @@ describe("gateway mutation local error handling", () => {
         organizationId="org-1"
         connection={testConnection}
       >
-        {({ Trigger }) => (
-          <Trigger asChild>
-            <Button>Edit provider</Button>
-          </Trigger>
+        {({ openDialog }) => (
+          <Button onClick={openDialog}>Edit provider</Button>
         )}
       </ProviderDialogController>,
     );
@@ -339,11 +329,7 @@ describe("gateway mutation local error handling", () => {
     render(
       <TooltipProvider>
         <CreateGatewayApiKeyDialogController organizationId="org-1">
-          {({ Trigger }) => (
-            <Trigger asChild>
-              <Button>Issue key</Button>
-            </Trigger>
-          )}
+          {({ openDialog }) => <Button onClick={openDialog}>Issue key</Button>}
         </CreateGatewayApiKeyDialogController>
       </TooltipProvider>,
     );

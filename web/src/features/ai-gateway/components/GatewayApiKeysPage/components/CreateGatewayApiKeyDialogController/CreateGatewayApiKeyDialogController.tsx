@@ -14,7 +14,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  type DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
@@ -37,7 +36,7 @@ export function CreateGatewayApiKeyDialogController({
   children,
 }: {
   organizationId: string;
-  children: (control: { Trigger: typeof DialogTrigger }) => ReactNode;
+  children: (control: { openDialog: () => void }) => ReactNode;
 }) {
   const [note, setNote] = useState("");
   const [metadata, setMetadata] = useState<MetadataField[]>(() => [
@@ -243,7 +242,7 @@ export function CreateGatewayApiKeyDialogController({
         </>
       )}
     >
-      {({ Trigger }) => children({ Trigger })}
+      {({ openDialog }) => children({ openDialog })}
     </DialogController>
   );
 }
