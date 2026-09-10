@@ -1,7 +1,12 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { ExperimentComparisonSelector } from "./ExperimentComparisonSelector";
-import { getExperimentColorStyles } from "./table/types";
+import { ExperimentScoreMatrix } from "./table/ExperimentScoreMatrix";
+import {
+  getExperimentColorStyles,
+  type ExperimentItemsTableRow,
+} from "./table/types";
 
 const h = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -127,7 +132,27 @@ describe("ExperimentComparisonSelector analytics", () => {
   });
 });
 
-describe("ExperimentComparisonSelector run colours", () => {
+// The invariant: every surface that paints a run's colour resolves it from the
+// one order the selection publishes, so the run pickers and the layouts agree
+// in every layout, with and without a baseline. The matrix stands in for the
+// layouts here: it is the one that reached the colour through its own list.
+describe("run colours agree across surfaces", () => {
+  const scoreKey = "groundedness-EVAL-NUMERIC";
+  const matrixColumns = h.searchResults.map((experiment, index) => ({
+    experimentId: experiment.experimentId,
+    experimentName: experiment.experimentName,
+    isBaseline: index === 0,
+  }));
+  const matrixRows = [
+    {
+      id: "item-1",
+      experiments: matrixColumns.map((column) => ({
+        experimentId: column.experimentId,
+        traceScores: { [scoreKey]: { type: "NUMERIC", average: 0.5 } },
+      })),
+    },
+  ] as unknown as ExperimentItemsTableRow[];
+
   const renderChips = (colorExperimentIds: string[]) =>
     render(
       <ExperimentComparisonSelector
@@ -140,36 +165,70 @@ describe("ExperimentComparisonSelector run colours", () => {
         isAutoSelectEnabled={true}
         onAutoSelectEnabledChange={h.onAutoSelectEnabledChange}
       />,
-    );
+    ).container;
 
-  const markerOf = (experimentName: string) =>
-    screen
+  const renderMatrix = (colorExperimentIds: string[]) =>
+    render(
+      <TooltipProvider>
+        <ExperimentScoreMatrix
+          rows={matrixRows}
+          scoreRows={[
+            {
+              scoreKey,
+              level: "trace",
+              dataType: "NUMERIC",
+              label: "# groundedness",
+            },
+          ]}
+          experiments={matrixColumns}
+          colorExperimentIds={colorExperimentIds}
+          isLoading={false}
+          pagination={{
+            totalCount: 1,
+            onChange: vi.fn(),
+            state: { pageIndex: 0, pageSize: 50 },
+          }}
+        />
+      </TooltipProvider>,
+    ).container;
+
+  const markerOf = (container: HTMLElement, experimentName: string) =>
+    within(container)
       .getByText(experimentName)
       .parentElement?.querySelector("span.rounded-full");
 
-  it("marks each chip with the colour the cells give that run", () => {
+  it("gives a run the same colour in the pickers and in the matrix", () => {
     // Baseline first, then the comparisons in selection order — the list the
     // table's cells index into.
     const colorExperimentIds = ["exp-a", "exp-b", "exp-c"];
-    renderChips(colorExperimentIds);
+    const chips = renderChips(colorExperimentIds);
+    const matrix = renderMatrix(colorExperimentIds);
 
     for (const [id, name] of [
       ["exp-b", "My Experiment B"],
       ["exp-c", "My Experiment C"],
     ]) {
-      expect(markerOf(name)?.className).toContain(
-        getExperimentColorStyles(id, colorExperimentIds).markerClass,
-      );
+      const expected = getExperimentColorStyles(
+        id,
+        colorExperimentIds,
+      ).markerClass;
+      expect(markerOf(chips, name)?.className).toContain(expected);
+      expect(markerOf(matrix, name)?.className).toContain(expected);
     }
-    expect(markerOf("My Experiment B")?.className).not.toEqual(
-      markerOf("My Experiment C")?.className,
+    expect(markerOf(matrix, "My Experiment B")?.className).not.toEqual(
+      markerOf(matrix, "My Experiment C")?.className,
     );
   });
 
-  it("stays plain when the cells are, with no baseline to colour against", () => {
-    renderChips([]);
+  it("stays plain everywhere with no baseline to colour against", () => {
+    const chips = renderChips([]);
+    const matrix = renderMatrix([]);
 
-    expect(markerOf("My Experiment B")).toBeNull();
-    expect(markerOf("My Experiment C")).toBeNull();
+    for (const name of ["My Experiment B", "My Experiment C"]) {
+      expect(markerOf(chips, name)).toBeNull();
+      expect(markerOf(matrix, name)).toBeNull();
+      // The colour goes, the run does not: a column keeps its name.
+      expect(within(matrix).getByText(name)).toBeTruthy();
+    }
   });
 });

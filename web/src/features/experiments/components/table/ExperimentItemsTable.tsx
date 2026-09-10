@@ -2074,6 +2074,7 @@ export default function ExperimentItemsTable({
                   rows={unfilteredRows}
                   scoreRows={matrixScoreRows}
                   experiments={matrixExperiments}
+                  colorExperimentIds={colorExperimentIds}
                   isLoading={items.status === "loading" || isViewLoading}
                   pagination={pagination}
                 />
