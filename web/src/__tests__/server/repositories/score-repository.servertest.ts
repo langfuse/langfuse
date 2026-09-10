@@ -30,6 +30,8 @@ import {
   createSessionScore,
   createOrgProjectAndApiKey,
   getScoreStringValues,
+  FILTER_OPTION_SCORE_NAME_LIMIT,
+  FILTER_OPTION_CATEGORICAL_VALUE_LIMIT,
 } from "@langfuse/shared/src/server";
 import type { FilterState } from "@langfuse/shared";
 import { v4 } from "uuid";
@@ -1642,6 +1644,15 @@ describe("Clickhouse Scores Repository Test", () => {
       expect(byColumn(combined.traceLevelScores)).toEqual(
         byColumn(traceLevelScores),
       );
+      // Order-sensitive: the byName/byLabel/byColumn helpers above sort before
+      // comparing, so they only prove set-equality. The UI renders the raw
+      // top-N order, so pin count-desc with a name-asc tiebreak too: accuracy
+      // rolls up two sources to count 2; empty-bool and thumbs tie at 1.
+      expect(combined.numericNames.map((row) => row.name)).toEqual([
+        "accuracy",
+        "empty-bool",
+        "thumbs",
+      ]);
       expect(combined.numericNames.map((row) => row.name)).not.toContain(
         "session-only",
       );
@@ -1651,6 +1662,144 @@ describe("Clickhouse Scores Repository Test", () => {
       expect(combined.numericNames.map((row) => row.name)).toContain(
         "empty-bool",
       );
+    });
+
+    it("caps score names per data_type like the per-column helper at the name limit", async () => {
+      const isolatedProjectId = v4();
+      const timestampFilter: FilterState = [
+        {
+          column: "Timestamp",
+          type: "datetime",
+          operator: ">=",
+          value: new Date(Date.now() - 60 * 60 * 1000),
+        },
+      ];
+      const traceScopedFilter: FilterState = [
+        {
+          type: "null",
+          column: "traceId",
+          operator: "is not null",
+          value: "",
+        },
+        ...timestampFilter,
+      ];
+
+      // Cross the per-type cap: LIMIT_TOP names each seen twice (count 2) plus a
+      // dozen extras seen once (count 1). count 2 > count 1 makes the top set
+      // unambiguous, so the SQL `LIMIT BY data_type` + JS name cap must land on
+      // exactly the frequent names, same as the old `LIMIT` per query.
+      const topNames = Array.from(
+        { length: FILTER_OPTION_SCORE_NAME_LIMIT },
+        (_, i) => `cap-top-${String(i).padStart(4, "0")}`,
+      );
+      const overflowNames = Array.from(
+        { length: 12 },
+        (_, i) => `cap-over-${String(i).padStart(2, "0")}`,
+      );
+      const numericScore = (name: string) =>
+        createTraceScore({
+          project_id: isolatedProjectId,
+          name,
+          data_type: "NUMERIC",
+          value: 1,
+          source: "API",
+        });
+
+      await createScoresCh([
+        ...topNames.flatMap((name) => [numericScore(name), numericScore(name)]),
+        ...overflowNames.map((name) => numericScore(name)),
+      ]);
+
+      const [combined, oldNumeric] = await Promise.all([
+        getScoresFilterOptionsForEventFacets({
+          projectId: isolatedProjectId,
+          timestampFilter,
+        }),
+        getNumericScoresGroupedByName(isolatedProjectId, traceScopedFilter),
+      ]);
+
+      // Cap engaged: seeded more distinct names than the limit.
+      expect(topNames.length + overflowNames.length).toBeGreaterThan(
+        FILTER_OPTION_SCORE_NAME_LIMIT,
+      );
+      expect(combined.numericNames).toHaveLength(
+        FILTER_OPTION_SCORE_NAME_LIMIT,
+      );
+
+      const combinedSet = combined.numericNames.map((row) => row.name).sort();
+      expect(combinedSet).toEqual([...topNames].sort());
+      expect(combinedSet).toEqual(oldNumeric.map((row) => row.name).sort());
+      for (const overflow of overflowNames) {
+        expect(combinedSet).not.toContain(overflow);
+      }
+    });
+
+    it("truncates categorical values at the value limit like the per-column helper", async () => {
+      const isolatedProjectId = v4();
+      const timestampFilter: FilterState = [
+        {
+          column: "Timestamp",
+          type: "datetime",
+          operator: ">=",
+          value: new Date(Date.now() - 60 * 60 * 1000),
+        },
+      ];
+      const traceScopedFilter: FilterState = [
+        {
+          type: "null",
+          column: "traceId",
+          operator: "is not null",
+          value: "",
+        },
+        ...timestampFilter,
+      ];
+
+      // One categorical name with more distinct values than the cap allows.
+      const seededValues = Array.from(
+        { length: FILTER_OPTION_CATEGORICAL_VALUE_LIMIT + 5 },
+        (_, i) => `val-${String(i).padStart(2, "0")}`,
+      );
+      await createScoresCh(
+        seededValues.map((value) =>
+          createTraceScore({
+            project_id: isolatedProjectId,
+            name: "cap-cat",
+            data_type: "CATEGORICAL",
+            value: 0,
+            string_value: value,
+            source: "API",
+          }),
+        ),
+      );
+
+      const [combined, oldCategorical] = await Promise.all([
+        getScoresFilterOptionsForEventFacets({
+          projectId: isolatedProjectId,
+          timestampFilter,
+        }),
+        getCategoricalScoresGroupedByName(isolatedProjectId, traceScopedFilter),
+      ]);
+
+      const combinedCat = combined.categoricalNames.find(
+        (row) => row.label === "cap-cat",
+      );
+      const oldCat = oldCategorical.find((row) => row.label === "cap-cat");
+      expect(combinedCat).toBeDefined();
+      expect(oldCat).toBeDefined();
+
+      // Cap engaged and identical to the old helper. groupUniqArray truncation
+      // picks an arbitrary subset, so assert the count and membership, not which
+      // specific values survive.
+      expect(seededValues.length).toBeGreaterThan(
+        FILTER_OPTION_CATEGORICAL_VALUE_LIMIT,
+      );
+      expect(combinedCat!.values).toHaveLength(
+        FILTER_OPTION_CATEGORICAL_VALUE_LIMIT,
+      );
+      expect(oldCat!.values).toHaveLength(combinedCat!.values.length);
+      for (const value of combinedCat!.values) {
+        expect(seededValues).toContain(value);
+      }
     });
   });
 });
