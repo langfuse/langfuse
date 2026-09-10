@@ -7,7 +7,9 @@ import {
 import {
   AuditLogQueue,
   convertPostgresAuditLogToClickhouse,
+  logger,
   QueueJobs,
+  recordIncrement,
   type AuditLogChangeRow,
   type AuditLogRecordInsertType,
 } from "@langfuse/shared/src/server";
@@ -92,22 +94,37 @@ type AuditLog = {
 );
 
 /**
- * Queues an audit log row for ClickHouse. Throws when Redis is unavailable so
- * a change event is never silently lost.
+ * Queues an audit log row for ClickHouse. Fails open: the row is already
+ * committed to Postgres, which stays the durable copy while the backfill runs
+ * (a re-run copies anything the queue missed), and the caller's mutation has
+ * already succeeded, so a Redis problem is logged and counted, not thrown.
  */
 async function enqueueAuditLogRecord(
   record: AuditLogRecordInsertType,
 ): Promise<void> {
-  const queue = AuditLogQueue.getInstance();
-  if (!queue) {
-    throw new Error("AuditLogQueue is not available, Redis is not configured");
+  try {
+    const queue = AuditLogQueue.getInstance();
+    if (!queue) {
+      recordIncrement("langfuse.audit_log.change_event_dropped", 1, {
+        reason: "queue_unavailable",
+      });
+      return;
+    }
+    await queue.add(QueueJobs.AuditLogJob, {
+      id: record.id,
+      timestamp: new Date(),
+      name: QueueJobs.AuditLogJob,
+      payload: record,
+    });
+  } catch (error) {
+    logger.error("Failed to enqueue audit log change event", {
+      error,
+      auditLogId: record.id,
+    });
+    recordIncrement("langfuse.audit_log.change_event_dropped", 1, {
+      reason: "enqueue_failed",
+    });
   }
-  await queue.add(QueueJobs.AuditLogJob, {
-    id: record.id,
-    timestamp: new Date(),
-    name: QueueJobs.AuditLogJob,
-    payload: record,
-  });
 }
 
 type ChangeEventData = Omit<AuditLogChangeRow, "id" | "createdAt">;
