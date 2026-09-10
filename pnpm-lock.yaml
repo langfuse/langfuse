@@ -115,6 +115,12 @@ importers:
         specifier: 2.10.5
         version: 2.10.5
 
+  ai-gateway:
+    devDependencies:
+      dotenv-cli:
+        specifier: ^7.4.4
+        version: 7.4.4
+
   ee:
     dependencies:
       '@langfuse/shared':
