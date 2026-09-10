@@ -33,7 +33,7 @@
     "typecheck": "turbo run typecheck",
     "tc": "turbo run typecheck",
     "start": "turbo run start",
-    "dev": "turbo run dev --filter=!@langfuse/ai-gateway",
+    "dev": "turbo run dev",
     "dev:gateway": "turbo watch dev --filter=@langfuse/ai-gateway",
     "dev:worker": "turbo run dev --filter=worker",
     "dev:web": "turbo run dev --filter=web",

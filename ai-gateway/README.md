@@ -7,18 +7,35 @@ credentials are needed to build, start or test this package.
 
 ## Run locally
 
-Install Rust through rustup; `rust-toolchain.toml` pins the toolchain and required
-components. After the usual repository `pnpm install`, run from the repository
-root:
+Alongside the repository's Node.js/pnpm setup, install [Rust via rustup](https://rust-lang.org/tools/install/)
+and a native compiler/linker: Xcode Command Line Tools on macOS (`xcode-select --install`),
+GCC/Clang on Linux (Ubuntu: `sudo apt install build-essential`), or MSVC C++ Build Tools on Windows.
+Ensure `~/.cargo/bin` is on your PATH (reopen the terminal after installing rustup).
+`rust-toolchain.toml` selects Rust 1.98.0 with Clippy and rustfmt automatically;
+the first run needs network access to download the toolchain and Cargo dependencies.
+No separate Rust watcher is needed.
+
+After the usual repository `pnpm install`, run from the repository root:
+
+```sh
+pnpm dev
+```
+
+This starts the gateway alongside the other development services. The gateway
+loads the root `.env` and listens on port 8080 by default. Add overrides from the
+table below to your root `.env`; exported shell variables take precedence.
+No gateway-specific credentials are needed for this foundation slice.
+
+Root `pnpm dev` starts the gateway once; it does not watch Rust source changes.
+For gateway development with automatic recompilation and restart, use:
 
 ```sh
 pnpm dev:gateway
 ```
 
-This loads the root `.env` and uses Turbo Watch to restart the gateway when its
-source changes. Add any gateway settings from the table below to your
-root `.env`. Exported shell variables take precedence. The ordinary root
-`pnpm dev` keeps the gateway opt-in and does not start it.
+Stop the gateway started by `pnpm dev` before running this command to avoid a
+port conflict. To run the other services alongside the gateway watcher, use
+`pnpm dev --filter=!@langfuse/ai-gateway` in a separate terminal.
 
 To start once without watching, run `pnpm dev` from `ai-gateway/`. Cargo also
 works independently of Node/pnpm; it reads exported environment variables only,
