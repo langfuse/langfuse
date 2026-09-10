@@ -1,15 +1,23 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createNewRedisInstance, redis } from "@langfuse/shared/src/server";
+import {
+  createNewRedisInstance,
+  recordIncrement,
+  redis,
+} from "@langfuse/shared/src/server";
 import { env } from "../env";
-import { recordTraceActivity } from "../features/traces/traceActivityMap";
+import {
+  closeTraceActivityMap,
+  recordTraceActivity,
+} from "../features/traces/traceActivityMap";
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
   return {
     ...actual,
-    createNewRedisInstance: vi.fn(() => actual.redis),
+    createNewRedisInstance: vi.fn(actual.createNewRedisInstance),
+    recordIncrement: vi.fn(),
   };
 });
 
@@ -34,9 +42,12 @@ describe("OTel trace activity map", () => {
     keys = [];
     env.LANGFUSE_OTEL_TRACE_ACTIVITY_MAP_ENABLED = "true";
     env.LANGFUSE_OTEL_TRACE_ACTIVITY_MAP_SAMPLE_PERCENT = 100;
+    vi.mocked(recordIncrement).mockClear();
   });
 
   afterEach(async () => {
+    closeTraceActivityMap();
+    vi.useRealTimers();
     vi.restoreAllMocks();
     env.LANGFUSE_OTEL_TRACE_ACTIVITY_MAP_ENABLED = originalFlag;
     env.LANGFUSE_OTEL_TRACE_ACTIVITY_MAP_SAMPLE_PERCENT = originalSamplePercent;
@@ -99,6 +110,9 @@ describe("OTel trace activity map", () => {
   it("does no Redis work when disabled and does not propagate write failures", async () => {
     const traceId = randomUUID();
     const traceKey = key(traceId);
+    vi.mocked(createNewRedisInstance).mockReturnValueOnce(redis);
+    // Keep the assertion client connected when the map closes its test client.
+    vi.spyOn(redis!, "disconnect").mockImplementation(() => {});
     const evalSpy = vi.spyOn(redis!, "eval");
     env.LANGFUSE_OTEL_TRACE_ACTIVITY_MAP_ENABLED = "false";
     await recordTraceActivity(projectId, [traceId]);
@@ -114,6 +128,8 @@ describe("OTel trace activity map", () => {
   });
 
   it("selects stable trace samples across batches and expands them when the percentage increases", async () => {
+    vi.mocked(createNewRedisInstance).mockReturnValueOnce(redis);
+    vi.spyOn(redis!, "disconnect").mockImplementation(() => {});
     const evalSpy = vi.spyOn(redis!, "eval").mockResolvedValue(1);
     const traceIds = Array.from({ length: 1000 }, (_, i) => `trace-${i}`);
     const sampledIds = async (
@@ -159,6 +175,8 @@ describe("OTel trace activity map", () => {
   });
 
   it("does no Redis work at zero percent and includes every distinct trace at 100 percent", async () => {
+    vi.mocked(createNewRedisInstance).mockReturnValueOnce(redis);
+    vi.spyOn(redis!, "disconnect").mockImplementation(() => {});
     const evalSpy = vi.spyOn(redis!, "eval").mockResolvedValue(1);
     vi.mocked(createNewRedisInstance).mockClear();
     env.LANGFUSE_OTEL_TRACE_ACTIVITY_MAP_SAMPLE_PERCENT = 0;
@@ -172,5 +190,50 @@ describe("OTel trace activity map", () => {
       `langfuse:otel:activity:{${projectId}}:trace-a`,
       `langfuse:otel:activity:{${projectId}}:trace-b`,
     ]);
+  });
+
+  it("writes the first batch on a fresh connection and distinguishes creation from repeated updates", async () => {
+    const traceId = randomUUID();
+    const traceKey = key(traceId);
+    await recordTraceActivity(projectId, [traceId, traceId]);
+    expect(await redis!.exists(traceKey)).toBe(1);
+    await recordTraceActivity(projectId, [traceId]);
+    const total = (name: string) =>
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(
+          ([metric]) =>
+            metric === `langfuse.ingestion.otel.activity_map.${name}`,
+        )
+        .reduce((sum, [, value]) => sum + (value ?? 1), 0);
+    expect(total("eligible_trace_updates")).toBe(2);
+    expect(total("sampled_trace_updates")).toBe(2);
+    expect(total("trace_updates")).toBe(2);
+    expect(total("trace_creations")).toBe(1);
+    expect(total("skipped_batches")).toBe(0);
+  });
+
+  it("bounds startup waiting and records a skipped batch if the connection never becomes ready", async () => {
+    const actual = await vi.importActual<
+      typeof import("@langfuse/shared/src/server")
+    >("@langfuse/shared/src/server");
+    const waitingClient = actual.createNewRedisInstance({ lazyConnect: true });
+    if (!waitingClient) throw new Error("Redis must be configured");
+    const readyListeners = waitingClient.listenerCount("ready");
+    vi.mocked(createNewRedisInstance).mockReturnValueOnce(waitingClient);
+    const evalSpy = vi.spyOn(waitingClient, "eval");
+    vi.useFakeTimers();
+    const write = recordTraceActivity(projectId, ["trace-startup-timeout"]);
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(write).resolves.toBeUndefined();
+    expect(evalSpy).not.toHaveBeenCalled();
+    expect(waitingClient.listenerCount("ready")).toBe(readyListeners);
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.activity_map.skipped_batches",
+    );
+    expect(recordIncrement).not.toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.activity_map.trace_updates",
+      expect.any(Number),
+    );
   });
 });
