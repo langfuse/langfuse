@@ -10,7 +10,7 @@ import {
 } from "tiktoken";
 
 import { z } from "zod";
-import { logger } from "@langfuse/shared/src/server";
+import { logger, recordIncrement } from "@langfuse/shared/src/server";
 
 const OpenAiTokenConfig = z.object({
   tokenizerModel: z.string().refine(isTiktokenModel, {
@@ -71,6 +71,11 @@ type ChatMessage = {
 function openAiTokenCount(p: { model: Model; text: unknown }) {
   const config = OpenAiTokenConfig.safeParse(p.model.tokenizerConfig);
   if (!config.success) {
+    // Counter fires per occurrence so the ongoing rate stays visible; the log
+    // line dedupes to once per model id (the config itself is static).
+    recordIncrement("langfuse.ingestion.tokenisation.invalid_config", 1, {
+      tokenizer: "openai",
+    });
     if (!warnedInvalidTokenizerConfigModelIds.has(p.model.id)) {
       warnedInvalidTokenizerConfigModelIds.add(p.model.id);
       logger.warn(
@@ -95,6 +100,9 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
       p.model.tokenizerConfig,
     );
     if (!parsedConfig.success) {
+      recordIncrement("langfuse.ingestion.tokenisation.invalid_config", 1, {
+        tokenizer: "openai_chat",
+      });
       if (!warnedInvalidTokenizerConfigModelIds.has(p.model.id)) {
         warnedInvalidTokenizerConfigModelIds.add(p.model.id);
         logger.error(
