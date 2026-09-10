@@ -182,10 +182,12 @@ export function PromptEditorContent({
           <label
             className={cn(
               "text-muted-foreground flex h-6 items-center gap-1.5 px-2 text-xs",
+              isSingleMessage && "px-1",
               combinedPrepared.promptPreviewDisabledReason
                 ? "cursor-not-allowed opacity-60"
                 : "cursor-pointer",
             )}
+            title={isSingleMessage ? "Preview" : undefined}
             tabIndex={
               combinedPrepared.promptPreviewDisabledReason ? 0 : undefined
             }
@@ -204,7 +206,7 @@ export function PromptEditorContent({
               disabled={Boolean(combinedPrepared.promptPreviewDisabledReason)}
               onCheckedChange={state.actions.setPromptPreviewEnabled}
             />
-            Preview
+            <span className={cn(isSingleMessage && "sr-only")}>Preview</span>
           </label>
         </TooltipTrigger>
         {combinedPrepared.promptPreviewDisabledReason ? (
