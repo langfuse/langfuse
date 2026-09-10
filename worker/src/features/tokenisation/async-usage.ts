@@ -124,11 +124,11 @@ export class TokenCountWorkerManager {
     params: { model: Model; text: unknown },
     timeoutMs = 30000,
   ): Promise<number | undefined> {
-    // A SIGTERM teardown terminates the pool while ingestion may still be
-    // in-flight. Drop the count instead of posting to a dead thread (which
-    // threw and was logged as a tokenization failure, spiking on rollouts);
-    // the caller commits the observation without usage, as it does for any
-    // tokenization miss.
+    // A SIGTERM teardown terminates the pool while ingestion may still call
+    // in. Drop the count (undefined = usage unknown, which the caller commits
+    // as absent rather than as a zero) instead of posting to a terminating or
+    // already-gone worker, which threw and was logged per observation as a
+    // tokenization failure — the spike seen on rollouts.
     if (this.isShuttingDown) {
       return undefined;
     }
@@ -167,9 +167,11 @@ export class TokenCountWorkerManager {
     // workers' own exit/error events see the shutdown and stop early.
     this.isShuttingDown = true;
 
-    // Resolve in-flight requests as misses rather than rejecting: the caller
-    // treats a rejection as a tokenization failure and logs it per request,
-    // which is exactly the shutdown-time noise this guard removes.
+    // In-flight requests can no longer get a response from the terminating
+    // workers. Resolve them with undefined (usage unknown) rather than
+    // rejecting: dropping counts during shutdown is expected, not an error,
+    // and a rejection is logged per request by the caller as a tokenization
+    // failure.
     for (const [, request] of this.pool.pendingRequests.entries()) {
       clearTimeout(request.timeout);
       request.resolve(undefined);
