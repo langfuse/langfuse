@@ -1686,8 +1686,8 @@ describe("Clickhouse Scores Repository Test", () => {
 
       // Cross the per-type cap: LIMIT_TOP names each seen twice (count 2) plus a
       // dozen extras seen once (count 1). count 2 > count 1 makes the top set
-      // unambiguous, so the SQL name-rank cap plus JS name cap must land on
-      // exactly the frequent names — the per-column helper is the oracle below.
+      // unambiguous, so the TypeScript name cap must land on exactly the
+      // frequent names — the per-column helper is the oracle below.
       const topNames = Array.from(
         { length: FILTER_OPTION_SCORE_NAME_LIMIT },
         (_, i) => `cap-top-${String(i).padStart(4, "0")}`,
@@ -1754,13 +1754,13 @@ describe("Clickhouse Scores Repository Test", () => {
         ...timestampFilter,
       ];
 
-      // The repository sums each name's count across sources before ranking, so
-      // the SQL must bound by summed count per name — not by raw per-source rows.
-      // Seed the adversarial shape: one NUMERIC name spread over all three
-      // sources (one row each, summed count 3), plus more single-source names
-      // (count 2 each) than the name cap. Every split row has a lower per-source
-      // count than every filler, so a per-source row cap drops the split name
-      // even though its summed count is the project's highest.
+      // The repository sums each name's count across sources before the UI cap.
+      // SQL only keeps the most frequent (name, source, data_type) groups as a
+      // transfer bound, so this fixture still returns the split name: one
+      // NUMERIC name spread over all three sources (one row each, summed count
+      // 3), plus more single-source names (count 2 each) than the name cap.
+      // A tight per-source row cap would drop it; the generous group limit
+      // does not.
       const singleSourceNames = Array.from(
         { length: FILTER_OPTION_SCORE_NAME_LIMIT * ScoreSourceArray.length },
         (_, i) => `split-filler-${String(i).padStart(4, "0")}`,
@@ -1797,7 +1797,8 @@ describe("Clickhouse Scores Repository Test", () => {
 
       // The old per-column helper groups by name before its own limit, so the
       // split name is the unambiguous #1 by summed count. The combined scan
-      // must agree — losing it means per-source truncation dropped it.
+      // still returns it because the group-limit is a transfer bound, not a
+      // per-source semantic cap.
       expect(oldNumeric[0]?.name).toBe("split-hot");
       expect(combined.numericNames.map((row) => row.name)).toContain(
         "split-hot",
@@ -1826,11 +1827,11 @@ describe("Clickhouse Scores Repository Test", () => {
       ];
 
       // numericNames pools NUMERIC and BOOLEAN and ranks names by their combined
-      // count. A name that exists as both types can sit outside each type's own
-      // top-N while its combined count is the project's highest, so a per-type
-      // cap drops it from both. Seed that: cross-hot with NUMERIC count 3 and
-      // BOOLEAN count 3 (combined 6), behind a full name cap of single-type
-      // fillers at count 4 in each type.
+      // count in TypeScript. A name that exists as both types can sit outside
+      // each type's own top-N while its combined count is the project's highest.
+      // Seed that: cross-hot with NUMERIC count 3 and BOOLEAN count 3 (combined
+      // 6), behind a full name cap of single-type fillers at count 4 in each
+      // type. The SQL group limit is large enough that both type-rows arrive.
       const fillerNames = (prefix: string) =>
         Array.from(
           { length: FILTER_OPTION_SCORE_NAME_LIMIT },
@@ -1876,7 +1877,8 @@ describe("Clickhouse Scores Repository Test", () => {
       ]);
 
       // The per-column helper ranks the merged NUMERIC+BOOLEAN pool, so cross-hot
-      // (combined 6) is the unambiguous #1. The combined scan must agree.
+      // (combined 6) is the unambiguous #1. TypeScript still agrees because SQL
+      // returned both type-rows.
       expect(oldNumeric[0]?.name).toBe("cross-hot");
       expect(combined.numericNames.map((row) => row.name)).toContain(
         "cross-hot",
