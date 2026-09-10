@@ -190,19 +190,20 @@ export function SessionTraceActionButtons({
           )}
         </AnnotationQueueItemDropdownMenuController>
       </div>
-      <CommentDrawerController
-        projectId={projectId}
-        objectId={traceId}
-        objectType="TRACE"
-        count={commentCount}
-      >
+      <CommentDrawerController projectId={projectId} count={commentCount}>
         {({ disabled, openDrawer }) => (
           <Button
             type="button"
             variant="outline"
             size={size}
             disabled={disabled}
-            onClick={() => openDrawer({ type: "comments" })}
+            onClick={() =>
+              openDrawer({
+                type: "comments",
+                objectId: traceId,
+                objectType: "TRACE",
+              })
+            }
             className="gap-1"
           >
             {disabled ? (

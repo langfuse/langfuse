@@ -1785,6 +1785,9 @@ const implementationCodingAgentTrace = {
 
 const observationActions = {
   onFilterByName: fn(),
+  annotate: { disabled: false, onSelect: fn() },
+  comment: { disabled: false, onSelect: fn() },
+  addToDataset: { disabled: false, onSelect: fn() },
 } satisfies NonNullable<TimelineProps["observationActions"]>;
 
 const loadedArgs = {
@@ -2140,6 +2143,9 @@ export const UseObservationFilters = meta.story({
     ...loadedArgs,
     observationActions: {
       onFilterByName: fn(),
+      annotate: { disabled: false, onSelect: fn() },
+      comment: { disabled: false, onSelect: fn() },
+      addToDataset: { disabled: false, onSelect: fn() },
     },
   },
   play: async ({ args, canvasElement }) => {
@@ -2161,14 +2167,14 @@ export const UseObservationFilters = meta.story({
       }),
     ).toBeInTheDocument();
     await expect(
-      page.queryByRole("menuitem", { name: "Annotate" }),
-    ).not.toBeInTheDocument();
+      page.getByRole("menuitem", { name: "Annotate" }),
+    ).toBeInTheDocument();
     await expect(
-      page.queryByRole("menuitem", { name: "Add comment" }),
-    ).not.toBeInTheDocument();
+      page.getByRole("menuitem", { name: "Add comment" }),
+    ).toBeInTheDocument();
     await expect(
-      page.queryByRole("menuitem", { name: "Add to dataset" }),
-    ).not.toBeInTheDocument();
+      page.getByRole("menuitem", { name: "Add to dataset" }),
+    ).toBeInTheDocument();
 
     await userEvent.click(
       page.getByRole("menuitem", {

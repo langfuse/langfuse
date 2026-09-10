@@ -38,9 +38,10 @@ type EventObservation = RouterOutputs["events"]["all"]["observations"][number];
 type EventObservationIO = RouterOutputs["events"]["batchIO"][number];
 export type SessionObservation = Omit<
   EventObservation,
-  "input" | "output" | "metadata"
+  "input" | "output" | "metadata" | "traceId"
 > &
   Pick<EventObservationIO, "input" | "output" | "metadata"> & {
+    traceId: string;
     inputTruncated?: boolean;
     outputTruncated?: boolean;
     metadataTruncated?: boolean;
@@ -64,6 +65,18 @@ export type PreparedSessionConversationTimelineTraceState =
 
 export type SessionObservationActions = {
   onFilterByName: (name: string, operator: "any of" | "none of") => void;
+  annotate: {
+    disabled: boolean;
+    onSelect: (observation: SessionObservation) => void;
+  };
+  comment: {
+    disabled: boolean;
+    onSelect: (observation: SessionObservation) => void;
+  };
+  addToDataset: {
+    disabled: boolean;
+    onSelect: (observation: SessionObservation) => void;
+  };
 };
 
 const toPreviewText = (value: unknown) =>
@@ -83,6 +96,24 @@ function SessionObservationActionsMenuContent({
 }) {
   return (
     <DropdownMenuContent align="end" sideOffset={0}>
+      <DropdownMenuItem
+        disabled={actions.annotate.disabled}
+        onSelect={() => actions.annotate.onSelect(observation)}
+      >
+        Annotate
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        disabled={actions.comment.disabled}
+        onSelect={() => actions.comment.onSelect(observation)}
+      >
+        Add comment
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        disabled={actions.addToDataset.disabled}
+        onSelect={() => actions.addToDataset.onSelect(observation)}
+      >
+        Add to dataset
+      </DropdownMenuItem>
       {observation.name ? (
         <DropdownMenuItem
           onSelect={() =>
