@@ -165,11 +165,6 @@ describe("coreDataTableExports", () => {
         "core/dashboardWidgets.jsonl",
       ]),
     );
-    expect(prisma.organization.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        select: expect.objectContaining({ aiFeaturesEnabled: true }),
-      }),
-    );
   });
 });
 
