@@ -4,10 +4,12 @@ import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 import { ClipboardPen, Lock } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -18,7 +20,7 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { DeleteAnnotationQueueButton } from "@/src/features/annotation-queues/components/DeleteAnnotationQueueButton";
-import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
+import { getScoreDataTypeIcon } from "@/src/features/scores";
 import { type ScoreConfigDataType } from "@langfuse/shared";
 
 type RowData = {
@@ -209,6 +211,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
   return (
     <>
       <DataTableToolbar
+        tableName="annotation-queues"
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}

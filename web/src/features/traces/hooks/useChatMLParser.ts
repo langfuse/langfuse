@@ -187,32 +187,54 @@ export function computeToolCallBookkeeping(
  * result has any conversation representation without relying on observation
  * types.
  */
+function emptyChatMLParserResult(): ChatMLParserResult {
+  return {
+    canDisplayAsChat: false,
+    allMessages: [],
+    additionalInput: undefined,
+    allTools: [],
+    toolCallCounts: new Map(),
+    toolCallsByName: new Map(),
+    messageToToolCallNumbers: new Map(),
+    toolNameToDefinitionNumber: new Map(),
+    inputMessageCount: 0,
+  };
+}
+
 export function parseChatML(
   parsedInput: unknown,
   parsedOutput: unknown,
   parsedMetadata: unknown,
   observationName: string | undefined,
 ): ChatMLParserResult {
-  const ctx = { metadata: parsedMetadata, observationName };
-  const inResult = normalizeInput(parsedInput, ctx);
-  const outResult = normalizeOutput(parsedOutput, ctx);
-  const outputClean = cleanLegacyOutput(parsedOutput, parsedOutput);
-  const messages = combineInputOutputMessages(inResult, outResult, outputClean);
+  try {
+    const ctx = { metadata: parsedMetadata, observationName };
+    const inResult = normalizeInput(parsedInput, ctx);
+    const outResult = normalizeOutput(parsedOutput, ctx);
+    const outputClean = cleanLegacyOutput(parsedOutput, parsedOutput);
+    const messages = combineInputOutputMessages(
+      inResult,
+      outResult,
+      outputClean,
+    );
 
-  const inputMessageCount = inResult.success ? inResult.data.length : 0;
-  const toolBookkeeping = computeToolCallBookkeeping(
-    messages,
-    inputMessageCount,
-  );
+    const inputMessageCount = inResult.success ? inResult.data.length : 0;
+    const toolBookkeeping = computeToolCallBookkeeping(
+      messages,
+      inputMessageCount,
+    );
 
-  return {
-    canDisplayAsChat:
-      (inResult.success || outResult.success) && messages.length > 0,
-    allMessages: messages as ChatMlMessage[],
-    additionalInput: extractAdditionalInput(parsedInput),
-    ...toolBookkeeping,
-    inputMessageCount,
-  };
+    return {
+      canDisplayAsChat:
+        (inResult.success || outResult.success) && messages.length > 0,
+      allMessages: messages as ChatMlMessage[],
+      additionalInput: extractAdditionalInput(parsedInput),
+      ...toolBookkeeping,
+      inputMessageCount,
+    };
+  } catch {
+    return emptyChatMLParserResult();
+  }
 }
 
 /**

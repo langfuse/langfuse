@@ -11,7 +11,7 @@ import {
 } from "@/src/components/ui/select";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { ScoreTag, SCORE_LEVEL_LABELS } from "@/src/components/score-tag";
-import { WidgetContent } from "@/src/features/widgets/components/InlineWidget";
+import { WidgetContent } from "@/src/features/widgets";
 import { type QueryType } from "@langfuse/shared/query";
 import type {
   MetricOption,
@@ -31,6 +31,8 @@ import {
   metricStripTriggerClasses,
 } from "@/src/components/metric-strip/MetricStripTrigger";
 import { useExperimentStripMetric } from "@/src/features/experiments/hooks/useExperimentStripMetric";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { chartMetricChangedProps } from "@/src/features/experiments/lib/analytics";
 
 /**
  * Stable node: `Chart` is memoized, so a fresh element on every render would
@@ -158,9 +160,22 @@ export function ExperimentMetricStrip({
 
   const { metricId, setMetricId, availableMetricOptions, isLoading } =
     useExperimentStripMetric({ projectId, experimentIds, scoreCoverage });
+  const capture = usePostHogClientCapture();
 
+  // Do people move the strip off its score-first default, and onto which score
+  // LEVEL? Trace-level is where an LLM-as-judge on a dataset run writes, so the
+  // level is the interesting half. The score's NAME is user content and is
+  // never sent. Reuses `chart_metric_changed` from the chart grid this strip
+  // replaced, so the metric-choice history is continuous.
   const handleMetricChange = (newMetricId: string) => {
     if (newMetricId === metricId) return;
+    capture(
+      "experiment:chart_metric_changed",
+      chartMetricChangedProps({
+        tableName: "experiments",
+        metricId: newMetricId,
+      }),
+    );
     setMetricId(newMetricId);
   };
 

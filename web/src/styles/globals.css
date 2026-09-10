@@ -726,6 +726,42 @@
   }
 }
 
+/* A scrollport that says so. Overlay scrollbars — the platform default on
+   macOS, and Chrome's default everywhere — paint nothing until a scroll is
+   already under way, so a region holding more than it shows is
+   indistinguishable from one whose content was truncated: the reader has no
+   reason to try the wheel. This paints a thin scrollbar whenever the content
+   overflows, and still nothing when it fits. `scrollbar-color` also opts
+   Firefox out of overlay scrollbars, which it uses by default too. */
+@utility scrollbar-visible {
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: hsl(var(--muted-foreground) / 0.4);
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.6);
+  }
+
+  /* Firefox has no `::-webkit-scrollbar`, so the standard properties are its
+     only way in — and they must NOT reach Chrome, where they take precedence
+     and switch the always-painted scrollbar above back off for an overlay one.
+     Hence the gate rather than declaring both unconditionally. */
+  @supports not selector(::-webkit-scrollbar) {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
+  }
+}
+
 /* Tailwind's `sr-only` verbatim, plus `top: 0; left: 0`. Without them the box
    sits at its static position, and since it is absolute, its containing block
    is the nearest positioned ancestor — usually far outside the scroll container

@@ -6,6 +6,7 @@
 import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import {
   BreakdownTooltip,
+  type CostSource,
   type PriceSource,
 } from "@/src/features/traces/components/BreakdownTooltip";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
@@ -15,16 +16,19 @@ export function CostBadge({
   totalCost,
   costDetails,
   priceSource,
+  costSource,
 }: {
   totalCost: number;
   costDetails: Record<string, number>;
   priceSource?: PriceSource;
+  costSource?: CostSource;
 }) {
   return (
     <BreakdownTooltip
       details={costDetails}
       isCost={true}
       priceSource={priceSource}
+      costSource={costSource}
     >
       <Badge text={usdFormatter(totalCost)} trailingIcon={InfoIcon} />
     </BreakdownTooltip>

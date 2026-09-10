@@ -1,4 +1,5 @@
 import { DataTable } from "@/src/components/table/data-table";
+import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { Badge } from "@/src/components/ui/badge";
@@ -34,6 +35,8 @@ type ExperimentGridViewProps = {
   baselineExperimentId?: string;
   comparisonExperimentIds: string[];
   useExperimentColors?: boolean;
+  /** Whether cells carry a delta against the baseline (the diff mode). */
+  showDiff: boolean;
   /** Render I/O cells as single-line text (true) or JSON tree (false). */
   singleLine: boolean;
   rows: ExperimentItemsTableRow[];
@@ -68,6 +71,7 @@ export const ExperimentGridView = ({
   baselineExperimentId,
   comparisonExperimentIds,
   useExperimentColors = true,
+  showDiff,
   singleLine,
   rows,
   isLoading,
@@ -176,10 +180,28 @@ export const ExperimentGridView = ({
               traceScoreOrder={traceScoreOrder}
               showScoreLevelLabels={showScoreLevelLabels}
               isBaseline={isBaseline}
+              showDiff={showDiff}
               baselineScores={baselineData?.observationScores}
               baselineTraceScores={baselineData?.traceScores}
+              baselineExperimentName={
+                experimentNames.find(
+                  (e) => e.experimentId === baselineExperimentId,
+                )?.experimentName
+              }
               columnVisibility={columnVisibility}
               markerClassName={colorStyles?.markerClass}
+              onExperimentClick={
+                peekView?.openPeek
+                  ? (event) => {
+                      if (shouldIgnoreRowClickTarget(event.target)) return;
+                      event.stopPropagation();
+                      peekView.openPeek?.(row.original.itemId, {
+                        ...row.original,
+                        clickedExperimentId: expId,
+                      });
+                    }
+                  : undefined
+              }
             />
           );
         },
@@ -195,7 +217,9 @@ export const ExperimentGridView = ({
     showScoreLevelLabels,
     columnVisibility,
     useExperimentColors,
+    showDiff,
     singleLine,
+    peekView,
   ]);
 
   // Build all columns: Select, Input, Expected Output, then experiment columns
