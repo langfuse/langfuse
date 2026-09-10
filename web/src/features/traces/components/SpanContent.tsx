@@ -66,7 +66,19 @@ export function SpanContent({
   onHover,
   className,
 }: SpanContentProps) {
-  const { mergedScores, traceLevelScoreOwnerIds } = useTraceData();
+  const { mergedScores, traceLevelScoreOwnerIds, nodeMap } = useTraceData();
+  // The heat map compares a row against the trace total. It says nothing on
+  // the trace wrapper, on root observations, or on an only child (a lone
+  // wrapper span is ~100% of its parent by construction), so those rows are
+  // never tinted.
+  const parentNode = node.parentObservationId
+    ? nodeMap.get(node.parentObservationId)
+    : undefined;
+  const isRootRow =
+    node.type === "TRACE" ||
+    !parentNode ||
+    parentNode.type === "TRACE" ||
+    parentNode.children.length === 1;
   const {
     showDuration,
     showCostTokens,
@@ -191,8 +203,7 @@ export function SpanContent({
                     "text-foreground-tertiary text-xs",
                     parentTotalDuration &&
                       colorCodeMetrics &&
-                      // Root rows (no parent observation) are always 100% of themselves — no signal.
-                      node.parentObservationId != null &&
+                      !isRootRow &&
                       heatMapTextColor({
                         max: parentTotalDuration,
                         value:
@@ -230,7 +241,7 @@ export function SpanContent({
                     "text-foreground-tertiary text-xs",
                     parentTotalCost &&
                       colorCodeMetrics &&
-                      node.parentObservationId != null &&
+                      !isRootRow &&
                       heatMapTextColor({
                         max: parentTotalCost,
                         value: totalCost,
