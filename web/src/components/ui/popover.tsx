@@ -33,8 +33,9 @@ const PopoverContent = React.forwardRef<
     ref,
   ) => {
     // Route into the `popover` overlay layer (above `modal`, so popovers opened
-    // inside a dialog render above it). null until mounted → falls back to
-    // <body>, SSR-parity. Layer order, not z-index, stacks it.
+    // inside a dialog render above it). The layer node is static HTML, so the
+    // container is available on the first client render — no <body> fallback
+    // hop. Layer order, not z-index, stacks it.
     const container = useLayerContainer("popover");
     // Forward `forceMount` to BOTH the Portal and the Content: Radix's Portal
     // also gates on open state, so keeping the Content mounted while closed

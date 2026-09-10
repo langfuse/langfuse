@@ -24,9 +24,10 @@ const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
 const DropdownMenuGroup = DropdownMenuPrimitive.Group;
 
-// Route the portal into the `popover` overlay layer (above `modal`). null
-// until mounted → falls back to <body>, SSR-parity. Layer order, not z-index,
-// stacks it. An explicit `container` prop still overrides the default.
+// Route the portal into the `popover` overlay layer (above `modal`). The
+// layer node is static HTML, so the container is available on the first
+// client render — no <body> fallback hop. Layer order, not z-index, stacks
+// it. An explicit `container` prop still overrides the default.
 const DropdownMenuPortal = ({
   ...props
 }: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Portal>) => {
