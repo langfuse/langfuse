@@ -45,13 +45,13 @@ do not load dotenv files. See the root `.env.dev.example`. All settings have def
 
 | Variable | Default | Validation |
 | --- | --- | --- |
-| `AI_GATEWAY_LISTEN_ADDRESS` | `0.0.0.0:8080` | IP address and port; IPv6 uses `[::]:8080` |
-| `AI_GATEWAY_LOG_LEVEL` | `info` | `off`, `error`, `warn`, `info`, `debug`, `trace` |
-| `AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10` | Integer from 1 to 300 |
+| `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS` | `0.0.0.0:8080` | IP address and port; IPv6 uses `[::]:8080` |
+| `LANGFUSE_AI_GATEWAY_LOG_LEVEL` | `info` | `off`, `error`, `warn`, `info`, `debug`, `trace` |
+| `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10` | Integer from 1 to 300 |
 
 Invalid values fail startup without echoing their contents. Logs are JSON and
 contain service lifecycle events, not request bodies or headers. For direct
-host-only development, set `AI_GATEWAY_LISTEN_ADDRESS=127.0.0.1:8080`.
+host-only development, set `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS=127.0.0.1:8080`.
 
 ## Process lifecycle
 
@@ -95,7 +95,7 @@ docker compose -f docker-compose.dev.yml --profile gateway watch --no-up ai-gate
 ```
 
 This starts only the gateway. Ordinary `pnpm run infra:dev:up` remains unchanged.
-`AI_GATEWAY_PORT` selects its host port (default 8080); `HOST_IP` defaults to
+`LANGFUSE_AI_GATEWAY_PORT` selects its host port (default 8080); `HOST_IP` defaults to
 127.0.0.1. The container listener remains `0.0.0.0:8080`. Rebuilding and recreating
 before Watch starts includes edits made while it was stopped and discards stale
 files from earlier syncs. The development stop grace

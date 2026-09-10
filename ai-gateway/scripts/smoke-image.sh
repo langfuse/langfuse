@@ -3,7 +3,7 @@ set -euo pipefail
 
 image="${1:?Usage: bash scripts/smoke-image.sh IMAGE}"
 container="$(docker run -d --read-only --cap-drop ALL --security-opt no-new-privileges \
-  -e AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS=2 -p 127.0.0.1::8080 "$image")"
+  -e LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS=2 -p 127.0.0.1::8080 "$image")"
 cleanup() {
   docker logs "$container" || true
   docker rm -f "$container" >/dev/null || true

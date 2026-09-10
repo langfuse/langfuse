@@ -21,9 +21,9 @@ impl Error for ConfigError {}
 impl Config {
     pub fn from_env() -> Result<Self, ConfigError> {
         Self::from_values(
-            read_env("AI_GATEWAY_LISTEN_ADDRESS")?.as_deref(),
-            read_env("AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS")?.as_deref(),
-            read_env("AI_GATEWAY_LOG_LEVEL")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_LOG_LEVEL")?.as_deref(),
         )
     }
 
@@ -35,17 +35,23 @@ impl Config {
         let listen_address = listen_address
             .unwrap_or("0.0.0.0:8080")
             .parse()
-            .map_err(|_| ConfigError("AI_GATEWAY_LISTEN_ADDRESS must be an IP address and port"))?;
+            .map_err(|_| {
+                ConfigError("LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS must be an IP address and port")
+            })?;
         let seconds: u64 = shutdown_timeout.unwrap_or("10").parse().map_err(|_| {
-            ConfigError("AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300")
+            ConfigError(
+                "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300",
+            )
         })?;
         if !(1..=300).contains(&seconds) {
             return Err(ConfigError(
-                "AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300",
+                "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300",
             ));
         }
         let log_level = log_level.unwrap_or("info").parse().map_err(|_| {
-            ConfigError("AI_GATEWAY_LOG_LEVEL must be off, error, warn, info, debug or trace")
+            ConfigError(
+                "LANGFUSE_AI_GATEWAY_LOG_LEVEL must be off, error, warn, info, debug or trace",
+            )
         })?;
         Ok(Self {
             listen_address,
