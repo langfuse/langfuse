@@ -16,14 +16,12 @@ const {
   mockLegacyProjectAuth,
   mockEnforceAuth,
   mockShadowAuthDiff,
-  mockRecordCoverage,
 } = vi.hoisted(() => ({
   env: { API_AUTH_MIGRATION: "legacy" as string },
   mockVerifyScope: vi.fn(),
   mockLegacyProjectAuth: vi.fn(),
   mockEnforceAuth: vi.fn(),
   mockShadowAuthDiff: vi.fn(),
-  mockRecordCoverage: vi.fn(),
 }));
 
 vi.mock("@/src/env.mjs", () => ({ env }));
@@ -47,7 +45,6 @@ vi.mock(
   async (importOriginal) => ({
     ...(await importOriginal<object>()),
     shadowAuthDiff: mockShadowAuthDiff,
-    recordCoverage: mockRecordCoverage,
   }),
 );
 
@@ -141,15 +138,14 @@ describe("org-family dispatch (allowedAccessLevels ['organization'])", () => {
       expect(await call()).toEqual({ success: true, scope: orgScope });
     });
 
-    it("records the parity cell and coverage counter", async () => {
+    it("records the parity cell", async () => {
       legacyOrgKey();
       authzDenies();
       await call();
-      expect(mockRecordCoverage).toHaveBeenCalledWith("");
       expect(mockShadowAuthDiff).toHaveBeenCalledWith(
         { success: false, error: expect.any(ForbiddenError) },
-        { ok: true },
-        { seam: "org_route", action: "projects:read" },
+        { success: true, status: 200, scope: orgScope },
+        "projects:read",
       );
     });
   });
@@ -217,7 +213,6 @@ describe("org-family dispatch (allowedAccessLevels ['organization'])", () => {
       authzAllows();
       await call();
       expect(mockShadowAuthDiff).not.toHaveBeenCalled();
-      expect(mockRecordCoverage).not.toHaveBeenCalled();
     });
   });
 });
@@ -295,7 +290,6 @@ describe("project-family dispatch (allowedAccessLevels ['project'])", () => {
       expect(await call()).toEqual({ success: true, scope: legacyScope.scope });
       expect(mockEnforceAuth).not.toHaveBeenCalled();
       expect(mockShadowAuthDiff).not.toHaveBeenCalled();
-      expect(mockRecordCoverage).not.toHaveBeenCalled();
     });
   });
 
@@ -319,15 +313,14 @@ describe("project-family dispatch (allowedAccessLevels ['project'])", () => {
       });
     });
 
-    it("records the parity cell and coverage counter", async () => {
+    it("records the parity cell", async () => {
       legacyAllows();
       authzDenies();
       await call();
-      expect(mockRecordCoverage).toHaveBeenCalledWith("");
       expect(mockShadowAuthDiff).toHaveBeenCalledWith(
         { success: false, error: expect.any(ForbiddenError) },
-        { ok: true },
-        { seam: "project_route", action: "traces:read" },
+        { success: true, status: 200, scope: legacyScope.scope },
+        "traces:read",
       );
     });
   });
@@ -379,7 +372,6 @@ describe("project-family dispatch (allowedAccessLevels ['project'])", () => {
       authzAllowsApiKey("privateKey");
       await call();
       expect(mockShadowAuthDiff).not.toHaveBeenCalled();
-      expect(mockRecordCoverage).not.toHaveBeenCalled();
     });
   });
 });

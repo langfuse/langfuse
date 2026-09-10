@@ -24,12 +24,7 @@ import {
   type EnforceAuthParams,
   type EnforceAuthResult,
 } from "@/src/features/public-api/server/enforceAuth";
-import {
-  shadowAuthDiff,
-  legacyFromStatus,
-  recordCoverage,
-  type Seam,
-} from "@/src/features/public-api/server/shadowAuthDiff";
+import { shadowAuthDiff } from "@/src/features/public-api/server/shadowAuthDiff";
 import {
   type AuthorizationContext,
   type ErrorResult,
@@ -58,14 +53,10 @@ function enforceOnly(params: ShadowAuthParams): Promise<ShadowAuthResult> {
 async function legacyWithShadow(
   params: ShadowAuthParams,
 ): Promise<ShadowAuthResult> {
-  const legacy = await runLegacyAuth(params);
-  const authz = await runNewAuth(params);
-  recordCoverage(params.req.url ?? "");
-  shadowAuthDiff(authz, legacyFromStatus(legacy.status), {
-    seam: seamOf(params.allowedAccessLevels),
-    action: params.action,
-  });
-  return legacyResult(legacy);
+  const legacyAuth = await runLegacyAuth(params);
+  const newAuth = await runNewAuth(params);
+  shadowAuthDiff(newAuth, legacyAuth, params.action);
+  return legacyResult(legacyAuth);
 }
 
 /** legacyOnly authorizes solely with the legacy verify. */
@@ -98,7 +89,7 @@ async function runLegacyOrgScope(req: NextApiRequest): Promise<LegacyDecision> {
   ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
   if (!authCheck.validKey) {
     return {
-      ok: false,
+      success: false,
       status: 401,
       error: new ApiError(authCheck.error, 401),
     };
@@ -108,12 +99,12 @@ async function runLegacyOrgScope(req: NextApiRequest): Promise<LegacyDecision> {
     !authCheck.scope.orgId
   ) {
     return {
-      ok: false,
+      success: false,
       status: scopeDeniedCode,
       error: new ApiError("", scopeDeniedCode),
     };
   }
-  return { ok: true, status: 200, scope: authCheck.scope };
+  return { success: true, status: 200, scope: authCheck.scope };
 }
 
 /** runLegacyProjectAuth runs the legacy project verify and captures its throw as a value: an infra 503, or the status and message it reported. */
@@ -127,12 +118,12 @@ async function runLegacyProjectAuth(
       params.allowedAccessLevels as RouteAccessLevel[],
       params.allowInAppAgentKey ?? false,
     );
-    return { ok: true, status: 200, scope: auth.scope };
+    return { success: true, status: 200, scope: auth.scope };
   } catch (error) {
     if (isPrismaException(error)) {
       traceException(error);
       return {
-        ok: false,
+        success: false,
         status: 503,
         error: new ServiceUnavailableError("Service Unavailable"),
       };
@@ -141,7 +132,7 @@ async function runLegacyProjectAuth(
     const message = (error as { message?: unknown }).message;
     const httpCode = typeof status === "number" ? status : 401;
     return {
-      ok: false,
+      success: false,
       status: httpCode,
       error: new ApiError(
         typeof message === "string" ? message : "Authentication failed",
@@ -153,7 +144,7 @@ async function runLegacyProjectAuth(
 
 /** legacyResult lifts a legacy decision into the seam's success or error value. */
 function legacyResult(legacy: LegacyDecision): ShadowAuthResult {
-  if (legacy.ok) return { success: true, scope: legacy.scope };
+  if (legacy.success) return { success: true, scope: legacy.scope };
   return { success: false, error: legacy.error };
 }
 
@@ -163,11 +154,6 @@ function isOrgFamily(allowedAccessLevels: ApiAccessLevel[]): boolean {
     allowedAccessLevels.length === 1 &&
     allowedAccessLevels[0] === "organization"
   );
-}
-
-/** seamOf labels the telemetry seam from the route's access levels. */
-function seamOf(allowedAccessLevels: ApiAccessLevel[]): Seam {
-  return isOrgFamily(allowedAccessLevels) ? "org_route" : "project_route";
 }
 
 /** ShadowAuthParams is enforceAuth's params plus the access levels the legacy verify and telemetry read; the shim field is deleted at cutover. */
@@ -186,5 +172,5 @@ export type ShadowAuthResult = ShadowAuthAccessResult | ErrorResult<BaseError>;
 
 /** LegacyDecision is the legacy verify captured as a value: the verified scope, or the status + error to render. */
 type LegacyDecision =
-  | { ok: true; status: 200; scope: ApiAccessScope }
-  | { ok: false; status: number; error: BaseError };
+  | { success: true; status: 200; scope: ApiAccessScope }
+  | { success: false; status: number; error: BaseError };
