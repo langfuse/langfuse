@@ -76,7 +76,10 @@ export const ScoreBadge = <
       {levels.map((level) => (
         <ScoreTag key={level} level={level} />
       ))}
-      <BadgeShell color="neutral" size={compact ? "sm" : "default"}>
+      <BadgeShell
+        color={compact ? "muted" : "neutral"}
+        size={compact ? "sm" : "default"}
+      >
         <span className="min-w-0 flex-1 truncate" title={name}>
           {name}:
         </span>
@@ -89,11 +92,28 @@ export const ScoreBadge = <
                 key={index}
                 className="inline-flex min-w-0 items-center gap-1"
               >
-                <span className="truncate" title={value}>
-                  {value}
-                </span>
-                {/* Compact chips (tree/timeline rows) stay text-only; the
-                    comment is one click away in the detail panel. */}
+                {/* Compact chips (tree/timeline rows) have no room for the
+                    comment icon: the value itself is the hover trigger. */}
+                {score.comment && compact ? (
+                  <HoverCard openDelay={100}>
+                    <HoverCardTrigger asChild>
+                      <span
+                        className="decoration-muted-foreground/50 truncate underline decoration-dotted underline-offset-2"
+                        title={value}
+                        aria-label={`View comment for ${name}: ${value}`}
+                      >
+                        {value}
+                      </span>
+                    </HoverCardTrigger>
+                    <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
+                      <p className="whitespace-pre-wrap">{score.comment}</p>
+                    </HoverCardContent>
+                  </HoverCard>
+                ) : (
+                  <span className="truncate" title={value}>
+                    {value}
+                  </span>
+                )}
                 {score.comment && !compact && (
                   <HoverCard>
                     <HoverCardTrigger
