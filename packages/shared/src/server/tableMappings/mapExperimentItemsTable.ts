@@ -58,4 +58,13 @@ export const experimentItemsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "metadata",
     queryPrefix: "e",
   },
+  {
+    uiTableName: "Status",
+    uiTableId: "level",
+    aliases: ["Level"],
+    clickhouseTableName: "events_proto",
+    // Worst level across every event on the item, not just the root span.
+    // An item whose children carry ERROR still matches Status=ERROR.
+    clickhouseSelect: "il.aggregated_level",
+  },
 ];

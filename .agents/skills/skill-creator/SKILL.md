@@ -61,7 +61,7 @@ keep correct. In summary, a skill may:
    rewrites the human's prose. This is where durable context belongs.
 3. **Create a ticket** — a subticket of an existing ticket needs no permission; a
    ticket with no parent needs the human's yes first, and then the skill files it
-   itself.
+   itself. Default the body to a short human description.
 
 Assigning, moving state, closing, estimating, re-prioritising, deleting,
 projects, and new labels still belong to a human. A skill that wants one of those

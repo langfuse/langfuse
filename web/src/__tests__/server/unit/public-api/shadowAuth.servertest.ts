@@ -390,7 +390,7 @@ describe("the migration-mode gate reads a declared env var", () => {
     );
     expect(keys.length).toBeGreaterThan(0);
     for (const key of new Set(keys)) {
-      expect(schema).toContain(`${key}: z.`);
+      expect(schema).toMatch(new RegExp(`\\b${key}:\\s*z\\b`));
     }
   });
 
