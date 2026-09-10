@@ -13,7 +13,8 @@ import {
   useSidebarFilterState,
 } from "@/src/features/filters";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
+import { experimentsFieldRegistry } from "@/src/features/experiments/constants/experimentsSearchRegistry";
+import { awaitsDatasetNames } from "@/src/features/experiments/fns/awaitsDatasetNames";
 import { withDatasetNamesResolved } from "@/src/features/experiments/fns/datasetNameFilter";
 import {
   DEFAULT_SEARCH_TYPE,
@@ -346,6 +347,7 @@ export default function ExperimentsTable({
     filterOptions,
     datasetIdByName,
     datasetNameById,
+    datasetNamesQuery,
     isFilterOptionsPending,
   } = useExperimentFilterOptions({
     projectId,
@@ -396,8 +398,14 @@ export default function ExperimentsTable({
   );
 
   // Grammar search bar: an ADDITIONAL editor over the same FilterState the
-  // facet sidebar edits. Score filtering stays in the sidebar here — see
-  // experimentsSearchRegistry.
+  // facet sidebar edits. Scoped to the facets this instance renders — a
+  // dataset-scoped page omits the Dataset facet, and a token for a stripped
+  // column would vanish silently.
+  const searchRegistry = useMemo(
+    () => experimentsFieldRegistry(filterConfig),
+    [filterConfig],
+  );
+
   const observedOptions = useMemo(
     () => toObservedOptions(filterOptions, isFilterOptionsPending),
     [filterOptions, isFilterOptionsPending],
@@ -420,7 +428,7 @@ export default function ExperimentsTable({
     setFilterState: setFiltersWrapper,
     setSearchQuery: noSearchLane,
     setSearchType: noSearchLane,
-    registry: EXPERIMENTS_FIELD_REGISTRY,
+    registry: searchRegistry,
   });
 
   const combinedFilterState = queryFilter.filterState.concat(
@@ -436,6 +444,12 @@ export default function ExperimentsTable({
   );
 
   // Use the custom hook for experiments data fetching
+  // A dataset-name filter cannot be queried until the name -> id map lands.
+  const waitingForDatasetNames = awaitsDatasetNames(
+    combinedFilterState,
+    datasetNamesQuery,
+  );
+
   const {
     experiments,
     totalCount,
@@ -448,6 +462,7 @@ export default function ExperimentsTable({
     filterState,
     orderByState,
     paginationState,
+    enabled: !waitingForDatasetNames,
   });
 
   // A score column that is empty for every experiment in view is noise, so only
@@ -915,7 +930,7 @@ export default function ExperimentsTable({
               commit={searchBarCommit}
               observed={observedOptions}
               onApplyFilters={searchBarApplyFilters}
-              registry={EXPERIMENTS_FIELD_REGISTRY}
+              registry={searchRegistry}
             />
             {/* Toolbar spanning full width */}
             <DataTableToolbar
