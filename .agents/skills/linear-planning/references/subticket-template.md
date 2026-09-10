@@ -1,5 +1,9 @@
 # Planning subticket template
 
+Use this only after an explicit "plan this for implementation" ask. Ordinary
+"create a subticket" writes do not use this template — they stay a title and
+a few sentences.
+
 One subticket per PR in the intended stack, created as a **child of the existing
 ticket** — which needs no permission — and labelled `AI created`. Filing the
 parent itself is a top-level ticket and needs a yes first.

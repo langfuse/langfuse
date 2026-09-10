@@ -29,7 +29,9 @@ what earns a place in it, and the two mechanics that stop it being destroyed on
 the way in.
 
 How to slice a big change into PRs, and what a planning subticket must contain,
-are the sibling skill: [`linear-planning`](../linear-planning/SKILL.md).
+are the sibling skill: [`linear-planning`](../linear-planning/SKILL.md). That
+skill is opt-in — use it only when they explicitly ask to plan a stack for
+implementation. Reconstructing history is not that ask.
 
 ## Before you touch a feature: reconstruct its history
 

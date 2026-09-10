@@ -3,12 +3,22 @@ name: linear-planning
 description: |
   Plan a feature in Linear as subtickets that map 1:1 to a chained PR stack,
   with enough context in each ticket that an agent could implement it from the
-  ticket alone. Use before writing code for anything bigger than a one-commit
-  fix — "plan this feature", "split this branch into reviewable PRs", "turn this
-  RFC into tickets", "open a PR stack".
+  ticket alone. Use ONLY when explicitly asked to plan a feature for
+  implementation with context — "plan this feature", "split this branch into
+  reviewable PRs", "turn this RFC into tickets", "open a PR stack", "plan it
+  with enough context to implement". Do NOT use for "create a subticket",
+  "file this in Linear", "add a ticket", or any ordinary tracker write; those
+  stay short under linear-agent-writes. If a stack plan might help, propose
+  this skill in chat and wait.
 ---
 
 # Planning a feature as Linear subtickets
+
+**Opt-in.** This skill is in the toolbox. It is not the default for Linear
+writes. Start it only after an explicit implementation-planning ask. For
+"create a subticket" / "file this" / "add a ticket", write a short human
+ticket instead ([`linear-agent-writes`](../linear-agent-writes/SKILL.md)) and,
+if a stack would help, propose this skill once.
 
 **One idea:** the planning session is where the expensive thinking happens, and
 it evaporates when the session ends. Write it into subtickets *while* you plan,
@@ -38,7 +48,12 @@ proposing again.
 
 ## Does it need a plan at all?
 
-The discriminator is in [`pr-stack-workflow`](../pr-stack-workflow/SKILL.md) →
+**First: did they ask to plan it?** "Create a subticket" is not that ask.
+If they did not, stop. Write the short ticket they asked for. You may offer
+this skill in one sentence; do not start it.
+
+When they did ask, the discriminator is in
+[`pr-stack-workflow`](../pr-stack-workflow/SKILL.md) →
 *Decide whether it needs a stack*:
 one sentence without an "and", a default or persisted shape that needs a
 migration decision, a shared component, a click-path verification. Use that
@@ -51,6 +66,7 @@ Two consequences for the tracker specifically:
 - **If you cannot yet write the acceptance check, you are researching, not
   planning.** Do the research and put *it* on the parent ticket — the numbers, the
   screenshots, an attached `.md`. The plan is the second document, not the first.
+  Do not dump that research into a ticket they asked to keep short.
 
 ## One subticket per slice, created up front
 
