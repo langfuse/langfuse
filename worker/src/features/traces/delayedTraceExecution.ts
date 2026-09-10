@@ -8,16 +8,6 @@ import { env } from "../../env";
 
 const TRACE_EXECUTION_DELAY_MS = 600_000;
 
-// Each chunk's keys share the BullMQ queue's Redis Cluster hash slot.
-const updateMinimums = `
-for i, key in ipairs(KEYS) do
-  local candidate = tonumber(ARGV[i])
-  local current = tonumber(redis.call('GET', key))
-  redis.call('SET', key, math.min(current or candidate, candidate), 'EX', 7200)
-end
-return 1
-`;
-
 export function delayedTraceExecutionId(projectId: string, traceId: string) {
   return createHash("sha256")
     .update(JSON.stringify([projectId, traceId]))
@@ -90,15 +80,29 @@ export async function scheduleDelayedTraceExecution(
           selected.push({ traceId, id, ...times });
       }
       if (!selected.length) continue;
-      await Promise.race([
-        client.eval(
-          updateMinimums,
-          selected.length,
-          ...selected.map(({ id }) => queue.toKey(`minimum:${id}`)),
-          ...selected.map(({ first }) => first),
-        ),
-        budget,
-      ]);
+      // Atomic per trace; refresh expiry even when the minimum is unchanged.
+      const pipeline = client.pipeline(
+        selected.flatMap(({ id, first }) => {
+          const key = queue.toKey(`minimum-zset:${id}`);
+          return [
+            ["multi"],
+            ["zadd", key, "LT", first, "first_seen"],
+            ["expire", key, 7200],
+            ["exec"],
+          ];
+        }),
+      );
+      const results = await Promise.race([pipeline.exec(), budget]);
+      if (!results) throw new Error("Trace minimum update returned no results");
+      for (const [error, reply] of results) {
+        if (error) throw error;
+        // EXEC can succeed while a command inside the transaction fails.
+        if (Array.isArray(reply)) {
+          for (const result of reply) {
+            if (result instanceof Error) throw result;
+          }
+        }
+      }
       if (performance.now() >= deadline)
         throw new Error("Trace read scheduling exceeded 100ms");
       const now = Date.now();

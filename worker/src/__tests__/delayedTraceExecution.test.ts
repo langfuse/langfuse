@@ -33,7 +33,7 @@ describe("sampled trace observation reads", () => {
 
   function minimumKey(projectId: string, traceId: string) {
     const key = queue.toKey(
-      `minimum:${delayedTraceExecutionId(projectId, traceId)}`,
+      `minimum-zset:${delayedTraceExecutionId(projectId, traceId)}`,
     );
     minimumKeys.add(key);
     return key;
@@ -91,7 +91,7 @@ describe("sampled trace observation reads", () => {
         ]),
       ),
     );
-    expect(await connection.get(key)).toBe(String(earliest));
+    expect(await connection.zscore(key, "first_seen")).toBe(String(earliest));
     const [initialJob] = await queue.getDelayed();
     expect(initialJob).toBeDefined();
     expect(initialJob.data.payload.lastSeenStartTime).toBe(
@@ -104,9 +104,11 @@ describe("sampled trace observation reads", () => {
     await scheduleDelayedTraceExecution(otherProjectId, [
       { traceId, startTimeISO: new Date(earliest + 120_000).toISOString() },
     ]);
-    expect(await connection.get(key)).toBe(String(earliest));
+    expect(await connection.zscore(key, "first_seen")).toBe(String(earliest));
     expect(await connection.ttl(key)).toBeGreaterThan(7100);
-    expect(await connection.get(otherKey)).toBe(String(earliest + 120_000));
+    expect(await connection.zscore(otherKey, "first_seen")).toBe(
+      String(earliest + 120_000),
+    );
     const delayed = await queue.getDelayed();
     expect(delayed).toHaveLength(2);
     const replacement = delayed.find(
@@ -122,6 +124,15 @@ describe("sampled trace observation reads", () => {
       initialJob.timestamp + initialJob.delay,
     );
 
+    await connection.pexpire(key, 0);
+    await scheduleDelayedTraceExecution(projectId, [
+      { traceId, startTimeISO: new Date(earliest + 120_000).toISOString() },
+    ]);
+    expect(await connection.zscore(key, "first_seen")).toBe(
+      String(earliest + 120_000),
+    );
+    expect(await connection.ttl(key)).toBeGreaterThan(7100);
+
     env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_SAMPLE_PERCENT = 0;
     const unsampledTraceId = randomUUID();
     await scheduleDelayedTraceExecution(projectId, [
@@ -131,7 +142,10 @@ describe("sampled trace observation reads", () => {
       },
     ]);
     expect(
-      await connection.get(minimumKey(projectId, unsampledTraceId)),
+      await connection.zscore(
+        minimumKey(projectId, unsampledTraceId),
+        "first_seen",
+      ),
     ).toBeNull();
     expect(await queue.getDelayedCount()).toBe(2);
   });
@@ -257,13 +271,14 @@ describe("sampled trace observation reads", () => {
   });
 
   it("returns after the scheduling budget and never submits another chunk after an outstanding write resolves", async () => {
-    let finishWrite!: (value: number) => void;
-    const write = vi.spyOn(connection, "eval").mockImplementationOnce(
-      () =>
-        new Promise<number>((resolve) => {
-          finishWrite = resolve;
-        }),
-    );
+    const pipeline = connection.pipeline();
+    const write = vi.spyOn(connection, "pipeline").mockReturnValue(pipeline);
+    let finishWrite!: (value: []) => void;
+    vi.spyOn(pipeline, "exec").mockImplementation(() => {
+      return new Promise<[]>((resolve) => {
+        finishWrite = resolve;
+      });
+    });
     const enqueue = vi.spyOn(queue, "addBulk");
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
     const pending = scheduleDelayedTraceExecution(
@@ -276,9 +291,27 @@ describe("sampled trace observation reads", () => {
     await vi.advanceTimersByTimeAsync(100);
     await pending;
     expect(write).toHaveBeenCalledTimes(1);
-    finishWrite(1);
+    finishWrite([]);
     await Promise.resolve();
     expect(enqueue).not.toHaveBeenCalled();
     expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not enqueue when a command inside the minimum transaction fails", async () => {
+    const projectId = randomUUID();
+    const traceId = randomUUID();
+    await connection.set(
+      minimumKey(projectId, traceId),
+      "wrong-type",
+      "EX",
+      60,
+    );
+    const enqueue = vi.spyOn(queue, "addBulk");
+    await expect(
+      scheduleDelayedTraceExecution(projectId, [
+        { traceId, startTimeISO: "2026-09-10T10:00:00.000Z" },
+      ]),
+    ).resolves.toBeUndefined();
+    expect(enqueue).not.toHaveBeenCalled();
   });
 });

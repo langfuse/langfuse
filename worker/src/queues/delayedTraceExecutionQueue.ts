@@ -23,7 +23,10 @@ export const delayedTraceExecutionProcessor: Processor<
   const queue = DelayedTraceExecutionQueue.getInstance();
   if (!queue) throw new Error("Trace observation read Redis unavailable");
   const client = await queue.client;
-  const minimum = await client.get(queue.toKey(`minimum:${id}`));
+  const minimum = await client.zscore(
+    queue.toKey(`minimum-zset:${id}`),
+    "first_seen",
+  );
   // This is the retained activity window, not a durable trace start. If the
   // cache expired, omit the lower bound rather than substitute arrival time.
   const result = await getObservationsForTraceFromEventsTable({
