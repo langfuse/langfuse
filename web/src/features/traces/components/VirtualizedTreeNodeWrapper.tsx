@@ -116,7 +116,7 @@ export function VirtualizedTreeNodeWrapper({
               <div
                 className={cn(
                   "bg-border-contrast absolute top-0 left-3 w-px",
-                  isLastSibling ? "h-3" : "bottom-3",
+                  isLastSibling ? "h-4" : "bottom-0",
                 )}
               />
               {/* Vertical bar connecting downwards if not last sibling */}
