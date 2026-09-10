@@ -161,14 +161,26 @@ export const ScoreBadge = <
           </HoverCardTrigger>
           <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
             {commented.map((score, index) => (
-              <p key={index} className="whitespace-pre-wrap">
-                {commented.length > 1 ? (
-                  <span className="text-muted-foreground">
-                    {score.stringValue ?? score.value?.toFixed(2) ?? ""}:{" "}
-                  </span>
-                ) : null}
-                {score.comment}
-              </p>
+              <div key={index} className={index > 0 ? "mt-2" : undefined}>
+                <p className="whitespace-pre-wrap">
+                  {commented.length > 1 ? (
+                    <span className="text-muted-foreground">
+                      {score.stringValue ?? score.value?.toFixed(2) ?? ""}:{" "}
+                    </span>
+                  ) : null}
+                  {score.comment}
+                </p>
+                {"executionTraceId" in score &&
+                  score.executionTraceId &&
+                  projectId && (
+                    <div className="mt-2">
+                      <ExecutionTraceLink
+                        executionTraceId={score.executionTraceId}
+                        projectId={projectId}
+                      />
+                    </div>
+                  )}
+              </div>
             ))}
           </HoverCardContent>
         </HoverCard>

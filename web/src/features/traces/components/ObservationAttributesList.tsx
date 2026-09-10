@@ -33,7 +33,10 @@ export function buildObservationAttributes({
     !Array.isArray(modelParameters)
   ) {
     for (const [key, value] of Object.entries(modelParameters)) {
-      if (value !== null && value !== undefined) attributes[key] = value;
+      // Fixed attributes win: a parameter that happens to be called `model`
+      // or `version` must not replace the observation's own value.
+      if (value === null || value === undefined || key in attributes) continue;
+      attributes[key] = value;
     }
   }
   return attributes;
@@ -93,7 +96,9 @@ export function attributeColumnFilter(
     case "version":
       return text("version", target);
     case "release":
-      return text("release", "traces");
+      // Observations have no release column; filtering the traces table by
+      // an observation's release could point at a different record.
+      return target === "traces" ? text("release", "traces") : null;
     default:
       return null;
   }
