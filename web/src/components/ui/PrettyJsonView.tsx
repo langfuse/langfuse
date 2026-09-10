@@ -1,5 +1,12 @@
 /* eslint-disable @repo/no-style-props */
-import { useMemo, useState, useEffect, useRef, useCallback, memo } from "react";
+import React, {
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  memo,
+} from "react";
 import { cn } from "@/src/utils/tailwind";
 import { deepParseJson } from "@langfuse/shared";
 import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
@@ -30,14 +37,6 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 // Custom expanded state type that allows false ("user intentionally collapsed all")
 type LangfuseExpandedState = ExpandedState | false;
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import {
@@ -49,6 +48,7 @@ import {
   StringOrMarkdownSchema,
   containsAnyMarkdown,
 } from "@/src/components/schemas/MarkdownSchema";
+
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import {
   convertRowIdToKeyPath,
@@ -367,7 +367,7 @@ const JsonTableRowComponent = memo(
     });
 
     return (
-      <TableRow
+      <tr
         ref={
           rowIndex === 0 && row.original.level === 0
             ? topLevelRowRef
@@ -376,6 +376,7 @@ const JsonTableRowComponent = memo(
         data-observation-id={row.id}
         {...rowClickProps}
         className={cn(
+          "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
           isExpandable ? "cursor-pointer" : "",
           row.original.level === 0 && stickyTopLevelKey
             ? "bg-background sticky z-10 shadow-xs"
@@ -389,18 +390,18 @@ const JsonTableRowComponent = memo(
         }
       >
         {row.getVisibleCells().map((cell) => (
-          <TableCell
+          <td
             key={cell.id}
             className={cn(
-              "px-2 py-1 align-top whitespace-normal",
+              "h-full border-b px-2 py-1 align-top whitespace-normal [&:has([role=checkbox])]:pr-0 [:last-child_>_&]:border-b-0",
               toneClasses?.cell,
             )}
             style={{ width: `${cell.column.columnDef.size}%` }}
           >
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
-          </TableCell>
+          </td>
         ))}
-      </TableRow>
+      </tr>
     );
   },
 );
@@ -688,22 +689,23 @@ function JsonPrettyTable({
 
   return (
     <div className={cn("w-full", !noBorder && "rounded-sm border")}>
-      <Table>
-        <TableHeader>
+      <table className="w-full table-fixed caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto text-sm">
+        <thead className="[&_tr]:border-b">
           {table.getHeaderGroups().map((headerGroup, index) => (
-            <TableRow
+            <tr
               key={headerGroup.id}
               ref={index === 0 ? headerRef : undefined}
               className={cn(
+                "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
                 stickyTopLevelKey ? "sticky top-0 z-20" : "",
                 toneClasses?.row,
               )}
             >
               {headerGroup.headers.map((header) => (
-                <TableHead
+                <th
                   key={header.id}
                   className={cn(
-                    "h-8 px-2 py-1",
+                    "text-muted-foreground relative h-8 border-b px-2 py-1 text-left align-middle font-bold [&:has([role=checkbox])]:pr-0",
                     stickyTopLevelKey ? "bg-background" : "bg-transparent",
                     toneClasses?.cell,
                   )}
@@ -715,12 +717,12 @@ function JsonPrettyTable({
                         header.column.columnDef.header,
                         header.getContext(),
                       )}
-                </TableHead>
+                </th>
               ))}
-            </TableRow>
+            </tr>
           ))}
-        </TableHeader>
-        <TableBody>
+        </thead>
+        <tbody className="text-xs [&_tr:last-child]:border-0">
           {table.getRowModel().rows.map((row, rowIndex) => (
             <JsonTableRowComponent
               key={row.id}
@@ -739,8 +741,8 @@ function JsonPrettyTable({
               toneClasses={toneClasses}
             />
           ))}
-        </TableBody>
-      </Table>
+        </tbody>
+      </table>
     </div>
   );
 }
