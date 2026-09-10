@@ -191,8 +191,8 @@ export function SpanContent({
                     "text-foreground-tertiary text-xs",
                     parentTotalDuration &&
                       colorCodeMetrics &&
-                      // Root rows are always 100% of themselves — no signal.
-                      node.depth > 0 &&
+                      // Root rows (no parent observation) are always 100% of themselves — no signal.
+                      node.parentObservationId != null &&
                       heatMapTextColor({
                         max: parentTotalDuration,
                         value:
@@ -230,7 +230,7 @@ export function SpanContent({
                     "text-foreground-tertiary text-xs",
                     parentTotalCost &&
                       colorCodeMetrics &&
-                      node.depth > 0 &&
+                      node.parentObservationId != null &&
                       heatMapTextColor({
                         max: parentTotalCost,
                         value: totalCost,
