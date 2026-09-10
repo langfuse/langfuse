@@ -86,7 +86,6 @@ export function EvaluatorAssistantEditDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        size="lg"
         onCloseAutoFocus={(event) => {
           if (returnFocusRef?.current) {
             event.preventDefault();
@@ -98,7 +97,7 @@ export function EvaluatorAssistantEditDialog({
         }}
       >
         <form onSubmit={handleSubmit} className="contents">
-          <DialogHeader>
+          <DialogHeader className="[&>div]:items-start [&>div>button]:-mt-1">
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="text-primary-accent h-4 w-4" />
               Edit with AI
