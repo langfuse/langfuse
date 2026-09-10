@@ -7,8 +7,13 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { paginationZod } from "@langfuse/shared";
-import { AuditLogRecordType, type AuditLog } from "@langfuse/shared/src/db";
+import { paginationZod, singleFilter } from "@langfuse/shared";
+import { AuditLogRecordType, type prisma } from "@langfuse/shared/src/db";
+import {
+  type AuditLogEntry,
+  getAuditLogs,
+  getAuditLogsCount,
+} from "@langfuse/shared/src/server";
 
 type AuditLogActor =
   | {
@@ -27,7 +32,7 @@ type AuditLogActor =
   | null;
 
 function mapAuditLogsWithActors(
-  auditLogs: AuditLog[],
+  auditLogs: AuditLogEntry[],
   userMap: Map<
     string,
     {
@@ -75,203 +80,139 @@ function mapAuditLogsWithActors(
   });
 }
 
+const auditLogFilterZod = z.array(singleFilter).nullish();
+
+/**
+ * Reads one page from ClickHouse and resolves the actors against Postgres.
+ * Users are only resolved when they belong to the organisation and API keys
+ * only when they belong to the scope, so a row never leaks another tenant's
+ * display data through a spoofed id.
+ */
+async function getAuditLogPage(args: {
+  db: typeof prisma;
+  orgId: string;
+  projectId: string | null;
+  filter: z.infer<typeof auditLogFilterZod>;
+  page: number;
+  limit: number;
+}) {
+  const scope = {
+    orgId: args.orgId,
+    projectId: args.projectId,
+    filter: args.filter ?? [],
+  };
+  const [auditLogs, totalCount] = await Promise.all([
+    getAuditLogs({
+      ...scope,
+      limit: args.limit,
+      offset: args.page * args.limit,
+    }),
+    getAuditLogsCount(scope),
+  ]);
+
+  const userIds = [
+    ...new Set(auditLogs.flatMap((log) => (log.userId ? [log.userId] : []))),
+  ];
+  const apiKeyIds = [
+    ...new Set(
+      auditLogs.flatMap((log) => (log.apiKeyId ? [log.apiKeyId] : [])),
+    ),
+  ];
+
+  const [users, apiKeys] = await Promise.all([
+    userIds.length === 0
+      ? []
+      : args.db.user.findMany({
+          where: {
+            id: { in: userIds },
+            organizationMemberships: { some: { orgId: args.orgId } },
+          },
+          select: { id: true, name: true, email: true, image: true },
+        }),
+    apiKeyIds.length === 0
+      ? []
+      : args.db.apiKey.findMany({
+          where: {
+            id: { in: apiKeyIds },
+            ...(args.projectId
+              ? { projectId: args.projectId }
+              : { orgId: args.orgId, scope: "ORGANIZATION" }),
+          },
+          select: { id: true, publicKey: true },
+        }),
+  ]);
+
+  const userMap = new Map(users.map((user) => [user.id, user]));
+  const apiKeyMap = new Map(apiKeys.map((apiKey) => [apiKey.id, apiKey]));
+
+  return {
+    data: mapAuditLogsWithActors(auditLogs, userMap, apiKeyMap),
+    totalCount,
+  };
+}
+
 export const auditLogsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
+        filter: auditLogFilterZod,
         ...paginationZod,
       }),
     )
     .query(async ({ ctx, input }) => {
-      // Check if user has access to audit logs feature
       throwIfNoEntitlement({
         entitlement: "audit-logs",
         sessionUser: ctx.session.user,
         projectId: input.projectId,
       });
 
-      // Check if user has access to the project
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "projectAuditLogs:read",
       });
 
-      const [auditLogs, totalCount] = await Promise.all([
-        ctx.prisma.auditLog.findMany({
-          where: {
-            projectId: input.projectId,
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-          skip: input.page * input.limit,
-          take: input.limit,
-        }),
-        ctx.prisma.auditLog.count({
-          where: {
-            projectId: input.projectId,
-          },
-        }),
-      ]);
-
-      // Fetch user information for each audit log
-      const userIds = [
-        ...new Set(
-          auditLogs.flatMap((log) => (log?.userId ? [log.userId] : [])),
-        ),
-      ];
-      const apiKeyIds = [
-        ...new Set(
-          auditLogs.flatMap((log) => (log?.apiKeyId ? [log.apiKeyId] : [])),
-        ),
-      ];
-
-      const [users, apiKeys] = await Promise.all([
-        ctx.prisma.user.findMany({
-          where: {
-            id: {
-              in: userIds,
-            },
-            organizationMemberships: {
-              some: {
-                organization: {
-                  projects: {
-                    some: {
-                      id: input.projectId,
-                    },
-                  },
-                },
-              },
-            },
-          },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-          },
-        }),
-        ctx.prisma.apiKey.findMany({
-          where: {
-            id: {
-              in: apiKeyIds,
-            },
-            projectId: input.projectId,
-          },
-          select: {
-            id: true,
-            publicKey: true,
-          },
-        }),
-      ]);
-
-      const userMap = new Map(users.map((user) => [user.id, user]));
-      const apiKeyMap = new Map(apiKeys.map((apiKey) => [apiKey.id, apiKey]));
-
-      return {
-        data: mapAuditLogsWithActors(auditLogs, userMap, apiKeyMap),
-        totalCount,
-      };
+      return getAuditLogPage({
+        db: ctx.prisma,
+        orgId: ctx.session.orgId,
+        projectId: input.projectId,
+        filter: input.filter,
+        page: input.page,
+        limit: input.limit,
+      });
     }),
 
   allByOrg: protectedOrganizationProcedure
     .input(
       z.object({
         orgId: z.string(),
+        filter: auditLogFilterZod,
         ...paginationZod,
       }),
     )
     .query(async ({ ctx, input }) => {
-      // Check if user has access to audit logs feature at org level
       throwIfNoEntitlement({
         entitlement: "audit-logs",
         sessionUser: ctx.session.user,
         orgId: input.orgId,
       });
 
-      // Check if user has access to organization audit logs
       throwIfNoOrganizationAccess({
         session: ctx.session,
         organizationId: input.orgId,
         scope: "orgAuditLogs:read",
       });
 
-      // Fetch organization-level audit logs (where projectId is null)
-      // This includes: organization CRUD, project CRUD, org membership changes
-      const [auditLogs, totalCount] = await Promise.all([
-        ctx.prisma.auditLog.findMany({
-          where: {
-            orgId: input.orgId,
-            projectId: null,
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-          skip: input.page * input.limit,
-          take: input.limit,
-        }),
-        ctx.prisma.auditLog.count({
-          where: {
-            orgId: input.orgId,
-            projectId: null,
-          },
-        }),
-      ]);
-
-      // Fetch user information for each audit log
-      const userIds = [
-        ...new Set(
-          auditLogs.flatMap((log) => (log?.userId ? [log.userId] : [])),
-        ),
-      ];
-      const apiKeyIds = [
-        ...new Set(
-          auditLogs.flatMap((log) => (log?.apiKeyId ? [log.apiKeyId] : [])),
-        ),
-      ];
-
-      const [users, apiKeys] = await Promise.all([
-        ctx.prisma.user.findMany({
-          where: {
-            id: {
-              in: userIds,
-            },
-            organizationMemberships: {
-              some: {
-                orgId: input.orgId,
-              },
-            },
-          },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-          },
-        }),
-        ctx.prisma.apiKey.findMany({
-          where: {
-            id: {
-              in: apiKeyIds,
-            },
-            orgId: input.orgId,
-            scope: "ORGANIZATION",
-          },
-          select: {
-            id: true,
-            publicKey: true,
-          },
-        }),
-      ]);
-
-      const userMap = new Map(users.map((user) => [user.id, user]));
-      const apiKeyMap = new Map(apiKeys.map((apiKey) => [apiKey.id, apiKey]));
-
-      return {
-        data: mapAuditLogsWithActors(auditLogs, userMap, apiKeyMap),
-        totalCount,
-      };
+      // Organisation-level rows only: organisation and project CRUD, org
+      // memberships. Project rows live on the project pages.
+      return getAuditLogPage({
+        db: ctx.prisma,
+        orgId: input.orgId,
+        projectId: null,
+        filter: input.filter,
+        page: input.page,
+        limit: input.limit,
+      });
     }),
 });

@@ -616,3 +616,5 @@ export const auditLogRecordInsertSchema = auditLogRecordBaseSchema.extend({
 export type AuditLogRecordInsertType = z.infer<
   typeof auditLogRecordInsertSchema
 >;
+/** Rows come back with the same shape they were written in. */
+export type AuditLogRecordReadType = AuditLogRecordInsertType;

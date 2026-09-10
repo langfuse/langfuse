@@ -5,6 +5,7 @@ import {
   ScoreRecordInsertType,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
+  AuditLogRecordInsertType,
 } from "../repositories/definitions";
 
 export const createTracesCh = async (trace: TraceRecordInsertType[]) => {
@@ -48,5 +49,13 @@ export const createDatasetRunItemsCh = async (
     table: "dataset_run_items_rmt",
     format: "JSONEachRow",
     values: datasetRunItems,
+  });
+};
+
+export const createAuditLogsCh = async (rows: AuditLogRecordInsertType[]) => {
+  return await clickhouseClient().insert({
+    table: "audit_logs",
+    format: "JSONEachRow",
+    values: rows,
   });
 };

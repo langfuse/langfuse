@@ -5,3 +5,4 @@ export * from "./mapExperimentTable";
 export * from "../../tableDefinitions/mapDashboards";
 export * from "./mapScoresTable";
 export * from "./mapDatasetRunItemsTable";
+export * from "./mapAuditLogsTable";

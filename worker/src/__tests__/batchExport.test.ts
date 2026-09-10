@@ -13,6 +13,7 @@ import {
   applyCommentFilters,
   createEvent,
   createEventsCh,
+  createAuditLogsCh,
   getEventsForBlobStorageExport,
   streamTransformations,
 } from "@langfuse/shared/src/server";
@@ -1600,62 +1601,84 @@ describe("batch export test suite", () => {
   it("should export audit logs", async () => {
     const { projectId, orgId } = await createOrgProjectAndApiKey();
 
-    // Create some audit log entries directly in the database
+    const base = {
+      org_id: orgId,
+      project_id: projectId,
+      user_org_role: "",
+      user_project_role: "",
+      surface: "",
+      route: "",
+      params: "",
+      result_count: 0,
+      before: "",
+      after: "",
+    };
     const auditLogEntries = [
       {
+        ...base,
         id: randomUUID(),
-        projectId: projectId,
-        orgId: orgId,
-        type: "USER" as const,
-        userId: randomUUID(),
-        userOrgRole: "OWNER",
-        userProjectRole: "ADMIN",
-        resourceType: "trace",
-        resourceId: randomUUID(),
-        action: "CREATE",
-        before: null,
+        timestamp: "2024-01-01 10:00:00.000",
+        event_kind: "change" as const,
+        actor_type: "USER" as const,
+        user_id: randomUUID(),
+        api_key_id: "",
+        user_org_role: "OWNER",
+        user_project_role: "ADMIN",
+        resource_type: "trace",
+        resource_id: randomUUID(),
+        action: "create",
         after: JSON.stringify({ name: "test-trace", version: 1 }),
-        createdAt: new Date("2024-01-01T10:00:00Z"),
-        updatedAt: new Date("2024-01-01T10:00:00Z"),
       },
       {
+        ...base,
         id: randomUUID(),
-        projectId: projectId,
-        orgId: orgId,
-        type: "API_KEY" as const,
-        apiKeyId: randomUUID(),
-        resourceType: "score",
-        resourceId: randomUUID(),
-        action: "UPDATE",
+        timestamp: "2024-01-02 10:00:00.000",
+        event_kind: "change" as const,
+        actor_type: "API_KEY" as const,
+        user_id: "",
+        api_key_id: randomUUID(),
+        resource_type: "score",
+        resource_id: randomUUID(),
+        action: "update",
         before: JSON.stringify({ value: 0.5 }),
         after: JSON.stringify({ value: 0.8 }),
-        createdAt: new Date("2024-01-02T10:00:00Z"),
-        updatedAt: new Date("2024-01-02T10:00:00Z"),
       },
       {
+        ...base,
         id: randomUUID(),
-        projectId: projectId,
-        orgId: orgId,
-        type: "USER" as const,
-        userId: randomUUID(),
-        userOrgRole: "MEMBER",
-        userProjectRole: "VIEWER",
-        resourceType: "prompt",
-        resourceId: randomUUID(),
-        action: "DELETE",
-        before: JSON.stringify({ name: "old-prompt", content: "Hello World" }),
-        after: null,
-        createdAt: new Date("2024-01-03T10:00:00Z"),
-        updatedAt: new Date("2024-01-03T10:00:00Z"),
+        timestamp: "2024-01-03 10:00:00.000",
+        event_kind: "access" as const,
+        actor_type: "USER" as const,
+        user_id: randomUUID(),
+        api_key_id: "",
+        user_org_role: "MEMBER",
+        user_project_role: "VIEWER",
+        resource_type: "trace",
+        resource_id: "",
+        action: "list",
+        surface: "trpc",
+        route: "traces.all",
+        params: JSON.stringify({ projectId, limit: 50 }),
+        result_count: 7,
+      },
+      // Another organisation's row in the same project id must never leak.
+      {
+        ...base,
+        id: randomUUID(),
+        org_id: randomUUID(),
+        timestamp: "2024-01-04 10:00:00.000",
+        event_kind: "change" as const,
+        actor_type: "USER" as const,
+        user_id: randomUUID(),
+        api_key_id: "",
+        resource_type: "prompt",
+        resource_id: randomUUID(),
+        action: "delete",
       },
     ];
 
-    // Insert audit log entries
-    await prisma.auditLog.createMany({
-      data: auditLogEntries,
-    });
+    await createAuditLogsCh(auditLogEntries);
 
-    // Export audit logs
     const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.AuditLogs,
@@ -1672,34 +1695,62 @@ describe("batch export test suite", () => {
 
     expect(rows).toHaveLength(3);
 
-    // Verify the audit logs are sorted by createdAt DESC
-    expect(rows[0].action).toBe("DELETE");
-    expect(rows[0].resourceType).toBe("prompt");
+    // Newest first
+    expect(rows[0].eventKind).toBe("access");
+    expect(rows[0].action).toBe("list");
+    expect(rows[0].resourceType).toBe("trace");
+    expect(rows[0].resourceId).toBe("");
     expect(rows[0].type).toBe("USER");
-    expect(rows[0].before).toBe(
-      JSON.stringify({ name: "old-prompt", content: "Hello World" }),
-    );
+    expect(rows[0].surface).toBe("trpc");
+    expect(rows[0].route).toBe("traces.all");
+    expect(rows[0].params).toBe(JSON.stringify({ projectId, limit: 50 }));
+    expect(rows[0].resultCount).toBe(7);
+    expect(rows[0].before).toBe(null);
     expect(rows[0].after).toBe(null);
 
-    expect(rows[1].action).toBe("UPDATE");
+    expect(rows[1].eventKind).toBe("change");
+    expect(rows[1].action).toBe("update");
     expect(rows[1].resourceType).toBe("score");
     expect(rows[1].type).toBe("API_KEY");
+    expect(rows[1].userId).toBe(null);
     expect(rows[1].before).toBe(JSON.stringify({ value: 0.5 }));
     expect(rows[1].after).toBe(JSON.stringify({ value: 0.8 }));
 
-    expect(rows[2].action).toBe("CREATE");
+    expect(rows[2].action).toBe("create");
     expect(rows[2].resourceType).toBe("trace");
     expect(rows[2].type).toBe("USER");
+    expect(rows[2].userOrgRole).toBe("OWNER");
     expect(rows[2].before).toBe(null);
     expect(rows[2].after).toBe(
       JSON.stringify({ name: "test-trace", version: 1 }),
     );
+    expect(rows[2].createdAt).toEqual(new Date("2024-01-01T10:00:00Z"));
 
-    // Verify all rows have the correct project ID
     rows.forEach((row) => {
       expect(row.projectId).toBe(projectId);
       expect(row.orgId).toBe(orgId);
     });
+
+    // Filters flow through to ClickHouse
+    const filteredStream = await getDatabaseReadStreamPaginated({
+      projectId: projectId,
+      tableName: BatchExportTableName.AuditLogs,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          column: "eventKind",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["access"],
+        },
+      ],
+      orderBy: { column: "createdAt", order: "DESC" },
+    });
+    const filteredRows: any[] = [];
+    for await (const chunk of filteredStream) {
+      filteredRows.push(chunk);
+    }
+    expect(filteredRows.map((row) => row.id)).toEqual([auditLogEntries[2].id]);
   });
 
   it("should export traces with searchQuery and searchType filters applied correctly", async () => {
