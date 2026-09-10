@@ -1,6 +1,6 @@
 import { Worker } from "worker_threads";
 import { Model } from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
+import { logger, recordIncrement } from "@langfuse/shared/src/server";
 import path from "path";
 import { env } from "../../env";
 
@@ -171,7 +171,18 @@ export class TokenCountWorkerManager {
     // workers. Resolve them with undefined (usage unknown) rather than
     // rejecting: dropping counts during shutdown is expected, not an error,
     // and a rejection is logged per request by the caller as a tokenization
-    // failure.
+    // failure. Emit one summary metric instead so the drops stay observable
+    // without the per-request log spam that spiked on rollouts.
+    const droppedOnShutdown = this.pool.pendingRequests.size;
+    if (droppedOnShutdown > 0) {
+      recordIncrement(
+        "langfuse.tokenisation.skipped_on_shutdown",
+        droppedOnShutdown,
+      );
+      logger.info(
+        `Dropped ${droppedOnShutdown} in-flight token-count request(s) on shutdown.`,
+      );
+    }
     for (const [, request] of this.pool.pendingRequests.entries()) {
       clearTimeout(request.timeout);
       request.resolve(undefined);
