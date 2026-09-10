@@ -203,7 +203,7 @@ export function PromptVariableEditor({
   /** Hides the editor/preview while preserving the prompt header. */
   collapsed?: boolean;
   /** Lets a grouped parent own the border radius and horizontal boundary. */
-  surfaceVariant?: "standalone" | "nested";
+  surfaceVariant?: "standalone" | "nested" | "nested-last";
 }) {
   // Statuses and labels travel as serialized keys and are parsed back inside
   // the memo, so the memo depends on their content rather than their identity.
@@ -237,6 +237,8 @@ export function PromptVariableEditor({
       toolbarActions,
     );
   const activePreview = previewEnabled ? preview : undefined;
+  const isNested = surfaceVariant !== "standalone";
+  const isLastNested = surfaceVariant === "nested-last";
 
   return (
     <div className="flex flex-col">
@@ -250,8 +252,9 @@ export function PromptVariableEditor({
               "bg-secondary text-secondary-foreground rounded-t-md",
             collapsed && surfaceVariant === "standalone" && "rounded-b-md",
             !collapsed && "border-b-transparent",
-            surfaceVariant === "nested" &&
+            isNested &&
               "bg-card text-card-foreground rounded-none border-x-0 border-t-0",
+            isLastNested && "border-b-0",
             onToolbarClick && "cursor-pointer",
           )}
           onClick={(event) => {
@@ -317,7 +320,8 @@ export function PromptVariableEditor({
               className={cn(
                 hasToolbar && "rounded-t-none",
                 "text-sm",
-                surfaceVariant === "nested" && "rounded-none border-x-0",
+                isNested && "rounded-none border-x-0",
+                isLastNested && "border-b-0",
               )}
             />
           </div>
@@ -326,7 +330,8 @@ export function PromptVariableEditor({
               <p
                 className={cn(
                   "ph-no-capture bg-muted/50 text-muted-foreground absolute inset-0 overflow-y-auto rounded-b-md border px-3 py-2 text-sm leading-5",
-                  surfaceVariant === "nested" && "rounded-none border-x-0",
+                  isNested && "rounded-none border-x-0",
+                  isLastNested && "border-b-0",
                 )}
               >
                 {activePreview.message}
@@ -335,7 +340,8 @@ export function PromptVariableEditor({
               <pre
                 className={cn(
                   "ph-no-capture bg-muted/50 text-card-foreground absolute inset-0 overflow-y-auto rounded-b-md border px-3 py-2 font-sans text-sm leading-5 whitespace-pre-wrap",
-                  surfaceVariant === "nested" && "rounded-none border-x-0",
+                  isNested && "rounded-none border-x-0",
+                  isLastNested && "border-b-0",
                 )}
               >
                 {activePreview.fragments.map((fragment, index) => (

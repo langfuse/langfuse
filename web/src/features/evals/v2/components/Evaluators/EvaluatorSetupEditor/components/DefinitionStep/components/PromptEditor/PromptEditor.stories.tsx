@@ -460,7 +460,7 @@ export const SingleMessage = meta.story({
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.queryByText("User")).not.toBeInTheDocument();
+    await expect(canvas.getByText("User")).toBeVisible();
   },
 });
 

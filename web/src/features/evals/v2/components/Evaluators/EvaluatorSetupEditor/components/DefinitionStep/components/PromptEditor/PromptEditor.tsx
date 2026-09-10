@@ -399,7 +399,7 @@ function SortablePromptMessage({
         preview={prepared.promptPreview}
         renderPreviewText={renderMediaAwareText}
         collapsed={!expanded}
-        surfaceVariant="nested"
+        surfaceVariant={index === messageCount - 1 ? "nested-last" : "nested"}
         toolbarStart={
           <>
             <Button
@@ -419,20 +419,18 @@ function SortablePromptMessage({
                 )}
               />
             </Button>
-            {messageCount > 1 || message.role !== "user" || warningReason ? (
-              warningReason ? (
-                <Tooltip delayDuration={0}>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex" tabIndex={0}>
-                      {roleBadge}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>{warningReason}</TooltipContent>
-                </Tooltip>
-              ) : (
-                roleBadge
-              )
-            ) : null}
+            {warningReason ? (
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex" tabIndex={0}>
+                    {roleBadge}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{warningReason}</TooltipContent>
+              </Tooltip>
+            ) : (
+              roleBadge
+            )}
             {!expanded ? (
               <span
                 className="text-muted-foreground min-w-0 flex-1 truncate px-1 text-xs leading-none"
