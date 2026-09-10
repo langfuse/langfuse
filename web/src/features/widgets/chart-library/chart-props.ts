@@ -150,4 +150,24 @@ export interface ChartProps {
    * affects a categorical axis — a temporal axis keeps its timestamp labels.
    */
   hideXAxisLabels?: boolean;
+  /**
+   * Give each bar of a categorical (entity) axis its own palette colour, plus a
+   * legend below the plot that names it. Off by default: a dashboard bar chart
+   * shows its categories on the axis and needs neither. Opt in where the axis
+   * labels are hidden and the bars are entities rather than buckets — the
+   * experiments strip, one bar per run. Colours and legend both come from
+   * `prepareCategoryBars`, which also decides when there are too many bars for
+   * the bounded palette to identify any of them.
+   */
+  colorBarsByCategory?: boolean;
+  /**
+   * Measure the bars from zero instead of from recharts' fitted domain. A bar
+   * encodes its value as a length, so this is what makes two bars comparable at
+   * all — on a fitted domain 0.80/0.87/1.00 draw as short/medium/full.
+   *
+   * Off by default only because it is a visible change to the bar charts that
+   * already ship without it (the score-analytics dashboard widget), which are
+   * out of scope here. Every vertical bar chart ought to have it.
+   */
+  zeroBaseline?: boolean;
 }

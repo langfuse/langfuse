@@ -1,6 +1,9 @@
 import { assertUnreachable } from "@langfuse/shared";
 
-export const featurePreviewFlags = ["modernSession"] as const;
+export const featurePreviewFlags = [
+  "modernSession",
+  "normalizedIoPreview",
+] as const;
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
 
@@ -15,6 +18,7 @@ export const filterFeaturePreviewFlags = (
 
 export const featurePreviewLabels = {
   modernSession: "Compact Session View",
+  normalizedIoPreview: "Improved Message Rendering",
 } satisfies Record<FeaturePreviewFlag, string>;
 
 export type FeaturePreviewAvailabilityContext = {
@@ -29,6 +33,10 @@ export const isFeaturePreviewAvailable = (
     return context.v4BetaEnabled;
   }
 
+  if (flag === "normalizedIoPreview") {
+    return true;
+  }
+
   return assertUnreachable(flag);
 };
 
@@ -41,6 +49,6 @@ export const availableFlags = [
   "observationEvals",
   "experimentsV4Enabled",
   // Internal flag (deliberately NOT in featurePreviewFlags): gates the
-  // normalized-parser formatted trace view for admins/flagged users only.
-  "normalizedIoPreview",
+  // redesigned compact session timeline for admins/flagged users only.
+  "sessionTimeline",
 ] as const;

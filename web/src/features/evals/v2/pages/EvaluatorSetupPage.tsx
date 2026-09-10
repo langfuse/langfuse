@@ -63,6 +63,7 @@ import {
   getJudgePromptAnalyticsProperties,
   type EvaluatorCreationSource,
 } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
+import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
 
 type InitialEvaluator = {
   id: string;
@@ -236,6 +237,9 @@ export function EvaluatorSetupPage(
   );
   const [rawResultOpen, setRawResultOpen] = useState(false);
   const hasRequestedName = useRef(false);
+  const saveInFlightRef = useRef(false);
+  const hasCreatedRef = useRef(false);
+  const [saveInFlight, setSaveInFlight] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
@@ -443,6 +447,9 @@ export function EvaluatorSetupPage(
   };
 
   const save = async () => {
+    if (saveInFlightRef.current || hasCreatedRef.current) return;
+    saveInFlightRef.current = true;
+    setSaveInFlight(true);
     try {
       let state = evaluatorSetupStore.getState();
       const metadata = await prepareEvaluatorMetadataForSave({
@@ -503,6 +510,7 @@ export function EvaluatorSetupPage(
         capture("evaluators:update", {
           evaluatorType: state.type,
           filterExperience,
+          ...getFilterAnalyticsProperties(state.sampleFilter),
           ...(definition.type === "LLM_AS_JUDGE"
             ? getJudgePromptAnalyticsProperties(definition.promptMessages)
             : {}),
@@ -524,6 +532,7 @@ export function EvaluatorSetupPage(
         description,
         definition,
       });
+      hasCreatedRef.current = true;
       capture("evaluators:create", {
         ...getEvaluatorCreationAnalyticsProperties({
           evaluatorType: state.type,
@@ -550,6 +559,7 @@ export function EvaluatorSetupPage(
               : undefined,
         }),
         filterExperience,
+        ...getFilterAnalyticsProperties(state.sampleFilter),
       });
       initialSnapshot.current = getCurrentSnapshot(state);
       await utils.evalsV2.filterOptions.invalidate({ projectId });
@@ -569,6 +579,7 @@ export function EvaluatorSetupPage(
         testRunCostUsd: lastTestRunCostUsd,
       });
     } catch (error) {
+      hasCreatedRef.current = false;
       if (
         initialEvaluator &&
         error instanceof TRPCClientError &&
@@ -578,6 +589,9 @@ export function EvaluatorSetupPage(
       } else {
         trpcErrorToast(error);
       }
+    } finally {
+      saveInFlightRef.current = false;
+      setSaveInFlight(false);
     }
   };
 
@@ -791,6 +805,7 @@ export function EvaluatorSetupPage(
           initialSnapshot={initialSnapshot.current}
           isEditing={Boolean(initialEvaluator)}
           isSaving={
+            saveInFlight ||
             create.isPending ||
             update.isPending ||
             suggestName.isPending ||

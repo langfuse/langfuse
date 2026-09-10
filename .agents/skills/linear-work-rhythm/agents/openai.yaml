@@ -1,0 +1,4 @@
+interface:
+  display_name: "Linear Work Rhythm"
+  short_description: "What should I do today, answered from the tracker"
+  default_prompt: "Use $linear-work-rhythm to tell me what to do today: which of my projects owe an update, what shipped but is not finished, and what is waiting on my decision."

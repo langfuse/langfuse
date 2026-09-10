@@ -30,12 +30,14 @@ const renderGridCell = (
   showScoreLevelLabels: boolean,
   columnVisibility: VisibilityState = { output: false, metadata: false },
   output: unknown = null,
+  onExperimentClick?: (event: React.MouseEvent) => void,
 ) =>
   render(
     <TooltipProvider>
       <ExperimentGridCell
         projectId="project-id"
         itemId="item-id"
+        onExperimentClick={onExperimentClick}
         output={output}
         level="GENERATION"
         startTime={new Date("2026-07-30T10:00:00.000Z")}
@@ -84,19 +86,27 @@ describe("ExperimentGridCell", () => {
     expect(screen.getByText("correctness")).toBeInTheDocument();
   });
 
-  it("renders the latency row when no latency value is available", () => {
+  it("keeps cost and latency on the metadata line", () => {
     renderGridCell(false, { output: false });
 
-    expect(screen.getByText("Latency")).toBeInTheDocument();
+    // Neither is recorded in this fixture, so both render the affordance.
+    expect(screen.getAllByText("not recorded")).toHaveLength(2);
   });
 
-  it("renders output in a fixed-height scroll area", () => {
+  it("keeps the ids reachable behind the metadata line instead of listing them", () => {
+    renderGridCell(false, { output: false });
+
+    expect(screen.queryByText("item-id")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "IDs" })).toBeInTheDocument();
+  });
+
+  it("lets the output section take the row's spare height", () => {
     renderGridCell(false, { metadata: false });
 
     const outputContent =
       screen.getByText("Output").parentElement?.nextElementSibling;
 
-    expect(outputContent).toHaveClass("h-16", "overflow-hidden");
+    expect(outputContent).toHaveClass("min-h-16", "flex-1", "overflow-hidden");
     expect(outputContent?.firstElementChild).toBe(screen.getByText("IO cell"));
   });
 
@@ -118,5 +128,45 @@ describe("ExperimentGridCell", () => {
       "href",
       "/project/project-id/traces/execution-trace-id",
     );
+  });
+
+  it("opens this experiment when its cell is clicked", () => {
+    const onExperimentClick = vi.fn();
+    const { container } = renderGridCell(
+      false,
+      { output: false, metadata: false },
+      null,
+      onExperimentClick,
+    );
+
+    fireEvent.click(container.firstElementChild as Element);
+
+    expect(onExperimentClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers no pointer affordance when the cell cannot open a peek", () => {
+    const { container } = renderGridCell(false);
+
+    expect(container.firstElementChild).not.toHaveClass("cursor-pointer");
+  });
+
+  // A score name used to render as Radix's default <a>, which the row-click
+  // guard always ignores — a dead zone in an otherwise clickable cell.
+  it("keeps the score name clickable rather than rendering it as a link", () => {
+    const onExperimentClick = vi.fn();
+    renderGridCell(
+      false,
+      { output: false, metadata: false },
+      null,
+      onExperimentClick,
+    );
+
+    const scoreName = screen.getByText("quality");
+
+    expect(scoreName.closest("a")).toBeNull();
+
+    fireEvent.click(scoreName);
+
+    expect(onExperimentClick).toHaveBeenCalledTimes(1);
   });
 });

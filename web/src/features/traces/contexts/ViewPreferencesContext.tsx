@@ -26,13 +26,8 @@ export type LogViewMode = "chronological" | "tree-order";
 /** Log view tree visualization style (only applies in tree-order mode) */
 export type LogViewTreeStyle = "flat" | "indented";
 
-/** JSON view preference (formatted/pretty vs raw JSON vs advanced JSON beta).
- * "pretty-beta" is the admin-only normalized-parser formatted view. */
-export type JsonViewPreference =
-  | "pretty"
-  | "pretty-beta"
-  | "json"
-  | "json-beta";
+/** JSON view preference (formatted/pretty vs raw JSON vs advanced JSON beta). */
+export type JsonViewPreference = "pretty" | "json" | "json-beta";
 
 /** Context in which trace is rendered - affects feature availability */
 type TraceRenderContext = "fullscreen" | "peek" | "annotation";
@@ -140,8 +135,14 @@ export function ViewPreferencesProvider({
   );
   const [logViewTreeStyle, setLogViewTreeStyle] =
     useLocalStorage<LogViewTreeStyle>("logViewTreeStyle", "flat");
-  const [jsonViewPreference, setJsonViewPreference] =
+  const [storedJsonViewPreference, setJsonViewPreference] =
     useLocalStorage<JsonViewPreference>("jsonViewPreference", "pretty");
+  // A previously persisted "pretty-beta" preference is no longer a view mode;
+  // degrade it to the Formatted view rather than breaking the toggle.
+  const jsonViewPreference: JsonViewPreference =
+    (storedJsonViewPreference as string) === "pretty-beta"
+      ? "pretty"
+      : storedJsonViewPreference;
   // Migration: default to true if user had json-beta selected previously
   // TODO: Remove migration logic after 2025-01-26 (2 weeks) when user settings are migrated
   const [jsonBetaEnabled, setJsonBetaEnabled] = useLocalStorage<boolean>(

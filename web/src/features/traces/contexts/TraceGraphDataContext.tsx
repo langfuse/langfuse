@@ -10,7 +10,7 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { api } from "@/src/utils/api";
 import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 
 /** Size cap for visualizations that lay out every observation instead of a
  *  scrollable list. */

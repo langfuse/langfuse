@@ -12,6 +12,15 @@ import {
   stampDeprecations,
 } from "../../../../scripts/openapi/stamp-deprecations";
 import {
+  DATASET_RUN_ITEMS_DEPRECATION,
+  DATASET_RUNS_DEPRECATION,
+  INGESTION_DEPRECATION,
+  METRICS_DEPRECATION,
+  OBSERVATIONS_V1_DEPRECATION,
+  SCORES_DEPRECATION,
+  SESSIONS_DEPRECATION,
+  TRACES_DEPRECATION,
+  V3_DELAY_NOTICE,
   V3_SUNSET_DATE,
   V3_SUNSET_HUMAN,
 } from "@/src/features/public-api/server/deprecations";
@@ -35,18 +44,6 @@ const openApiPath = path.resolve(
 );
 
 const MESSAGE = "Use `GET /api/public/v2/observations?from=<from>` instead.";
-const UNSTABLE_EVALS_SUNSET_HUMAN = "September 4, 2026";
-const UNSTABLE_EVAL_OPERATIONS = new Set([
-  "POST /api/public/unstable/evaluators",
-  "GET /api/public/unstable/evaluators",
-  "GET /api/public/unstable/evaluators/{evaluatorId}",
-  "DELETE /api/public/unstable/evaluators/{evaluatorId}",
-  "POST /api/public/unstable/evaluation-rules",
-  "GET /api/public/unstable/evaluation-rules",
-  "GET /api/public/unstable/evaluation-rules/{evaluationRuleId}",
-  "PATCH /api/public/unstable/evaluation-rules/{evaluationRuleId}",
-  "DELETE /api/public/unstable/evaluation-rules/{evaluationRuleId}",
-]);
 
 /** Spec fixture in the shape `fern export` produces, aliased `security` included. */
 const SPEC = `openapi: 3.0.1
@@ -139,11 +136,20 @@ describe("OpenAPI deprecations", () => {
       definitionDirectory,
     )) {
       const operation = `${method.toUpperCase()} ${endpointPath}`;
-      const sunsetDate = UNSTABLE_EVAL_OPERATIONS.has(operation)
-        ? UNSTABLE_EVALS_SUNSET_HUMAN
-        : V3_SUNSET_HUMAN;
+      const isIngestion =
+        method === "post" && endpointPath === "/api/public/ingestion";
 
-      expect(message, operation).toContain(`will be removed on ${sunsetDate}.`);
+      // Ingestion is not removed: v4-only write mode rejects traces, scores stay.
+      if (isIngestion) {
+        expect(message, operation).toContain(V3_SUNSET_HUMAN);
+        expect(message, operation).not.toContain("will be removed");
+        expect(message, operation).not.toContain("becomes unavailable");
+        continue;
+      }
+
+      expect(message, operation).toContain(
+        `will be removed on ${V3_SUNSET_HUMAN}.`,
+      );
     }
   });
 
@@ -169,6 +175,55 @@ describe("OpenAPI deprecations", () => {
         timeZone: "UTC",
       }),
     ).toBe(V3_SUNSET_HUMAN);
+  });
+
+  // Every family that already stamps `_deprecation` shares V3_NOTICE, so a new
+  // family that forgets it would ship without the delay warning.
+  it("puts the 10-minute delay on every legacy `_deprecation.message`", () => {
+    const families = [
+      OBSERVATIONS_V1_DEPRECATION,
+      TRACES_DEPRECATION,
+      SESSIONS_DEPRECATION,
+      SCORES_DEPRECATION,
+      METRICS_DEPRECATION,
+      DATASET_RUN_ITEMS_DEPRECATION,
+      DATASET_RUNS_DEPRECATION,
+      INGESTION_DEPRECATION,
+    ];
+
+    for (const family of families) {
+      expect(family.message).toContain(V3_DELAY_NOTICE);
+    }
+  });
+
+  it("tells legacy ingestion callers to prefer Python and JS SDKs over curl", () => {
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "Always prefer upgrading to the current Python and JS SDKs",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "custom auto-instrumentation",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain("curl");
+
+    const ingestion = getFernDeprecatedOperations(definitionDirectory).find(
+      ({ method, endpointPath }) =>
+        method === "post" && endpointPath === "/api/public/ingestion",
+    );
+    expect(ingestion?.message).toContain(
+      "Always prefer upgrading to the current Python and JS SDKs",
+    );
+    expect(ingestion?.message).toContain("custom auto-instrumentation");
+    expect(ingestion?.message).toContain("curl");
+    expect(INGESTION_DEPRECATION.message).toContain("never shut down");
+    expect(INGESTION_DEPRECATION.message).toContain("score events");
+    expect(INGESTION_DEPRECATION.message).toContain("v4-only write mode");
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "not in dual or legacy mode",
+    );
+    expect(ingestion?.message).toContain("never shut down");
+    expect(ingestion?.message).toContain("score events");
+    expect(ingestion?.message).toContain("v4-only write mode");
+    expect(ingestion?.message).toContain("not in dual or legacy mode");
   });
 
   it("supports deprecated endpoints at a service base path", () => {

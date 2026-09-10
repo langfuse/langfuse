@@ -7,6 +7,18 @@ import { env } from "@/src/env.mjs";
 const REDIRECT_ORIGIN = "https://langfuse.invalid";
 
 /**
+ * A path segment that is still a Next.js pages-router dynamic param
+ * (`[id]`, `[...slug]`, `[[...slug]]`). Passing that string to
+ * `router.push`/`replace` throws href-interpolation-failed.
+ */
+const UNINTERPOLATED_ROUTE_SEGMENT =
+  /(?:^|\/)(?:\[(?:\.\.\.)?[A-Za-z_][\w]*\]|\[\[(?:\.\.\.)?[A-Za-z_][\w]*\]\])(?=\/|$)/;
+
+function pathnameHasUninterpolatedRouteParam(pathname: string): boolean {
+  return UNINTERPOLATED_ROUTE_SEGMENT.test(pathname);
+}
+
+/**
  * Validates and sanitizes a redirect path to prevent open redirect attacks.
  *
  * Security Requirements:
@@ -14,6 +26,8 @@ const REDIRECT_ORIGIN = "https://langfuse.invalid";
  * - Parses with the WHATWG URL constructor and rejects off-origin results
  *   (protocol-relative, backslash-normalized, absolute http(s), other schemes)
  * - Rejects serialized output that starts with "//" after dot-segment resolution
+ * - Rejects pathnames that still contain Next.js dynamic segments
+ *   (`[param]`, `[[...param]]`) — those are unhydrated route patterns, not URLs
  * - Automatically prepends NEXT_PUBLIC_BASE_PATH if configured
  *
  * Returned paths are URL-serialized: spaces and control characters are
@@ -64,6 +78,12 @@ export function getSafeRedirectPath(
     return safeDefault;
   }
 
+  // Pre-hydration asPath on a statically-optimized dynamic route is the raw
+  // pattern. router.replace(that) throws instead of navigating.
+  if (pathnameHasUninterpolatedRouteParam(url.pathname)) {
+    return safeDefault;
+  }
+
   const includesBasePath =
     basePath &&
     (url.pathname === basePath || url.pathname.startsWith(`${basePath}/`));
@@ -85,13 +105,23 @@ export function stripBasePath(path: string): string {
     return "/";
   }
 
-  if (!path.startsWith(basePath)) {
-    return path;
-  }
-
   // Strip ASCII control characters (0x00-0x1F, 0x7F) so a newline or
   // null byte cannot split the basePath prefix from the remainder.
   const cleaned = path.replace(/[\x00-\x1F\x7F]/g, "");
+
+  if (cleaned === basePath) {
+    return "/";
+  }
+
+  // Require a path-segment boundary so `/my-app` does not strip the
+  // prefix of `/my-application`.
+  if (
+    !cleaned.startsWith(`${basePath}/`) &&
+    !cleaned.startsWith(`${basePath}?`) &&
+    !cleaned.startsWith(`${basePath}#`)
+  ) {
+    return cleaned || "/";
+  }
 
   const stripped = cleaned.slice(basePath.length) || "/";
   return stripped.startsWith("/") ? stripped : `/${stripped}`;

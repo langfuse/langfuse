@@ -6,7 +6,7 @@ import {
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { ChevronDown } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { PopoverTrigger } from "@/src/components/ui/popover";
 import { selectTriggerClassName } from "@/src/components/ui/select";
@@ -24,10 +24,23 @@ import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { cn } from "@/src/utils/tailwind";
 import { classifySampleFiltersForRule } from "@/src/features/evals/v2/fns/rules/classifySampleFiltersForRule";
+import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
 import { EvaluatorSavedRuleFilterPreview } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialog/EvaluatorSavedRuleFilterPreview";
+import { EvaluatorBackfillSettings } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBackfillSettings/EvaluatorBackfillSettings";
+import { useEvaluatorSavedBackfill } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialogContainer/hooks/useEvaluatorSavedBackfill";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["list"]["rules"][number];
 type DialogPhase = "saved" | "closing-saved" | "create-rule" | "closed";
+
+type EvaluatorSavedDialogEvaluator = {
+  id: string;
+  name: string;
+  type: EvalTemplateType;
+  defaultVariableMapping: ObservationVariableMapping[];
+  sampleFilter: FilterState;
+  hasCompletedTestCall?: boolean;
+  testRunCostUsd?: number | null;
+};
 
 export function EvaluatorSavedDialogContainer({
   projectId,
@@ -36,15 +49,7 @@ export function EvaluatorSavedDialogContainer({
   onFinish,
 }: {
   projectId: string;
-  evaluator: {
-    id: string;
-    name: string;
-    type: EvalTemplateType;
-    defaultVariableMapping: ObservationVariableMapping[];
-    sampleFilter: FilterState;
-    hasCompletedTestCall?: boolean;
-    testRunCostUsd?: number | null;
-  };
+  evaluator: EvaluatorSavedDialogEvaluator;
   onDismiss: () => Promise<void>;
   onFinish: () => Promise<void>;
 }) {
@@ -62,13 +67,21 @@ export function EvaluatorSavedDialogContainer({
   >(undefined);
   const [isEstimating, setIsEstimating] = useState(false);
   const [testFilterSampling, setTestFilterSampling] = useState(1);
+  const [isCompleting, setIsCompleting] = useState(false);
   const estimateRequestId = useRef(0);
-  // Strict Mode replays mount effects; this mutation must run once per dialog.
   const initialEstimateRequested = useRef(false);
   const createRuleHandoffPending = useRef(false);
   const hasRequestedMissingCostTest = useRef(
     evaluator.hasCompletedTestCall ?? false,
   );
+  const claimMissingCostTest = useCallback(() => {
+    if (hasRequestedMissingCostTest.current) return false;
+    hasRequestedMissingCostTest.current = true;
+    return true;
+  }, []);
+  const resetMissingCostTest = useCallback(() => {
+    hasRequestedMissingCostTest.current = false;
+  }, []);
   const missingCostTestRequest = useRef<Promise<void> | null>(null);
   const activeRules = api.evalsV2.rules.list.useQuery(
     {
@@ -90,6 +103,17 @@ export function EvaluatorSavedDialogContainer({
     },
     { enabled: dialogPhase === "saved" },
   );
+  const historicEvaluationLimit = api.evals.globalJobConfigs.useQuery({
+    projectId,
+  });
+  const backfill = useEvaluatorSavedBackfill({
+    projectId,
+    evaluatorId: evaluator.id,
+    knownTestRunCostUsd: evaluator.testRunCostUsd ?? undefined,
+    historicEvaluationLimit: historicEvaluationLimit.data,
+    claimMissingCostTest,
+    resetMissingCostTest,
+  });
   const availableRules = useMemo(
     () =>
       [
@@ -136,17 +160,35 @@ export function EvaluatorSavedDialogContainer({
   };
 
   const attachToRule = async (rule: Rule) => {
-    await attach.mutateAsync({
+    const currentAssignments =
+      await utils.client.evalsV2.rules.listRulesForEvaluator.query({
+        projectId,
+        evaluatorId: evaluator.id,
+      });
+    const isAlreadyAttached = currentAssignments.some(
+      (assignment) => assignment.evaluationRule.id === rule.id,
+    );
+    if (!isAlreadyAttached) {
+      await attach.mutateAsync({
+        projectId,
+        ruleId: rule.id,
+        evaluatorId: evaluator.id,
+        variableMapping: null,
+        enableRule: !rule.enabled,
+      });
+      capture("evaluation_rules:attach_evaluator", {
+        evaluatorCount: 1,
+        source: "evaluator_create",
+      });
+    }
+    const currentRule = await utils.client.evalsV2.rules.get.query({
       projectId,
       ruleId: rule.id,
-      evaluatorId: evaluator.id,
-      variableMapping: null,
-      enableRule: !rule.enabled,
     });
-    capture("evaluation_rules:attach_evaluator", {
-      evaluatorCount: 1,
-      source: "evaluator_create",
-    });
+    await backfill.schedule(
+      { filter: currentRule.filter, sampling: currentRule.sampling },
+      backfill.executionRange,
+    );
     await invalidateRuleQueries();
     await finish();
   };
@@ -162,7 +204,7 @@ export function EvaluatorSavedDialogContainer({
     if (result.action === "created") {
       capture("evaluation_rules:create", {
         assignmentCount: 1,
-        filterCount: supportedRuleFilters.length,
+        ...getFilterAnalyticsProperties(supportedRuleFilters),
         samplingPercent: Math.round(sampling * 100),
         isEnabled: true,
         source: "evaluator_create_test_filters",
@@ -173,6 +215,10 @@ export function EvaluatorSavedDialogContainer({
         source: "evaluator_create_test_filters",
       });
     }
+    await backfill.schedule(
+      { filter: supportedRuleFilters, sampling },
+      backfill.executionRange,
+    );
     await invalidateRuleQueries();
     await finish();
   };
@@ -191,10 +237,9 @@ export function EvaluatorSavedDialogContainer({
         }
         if (estimateRequestId.current !== requestId) return;
 
-        const shouldRunMissingTest = !hasRequestedMissingCostTest.current;
+        const shouldRunMissingTest = claimMissingCostTest();
         let finishMissingCostTestRequest: (() => void) | undefined;
         if (shouldRunMissingTest) {
-          hasRequestedMissingCostTest.current = true;
           missingCostTestRequest.current = new Promise<void>((resolve) => {
             finishMissingCostTestRequest = resolve;
           });
@@ -230,42 +275,32 @@ export function EvaluatorSavedDialogContainer({
           if (shouldRunMissingTest) missingCostTestRequest.current = null;
         }
         if (estimateRequestId.current !== requestId) return;
-        if (result?.matchingObservations === 0) {
-          hasRequestedMissingCostTest.current = false;
+        if (shouldRunMissingTest && result?.matchingObservations === 0) {
+          resetMissingCostTest();
         }
       } finally {
         if (estimateRequestId.current === requestId) setIsEstimating(false);
       }
     },
     [
+      claimMissingCostTest,
       evaluator.id,
       evaluator.name,
       evaluator.testRunCostUsd,
       requestActivation,
+      resetMissingCostTest,
       setActivationOpen,
     ],
   );
 
-  useEffect(() => {
-    if (
-      dialogPhase !== "saved" ||
-      mode !== "test-filters" ||
-      initialEstimateRequested.current
-    ) {
-      return;
-    }
+  const requestInitialEstimate = () => {
+    if (initialEstimateRequested.current) return;
     initialEstimateRequested.current = true;
     requestEstimate({
       filter: supportedRuleFilters,
       sampling: testFilterSampling,
     }).catch(() => undefined);
-  }, [
-    dialogPhase,
-    mode,
-    requestEstimate,
-    supportedRuleFilters,
-    testFilterSampling,
-  ]);
+  };
 
   const openCreateRule = () => {
     createRuleHandoffPending.current = true;
@@ -286,68 +321,115 @@ export function EvaluatorSavedDialogContainer({
       requestEstimate({ filter: rule.filter, sampling: rule.sampling }).catch(
         () => undefined,
       );
+      if (backfill.enabled) {
+        backfill
+          .requestEstimate({ filter: rule.filter, sampling: rule.sampling })
+          .catch(() => undefined);
+      }
     },
-    [requestEstimate, setActivationSampling],
+    [backfill, requestEstimate, setActivationSampling],
   );
 
   const selectNewRule = () => {
     estimateRequestId.current += 1;
     setActivationOpen(false);
-    setSelectedRuleId(null);
     setIsEstimating(false);
+    setSelectedRuleId(null);
+    backfill.clearScope();
   };
-
-  useEffect(() => {
-    if (
-      mode !== "different-scope" ||
-      selectedRuleId !== undefined ||
-      rulesPending
-    ) {
-      return;
-    }
-
-    const mostUsedRule = availableRules[0];
-    if (mostUsedRule) {
-      selectExistingRule(mostUsedRule);
-    } else {
-      setSelectedRuleId(null);
-    }
-  }, [availableRules, mode, rulesPending, selectExistingRule, selectedRuleId]);
 
   const handleModeChange = (nextMode: EvaluatorSavedMode) => {
-    estimateRequestId.current += 1;
-    if (nextMode !== "test-filters") initialEstimateRequested.current = false;
+    const modeChangeRequestId = ++estimateRequestId.current;
+    setActivationOpen(false);
+    setIsEstimating(false);
     setMode(nextMode);
-    const mostUsedRule = availableRules[0];
-    if (nextMode === "different-scope" && mostUsedRule) {
-      selectExistingRule(mostUsedRule);
+
+    if (nextMode === "different-scope") {
+      const selectMostUsedRule = (rules: Rule[]) => {
+        if (estimateRequestId.current !== modeChangeRequestId) return;
+        const mostUsedRule = rules[0];
+        if (mostUsedRule) {
+          selectExistingRule(mostUsedRule);
+          return;
+        }
+        setSelectedRuleId(null);
+        backfill.clearScope();
+      };
+
+      if (rulesPending) {
+        setSelectedRuleId(undefined);
+        Promise.all([activeRules.refetch(), inactiveRules.refetch()])
+          .then(([activeResult, inactiveResult]) =>
+            selectMostUsedRule(
+              [
+                ...(activeResult.data?.rules ?? []),
+                ...(inactiveResult.data?.rules ?? []),
+              ].sort(
+                (left, right) =>
+                  right.assignments.length - left.assignments.length,
+              ),
+            ),
+          )
+          .catch(() => selectMostUsedRule([]));
+        return;
+      }
+
+      selectMostUsedRule(availableRules);
       return;
     }
-    setSelectedRuleId(
-      nextMode === "different-scope" && !rulesPending ? null : undefined,
-    );
-    setIsEstimating(false);
-    if (nextMode === "test-filters") {
-      setActivationSampling(testFilterSampling);
+
+    setSelectedRuleId(undefined);
+    setActivationSampling(testFilterSampling);
+    requestEstimate({
+      filter: supportedRuleFilters,
+      sampling: testFilterSampling,
+    }).catch(() => undefined);
+    if (backfill.enabled) {
+      backfill
+        .requestEstimate({
+          filter: supportedRuleFilters,
+          sampling: testFilterSampling,
+        })
+        .catch(() => undefined);
     }
   };
+
+  const currentBackfillScope =
+    mode === "test-filters"
+      ? { filter: supportedRuleFilters, sampling: testFilterSampling }
+      : selectedRule
+        ? { filter: selectedRule.filter, sampling: selectedRule.sampling }
+        : null;
 
   const handlePrimaryAction = () => {
     if (mode === "test-filters") {
       capture("evaluators:saved_dialog_submit", {
         action: "test_filters",
+        hasBackfill: backfill.enabled,
+        backfillWindow: backfill.enabled ? backfill.window : undefined,
+        backfillMaxItems: backfill.enabled
+          ? backfill.effectiveMaxItems
+          : undefined,
       });
-      resolveFromTestFilters().catch(() => undefined);
+      setIsCompleting(true);
+      resolveFromTestFilters().catch(() => setIsCompleting(false));
       return;
     }
     if (selectedRule) {
       capture("evaluators:saved_dialog_submit", {
         action: "existing_rule",
+        hasBackfill: backfill.enabled,
+        backfillWindow: backfill.enabled ? backfill.window : undefined,
+        backfillMaxItems: backfill.enabled
+          ? backfill.effectiveMaxItems
+          : undefined,
       });
-      attachToRule(selectedRule).catch(() => undefined);
+      setIsCompleting(true);
+      attachToRule(selectedRule).catch(() => setIsCompleting(false));
     } else {
       capture("evaluators:saved_dialog_submit", {
         action: "new_rule",
+        hasBackfill: false,
       });
       openCreateRule();
     }
@@ -422,6 +504,28 @@ export function EvaluatorSavedDialogContainer({
   };
 
   const hasConfiguredScope = mode === "test-filters" || Boolean(selectedRule);
+  const backfillContent = (
+    <EvaluatorBackfillSettings
+      enabled={backfill.enabled}
+      canEnable={hasConfiguredScope}
+      selectedWindow={backfill.window}
+      range={backfill.range}
+      maxItems={backfill.effectiveMaxItems}
+      maxAllowedItems={backfill.allowedItems}
+      matchingObservations={backfill.matchingObservations}
+      isEstimating={backfill.isEstimating}
+      onEnabledChange={(enabled) =>
+        backfill.setEnabled(enabled, currentBackfillScope)
+      }
+      onWindowChange={(window) =>
+        backfill.updateWindow(window, currentBackfillScope)
+      }
+      onRangeChange={(range) =>
+        backfill.updateRange(range, currentBackfillScope)
+      }
+      onMaxItemsChange={backfill.setMaxItems}
+    />
+  );
   const costSummary = hasConfiguredScope ? (
     <EvaluatorSavedCostSummary
       estimates={activation.estimate.estimates}
@@ -434,6 +538,17 @@ export function EvaluatorSavedDialogContainer({
       }
       isEstimating={isEstimating}
       evaluatorType={evaluator.type}
+      backfill={
+        backfill.enabled
+          ? {
+              enabled: true,
+              matchingObservations: backfill.matchingObservations,
+              maxItems: backfill.effectiveMaxItems,
+              testRunCostUsd: backfill.testRunCostUsd,
+              isEstimating: backfill.isEstimating,
+            }
+          : { enabled: false }
+      }
       onSamplingChange={
         mode === "test-filters"
           ? (sampling) => {
@@ -457,13 +572,20 @@ export function EvaluatorSavedDialogContainer({
       open={dialogPhase === "saved"}
       mode={mode}
       modeContentByMode={modeContentByMode}
+      backfillContent={backfillContent}
       costSummary={costSummary}
       canSubmit={
         !isEstimating &&
+        !isCompleting &&
+        (!backfill.enabled || !backfill.isEstimating) &&
+        (!backfill.enabled || historicEvaluationLimit.isSuccess) &&
         (mode === "test-filters" || selectedRuleId !== undefined)
       }
       isSubmitting={
-        attach.isPending || createOrAttachFromEvaluatorFilters.isPending
+        attach.isPending ||
+        createOrAttachFromEvaluatorFilters.isPending ||
+        backfill.isScheduling ||
+        isCompleting
       }
       primaryActionLabel={
         mode === "test-filters"
@@ -473,6 +595,7 @@ export function EvaluatorSavedDialogContainer({
             : "Open rule editor"
       }
       onModeChange={handleModeChange}
+      onOpenAutoFocus={requestInitialEstimate}
       onDismiss={() => {
         createRuleHandoffPending.current = false;
         setDialogPhase("closed");

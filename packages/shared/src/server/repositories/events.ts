@@ -1,5 +1,8 @@
 import { prisma } from "../../db";
-import type { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import {
+  TupleParam,
+  type ClickHouseClientConfigOptions,
+} from "@clickhouse/client";
 import type {
   EventsObservation,
   MetadataDomain,
@@ -17,6 +20,7 @@ import {
 } from "../clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
+import { OBSERVATIONS_TO_TRACE_INTERVAL } from "./constants";
 import {
   convertClickhouseToDomain,
   convertClickhouseTracesListToDomain,
@@ -136,6 +140,7 @@ import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
 export type EventBatchIOStringOutput = {
   id: string;
+  traceId: string;
   input: string | null;
   output: string | null;
   metadata: MetadataDomain;
@@ -921,6 +926,7 @@ export const getObservationByIdFromEventsTable = async ({
   projectId,
   fetchWithInputOutput = false,
   startTime,
+  startTimeLowerBound,
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
@@ -930,6 +936,7 @@ export const getObservationByIdFromEventsTable = async ({
   projectId: string;
   fetchWithInputOutput?: boolean;
   startTime?: Date;
+  startTimeLowerBound?: Date;
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
@@ -940,6 +947,7 @@ export const getObservationByIdFromEventsTable = async ({
     projectId,
     fetchWithInputOutput,
     startTime,
+    startTimeLowerBound,
     type,
     traceId,
     renderingProps,
@@ -988,6 +996,7 @@ async function getObservationByIdFromEventsTableInternal({
   projectId,
   fetchWithInputOutput = false,
   startTime,
+  startTimeLowerBound,
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
@@ -997,6 +1006,7 @@ async function getObservationByIdFromEventsTableInternal({
   projectId: string;
   fetchWithInputOutput?: boolean;
   startTime?: Date;
+  startTimeLowerBound?: Date;
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
@@ -1011,10 +1021,30 @@ async function getObservationByIdFromEventsTableInternal({
       ),
     )
     .whereRaw("span_id = {id: String}", { id })
+    // Matched at minute resolution: minute is the finest the events_full primary
+    // key (project_id, toStartOfMinute(start_time), ...) can prune on, and
+    // flooring absorbs sub-minute precision differences in the caller-supplied
+    // start time.
     .when(Boolean(startTime), (b) =>
-      b.whereRaw("toDate(start_time) = toDate({startTime: DateTime64(3)})", {
-        startTime: convertDateToClickhouseDateTime(startTime!),
-      }),
+      b.whereRaw(
+        "toStartOfMinute(start_time) = toStartOfMinute({startTime: DateTime64(3)})",
+        {
+          startTime: convertDateToClickhouseDateTime(startTime!),
+        },
+      ),
+    )
+    // Lower-bound start_time on an anchor (e.g. the parent trace's timestamp) so
+    // the lookup can prune events_full parts/partitions. Subtract the skew
+    // interval because an observation may start slightly before its anchor.
+    .when(Boolean(startTimeLowerBound), (b) =>
+      b.whereRaw(
+        `start_time >= {startTimeLowerBound: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}`,
+        {
+          startTimeLowerBound: convertDateToClickhouseDateTime(
+            startTimeLowerBound!,
+          ),
+        },
+      ),
     )
     .when(Boolean(type), (b) => b.whereRaw("type = {type: String}", { type }))
     .when(Boolean(traceId), (b) =>
@@ -2530,6 +2560,8 @@ export const getObservationsBatchIOFromEventsTable = async <
    * the payload. Ignored for truncated reads (events_core caps far tighter).
    */
   ioCharLimit?: number;
+  /** Restricts every requested observation to an already-authorized session. */
+  sessionId?: string;
   includeExperimentFields?: TIncludeExperiment;
   /** Opt-in: tool-call arrays can be large; only eval consumers need them. */
   includeToolCallFields?: TIncludeToolCalls;
@@ -2548,9 +2580,13 @@ export const getObservationsBatchIOFromEventsTable = async <
       ? Math.max(1, Math.trunc(opts.ioCharLimit))
       : undefined;
 
-  // Extract IDs and trace IDs for filtering
+  // Keep the individual filters for primary-key pruning and the tuple filter
+  // for exact trace/observation matching.
   const observationIds = opts.observations.map((o) => o.id);
-  const traceIds = [...new Set(opts.observations.map((o) => o.traceId))];
+  const traceIds = Array.from(new Set(opts.observations.map((o) => o.traceId)));
+  const observationTuples = opts.observations.map(
+    (observation) => new TupleParam([observation.traceId, observation.id]),
+  );
 
   // Use provided timestamp range with buffer for efficient filtering
   const minTimestamp = new Date(opts.minStartTime.getTime() - 1000); // -1 second buffer
@@ -2586,12 +2622,24 @@ export const getObservationsBatchIOFromEventsTable = async <
     ? `
       e.tool_calls as tool_calls,
       e.tool_call_names as tool_call_names,
-    `
+      `
     : "";
+  const sessionTraceFilter =
+    opts.sessionId !== undefined
+      ? `AND e.trace_id IN (
+          SELECT trace_id
+          FROM events_core
+          WHERE project_id = {projectId: String}
+            AND trace_id IN {traceIds: Array(String)}
+          GROUP BY trace_id
+          HAVING argMaxIf(session_id, event_ts, session_id <> '') = {sessionId: String}
+        )`
+      : "";
 
   const query = `
-    SELECT
-      e.span_id as id,
+      SELECT
+        e.span_id as id,
+        e.trace_id as trace_id,
       ${inputSelect},
       ${outputSelect},
       ${experimentFieldsSelect}
@@ -2599,14 +2647,17 @@ export const getObservationsBatchIOFromEventsTable = async <
       mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(${metadataValues})) as metadata
     FROM ${tableName} e
     WHERE e.project_id = {projectId: String}
-      AND e.span_id IN {observationIds: Array(String)}
-      AND e.trace_id IN {traceIds: Array(String)}
+        AND e.span_id IN {observationIds: Array(String)}
+        AND e.trace_id IN {traceIds: Array(String)}
+        AND (e.trace_id, e.span_id) IN {observationTuples: Array(Tuple(String, String))}
+        ${sessionTraceFilter}
       AND e.start_time >= {minTimestamp: DateTime64(3)}
       AND e.start_time <= {maxTimestamp: DateTime64(3)}
   `;
 
   const results = await queryClickhouse<{
     id: string;
+    trace_id: string;
     input: string | null;
     output: string | null;
     metadata: Record<string, string>;
@@ -2620,6 +2671,8 @@ export const getObservationsBatchIOFromEventsTable = async <
       projectId: opts.projectId,
       observationIds,
       traceIds,
+      observationTuples,
+      sessionId: opts.sessionId,
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
@@ -2629,6 +2682,7 @@ export const getObservationsBatchIOFromEventsTable = async <
 
   return results.map((r) => ({
     id: r.id,
+    traceId: r.trace_id,
     input: applyBatchIOStringRendering(r.input),
     output: applyBatchIOStringRendering(r.output),
     metadata:

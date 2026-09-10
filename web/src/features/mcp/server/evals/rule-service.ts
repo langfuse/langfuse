@@ -1,10 +1,10 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import {
   toApiReadMappings,
   toPublicEvaluatorType,
   toStoredMappingList,
-} from "@/src/features/evals/server/unstable-public-api/adapters";
+} from "@/src/features/public-api/server/evaluation/evaluationAdapters";
 import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
 import { prisma } from "@langfuse/shared/src/db";
 import type { z } from "zod";

@@ -9,12 +9,14 @@ import { cn } from "@/src/utils/tailwind";
 import { ClockIcon, ListTree } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
-import { ScoreRow } from "@/src/features/scores/components/ScoreRow";
-import { type ScoreColumn } from "@/src/features/scores/types";
+import {
+  type ScoreColumn,
+  ScoreRow,
+  useMergedAggregates,
+  useMergeScoreColumns,
+} from "@/src/features/scores";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { useMergedAggregates } from "@/src/features/scores/lib/useMergedAggregates";
-import { useMergeScoreColumns } from "@/src/features/scores/lib/mergeScoreColumns";
 import { useTrpcError } from "@/src/hooks/useTrpcError";
 import { type ScoreAggregate } from "@langfuse/shared";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";

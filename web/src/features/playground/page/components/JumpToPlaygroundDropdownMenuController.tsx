@@ -7,8 +7,10 @@ import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/useP
 import {
   type PlaygroundCache,
   type PlaygroundSchema,
+  type PlaygroundSourcePrompt,
   type PlaygroundTool,
 } from "@/src/features/playground/page/types";
+import { getMessagesFingerprint } from "@/src/features/playground/page/utils/messagesFingerprint";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
@@ -241,6 +243,14 @@ export const JumpToPlaygroundDropdownMenuController = (
 const parsePrompt = (
   prompt: Prompt & { resolvedPrompt?: Prisma.JsonValue },
 ): PlaygroundCache => {
+  const asSourcePrompt = (
+    messages: (ChatMessage | PlaceholderMessage)[],
+  ): PlaygroundSourcePrompt => ({
+    name: prompt.name,
+    version: prompt.version,
+    initialMessagesFingerprint: getMessagesFingerprint(messages),
+  });
+
   if (prompt.type === PromptType.Chat) {
     try {
       const inResult = normalizeInput(prompt.resolvedPrompt);
@@ -255,23 +265,22 @@ const parsePrompt = (
 
       if (messages.length === 0) return null;
 
-      return { messages };
+      return { messages, sourcePrompt: asSourcePrompt(messages) };
     } catch {
       return null;
     }
   } else {
     // Text prompt
     const promptString = prompt.resolvedPrompt;
+    const messages = [
+      createEmptyMessage({
+        type: ChatMessageType.System,
+        role: ChatMessageRole.System,
+        content: typeof promptString === "string" ? promptString : "",
+      }),
+    ];
 
-    return {
-      messages: [
-        createEmptyMessage({
-          type: ChatMessageType.System,
-          role: ChatMessageRole.System,
-          content: typeof promptString === "string" ? promptString : "",
-        }),
-      ],
-    };
+    return { messages, sourcePrompt: asSourcePrompt(messages) };
   }
 };
 

@@ -10,10 +10,10 @@
       "version": "v0.86.2",
       "sha": "6aab9e5b5c91c615506061f09bedd81a23babe3c"
     },
-    "pnpm/setup@v2.0.2": {
+    "pnpm/setup@v2.1.0": {
       "repo": "pnpm/setup",
-      "version": "v2.0.2",
-      "sha": "84cb39b217b10273981911c288cd62326dc7c6d2"
+      "version": "v2.1.0",
+      "sha": "703c52620218391530e48b9e8870d5c0082e1b9b"
     }
   }
 }

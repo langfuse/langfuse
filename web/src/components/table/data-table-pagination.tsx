@@ -79,10 +79,14 @@ export function DataTablePagination<TData>({
   const pageCount = table.getPageCount();
   const setPageIndex = table.setPageIndex;
   useEffect(() => {
+    // Count queries re-key on a filter/pin change and report pageCount as
+    // unknown or 1 while in flight. Snapping back then traps the reader on
+    // page 1 even though more rows exist.
+    if (isLoading) return;
     if (currentPage > pageCount && pageCount > 0) {
       setPageIndex(0);
     }
-  }, [currentPage, pageCount, setPageIndex]);
+  }, [currentPage, pageCount, setPageIndex, isLoading]);
 
   const handlePageNavigation = (newValue: string) => {
     if (newValue === "") {

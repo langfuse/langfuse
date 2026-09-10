@@ -296,7 +296,7 @@ export function IOPreviewPretty({
         <StatusMessageSection status={status} currentView="pretty" />
       ) : null}
 
-      {showData ? (
+      {showData && allTools.length > 0 ? (
         <SectionToolDefinitions
           tools={allTools}
           toolCallCounts={toolCallCounts}

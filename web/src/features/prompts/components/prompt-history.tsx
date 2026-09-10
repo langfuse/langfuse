@@ -167,24 +167,23 @@ const PromptHistoryTraceNode = (props: {
                     />
                   )}
                 >
-                  {({ isOpen, Trigger }) =>
+                  {({ isOpen, openDialog }) =>
                     isHovered ||
                     props.currentPromptVersion === prompt.version ||
                     isOpen ? (
-                      <Trigger asChild>
-                        <Button
-                          variant="outline"
-                          type="button"
-                          size="icon"
-                          className="h-7 w-7 px-0"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                          }}
-                          title="Compare with selected prompt"
-                        >
-                          <FileDiffIcon className="h-4 w-4" />
-                        </Button>
-                      </Trigger>
+                      <Button
+                        variant="outline"
+                        type="button"
+                        size="icon"
+                        className="h-7 w-7 px-0"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openDialog();
+                        }}
+                        title="Compare with selected prompt"
+                      >
+                        <FileDiffIcon className="h-4 w-4" />
+                      </Button>
                     ) : null
                   }
                 </DialogController>
