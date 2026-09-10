@@ -57,12 +57,10 @@ describe("getOrgId", () => {
       orgId: ORG,
     });
   });
-  it("400s a header disagreeing with the bound org", () => {
-    expect(
-      getOrgId(orgKey(), req({}, { [orgIdHeader]: "org_2" })),
-    ).toMatchObject({
-      success: false,
-      error: expect.any(InvalidRequestError),
+  it("resolves a header disagreeing with the bound org, leaving the denial to the policy", () => {
+    expect(getOrgId(orgKey(), req({}, { [orgIdHeader]: "org_2" }))).toEqual({
+      success: true,
+      orgId: "org_2",
     });
   });
   it("403s a principal carrying no binding", () => {
@@ -101,9 +99,23 @@ describe("getProjectId", () => {
       ),
     ).toEqual({ success: true, projectId: PRJ });
   });
-  it("400s a header disagreeing with the bound project", () => {
+  it("resolves a header disagreeing with the bound project, leaving the denial to the policy", () => {
     expect(
       getProjectId(projectKey(), req({}, { [projectIdHeader]: "prj_2" })),
+    ).toEqual({ success: true, projectId: "prj_2" });
+  });
+  it("resolves a URL disagreeing with the bound project, leaving the denial to the policy", () => {
+    expect(getProjectId(projectKey(), req({ projectId: "prj_2" }))).toEqual({
+      success: true,
+      projectId: "prj_2",
+    });
+  });
+  it("400s a URL disagreeing with the header", () => {
+    expect(
+      getProjectId(
+        orgKey(),
+        req({ projectId: PRJ }, { [projectIdHeader]: "prj_2" }),
+      ),
     ).toMatchObject({ success: false, error: expect.any(InvalidRequestError) });
   });
   it("403s when neither URL, header, nor bound project exists", () => {

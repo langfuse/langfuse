@@ -130,40 +130,30 @@ function enforceProjectAuth(
   };
 }
 
-/** getOrgId resolves the target org from the header and the key's bound org, requiring the two to agree. */
+/** getOrgId resolves the target org from the header, falling back to the key's bound org; whether the key may act on it is the policy's call. */
 function getOrgId(
   context: AuthorizationContext,
   req: NextApiRequest,
 ): ResolvedOrg | ErrorResult {
-  const orgIdSources = [getBoundOrgId(context), getHeaderOrgId(req)];
-  if (!equal(orgIdSources)) {
-    return errorResult(
-      new InvalidRequestError(`Organization id parameters disagree`),
-    );
-  }
-  const orgId = first(orgIdSources);
+  const orgId = first([getHeaderOrgId(req), getBoundOrgId(context)]);
   if (!orgId) {
     return errorResult(new ForbiddenError(`Missing '${orgIdHeader}' header`));
   }
   return { success: true, orgId };
 }
 
-/** getProjectId resolves the target project from the URL param, the header, and the key's bound project, requiring all to agree. */
+/** getProjectId resolves the target project from the URL param and header, which must agree, falling back to the key's bound project; whether the key may act on it is the policy's call. */
 function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
 ): ResolvedProject | ErrorResult {
-  const projectIdSources = [
-    getBoundProjectId(context),
-    getUrlProjectId(req),
-    getHeaderProjectId(req),
-  ];
-  if (!equal(projectIdSources)) {
+  const requested = [getUrlProjectId(req), getHeaderProjectId(req)];
+  if (!equal(requested)) {
     return errorResult(
       new InvalidRequestError(`Project id parameters disagree`),
     );
   }
-  const projectId = first(projectIdSources);
+  const projectId = first([...requested, getBoundProjectId(context)]);
   if (!projectId) {
     return errorResult(
       new ForbiddenError(`Missing '${projectIdHeader}' header`),
