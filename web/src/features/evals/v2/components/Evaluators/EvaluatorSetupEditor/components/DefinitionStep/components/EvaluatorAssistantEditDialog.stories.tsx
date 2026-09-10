@@ -1,6 +1,6 @@
 import { fn } from "storybook/test";
 
-import preview from "../../../../../../../../../../../.storybook/preview";
+import preview from "../../../../../../../../../../.storybook/preview";
 import { EvaluatorAssistantEditDialog } from "./EvaluatorAssistantEditDialog";
 
 const meta = preview.meta({ component: EvaluatorAssistantEditDialog });
