@@ -156,6 +156,7 @@ export function IOPreviewJSONSimple({
           />
         ) : (
           <PrettyJsonView
+            hideHeader
             title="Input"
             hoverControls
             json={input}
@@ -184,6 +185,7 @@ export function IOPreviewJSONSimple({
           />
         ) : (
           <PrettyJsonView
+            hideHeader
             title="Output"
             hoverControls
             json={output}
@@ -239,6 +241,7 @@ export function IOPreviewJSONSimple({
           />
         ) : (
           <PrettyJsonView
+            hideHeader
             title="Metadata"
             hoverControls
             json={metadata}
