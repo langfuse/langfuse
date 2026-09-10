@@ -1,16 +1,10 @@
-FROM rust:1.98.0-bookworm AS base
+FROM rust:1.98.0-bookworm AS builder
 RUN useradd --create-home --uid 10001 gateway && mkdir /app && chown gateway:gateway /app
 WORKDIR /app
 ENV CARGO_HOME=/home/gateway/.cargo
 USER gateway
 COPY --chown=gateway:gateway Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY --chown=gateway:gateway src ./src
-FROM base AS development
-RUN cargo build --locked
-EXPOSE 8080
-CMD ["sh", "-c", "cargo build --locked && exec target/debug/ai-gateway"]
-
-FROM base AS builder
 RUN cargo build --release --locked
 
 FROM debian:bookworm-slim AS runtime
