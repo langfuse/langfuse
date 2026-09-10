@@ -167,12 +167,17 @@ export function PromptEditorContent({
       title={isSingleMessage ? "Edit with AI" : undefined}
       className={cn(
         "bg-background text-muted-foreground hover:border-border hover:text-foreground hover:bg-accent ring-offset-background focus-visible:ring-ring inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 font-sans text-xs transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
-        isSingleMessage && "h-6 w-6 justify-center p-0",
+        isSingleMessage &&
+          "h-6 justify-center @max-[340px]/prompt-group:w-6 @max-[340px]/prompt-group:gap-0 @max-[340px]/prompt-group:p-0",
       )}
       onClick={() => setAssistantDialogOpen(true)}
     >
       <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
-      {isSingleMessage ? null : "Edit with AI"}
+      <span
+        className={cn(isSingleMessage && "@max-[340px]/prompt-group:sr-only")}
+      >
+        Edit with AI
+      </span>
     </button>
   ) : null;
   const previewAction = (
@@ -182,7 +187,7 @@ export function PromptEditorContent({
           <label
             className={cn(
               "text-muted-foreground flex h-6 items-center gap-1.5 px-2 text-xs",
-              isSingleMessage && "px-1",
+              isSingleMessage && "@max-[340px]/prompt-group:px-1",
               combinedPrepared.promptPreviewDisabledReason
                 ? "cursor-not-allowed opacity-60"
                 : "cursor-pointer",
@@ -206,7 +211,13 @@ export function PromptEditorContent({
               disabled={Boolean(combinedPrepared.promptPreviewDisabledReason)}
               onCheckedChange={state.actions.setPromptPreviewEnabled}
             />
-            <span className={cn(isSingleMessage && "sr-only")}>Preview</span>
+            <span
+              className={cn(
+                isSingleMessage && "@max-[340px]/prompt-group:sr-only",
+              )}
+            >
+              Preview
+            </span>
           </label>
         </TooltipTrigger>
         {combinedPrepared.promptPreviewDisabledReason ? (
@@ -247,7 +258,7 @@ export function PromptEditorContent({
     >
       <div
         className={cn(
-          "bg-secondary text-secondary-foreground rounded-md border",
+          "bg-secondary text-secondary-foreground @container/prompt-group rounded-md border",
           isSingleMessage && "overflow-hidden",
         )}
       >

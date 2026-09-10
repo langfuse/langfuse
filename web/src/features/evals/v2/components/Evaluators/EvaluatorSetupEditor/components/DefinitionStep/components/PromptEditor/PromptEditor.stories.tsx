@@ -494,6 +494,7 @@ export const SingleMessage = meta.story({
   name: "(Test) Single user message",
   render: () => (
     <PromptEditorStory
+      assistantAvailable
       messages={[
         {
           role: "user",
@@ -509,6 +510,10 @@ export const SingleMessage = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Prompt message settings" }),
     ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Edit with AI" }),
+    ).toHaveTextContent("Edit with AI");
+    await expect(canvas.getByText("Preview")).toBeVisible();
     await expect(canvas.getByRole("switch", { name: "Preview" })).toBeVisible();
   },
 });
