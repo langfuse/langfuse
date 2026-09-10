@@ -471,6 +471,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: ${{ env.VITEST_CHANGED_SINCE != '' && '0' || '1' }}
           persist-credentials: false
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
@@ -524,8 +525,20 @@ jobs:
             attempt=$((attempt + 1))
           done
       - name: run Storybook tests
-        run: pnpm --filter web run test-storybook
+        # Stories are Vitest files that statically import the cells they cover,
+        # so --changed follows the same related-test graph as tests-web. Empty
+        # selection still passes via --passWithNoTests.
+        run: |
+          changed_args=()
+          if [[ -n "$VITEST_CHANGED_SINCE" ]]; then
+            changed_args=(--changed "$VITEST_CHANGED_SINCE" --passWithNoTests)
+          fi
+          pnpm --filter web run test-storybook -- "${changed_args[@]}"
       - name: build Storybook
+        # The static catalog build is ~100s and would erase the --changed win.
+        # Selected PRs already compile the stories Vitest runs. Merge groups,
+        # pushes, and full-test PRs still build the full catalog.
+        if: env.VITEST_CHANGED_SINCE == ''
         run: pnpm --filter web run build-storybook
 
   tests-shared:
