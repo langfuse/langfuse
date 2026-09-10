@@ -45,6 +45,9 @@ vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
+    // Audit persistence is stubbed like prisma.auditLog below; the real queue
+    // talks to Redis, which never resolves under fake timers.
+    AuditLogQueue: { getInstance: () => ({ add: vi.fn() }) },
     fetchWithSecureRedirects: vi.fn(),
     getObservationById: vi.fn(),
     getObservationByIdFromEventsTable: vi.fn(),
