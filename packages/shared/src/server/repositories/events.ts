@@ -2234,20 +2234,6 @@ const getSingleEventsFilterOptionColumn = async (
     sampleRows: EVENTS_FILTER_OPTION_SAMPLE_ROWS,
   });
 
-export const getEventsGroupedByTraceName = async (
-  projectId: string,
-  filter: FilterState,
-  opts?: GroupedEventsFilterOptions,
-) => {
-  const rows = await getSingleEventsFilterOptionColumn(
-    projectId,
-    filter,
-    "traceName",
-    opts,
-  );
-  return rows.map((row) => ({ traceName: row.value, count: row.count }));
-};
-
 export const getEventsGroupedByTraceTags = async (
   projectId: string,
   filter: FilterState,
