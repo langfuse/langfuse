@@ -179,6 +179,32 @@ jobs:
               - 'web/src/server/utils/hmac.ts'
               - 'web/src/server/utils/jwt.ts'
 
+  tests-ai-gateway:
+    timeout-minutes: 20
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs:
+      - pre-job
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    defaults:
+      run:
+        working-directory: ai-gateway
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup show
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+      - name: Lint Rust targets
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Run Rust tests
+        run: cargo test --locked
+      - name: Build runtime image
+        run: docker build --target runtime -t langfuse-ai-gateway:test .
+      - name: Smoke test runtime image
+        run: bash scripts/smoke-image.sh langfuse-ai-gateway:test
+
   lint:
     timeout-minutes: 12
     runs-on: blacksmith-16vcpu-ubuntu-2404
@@ -243,9 +269,9 @@ jobs:
           cp .env.dev.example .env
       - name: lint web
         # Three packages with four ESLint workers leave headroom on 16 vCPUs.
-        run: pnpm turbo run lint --concurrency=3 -- --concurrency=4
+        run: pnpm turbo run lint --filter=!ai-gateway --concurrency=3 -- --concurrency=4
       - name: typecheck
-        run: pnpm run typecheck
+        run: pnpm run typecheck --filter=!ai-gateway
 
   knip:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -1153,7 +1179,7 @@ jobs:
         run: |
           (set +e; pnpm --filter=web exec playwright install --with-deps --only-shell chromium > /tmp/playwright-install.log 2>&1; echo $? > /tmp/playwright-install.exit) &
       - name: Build
-        run: pnpm run build
+        run: pnpm run build --filter=!ai-gateway
         env:
           NODE_OPTIONS: --max_old_space_size=8192
           # TypeScript is checked explicitly in the lint job; skip duplicate
@@ -1263,7 +1289,7 @@ jobs:
         run: |
           (set +e; docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
       - name: Build
-        run: pnpm run build
+        run: pnpm run build --filter=!ai-gateway
         env:
           NODE_OPTIONS: --max_old_space_size=8192
           # TypeScript is checked explicitly in the lint job; skip duplicate
@@ -1390,6 +1416,7 @@ jobs:
         lint,
         knip,
         prettier-check,
+        tests-ai-gateway,
         tests-eslint-plugin,
         tests-in-app-agent-sandbox-runtime,
         tests-storybook,
