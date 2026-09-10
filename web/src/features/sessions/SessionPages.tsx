@@ -574,7 +574,7 @@ export const SessionPage: React.FC<{
                     type="button"
                     variant="outline"
                     disabled={disabled}
-                    onClick={openDrawer}
+                    onClick={() => openDrawer({ type: "comments" })}
                     className="gap-1"
                   >
                     {disabled ? (
@@ -602,25 +602,27 @@ export const SessionPage: React.FC<{
                 )}
               </CommentDrawerController>
               <div className="flex items-start">
-                <AnnotateDrawerController
-                  projectId={projectId}
-                  scoreTarget={{
-                    type: "session",
-                    sessionId,
-                  }}
-                  scores={session.data?.scores ?? []}
-                  scoreMetadata={{
-                    projectId: projectId,
-                    environment: session.data?.environment,
-                  }}
-                >
+                <AnnotateDrawerController projectId={projectId}>
                   {({ disabled, openDrawer }) => (
                     <Button
                       variant="outline"
                       size="default"
                       disabled={disabled}
                       className="rounded-r-none"
-                      onClick={openDrawer}
+                      onClick={() =>
+                        openDrawer({
+                          scoreTarget: { type: "session", sessionId },
+                          scores: session.data?.scores ?? [],
+                          analyticsData: {
+                            type: "trace",
+                            source: "TraceDetail",
+                          },
+                          scoreMetadata: {
+                            projectId,
+                            environment: session.data?.environment,
+                          },
+                        })
+                      }
                     >
                       {disabled ? (
                         <LockIcon className="mr-1.5 h-3 w-3" />
@@ -693,7 +695,7 @@ export const SessionPage: React.FC<{
                     variant="ghost"
                     size="sm"
                     disabled={disabled}
-                    onClick={openDrawer}
+                    onClick={() => openDrawer({ type: "comments" })}
                     className="w-full justify-start gap-2 font-normal"
                   >
                     {disabled ? (
@@ -716,25 +718,27 @@ export const SessionPage: React.FC<{
                   </Button>
                 )}
               </CommentDrawerController>
-              <AnnotateDrawerController
-                projectId={projectId}
-                scoreTarget={{
-                  type: "session",
-                  sessionId,
-                }}
-                scores={session.data?.scores ?? []}
-                scoreMetadata={{
-                  projectId: projectId,
-                  environment: session.data?.environment,
-                }}
-              >
+              <AnnotateDrawerController projectId={projectId}>
                 {({ disabled, openDrawer }) => (
                   <Button
                     variant="ghost"
                     size="sm"
                     disabled={disabled}
                     className="w-full justify-start gap-2 font-normal"
-                    onClick={openDrawer}
+                    onClick={() =>
+                      openDrawer({
+                        scoreTarget: { type: "session", sessionId },
+                        scores: session.data?.scores ?? [],
+                        analyticsData: {
+                          type: "trace",
+                          source: "TraceDetail",
+                        },
+                        scoreMetadata: {
+                          projectId,
+                          environment: session.data?.environment,
+                        },
+                      })
+                    }
                   >
                     {disabled ? (
                       <LockIcon className="h-3 w-3" />
@@ -990,6 +994,9 @@ const LoadedSessionEventsPage: React.FC<{
     true,
   );
   const defaultPresetResolvedSessionRef = useRef<string | null>(null);
+  const annotationCount = session.scores.filter(
+    (score) => score.source === "ANNOTATION",
+  ).length;
 
   const [showCorrections, setShowCorrections] = useLocalStorage(
     "showCorrections",
@@ -1584,7 +1591,7 @@ const LoadedSessionEventsPage: React.FC<{
                     type="button"
                     variant="outline"
                     disabled={disabled}
-                    onClick={openDrawer}
+                    onClick={() => openDrawer({ type: "comments" })}
                     className="gap-1"
                   >
                     {disabled ? (
@@ -1612,25 +1619,27 @@ const LoadedSessionEventsPage: React.FC<{
                 )}
               </CommentDrawerController>
               <div className="flex items-start">
-                <AnnotateDrawerController
-                  projectId={projectId}
-                  scoreTarget={{
-                    type: "session",
-                    sessionId,
-                  }}
-                  scores={session.scores}
-                  scoreMetadata={{
-                    projectId: projectId,
-                    environment: session.environment,
-                  }}
-                >
-                  {({ annotationCount, disabled, openDrawer }) => (
+                <AnnotateDrawerController projectId={projectId}>
+                  {({ disabled, openDrawer }) => (
                     <Button
                       variant="outline"
                       size="default"
                       disabled={disabled}
                       className="rounded-r-none"
-                      onClick={openDrawer}
+                      onClick={() =>
+                        openDrawer({
+                          scoreTarget: { type: "session", sessionId },
+                          scores: session.scores,
+                          analyticsData: {
+                            type: "trace",
+                            source: "TraceDetail",
+                          },
+                          scoreMetadata: {
+                            projectId,
+                            environment: session.environment,
+                          },
+                        })
+                      }
                     >
                       {disabled ? (
                         <LockIcon className="mr-1.5 h-3 w-3" />
@@ -1735,7 +1744,7 @@ const LoadedSessionEventsPage: React.FC<{
                     variant="ghost"
                     size="sm"
                     disabled={disabled}
-                    onClick={openDrawer}
+                    onClick={() => openDrawer({ type: "comments" })}
                     className="w-full justify-start gap-2 font-normal"
                   >
                     {disabled ? (
@@ -1758,25 +1767,27 @@ const LoadedSessionEventsPage: React.FC<{
                   </Button>
                 )}
               </CommentDrawerController>
-              <AnnotateDrawerController
-                projectId={projectId}
-                scoreTarget={{
-                  type: "session",
-                  sessionId,
-                }}
-                scores={session.scores}
-                scoreMetadata={{
-                  projectId: projectId,
-                  environment: session.environment,
-                }}
-              >
-                {({ annotationCount, disabled, openDrawer }) => (
+              <AnnotateDrawerController projectId={projectId}>
+                {({ disabled, openDrawer }) => (
                   <Button
                     variant="ghost"
                     size="sm"
                     disabled={disabled}
                     className="w-full justify-start gap-2 font-normal"
-                    onClick={openDrawer}
+                    onClick={() =>
+                      openDrawer({
+                        scoreTarget: { type: "session", sessionId },
+                        scores: session.scores,
+                        analyticsData: {
+                          type: "trace",
+                          source: "TraceDetail",
+                        },
+                        scoreMetadata: {
+                          projectId,
+                          environment: session.environment,
+                        },
+                      })
+                    }
                   >
                     {disabled ? (
                       <LockIcon className="h-3 w-3" />
