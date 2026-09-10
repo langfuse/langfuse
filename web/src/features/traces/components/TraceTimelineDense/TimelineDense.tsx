@@ -1706,14 +1706,19 @@ export function TimelineDense({
                   : "border-border bg-background text-foreground flex flex-col gap-0.5 rounded border px-1.5 py-1 shadow-md",
                 "pointer-events-none fixed",
               )}
-              style={tooltipStyle(
-                tooltipPlacement({
-                  clientX: pointerPos.clientX,
-                  clientY: pointerPos.clientY,
-                  viewportWidth: window.innerWidth,
-                  viewportHeight: window.innerHeight,
-                }),
-              )}
+              style={{
+                ...tooltipStyle(
+                  tooltipPlacement({
+                    clientX: pointerPos.clientX,
+                    clientY: pointerPos.clientY,
+                    viewportWidth: window.innerWidth,
+                    viewportHeight: window.innerHeight,
+                  }),
+                ),
+                // App-level hover card keeps its own text size; the built-in
+                // readout stays at the helper's dense 10px.
+                ...(hoverContent ? { fontSize: undefined } : {}),
+              }}
               data-testid="timeline-dense-tooltip"
             >
               {hoverContent ? (

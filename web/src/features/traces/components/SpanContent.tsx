@@ -272,14 +272,19 @@ export function SpanContent({
               NODE_HOVER_CARD_SURFACE_CLASS,
               "pointer-events-none fixed",
             )}
-            style={tooltipStyle(
-              tooltipPlacement({
-                clientX: hovered.clientX,
-                clientY: hovered.clientY,
-                viewportWidth: window.innerWidth,
-                viewportHeight: window.innerHeight,
-              }),
-            )}
+            style={{
+              ...tooltipStyle(
+                tooltipPlacement({
+                  clientX: hovered.clientX,
+                  clientY: hovered.clientY,
+                  viewportWidth: window.innerWidth,
+                  viewportHeight: window.innerHeight,
+                }),
+              ),
+              // The helper's 10px suits the dense timeline readout; the card
+              // reads at the tree's own text-xs.
+              fontSize: undefined,
+            }}
           >
             <NodeHoverCardContent node={node} />
           </div>
