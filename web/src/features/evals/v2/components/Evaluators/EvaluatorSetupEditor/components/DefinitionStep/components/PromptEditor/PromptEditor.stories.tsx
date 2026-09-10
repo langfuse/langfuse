@@ -169,6 +169,7 @@ export const NewJudgeAssistantModal = meta.story({
   name: "(Test) New judge Assistant modal",
   render: () => (
     <PromptEditorStory
+      compact
       assistantAvailable
       messages={[
         {
