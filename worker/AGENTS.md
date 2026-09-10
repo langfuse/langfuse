@@ -15,9 +15,12 @@
 
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
-- Sampled OTel trace I/O experiment: `src/features/traces/delayedTraceExecution.ts`
-  produces the debounced `delayed-trace-execution` queue; its processor only reads
-  events and is gated by `LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_ENABLED`.
+- Sampled OTel trace I/O experiment: `src/features/traces/traceExecution.ts`
+  produces the debounced `trace-execution` queue; its processor only reads
+  events and is gated by `LANGFUSE_OTEL_TRACE_EXECUTION_ENABLED`.
+  Minimum start times use shared Redis with independent `trace-minimum:` keys;
+  per-trace transactions preserve atomic minimum updates and rolling expiry
+  without pinning the map to the queue's Redis Cluster slot.
 - Feature processors: `src/features/*`
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`

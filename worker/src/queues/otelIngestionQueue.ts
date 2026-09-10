@@ -35,7 +35,7 @@ import {
   v4WritesToLegacyTables,
 } from "../env";
 import { IngestionService } from "../services/IngestionService";
-import { scheduleDelayedTraceExecution } from "../features/traces/delayedTraceExecution";
+import { scheduleTraceExecution } from "../features/traces/traceExecution";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import {
@@ -778,9 +778,9 @@ export const otelIngestionQueueProcessorBuilder = (
 
       if (
         shouldWriteToEventsTable &&
-        env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_ENABLED === "true"
+        env.LANGFUSE_OTEL_TRACE_EXECUTION_ENABLED === "true"
       ) {
-        await scheduleDelayedTraceExecution(projectId, eventInputs);
+        await scheduleTraceExecution(projectId, eventInputs);
       }
 
       const evalConfigs = await fetchObservationEvalRules(projectId).catch(

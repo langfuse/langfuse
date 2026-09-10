@@ -160,7 +160,7 @@ the same PR.
 
 ### Queue payload contract change
 
-The `DelayedTraceExecution` queue is a sampled, read-only OTel experiment. Its
+The `TraceExecution` queue is a sampled, read-only OTel experiment. Its
 payload carries project/trace identity and the latest batch's maximum observation
 start time for the query's inclusive upper bound; its Redis
 minimum-start cache is expiring, not a durable trace-history index.

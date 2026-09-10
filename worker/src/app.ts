@@ -24,7 +24,7 @@ import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTie
 import { monitorQueueProcessor } from "./queues/monitorQueue";
 import { inAppAgentRunQueueProcessor } from "./queues/inAppAgentRunQueue";
 import { WorkerManager } from "./queues/workerManager";
-import { delayedTraceExecutionProcessor } from "./queues/delayedTraceExecutionQueue";
+import { traceExecutionProcessor } from "./queues/traceExecutionQueue";
 import {
   CoreDataS3ExportQueue,
   DataRetentionQueue,
@@ -137,14 +137,10 @@ ClickhouseReadSkipCache.getInstance(prisma)
     logger.error("Error initializing ClickhouseReadSkipCache", err);
   });
 
-if (env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.DelayedTraceExecution,
-    delayedTraceExecutionProcessor,
-    {
-      concurrency: env.LANGFUSE_DELAYED_TRACE_EXECUTION_CONCURRENCY,
-    },
-  );
+if (env.LANGFUSE_OTEL_TRACE_EXECUTION_ENABLED === "true") {
+  WorkerManager.register(QueueName.TraceExecution, traceExecutionProcessor, {
+    concurrency: env.LANGFUSE_TRACE_EXECUTION_CONCURRENCY,
+  });
 }
 
 if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
