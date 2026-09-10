@@ -76,12 +76,7 @@ export const ScoreBadge = <
       {levels.map((level) => (
         <ScoreTag key={level} level={level} />
       ))}
-      <BadgeShell
-        color="neutral"
-        size={compact ? "sm" : "default"}
-        // Dense rows: same chip, quieter text so it sits behind the row name.
-        className={compact ? "text-muted-foreground" : undefined}
-      >
+      <BadgeShell color="neutral" size={compact ? "sm" : "default"}>
         <span className="min-w-0 flex-1 truncate" title={name}>
           {name}:
         </span>
