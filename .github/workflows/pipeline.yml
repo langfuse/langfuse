@@ -776,6 +776,7 @@ jobs:
       - name: Build
         run: pnpm turbo run build:test
         env:
+          NEXT_DISABLE_BUILD_CACHE: "true"
           NODE_OPTIONS: --max_old_space_size=8192
           # TypeScript is checked explicitly in the lint job; skip duplicate
           # Next.js type checks in test builds to reduce CI runtime.
@@ -785,6 +786,7 @@ jobs:
           cp .env.runtime .env
           pnpm --filter web exec dotenv -e ../.env -- next build --experimental-build-mode generate
         env:
+          NEXT_DISABLE_BUILD_CACHE: "true"
           NODE_OPTIONS: --max_old_space_size=8192
           NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Wait for dev containers
