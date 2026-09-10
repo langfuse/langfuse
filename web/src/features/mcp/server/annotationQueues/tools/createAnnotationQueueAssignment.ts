@@ -11,6 +11,7 @@ export const [
   name: "createAnnotationQueueAssignment",
   description:
     "Assign a project user to an annotation queue so they can work through its review items.",
+  action: "annotationQueueAssignments:CUD",
   baseSchema: CreateAnnotationQueueAssignmentToolSchema,
   inputSchema: CreateAnnotationQueueAssignmentToolSchema,
   handler: async (input, context) =>

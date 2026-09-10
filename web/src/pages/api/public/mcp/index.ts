@@ -33,19 +33,12 @@ import {
 } from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { type ServerContext } from "@/src/features/mcp/types";
-import { addUserToSpan, logger, redis } from "@langfuse/shared/src/server";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { addUserToSpan, logger } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import { prisma } from "@langfuse/shared/src/db";
-import {
-  BaseError,
-  UnauthorizedError,
-  ForbiddenError,
-  safeJsonParse,
-} from "@langfuse/shared";
+import { BaseError, ForbiddenError, safeJsonParse } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
-import { resolveMcpAuthz } from "@/src/features/auth/policy/shadow.mcp";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 
@@ -84,38 +77,36 @@ export default async function handler(
       return;
     }
 
-    // Authenticate request using BasicAuth (Public Key:Secret Key)
-    const authCheck = await new ApiAuthService(
-      prisma,
-      redis,
-    ).verifyAuthHeaderAndReturnScope(req.headers.authorization, {
+    // Authenticate and authorize the connection through the policy seam.
+    const authResult = await shadowAuth({
+      req,
+      allowedAccessLevels: ["project"],
       allowInAppAgentKey: true,
     });
 
-    if (!authCheck.validKey) {
-      throw new UnauthorizedError(authCheck.error);
+    if (!authResult.success) {
+      throw authResult.error;
     }
 
+    const { scope, ctx } = authResult;
+
     // MCP requires project-scoped access (no Bearer auth, no org-level keys)
-    if (
-      authCheck.scope.accessLevel !== "project" ||
-      !authCheck.scope.projectId
-    ) {
+    if (scope.accessLevel !== "project" || !scope.projectId) {
       throw new ForbiddenError(
         "Access denied: MCP requires project-scoped API keys with BasicAuth",
       );
     }
 
     addUserToSpan({
-      apiKeyId: authCheck.scope.apiKeyId,
-      publicKey: authCheck.scope.publicKey,
-      projectId: authCheck.scope.projectId,
-      orgId: authCheck.scope.orgId,
-      plan: authCheck.scope.plan,
+      apiKeyId: scope.apiKeyId,
+      publicKey: scope.publicKey,
+      projectId: scope.projectId,
+      orgId: scope.orgId,
+      plan: scope.plan,
     });
 
     // Check if ingestion is suspended due to usage limits
-    if (authCheck.scope.isIngestionSuspended) {
+    if (scope.isIngestionSuspended) {
       throw new ForbiddenError(
         "Access suspended: Usage threshold exceeded. Please upgrade your plan.",
       );
@@ -124,7 +115,7 @@ export default async function handler(
     // Rate limit MCP requests
     const rateLimitCheck =
       await RateLimitService.getInstance().rateLimitRequest(
-        authCheck.scope,
+        scope,
         "public-api",
       );
 
@@ -132,25 +123,21 @@ export default async function handler(
       return rateLimitCheck.sendRestResponseIfLimited(res);
     }
 
-    // Legacy authCheck governs the connection; shadowAuth runs the policy core
-    // beside it (shadow records parity; enforce gates and yields the context).
-    const { authz } = await resolveMcpAuthz({ req });
-
     // Build ServerContext from authenticated scope. In-app-agent keys need a
     // run override for mutating tools; read-only tools remain available
     // without it via their MCP readOnlyHint annotation.
     const context: ServerContext = {
-      projectId: authCheck.scope.projectId,
-      orgId: authCheck.scope.orgId,
+      projectId: scope.projectId,
+      orgId: scope.orgId,
       userId: undefined, // API keys don't have associated users
-      apiKeyId: authCheck.scope.apiKeyId,
+      apiKeyId: scope.apiKeyId,
       accessLevel: "project",
-      publicKey: authCheck.scope.publicKey,
-      plan: authCheck.scope.plan,
-      rateLimitOverrides: authCheck.scope.rateLimitOverrides,
+      publicKey: scope.publicKey,
+      plan: scope.plan,
+      rateLimitOverrides: scope.rateLimitOverrides,
       userAgent: req.headers["user-agent"],
-      inAppAgent: getInAppAgentContext(req, authCheck.scope.isInAppAgentKey),
-      authz,
+      inAppAgent: getInAppAgentContext(req, scope.isInAppAgentKey),
+      auth: ctx,
     };
 
     logger.debug("MCP request authenticated", {

@@ -18,7 +18,9 @@ import {
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
+import { authorize } from "@/src/features/auth/policy/authorize";
 import type { ServerContext } from "../types";
+import type { ToolDefinition } from "../core/define-tool";
 import { toolRegistry } from "./registry";
 import { contextWithLangfuseProps, logger } from "@langfuse/shared/src/server";
 import { context as otelContext } from "@opentelemetry/api";
@@ -105,6 +107,8 @@ export function createMcpServer(context: ServerContext): Server {
       throw new Error(`Unknown tool: ${name}`);
     }
 
+    assertToolAuthorized(registeredTool.definition, context);
+
     // Execute handler with context
     // Handler performs validation and error handling via defineTool wrapper
     const clickHouseCtx = contextWithLangfuseProps({
@@ -131,3 +135,17 @@ export function createMcpServer(context: ServerContext): Server {
 
   return server;
 }
+
+/** assertToolAuthorized enforces the resolved context against a tool's action; ungated tools and unresolved contexts (legacy/shadow) pass. */
+function assertToolAuthorized(
+  definition: ToolDefinition,
+  context: ServerContext,
+): void {
+  if (definition.action === null || !context.auth) return;
+  const decision = authorize(context.auth, definition.action, {
+    projectId: context.projectId,
+  });
+  if (!decision.success) throw decision.error;
+}
+
+export const __test = { assertToolAuthorized };

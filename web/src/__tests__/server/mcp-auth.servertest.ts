@@ -44,7 +44,7 @@ describe("MCP Authentication", () => {
 
       expect(response.status).toBe(401);
       const body = await response.json();
-      expect(body.error).toContain("Authentication failed");
+      expect(body.error).toContain("Invalid credentials");
     });
 
     it("should return 401 for missing authorization header", async () => {

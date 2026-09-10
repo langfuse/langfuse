@@ -66,8 +66,8 @@ export interface ServerContext {
   /** In-app-agent-specific MCP authorization state. */
   inAppAgent?: InAppAgentContext;
 
-  /** Resolved policy-core context, present only once the new authz path resolves the connection (shadow/enforce). */
-  authz?: AuthorizationContext;
+  /** Resolved policy-core context, present only once the new authz path resolves the connection (enforce). */
+  auth?: AuthorizationContext;
 }
 
 /** In-app agent MCP access is read-only unless a prior approval mints a mutating-tool allowlist. */

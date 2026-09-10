@@ -106,6 +106,7 @@ const throwActionableDashboardWidgetError = (
 export const [createDashboardWidgetTool, handleCreateDashboardWidget] =
   defineTool({
     name: "createDashboardWidget",
+    action: "dashboards:CUD",
     description: [
       "Create a dashboard widget (a standalone chart definition you place on any dashboard).",
       "Widgets are useful to visualize Langfuse project data and give informative breakdowns to the user.",

@@ -134,6 +134,7 @@ export const [createChatPromptTool, handleCreateChatPrompt] = defineTool({
     "Placeholder messages: {type: 'placeholder', name: '<variable>'} reference runtime variable values (e.g. conversation history) inserted when the prompt is used",
     "Accepts: name, prompt (array of {role, content} or {type: 'placeholder', name}), optional labels, config, tags, commitMessage",
   ].join("\n"),
+  action: "prompts:CUD",
   baseSchema: CreateChatPromptBaseSchema,
   inputSchema: CreateChatPromptInputSchema,
   handler: async (input, context) => {

@@ -12,6 +12,7 @@ export const [listDatasetItemsTool, handleListDatasetItems] = defineTool({
   name: "listDatasetItems",
   description:
     "List dataset items, individual examples with input and optional expected output, optionally filtered by dataset ID, source trace, source observation, or version.",
+  action: "datasets:read",
   baseSchema: GetDatasetItemsMcpBaseSchema,
   inputSchema: GetDatasetItemsMcpInput,
   handler: async (input, context) =>

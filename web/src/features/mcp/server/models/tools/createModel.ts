@@ -32,6 +32,7 @@ export const [createModelTool, handleCreateModel] = defineTool({
   name: "createModel",
   description:
     "Create a custom model definition for cost tracking/tokenization in the current project.",
+  action: "models:CUD",
   baseSchema: CreateModelBaseSchema,
   inputSchema: PostModelsV1Body,
   handler: async (input, context) =>
