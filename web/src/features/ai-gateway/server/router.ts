@@ -1,6 +1,5 @@
 import { z } from "zod/v4";
 import type { Session } from "next-auth";
-import { StringNoHTMLNonEmpty } from "@langfuse/shared";
 
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
 import {
@@ -49,30 +48,19 @@ export const aiGatewayRouter = createTRPCRouter({
 
   updateConfig: protectedOrganizationProcedure
     .input(
-      organizationInput
-        .extend({
-          defaultIngestionProjectId: z.string().nullable(),
-          createProjectName: StringNoHTMLNonEmpty.max(200).optional(),
-          ingestionMode: z.enum(GatewayIngestionMode),
-        })
-        .refine(
-          (input) =>
-            !(input.defaultIngestionProjectId && input.createProjectName),
-          "Select an existing project or create a new one",
-        ),
+      organizationInput.extend({
+        defaultIngestionProjectId: z.string().nullable(),
+        ingestionMode: z.enum(GatewayIngestionMode),
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      const result = await new GatewayConfigService(ctx.prisma).updateConfig({
+      return new GatewayConfigService(ctx.prisma).updateConfig({
         organizationId: input.orgId,
         defaultIngestionProjectId: input.defaultIngestionProjectId,
-        ...(input.createProjectName
-          ? { createProjectName: input.createProjectName }
-          : {}),
         ingestionMode: input.ingestionMode,
         session: ctx.session,
       });
-      return result.config;
     }),
 
   listConnections: protectedOrganizationProcedure

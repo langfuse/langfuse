@@ -26,7 +26,24 @@ export function GatewayConfigurationPage({
     orgId: organizationId,
   });
   const utils = api.useUtils();
+  const createProject = api.projects.create.useMutation();
   const updateConfig = api.aiGateway.updateConfig.useMutation();
+
+  async function saveGatewayConfig(params: {
+    projectId: string | null;
+    ingestionMode: "USAGE" | "FULL";
+  }) {
+    await updateConfig.mutateAsync({
+      orgId: organizationId,
+      defaultIngestionProjectId: params.projectId,
+      ingestionMode: params.ingestionMode,
+    });
+    await utils.aiGateway.getConfig.invalidate({ orgId: organizationId });
+    showSuccessToast({
+      title: "Gateway configuration saved",
+      description: "New gateway requests will use this configuration.",
+    });
+  }
 
   if (configQuery.isPending) {
     return <ConfigurationSkeleton />;
@@ -60,24 +77,23 @@ export function GatewayConfigurationPage({
       projects={projects}
       initialProjectId={config?.defaultIngestionProjectId ?? null}
       initialIngestionMode={config?.ingestionMode ?? "USAGE"}
-      isSaving={updateConfig.isPending}
-      saveError={updateConfig.isError}
-      onSave={async ({ projectId, createProjectName, ingestionMode }) => {
+      isSaving={createProject.isPending || updateConfig.isPending}
+      saveError={createProject.isError || updateConfig.isError}
+      onSave={async ({ projectId, ingestionMode }) => {
         try {
-          await updateConfig.mutateAsync({
+          await saveGatewayConfig({ projectId, ingestionMode });
+        } catch (error) {
+          reportNonTrpcError(error, "ai-gateway-configuration");
+        }
+      }}
+      onCreateProject={async ({ projectName, ingestionMode }) => {
+        try {
+          const project = await createProject.mutateAsync({
             orgId: organizationId,
-            defaultIngestionProjectId: projectId,
-            ...(createProjectName ? { createProjectName } : {}),
-            ingestionMode,
+            name: projectName,
           });
-          await utils.aiGateway.getConfig.invalidate({
-            orgId: organizationId,
-          });
-          if (createProjectName) await session.update();
-          showSuccessToast({
-            title: "Gateway configuration saved",
-            description: "New gateway requests will use this configuration.",
-          });
+          await session.update();
+          await saveGatewayConfig({ projectId: project.id, ingestionMode });
         } catch (error) {
           reportNonTrpcError(error, "ai-gateway-configuration");
         }

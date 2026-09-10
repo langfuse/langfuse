@@ -68,6 +68,7 @@ export function GatewayConfigurationView({
   isSaving,
   saveError,
   onSave,
+  onCreateProject,
 }: {
   projects: Project[];
   initialProjectId: string | null;
@@ -76,7 +77,10 @@ export function GatewayConfigurationView({
   saveError: boolean;
   onSave: (values: {
     projectId: string | null;
-    createProjectName?: string;
+    ingestionMode: IngestionMode;
+  }) => void | Promise<void>;
+  onCreateProject: (values: {
+    projectName: string;
     ingestionMode: IngestionMode;
   }) => void | Promise<void>;
 }) {
@@ -139,7 +143,7 @@ export function GatewayConfigurationView({
             <CreateIngestionProjectDialog
               ingestionMode={ingestionMode}
               isSaving={isSaving}
-              onCreate={onSave}
+              onCreate={onCreateProject}
               triggerLabel="or create a new project"
             />
           </div>
@@ -148,7 +152,7 @@ export function GatewayConfigurationView({
             <CreateIngestionProjectDialog
               ingestionMode={ingestionMode}
               isSaving={isSaving}
-              onCreate={onSave}
+              onCreate={onCreateProject}
               triggerLabel="Create ingestion project"
               showIcon
             />
@@ -234,8 +238,7 @@ function CreateIngestionProjectDialog({
   ingestionMode: IngestionMode;
   isSaving: boolean;
   onCreate: (values: {
-    projectId: string | null;
-    createProjectName?: string;
+    projectName: string;
     ingestionMode: IngestionMode;
   }) => void | Promise<void>;
   triggerLabel: string;
@@ -266,8 +269,8 @@ function CreateIngestionProjectDialog({
                 onChange={(event) => setProjectName(event.target.value)}
               />
               <p className="text-muted-foreground mt-1.5 text-xs">
-                Organization owners and admins receive access automatically.
-                Other members must be invited explicitly.
+                Project access follows organization roles and can be restricted
+                in project settings.
               </p>
             </div>
           </DialogBody>
@@ -277,8 +280,7 @@ function CreateIngestionProjectDialog({
               loading={isSaving}
               onClick={() =>
                 onCreate({
-                  projectId: null,
-                  createProjectName: projectName.trim(),
+                  projectName: projectName.trim(),
                   ingestionMode,
                 })
               }

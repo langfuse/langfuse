@@ -392,7 +392,6 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("true"),
     LANGFUSE_CACHE_GATEWAY_RESOLVE_TTL_SECONDS: z.coerce.number().default(60),
-    LANGFUSE_GATEWAY_RESOLVE_TIMEOUT_MS: z.coerce.number().default(1000),
 
     // auth migration; self-host and default stay legacy
     API_AUTH_MIGRATION: z
@@ -1088,8 +1087,6 @@ export const env = createEnv({
       process.env.LANGFUSE_CACHE_GATEWAY_RESOLVE_ENABLED,
     LANGFUSE_CACHE_GATEWAY_RESOLVE_TTL_SECONDS:
       process.env.LANGFUSE_CACHE_GATEWAY_RESOLVE_TTL_SECONDS,
-    LANGFUSE_GATEWAY_RESOLVE_TIMEOUT_MS:
-      process.env.LANGFUSE_GATEWAY_RESOLVE_TIMEOUT_MS,
     API_AUTH_MIGRATION: process.env.API_AUTH_MIGRATION,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,

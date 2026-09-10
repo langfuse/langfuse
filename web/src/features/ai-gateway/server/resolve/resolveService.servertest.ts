@@ -9,7 +9,6 @@ vi.mock("@/src/env.mjs", () => ({
     // Caching is covered against real Redis in the control-plane servertest;
     // these cases are about what the service does with a database row.
     LANGFUSE_CACHE_GATEWAY_RESOLVE_ENABLED: "false",
-    LANGFUSE_GATEWAY_RESOLVE_TIMEOUT_MS: 20,
     LANGFUSE_GATEWAY_JWT_PRIVATE_KEY: "private-key",
     LANGFUSE_GATEWAY_JWT_PUBLIC_KEY: "public-key",
     LANGFUSE_GATEWAY_JWT_KEY_ID: "key-id",
@@ -135,19 +134,6 @@ describe("GatewayResolveService", () => {
         apiFormat: "openai.responses",
       }),
     ).rejects.toMatchObject({ status: 403 });
-  });
-
-  it("sheds a slow database lookup as a retryable 503", async () => {
-    // A saturated pool must not hold an LLM request open until Prisma's own
-    // pool timeout fires, ten seconds of latency later.
-    const service = serviceWith(() => new Promise(() => {}));
-
-    await expect(
-      service.resolve({
-        fastHashedSecretKey: "hashed-secret-key",
-        apiFormat: "openai.responses",
-      }),
-    ).rejects.toMatchObject({ status: 503 });
   });
 
   it("rejects an unknown or expired gateway key", async () => {

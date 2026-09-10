@@ -19,6 +19,7 @@ export const Enabled = meta.story({
     isSaving: false,
     saveError: false,
     onSave: fn(),
+    onCreateProject: fn(),
   },
 });
 
@@ -30,5 +31,6 @@ export const MissingProjectWarning = meta.story({
     isSaving: false,
     saveError: false,
     onSave: fn(),
+    onCreateProject: fn(),
   },
 });

@@ -4,7 +4,7 @@ import type {
   PrismaClient,
 } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
-import { instrumentAsync, recordIncrement } from "@langfuse/shared/src/server";
+import { instrumentAsync } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
 import {
@@ -179,16 +179,10 @@ export class GatewayResolveService {
       providerSupportsApiFormat(provider, params.apiFormat),
     ) as GatewayProvider[];
 
-    // This endpoint sits in front of every LLM call, so a slow or saturated
-    // database has to be shed as a retryable 503 rather than held open until
-    // the connection pool times out.
-    const row = await withTimeout(
-      this.repository.resolveContext({
-        fastHashedSecretKey: params.fastHashedSecretKey,
-        providers: supportedProviders,
-      }),
-      env.LANGFUSE_GATEWAY_RESOLVE_TIMEOUT_MS,
-    );
+    const row = await this.repository.resolveContext({
+      fastHashedSecretKey: params.fastHashedSecretKey,
+      providers: supportedProviders,
+    });
 
     const organizationId = row?.apiKey.orgId;
     const organization = row?.apiKey.organization;
@@ -265,23 +259,4 @@ export class GatewayResolveService {
 function toKeyMetadata(value: unknown): GatewayMetadata {
   const parsed = GatewayMetadataSchema.safeParse(value);
   return parsed.success ? parsed.data : {};
-}
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
-  let timer: NodeJS.Timeout | undefined;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => {
-          recordIncrement("langfuse.gateway.resolve.timeout", 1);
-          reject(
-            new GatewayResolveError("Gateway is temporarily unavailable", 503),
-          );
-        }, timeoutMs);
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
 }

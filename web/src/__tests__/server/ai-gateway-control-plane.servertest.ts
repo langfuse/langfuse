@@ -331,15 +331,14 @@ describe("AI gateway control plane", () => {
   });
 
   it("owns successful and failed mutation auditing in gateway services", async () => {
-    const { org, session } = await prepare();
+    const { org, project, session } = await prepare();
     const gatewayService = new GatewayConfigService(prisma);
     const providerService = new GatewayProviderService(prisma);
     const apiKeyService = new GatewayApiKeyService(prisma);
 
     await gatewayService.updateConfig({
       organizationId: org.id,
-      defaultIngestionProjectId: null,
-      createProjectName: "Audited ingestion project",
+      defaultIngestionProjectId: project.id,
       ingestionMode: "USAGE",
       session,
     });
@@ -364,7 +363,6 @@ describe("AI gateway control plane", () => {
       }),
     ).toEqual([
       { resourceType: "gatewayConfig", action: "create" },
-      { resourceType: "project", action: "create" },
       { resourceType: "gatewayAiConnection", action: "create" },
       { resourceType: "apiKey", action: "create" },
     ]);
