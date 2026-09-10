@@ -96,11 +96,8 @@ import { SessionDetailStoreProvider } from "@/src/features/sessions/SessionDetai
 import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/features/sessions/sessionDetailStore";
 import { ModernSession } from "@/src/features/sessions/ModernSession";
-import { ModernSessionHeader } from "@/src/features/sessions/ModernSessionHeader";
-import { SessionMetadataJsonPathControl } from "@/src/features/sessions/SessionMetadataJsonPathControl";
 import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
 import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
-import { ModernSessionFilterControls } from "@/src/features/sessions/ModernSessionFilterControls";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useStore } from "zustand";
@@ -982,6 +979,9 @@ const LoadedSessionEventsPage: React.FC<{
     enableForAdmins: false,
     projectId,
   });
+  const isSessionTimelineEnabled = useIsFeatureEnabled("sessionTimeline", {
+    projectId,
+  });
   const isMobile = useIsMobile();
   const parentRef = useRef<HTMLDivElement>(null);
   const webCalloutAction = useWebCalloutAction(
@@ -1540,10 +1540,6 @@ const LoadedSessionEventsPage: React.FC<{
     getItemKey: (index) => traces?.[index]?.id ?? index,
   });
   const virtualItems = virtualizer.getVirtualItems();
-  const modernSessionTraces = isTracesSuccess
-    ? ({ state: "loaded", data: traces ?? [] } as const)
-    : ({ state: "loading" } as const);
-
   return (
     <SessionDetailStoreProvider store={sessionDetailStore}>
       <Page
@@ -1699,12 +1695,17 @@ const LoadedSessionEventsPage: React.FC<{
                   projectId={projectId}
                   sessionId={sessionId}
                   isPublic={session.public}
-                  showCorrections={showCorrections}
-                  showInlineToolCalls={showInlineToolCalls}
-                  showSystemPrompt={showSystemPrompt}
-                  onShowCorrectionsChange={setShowCorrectionsForSession}
-                  onShowInlineToolCallsChange={setInlineToolCallsForSession}
-                  onShowSystemPromptChange={setShowSystemPromptForSession}
+                  {...(!isSessionTimelineEnabled
+                    ? {
+                        showCorrections,
+                        showInlineToolCalls,
+                        showSystemPrompt,
+                        onShowCorrectionsChange: setShowCorrectionsForSession,
+                        onShowInlineToolCallsChange:
+                          setInlineToolCallsForSession,
+                        onShowSystemPromptChange: setShowSystemPromptForSession,
+                      }
+                    : {})}
                 >
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -1828,12 +1829,22 @@ const LoadedSessionEventsPage: React.FC<{
               {webCalloutAction && (
                 <WebCalloutButton action={webCalloutAction} layout="menu" />
               )}
-              {!isModernSessionEnabled ? (
+              {!isModernSessionEnabled || !isSessionTimelineEnabled ? (
                 <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
                   <span className="text-sm">Show corrections</span>
                   <Switch
                     checked={showCorrections}
                     onCheckedChange={setShowCorrectionsForSession}
+                    size="sm"
+                  />
+                </label>
+              ) : null}
+              {isModernSessionEnabled && !isSessionTimelineEnabled ? (
+                <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
+                  <span className="text-sm">Show system prompt</span>
+                  <Switch
+                    checked={showSystemPrompt}
+                    onCheckedChange={setShowSystemPromptForSession}
                     size="sm"
                   />
                 </label>
@@ -1849,31 +1860,6 @@ const LoadedSessionEventsPage: React.FC<{
               : "flex h-full flex-col overflow-auto"
           }
         >
-          {isModernSessionEnabled ? (
-            <SessionMetadataJsonPathControl
-              key={`${projectId}:${sessionId}`}
-              projectId={projectId}
-              sessionId={sessionId}
-              traces={modernSessionTraces}
-              filterState={visibleFilterState}
-            >
-              {(metadataJsonPaths) => (
-                <ModernSessionHeader
-                  projectId={projectId}
-                  countTraces={session.countTraces}
-                  traces={modernSessionTraces}
-                  tokensIn={session.inputUsage}
-                  tokensOut={session.outputUsage}
-                  totalTokens={session.totalTokens}
-                  totalCost={session.totalCost ?? 0}
-                  environment={session.environment ?? null}
-                  users={session.users ?? []}
-                  metadataJsonPaths={metadataJsonPaths}
-                  scores={session.scores}
-                />
-              )}
-            </SessionMetadataJsonPathControl>
-          ) : null}
           {!isModernSessionEnabled && hasSessionControls ? (
             <SessionControlsBar
               isMobile={isMobile && !isModernSessionEnabled}
@@ -1998,44 +1984,40 @@ const LoadedSessionEventsPage: React.FC<{
               </div>
             </div>
           ) : (
-            <ModernSessionFilterControls
+            <ModernSession
+              isTimelineEnabled={isSessionTimelineEnabled}
+              session={session}
+              tracesState={
+                isTracesSuccess
+                  ? { type: "loaded", traces: traces ?? [] }
+                  : { type: "loading" }
+              }
               projectId={projectId}
+              sessionId={sessionId}
+              openPeek={openPeek}
+              traceCommentCounts={asCommentCounts(traceCommentCounts.data)}
               filterState={visibleFilterState}
-              filterColumns={filterColumns}
-              filterColumnsWithCustomSelect={filterColumnsWithCustomSelect}
-              onChange={queryFilter.setFilterState}
-              viewControllers={viewControllers}
-              currentViewState={{
-                orderBy: null,
-                filters: queryFilter.filterState,
-                columnOrder,
-                columnVisibility,
-                searchQuery: "",
+              filterMeasurementKey={visibleFilterMeasurementKey}
+              viewLabel={viewLabel}
+              showInlineToolCalls={showInlineToolCalls}
+              showSystemPrompt={showSystemPrompt}
+              filterControlsProps={{
+                projectId,
+                filterState: visibleFilterState,
+                filterColumns,
+                filterColumnsWithCustomSelect,
+                onChange: queryFilter.setFilterState,
+                viewControllers,
+                currentViewState: {
+                  orderBy: null,
+                  filters: queryFilter.filterState,
+                  columnOrder,
+                  columnVisibility,
+                  searchQuery: "",
+                },
               }}
-            >
-              {(sidebarFilterControls) => (
-                <ModernSession
-                  tracesState={
-                    isTracesSuccess
-                      ? { type: "loaded", traces: traces ?? [] }
-                      : { type: "loading" }
-                  }
-                  projectId={projectId}
-                  sessionId={sessionId}
-                  sessionMinTimestamp={session.minTimestamp}
-                  sessionMaxTimestamp={session.maxTimestamp}
-                  openPeek={openPeek}
-                  traceCommentCounts={asCommentCounts(traceCommentCounts.data)}
-                  filterState={visibleFilterState}
-                  filterMeasurementKey={visibleFilterMeasurementKey}
-                  viewLabel={viewLabel}
-                  showInlineToolCalls={showInlineToolCalls}
-                  showSystemPrompt={showSystemPrompt}
-                  sidebarFilterControls={sidebarFilterControls}
-                  onFilterObservationByName={filterObservationsByName}
-                />
-              )}
-            </ModernSessionFilterControls>
+              onFilterObservationByName={filterObservationsByName}
+            />
           )}
         </div>
         <TablePeekViewTraceDetail

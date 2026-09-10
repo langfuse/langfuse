@@ -48,4 +48,7 @@ export const availableFlags = [
   "v4BetaToggleVisible",
   "observationEvals",
   "experimentsV4Enabled",
+  // Internal flag (deliberately NOT in featurePreviewFlags): gates the
+  // redesigned compact session timeline for admins/flagged users only.
+  "sessionTimeline",
 ] as const;
