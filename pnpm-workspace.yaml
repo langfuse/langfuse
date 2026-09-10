@@ -2,6 +2,7 @@ packages:
   # include packages in subfolders (e.g. apps/ and packages/)
   - "web"
   - "worker"
+  - "ai-gateway"
   - "packages/**"
   - "ee"
 catalog:

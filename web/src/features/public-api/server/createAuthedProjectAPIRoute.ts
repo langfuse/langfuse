@@ -1,17 +1,19 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodType, type z } from "zod";
 import {
-  type ApiAccessScope,
+  type ApiAccessScopeWithOptionalApiKeyId,
   type AuthHeaderValidVerificationResult,
   traceException,
   logger,
   contextWithLangfuseProps,
 } from "@langfuse/shared/src/server";
 import {
+  BaseError,
   PayloadTooLargeError,
   type RateLimitResource,
   type ApiDeprecationInfo,
 } from "@langfuse/shared";
+import { verifyGatewayIngestionAuthorization } from "@/src/features/ai-gateway/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import * as opentelemetry from "@opentelemetry/api";
@@ -79,6 +81,11 @@ export type AuthedProjectAPIRouteConfig<
    */
   allowInAppAgentKey?: boolean;
   /**
+   * Whether a signed AI-gateway ingestion token may authorize this route ahead
+   * of the API-key pipeline. Defaults to false.
+   */
+  allowGatewayIngestionToken?: boolean;
+  /**
    * When true, this route returns 404 if LANGFUSE_MIGRATION_V4_WRITE_MODE is
    * "events_only". Set this on routes that read from the legacy traces,
    * observations, or dataset_run_items ClickHouse tables without an
@@ -132,37 +139,69 @@ export const createAuthedProjectAPIRoute = <
       return;
     }
 
-    const result = await shadowAuth({
-      req,
-      action: routeConfig.action,
-      isAdminApiKeyAuthAllowed: routeConfig.isAdminApiKeyAuthAllowed || false,
-      allowedAccessLevels: routeConfig.allowedAccessLevels ?? ["project"],
-      allowInAppAgentKey: routeConfig.allowInAppAgentKey === true,
-    });
-
-    if (!result.success) {
-      const { httpCode: statusCode, message } = result.error;
-
+    const renderAuthError = (statusCode: number, message: string) => {
       if (routeConfig.errorContract === structuredPublicApiErrorContract) {
         return sendStructuredPublicApiErrorResponse(
           res,
           createStructuredPublicApiAuthError({ statusCode, message }),
         );
       }
-
       res.status(statusCode).json({ message });
+    };
 
-      return;
+    // A signed AI-gateway ingestion token authorizes the project directly,
+    // ahead of the API-key pipeline; an invalid one is a 401.
+    let gatewayAuth: Awaited<
+      ReturnType<typeof verifyGatewayIngestionAuthorization>
+    > = null;
+    if (routeConfig.allowGatewayIngestionToken) {
+      try {
+        gatewayAuth = await verifyGatewayIngestionAuthorization(
+          req.headers.authorization,
+          req.headers["langfuse-gateway-authorization"],
+        );
+      } catch (error) {
+        renderAuthError(
+          error instanceof BaseError ? error.httpCode : 401,
+          error instanceof BaseError ? error.message : "Authentication failed",
+        );
+        return;
+      }
     }
 
     // The route's action guarantees a project scope; narrow off the phantom org level.
-    const auth = {
-      validKey: true as const,
-      scope: result.scope as ApiAccessScope & {
+    let auth: {
+      validKey: true;
+      scope: ApiAccessScopeWithOptionalApiKeyId & {
         projectId: string;
         accessLevel: RouteAccessLevel;
-      },
+      };
     };
+
+    if (gatewayAuth) {
+      auth = gatewayAuth;
+    } else {
+      const result = await shadowAuth({
+        req,
+        action: routeConfig.action,
+        isAdminApiKeyAuthAllowed: routeConfig.isAdminApiKeyAuthAllowed || false,
+        allowedAccessLevels: routeConfig.allowedAccessLevels ?? ["project"],
+        allowInAppAgentKey: routeConfig.allowInAppAgentKey === true,
+      });
+
+      if (!result.success) {
+        renderAuthError(result.error.httpCode, result.error.message);
+        return;
+      }
+
+      auth = {
+        validKey: true,
+        scope: result.scope as ApiAccessScopeWithOptionalApiKeyId & {
+          projectId: string;
+          accessLevel: RouteAccessLevel;
+        },
+      };
+    }
 
     const rateLimitResponse =
       await RateLimitService.getInstance().rateLimitRequest(
@@ -240,7 +279,11 @@ export const createAuthedProjectAPIRoute = <
         body,
         req,
         res,
-        auth,
+        // A gateway-token scope carries no apiKeyId; route handlers that need
+        // one gate on the api-key path, so narrow to the required shape here.
+        auth: auth as AuthHeaderValidVerificationResult & {
+          scope: { projectId: string; accessLevel: RouteAccessLevel };
+        },
       });
 
       if (env.NODE_ENV === "development" && routeConfig.responseSchema) {

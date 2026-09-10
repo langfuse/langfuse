@@ -115,6 +115,9 @@ than two sentences they read.
   code that no longer exists.
 - Never commit secrets or credentials. Keep `.env*.example` files in
   sync with required env vars.
+- Tracker writes default to short. "Create a subticket", "file this", or
+  "add a ticket" get a title and a few sentences a human would write.
+  Expand with research only when they ask.
 - Human handoff: assume the reader does not remember the ticket. Lead with
   a one-sentence TL;DR. Prefer one or two human actions per message; if
   you need more, keep every point simple and super readable. Do not dump
@@ -149,10 +152,9 @@ Two moments in every task, both easy to skip and both expensive:
   one session otherwise. Do it before the PR, not after the merge: there is no
   later.
 
-The practice, its template and its tooling are the `linear-context-handover` and
-`linear-planning` skills, alongside `linear-agent-writes`, which is the policy for
-what an agent may write to the tracker and how it must be marked. Read those
-rather than improvise. If this environment cannot reach the tracker, say so in your reply and
+The practice, its template and its tooling are `linear-context-handover` and
+`linear-agent-writes`. Read those rather than improvise. If this environment
+cannot reach the tracker, say so in your reply and
 hand back the text that should have gone on the work item — never skip either
 step silently, because silent non-compliance looks exactly like compliance.
 

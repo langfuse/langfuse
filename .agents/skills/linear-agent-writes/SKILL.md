@@ -4,8 +4,9 @@ description: |
   The org policy for what an agent may write to Linear, and how it must be
   marked. Read this before creating a ticket, editing a description, or
   commenting on a ticket as an agent — "file this in Linear", "comment on the
-  ticket", "create subtickets for this plan", "write the handover". Also covers
-  the required Linear connection and what to do when there isn't one.
+  ticket", "create a subticket", "write the handover". Default those writes
+  to a short human description; expand with research only when asked. Also
+  covers the required Linear connection and what to do when there isn't one.
 ---
 
 # Linear agent writes
@@ -27,6 +28,21 @@ tracker, and it has nothing to ask of an outside contributor.
 
 *Provenance: the "Agentic Coding and Linear" RFC (LFE-15914), which replaced the
 earlier "Linear is read-only for agents" posture.*
+
+## Default length
+
+Ordinary Linear writes are short. A new ticket or subticket is a title and
+two to four sentences: what to do, and why in one line if it is not obvious.
+Comments stay to the thing the watcher needs today.
+
+Expand — research, file lists — only when they ask ("expand this", "add
+context"). Do not invent an implementation-ready brief.
+
+Wrong (they said "create a subticket"): six fields, entry-point files, a
+stack position, a research essay.
+
+Right: "Warn sunset event types on POST /ingestion request body. Fern still
+lists trace-create as if it works; say those event types stop on Nov 16."
 
 ## Why the taboo went away
 
@@ -73,18 +89,15 @@ description, and why an attachment is not optional are
 ### 3. Create a ticket — a subticket freely, a top-level one after a yes
 
 Label `AI created`. Say in the description that an agent created it and who it is
-for.
+for. Default length is the short human ticket in *Default length* above.
 
-**A subticket of an existing ticket needs no permission.** The intended use is
-planning: one subticket per PR in an intended stack, created up front so the plan
-is visible before any branch exists, with enough context in each that an agent
-could implement it from the ticket alone —
-[`linear-planning`](../linear-planning/SKILL.md) is how.
+**A subticket of an existing ticket needs no permission.** File the short
+ticket. "Create a subticket" / "file this" / "add a ticket" is this shape.
 
 **A ticket with no parent needs the human's yes first** — a top-level issue, or
-one filed straight into a project. Show the title and the description you intend
-to file, get an explicit go-ahead, then **create it yourself**; do not hand the
-text back for them to paste, which is the cost you were meant to remove.
+one filed straight into a project. Show the title and the short description you
+intend to file, get an explicit go-ahead, then **create it yourself**; do not
+hand the text back for them to paste, which is the cost you were meant to remove.
 
 This is the only gate in this policy, and it exists because a parentless ticket
 lands in somebody's triage queue. It is the one shape whose cost falls on people
