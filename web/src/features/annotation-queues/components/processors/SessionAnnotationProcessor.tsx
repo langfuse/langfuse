@@ -147,7 +147,7 @@ export const SessionAnnotationProcessor: React.FC<
                 type="button"
                 variant="outline"
                 disabled={disabled}
-                onClick={openDrawer}
+                onClick={() => openDrawer({ type: "comments" })}
                 className="gap-1"
               >
                 {disabled ? (
