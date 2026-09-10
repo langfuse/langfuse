@@ -247,40 +247,39 @@ export function CostUsageBadge({
   }
 
   return (
-    <TooltipProvider delayDuration={100}>
-      <Tooltip open={isOpen} onOpenChange={setIsOpen}>
-        <TooltipTrigger
-          className="flex cursor-pointer items-center gap-2"
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          <span
-            title="Cost breakdown on hover"
-            className={BREAKDOWN_AFFORDANCE_CLASS}
-          >
-            {usdFormatter(totalCost)}
-          </span>
-          {/* Tokens at rest beside cost: the model-independent size of the
-              call (or of the whole trace in the strip). Same breakdown. */}
-          {total > 0 ? (
-            <span
-              title="Usage breakdown on hover"
-              className={BREAKDOWN_AFFORDANCE_CLASS}
+    <span className="inline-flex items-center gap-2">
+      <span title="Cost" className={METRIC_TEXT_CLASS}>
+        {usdFormatter(totalCost)}
+      </span>
+      {/* Tokens carry the breakdown: cost is a plain number, the token
+          count is where the input/output split (and its cost) is explained. */}
+      {total > 0 ? (
+        <TooltipProvider delayDuration={100}>
+          <Tooltip open={isOpen} onOpenChange={setIsOpen}>
+            <TooltipTrigger
+              className="flex cursor-pointer"
+              onClick={() => setIsOpen(!isOpen)}
             >
-              {`∑ ${numberFormatter(total, 0)}`}
-            </span>
-          ) : null}
-        </TooltipTrigger>
-        <TooltipContent className="w-max max-w-80 min-w-52 p-4">
-          <CostUsageTable
-            inputUsage={inputUsage}
-            outputUsage={outputUsage}
-            totalUsage={totalUsage}
-            totalCost={totalCost}
-            costDetails={costDetails}
-            priceSource={priceSource}
-          />
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+              <span
+                title="Usage breakdown on hover"
+                className={BREAKDOWN_AFFORDANCE_CLASS}
+              >
+                {`∑ ${numberFormatter(total, 0)}`}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="w-max max-w-80 min-w-52 p-4">
+              <CostUsageTable
+                inputUsage={inputUsage}
+                outputUsage={outputUsage}
+                totalUsage={totalUsage}
+                totalCost={totalCost}
+                costDetails={costDetails}
+                priceSource={priceSource}
+              />
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      ) : null}
+    </span>
   );
 }
