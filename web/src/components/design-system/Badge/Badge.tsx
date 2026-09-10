@@ -12,7 +12,7 @@ const badgeVariants = cva(
         neutral: "bg-tertiary text-tertiary-foreground",
         // Softer than neutral: for dense rows (tree, timeline) where chips
         // should sit behind the row text, not compete with it.
-        muted: "bg-muted/60 text-muted-foreground",
+        muted: "bg-muted/40 text-muted-foreground/90",
         red: "bg-light-red/60 text-dark-red/90 dark:bg-light-red/40 dark:text-dark-red/90",
         yellow: "bg-light-yellow/80 text-dark-yellow",
         blue: "bg-light-blue text-dark-blue",

@@ -92,7 +92,9 @@ export const ScoreBadge = <
                 <span className="truncate" title={value}>
                   {value}
                 </span>
-                {score.comment && (
+                {/* Compact chips (tree/timeline rows) stay text-only; the
+                    comment is one click away in the detail panel. */}
+                {score.comment && !compact && (
                   <HoverCard>
                     <HoverCardTrigger
                       aria-label={`View comment for ${name}: ${value}`}
