@@ -242,7 +242,7 @@ jobs:
         # Three packages with four ESLint workers leave headroom on 16 vCPUs.
         run: pnpm turbo run lint --filter=!ai-gateway --concurrency=3 -- --concurrency=4
       - name: typecheck
-        run: pnpm run typecheck --filter=!@ai-gateway
+        run: pnpm run typecheck --filter=!ai-gateway
 
   knip:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -1260,7 +1260,7 @@ jobs:
         run: |
           (set +e; docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
       - name: Build
-        run: pnpm run build --filter=!@ai-gateway
+        run: pnpm run build --filter=!ai-gateway
         env:
           NODE_OPTIONS: --max_old_space_size=8192
           # TypeScript is checked explicitly in the lint job; skip duplicate
