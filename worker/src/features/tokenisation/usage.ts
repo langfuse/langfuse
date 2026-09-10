@@ -28,6 +28,11 @@ const OpenAiChatTokenConfig = z.object({
   tokensPerName: z.number(),
 });
 
+// An invalid tokenizer config is a static, per-model configuration problem, not
+// a per-event condition. Warn once per model id per process so the signal
+// survives without one line per observation.
+const warnedInvalidTokenizerConfigModelIds = new Set<string>();
+
 export function tokenCount(p: {
   model: Model;
   text: unknown;
@@ -63,11 +68,14 @@ type ChatMessage = {
 function openAiTokenCount(p: { model: Model; text: unknown }) {
   const config = OpenAiTokenConfig.safeParse(p.model.tokenizerConfig);
   if (!config.success) {
-    logger.warn(
-      `Invalid tokenizer config for model ${p.model.id}: ${JSON.stringify(
-        p.model.tokenizerConfig,
-      )}, ${JSON.stringify(config.error)}`,
-    );
+    if (!warnedInvalidTokenizerConfigModelIds.has(p.model.id)) {
+      warnedInvalidTokenizerConfigModelIds.add(p.model.id);
+      logger.warn(
+        `Invalid tokenizer config for model ${p.model.id}: ${JSON.stringify(
+          p.model.tokenizerConfig,
+        )}, ${JSON.stringify(config.error)}`,
+      );
+    }
     return undefined;
   }
 
