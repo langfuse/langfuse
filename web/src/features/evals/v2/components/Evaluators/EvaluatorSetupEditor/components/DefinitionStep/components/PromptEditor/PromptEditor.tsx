@@ -432,12 +432,20 @@ function SortablePromptMessage({
               roleBadge
             )}
             {!expanded ? (
-              <span
-                className="text-muted-foreground min-w-0 flex-1 truncate px-1 text-xs leading-none"
-                title={message.content || "Empty message"}
-              >
-                {message.content || "Empty message"}
-              </span>
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <span
+                    className="text-muted-foreground min-w-0 flex-1 cursor-help truncate px-1 text-xs leading-none"
+                    tabIndex={0}
+                    title={message.content || "Empty message"}
+                  >
+                    {message.content || "Empty message"}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="ph-no-capture max-w-sm break-words whitespace-pre-wrap">
+                  {message.content || "Empty message"}
+                </TooltipContent>
+              </Tooltip>
             ) : null}
           </>
         }

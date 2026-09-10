@@ -412,7 +412,7 @@ export const CompactMixedStates = meta.story({
         {
           role: "system",
           content:
-            "You are an expert topic classifier. Follow the rubric and return only the expected output.",
+            "You are an expert topic-classification evaluator for user messages. You will receive one input and must assign exactly one topic from the predefined taxonomy.",
         },
         {
           role: "user",
@@ -443,6 +443,15 @@ export const CompactMixedStates = meta.story({
       expandedButton.parentElement?.parentElement?.getBoundingClientRect()
         .height,
     ).toBe(36);
+    const collapsedSummary = canvas.getByText(
+      "You are an expert topic-classification evaluator for user messages. You will receive one input and must assign exactly one topic from the predefined taxonomy.",
+    );
+    await userEvent.hover(collapsedSummary);
+    await expect(
+      within(canvasElement.ownerDocument.body).getByRole("tooltip"),
+    ).toHaveTextContent(
+      "You are an expert topic-classification evaluator for user messages. You will receive one input and must assign exactly one topic from the predefined taxonomy.",
+    );
   },
 });
 
