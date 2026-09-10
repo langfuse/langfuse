@@ -168,6 +168,7 @@ export function PromptVariableEditor({
   toolbarActions,
   onToolbarClick,
   collapsed = false,
+  surfaceVariant = "standalone",
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -201,6 +202,8 @@ export function PromptVariableEditor({
   onToolbarClick?: () => void;
   /** Hides the editor/preview while preserving the prompt header. */
   collapsed?: boolean;
+  /** Lets a grouped parent own the border radius and horizontal boundary. */
+  surfaceVariant?: "standalone" | "nested";
 }) {
   // Statuses and labels travel as serialized keys and are parsed back inside
   // the memo, so the memo depends on their content rather than their identity.
@@ -242,8 +245,11 @@ export function PromptVariableEditor({
       {hasToolbar ? (
         <div
           className={cn(
-            "bg-secondary text-secondary-foreground flex h-9 items-center justify-between gap-1 rounded-t-md border px-1.5",
-            collapsed ? "rounded-b-md" : "border-b-transparent",
+            "bg-secondary text-secondary-foreground flex h-9 items-center justify-between gap-1 border px-1.5",
+            surfaceVariant === "standalone" && "rounded-t-md",
+            collapsed && surfaceVariant === "standalone" && "rounded-b-md",
+            !collapsed && "border-b-transparent",
+            surfaceVariant === "nested" && "rounded-none border-x-0 border-t-0",
             onToolbarClick && "cursor-pointer",
           )}
           onClick={(event) => {
@@ -306,16 +312,30 @@ export function PromptVariableEditor({
               maxHeight="50dvh"
               lineNumbers={false}
               extensions={extensions}
-              className={cn(hasToolbar && "rounded-t-none", "text-sm")}
+              className={cn(
+                hasToolbar && "rounded-t-none",
+                "text-sm",
+                surfaceVariant === "nested" && "rounded-none border-x-0",
+              )}
             />
           </div>
           {activePreview ? (
             activePreview.status === "unavailable" ? (
-              <p className="ph-no-capture bg-muted/50 text-muted-foreground absolute inset-0 overflow-y-auto rounded-b-md border px-3 py-2 text-sm leading-5">
+              <p
+                className={cn(
+                  "ph-no-capture bg-muted/50 text-muted-foreground absolute inset-0 overflow-y-auto rounded-b-md border px-3 py-2 text-sm leading-5",
+                  surfaceVariant === "nested" && "rounded-none border-x-0",
+                )}
+              >
                 {activePreview.message}
               </p>
             ) : (
-              <pre className="ph-no-capture bg-muted/50 text-card-foreground absolute inset-0 overflow-y-auto rounded-b-md border px-3 py-2 font-sans text-sm leading-5 whitespace-pre-wrap">
+              <pre
+                className={cn(
+                  "ph-no-capture bg-muted/50 text-card-foreground absolute inset-0 overflow-y-auto rounded-b-md border px-3 py-2 font-sans text-sm leading-5 whitespace-pre-wrap",
+                  surfaceVariant === "nested" && "rounded-none border-x-0",
+                )}
+              >
                 {activePreview.fragments.map((fragment, index) => (
                   <Fragment key={index}>
                     {fragment.type === "text" ? (
