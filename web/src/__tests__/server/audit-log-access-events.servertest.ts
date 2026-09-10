@@ -229,6 +229,72 @@ describe("tRPC access events", () => {
     expect(trace?.id).toBe(traceId);
     expect(mockAdd).toHaveBeenCalledTimes(1);
   });
+
+  describe("signed-in non-member viewing a public trace", () => {
+    let publicTraceId: string;
+    let outsiderSession: Session;
+
+    beforeEach(async () => {
+      publicTraceId = randomUUID();
+      await createTracesCh([
+        createTrace({ id: publicTraceId, project_id: projectId, public: true }),
+      ]);
+      outsiderSession = buildSession({
+        userId,
+        orgId: randomUUID(),
+        projectId: randomUUID(),
+      });
+    });
+
+    it("resolves the organisation from the project and records without roles", async () => {
+      const caller = createCaller(outsiderSession);
+
+      const trace = await caller.traces.byId({
+        traceId: publicTraceId,
+        projectId,
+      });
+      expect(trace?.id).toBe(publicTraceId);
+
+      expect(mockAdd).toHaveBeenCalledTimes(1);
+      expect(enqueuedPayloads()[0]).toMatchObject({
+        org_id: orgId,
+        project_id: projectId,
+        user_id: userId,
+        user_org_role: "",
+        user_project_role: "",
+        resource_id: publicTraceId,
+      });
+    });
+
+    it("fails open when the organisation lookup fails", async () => {
+      const failingPrisma = new Proxy(prisma, {
+        get(target, prop, receiver) {
+          if (prop !== "project") return Reflect.get(target, prop, receiver);
+          return new Proxy(target.project, {
+            get(project, method, projectReceiver) {
+              if (method === "findFirst") {
+                return () => Promise.reject(new Error("postgres down"));
+              }
+              return Reflect.get(project, method, projectReceiver);
+            },
+          });
+        },
+      });
+      const ctx = createInnerTRPCContext({
+        session: outsiderSession,
+        headers: {},
+      });
+      const caller = appRouter.createCaller({ ...ctx, prisma: failingPrisma });
+
+      const trace = await caller.traces.byId({
+        traceId: publicTraceId,
+        projectId,
+      });
+
+      expect(trace?.id).toBe(publicTraceId);
+      expect(mockAdd).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe("serializeAccessEventParams", () => {
