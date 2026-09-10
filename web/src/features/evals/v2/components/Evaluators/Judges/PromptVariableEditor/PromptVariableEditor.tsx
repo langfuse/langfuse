@@ -35,11 +35,11 @@ const promptFontTheme = EditorView.theme({
   ".cm-line": { padding: "0 12px" },
 });
 
-// A saved prompt is a static surface, so use the muted read-only fill. This has
-// to go through CodeMirror's own theming at matching selector specificity:
+// Prompt message bodies use the same muted fill as saved prompt versions. This
+// has to go through CodeMirror's own theming at matching selector specificity:
 // createTheme paints the editor background from an injected stylesheet that a
 // Tailwind class cannot outrank.
-const readOnlySurfaceTheme = EditorView.theme({
+const mutedPromptSurfaceTheme = EditorView.theme({
   "&.cm-editor, &.cm-editor .cm-gutters": {
     backgroundColor: "hsl(var(--muted) / 0.5)",
   },
@@ -230,9 +230,17 @@ export function PromptVariableEditor({
       ),
       variableTheme,
       Prec.highest(promptFontTheme),
-      ...(readOnly ? [Prec.highest(readOnlySurfaceTheme)] : []),
+      ...(readOnly || surfaceVariant !== "standalone"
+        ? [Prec.highest(mutedPromptSurfaceTheme)]
+        : []),
     ];
-  }, [statusKey, mappingsKey, readOnly, validateVariableMappings]);
+  }, [
+    statusKey,
+    mappingsKey,
+    readOnly,
+    surfaceVariant,
+    validateVariableMappings,
+  ]);
 
   const hasToolbar =
     !readOnly &&
@@ -259,7 +267,7 @@ export function PromptVariableEditor({
             collapsed && surfaceVariant === "standalone" && "rounded-b-md",
             !collapsed && "border-b-transparent",
             isNested &&
-              "bg-card text-card-foreground rounded-none border-x-0 border-t-0",
+              "bg-muted/50 text-card-foreground rounded-none border-x-0 border-t-0",
             isLastNested && "border-b-0",
             onToolbarClick && "cursor-pointer",
             toolbarVariant === "group" &&
