@@ -28,7 +28,7 @@ port 8080 by default. Add overrides from the table below to your root `.env`;
 exported shell variables take precedence.
 No gateway-specific credentials are needed for this foundation slice.
 
-To work on only the gateway, use `pnpm dev --filter=@langfuse/ai-gateway`.
+To work on only the gateway, use `pnpm dev --filter=ai-gateway`.
 Both commands watch Rust source changes; do not run both on the same port.
 
 To start once without watching, run `pnpm dev` from `ai-gateway/`. Cargo also
@@ -112,11 +112,11 @@ probes, missing inference routes and a clean SIGTERM exit, then removes it.
 From the repository root:
 
 ```sh
-pnpm --filter @langfuse/ai-gateway build
-pnpm --filter @langfuse/ai-gateway typecheck
-pnpm --filter @langfuse/ai-gateway lint
-pnpm --filter @langfuse/ai-gateway test
-pnpm --filter @langfuse/ai-gateway format
+pnpm --filter ai-gateway build
+pnpm --filter ai-gateway typecheck
+pnpm --filter ai-gateway lint
+pnpm --filter ai-gateway test
+pnpm --filter ai-gateway format
 ```
 
 These scripts delegate to Cargo. Root `pnpm build`, `pnpm typecheck`, `pnpm lint`
