@@ -257,8 +257,10 @@ export function SpanContent({
         </button>
       </HoverCardTrigger>
       <HoverCardContent
-        side="right"
+        side="bottom"
         align="start"
+        sideOffset={2}
+        alignOffset={24}
         className={NODE_HOVER_CARD_SURFACE_CLASS}
       >
         <NodeHoverCardContent node={node} />
