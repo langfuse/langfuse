@@ -3329,6 +3329,42 @@ describe("Clickhouse Events Repository Test", () => {
   });
 
   maybe("getObservationsForTraceFromEventsTable", () => {
+    it("applies inclusive start-time bounds and preserves unbounded reads when the maximum is omitted", async () => {
+      const traceId = randomUUID();
+      const uniqueProjectId = randomUUID();
+      const lower = Date.parse("2026-09-10T10:00:00.000Z");
+      const upper = lower + 5 * 60_000;
+      const events = [lower - 1, lower, upper, upper + 1].map((start) => {
+        const id = randomUUID();
+        return createEvent({
+          id,
+          span_id: id,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          start_time: start * 1000,
+        });
+      });
+      await createEventsCh(events);
+      const params = {
+        projectId: uniqueProjectId,
+        traceId,
+        timestamp: new Date(lower + 60 * 60_000),
+      };
+
+      const bounded = await getObservationsForTraceFromEventsTable({
+        ...params,
+        maxStartTime: new Date(upper),
+      });
+      expect(bounded.observations.map((observation) => observation.id)).toEqual(
+        [events[1].span_id, events[2].span_id],
+      );
+      const unbounded = await getObservationsForTraceFromEventsTable(params);
+      expect(
+        unbounded.observations.map((observation) => observation.id),
+      ).toEqual([events[1].span_id, events[2].span_id, events[3].span_id]);
+    });
+
     it("should return usage pricing tier fields even when tool payloads are omitted", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();

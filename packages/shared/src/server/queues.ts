@@ -27,7 +27,7 @@ export type { MonitorQueueEvent, MonitorQueueEventInput };
 export const DelayedTraceExecutionEventSchema = z.object({
   projectId: z.string(),
   traceId: z.string(),
-  lastSeenAt: z.number(),
+  lastSeenStartTime: z.number(),
 });
 
 export const IngestionEvent = z.object({

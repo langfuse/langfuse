@@ -429,6 +429,7 @@ export const getObservationsForTraceFromEventsTable = async (params: {
   projectId: string;
   traceId: string;
   timestamp?: Date;
+  maxStartTime?: Date;
   selectIOAndMetadata?: boolean;
   selectToolData?: boolean;
 }): Promise<{ observations: FullEventsObservations; totalCount: number }> => {
@@ -436,6 +437,7 @@ export const getObservationsForTraceFromEventsTable = async (params: {
     projectId,
     traceId,
     timestamp,
+    maxStartTime,
     selectIOAndMetadata = false,
     selectToolData = false,
   } = params;
@@ -456,6 +458,15 @@ export const getObservationsForTraceFromEventsTable = async (params: {
       // Equivalent to TRACE_TO_OBSERVATIONS_INTERVAL (INTERVAL 1 HOUR)
       value: new Date(timestamp.getTime() - 60 * 60 * 1000),
       type: "datetime" as const,
+    });
+  }
+
+  if (maxStartTime) {
+    filter.push({
+      column: "startTime",
+      operator: "<=",
+      value: maxStartTime,
+      type: "datetime",
     });
   }
 

@@ -16,9 +16,8 @@ import { env } from "../env";
 export const delayedTraceExecutionProcessor: Processor<
   TQueueJobTypes[QueueName.DelayedTraceExecution]
 > = async (job) => {
-  const { projectId, traceId } = DelayedTraceExecutionEventSchema.parse(
-    job.data.payload,
-  );
+  const { projectId, traceId, lastSeenStartTime } =
+    DelayedTraceExecutionEventSchema.parse(job.data.payload);
   const id = delayedTraceExecutionId(projectId, traceId);
   if (!isDelayedTraceExecutionEnabled(id)) return;
   const queue = DelayedTraceExecutionQueue.getInstance();
@@ -26,11 +25,12 @@ export const delayedTraceExecutionProcessor: Processor<
   const client = await queue.client;
   const minimum = await client.get(queue.toKey(`minimum:${id}`));
   // This is the retained activity window, not a durable trace start. If the
-  // cache expired, omit the time bound rather than substitute arrival time.
+  // cache expired, omit the lower bound rather than substitute arrival time.
   const result = await getObservationsForTraceFromEventsTable({
     projectId,
     traceId,
     timestamp: minimum === null ? undefined : new Date(Number(minimum)),
+    maxStartTime: new Date(lastSeenStartTime),
     selectIOAndMetadata: true,
     selectToolData: true,
   });

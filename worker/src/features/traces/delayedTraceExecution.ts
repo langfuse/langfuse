@@ -6,6 +6,8 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 
+const TRACE_EXECUTION_DELAY_MS = 600_000;
+
 // Each chunk's keys share the BullMQ queue's Redis Cluster hash slot.
 const updateMinimums = `
 for i, key in ipairs(KEYS) do
@@ -50,24 +52,30 @@ export async function scheduleDelayedTraceExecution(
         100,
       );
     });
-    const minimums = new Map<string, number>();
+    const startTimes = new Map<string, { first: number; last: number }>();
     for (const event of events) {
       if (performance.now() >= deadline)
         throw new Error("Trace read sampling exceeded 100ms");
       const start = Date.parse(event.startTimeISO);
       if (!Number.isFinite(start)) continue;
-      minimums.set(
-        event.traceId,
-        Math.min(minimums.get(event.traceId) ?? start, start),
-      );
+      const previous = startTimes.get(event.traceId);
+      startTimes.set(event.traceId, {
+        first: Math.min(previous?.first ?? start, start),
+        last: Math.max(previous?.last ?? start, start),
+      });
     }
     const queue = DelayedTraceExecutionQueue.getInstance();
     if (!queue) return;
     const client = await Promise.race([queue.client, budget]);
-    const entries = minimums.entries();
+    const entries = startTimes.entries();
     let done = false;
     while (!done) {
-      const selected: { traceId: string; id: string; start: number }[] = [];
+      const selected: {
+        traceId: string;
+        id: string;
+        first: number;
+        last: number;
+      }[] = [];
       while (selected.length < 100) {
         if (performance.now() >= deadline)
           throw new Error("Trace read scheduling exceeded 100ms");
@@ -76,10 +84,10 @@ export async function scheduleDelayedTraceExecution(
           done = true;
           break;
         }
-        const [traceId, start] = entry.value;
+        const [traceId, times] = entry.value;
         const id = delayedTraceExecutionId(projectId, traceId);
         if (isDelayedTraceExecutionEnabled(id))
-          selected.push({ traceId, id, start });
+          selected.push({ traceId, id, ...times });
       }
       if (!selected.length) continue;
       await Promise.race([
@@ -87,7 +95,7 @@ export async function scheduleDelayedTraceExecution(
           updateMinimums,
           selected.length,
           ...selected.map(({ id }) => queue.toKey(`minimum:${id}`)),
-          ...selected.map(({ start }) => start),
+          ...selected.map(({ first }) => first),
         ),
         budget,
       ]);
@@ -96,17 +104,22 @@ export async function scheduleDelayedTraceExecution(
       const now = Date.now();
       await Promise.race([
         queue.addBulk(
-          selected.map(({ traceId, id }) => ({
+          selected.map(({ traceId, id, last }) => ({
             name: QueueJobs.DelayedTraceExecution,
             data: {
               name: QueueJobs.DelayedTraceExecution,
               id: randomUUID(),
               timestamp: new Date(now),
-              payload: { projectId, traceId, lastSeenAt: now },
+              payload: { projectId, traceId, lastSeenStartTime: last },
             },
             opts: {
-              delay: 600_000,
-              deduplication: { id, ttl: 600_000, extend: true, replace: true },
+              delay: TRACE_EXECUTION_DELAY_MS,
+              deduplication: {
+                id,
+                ttl: TRACE_EXECUTION_DELAY_MS,
+                extend: true,
+                replace: true,
+              },
             },
           })),
         ),

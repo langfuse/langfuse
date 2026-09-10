@@ -94,6 +94,9 @@ describe("sampled trace observation reads", () => {
     expect(await connection.get(key)).toBe(String(earliest));
     const [initialJob] = await queue.getDelayed();
     expect(initialJob).toBeDefined();
+    expect(initialJob.data.payload.lastSeenStartTime).toBe(
+      earliest + 60 * 60_000,
+    );
     await connection.expire(key, 1);
     await scheduleDelayedTraceExecution(projectId, [
       { traceId, startTimeISO: new Date(earliest + 60_000).toISOString() },
@@ -110,6 +113,11 @@ describe("sampled trace observation reads", () => {
       (job) => job.data.payload.projectId === projectId,
     )!;
     expect(replacement.id).not.toBe(initialJob.id);
+    // Replacement carries this batch's maximum, even for out-of-order batches.
+    expect(replacement.data.payload.lastSeenStartTime).toBe(earliest + 60_000);
+    expect(replacement.opts.deduplication?.id).toBe(
+      initialJob.opts.deduplication?.id,
+    );
     expect(replacement.timestamp + replacement.delay).toBeGreaterThanOrEqual(
       initialJob.timestamp + initialJob.delay,
     );
@@ -164,12 +172,16 @@ describe("sampled trace observation reads", () => {
     }
   });
 
-  it("queries full fields with the cached bound, omits an expired bound, honors gating, and propagates query failures", async () => {
+  it("queries full fields with start-time bounds, omits an expired lower bound, honors gating, and propagates query failures", async () => {
     const projectId = randomUUID();
     const traceId = randomUUID();
     const key = minimumKey(projectId, traceId);
     const startTimeISO = "2026-09-10T10:00:00.000Z";
-    await scheduleDelayedTraceExecution(projectId, [{ traceId, startTimeISO }]);
+    const lastStartTimeISO = "2026-09-10T10:05:00.000Z";
+    await scheduleDelayedTraceExecution(projectId, [
+      { traceId, startTimeISO },
+      { traceId, startTimeISO: lastStartTimeISO },
+    ]);
     const [job] = await queue.getDelayed();
     vi.mocked(getObservationsForTraceFromEventsTable).mockResolvedValue({
       observations: [],
@@ -183,13 +195,17 @@ describe("sampled trace observation reads", () => {
       projectId,
       traceId,
       timestamp: new Date(startTimeISO),
+      maxStartTime: new Date(lastStartTimeISO),
       selectIOAndMetadata: true,
       selectToolData: true,
     });
     await connection.del(key);
     await delayedTraceExecutionProcessor(job);
     expect(getObservationsForTraceFromEventsTable).toHaveBeenLastCalledWith(
-      expect.objectContaining({ timestamp: undefined }),
+      expect.objectContaining({
+        timestamp: undefined,
+        maxStartTime: new Date(lastStartTimeISO),
+      }),
     );
     env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_ENABLED = "false";
     await delayedTraceExecutionProcessor(job);
