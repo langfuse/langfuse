@@ -160,6 +160,10 @@ the same PR.
 
 ### Queue payload contract change
 
+The `TraceObservationRead` queue is a sampled, read-only OTel experiment. Its
+payload carries project/trace identity and worker-arrival time; its Redis
+minimum-start cache is expiring, not a durable trace-history index.
+
 1. Update zod schemas/types in `src/server/queues.ts`.
 2. Update queue helpers in `src/server/redis/*` if queue names/payload
    handling changed.
