@@ -721,8 +721,8 @@ importers:
         specifier: ^2.8.6
         version: 2.8.6
       csv-parse:
-        specifier: ^5.6.0
-        version: 5.6.0
+        specifier: ^7.0.2
+        version: 7.0.2
       d3-selection:
         specifier: ^3.0.0
         version: 3.0.0
@@ -1124,8 +1124,8 @@ importers:
         specifier: ^2.8.5
         version: 2.8.6
       csv-parse:
-        specifier: ^5.6.0
-        version: 5.6.0
+        specifier: ^7.0.2
+        version: 7.0.2
       dd-trace:
         specifier: 5.109.0
         version: 5.109.0(@openfeature/server-sdk@1.22.0(@openfeature/core@1.11.0))
@@ -7188,8 +7188,8 @@ packages:
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
 
-  csv-parse@5.6.0:
-    resolution: {integrity: sha512-l3nz3euub2QMg5ouu5U09Ew9Wf6/wQ8I++ch1loQ0ljmzhmfZYrH9fflS22i/PQEvsPvxCwxgz5q7UB8K1JO4Q==}
+  csv-parse@7.0.2:
+    resolution: {integrity: sha512-uKZghv9UmPkMVLYy//KZ9HFAIJsl7wkhoEdIL0+rhuSY9pZQlhaeGEDPIe+/w7eh81MOql8Q/9+inAGWG6ZHYA==}
 
   cva@1.0.0-beta.4:
     resolution: {integrity: sha512-F/JS9hScapq4DBVQXcK85l9U91M6ePeXoBMSp7vypzShoefUBxjQTo3g3935PUHgQd+IW77DjbPRIxugy4/GCQ==}
@@ -18573,7 +18573,7 @@ snapshots:
 
   csstype@3.2.3: {}
 
-  csv-parse@5.6.0: {}
+  csv-parse@7.0.2: {}
 
   cva@1.0.0-beta.4(typescript@7.0.2):
     dependencies:
