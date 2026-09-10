@@ -10,9 +10,13 @@ export const heatMapTextColor = (p: {
   const maxDecimal = new Decimal(max);
   const valueDecimal = new Decimal(value);
 
+  // A soft tint behind the number rather than coloured text: the metric stays
+  // legible in the row's own grey and does not collide with the error red used
+  // for observation levels.
+  // One tint only: the point is "this is where the parent's time or cost
+  // went", not a severity scale.
   const cutOffs: [number, string][] = [
-    [0.75, "text-dark-red"], // 75%
-    [0.5, "text-dark-yellow"], // 50%
+    [0.5, "bg-light-yellow rounded-sm px-1 -mx-1"], // 50%+
   ];
   const standardizedValueOnStartEndScale = valueDecimal
     .sub(minDecimal)
