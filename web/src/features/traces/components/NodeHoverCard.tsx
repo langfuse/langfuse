@@ -141,6 +141,9 @@ export function NodeHoverCardContent({ node }: { node: TreeNode }) {
 
       {scores.length > 0 ? (
         <dl className="border-border/60 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 border-t pt-2">
+          {/* Metrics above need no label; score names are arbitrary strings,
+              so the section has to say what they are. */}
+          <div className="text-muted-foreground col-span-full">Scores</div>
           {visibleScoreNames.map((name) => {
             const score = firstScoreByName.get(name);
             const value = score ? formatScoreValue(score) : "";
