@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
-  advanceSessionsValidAfterForUser,
+  advanceSessionsExpireBeforeForUser,
   getSessionLoginAt,
 } from "@/src/features/auth/lib/databaseClock";
 import { prisma } from "@langfuse/shared/src/db";
@@ -21,12 +21,12 @@ describe("database session clock", () => {
     userIds.push(id);
     await prisma.user.create({ data: { id, email } });
 
-    const sessionsValidAfter = await advanceSessionsValidAfterForUser(
+    const sessionsExpireBefore = await advanceSessionsExpireBeforeForUser(
       id,
       prisma,
     );
     const loginAt = await getSessionLoginAt(email, prisma);
 
-    expect(loginAt.getTime()).toBeGreaterThan(sessionsValidAfter.getTime());
+    expect(loginAt.getTime()).toBeGreaterThan(sessionsExpireBefore.getTime());
   });
 });

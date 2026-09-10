@@ -128,47 +128,48 @@ describe("NextAuth JWT session revocation", () => {
     {
       name: "denies a token issued before the revocation timestamp",
       token: { email: "USER@example.com", loginAt },
-      sessionsValidAfter: new Date(loginAt + 1),
+      sessionsExpireBefore: new Date(loginAt + 1),
       isAllowed: false,
     },
     {
       name: "allows a user who has never revoked sessions",
       token: { email: "USER@example.com", loginAt },
-      sessionsValidAfter: null,
+      sessionsExpireBefore: null,
       isAllowed: true,
     },
     {
       name: "denies a token issued at the revocation timestamp",
       token: { email: "USER@example.com", loginAt },
-      sessionsValidAfter: new Date(loginAt),
+      sessionsExpireBefore: new Date(loginAt),
       isAllowed: false,
     },
     {
       name: "allows a token issued strictly after the revocation timestamp",
       token: { email: "USER@example.com", loginAt: loginAt + 1 },
-      sessionsValidAfter: new Date(loginAt),
+      sessionsExpireBefore: new Date(loginAt),
       isAllowed: true,
     },
     {
       name: "denies a legacy token after sessions have been revoked",
       token: { email: "USER@example.com" },
-      sessionsValidAfter: new Date(loginAt),
+      sessionsExpireBefore: new Date(loginAt),
       isAllowed: false,
     },
-  ])("$name", async ({ token, sessionsValidAfter, isAllowed }) => {
+  ])("$name", async ({ token, sessionsExpireBefore, isAllowed }) => {
     mockFindFirst.mockImplementation(
       ({
         where,
       }: {
         where: {
           OR: [
-            { sessionsValidAfter: null },
-            { sessionsValidAfter: { lt: Date } },
+            { sessionsExpireBefore: null },
+            { sessionsExpireBefore: { lt: Date } },
           ];
         };
       }) => {
-        const tokenLoginAt = where.OR[1].sessionsValidAfter.lt;
-        return sessionsValidAfter === null || sessionsValidAfter < tokenLoginAt
+        const tokenLoginAt = where.OR[1].sessionsExpireBefore.lt;
+        return sessionsExpireBefore === null ||
+          sessionsExpireBefore < tokenLoginAt
           ? dbUser
           : null;
       },
@@ -186,9 +187,9 @@ describe("NextAuth JWT session revocation", () => {
         where: {
           email: "user@example.com",
           OR: [
-            { sessionsValidAfter: null },
+            { sessionsExpireBefore: null },
             {
-              sessionsValidAfter: {
+              sessionsExpireBefore: {
                 lt: new Date(token.loginAt ?? 0),
               },
             },

@@ -45,9 +45,9 @@ describe("credentials.resetPassword", () => {
     await expectPassword(userId, NEW_PASSWORD);
     const user = await prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { sessionsValidAfter: true },
+      select: { sessionsExpireBefore: true },
     });
-    expect(user.sessionsValidAfter?.getTime()).toBeGreaterThanOrEqual(
+    expect(user.sessionsExpireBefore?.getTime()).toBeGreaterThanOrEqual(
       beforeReset.getTime(),
     );
     await expect(

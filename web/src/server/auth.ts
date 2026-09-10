@@ -764,11 +764,11 @@ export async function getAuthOptions(signupAttribution?: {
             where: {
               email: token.email!.toLowerCase(),
               OR: [
-                { sessionsValidAfter: null },
+                { sessionsExpireBefore: null },
                 {
                   // Strict: a token issued in the same millisecond as revocation
                   // is treated as revoked.
-                  sessionsValidAfter: {
+                  sessionsExpireBefore: {
                     lt: new Date(token.loginAt ?? 0),
                   },
                 },

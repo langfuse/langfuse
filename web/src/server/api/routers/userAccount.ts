@@ -12,7 +12,7 @@ import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
 import { setUserFeaturePreview } from "@/src/features/feature-flags/server/organizationFeatureFlags";
-import { advanceSessionsValidAfterForUser } from "@/src/features/auth/lib/databaseClock";
+import { advanceSessionsExpireBeforeForUser } from "@/src/features/auth/lib/databaseClock";
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -100,7 +100,7 @@ export const userAccountRouter = createTRPCRouter({
     }),
 
   signOutAllSessions: authenticatedProcedure.mutation(async ({ ctx }) => {
-    await advanceSessionsValidAfterForUser(ctx.session.user.id, ctx.prisma);
+    await advanceSessionsExpireBeforeForUser(ctx.session.user.id, ctx.prisma);
 
     return { success: true };
   }),
