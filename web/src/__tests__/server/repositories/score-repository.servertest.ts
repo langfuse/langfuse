@@ -33,7 +33,7 @@ import {
   FILTER_OPTION_SCORE_NAME_LIMIT,
   FILTER_OPTION_CATEGORICAL_VALUE_LIMIT,
 } from "@langfuse/shared/src/server";
-import type { FilterState } from "@langfuse/shared";
+import { type FilterState, ScoreSourceArray } from "@langfuse/shared";
 import { v4 } from "uuid";
 
 describe("Clickhouse Scores Repository Test", () => {
@@ -1686,8 +1686,8 @@ describe("Clickhouse Scores Repository Test", () => {
 
       // Cross the per-type cap: LIMIT_TOP names each seen twice (count 2) plus a
       // dozen extras seen once (count 1). count 2 > count 1 makes the top set
-      // unambiguous, so the SQL `LIMIT BY data_type` + JS name cap must land on
-      // exactly the frequent names, same as the old `LIMIT` per query.
+      // unambiguous, so the SQL name-rank cap plus JS name cap must land on
+      // exactly the frequent names — the per-column helper is the oracle below.
       const topNames = Array.from(
         { length: FILTER_OPTION_SCORE_NAME_LIMIT },
         (_, i) => `cap-top-${String(i).padStart(4, "0")}`,
@@ -1732,6 +1732,77 @@ describe("Clickhouse Scores Repository Test", () => {
       for (const overflow of overflowNames) {
         expect(combinedSet).not.toContain(overflow);
       }
+    });
+
+    it("keeps a name split across sources whose summed count is the project's highest", async () => {
+      const isolatedProjectId = v4();
+      const timestampFilter: FilterState = [
+        {
+          column: "Timestamp",
+          type: "datetime",
+          operator: ">=",
+          value: new Date(Date.now() - 60 * 60 * 1000),
+        },
+      ];
+      const traceScopedFilter: FilterState = [
+        {
+          type: "null",
+          column: "traceId",
+          operator: "is not null",
+          value: "",
+        },
+        ...timestampFilter,
+      ];
+
+      // The repository sums each name's count across sources before ranking, so
+      // the SQL must bound by summed count per name — not by raw per-source rows.
+      // Seed the adversarial shape: one NUMERIC name spread over all three
+      // sources (one row each, summed count 3), plus more single-source names
+      // (count 2 each) than the name cap. Every split row has a lower per-source
+      // count than every filler, so a per-source row cap drops the split name
+      // even though its summed count is the project's highest.
+      const singleSourceNames = Array.from(
+        { length: FILTER_OPTION_SCORE_NAME_LIMIT * ScoreSourceArray.length },
+        (_, i) => `split-filler-${String(i).padStart(4, "0")}`,
+      );
+      const numericScore = (
+        name: string,
+        source: "API" | "EVAL" | "ANNOTATION",
+      ) =>
+        createTraceScore({
+          project_id: isolatedProjectId,
+          name,
+          data_type: "NUMERIC",
+          value: 1,
+          source,
+        });
+
+      await createScoresCh([
+        numericScore("split-hot", "API"),
+        numericScore("split-hot", "EVAL"),
+        numericScore("split-hot", "ANNOTATION"),
+        ...singleSourceNames.flatMap((name) => [
+          numericScore(name, "API"),
+          numericScore(name, "API"),
+        ]),
+      ]);
+
+      const [combined, oldNumeric] = await Promise.all([
+        getScoresFilterOptionsForEventFacets({
+          projectId: isolatedProjectId,
+          timestampFilter,
+        }),
+        getNumericScoresGroupedByName(isolatedProjectId, traceScopedFilter),
+      ]);
+
+      // The old per-column helper groups by name before its own limit, so the
+      // split name is the unambiguous #1 by summed count. The combined scan
+      // must agree — losing it means per-source truncation dropped it.
+      expect(oldNumeric[0]?.name).toBe("split-hot");
+      expect(combined.numericNames.map((row) => row.name)).toContain(
+        "split-hot",
+      );
+      expect(combined.numericNames[0]?.name).toBe("split-hot");
     });
 
     it("truncates categorical values at the value limit like the per-column helper", async () => {

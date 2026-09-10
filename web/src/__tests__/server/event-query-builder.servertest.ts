@@ -4,7 +4,7 @@ import {
   buildEventsExactFilterOptionsForColumnsQuery,
   buildEventsMetadataValuesQuery,
   buildScoresFilterOptionsForEventFacetsQuery,
-  FILTER_OPTION_SCORE_GROUPS_PER_TYPE_LIMIT,
+  FILTER_OPTION_SCORE_NAME_LIMIT,
   CTEQueryBuilder,
   createFilterFromFilterState,
   EventsAggregationQueryBuilder,
@@ -1066,14 +1066,20 @@ describe("buildScoresFilterOptionsForEventFacetsQuery", () => {
     expect(built.query).toContain("countIf(isNull(s.observation_id))");
     expect(built.query).toContain("countIf(isNotNull(s.observation_id))");
     expect(built.query).toContain("GROUP BY name, source, data_type");
+    // Names are ranked by summed count across sources, then capped — bounding by
+    // raw per-source rows would drop a split name whose total is the highest.
     expect(built.query).toContain(
-      "LIMIT {maxGroupsPerType: UInt32} BY data_type",
+      "sum(count) OVER (PARTITION BY data_type, name)",
+    );
+    expect(built.query).toContain("dense_rank() OVER (");
+    expect(built.query).toContain(
+      "WHERE name_rank <= {maxNamesPerType: UInt32}",
     );
     expect(built.query).not.toContain("FINAL");
     expect(built.query).not.toMatch(/\bJOIN\b/i);
     expect(built.params).toMatchObject({
       projectId: "test-project",
-      maxGroupsPerType: FILTER_OPTION_SCORE_GROUPS_PER_TYPE_LIMIT,
+      maxNamesPerType: FILTER_OPTION_SCORE_NAME_LIMIT,
     });
     expect(built.params.dataTypes).toEqual([
       "NUMERIC",

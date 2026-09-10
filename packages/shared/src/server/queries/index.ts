@@ -86,7 +86,6 @@ export {
 } from "./clickhouse-sql/event-filter-options";
 export {
   buildScoresFilterOptionsForEventFacetsQuery,
-  FILTER_OPTION_SCORE_GROUPS_PER_TYPE_LIMIT,
   FILTER_OPTION_SCORE_NAME_LIMIT,
   FILTER_OPTION_CATEGORICAL_VALUE_LIMIT,
 } from "./clickhouse-sql/score-filter-options";
