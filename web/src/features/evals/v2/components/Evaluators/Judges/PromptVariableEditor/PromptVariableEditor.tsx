@@ -245,11 +245,13 @@ export function PromptVariableEditor({
       {hasToolbar ? (
         <div
           className={cn(
-            "bg-secondary text-secondary-foreground flex h-9 items-center justify-between gap-1 border px-1.5",
-            surfaceVariant === "standalone" && "rounded-t-md",
+            "flex h-9 items-center justify-between gap-1 border px-1.5",
+            surfaceVariant === "standalone" &&
+              "bg-secondary text-secondary-foreground rounded-t-md",
             collapsed && surfaceVariant === "standalone" && "rounded-b-md",
             !collapsed && "border-b-transparent",
-            surfaceVariant === "nested" && "rounded-none border-x-0 border-t-0",
+            surfaceVariant === "nested" &&
+              "bg-tertiary text-tertiary-foreground rounded-none border-x-0 border-t-0",
             onToolbarClick && "cursor-pointer",
           )}
           onClick={(event) => {
