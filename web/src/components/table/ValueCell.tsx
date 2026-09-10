@@ -1,7 +1,7 @@
 import { memo, type JSX, useState } from "react";
 import { useRouter } from "next/router";
 import { type Row } from "@tanstack/react-table";
-import { urlRegex } from "@langfuse/shared";
+import { type FilterState, urlRegex } from "@langfuse/shared";
 import {
   SMALL_ARRAY_THRESHOLD,
   SMALL_OBJECT_THRESHOLD,
@@ -19,9 +19,14 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { cn } from "@/src/utils/tailwind";
 import {
+  buildEventsTablePathForColumnFilter,
   buildEventsTablePathForMetadataFilter,
   type MetadataFilterOperator,
 } from "@/src/features/events/lib/eventsTablePaths";
+import {
+  attributeColumnFilter,
+  attributeGrammar,
+} from "@/src/features/traces/components/ObservationAttributesList";
 import { Copy, Check, EllipsisVertical, Filter, FilterX } from "lucide-react";
 
 /**
@@ -33,6 +38,13 @@ import { Copy, Check, EllipsisVertical, Filter, FilterX } from "lucide-react";
 export type MetadataFilterActions = {
   projectId: string;
   filterTarget: "observations" | "traces";
+  /**
+   * Attribute mode: rows are fixed-key attributes (model, environment, ...)
+   * rather than metadata, so the filter shortcuts target their table columns
+   * and read in search-bar grammar. `anchorTime` keeps the target table's
+   * window covering the source row.
+   */
+  attributes?: { anchorTime?: Date | null };
 };
 
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
@@ -223,6 +235,84 @@ function resolveKeyPath(row: Row<JsonTableRow>): string {
   return keys.join(".");
 }
 
+/** Attribute rows: copy, then include / exclude via the attribute's own column. */
+function AttributeActionsMenuContent({
+  row,
+  metadataActions,
+}: {
+  row: Row<JsonTableRow>;
+  metadataActions: MetadataFilterActions;
+}) {
+  const router = useRouter();
+  const { key, value, hasChildren } = row.original;
+  const valueText = String(value);
+  const filter =
+    hasChildren || key == null
+      ? null
+      : attributeColumnFilter(key, valueText, metadataActions.filterTarget);
+  const includeText = filter ? attributeGrammar(key ?? "", valueText) : null;
+  const navigate = (
+    clause: FilterState[number],
+    target: "observations" | "traces",
+  ) =>
+    router.push(
+      buildEventsTablePathForColumnFilter({
+        currentPath: router.asPath,
+        projectId: metadataActions.projectId,
+        target,
+        filter: clause,
+        coverTime: metadataActions.attributes?.anchorTime ?? undefined,
+      }),
+    );
+
+  return (
+    <>
+      <DropdownMenuItem
+        className="text-xs"
+        onSelect={() => copyTextToClipboard(getCopyValue(value))}
+      >
+        <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
+        {hasChildren ? "Copy structure" : "Copy value"}
+      </DropdownMenuItem>
+      {filter && includeText ? (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="text-xs"
+            onSelect={() => navigate(filter.include, filter.target)}
+          >
+            <Filter className="mr-2 h-3.5 w-3.5 shrink-0" />
+            <span className="flex min-w-0 flex-col">
+              <span>Include in filter</span>
+              <span
+                className="text-muted-foreground truncate font-mono"
+                title={includeText}
+              >
+                {includeText}
+              </span>
+            </span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="text-xs"
+            onSelect={() => navigate(filter.exclude, filter.target)}
+          >
+            <FilterX className="mr-2 h-3.5 w-3.5 shrink-0" />
+            <span className="flex min-w-0 flex-col">
+              <span>Exclude from filter</span>
+              <span
+                className="text-muted-foreground truncate font-mono"
+                title={`-${includeText}`}
+              >
+                -{includeText}
+              </span>
+            </span>
+          </DropdownMenuItem>
+        </>
+      ) : null}
+    </>
+  );
+}
+
 /**
  * The per-row overflow menu shown in metadata views. Containers offer "Copy
  * structure"; scalar leaves offer "Copy value" plus filter shortcuts. Rendered
@@ -238,6 +328,15 @@ function ValueCellActionsMenuContent({
 }) {
   const router = useRouter();
   const { value, type, hasChildren, level } = row.original;
+
+  if (metadataActions.attributes) {
+    return (
+      <AttributeActionsMenuContent
+        row={row}
+        metadataActions={metadataActions}
+      />
+    );
+  }
 
   const filterValue = String(value);
   // A nested value is matched as a substring of its JSON-ENCODED top-level

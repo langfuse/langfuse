@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { type AttributeRow } from "@/src/features/traces/components/ObservationAttributesList";
 import { type ScoreDomain, type Prisma } from "@langfuse/shared";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -64,7 +63,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
   parsedOutput?: unknown;
   parsedMetadata?: unknown;
   // Fixed-key attributes shown between output and metadata
-  attributes?: AttributeRow[];
+  attributes?: Record<string, unknown>;
   attributesAnchorTime?: Date | null;
   chatMLParserResult?: ChatMLParserResult;
   observationName?: string;

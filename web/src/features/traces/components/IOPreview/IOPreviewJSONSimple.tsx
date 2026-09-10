@@ -1,10 +1,6 @@
 import { useMemo } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import {
-  type AttributeRow,
-  ObservationAttributesList,
-} from "@/src/features/traces/components/ObservationAttributesList";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
@@ -29,7 +25,7 @@ export interface IOPreviewJSONSimpleProps {
   isParsing?: boolean;
   hideIfNull?: boolean;
   // Fixed-key attributes, rendered between Output and Metadata
-  attributes?: AttributeRow[];
+  attributes?: Record<string, unknown>;
   attributesAnchorTime?: Date | null;
   media?: MediaReturnType[];
   hideOutput?: boolean;
@@ -218,15 +214,19 @@ export function IOPreviewJSONSimple({
           environment={environment}
         />
       )}
-      {attributes && attributes.length > 0 ? (
-        <div className="px-3 pt-3 pb-1">
-          <ObservationAttributesList
-            rows={attributes}
-            actions={{
+      {attributes && Object.keys(attributes).length > 0 ? (
+        <div className="[&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
+          <PrettyJsonView
+            hideHeader
+            title="Attributes"
+            json={attributes}
+            currentView="json"
+            metadataActions={{
               projectId,
               filterTarget: observationId ? "observations" : "traces",
-              anchorTime: attributesAnchorTime,
+              attributes: { anchorTime: attributesAnchorTime },
             }}
+            hoverControls
           />
         </div>
       ) : null}

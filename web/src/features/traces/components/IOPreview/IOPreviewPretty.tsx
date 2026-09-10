@@ -1,10 +1,6 @@
 import { useMemo } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import {
-  type AttributeRow,
-  ObservationAttributesList,
-} from "@/src/features/traces/components/ObservationAttributesList";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { type MediaReturnType } from "@/src/features/media/validation";
@@ -115,7 +111,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   // Whether to show metadata section (default: false)
   showMetadata?: boolean;
   // Fixed-key attributes, rendered between Output and Metadata
-  attributes?: AttributeRow[];
+  attributes?: Record<string, unknown>;
   attributesAnchorTime?: Date | null;
   observationId?: string;
   projectId: string;
@@ -352,11 +348,18 @@ export function IOPreviewPretty({
       ) : null}
 
       {/* Metadata Section */}
-      {showData && attributes && attributes.length > 0 ? (
-        <div className="px-3 pt-3 pb-1">
-          <ObservationAttributesList
-            rows={attributes}
-            actions={{ ...metadataActions, anchorTime: attributesAnchorTime }}
+      {showData && attributes && Object.keys(attributes).length > 0 ? (
+        <div className="[&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
+          <PrettyJsonView
+            hideHeader
+            title="Attributes"
+            json={attributes}
+            currentView="pretty"
+            metadataActions={{
+              ...metadataActions,
+              attributes: { anchorTime: attributesAnchorTime },
+            }}
+            hoverControls
           />
         </div>
       ) : null}

@@ -69,7 +69,7 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { ObservationPreview } from "./ObservationPreview";
-import { buildObservationAttributeRows } from "@/src/features/traces/components/ObservationAttributesList";
+import { buildObservationAttributes } from "@/src/features/traces/components/ObservationAttributesList";
 
 export interface ConnectedObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -117,7 +117,7 @@ export function ConnectedObservationDetailView({
   const showLogViewTab =
     isV4Enabled && observations.length > 0 && !isAnnotationMode;
   const showScoresTab = !isAnnotationMode;
-  const attributeRows = buildObservationAttributeRows({
+  const attributes = buildObservationAttributes({
     model: observation.model,
     environment: observation.environment,
     release: observation.release,
@@ -555,7 +555,7 @@ export function ConnectedObservationDetailView({
               onAddInlineComment: handleAddInlineComment,
               commentedPathsByField,
               showMetadata: true,
-              attributes: attributeRows,
+              attributes,
               attributesAnchorTime: observation.startTime,
               observationId: observation.id,
               projectId,

@@ -7,12 +7,30 @@
  */
 
 import { Clock } from "lucide-react";
-import { formatIntervalSeconds } from "@/src/utils/dates";
+import {
+  buildLocalIsoDatePresentation,
+  formatIntervalSeconds,
+} from "@/src/utils/dates";
 
 // Metrics tier (latency, time-to-first-token): uniform muted mono text,
 // matching the numeric feel of the session header without its pill box.
 const METRIC_TEXT_CLASS =
   "text-muted-foreground inline-flex shrink-0 items-center gap-1 font-mono text-[11px] whitespace-nowrap";
+
+/** Absolute start time, quiet text like the other metrics; full ISO on hover. */
+export function StartTimeBadge({ startTime }: { startTime: Date | null }) {
+  if (!startTime) return null;
+  const prepared = buildLocalIsoDatePresentation({
+    date: startTime,
+    accuracy: "millisecond",
+  });
+  if (!prepared) return null;
+  return (
+    <span title={prepared.title} className={METRIC_TEXT_CLASS}>
+      {prepared.display}
+    </span>
+  );
+}
 
 export function LatencyBadge({
   latencySeconds,

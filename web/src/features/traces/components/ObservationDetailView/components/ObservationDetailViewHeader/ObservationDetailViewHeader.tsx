@@ -44,6 +44,7 @@ import {
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,
+  StartTimeBadge,
   TimeToFirstTokenBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
@@ -91,7 +92,6 @@ import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
 import { resolveEvaluatorIdMetadata } from "@/src/features/traces/fns/resolveEvaluatorIdMetadata";
 import { api } from "@/src/utils/api";
-import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -208,10 +208,6 @@ export const ObservationDetailViewHeader = memo(
       },
     );
 
-    const preparedDate = buildLocalIsoDatePresentation({
-      date: observation.startTime,
-      accuracy: "millisecond",
-    });
     const displayedTotalCost = subtreeMetrics
       ? (treeNodeTotalCost?.toNumber() ?? subtreeMetrics.totalCost)
       : totalCost;
@@ -739,17 +735,6 @@ export const ObservationDetailViewHeader = memo(
           )}
         </div>
 
-        {/* Timestamp on its own line: sharing the title row broke with long
-            observation names. */}
-        {preparedDate ? (
-          <div
-            title={preparedDate.title}
-            className="text-muted-foreground text-xs"
-          >
-            {preparedDate.display}
-          </div>
-        ) : null}
-
         <div className="flex flex-col gap-2">
           {/* Metrics row: measured numbers plus specialty badges (level,
               evaluator, prompt) that stay next to them. Session/user render
@@ -757,6 +742,7 @@ export const ObservationDetailViewHeader = memo(
               the trace's values. */}
           {!isAnnotationMode && (
             <CollapsibleBadgeRow>
+              <StartTimeBadge startTime={observation.startTime} />
               <LatencyBadge latencySeconds={latencySeconds} />
               <TimeToFirstTokenBadge
                 timeToFirstToken={observation.timeToFirstToken}
