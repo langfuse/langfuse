@@ -53,7 +53,7 @@ import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
 // read path — an unresolved session used to read as v3, fire a full wave of
 // legacy-table queries, then re-run the whole dashboard on v4 once the
 // session landed (via the scheduler reset key below).
-export default function Dashboard() {
+export default function ProjectHomePage() {
   const { readPath } = useReadPath();
   if (readPath === "unknown") {
     return (
