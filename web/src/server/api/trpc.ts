@@ -24,6 +24,7 @@ import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
 import { getTRPCErrorCodeFromHTTPStatusCode } from "@/src/server/utils/trpc-utils";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
+import { recordTrpcAccessEvent } from "@/src/features/audit-logs/trpcAccessEvents";
 
 type CreateContextOptions = {
   session: Session | null;
@@ -239,6 +240,33 @@ const withOtelTracingProcedure = t.procedure
   .use(tracing({ collectInput: true, collectResult: true }));
 
 /**
+ * Records an audit log access event after an allowlisted read procedure
+ * succeeds. Runs after the authorisation middlewares so the actor and roles on
+ * the session are final. Never fails the request.
+ *
+ * Written as a plain generic function rather than `t.middleware` because the
+ * trace and session getters widen `ctx.session` beyond `Session | null`, and a
+ * `t.middleware` result cannot be appended after them.
+ */
+const withAccessAuditLog = async <TResult extends { ok: boolean }>(opts: {
+  ctx: { session: unknown; prisma: typeof prisma };
+  path: string;
+  getRawInput: () => Promise<unknown>;
+  next: () => Promise<TResult>;
+}): Promise<TResult> => {
+  const res = await opts.next();
+  if (!res.ok) return res;
+  await recordTrpcAccessEvent({
+    path: opts.path,
+    session: opts.ctx.session,
+    prisma: opts.ctx.prisma,
+    rawInput: await opts.getRawInput(),
+    output: (res as { data?: unknown }).data,
+  });
+  return res;
+};
+
+/**
  * Public (unauthenticated) procedure
  *
  * This is the base piece you use to build new queries and mutations on your tRPC API. It does not
@@ -403,7 +431,8 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
 
 export const protectedProjectProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
-  .use(enforceUserIsAuthedAndProjectMember);
+  .use(enforceUserIsAuthedAndProjectMember)
+  .use(withAccessAuditLog);
 
 /** requireV4Writes rejects calls from deployments without v4 event tables */
 export const requireV4Writes = t.middleware(({ next }) => {
@@ -644,11 +673,13 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
 
 export const protectedGetTraceProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
-  .use(enforceTraceAccess("v3"));
+  .use(enforceTraceAccess("v3"))
+  .use(withAccessAuditLog);
 
 export const protectedGetEventsTraceProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
-  .use(enforceTraceAccess("v4"));
+  .use(enforceTraceAccess("v4"))
+  .use(withAccessAuditLog);
 
 /*
  * Protect session-level getter routes.
@@ -729,7 +760,8 @@ const enforceSessionAccess = t.middleware(async (opts) => {
 
 export const protectedGetSessionProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
-  .use(enforceSessionAccess);
+  .use(enforceSessionAccess)
+  .use(withAccessAuditLog);
 
 const inputAdminSchema = z.object({
   adminApiKey: z.string(),
