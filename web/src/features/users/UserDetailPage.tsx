@@ -20,18 +20,18 @@ import { ObservationsEventsTable } from "@/src/features/events/components";
 
 const tabs = ["Traces", "Sessions", "Scores"] as const;
 
-export default function UserPage() {
+export default function UserDetailPage() {
   const route = useReadyRouteParams(["projectId", "userId"]);
   if (!route.ready) return <RouteParamsPendingFallback />;
   return (
-    <UserDetailPage
+    <UserDetailView
       projectId={route.params.projectId}
       userId={route.params.userId}
     />
   );
 }
 
-function UserDetailPage({
+function UserDetailView({
   projectId,
   userId,
 }: {
