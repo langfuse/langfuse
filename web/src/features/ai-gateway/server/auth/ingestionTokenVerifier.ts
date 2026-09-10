@@ -10,7 +10,7 @@ import {
   type JwtRegisteredClaims,
 } from "@/src/server/utils/jwt";
 import { requireGatewayEnabledForOrganization } from "../availability";
-import { verifyGatewayAuthorization } from "./gatewayAuthVerifier";
+import { verifyGatewayRequestSignature } from "./gatewayRequestSignatureVerifier";
 
 export const GATEWAY_INGESTION_TOKEN_TTL_SECONDS = 15 * 60;
 
@@ -104,7 +104,7 @@ export async function verifyGatewayIngestionAuthorization(
   ];
   if (
     Array.isArray(gatewayAuthorization) ||
-    !verifyGatewayAuthorization(
+    !verifyGatewayRequestSignature(
       {
         credential: token,
         gatewayAuthorization,

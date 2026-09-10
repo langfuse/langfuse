@@ -44,7 +44,7 @@ type GatewayModelsHandler = (
   },
 ) => Promise<unknown>;
 
-function verifyGatewayControlPlaneRequest(input: {
+function verifyGatewayRequestSignatureAndHashApiKey(input: {
   virtualSecretKey: string;
   gatewayAuthorization: string | undefined;
 }): string {
@@ -62,7 +62,7 @@ function verifyGatewayControlPlaneRequest(input: {
   ];
 
   if (
-    !verifyGatewayAuthorization(
+    !verifyGatewayRequestSignature(
       {
         credential: input.virtualSecretKey,
         gatewayAuthorization: input.gatewayAuthorization,
@@ -76,14 +76,18 @@ function verifyGatewayControlPlaneRequest(input: {
   return createShaHash(input.virtualSecretKey, env.SALT);
 }
 
-export function withGatewayResolveAuth(handler: GatewayResolveHandler) {
+export function withGatewayResolveSignatureVerification(
+  handler: GatewayResolveHandler,
+) {
   return withGatewayControlPlaneAuth(
     ({ body, ...params }) => handler({ ...params, apiFormat: body.apiFormat }),
     resolveBodySchema,
   );
 }
 
-export function withGatewayModelsAuth(handler: GatewayModelsHandler) {
+export function withGatewayModelsSignatureVerification(
+  handler: GatewayModelsHandler,
+) {
   return async (req: NextApiRequest, res: NextApiResponse) => {
     setNoStoreHeaders(res);
 
@@ -103,7 +107,7 @@ export function withGatewayModelsAuth(handler: GatewayModelsHandler) {
     }
 
     try {
-      const fastHashedSecretKey = verifyGatewayControlPlaneRequest({
+      const fastHashedSecretKey = verifyGatewayRequestSignatureAndHashApiKey({
         virtualSecretKey: token,
         gatewayAuthorization: singleHeader(
           req.headers["langfuse-gateway-authorization"],
@@ -159,7 +163,7 @@ function withGatewayControlPlaneAuth<
     }
 
     try {
-      const fastHashedSecretKey = verifyGatewayControlPlaneRequest({
+      const fastHashedSecretKey = verifyGatewayRequestSignatureAndHashApiKey({
         virtualSecretKey: token,
         gatewayAuthorization: singleHeader(
           req.headers["langfuse-gateway-authorization"],
@@ -195,7 +199,7 @@ function getBearerToken(req: NextApiRequest): string | undefined {
     : undefined;
 }
 
-export function verifyGatewayAuthorization(
+export function verifyGatewayRequestSignature(
   input: {
     credential: string;
     gatewayAuthorization: string | undefined;

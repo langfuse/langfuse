@@ -19,6 +19,7 @@ import {
   createInnerTRPCContext,
   type OrgAuthedContext,
 } from "@/src/server/api/trpc";
+import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import {
   type GatewayResolveError,
   GatewayResolveService,
@@ -98,6 +99,18 @@ afterEach(async () => {
   });
   vi.clearAllMocks();
 });
+
+async function authenticateRequest(
+  params: Parameters<GatewayApiKeyAuthenticator["authenticateRequest"]>[0],
+) {
+  const context = await new GatewayApiKeyAuthenticator(
+    prisma,
+  ).authenticateRequest(params);
+  return new GatewayResolveService().resolve({
+    context,
+    apiFormat: params.apiFormat,
+  });
+}
 
 async function prepare(role: Role = Role.OWNER) {
   const suffix = randomUUID();
@@ -506,7 +519,7 @@ describe("AI gateway control plane", () => {
       audience: "test-audience",
       claimsSchema: GatewayIngestionClaimsSchema,
     });
-    const result = await new GatewayResolveService(prisma).resolve({
+    const result = await authenticateRequest({
       fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
       apiFormat,
     });
@@ -736,9 +749,7 @@ describe("AI gateway control plane", () => {
     const lookup = vi.spyOn(prisma.gatewayApiKeyAssociation, "findFirst");
 
     for (let attempt = 0; attempt < 2; attempt++) {
-      await expect(
-        new GatewayResolveService(prisma, {}).resolve(resolveParams),
-      ).resolves.toMatchObject({
+      await expect(authenticateRequest(resolveParams)).resolves.toMatchObject({
         connection: { auth: { type: "Bearer", token: "sk-test" } },
       });
     }
@@ -752,9 +763,7 @@ describe("AI gateway control plane", () => {
       id: connection.id,
       status: "DISABLED",
     });
-    await expect(
-      new GatewayResolveService(prisma, {}).resolve(resolveParams),
-    ).rejects.toEqual(
+    await expect(authenticateRequest(resolveParams)).rejects.toEqual(
       expect.objectContaining<Partial<GatewayResolveError>>({ status: 404 }),
     );
     expect(lookup).toHaveBeenCalledTimes(2);
@@ -769,9 +778,7 @@ describe("AI gateway control plane", () => {
     const lookup = vi.spyOn(prisma.gatewayApiKeyAssociation, "findFirst");
 
     for (let attempt = 0; attempt < 3; attempt++) {
-      await expect(
-        new GatewayResolveService(prisma, {}).resolve(resolveParams),
-      ).rejects.toEqual(
+      await expect(authenticateRequest(resolveParams)).rejects.toEqual(
         expect.objectContaining<Partial<GatewayResolveError>>({ status: 401 }),
       );
     }
@@ -823,7 +830,7 @@ describe("AI gateway control plane", () => {
     });
     const apiFormat = "openai.responses" as const;
     await expect(
-      new GatewayResolveService(prisma, {}).resolve({
+      authenticateRequest({
         fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
         apiFormat,
       }),
@@ -894,8 +901,15 @@ describe("AI gateway control plane", () => {
     });
 
     const service = new GatewayModelsService(prisma, fetcher, null);
+    const fastHashedSecretKey = createShaHash(key.secretKey, env.SALT);
+    const openAiContext = await new GatewayApiKeyAuthenticator(
+      prisma,
+    ).authenticateRequest({
+      fastHashedSecretKey,
+      apiFormat: "openai.responses",
+    });
     const result = await service.list({
-      fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
+      context: openAiContext,
       apiFormat: "openai.responses",
     });
 
@@ -917,8 +931,14 @@ describe("AI gateway control plane", () => {
         },
       ],
     });
+    const anthropicContext = await new GatewayApiKeyAuthenticator(
+      prisma,
+    ).authenticateRequest({
+      fastHashedSecretKey,
+      apiFormat: "anthropic.messages",
+    });
     const anthropicResult = await service.list({
-      fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
+      context: anthropicContext,
       apiFormat: "anthropic.messages",
     });
     expect(anthropicResult).toEqual({
@@ -969,9 +989,15 @@ describe("AI gateway control plane", () => {
         }),
       );
 
+    const context = await new GatewayApiKeyAuthenticator(
+      prisma,
+    ).authenticateRequest({
+      fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
+      apiFormat: "openai.chat-completions",
+    });
     await expect(
       new GatewayModelsService(prisma, fetcher, null).list({
-        fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
+        context,
         apiFormat: "openai.chat-completions",
       }),
     ).rejects.toEqual(

@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 
 import { prisma } from "@langfuse/shared/src/db";
 
+import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
   type GatewayApiFormat,
@@ -20,8 +21,11 @@ export async function gatewayModelsApiHandler({
   apiFormat: GatewayApiFormat;
 }) {
   try {
+    const context = await new GatewayApiKeyAuthenticator(
+      prisma,
+    ).authenticateRequest({ fastHashedSecretKey, apiFormat });
     const result = await new GatewayModelsService(prisma).list({
-      fastHashedSecretKey,
+      context,
       apiFormat,
     });
     return res.status(200).json(GatewayModelsResponseSchema.parse(result));

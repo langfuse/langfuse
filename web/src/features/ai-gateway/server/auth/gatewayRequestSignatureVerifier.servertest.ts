@@ -8,9 +8,9 @@ import { signHmacSha256 } from "@/src/server/utils/hmac";
 import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import {
-  withGatewayModelsAuth,
-  withGatewayResolveAuth,
-} from "./gatewayAuthVerifier";
+  withGatewayModelsSignatureVerification,
+  withGatewayResolveSignatureVerification,
+} from "./gatewayRequestSignatureVerifier";
 
 vi.mock("@/src/env.mjs", () => ({
   env: {
@@ -76,7 +76,7 @@ function gatewayAuthorization(input: {
   )}`;
 }
 
-describe("withGatewayResolveAuth", () => {
+describe("withGatewayResolveSignatureVerification", () => {
   it.each([
     undefined,
     "Basic sk-gateway",
@@ -88,7 +88,7 @@ describe("withGatewayResolveAuth", () => {
     const handler = vi.fn();
     const res = response();
 
-    await withGatewayResolveAuth(handler)(
+    await withGatewayResolveSignatureVerification(handler)(
       request({
         authorization,
         body: '{"apiFormat":"openai.responses"}',
@@ -115,7 +115,7 @@ describe("withGatewayResolveAuth", () => {
       const res = response();
       const handler = vi.fn().mockResolvedValue(undefined);
 
-      await withGatewayResolveAuth(handler)(req, res);
+      await withGatewayResolveSignatureVerification(handler)(req, res);
 
       expect(handler).toHaveBeenCalledWith({
         req,
@@ -130,7 +130,7 @@ describe("withGatewayResolveAuth", () => {
     const handler = vi.fn();
     const res = response();
 
-    await withGatewayModelsAuth(handler)(
+    await withGatewayModelsSignatureVerification(handler)(
       request({ method: "GET", query: { api_format: "anthropic.messages" } }),
       res,
     );
@@ -154,7 +154,7 @@ describe("withGatewayResolveAuth", () => {
     });
     const res = response();
 
-    await withGatewayModelsAuth(handler)(req, res);
+    await withGatewayModelsSignatureVerification(handler)(req, res);
 
     expect(handler).toHaveBeenCalledWith({
       req,
@@ -170,7 +170,7 @@ describe("withGatewayResolveAuth", () => {
     const handler = vi.fn();
     const res = response();
 
-    await withGatewayResolveAuth(handler)(
+    await withGatewayResolveSignatureVerification(handler)(
       request({
         authorization: "Bearer sk-gateway",
         gatewayAuthorization: gatewayAuthorization({
@@ -198,7 +198,7 @@ describe("withGatewayResolveAuth", () => {
     for (const header of [staleHeader, `${staleHeader},keyid=current`]) {
       const handler = vi.fn();
       const res = response();
-      await withGatewayResolveAuth(handler)(
+      await withGatewayResolveSignatureVerification(handler)(
         request({
           authorization: "Bearer sk-gateway",
           gatewayAuthorization: header,

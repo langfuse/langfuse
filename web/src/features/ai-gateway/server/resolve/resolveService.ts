@@ -1,8 +1,4 @@
-import type {
-  GatewayIngestionMode,
-  GatewayProvider,
-  PrismaClient,
-} from "@langfuse/shared/src/db";
+import type { GatewayIngestionMode } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
 import { instrumentAsync } from "@langfuse/shared/src/server";
 
@@ -12,30 +8,16 @@ import {
   type Es256JwtSigner,
 } from "@/src/server/utils/jwt";
 
+import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import { GATEWAY_INGESTION_TOKEN_TTL_SECONDS } from "@/src/features/ai-gateway/server/auth/ingestionTokenVerifier";
-import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
   type GatewayApiFormat,
-  type GatewayMetadata,
   type GatewayProviderId,
-  GatewayMetadataSchema,
-  gatewayProviders,
   getGatewayProviderDefinition,
-  providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider";
-import {
-  type CachedResolveContext,
-  GATEWAY_RESOLVE_KEY_NON_EXISTENT,
-  GatewayResolveCache,
-} from "./gatewayResolveCache";
-import { GatewayResolveRepository } from "./gatewayResolveRepository";
 
 export { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
-
-type ResolveConfig = {
-  cache?: GatewayResolveCache;
-};
 
 let cachedGatewayIngestionTokenSigner:
   | {
@@ -81,24 +63,16 @@ function getGatewayIngestionTokenSigner() {
 }
 
 export class GatewayResolveService {
-  private readonly repository: GatewayResolveRepository;
-  private readonly cache: GatewayResolveCache;
-
-  constructor(
-    prisma: PrismaClient,
-    private readonly config: ResolveConfig = {},
-  ) {
-    this.repository = new GatewayResolveRepository(prisma);
-    this.cache = config.cache ?? new GatewayResolveCache();
-  }
-
   async resolve(params: {
-    fastHashedSecretKey: string;
+    context: GatewayApiKeyAuthContext;
     apiFormat: GatewayApiFormat;
   }) {
     return instrumentAsync({ name: "gateway-resolve" }, async (span) => {
-      const context = await this.getResolveContext(params);
-      span.setAttribute("langfuse.organization.id", context.organizationId);
+      span.setAttribute(
+        "langfuse.organization.id",
+        params.context.organizationId,
+      );
+      const { context } = params;
 
       if (!context.ingestionProjectId || !context.ingestionMode) {
         throw new GatewayResolveError(
@@ -150,79 +124,6 @@ export class GatewayResolveService {
     });
   }
 
-  private async getResolveContext(params: {
-    fastHashedSecretKey: string;
-    apiFormat: GatewayApiFormat;
-  }): Promise<CachedResolveContext> {
-    const cached = await this.cache.get(params);
-    if (cached === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
-      throw new GatewayResolveError("Invalid gateway key", 401);
-    }
-    const context = cached ?? (await this.loadAndCacheResolveContext(params));
-
-    // Re-checked on every request, cache hits included: an organization losing
-    // gateway access must take effect without waiting for the TTL.
-    if (!isGatewayEnabledForOrganization(context.organizationId)) {
-      throw new GatewayResolveError(
-        "Gateway is not enabled for this organization",
-        403,
-      );
-    }
-    return context;
-  }
-
-  private async loadAndCacheResolveContext(params: {
-    fastHashedSecretKey: string;
-    apiFormat: GatewayApiFormat;
-  }): Promise<CachedResolveContext> {
-    const supportedProviders = gatewayProviders.filter((provider) =>
-      providerSupportsApiFormat(provider, params.apiFormat),
-    ) as GatewayProvider[];
-
-    const row = await this.repository.resolveContext({
-      fastHashedSecretKey: params.fastHashedSecretKey,
-      providers: supportedProviders,
-    });
-
-    const organizationId = row?.apiKey.orgId;
-    const organization = row?.apiKey.organization;
-    if (!row || !organizationId || !organization) {
-      await this.cache.set({
-        ...params,
-        context: GATEWAY_RESOLVE_KEY_NON_EXISTENT,
-      });
-      throw new GatewayResolveError("Invalid gateway key", 401);
-    }
-
-    const gatewayConfig = organization.gatewayConfig;
-    const project = gatewayConfig?.defaultIngestionProject;
-    const projectIsUsable =
-      Boolean(project) &&
-      !project?.deletedAt &&
-      project?.orgId === organizationId;
-    const connection = organization.gatewayAiConnections[0];
-
-    const context: CachedResolveContext = {
-      organizationId,
-      apiKeyId: row.apiKeyId,
-      keyMetadata: toKeyMetadata(row.metadata),
-      ingestionProjectId: projectIsUsable
-        ? (gatewayConfig?.defaultIngestionProjectId ?? null)
-        : null,
-      ingestionMode: gatewayConfig?.ingestionMode ?? null,
-      connection: connection
-        ? {
-            id: connection.id,
-            provider: connection.provider,
-            encryptedCredential: connection.encryptedCredential,
-          }
-        : null,
-    };
-
-    await this.cache.set({ ...params, context });
-    return context;
-  }
-
   private createIngestionResponse(params: {
     mode: GatewayIngestionMode;
     organizationId: string;
@@ -251,12 +152,4 @@ export class GatewayResolveService {
         Math.floor(Date.now() / 1000) + GATEWAY_INGESTION_TOKEN_TTL_SECONDS,
     };
   }
-}
-
-// The column is JSON, so a key written before validation existed can hold a
-// scalar, an array, or nested objects. Only a flat object of scalars can be
-// attributed per event.
-function toKeyMetadata(value: unknown): GatewayMetadata {
-  const parsed = GatewayMetadataSchema.safeParse(value);
-  return parsed.success ? parsed.data : {};
 }

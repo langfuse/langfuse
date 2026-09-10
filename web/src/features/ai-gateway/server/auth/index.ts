@@ -1,5 +1,5 @@
 export {
-  withGatewayModelsAuth,
-  withGatewayResolveAuth,
-} from "./gatewayAuthVerifier";
+  withGatewayModelsSignatureVerification,
+  withGatewayResolveSignatureVerification,
+} from "./gatewayRequestSignatureVerifier";
 export { verifyGatewayIngestionAuthorization } from "./ingestionTokenVerifier";

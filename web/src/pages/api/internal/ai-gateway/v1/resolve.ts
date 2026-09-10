@@ -1,9 +1,11 @@
 import {
   gatewayResolveApiHandler,
-  withGatewayResolveAuth,
+  withGatewayResolveSignatureVerification,
 } from "@/src/features/ai-gateway/server";
 
-export default withGatewayResolveAuth(gatewayResolveApiHandler);
+export default withGatewayResolveSignatureVerification(
+  gatewayResolveApiHandler,
+);
 
 export const config = {
   api: {

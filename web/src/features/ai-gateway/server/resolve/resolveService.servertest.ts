@@ -1,6 +1,8 @@
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { describe, expect, it, vi } from "vitest";
 
+import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
+import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider";
 import { GatewayResolveService } from "./resolveService";
 
 vi.mock("@/src/env.mjs", () => ({
@@ -28,11 +30,23 @@ vi.mock("@langfuse/shared/encryption", () => ({
   decrypt: vi.fn(() => "sk-test"),
 }));
 
-const serviceWith = (findFirst: () => Promise<unknown>) =>
-  new GatewayResolveService(
-    { gatewayApiKeyAssociation: { findFirst } } as unknown as PrismaClient,
-    {},
-  );
+const serviceWith = (findFirst: () => Promise<unknown>) => {
+  const prisma = {
+    gatewayApiKeyAssociation: { findFirst },
+  } as unknown as PrismaClient;
+  const contextResolver = new GatewayApiKeyAuthenticator(prisma);
+  const service = new GatewayResolveService();
+
+  return {
+    resolve: async (params: {
+      fastHashedSecretKey: string;
+      apiFormat: GatewayApiFormat;
+    }) => {
+      const context = await contextResolver.authenticateRequest(params);
+      return service.resolve({ context, apiFormat: params.apiFormat });
+    },
+  };
+};
 
 const row = (overrides: {
   ingestionMode?: string;

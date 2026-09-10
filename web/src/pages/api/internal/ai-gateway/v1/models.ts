@@ -1,6 +1,6 @@
 import {
   gatewayModelsApiHandler,
-  withGatewayModelsAuth,
+  withGatewayModelsSignatureVerification,
 } from "@/src/features/ai-gateway/server";
 
-export default withGatewayModelsAuth(gatewayModelsApiHandler);
+export default withGatewayModelsSignatureVerification(gatewayModelsApiHandler);

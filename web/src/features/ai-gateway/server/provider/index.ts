@@ -5,7 +5,6 @@ export {
   GatewayMetadataSchema,
   GatewayModelsResponseSchema,
   GatewayResolveResponseSchema,
-  gatewayProviders,
   getGatewayProviderDefinition,
   providerSupportsApiFormat,
   type GatewayApiFormat,

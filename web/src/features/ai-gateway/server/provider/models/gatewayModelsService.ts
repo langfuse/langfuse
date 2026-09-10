@@ -2,13 +2,13 @@ import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
 import { redis as defaultRedis } from "@langfuse/shared/src/server";
 import type { Cluster, Redis } from "ioredis";
 
-import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
+import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
   type GatewayApiFormat,
   gatewayProviders,
   providerSupportsApiFormat,
-} from "@/src/features/ai-gateway/server/provider";
+} from "@/src/features/ai-gateway/server/provider/registry";
 import {
   type GatewayModelCatalogEntry,
   GatewayModelCatalogService,
@@ -33,32 +33,19 @@ export class GatewayModelsService {
   }
 
   async list(params: {
-    fastHashedSecretKey: string;
+    context: GatewayApiKeyAuthContext;
     apiFormat: GatewayApiFormat;
   }) {
-    const supportedProviders = gatewayProviders.filter((provider) =>
-      providerSupportsApiFormat(provider, params.apiFormat),
-    ) as GatewayProvider[];
-    const context = await this.repository.getContext({
-      fastHashedSecretKey: params.fastHashedSecretKey,
-      providers: supportedProviders,
+    const connections = await this.repository.getConnections({
+      organizationId: params.context.organizationId,
+      providers: gatewayProviders.filter((provider) =>
+        providerSupportsApiFormat(provider, params.apiFormat),
+      ) as GatewayProvider[],
     });
-    const organizationId = context?.apiKey.orgId;
-    const organization = context?.apiKey.organization;
-    if (!context || !organizationId || !organization) {
-      throw new GatewayControlPlaneError("Invalid gateway key", 401);
-    }
-    if (!isGatewayEnabledForOrganization(organizationId)) {
-      throw new GatewayControlPlaneError(
-        "Gateway is not enabled for this organization",
-        403,
-      );
-    }
-
     const results = await Promise.all(
-      organization.gatewayAiConnections.map((connection) =>
+      connections.map((connection) =>
         this.modelCatalogService.getModelCatalog({
-          organizationId,
+          organizationId: params.context.organizationId,
           connectionId: connection.id,
         }),
       ),
