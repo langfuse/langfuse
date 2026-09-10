@@ -79,7 +79,7 @@ describe("CostUsageBadge", () => {
     expect(screen.queryByText(/→/)).not.toBeInTheDocument();
   });
 
-  it("shows cost, not the token total, whenever a cost exists", () => {
+  it("shows cost and the token total whenever a cost exists", () => {
     render(
       <CostUsageBadge
         totalCost={0.016079}
@@ -92,7 +92,9 @@ describe("CostUsageBadge", () => {
     );
 
     expect(screen.getByText("$0.016079")).toBeInTheDocument();
-    expect(screen.queryByText(/∑/)).not.toBeInTheDocument();
+    // Tokens sit beside cost at rest; the input/output split stays on hover.
+    expect(screen.getByText("∑ 10,200")).toBeInTheDocument();
+    expect(screen.queryByText(/9,618/)).not.toBeInTheDocument();
   });
 
   it("renders nothing when there is neither cost nor usage", () => {

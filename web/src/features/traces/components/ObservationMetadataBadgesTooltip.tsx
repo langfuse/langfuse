@@ -4,7 +4,7 @@
  * strip. Quiet grammar: muted mono text, no border/box — pills are reserved
  * for tags.
  *
- * Cost and usage share ONE element (`CostUsageBadge`): cost is the primary
+ * Cost and usage share ONE element (`CostUsageBadge`): cost first, tokens
  * face whenever it exists (`$0.016079` — the leading `$` is the glyph, no
  * icon), tokens are the fallback face for unpriced/unlinked models
  * (`∑ 10,200` — `∑` is that glyph). The input→output split never renders
@@ -250,7 +250,7 @@ export function CostUsageBadge({
     <TooltipProvider delayDuration={100}>
       <Tooltip open={isOpen} onOpenChange={setIsOpen}>
         <TooltipTrigger
-          className="flex cursor-pointer"
+          className="flex cursor-pointer items-center gap-2"
           onClick={() => setIsOpen(!isOpen)}
         >
           <span
@@ -259,6 +259,16 @@ export function CostUsageBadge({
           >
             {usdFormatter(totalCost)}
           </span>
+          {/* Tokens at rest beside cost: the model-independent size of the
+              call (or of the whole trace in the strip). Same breakdown. */}
+          {total > 0 ? (
+            <span
+              title="Usage breakdown on hover"
+              className={BREAKDOWN_AFFORDANCE_CLASS}
+            >
+              {`∑ ${numberFormatter(total, 0)}`}
+            </span>
+          ) : null}
         </TooltipTrigger>
         <TooltipContent className="w-max max-w-80 min-w-52 p-4">
           <CostUsageTable
