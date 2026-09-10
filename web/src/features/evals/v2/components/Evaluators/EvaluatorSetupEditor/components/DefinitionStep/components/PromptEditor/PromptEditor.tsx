@@ -6,9 +6,9 @@ import {
   GripVertical,
   MoreVertical,
   Plus,
-  Sparkles,
   Trash2,
   TriangleAlert,
+  WandSparkles,
 } from "lucide-react";
 import {
   closestCenter,
@@ -171,30 +171,29 @@ export function PromptEditorContent({
       onDragEnd={handleDragEnd}
     >
       <div className="bg-card text-card-foreground rounded-md border">
-        <div className="bg-header text-header-foreground flex min-h-9 flex-wrap items-center justify-between gap-2 rounded-t-md border-b px-2 py-1.5">
+        <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 rounded-t-md border-b px-2">
           <span className="text-muted-foreground text-xs">
             {state.promptMessages.length}{" "}
             {state.promptMessages.length === 1 ? "message" : "messages"}
           </span>
           <div className="flex flex-wrap items-center justify-end gap-1.5">
             {onAssistantSubmit ? (
-              <Button
+              <button
                 ref={assistantTriggerRef}
                 type="button"
-                variant="outline"
-                size="sm"
                 aria-haspopup="dialog"
+                className="bg-background text-muted-foreground hover:border-border hover:text-foreground hover:bg-accent ring-offset-background focus-visible:ring-ring inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 font-sans text-xs transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
                 onClick={() => setAssistantDialogOpen(true)}
               >
-                <Sparkles className="text-primary-accent mr-1.5 h-3.5 w-3.5" />
+                <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
                 Edit with AI
-              </Button>
+              </button>
             ) : null}
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
                 <label
                   className={cn(
-                    "text-muted-foreground flex h-8 items-center gap-1.5 px-2 text-xs",
+                    "text-muted-foreground flex h-6 items-center gap-1.5 px-2 text-xs",
                     combinedPrepared.promptPreviewDisabledReason
                       ? "cursor-not-allowed opacity-60"
                       : "cursor-pointer",

@@ -5,7 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { SendHorizontal, Sparkles } from "lucide-react";
+import { SendHorizontal, Sparkles, WandSparkles } from "lucide-react";
 
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Button } from "@/src/components/ui/button";
@@ -176,17 +176,16 @@ export function CodeEvaluatorAssistantExperience({
   }
 
   const assistantAction = (
-    <Button
+    <button
       ref={assistantTriggerRef}
       type="button"
-      variant="outline"
-      size="sm"
       aria-haspopup={context === "edit" ? "dialog" : undefined}
+      className="bg-background text-muted-foreground hover:border-border hover:text-foreground hover:bg-accent ring-offset-background focus-visible:ring-ring inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 font-sans text-xs transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
       onClick={() => setMode("assistant")}
     >
-      <Sparkles className="text-primary-accent mr-1.5 h-3.5 w-3.5" />
+      <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
       {context === "edit" ? "Edit with AI" : "Write with AI"}
-    </Button>
+    </button>
   );
 
   if (context === "edit") {
