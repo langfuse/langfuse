@@ -27,23 +27,26 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 
 function usePopoverToDialog<T>() {
   const [popoverOpen, setPopoverOpen] = useState(false);
-  const [dialog, setDialog] = useState<T | undefined>(undefined);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [request, setRequest] = useState<{ id: number; payload: T }>();
 
-  const openDialog = (next: T) => {
+  const openDialog = (payload: T) => {
     setPopoverOpen(false);
-    setDialog(next);
+    setRequest((previous) => ({ id: (previous?.id ?? 0) + 1, payload }));
+    setDialogOpen(true);
   };
 
   const handleDialogOpenChange = (open: boolean) => {
     if (open) return;
-    setDialog(undefined);
+    setDialogOpen(false);
     setPopoverOpen(true);
   };
 
   return {
     popoverOpen,
     setPopoverOpen,
-    dialog,
+    request,
+    dialogOpen,
     openDialog,
     handleDialogOpenChange,
   };
@@ -142,15 +145,16 @@ export const ConfigurationDropdowns: React.FC = () => {
             </div>
           </PopoverContent>
         </Popover>
-        {toolsOverlay.dialog && projectId && (
+        {toolsOverlay.request && projectId && (
           <CreateOrEditLLMToolDialog
+            key={`tool-${toolsOverlay.request.id}`}
             projectId={projectId}
-            open
+            open={toolsOverlay.dialogOpen}
             onOpenChange={toolsOverlay.handleDialogOpenChange}
-            onSave={toolsOverlay.dialog.onSave}
-            onDelete={toolsOverlay.dialog.onDelete}
-            existingLlmTool={toolsOverlay.dialog.existingLlmTool}
-            defaultValues={toolsOverlay.dialog.defaultValues}
+            onSave={toolsOverlay.request.payload.onSave}
+            onDelete={toolsOverlay.request.payload.onDelete}
+            existingLlmTool={toolsOverlay.request.payload.existingLlmTool}
+            defaultValues={toolsOverlay.request.payload.defaultValues}
           />
         )}
 
@@ -197,15 +201,16 @@ export const ConfigurationDropdowns: React.FC = () => {
             </div>
           </PopoverContent>
         </Popover>
-        {schemaOverlay.dialog && projectId && (
+        {schemaOverlay.request && projectId && (
           <CreateOrEditLLMSchemaDialog
+            key={`schema-${schemaOverlay.request.id}`}
             projectId={projectId}
-            open
+            open={schemaOverlay.dialogOpen}
             onOpenChange={schemaOverlay.handleDialogOpenChange}
-            onSave={schemaOverlay.dialog.onSave}
-            onDelete={schemaOverlay.dialog.onDelete}
-            existingLlmSchema={schemaOverlay.dialog.existingLlmSchema}
-            defaultValues={schemaOverlay.dialog.defaultValues}
+            onSave={schemaOverlay.request.payload.onSave}
+            onDelete={schemaOverlay.request.payload.onDelete}
+            existingLlmSchema={schemaOverlay.request.payload.existingLlmSchema}
+            defaultValues={schemaOverlay.request.payload.defaultValues}
           />
         )}
 

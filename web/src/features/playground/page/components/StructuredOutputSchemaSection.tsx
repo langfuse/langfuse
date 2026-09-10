@@ -289,6 +289,7 @@ export const StructuredOutputSchemaSection = ({
             className="bg-background hover:bg-accent/50 relative cursor-pointer rounded-md border p-2 pr-10 text-left transition-colors duration-200"
             onClick={openAttachedSchema}
             onKeyDown={(event) => {
+              if (event.target !== event.currentTarget) return;
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
                 openAttachedSchema();
