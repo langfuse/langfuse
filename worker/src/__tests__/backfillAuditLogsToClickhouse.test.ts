@@ -55,7 +55,8 @@ describe("BackfillAuditLogsToClickhouse", () => {
   });
 
   it("copies rows in batches, persists a resumable cursor and stays idempotent", async () => {
-    const base = Date.now() - 60_000;
+    // Older than the default settle window so the first run picks them up.
+    const base = Date.now() - 10 * 60_000;
     const rows = [0, 1, 2].map((i) => ({
       id: `row-${i}-${uuidv4()}`,
       createdAt: new Date(base + i * 1000),
@@ -70,7 +71,23 @@ describe("BackfillAuditLogsToClickhouse", () => {
       before: i === 0 ? JSON.stringify({ name: "a" }) : null,
       after: JSON.stringify({ name: "b" }),
     }));
-    await prisma.auditLog.createMany({ data: rows });
+    // Inside the settle window: left to the dual-write, so the first run
+    // must stop short of it.
+    const lateRow = {
+      id: `row-late-${uuidv4()}`,
+      createdAt: new Date(),
+      orgId,
+      projectId,
+      type: "USER" as const,
+      userId: "user-late",
+      apiKeyId: null,
+      resourceType: "prompt",
+      resourceId: "prompt-late",
+      action: "delete",
+      before: null,
+      after: null,
+    };
+    await prisma.auditLog.createMany({ data: [...rows, lateRow] });
 
     const migration = new BackfillAuditLogsToClickhouse(migrationId);
     await expect(migration.validate()).resolves.toEqual({
@@ -110,30 +127,17 @@ describe("BackfillAuditLogsToClickhouse", () => {
         })
       ).state,
     );
-    expect(new Date(state.cursorCreatedAt).getTime()).toBeGreaterThanOrEqual(
-      rows[2].createdAt.getTime(),
-    );
+    const cursorAt = new Date(state.cursorCreatedAt).getTime();
+    expect(cursorAt).toBeGreaterThanOrEqual(rows[2].createdAt.getTime());
+    expect(cursorAt).toBeLessThan(lateRow.createdAt.getTime());
     expect(state.processedRows).toBeGreaterThanOrEqual(3);
 
-    // A later row appears after the cursor: a re-run copies only that one and
-    // re-inserting nothing else keeps the row count stable.
-    const lateRow = {
-      id: `row-late-${uuidv4()}`,
-      createdAt: new Date(),
-      orgId,
-      projectId,
-      type: "USER" as const,
-      userId: "user-late",
-      apiKeyId: null,
-      resourceType: "prompt",
-      resourceId: "prompt-late",
-      action: "delete",
-      before: null,
-      after: null,
-    };
-    await prisma.auditLog.create({ data: lateRow });
-
-    await new BackfillAuditLogsToClickhouse(migrationId).run({ batchSize: 2 });
+    // Once the row has settled, a re-run resumes from the cursor and copies
+    // only what is new; re-inserting nothing else keeps the row set stable.
+    await new BackfillAuditLogsToClickhouse(migrationId).run({
+      batchSize: 2,
+      settleMs: 0,
+    });
 
     const afterRerun = await readClickhouseRows(orgId);
     expect(afterRerun.map((r) => r.id)).toEqual([

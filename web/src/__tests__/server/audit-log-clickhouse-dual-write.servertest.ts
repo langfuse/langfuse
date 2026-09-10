@@ -82,8 +82,9 @@ describe("auditLog dual write", () => {
     );
   });
 
-  it("surfaces queue failures so a change event is never silently dropped", async () => {
+  it("keeps the Postgres row and does not fail the caller when the queue is down", async () => {
     const { orgId, projectId } = await createOrgProjectAndApiKey();
+    const resourceId = randomUUID();
     mockAdd.mockRejectedValueOnce(new Error("redis down"));
 
     await expect(
@@ -92,9 +93,14 @@ describe("auditLog dual write", () => {
         orgId,
         projectId,
         resourceType: "dataset",
-        resourceId: randomUUID(),
+        resourceId,
         action: "delete",
       }),
-    ).rejects.toThrow("redis down");
+    ).resolves.toBeUndefined();
+
+    expect(mockAdd).toHaveBeenCalledTimes(1);
+    await expect(
+      prisma.auditLog.count({ where: { orgId, resourceId } }),
+    ).resolves.toBe(1);
   });
 });
