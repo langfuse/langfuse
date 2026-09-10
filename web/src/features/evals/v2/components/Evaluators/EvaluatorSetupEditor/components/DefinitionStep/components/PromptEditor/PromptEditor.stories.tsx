@@ -165,6 +165,35 @@ export const ExistingJudgeAssistantModal = meta.story({
   },
 });
 
+export const NewJudgeAssistantModal = meta.story({
+  name: "(Test) New judge Assistant modal",
+  render: () => (
+    <PromptEditorStory
+      assistantAvailable
+      messages={[
+        {
+          role: "user",
+          content: "Judge whether {{output}} answers {{input}}.",
+        },
+      ]}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+
+    await expect(canvas.getByText("1 message")).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Edit with AI" }));
+    await waitFor(() =>
+      expect(
+        page.getByLabelText(
+          "Describe how to change this LLM-as-a-judge evaluator",
+        ),
+      ).toBeVisible(),
+    );
+  },
+});
+
 export const SharedPreviewStateAndHeight = meta.story({
   name: "(Test) Shared preview state and height",
   render: () => (
@@ -379,6 +408,11 @@ export const AddMessageWhilePreviewing = meta.story({
     if (!newPromptEditor) throw new Error("New prompt editor not found");
 
     await expect(
+      canvas.getByText(
+        "Describe what the judge should evaluate. Use {{variable}} to include sample data.",
+      ),
+    ).toBeVisible();
+    await expect(
       newPromptEditor.getBoundingClientRect().height,
     ).toBeGreaterThan(0);
     await userEvent.click(newPromptEditor);
@@ -469,7 +503,12 @@ export const SingleMessage = meta.story({
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await expect(canvas.getByText("1 message")).toBeVisible();
     await expect(canvas.getByText("User")).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Prompt message settings" }),
+    ).toBeVisible();
+    await expect(canvas.getByRole("switch", { name: "Preview" })).toBeVisible();
   },
 });
 

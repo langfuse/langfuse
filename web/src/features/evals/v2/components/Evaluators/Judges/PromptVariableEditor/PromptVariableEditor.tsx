@@ -169,6 +169,8 @@ export function PromptVariableEditor({
   onToolbarClick,
   collapsed = false,
   surfaceVariant = "standalone",
+  placeholder,
+  toolbarVariant = "message",
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -204,6 +206,10 @@ export function PromptVariableEditor({
   collapsed?: boolean;
   /** Lets a grouped parent own the border radius and horizontal boundary. */
   surfaceVariant?: "standalone" | "nested" | "nested-last";
+  /** Guidance shown while the prompt editor is empty. */
+  placeholder?: string;
+  /** Aligns a merged single-message toolbar with its owning group header. */
+  toolbarVariant?: "message" | "group";
 }) {
   // Statuses and labels travel as serialized keys and are parsed back inside
   // the memo, so the memo depends on their content rather than their identity.
@@ -256,6 +262,8 @@ export function PromptVariableEditor({
               "bg-card text-card-foreground rounded-none border-x-0 border-t-0",
             isLastNested && "border-b-0",
             onToolbarClick && "cursor-pointer",
+            toolbarVariant === "group" &&
+              "bg-secondary text-secondary-foreground",
           )}
           onClick={(event) => {
             if (!onToolbarClick) return;
@@ -311,6 +319,7 @@ export function PromptVariableEditor({
               onChange={onChange}
               editable={!readOnly}
               mode="prompt"
+              placeholder={placeholder}
               // Keep the editor mounted while previewing so it remains the
               // stable height anchor for both surfaces.
               minHeight={48}

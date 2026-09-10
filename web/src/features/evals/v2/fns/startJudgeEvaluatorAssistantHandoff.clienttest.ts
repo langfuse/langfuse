@@ -52,4 +52,22 @@ describe("startJudgeEvaluatorAssistantHandoff", () => {
 
     expect(submitToAssistant).not.toHaveBeenCalled();
   });
+
+  it("does not persist a draft when the Assistant cannot open", async () => {
+    const persistEvaluator = vi.fn();
+    const submitToAssistant = vi.fn();
+
+    await expect(
+      startJudgeEvaluatorAssistantHandoff({
+        request: "Score from one to five",
+        conversationId: "conversation-1",
+        openAssistant: () => false,
+        persistEvaluator,
+        submitToAssistant,
+      }),
+    ).resolves.toBeNull();
+
+    expect(persistEvaluator).not.toHaveBeenCalled();
+    expect(submitToAssistant).not.toHaveBeenCalled();
+  });
 });

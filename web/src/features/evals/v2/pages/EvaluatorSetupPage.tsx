@@ -562,7 +562,11 @@ export function EvaluatorSetupPage(
                 }
               }
             : null,
-        fallbackName: isAssistantHandoff ? "Draft code evaluator" : undefined,
+        fallbackName: isAssistantHandoff
+          ? state.type === "LLM_AS_JUDGE"
+            ? "Draft LLM-as-a-judge evaluator"
+            : "Draft code evaluator"
+          : undefined,
         setName: state.actions.setName,
         setDescription: state.actions.setDescription,
       });

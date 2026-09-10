@@ -80,9 +80,7 @@ export function DefinitionStepContainer({
           projectId={projectId}
           evaluatorId={evaluatorId}
           store={store}
-          onAssistantSubmit={
-            isEditing ? onJudgeEvaluatorAssistantSubmit : undefined
-          }
+          onAssistantSubmit={onJudgeEvaluatorAssistantSubmit}
         />
       }
       scoreOutputEditor={<ScoreOutputEditor store={store} />}

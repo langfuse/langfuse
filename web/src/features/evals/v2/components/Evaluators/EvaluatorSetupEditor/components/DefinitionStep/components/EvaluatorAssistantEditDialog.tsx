@@ -86,6 +86,7 @@ export function EvaluatorAssistantEditDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
+        size="lg"
         onCloseAutoFocus={(event) => {
           if (returnFocusRef?.current) {
             event.preventDefault();
@@ -129,7 +130,7 @@ export function EvaluatorAssistantEditDialog({
               className="max-h-60 min-h-24 resize-none"
             />
           </DialogBody>
-          <DialogFooter>
+          <DialogFooter className="px-4 py-3">
             <Button
               type="button"
               variant="outline"

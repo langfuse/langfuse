@@ -1,4 +1,11 @@
-import { Fragment, useId, useRef, useState, type CSSProperties } from "react";
+import {
+  Fragment,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import {
   Check,
   ChevronDown,
@@ -71,6 +78,9 @@ const ROLES: Array<{ value: EvaluatorPromptMessage["role"]; label: string }> = [
   { value: "user", label: "User" },
   { value: "assistant", label: "Assistant" },
 ];
+
+const PROMPT_MESSAGE_PLACEHOLDER =
+  "Describe what the judge should evaluate. Use {{variable}} to include sample data.";
 
 type PreparedPromptEditorState = ReturnType<typeof preparePromptEditorState>;
 
@@ -147,6 +157,69 @@ export function PromptEditorContent({
     useSensor(TouchSensor),
     useSensor(KeyboardSensor),
   );
+  const isSingleMessage = state.promptMessages.length === 1;
+  const assistantAction = onAssistantSubmit ? (
+    <button
+      ref={assistantTriggerRef}
+      type="button"
+      aria-haspopup="dialog"
+      aria-label={isSingleMessage ? "Edit with AI" : undefined}
+      title={isSingleMessage ? "Edit with AI" : undefined}
+      className={cn(
+        "bg-background text-muted-foreground hover:border-border hover:text-foreground hover:bg-accent ring-offset-background focus-visible:ring-ring inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 font-sans text-xs transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+        isSingleMessage && "h-6 w-6 justify-center p-0",
+      )}
+      onClick={() => setAssistantDialogOpen(true)}
+    >
+      <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
+      {isSingleMessage ? null : "Edit with AI"}
+    </button>
+  ) : null;
+  const previewAction = (
+    <>
+      <Tooltip delayDuration={0}>
+        <TooltipTrigger asChild>
+          <label
+            className={cn(
+              "text-muted-foreground flex h-6 items-center gap-1.5 px-2 text-xs",
+              combinedPrepared.promptPreviewDisabledReason
+                ? "cursor-not-allowed opacity-60"
+                : "cursor-pointer",
+            )}
+            tabIndex={
+              combinedPrepared.promptPreviewDisabledReason ? 0 : undefined
+            }
+            aria-disabled={Boolean(
+              combinedPrepared.promptPreviewDisabledReason,
+            )}
+            aria-describedby={
+              combinedPrepared.promptPreviewDisabledReason
+                ? previewDisabledDescriptionId
+                : undefined
+            }
+          >
+            <Switch
+              size="sm"
+              checked={state.promptPreviewEnabled}
+              disabled={Boolean(combinedPrepared.promptPreviewDisabledReason)}
+              onCheckedChange={state.actions.setPromptPreviewEnabled}
+            />
+            Preview
+          </label>
+        </TooltipTrigger>
+        {combinedPrepared.promptPreviewDisabledReason ? (
+          <TooltipContent>
+            {combinedPrepared.promptPreviewDisabledReason}
+          </TooltipContent>
+        ) : null}
+      </Tooltip>
+      {combinedPrepared.promptPreviewDisabledReason ? (
+        <span id={previewDisabledDescriptionId} className="sr-only">
+          {combinedPrepared.promptPreviewDisabledReason}
+        </span>
+      ) : null}
+    </>
+  );
 
   const handleDragStart = ({ active }: DragStartEvent) => {
     setActiveMessageId(String(active.id));
@@ -170,70 +243,23 @@ export function PromptEditorContent({
       onDragCancel={() => setActiveMessageId(null)}
       onDragEnd={handleDragEnd}
     >
-      <div className="bg-tertiary text-tertiary-foreground rounded-md border">
-        <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 rounded-t-md border-b px-2">
-          <span className="text-muted-foreground text-xs">
-            {state.promptMessages.length}{" "}
-            {state.promptMessages.length === 1 ? "message" : "messages"}
-          </span>
-          <div className="flex flex-wrap items-center justify-end gap-1.5">
-            {onAssistantSubmit ? (
-              <button
-                ref={assistantTriggerRef}
-                type="button"
-                aria-haspopup="dialog"
-                className="bg-background text-muted-foreground hover:border-border hover:text-foreground hover:bg-accent ring-offset-background focus-visible:ring-ring inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 font-sans text-xs transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
-                onClick={() => setAssistantDialogOpen(true)}
-              >
-                <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                Edit with AI
-              </button>
-            ) : null}
-            <Tooltip delayDuration={0}>
-              <TooltipTrigger asChild>
-                <label
-                  className={cn(
-                    "text-muted-foreground flex h-6 items-center gap-1.5 px-2 text-xs",
-                    combinedPrepared.promptPreviewDisabledReason
-                      ? "cursor-not-allowed opacity-60"
-                      : "cursor-pointer",
-                  )}
-                  tabIndex={
-                    combinedPrepared.promptPreviewDisabledReason ? 0 : undefined
-                  }
-                  aria-disabled={Boolean(
-                    combinedPrepared.promptPreviewDisabledReason,
-                  )}
-                  aria-describedby={
-                    combinedPrepared.promptPreviewDisabledReason
-                      ? previewDisabledDescriptionId
-                      : undefined
-                  }
-                >
-                  <Switch
-                    size="sm"
-                    checked={state.promptPreviewEnabled}
-                    disabled={Boolean(
-                      combinedPrepared.promptPreviewDisabledReason,
-                    )}
-                    onCheckedChange={state.actions.setPromptPreviewEnabled}
-                  />
-                  Preview
-                </label>
-              </TooltipTrigger>
-              {combinedPrepared.promptPreviewDisabledReason ? (
-                <TooltipContent>
-                  {combinedPrepared.promptPreviewDisabledReason}
-                </TooltipContent>
-              ) : null}
-            </Tooltip>
-            {combinedPrepared.promptPreviewDisabledReason ? (
-              <span id={previewDisabledDescriptionId} className="sr-only">
-                {combinedPrepared.promptPreviewDisabledReason}
-              </span>
-            ) : null}
+      <div
+        className={cn(
+          "bg-secondary text-secondary-foreground rounded-md border",
+          isSingleMessage && "overflow-hidden",
+        )}
+      >
+        {!isSingleMessage ? (
+          <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 rounded-t-md border-b px-2">
+            <span className="text-muted-foreground text-xs">
+              {state.promptMessages.length} messages
+            </span>
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              {assistantAction}
+              {previewAction}
+            </div>
           </div>
-        </div>
+        ) : null}
         <div className="flex flex-col">
           <SortableContext
             items={state.promptMessageIds}
@@ -256,6 +282,22 @@ export function PromptEditorContent({
                 previewEnabled={state.promptPreviewEnabled}
                 onChange={(next) => state.actions.setPromptMessage(index, next)}
                 onRemove={() => state.actions.removePromptMessage(index)}
+                toolbarPrefix={
+                  isSingleMessage ? (
+                    <span className="text-muted-foreground shrink-0 text-[10px]">
+                      1 message
+                    </span>
+                  ) : null
+                }
+                toolbarActionsBeforeMenu={
+                  isSingleMessage ? (
+                    <>
+                      {assistantAction}
+                      {previewAction}
+                    </>
+                  ) : null
+                }
+                toolbarVariant={isSingleMessage ? "group" : "message"}
               />
             ))}
           </SortableContext>
@@ -316,6 +358,9 @@ function SortablePromptMessage({
   previewEnabled,
   onChange,
   onRemove,
+  toolbarPrefix,
+  toolbarActionsBeforeMenu,
+  toolbarVariant,
 }: {
   id: string;
   index: number;
@@ -326,6 +371,9 @@ function SortablePromptMessage({
   previewEnabled: boolean;
   onChange: (message: EvaluatorPromptMessage) => void;
   onRemove: () => void;
+  toolbarPrefix?: ReactNode;
+  toolbarActionsBeforeMenu?: ReactNode;
+  toolbarVariant: "message" | "group";
 }) {
   const [expanded, setExpanded] = useState(true);
   const { copy } = useCopyToClipboard();
@@ -400,8 +448,11 @@ function SortablePromptMessage({
         renderPreviewText={renderMediaAwareText}
         collapsed={!expanded}
         surfaceVariant={index === messageCount - 1 ? "nested-last" : "nested"}
+        placeholder={PROMPT_MESSAGE_PLACEHOLDER}
+        toolbarVariant={toolbarVariant}
         toolbarStart={
           <>
+            {toolbarPrefix}
             <Button
               type="button"
               variant="ghost"
@@ -451,62 +502,67 @@ function SortablePromptMessage({
         }
         onToolbarClick={() => setExpanded((current) => !current)}
         toolbarActions={
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                aria-label="Prompt message settings"
-                title="Prompt message settings"
-              >
-                <MoreVertical className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuLabel className="text-muted-foreground px-2 py-1 text-[10px] font-bold tracking-wider uppercase">
-                Role
-              </DropdownMenuLabel>
-              {ROLES.map((role) => {
-                const disabledReason =
-                  index > 0 && role.value === "system"
-                    ? INVALID_SYSTEM_PROMPT_MESSAGE_ERROR
-                    : null;
-                return (
-                  <DropdownMenuItem
-                    key={role.value}
-                    disabled={Boolean(disabledReason)}
-                    allowPointerEventsWhenDisabled={Boolean(disabledReason)}
-                    title={disabledReason ?? undefined}
-                    onSelect={() => onChange({ ...message, role: role.value })}
-                  >
-                    <span className="flex-1">{role.label}</span>
-                    {message.role === role.value ? (
-                      <Check className="h-3.5 w-3.5" />
-                    ) : null}
-                  </DropdownMenuItem>
-                );
-              })}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={() => {
-                  copy(message.content).catch(() => undefined);
-                }}
-              >
-                <Copy className="mr-2 h-3.5 w-3.5" />
-                Copy prompt
-              </DropdownMenuItem>
-              {messageCount > 1 ? (
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onSelect={onRemove}
+          <>
+            {toolbarActionsBeforeMenu}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Prompt message settings"
+                  title="Prompt message settings"
                 >
-                  <Trash2 className="mr-2 h-3.5 w-3.5" />
-                  Delete message
+                  <MoreVertical className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuLabel className="text-muted-foreground px-2 py-1 text-[10px] font-bold tracking-wider uppercase">
+                  Role
+                </DropdownMenuLabel>
+                {ROLES.map((role) => {
+                  const disabledReason =
+                    index > 0 && role.value === "system"
+                      ? INVALID_SYSTEM_PROMPT_MESSAGE_ERROR
+                      : null;
+                  return (
+                    <DropdownMenuItem
+                      key={role.value}
+                      disabled={Boolean(disabledReason)}
+                      allowPointerEventsWhenDisabled={Boolean(disabledReason)}
+                      title={disabledReason ?? undefined}
+                      onSelect={() =>
+                        onChange({ ...message, role: role.value })
+                      }
+                    >
+                      <span className="flex-1">{role.label}</span>
+                      {message.role === role.value ? (
+                        <Check className="h-3.5 w-3.5" />
+                      ) : null}
+                    </DropdownMenuItem>
+                  );
+                })}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => {
+                    copy(message.content).catch(() => undefined);
+                  }}
+                >
+                  <Copy className="mr-2 h-3.5 w-3.5" />
+                  Copy prompt
                 </DropdownMenuItem>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                {messageCount > 1 ? (
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onSelect={onRemove}
+                  >
+                    <Trash2 className="mr-2 h-3.5 w-3.5" />
+                    Delete message
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
         }
       />
     </div>
