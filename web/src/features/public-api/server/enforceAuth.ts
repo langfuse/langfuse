@@ -262,14 +262,17 @@ function getBoundProjectId(context: AuthorizationContext): string | undefined {
   return context.principal.boundResource.projectId;
 }
 
+/** getHeaderOrgId returns the target org from the header. */
 function getHeaderOrgId(req: NextApiRequest): string | undefined {
   return getHeaderValue(req.headers[orgIdHeader]) || undefined;
 }
 
+/** getHeaderProjectId returns the target project from the header. */
 function getHeaderProjectId(req: NextApiRequest): string | undefined {
   return getHeaderValue(req.headers[projectIdHeader]) || undefined;
 }
 
+/** getUrlProjectId returns the target project from the URL param. */
 function getUrlProjectId(req: NextApiRequest): string | undefined {
   return typeof req.query.projectId === "string"
     ? req.query.projectId
