@@ -31,6 +31,7 @@ import {
   createOrgProjectAndApiKey,
   getScoreStringValues,
 } from "@langfuse/shared/src/server";
+import type { FilterState } from "@langfuse/shared";
 import { v4 } from "uuid";
 
 describe("Clickhouse Scores Repository Test", () => {
@@ -1486,38 +1487,38 @@ describe("Clickhouse Scores Repository Test", () => {
     it("matches the per-column score-name helpers on the same fixture", async () => {
       const isolatedProjectId = v4();
       const observationId = v4();
-      const timestampFilter = [
+      const timestampFilter: FilterState = [
         {
-          column: "Timestamp" as const,
-          type: "datetime" as const,
-          operator: ">=" as const,
+          column: "Timestamp",
+          type: "datetime",
+          operator: ">=",
           value: new Date(Date.now() - 60 * 60 * 1000),
         },
       ];
-      const traceScopedFilter = [
+      const traceScopedFilter: FilterState = [
         {
-          type: "null" as const,
+          type: "null",
           column: "traceId",
-          operator: "is not null" as const,
+          operator: "is not null",
           value: "",
         },
         ...timestampFilter,
       ];
-      const traceLevelFilter = [
+      const traceLevelFilter: FilterState = [
         ...traceScopedFilter,
         {
-          type: "null" as const,
+          type: "null",
           column: "observationId",
-          operator: "is null" as const,
+          operator: "is null",
           value: "",
         },
       ];
-      const observationLevelFilter = [
+      const observationLevelFilter: FilterState = [
         ...traceScopedFilter,
         {
-          type: "null" as const,
+          type: "null",
           column: "observationId",
-          operator: "is not null" as const,
+          operator: "is not null",
           value: "",
         },
       ];
