@@ -1,5 +1,5 @@
 {
-  "name": "@langfuse/ai-gateway",
+  "name": "ai-gateway",
   "private": true,
   "scripts": {
     "dev": "dotenv -e ../.env -- cargo run --locked",
