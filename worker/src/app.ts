@@ -64,6 +64,7 @@ import {
   postHogIntegrationProcessor,
 } from "./queues/postHogIntegrationQueue";
 import { v4LegacyApiUsageProcessor } from "./queues/v4LegacyApiUsageQueue";
+import { auditLogQueueProcessor } from "./queues/auditLogQueue";
 import {
   mixpanelIntegrationProcessingProcessor,
   mixpanelIntegrationProcessor,
@@ -653,6 +654,12 @@ if (env.QUEUE_CONSUMER_DEAD_LETTER_RETRY_QUEUE_IS_ENABLED === "true") {
       concurrency: 1,
     },
   );
+}
+
+if (env.QUEUE_CONSUMER_AUDIT_LOG_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(QueueName.AuditLogQueue, auditLogQueueProcessor, {
+    concurrency: env.LANGFUSE_AUDIT_LOG_QUEUE_PROCESSING_CONCURRENCY,
+  });
 }
 
 if (env.QUEUE_CONSUMER_WEBHOOK_QUEUE_IS_ENABLED === "true") {

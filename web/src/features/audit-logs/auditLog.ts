@@ -3,6 +3,12 @@ import {
   type Role,
   AuditLogRecordType,
 } from "@langfuse/shared/src/db";
+import {
+  AuditLogQueue,
+  convertPostgresAuditLogToClickhouse,
+  QueueJobs,
+  type AuditLogRecordInsertType,
+} from "@langfuse/shared/src/server";
 
 type AuditableResource =
   | "annotationQueue"
@@ -83,6 +89,37 @@ type AuditLog = {
     }
 );
 
+/**
+ * Queues an audit log row for ClickHouse. Throws when Redis is unavailable so
+ * a change event is never silently lost.
+ */
+async function enqueueAuditLogRecord(
+  record: AuditLogRecordInsertType,
+): Promise<void> {
+  const queue = AuditLogQueue.getInstance();
+  if (!queue) {
+    throw new Error("AuditLogQueue is not available, Redis is not configured");
+  }
+  await queue.add(QueueJobs.AuditLogJob, {
+    id: record.id,
+    timestamp: new Date(),
+    name: QueueJobs.AuditLogJob,
+    payload: record,
+  });
+}
+
+/**
+ * Writes the change event to Postgres and queues the same row (same id and
+ * created_at) for ClickHouse, where the read path lives.
+ */
+async function writeChangeEvent(
+  db: typeof _prisma,
+  data: Parameters<typeof db.auditLog.create>[0]["data"],
+) {
+  const created = await db.auditLog.create({ data });
+  await enqueueAuditLogRecord(convertPostgresAuditLogToClickhouse(created));
+}
+
 export async function auditLog(log: AuditLog, prisma?: typeof _prisma) {
   const db = prisma ?? _prisma;
   const shared = {
@@ -105,50 +142,44 @@ export async function auditLog(log: AuditLog, prisma?: typeof _prisma) {
       },
     });
 
-    await db.auditLog.create({
-      data: {
-        apiKeyId: log.apiKeyId,
-        userId:
-          apiKey?.isInAppAgentKey === true
-            ? (apiKey.createdByUserId ?? undefined)
-            : undefined,
-        orgId: log.orgId,
-        projectId: log.projectId,
-        type: AuditLogRecordType.API_KEY,
-        ...shared,
-      },
+    await writeChangeEvent(db, {
+      apiKeyId: log.apiKeyId,
+      userId:
+        apiKey?.isInAppAgentKey === true
+          ? (apiKey.createdByUserId ?? undefined)
+          : undefined,
+      orgId: log.orgId,
+      projectId: log.projectId,
+      type: AuditLogRecordType.API_KEY,
+      ...shared,
     });
 
     return;
   }
 
   if ("session" in log) {
-    await db.auditLog.create({
-      data: {
-        userId: log.session.user.id,
-        orgId: log.session.orgId,
-        userOrgRole: log.session.orgRole,
-        projectId: log.session.projectId,
-        userProjectRole: log.session.projectRole,
-        type: AuditLogRecordType.USER,
-        ...shared,
-      },
+    await writeChangeEvent(db, {
+      userId: log.session.user.id,
+      orgId: log.session.orgId,
+      userOrgRole: log.session.orgRole,
+      projectId: log.session.projectId,
+      userProjectRole: log.session.projectRole,
+      type: AuditLogRecordType.USER,
+      ...shared,
     });
 
     return;
   }
 
   if ("userId" in log) {
-    await db.auditLog.create({
-      data: {
-        userId: log.userId,
-        orgId: log.orgId,
-        userOrgRole: log.orgRole,
-        projectId: log.projectId,
-        userProjectRole: log.projectRole,
-        type: AuditLogRecordType.USER,
-        ...shared,
-      },
+    await writeChangeEvent(db, {
+      userId: log.userId,
+      orgId: log.orgId,
+      userOrgRole: log.orgRole,
+      projectId: log.projectId,
+      userProjectRole: log.projectRole,
+      type: AuditLogRecordType.USER,
+      ...shared,
     });
 
     return;

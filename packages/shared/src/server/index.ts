@@ -125,6 +125,7 @@ export * from "./webhooks/validation";
 export * from "./webhooks/ipBlocking";
 export * from "./redis/experimentCreateQueue";
 export * from "./redis/dlqRetryQueue";
+export * from "./redis/auditLogQueue";
 export * from "./redis/entityChangeQueue";
 export * from "./redis/eventPropagationQueue";
 export * from "./redis/otelProjectTracking";
