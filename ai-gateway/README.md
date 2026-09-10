@@ -21,21 +21,15 @@ After the usual repository `pnpm install`, run from the repository root:
 pnpm dev
 ```
 
-This starts the gateway alongside the other development services. The gateway
-loads the root `.env` and listens on port 8080 by default. Add overrides from the
-table below to your root `.env`; exported shell variables take precedence.
+This starts the gateway alongside the other development services. Turbo Watch
+recompiles and restarts the gateway after Rust source changes; Web and worker
+keep their built-in watchers. The gateway loads the root `.env` and listens on
+port 8080 by default. Add overrides from the table below to your root `.env`;
+exported shell variables take precedence.
 No gateway-specific credentials are needed for this foundation slice.
 
-Root `pnpm dev` starts the gateway once; it does not watch Rust source changes.
-For gateway development with automatic recompilation and restart, use:
-
-```sh
-pnpm dev:gateway
-```
-
-Stop the gateway started by `pnpm dev` before running this command to avoid a
-port conflict. To run the other services alongside the gateway watcher, use
-`pnpm dev --filter=!@langfuse/ai-gateway` in a separate terminal.
+To work on only the gateway, use `pnpm dev --filter=@langfuse/ai-gateway`.
+Both commands watch Rust source changes; do not run both on the same port.
 
 To start once without watching, run `pnpm dev` from `ai-gateway/`. Cargo also
 works independently of Node/pnpm; it reads exported environment variables only,
