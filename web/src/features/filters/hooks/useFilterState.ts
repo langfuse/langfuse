@@ -14,6 +14,7 @@ import {
   splitOnUnescapedPipe,
   unescapePipeInValue,
   normalizeLegacySessionPositionInTraceKey,
+  auditLogsTableCols,
 } from "@langfuse/shared";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 import {
@@ -190,6 +191,7 @@ const tableCols = {
   dataset_run_items_by_run: datasetRunItemsTableCols,
   experiments: experimentsTableCols,
   "experiment-items": experimentItemsTableCols,
+  audit_logs: auditLogsTableCols,
   widgets: [
     { id: "environment", name: "Environment" },
     { id: "traceName", name: "Trace Name" },

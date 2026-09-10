@@ -28,6 +28,7 @@ import {
   getTracesByIds,
   getScoresForTraces,
   getDatasetItems,
+  getAuditLogs,
   type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
@@ -48,7 +49,7 @@ const tableNameToTimeFilterColumn: Record<BatchTableNames, string> = {
   datasets: "createdAt",
   dataset_run_items: "createdAt",
   dataset_items: "createdAt", // TODO: flip to validFrom once we write in new format
-  audit_logs: "createdAt",
+  audit_logs: "timestamp",
 };
 const tableNameToTimeFilterColumnCh: Record<BatchTableNames, string> = {
   scores: "timestamp",
@@ -59,7 +60,7 @@ const tableNameToTimeFilterColumnCh: Record<BatchTableNames, string> = {
   datasets: "createdAt",
   dataset_run_items: "createdAt",
   dataset_items: "createdAt",
-  audit_logs: "createdAt",
+  audit_logs: "timestamp",
 };
 const isGenerationTimestampFilter = (
   filter: FilterCondition,
@@ -633,26 +634,31 @@ export const getDatabaseReadStreamPaginated = async ({
     }
 
     case "audit_logs": {
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: { orgId: true },
+      });
+      if (!project) {
+        throw new Error(`Project ${projectId} not found`);
+      }
+
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
-          const auditLogs = await prisma.auditLog.findMany({
-            where: {
-              projectId: projectId,
-              createdAt: {
-                lt: cutoffCreatedAt,
-              },
-            },
-            orderBy: {
-              createdAt: "desc",
-            },
-            skip: offset,
-            take: pageSize,
+          const auditLogs = await getAuditLogs({
+            orgId: project.orgId,
+            projectId,
+            filter: filter
+              ? [...filter, createdAtCutoffFilter]
+              : [createdAtCutoffFilter],
+            limit: pageSize,
+            offset,
+            clickhouseConfigs,
           });
 
           return auditLogs.map((log) => ({
             id: log.id,
             createdAt: log.createdAt,
-            updatedAt: log.updatedAt,
+            eventKind: log.eventKind,
             type: log.type,
             apiKeyId: log.apiKeyId,
             userId: log.userId,
@@ -663,6 +669,10 @@ export const getDatabaseReadStreamPaginated = async ({
             resourceType: log.resourceType,
             resourceId: log.resourceId,
             action: log.action,
+            surface: log.surface,
+            route: log.route,
+            params: log.params,
+            resultCount: log.resultCount,
             before: log.before,
             after: log.after,
           }));

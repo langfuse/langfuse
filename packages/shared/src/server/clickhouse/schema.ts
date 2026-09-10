@@ -22,6 +22,7 @@ export const ClickhouseTableNames = {
   scores_listable_count: "scores_listable_count",
   events_traces: "events_traces",
   events_observations: "events_observations",
+  audit_logs: "audit_logs",
 } as const;
 
 export type ClickhouseTableName = keyof typeof ClickhouseTableNames;
