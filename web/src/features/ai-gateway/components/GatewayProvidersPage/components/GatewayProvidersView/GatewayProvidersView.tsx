@@ -291,7 +291,7 @@ function SortableGatewayProvidersView({
           items={orderedConnections.map((connection) => connection.id)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="flex max-h-[60dvh] flex-col overflow-hidden rounded-md border">
+          <div className="flex max-h-[60dvh] flex-col overflow-hidden rounded-md border [&>:first-child>:first-child]:border-t-0">
             <DataTable
               tableName={TABLE_NAME}
               columns={columns}
