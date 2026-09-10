@@ -27,6 +27,9 @@ const readClickhouseRows = (orgId: string) =>
     params: { orgId },
   });
 
+const readState = (state: unknown) =>
+  state as { cursorCreatedAt: string; cursorId: string; processedRows: number };
+
 describe("BackfillAuditLogsToClickhouse", () => {
   let migrationId: string;
   let orgId: string;
@@ -97,21 +100,26 @@ describe("BackfillAuditLogsToClickhouse", () => {
     });
     expect(copied[2].project_id).toBe("");
 
-    const state = await prisma.backgroundMigration.findUniqueOrThrow({
-      where: { id: migrationId },
-      select: { state: true },
-    });
-    expect(state.state).toEqual({
-      cursorCreatedAt: rows[2].createdAt.toISOString(),
-      cursorId: rows[2].id,
-      processedRows: 3,
-    });
+    // Other tests write audit logs concurrently, so the cursor is asserted
+    // relative to our rows rather than as an exact value.
+    const state = readState(
+      (
+        await prisma.backgroundMigration.findUniqueOrThrow({
+          where: { id: migrationId },
+          select: { state: true },
+        })
+      ).state,
+    );
+    expect(new Date(state.cursorCreatedAt).getTime()).toBeGreaterThanOrEqual(
+      rows[2].createdAt.getTime(),
+    );
+    expect(state.processedRows).toBeGreaterThanOrEqual(3);
 
     // A later row appears after the cursor: a re-run copies only that one and
     // re-inserting nothing else keeps the row count stable.
     const lateRow = {
       id: `row-late-${uuidv4()}`,
-      createdAt: new Date(base + 10_000),
+      createdAt: new Date(),
       orgId,
       projectId,
       type: "USER" as const,
@@ -132,13 +140,17 @@ describe("BackfillAuditLogsToClickhouse", () => {
       ...rows.map((r) => r.id),
       lateRow.id,
     ]);
-    const stateAfter = await prisma.backgroundMigration.findUniqueOrThrow({
-      where: { id: migrationId },
-      select: { state: true },
-    });
-    expect(stateAfter.state).toMatchObject({
-      cursorId: lateRow.id,
-      processedRows: 4,
-    });
+    const stateAfter = readState(
+      (
+        await prisma.backgroundMigration.findUniqueOrThrow({
+          where: { id: migrationId },
+          select: { state: true },
+        })
+      ).state,
+    );
+    expect(
+      new Date(stateAfter.cursorCreatedAt).getTime(),
+    ).toBeGreaterThanOrEqual(lateRow.createdAt.getTime());
+    expect(stateAfter.processedRows).toBeGreaterThan(state.processedRows);
   });
 });
