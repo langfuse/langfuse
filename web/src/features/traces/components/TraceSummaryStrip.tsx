@@ -18,7 +18,7 @@ import { useMemo, useState } from "react";
 
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { TagPill } from "@/src/features/tag/components/TagPill";
-import { ModernSessionHeaderPill } from "@/src/components/session/ModernSessionHeaderPill";
+import { ModernSessionHeaderPill } from "@/src/features/sessions/ModernSessionHeaderPill";
 import {
   SessionBadge,
   UserIdBadge,

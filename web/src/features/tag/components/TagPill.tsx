@@ -1,4 +1,4 @@
-import { ModernSessionHeaderPill } from "@/src/components/session/ModernSessionHeaderPill";
+import { ModernSessionHeaderPill } from "@/src/features/sessions/ModernSessionHeaderPill";
 
 /**
  * Read-only tag chip for surfaces that display tags without editing them
