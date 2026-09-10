@@ -10,13 +10,16 @@ import { type RouterOutput } from "@/src/utils/types";
 import { useEffect, useMemo, useState } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import {
   type Prisma,
   datasetRunsTableColsWithOptions,
   type ScoreAggregate,
 } from "@langfuse/shared";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useQueryFilterState } from "@/src/features/filters";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
@@ -29,7 +32,6 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { type RowSelectionState } from "@tanstack/react-table";
 import Link from "next/link";
@@ -43,8 +45,15 @@ import {
   compareViewChartDataToDataPoints,
   getCompareViewChartUnit,
 } from "@/src/features/dashboard/lib/chart-data-adapters";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { CompareViewAdapter } from "@/src/features/scores/adapters";
+import { Chart } from "@/src/features/widgets";
+import {
+  addPrefixToScoreKeys,
+  CompareViewAdapter,
+  convertScoreColumnsToAnalyticsData,
+  getScoreLabelFromKey,
+  scoreFilters,
+  useScoreColumns,
+} from "@/src/features/scores";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
@@ -64,13 +73,6 @@ import {
   ResizableHandle,
 } from "@/src/components/ui/resizable";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import {
-  scoreFilters,
-  addPrefixToScoreKeys,
-  convertScoreColumnsToAnalyticsData,
-} from "@/src/features/scores/lib/scoreColumns";
-import { getScoreLabelFromKey } from "@/src/features/scores/lib/aggregateScores";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DeleteDatasetRunDialogContent } from "@/src/features/datasets/components/DeleteDatasetRunDialogContent";
@@ -235,6 +237,7 @@ function DatasetRunsTableInternal(
     api.datasets.runFilterOptions.useQuery(
       { projectId: props.projectId, datasetId: props.datasetId },
       {
+        enabled: Boolean(props.projectId) && Boolean(props.datasetId),
         refetchOnMount: false,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
@@ -250,13 +253,16 @@ function DatasetRunsTableInternal(
 
   const setFilterState = useDebounce(setUserFilterState);
 
-  const runs = api.datasets.runsByDatasetId.useQuery({
-    projectId: props.projectId,
-    datasetId: props.datasetId,
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
-    filter: userFilterState,
-  });
+  const runs = api.datasets.runsByDatasetId.useQuery(
+    {
+      projectId: props.projectId,
+      datasetId: props.datasetId,
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+      filter: userFilterState,
+    },
+    { enabled: Boolean(props.projectId) && Boolean(props.datasetId) },
+  );
 
   const runsMetrics = api.datasets.runsByDatasetIdMetrics.useQuery(
     {

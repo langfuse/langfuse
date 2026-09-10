@@ -43,7 +43,7 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import Header from "@/src/components/layouts/header";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";

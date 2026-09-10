@@ -4,7 +4,7 @@ import { FilteredRunPills } from "@/src/components/table/filtered-run-pills";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { useColumnVisibility } from "@/src/features/column-visibility";
 import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
 import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
 import { useState, useEffect, useMemo } from "react";
@@ -24,7 +24,7 @@ import {
   DatasetCompareFieldsProvider,
   useDatasetCompareFields,
 } from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
-import { useColumnFilterState } from "@/src/features/filters/hooks/useColumnFilterState";
+import { useColumnFilterState } from "@/src/features/filters";
 import { type Prisma } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";

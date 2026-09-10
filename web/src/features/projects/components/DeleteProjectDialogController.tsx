@@ -1,9 +1,7 @@
 import { type ReactNode } from "react";
+import { useRouter } from "next/router";
 
-import {
-  DialogController,
-  type DialogTrigger,
-} from "@/src/components/ui/dialog";
+import { DialogController } from "@/src/components/ui/dialog";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useQueryProject } from "@/src/features/projects/hooks";
@@ -14,13 +12,14 @@ import { DeleteProjectDialog } from "./DeleteProjectDialog";
 type DeleteProjectDialogControllerProps = {
   children: (control: {
     hasAccess: boolean;
-    Trigger: typeof DialogTrigger;
+    openDialog: () => void;
   }) => ReactNode;
 };
 
 export function DeleteProjectDialogController({
   children,
 }: DeleteProjectDialogControllerProps) {
+  const router = useRouter();
   const capture = usePostHogClientCapture();
   const { project, organization } = useQueryProject();
   const confirmMessage = `${organization?.name}/${project?.name}`
@@ -30,6 +29,10 @@ export function DeleteProjectDialogController({
     projectId: project?.id,
     scope: "project:delete",
   });
+  const deletionProtection = api.projects.deletionProtection.useQuery(
+    { projectId: project?.id ?? "" },
+    { enabled: Boolean(project?.id) && hasAccess },
+  );
   const deleteProject = api.projects.delete.useMutation();
 
   const handleDelete = () => {
@@ -50,15 +53,31 @@ export function DeleteProjectDialogController({
     <DialogController
       closeOnInteractionOutside={false}
       size="default"
-      renderContent={() => (
-        <DeleteProjectDialog
-          confirmMessage={confirmMessage}
-          isPending={deleteProject.isPending}
-          onSubmit={handleDelete}
-        />
-      )}
+      renderContent={() =>
+        deletionProtection.data?.isGatewayIngestionProject && organization ? (
+          <DeleteProjectDialog
+            blocked
+            onOpenGatewaySettings={() =>
+              router.push(
+                `/organization/${organization.id}/settings/ai-gateway`,
+              )
+            }
+          />
+        ) : (
+          <DeleteProjectDialog
+            confirmMessage={confirmMessage}
+            isPending={deleteProject.isPending}
+            onSubmit={handleDelete}
+          />
+        )
+      }
     >
-      {({ Trigger }) => children({ hasAccess, Trigger })}
+      {({ openDialog }) =>
+        children({
+          hasAccess: hasAccess && !deletionProtection.isLoading,
+          openDialog,
+        })
+      }
     </DialogController>
   );
 }

@@ -8,15 +8,19 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import {
+  useQueryFilterState,
+  useSidebarFilterState,
+} from "@/src/features/filters";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
 import { withDatasetNamesResolved } from "@/src/features/experiments/fns/datasetNameFilter";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
-import { DEFAULT_SEARCH_TYPE } from "@/src/features/search-bar/lib/commit";
-import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
-import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import {
+  DEFAULT_SEARCH_TYPE,
+  EventsSearchBarRow,
+  toObservedOptions,
+  useEventsSearchBar,
+} from "@/src/features/search-bar";
 import {
   getExperimentsFilterConfig,
   getExperimentsColumnName,
@@ -36,7 +40,10 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { GitCompareArrows, LightbulbIcon } from "lucide-react";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
@@ -53,14 +60,13 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useRouter } from "next/router";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { collectScoreNameCoverage } from "@/src/features/scores/lib/aggregateScores";
 import {
   collectPresentScoreKeys,
+  collectScoreNameCoverage,
   revealScoreColumns,
   scoreFilters,
-} from "@/src/features/scores/lib/scoreColumns";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+  useScoreColumns,
+} from "@/src/features/scores";
 import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";

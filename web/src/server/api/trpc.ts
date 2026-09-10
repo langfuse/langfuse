@@ -478,6 +478,10 @@ export const protectedOrganizationProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceIsAuthedAndOrgMember);
 
+export const protectedOrganizationProcedureWithoutTracing = t.procedure
+  .use(withErrorHandling)
+  .use(enforceIsAuthedAndOrgMember);
+
 /*
  * Protect trace-level getter routes.
  * - Users need to be member of the project to access the trace.
@@ -657,7 +661,7 @@ export const protectedGetEventsTraceProcedure = withOtelTracingProcedure
  */
 
 const inputSessionSchema = z.object({
-  sessionId: z.string(),
+  sessionId: z.string().min(1),
   projectId: z.string(),
 });
 
