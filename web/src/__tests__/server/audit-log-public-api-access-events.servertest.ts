@@ -183,4 +183,27 @@ describe("public API access events", () => {
     expect(res._getStatusCode()).toBe(200);
     expect(mockAdd).toHaveBeenCalledTimes(1);
   });
+
+  it("does not record a read whose response was too large to serialize", async () => {
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "GET",
+      url: `/api/public/traces/${traceId}`,
+      headers: { authorization: auth },
+      query: { traceId },
+    });
+    // Only the success body blows up; the error body must still go out.
+    const sendJson = res.json.bind(res);
+    let serializations = 0;
+    res.json = ((body: unknown) => {
+      if (serializations++ === 0) {
+        throw new RangeError("Invalid string length");
+      }
+      return sendJson(body);
+    }) as typeof res.json;
+
+    await getTraceHandler(req, res);
+
+    expect(res._getStatusCode()).toBe(422);
+    expect(mockAdd).not.toHaveBeenCalled();
+  });
 });
