@@ -34,7 +34,7 @@ export function StartTimeBadge({ startTime }: { startTime: Date | null }) {
   if (!prepared) return null;
   return (
     <span title={prepared.title} className={METRIC_TEXT_CLASS}>
-      {format(startTime, "MMM d h:mm:ss a")}
+      {format(startTime, "MMM d HH:mm:ss")}
     </span>
   );
 }

@@ -112,7 +112,7 @@ export const GroupedScoreBadges = <
           <HoverCardTrigger asChild>
             <BadgeShell
               asChild
-              color="neutral"
+              color={compact ? "muted" : "neutral"}
               size={compact ? "sm" : "default"}
             >
               <button
@@ -152,7 +152,11 @@ export const GroupedScoreBadges = <
         </HoverCard>
       )}
       {expanded && overflows && (
-        <BadgeShell asChild color="neutral" size={compact ? "sm" : "default"}>
+        <BadgeShell
+          asChild
+          color={compact ? "muted" : "neutral"}
+          size={compact ? "sm" : "default"}
+        >
           <button
             type="button"
             className={overflowButtonClassName}
