@@ -7,7 +7,6 @@ import { evaluatorGalleryScenario } from "./evaluator-gallery";
 import { longSessionScenario } from "./long-session";
 import { manyTracesScenario } from "./many-traces";
 import { outlierTrafficScenario } from "./outlier-traffic";
-import { scoreDensityScenario } from "./score-density";
 import { scoredTracesScenario } from "./scored-traces";
 import { sessionShapesScenario } from "./session-shapes";
 import { sessionVarietyScenario } from "./session-variety";
@@ -29,7 +28,6 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "long-session": longSessionScenario,
   "many-traces": manyTracesScenario,
   "outlier-traffic": outlierTrafficScenario,
-  "score-density": scoreDensityScenario,
   "scored-traces": scoredTracesScenario,
   "session-shapes": sessionShapesScenario,
   "session-variety": sessionVarietyScenario,
