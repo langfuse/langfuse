@@ -166,7 +166,13 @@ function getContainerClasses(
   scrollable: boolean | undefined,
   codeClassName: string | undefined,
   baseClasses = "whitespace-pre-wrap wrap-break-word p-3 text-xs",
+  minimal = false,
 ) {
+  // Minimal: no box, no tinted background, no inner padding — the rows carry
+  // their own hairline dividers and sit flush with the section title.
+  if (minimal) {
+    return cn(baseClasses.replace(/\bp-3\b/, ""), codeClassName);
+  }
   return cn(
     baseClasses,
     ASSISTANT_TITLES.includes(title || "")
@@ -335,6 +341,7 @@ interface JsonTableRowProps {
   stickyTopLevelKey: boolean;
   stickyOffsets: { header: number; row: number };
   toneClasses?: (typeof PRETTY_JSON_VIEW_TONE_CLASSES)[PrettyJsonViewTone];
+  minimal?: boolean;
 }
 
 const JsonTableRowComponent = memo(
@@ -348,6 +355,7 @@ const JsonTableRowComponent = memo(
     stickyTopLevelKey,
     stickyOffsets,
     toneClasses,
+    minimal = false,
   }: JsonTableRowProps) => {
     // Hook is now at top level of this component ✅
     const isExpandable =
@@ -392,7 +400,8 @@ const JsonTableRowComponent = memo(
           <TableCell
             key={cell.id}
             className={cn(
-              "px-2 py-1 align-top whitespace-normal",
+              "align-top whitespace-normal",
+              minimal ? "border-border/60 px-0 py-2" : "px-2 py-1",
               toneClasses?.cell,
             )}
             style={{ width: `${cell.column.columnDef.size}%` }}
@@ -423,6 +432,7 @@ function JsonPrettyTable({
   showObservationTypeBadge = false,
   metadataActions,
   toneClasses,
+  minimal = false,
 }: {
   data: JsonTableRow[];
   expandAllRef?: React.RefObject<(() => void) | null>;
@@ -441,6 +451,8 @@ function JsonPrettyTable({
   showObservationTypeBadge?: boolean;
   metadataActions?: MetadataFilterActions;
   toneClasses?: (typeof PRETTY_JSON_VIEW_TONE_CLASSES)[PrettyJsonViewTone];
+  /** Divider rows, no header, muted sans keys — see PrettyJsonView `variant`. */
+  minimal?: boolean;
 }) {
   const headerRef = useRef<HTMLTableRowElement>(null);
   const topLevelRowRef = useRef<HTMLTableRowElement>(null);
@@ -522,7 +534,12 @@ function JsonPrettyTable({
               )}
             </div>
             <span
-              className={`ml-1 ${MONO_TEXT_CLASSES} cursor-text`}
+              className={cn(
+                "ml-1 cursor-text",
+                minimal
+                  ? "text-muted-foreground text-xs wrap-break-word"
+                  : MONO_TEXT_CLASSES,
+              )}
               style={{ maxWidth: availableTextWidth }}
             >
               {itemBadgeType && (
@@ -570,6 +587,7 @@ function JsonPrettyTable({
             row.original.key === "code_eval_source_code"
           }
           metadataActions={metadataActions}
+          plain={minimal}
         />
       ),
     },
@@ -689,7 +707,7 @@ function JsonPrettyTable({
   return (
     <div className={cn("w-full", !noBorder && "rounded-sm border")}>
       <Table>
-        <TableHeader>
+        <TableHeader className={minimal ? "hidden" : undefined}>
           {table.getHeaderGroups().map((headerGroup, index) => (
             <TableRow
               key={headerGroup.id}
@@ -737,6 +755,7 @@ function JsonPrettyTable({
               stickyTopLevelKey={stickyTopLevelKey}
               stickyOffsets={stickyOffsets}
               toneClasses={toneClasses}
+              minimal={minimal}
             />
           ))}
         </TableBody>
@@ -750,6 +769,12 @@ export function PrettyJsonView(props: {
   parsedJson?: unknown; // Pre-parsed data (optional, from useParsedObservation hook)
   title?: string;
   titleIcon?: React.ReactNode;
+  /**
+   * `minimal`: no bordered box, no Path/Value header, hairline row dividers,
+   * muted sans keys and plain foreground values (no per-type colours). Used by
+   * the trace detail Input/Output/Metadata sections.
+   */
+  variant?: "default" | "minimal";
   className?: string;
   isLoading?: boolean;
   isParsing?: boolean;
@@ -1320,6 +1345,7 @@ export function PrettyJsonView(props: {
                 props.scrollable,
                 codeClassName,
                 "flex text-xs wrap-break-word whitespace-pre-wrap",
+                props.variant === "minimal",
               )}
             >
               {props.isLoading ? (
@@ -1343,6 +1369,7 @@ export function PrettyJsonView(props: {
                   showObservationTypeBadge={props.showObservationTypeBadge}
                   metadataActions={props.metadataActions}
                   toneClasses={toneClasses}
+                  minimal={props.variant === "minimal"}
                 />
               )}
             </div>

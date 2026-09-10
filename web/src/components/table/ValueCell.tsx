@@ -350,12 +350,15 @@ export const ValueCell = memo(
     toggleCellExpansion,
     preserveStringWhitespace = false,
     metadataActions,
+    plain = false,
   }: {
     row: Row<JsonTableRow>;
     expandedCells: Set<string>;
     toggleCellExpansion: (cellId: string) => void;
     preserveStringWhitespace?: boolean;
     metadataActions?: MetadataFilterActions;
+    /** Sans, foreground, unquoted — for the minimal JSON table. */
+    plain?: boolean;
   }) => {
     const { value, type } = row.original;
     const cellId = `${row.id}-value`;
@@ -399,13 +402,20 @@ export const ValueCell = memo(
           return {
             content: (
               <span
-                className={`text-green-600 dark:text-green-400 ${
+                className={cn(
+                  plain
+                    ? "text-foreground"
+                    : "text-green-600 dark:text-green-400",
                   preserveStringWhitespace
                     ? "whitespace-pre-wrap"
-                    : "whitespace-pre-line"
-                }`}
+                    : "whitespace-pre-line",
+                )}
               >
-                &quot;{renderStringWithLinks(displayValue)}&quot;
+                {plain ? (
+                  renderStringWithLinks(displayValue)
+                ) : (
+                  <>&quot;{renderStringWithLinks(displayValue)}&quot;</>
+                )}
               </span>
             ),
             needsTruncation,
@@ -414,7 +424,11 @@ export const ValueCell = memo(
         case "number":
           return {
             content: (
-              <span className="text-blue-600 dark:text-blue-400">
+              <span
+                className={
+                  plain ? "text-foreground" : "text-blue-600 dark:text-blue-400"
+                }
+              >
                 {String(value)}
               </span>
             ),
@@ -423,7 +437,13 @@ export const ValueCell = memo(
         case "boolean":
           return {
             content: (
-              <span className="text-orange-600 dark:text-orange-400">
+              <span
+                className={
+                  plain
+                    ? "text-foreground"
+                    : "text-orange-600 dark:text-orange-400"
+                }
+              >
                 {String(value)}
               </span>
             ),
@@ -506,7 +526,12 @@ export const ValueCell = memo(
     const { content, needsTruncation } = getDisplayValue();
 
     return (
-      <div className={`${MONO_TEXT_CLASSES} group relative max-w-full`}>
+      <div
+        className={cn(
+          plain ? "text-xs wrap-break-word" : MONO_TEXT_CLASSES,
+          "group relative max-w-full",
+        )}
+      >
         <span className="cursor-text">{content}</span>
         {needsTruncation && !row.original.hasChildren && (
           <div
