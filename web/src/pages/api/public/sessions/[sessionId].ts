@@ -13,6 +13,12 @@ import { SESSIONS_DEPRECATION } from "@/src/features/public-api/server/deprecati
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Session",
+    audit: {
+      route: "GET /api/public/sessions/{sessionId}",
+      resourceType: "session",
+      action: "read",
+      resourceId: (query) => query.sessionId,
+    },
     action: "sessions:read",
     deprecation: SESSIONS_DEPRECATION,
     rateLimitResource: "public-api-legacy",

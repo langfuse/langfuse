@@ -34,6 +34,12 @@ export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
       name: "Get Single Trace",
+      audit: {
+        route: "GET /api/public/traces/{traceId}",
+        resourceType: "trace",
+        action: "read",
+        resourceId: (query) => query.traceId,
+      },
       action: "traces:read",
       deprecation: TRACES_DEPRECATION,
       rateLimitResource: "public-api-legacy",
