@@ -14,6 +14,7 @@ import {
 import {
   DATASET_RUN_ITEMS_DEPRECATION,
   DATASET_RUNS_DEPRECATION,
+  INGESTION_DEPRECATION,
   METRICS_DEPRECATION,
   OBSERVATIONS_V1_DEPRECATION,
   SCORES_DEPRECATION,
@@ -135,6 +136,16 @@ describe("OpenAPI deprecations", () => {
       definitionDirectory,
     )) {
       const operation = `${method.toUpperCase()} ${endpointPath}`;
+      const isIngestion =
+        method === "post" && endpointPath === "/api/public/ingestion";
+
+      // Ingestion is not removed: v4-only write mode rejects traces, scores stay.
+      if (isIngestion) {
+        expect(message, operation).toContain(V3_SUNSET_HUMAN);
+        expect(message, operation).not.toContain("will be removed");
+        expect(message, operation).not.toContain("becomes unavailable");
+        continue;
+      }
 
       expect(message, operation).toContain(
         `will be removed on ${V3_SUNSET_HUMAN}.`,
@@ -177,11 +188,42 @@ describe("OpenAPI deprecations", () => {
       METRICS_DEPRECATION,
       DATASET_RUN_ITEMS_DEPRECATION,
       DATASET_RUNS_DEPRECATION,
+      INGESTION_DEPRECATION,
     ];
 
     for (const family of families) {
       expect(family.message).toContain(V3_DELAY_NOTICE);
     }
+  });
+
+  it("tells legacy ingestion callers to prefer Python and JS SDKs over curl", () => {
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "Always prefer upgrading to the current Python and JS SDKs",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "custom auto-instrumentation",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain("curl");
+
+    const ingestion = getFernDeprecatedOperations(definitionDirectory).find(
+      ({ method, endpointPath }) =>
+        method === "post" && endpointPath === "/api/public/ingestion",
+    );
+    expect(ingestion?.message).toContain(
+      "Always prefer upgrading to the current Python and JS SDKs",
+    );
+    expect(ingestion?.message).toContain("custom auto-instrumentation");
+    expect(ingestion?.message).toContain("curl");
+    expect(INGESTION_DEPRECATION.message).toContain("never shut down");
+    expect(INGESTION_DEPRECATION.message).toContain("score events");
+    expect(INGESTION_DEPRECATION.message).toContain("v4-only write mode");
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "not in dual or legacy mode",
+    );
+    expect(ingestion?.message).toContain("never shut down");
+    expect(ingestion?.message).toContain("score events");
+    expect(ingestion?.message).toContain("v4-only write mode");
+    expect(ingestion?.message).toContain("not in dual or legacy mode");
   });
 
   it("supports deprecated endpoints at a service base path", () => {
