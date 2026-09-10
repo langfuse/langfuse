@@ -2,7 +2,6 @@ import { Processor } from "bullmq";
 import {
   getObservationsForTraceFromEventsTable,
   QueueName,
-  recordDistribution,
   sleep,
   DelayedTraceExecutionEventSchema,
   DelayedTraceExecutionQueue,
@@ -26,28 +25,16 @@ export const delayedTraceExecutionProcessor: Processor<
   if (!queue) throw new Error("Trace observation read Redis unavailable");
   const client = await queue.client;
   const minimum = await client.get(queue.toKey(`minimum:${id}`));
-  const startedAt = performance.now();
-  let outcome = "failure";
-  let result;
-  try {
-    // This is the retained activity window, not a durable trace start. If the
-    // cache expired, omit the time bound rather than substitute arrival time.
-    result = await getObservationsForTraceFromEventsTable({
-      projectId,
-      traceId,
-      timestamp: minimum === null ? undefined : new Date(Number(minimum)),
-      selectIOAndMetadata: true,
-      selectToolData: true,
-    });
-    outcome = "success";
-  } finally {
-    recordDistribution(
-      "langfuse.delayed_trace_execution.observation_lookup_duration_ms",
-      performance.now() - startedAt,
-      { outcome },
-    );
-  }
-  // Simulate downstream transcript/LLM work without inflating read timing.
+  // This is the retained activity window, not a durable trace start. If the
+  // cache expired, omit the time bound rather than substitute arrival time.
+  const result = await getObservationsForTraceFromEventsTable({
+    projectId,
+    traceId,
+    timestamp: minimum === null ? undefined : new Date(Number(minimum)),
+    selectIOAndMetadata: true,
+    selectToolData: true,
+  });
+  // Simulate downstream transcript/LLM work while occupying the active job.
   if (env.LANGFUSE_DELAYED_TRACE_EXECUTION_PROCESSING_DELAY_MS > 0) {
     await sleep(env.LANGFUSE_DELAYED_TRACE_EXECUTION_PROCESSING_DELAY_MS);
   }

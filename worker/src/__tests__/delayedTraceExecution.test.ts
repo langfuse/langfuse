@@ -6,7 +6,6 @@ import {
   getObservationsForTraceFromEventsTable,
   getQueuePrefix,
   QueueName,
-  recordDistribution,
   DelayedTraceExecutionQueue,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
@@ -20,7 +19,6 @@ import { delayedTraceExecutionProcessor } from "../queues/delayedTraceExecutionQ
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getObservationsForTraceFromEventsTable: vi.fn(),
-  recordDistribution: vi.fn(),
 }));
 
 describe("sampled trace observation reads", () => {
@@ -57,7 +55,6 @@ describe("sampled trace observation reads", () => {
     await connection.ping();
     vi.spyOn(DelayedTraceExecutionQueue, "getInstance").mockReturnValue(queue);
     vi.mocked(getObservationsForTraceFromEventsTable).mockReset();
-    vi.mocked(recordDistribution).mockClear();
   });
 
   afterEach(async () => {
@@ -167,7 +164,7 @@ describe("sampled trace observation reads", () => {
     }
   });
 
-  it("queries full fields with the cached bound, omits an expired bound, honors gating, and measures query failures", async () => {
+  it("queries full fields with the cached bound, omits an expired bound, honors gating, and propagates query failures", async () => {
     const projectId = randomUUID();
     const traceId = randomUUID();
     const key = minimumKey(projectId, traceId);
@@ -189,11 +186,6 @@ describe("sampled trace observation reads", () => {
       selectIOAndMetadata: true,
       selectToolData: true,
     });
-    expect(recordDistribution).toHaveBeenLastCalledWith(
-      "langfuse.delayed_trace_execution.observation_lookup_duration_ms",
-      expect.any(Number),
-      { outcome: "success" },
-    );
     await connection.del(key);
     await delayedTraceExecutionProcessor(job);
     expect(getObservationsForTraceFromEventsTable).toHaveBeenLastCalledWith(
@@ -212,14 +204,9 @@ describe("sampled trace observation reads", () => {
     await expect(delayedTraceExecutionProcessor(job)).rejects.toThrow(
       "query failed",
     );
-    expect(recordDistribution).toHaveBeenLastCalledWith(
-      "langfuse.delayed_trace_execution.observation_lookup_duration_ms",
-      expect.any(Number),
-      { outcome: "failure" },
-    );
   });
 
-  it("keeps simulated processing time out of lookup timing while keeping the job active", async () => {
+  it("awaits simulated work after the lookup before completing the job", async () => {
     const projectId = randomUUID();
     const traceId = randomUUID();
     minimumKey(projectId, traceId);
@@ -246,17 +233,11 @@ describe("sampled trace observation reads", () => {
     });
     await queryStarted;
     await vi.advanceTimersByTimeAsync(20);
-    expect(recordDistribution).toHaveBeenLastCalledWith(
-      "langfuse.delayed_trace_execution.observation_lookup_duration_ms",
-      20,
-      { outcome: "success" },
-    );
     await vi.advanceTimersByTimeAsync(499);
     expect(completed).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
     await processing;
     expect(completed).toBe(true);
-    expect(recordDistribution).toHaveBeenCalledTimes(1);
   });
 
   it("returns after the scheduling budget and never submits another chunk after an outstanding write resolves", async () => {

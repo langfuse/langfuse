@@ -1,4 +1,4 @@
-import { recordDistribution, recordIncrement } from "../instrumentation";
+import { recordIncrement } from "../instrumentation";
 import { type NormalizedClickHouseQueryTags } from "./queryTags";
 
 /**
@@ -53,11 +53,7 @@ const LABELLED_ROUTES = new Set([
  * do not need the method/path parsing REST routes get. Add one when it gains an
  * SLO or drives a meaningful share of timeouts.
  */
-const LABELLED_BARE_ROUTES = new Set([
-  "events.all",
-  "listObservations",
-  "langfuse.queue.delayed_trace_execution",
-]);
+const LABELLED_BARE_ROUTES = new Set(["events.all", "listObservations"]);
 
 const OTHER_ROUTE_LABEL = "other";
 
@@ -132,19 +128,11 @@ export function recordClickHouseQueryOutcome(
   outcome: ClickHouseQueryOutcome,
   tags: NormalizedClickHouseQueryTags,
   table: ClickHouseQueryTable,
-  durationMs?: number,
 ): void {
-  const metricTags = {
+  recordIncrement(CLICKHOUSE_QUERY_OUTCOME_METRIC, 1, {
     outcome,
     surface: tags.surface,
     route: clickHouseQueryOutcomeRouteLabel(tags.route),
     table,
-  };
-  recordIncrement(CLICKHOUSE_QUERY_OUTCOME_METRIC, 1, metricTags);
-  if (durationMs !== undefined) {
-    recordDistribution("langfuse.clickhouse.query.duration_ms", durationMs, {
-      ...metricTags,
-      unit: "milliseconds",
-    });
-  }
+  });
 }
