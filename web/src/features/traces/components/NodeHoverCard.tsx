@@ -112,7 +112,7 @@ export function NodeHoverCardContent({ node }: { node: TreeNode }) {
           type={node.type as LangfuseItemType}
           className="size-3.5 shrink-0"
         />
-        <span className="min-w-0 truncate" title={node.name}>
+        <span className="min-w-0 truncate font-bold" title={node.name}>
           {node.name || `Unnamed ${node.type.toLowerCase()}`}
         </span>
         <span className="text-muted-foreground ml-auto shrink-0">
