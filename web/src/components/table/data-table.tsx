@@ -12,6 +12,7 @@ import React, {
 } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
+import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import {
   type CustomHeights,
@@ -166,15 +167,6 @@ function isValidCssVariableName({
     : /^(?![0-9])([a-zA-Z][a-zA-Z0-9-_]*)$/;
   return regex.test(name);
 }
-
-const INTERACTIVE_ROW_CLICK_SELECTOR =
-  "a, button, input, select, textarea, summary, [role='button'], [role='link']";
-
-const shouldIgnoreRowClickTarget = (target: EventTarget | null) => {
-  if (!(target instanceof Element)) return false;
-
-  return Boolean(target.closest(INTERACTIVE_ROW_CLICK_SELECTOR));
-};
 
 // These are the important styles to make sticky column pinning work!
 const getCommonPinningStyles = <TData,>(
