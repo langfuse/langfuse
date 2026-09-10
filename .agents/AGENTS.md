@@ -219,11 +219,17 @@ langfuse/
 - Cursor Cloud starts the complete source-built stack through
   `scripts/agents/start-cursor-cloud.sh`; do not start a second web or worker
   process on ports 3000 or 3030.
+- Both `scripts/agents/*-cursor-cloud.sh` paths are relative to this repo, but a
+  multi-repo Cloud workspace runs commands from the workspace root rather than
+  from a checkout. Qualify them there
+  (`bash repos/langfuse/scripts/agents/start-cursor-cloud.sh`), and do the same
+  in the `install` and `start` entries of a multi-repo environment, or the
+  command exits 127 before any of it runs.
 - Use that script for the Cloud stack rather than invoking Compose directly:
   the workspace `.env` contains host-facing `localhost` service URLs and must
   not be used to interpolate container service configuration.
-- After changing web or worker production code, rerun
-  `bash scripts/agents/start-cursor-cloud.sh` before browser signoff.
+- After changing web or worker production code, rerun that start script before
+  browser signoff.
 - Open a same-repo reviewable PR after local verification (not a draft) and
   test the resulting `pr-<N>.preview.langfuse.com` deployment with synthetic
   data. Previews normally run Mon-Fri 08:00-24:00 Europe/Berlin.
