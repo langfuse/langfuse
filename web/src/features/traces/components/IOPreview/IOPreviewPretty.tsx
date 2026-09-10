@@ -64,7 +64,6 @@ function JsonInputOutputView({
     <div className="space-y-4 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
       {showInput && (
         <PrettyJsonView
-          variant="minimal"
           title="Input"
           json={parsedInput ?? null}
           isLoading={isLoading}
@@ -78,7 +77,6 @@ function JsonInputOutputView({
       )}
       {showOutput && (
         <PrettyJsonView
-          variant="minimal"
           title="Output"
           json={parsedOutput}
           isLoading={isLoading}
@@ -364,7 +362,6 @@ export function IOPreviewPretty({
       {showData && shouldShowMetadata && (
         <div className="[&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
           <PrettyJsonView
-            variant="minimal"
             title="Metadata"
             json={parsedMetadata}
             isLoading={isLoading}

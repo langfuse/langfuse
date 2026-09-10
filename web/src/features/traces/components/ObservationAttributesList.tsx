@@ -248,11 +248,11 @@ export function ObservationAttributesList({
     <section className="flex flex-col">
       <h3 className="text-sm font-bold">Attributes</h3>
       {rows.length > 0 ? (
-        <dl className="divide-border/60 mt-1 grid grid-cols-[calc(35%-0.75rem)_minmax(0,1fr)_1rem] divide-y pl-3 text-xs">
+        <dl className="divide-border/60 mt-1 grid grid-cols-[minmax(10rem,35%)_minmax(0,1fr)_1rem] divide-y text-xs">
           {rows.map((row) => (
             <div
               key={row.key}
-              className="group col-span-full grid grid-cols-subgrid items-center py-2"
+              className="group col-span-full grid grid-cols-subgrid items-center gap-x-4 py-2"
             >
               <dt className="text-muted-foreground truncate" title={row.key}>
                 {row.key}
