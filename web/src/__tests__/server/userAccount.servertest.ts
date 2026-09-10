@@ -8,7 +8,7 @@ import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils";
-import { getSessionLoginAt } from "@/src/features/auth/lib/databaseClock";
+import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
 import { getAuthOptions } from "@/src/server/auth";
 
 describe("userAccountRouter.setFeaturePreviewEnabled", () => {

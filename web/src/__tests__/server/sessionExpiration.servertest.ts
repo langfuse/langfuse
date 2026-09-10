@@ -4,10 +4,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   advanceSessionsExpiredAtForUser,
   getSessionLoginAt,
-} from "@/src/features/auth/lib/databaseClock";
+} from "@/src/features/auth/lib/sessionExpiration";
 import { prisma } from "@langfuse/shared/src/db";
 
-describe("database session clock", () => {
+describe("session expiration", () => {
   const userIds: string[] = [];
 
   afterEach(async () => {

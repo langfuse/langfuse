@@ -12,7 +12,7 @@ import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
 import { setUserFeaturePreview } from "@/src/features/feature-flags/server/organizationFeatureFlags";
-import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/databaseClock";
+import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/sessionExpiration";
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
