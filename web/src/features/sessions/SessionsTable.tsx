@@ -48,7 +48,7 @@ import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { joinSessionCoreAndMetrics } from "@/src/components/table/use-cases/session-row-data";
+import { joinSessionCoreAndMetrics } from "@/src/features/sessions/session-row-data";
 import TagList from "@/src/features/tag/components/TagList";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
