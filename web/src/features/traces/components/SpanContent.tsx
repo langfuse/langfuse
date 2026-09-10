@@ -131,14 +131,20 @@ export function SpanContent({
           // row — stacking on the score chips' own titles and the ScoreTag level
           // tooltip. The truncating name span below carries its own title.
           className={cn(
-            "peer relative flex min-w-0 flex-1 items-center rounded-md py-0.5 pr-2 pl-1 text-left",
+            "peer relative flex min-w-0 flex-1 items-center rounded-md py-[3px] pr-2 pl-1 text-left",
             className,
           )}
         >
           <div className="flex min-w-0 flex-col">
             {/* Name and badges row */}
             <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-              <span className="shrink truncate text-xs" title={nodeDisplayName}>
+              <span
+                // Medium weight approved for the tree name: bold read too heavy
+                // at 12px, regular gave no hierarchy over the metrics line.
+                // eslint-disable-next-line @repo/no-raw-font-weight
+                className="shrink truncate text-xs font-medium"
+                title={nodeDisplayName}
+              >
                 {nodeDisplayName}
               </span>
 
@@ -238,7 +244,7 @@ export function SpanContent({
             pill (hover to see them) so a node with many scores stays a compact
             one/two-line row instead of a tall wrapping grid. */}
             {showScores && nodeScores.length > 0 && (
-              <div className="flex flex-wrap gap-1">
+              <div className="mt-1 flex flex-wrap gap-1">
                 <GroupedScoreBadges
                   compact
                   hideLevels
