@@ -113,7 +113,7 @@ const EnvSchema = z.object({
     .number()
     .min(0)
     .max(100)
-    .default(100),
+    .default(10),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),
