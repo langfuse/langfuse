@@ -58,9 +58,9 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: bash "scripts/validate-release-tag-branch.sh" "${RELEASE_TAG}" "${RELEASE_COMMIT}" "origin/v3"
 
-  # Skips runs whose git tree was already tested in a prior successful run of
-  # this workflow (replaces fkirc/skip-duplicate-actions). This fires almost
-  # exclusively on pushes to main, whose tree the merge queue just tested, so
+  # Skips main pushes already tested by a successful merge-queue run of this
+  # workflow; other push refs use a recent successful tree match. This fires
+  # almost exclusively on main, whose tree the merge queue just tested, so
   # the job only runs for push events: pull_request and merge_group runs skip
   # it instantly and their jobs start without waiting for it (~45-100s of
   # wall clock per run).
@@ -71,25 +71,57 @@ jobs:
       should_skip: ${{ steps.skip_check.outputs.should_skip }}
     timeout-minutes: 15
     permissions:
+      actions: read
       contents: read
     steps:
       - id: skip_check
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           COMMIT_SHA: ${{ github.sha }}
           RUN_ID: ${{ github.run_id }}
         run: |
-          CURRENT_TREE=$(gh api "repos/$REPOSITORY/git/commits/$COMMIT_SHA" --jq '.tree.sha')
+          if ! CURRENT_TREE=$(timeout 10s gh api "repos/$REPOSITORY/git/commits/$COMMIT_SHA" --jq '.tree.sha // empty') \
+            || [[ ! "$CURRENT_TREE" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::warning::Cannot verify the current tree; running CI"
+            echo "should_skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
-          MATCH=$(gh api "repos/$REPOSITORY/actions/workflows/pipeline.yml/runs?status=success&per_page=20" \
-            | jq -r --argjson run_id "$RUN_ID" --arg current_tree "$CURRENT_TREE" \
-              '[.workflow_runs[] | select(.id != $run_id and .head_commit.tree_id == $current_tree)] | first | .head_sha // empty')
+          QUERY="status=success&per_page=20"
+          ATTEMPTS=1
+          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            # Scope the lookup to this commit and evaluate status locally so
+            # a just-completed queue run is not lost in a global success list.
+            QUERY="head_sha=$COMMIT_SHA&per_page=100"
+            ATTEMPTS=3
+          fi
+
+          MATCH=""
+          for ((ATTEMPT=1; ATTEMPT<=ATTEMPTS; ATTEMPT++)); do
+            if MATCH=$(timeout 10s gh api "repos/$REPOSITORY/actions/workflows/pipeline.yml/runs?$QUERY" \
+              -H "Cache-Control: no-cache" \
+              | jq -r --argjson run_id "$RUN_ID" --arg current_tree "$CURRENT_TREE" \
+                --arg sha "$COMMIT_SHA" --arg ref "$GITHUB_REF" \
+                '[.workflow_runs[] | select(.id != $run_id
+                  and .status == "completed" and .conclusion == "success"
+                  and .head_commit.tree_id == $current_tree
+                  and ($ref != "refs/heads/main" or (.head_sha == $sha and .event == "merge_group")))]
+                  | first | .id // empty'); then
+              if [[ -n "$MATCH" ]]; then break; fi
+            else
+              MATCH=""
+              echo "::warning::Duplicate lookup $ATTEMPT/$ATTEMPTS failed"
+            fi
+            if ((ATTEMPT < ATTEMPTS)); then sleep 5; fi
+          done
 
           if [[ -n "$MATCH" ]]; then
-            echo "::notice::Tree $CURRENT_TREE already tested in a prior successful run (commit $MATCH) — skipping"
+            echo "::notice::Tree $CURRENT_TREE already tested in successful run $MATCH — skipping"
             echo "should_skip=true" >> "$GITHUB_OUTPUT"
           else
+            echo "::notice::No verified duplicate after $ATTEMPTS lookup(s); running CI"
             echo "should_skip=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -174,15 +206,15 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
-      - name: Setup Turbo cache
+      - name: Setup Turbo remote cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] lint cache only; publish jobs rebuild artifacts and do not restore this cache
+        continue-on-error: true
+        uses: rharkor/caching-for-turbo@2238fae6eb9a9936f92356f54cb3660200d105e7 # v2.5.1
         with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-lint-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-turbo-lint-
-            ${{ runner.os }}-turbo-
+          provider: github
+          cache-prefix: ${{ runner.os }}-${{ runner.arch }}-node${{ env.NODE_VERSION }}-turbo-ci-
+          use-relative-cache-path: true
+          server-port: "0"
       - name: install dependencies
         run: |
           pnpm i
@@ -722,14 +754,15 @@ jobs:
           # phase below reapplies the mode-specific config and prerendering.
           write_test_env .env.dev.example .env
           write_test_env .env.dev${{ matrix.deploy-mode }}.example .env.runtime
-      - name: Setup Turbo cache
+      - name: Setup Turbo remote cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] test job cache only; publish jobs rebuild artifacts and do not restore this cache
+        continue-on-error: true
+        uses: rharkor/caching-for-turbo@2238fae6eb9a9936f92356f54cb3660200d105e7 # v2.5.1
         with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-tests-web-compile-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-turbo-tests-web-compile-
+          provider: github
+          cache-prefix: ${{ runner.os }}-${{ runner.arch }}-node${{ env.NODE_VERSION }}-turbo-ci-
+          use-relative-cache-path: true
+          server-port: "0"
       # No Next.js build cache here on purpose: its ~30s/job restore+save cost
       # roughly cancels the build speedup, and the Turbo cache above already
       # replays unchanged builds.
@@ -805,11 +838,6 @@ jobs:
         env:
           NODE_COMPILE_CACHE: /tmp/node-compile-cache
         run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers="${VITEST_MAX_WORKERS:-8}"
-      - name: Prune stale turbo cache entries
-        if: env.CI_CACHE_ALLOWED == 'true'
-        # Each run saves the restored archive plus new entries, so the cache
-        # grows without bound unless old entries are dropped before the save.
-        run: find .turbo/cache -type f -mtime +3 -delete 2>/dev/null || true
 
   tests-web-client:
     timeout-minutes: 10
@@ -1074,15 +1102,15 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
-      - name: Setup Turbo cache
+      - name: Setup Turbo remote cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] e2e cache only; no published artifact path restores this cache
+        continue-on-error: true
+        uses: rharkor/caching-for-turbo@2238fae6eb9a9936f92356f54cb3660200d105e7 # v2.5.1
         with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-e2e-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-turbo-e2e-
-            ${{ runner.os }}-turbo-
+          provider: github
+          cache-prefix: ${{ runner.os }}-${{ runner.arch }}-node${{ env.NODE_VERSION }}-turbo-ci-
+          use-relative-cache-path: true
+          server-port: "0"
       - name: Cache Next.js builds
         if: env.CI_CACHE_ALLOWED == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] e2e-only Next.js cache; not part of any artifact build or publishing flow
@@ -1205,14 +1233,15 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev.example .env
-      - name: Setup Turbo cache
+      - name: Setup Turbo remote cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] server e2e build cache only; publish jobs rebuild artifacts without restoring this cache
+        continue-on-error: true
+        uses: rharkor/caching-for-turbo@2238fae6eb9a9936f92356f54cb3660200d105e7 # v2.5.1
         with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-server-e2e-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-turbo-server-e2e-
+          provider: github
+          cache-prefix: ${{ runner.os }}-${{ runner.arch }}-node${{ env.NODE_VERSION }}-turbo-ci-
+          use-relative-cache-path: true
+          server-port: "0"
       # The next two downloads/startups have no dependency on the build, so
       # they run in the background and the build overlaps them. Later steps
       # wait on their marker files.
@@ -1261,9 +1290,6 @@ jobs:
           timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e:server
-      - name: Prune stale turbo cache entries
-        if: env.CI_CACHE_ALLOWED == 'true'
-        run: find .turbo/cache -type f -mtime +3 -delete 2>/dev/null || true
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix

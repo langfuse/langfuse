@@ -18,8 +18,10 @@ description: |
 change daily, and a plausible answer assembled from memory is worse than no
 answer because nobody can tell it is stale.
 
-Who the person is comes from `~/.config/langfuse/me.md`. If it is not there,
-run [`langfuse-onboarding`](../langfuse-onboarding/SKILL.md) step 1 — on Cursor
+Who the person is comes from `.langfuse/me.md` in this checkout, or from
+`langfuse-onboarding` `whoami.sh`. Do not Read `~/.config/langfuse/me.md`.
+If the workspace file is not there, run
+[`langfuse-onboarding`](../langfuse-onboarding/SKILL.md) step 1 — on Cursor
 Cloud that is `run-info` plus the roster, **not** Cloud `gh` permissions, and
 not a "what's your name" interview. Do not guess, and do not answer this
 question for an outside contributor, who owns none of it.

@@ -60,10 +60,16 @@ export const DatasetItemDetailPage = ({
     (tab) => !isExperimentsBetaActive || tab.value !== DATASET_ITEM_TABS.RUNS,
   );
 
-  const dataset = api.datasets.byId.useQuery({
-    datasetId,
-    projectId,
-  });
+  const routeReady =
+    Boolean(projectId) && Boolean(datasetId) && Boolean(itemId);
+
+  const dataset = api.datasets.byId.useQuery(
+    {
+      datasetId,
+      projectId,
+    },
+    { enabled: routeReady },
+  );
   const item = api.datasets.itemByIdAtVersion.useQuery(
     {
       datasetId,
@@ -71,6 +77,7 @@ export const DatasetItemDetailPage = ({
       datasetItemId: itemId,
     },
     {
+      enabled: routeReady,
       refetchOnWindowFocus: false, // breaks dirty form state
     },
   );
@@ -123,6 +130,17 @@ export const DatasetItemDetailPage = ({
       });
     }
   };
+
+  const datasetItemDialogPayload = item.data
+    ? {
+        fromDatasetId: item.data.datasetId,
+        traceId: item.data.sourceTraceId ?? undefined,
+        observationId: item.data.sourceObservationId ?? undefined,
+        input: JSON.stringify(item.data.input),
+        output: JSON.stringify(item.data.expectedOutput),
+        metadata: JSON.stringify(item.data.metadata),
+      }
+    : null;
 
   return (
     <Page
@@ -212,28 +230,21 @@ export const DatasetItemDetailPage = ({
               }
               listKey="datasetItems"
             />
-            {item.data ? (
+            {datasetItemDialogPayload ? (
               <NewDatasetItemFromExistingObjectDialogController
                 projectId={projectId}
-                fromDatasetId={item.data.datasetId}
-                traceId={item.data.sourceTraceId ?? undefined}
-                observationId={item.data.sourceObservationId ?? undefined}
-                input={JSON.stringify(item.data.input)}
-                output={JSON.stringify(item.data.expectedOutput)}
-                metadata={JSON.stringify(item.data.metadata)}
               >
-                {({ Trigger }) => (
-                  <Trigger asChild>
-                    <ActionButton
-                      variant="outline"
-                      size="icon"
-                      hasAccess={hasAccess}
-                      title="Copy item"
-                      aria-label="Copy item"
-                    >
-                      <CopyIcon className="size-3" />
-                    </ActionButton>
-                  </Trigger>
+                {({ openDialog }) => (
+                  <ActionButton
+                    variant="outline"
+                    size="icon"
+                    hasAccess={hasAccess}
+                    title="Copy item"
+                    aria-label="Copy item"
+                    onClick={() => openDialog(datasetItemDialogPayload)}
+                  >
+                    <CopyIcon className="size-3" />
+                  </ActionButton>
                 )}
               </NewDatasetItemFromExistingObjectDialogController>
             ) : (

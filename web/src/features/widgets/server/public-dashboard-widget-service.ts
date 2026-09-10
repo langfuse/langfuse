@@ -13,7 +13,7 @@ import {
   getViewDeclaration,
   type ViewVersion,
 } from "@langfuse/shared/query";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { createStructuredPublicApiError } from "@/src/features/public-api";
 import {
   PostUnstableDashboardWidgetResponse,
