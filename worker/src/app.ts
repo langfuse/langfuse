@@ -142,7 +142,7 @@ if (env.LANGFUSE_OTEL_DELAYED_TRACE_EXECUTION_ENABLED === "true") {
     QueueName.DelayedTraceExecution,
     delayedTraceExecutionProcessor,
     {
-      concurrency: 1,
+      concurrency: env.LANGFUSE_DELAYED_TRACE_EXECUTION_CONCURRENCY,
     },
   );
 }

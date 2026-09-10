@@ -120,6 +120,11 @@ const EnvSchema = z.object({
     .min(0)
     .max(2_147_483_647)
     .default(0),
+  LANGFUSE_DELAYED_TRACE_EXECUTION_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),
