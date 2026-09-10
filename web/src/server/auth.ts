@@ -760,7 +760,7 @@ export async function getAuthOptions(signupAttribution?: {
       },
       async session({ session, token }): Promise<Session> {
         return instrumentAsync({ name: "next-auth-session" }, async (span) => {
-          const dbUser = await prisma.user.findFirst({
+          const dbUser = await prisma.user.findUnique({
             where: {
               email: token.email!.toLowerCase(),
               OR: [

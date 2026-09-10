@@ -2,22 +2,24 @@ import type { Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockFindFirst, mockQueryRaw, mockInstrumentAsync } = vi.hoisted(() => ({
-  mockFindFirst: vi.fn(),
-  mockQueryRaw: vi.fn(),
-  mockInstrumentAsync: vi.fn(
-    async (
-      _options: unknown,
-      callback: (span: { setAttribute: ReturnType<typeof vi.fn> }) => unknown,
-    ) => callback({ setAttribute: vi.fn() }),
-  ),
-}));
+const { mockFindUnique, mockQueryRaw, mockInstrumentAsync } = vi.hoisted(
+  () => ({
+    mockFindUnique: vi.fn(),
+    mockQueryRaw: vi.fn(),
+    mockInstrumentAsync: vi.fn(
+      async (
+        _options: unknown,
+        callback: (span: { setAttribute: ReturnType<typeof vi.fn> }) => unknown,
+      ) => callback({ setAttribute: vi.fn() }),
+    ),
+  }),
+);
 
 vi.mock("@langfuse/shared/src/db", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   prisma: {
     user: {
-      findFirst: mockFindFirst,
+      findUnique: mockFindUnique,
     },
     $queryRaw: mockQueryRaw,
   },
@@ -156,7 +158,7 @@ describe("NextAuth JWT session revocation", () => {
       isAllowed: false,
     },
   ])("$name", async ({ token, sessionsExpireBefore, isAllowed }) => {
-    mockFindFirst.mockImplementation(
+    mockFindUnique.mockImplementation(
       ({
         where,
       }: {
@@ -182,7 +184,7 @@ describe("NextAuth JWT session revocation", () => {
     });
 
     expect(result.user !== null).toBe(isAllowed);
-    expect(mockFindFirst).toHaveBeenCalledWith(
+    expect(mockFindUnique).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           email: "user@example.com",
