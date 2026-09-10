@@ -5,6 +5,13 @@ pub struct Config {
     pub listen_address: SocketAddr,
     pub shutdown_timeout: Duration,
     pub log_level: LevelFilter,
+    pub log_format: LogFormat,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum LogFormat {
+    Text,
+    Json,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -24,6 +31,7 @@ impl Config {
             read_env("LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS")?.as_deref(),
             read_env("LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS")?.as_deref(),
             read_env("LANGFUSE_LOG_LEVEL")?.as_deref(),
+            read_env("LANGFUSE_LOG_FORMAT")?.as_deref(),
         )
     }
 
@@ -31,6 +39,7 @@ impl Config {
         listen_address: Option<&str>,
         shutdown_timeout: Option<&str>,
         log_level: Option<&str>,
+        log_format: Option<&str>,
     ) -> Result<Self, ConfigError> {
         let listen_address = listen_address
             .unwrap_or("0.0.0.0:8080")
@@ -61,10 +70,16 @@ impl Config {
                 ));
             }
         };
+        let log_format = match log_format.unwrap_or("text") {
+            "text" => LogFormat::Text,
+            "json" => LogFormat::Json,
+            _ => return Err(ConfigError("LANGFUSE_LOG_FORMAT must be text or json")),
+        };
         Ok(Self {
             listen_address,
             shutdown_timeout: Duration::from_secs(seconds),
             log_level,
+            log_format,
         })
     }
 }
@@ -85,14 +100,39 @@ mod tests {
 
     #[test]
     fn configuration_parses_defaults_and_overrides() {
-        let default = Config::from_values(None, None, None).unwrap();
+        let default = Config::from_values(None, None, None, None).unwrap();
         assert_eq!(default.listen_address, "0.0.0.0:8080".parse().unwrap());
         assert_eq!(default.shutdown_timeout, Duration::from_secs(10));
         assert_eq!(default.log_level, LevelFilter::INFO);
-        let custom = Config::from_values(Some("[::1]:9000"), Some("30"), Some("debug")).unwrap();
+        assert_eq!(default.log_format, LogFormat::Text);
+        let custom =
+            Config::from_values(Some("[::1]:9000"), Some("30"), Some("debug"), Some("json"))
+                .unwrap();
         assert_eq!(custom.listen_address, "[::1]:9000".parse().unwrap());
         assert_eq!(custom.shutdown_timeout, Duration::from_secs(30));
         assert_eq!(custom.log_level, LevelFilter::DEBUG);
+        assert_eq!(custom.log_format, LogFormat::Json);
+    }
+
+    #[test]
+    fn validates_shared_log_format() {
+        for (value, expected) in [("text", LogFormat::Text), ("json", LogFormat::Json)] {
+            assert_eq!(
+                Config::from_values(None, None, None, Some(value))
+                    .unwrap()
+                    .log_format,
+                expected
+            );
+        }
+        for value in ["", "TEXT", "pretty", "0", "secret-that-must-not-appear"] {
+            let error = Config::from_values(None, None, None, Some(value))
+                .err()
+                .unwrap();
+            assert_eq!(
+                error.to_string(),
+                "LANGFUSE_LOG_FORMAT must be text or json"
+            );
+        }
     }
 
     #[test]
@@ -105,7 +145,7 @@ mod tests {
             ("error", LevelFilter::ERROR),
             ("fatal", LevelFilter::ERROR),
         ] {
-            let config = Config::from_values(None, None, Some(value)).unwrap();
+            let config = Config::from_values(None, None, Some(value), None).unwrap();
             assert_eq!(config.log_level, expected, "{value}");
         }
     }
@@ -126,7 +166,9 @@ mod tests {
             (None, Some("-1"), None),
             (Some("localhost:8080"), None, None),
         ] {
-            let error = Config::from_values(address, timeout, level).err().unwrap();
+            let error = Config::from_values(address, timeout, level, None)
+                .err()
+                .unwrap();
             assert!(!error.to_string().contains(sensitive_input));
             assert!(!format!("{error:?}").contains(sensitive_input));
         }

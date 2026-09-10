@@ -57,14 +57,23 @@ do not load dotenv files. All settings have defaults:
 | Variable                                       | Default        | Validation                                         |
 | ---------------------------------------------- | -------------- | -------------------------------------------------- |
 | `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS`           | `0.0.0.0:8080` | IP address and port; IPv6 uses `[::]:8080`         |
+| `LANGFUSE_LOG_FORMAT`                          | `text`         | `text`, `json`                                     |
 | `LANGFUSE_LOG_LEVEL`                           | `info`         | `trace`, `debug`, `info`, `warn`, `error`, `fatal` |
 | `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300                              |
 
 The gateway shares `LANGFUSE_LOG_LEVEL` with Web and worker. Values are lowercase;
 `fatal` maps to Rust's `error` level and therefore includes ordinary error logs.
 
-Invalid values fail startup without echoing their contents. Logs are JSON and
-contain service lifecycle events, not request bodies or headers. For direct
+Set `LANGFUSE_LOG_FORMAT=text` in the root `.env` for compact, readable logs
+(the default). Use `LANGFUSE_LOG_FORMAT=json` for structured production logs.
+Both formats use the same log level and preserve event fields. For example:
+
+```text
+2026-09-10T13:20:00Z INFO gateway listening address=0.0.0.0:8080
+```
+
+Invalid values fail startup without echoing their contents. Logs contain service
+lifecycle events, not request bodies or headers. For direct
 host-only development, set `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS=127.0.0.1:8080`.
 
 ## Process lifecycle
@@ -86,7 +95,7 @@ From the repository root:
 ```sh
 docker build --target runtime -t langfuse-ai-gateway:dev ./ai-gateway
 docker run --rm --name langfuse-ai-gateway-dev \
-  -p 127.0.0.1:8080:8080 langfuse-ai-gateway:dev
+  -e LANGFUSE_LOG_FORMAT=json -p 127.0.0.1:8080:8080 langfuse-ai-gateway:dev
 # In another terminal:
 docker stop --time 15 langfuse-ai-gateway-dev
 bash ai-gateway/scripts/smoke-image.sh langfuse-ai-gateway:dev

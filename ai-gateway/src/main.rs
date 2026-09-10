@@ -1,7 +1,7 @@
 use std::{error::Error, process::ExitCode};
 
 use ai_gateway::{
-    config::Config,
+    config::{Config, LogFormat},
     server::{self, AppState},
 };
 use tokio::net::TcpListener;
@@ -19,11 +19,13 @@ async fn main() -> ExitCode {
 
 async fn run() -> Result<(), Box<dyn Error>> {
     let config = Config::from_env()?;
-    tracing_subscriber::fmt()
-        .json()
+    let logging = tracing_subscriber::fmt()
         .with_max_level(config.log_level)
-        .with_target(false)
-        .init();
+        .with_target(false);
+    match config.log_format {
+        LogFormat::Text => logging.compact().init(),
+        LogFormat::Json => logging.json().init(),
+    }
     let shutdown = shutdown_signal()?;
     let listener = TcpListener::bind(config.listen_address).await?;
     tracing::info!(address = %listener.local_addr()?, "gateway listening");
