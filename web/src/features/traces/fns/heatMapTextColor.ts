@@ -16,7 +16,7 @@ export const heatMapTextColor = (p: {
   // One tint only: the point is "this is where the parent's time or cost
   // went", not a severity scale.
   const cutOffs: [number, string][] = [
-    [0.5, "bg-light-yellow rounded-sm px-1 -mx-1"], // 50%+
+    [0.75, "bg-light-yellow/50 rounded-sm px-1 -mx-1"], // 75%+
   ];
   const standardizedValueOnStartEndScale = valueDecimal
     .sub(minDecimal)
