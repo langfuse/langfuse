@@ -1141,8 +1141,10 @@ const mergeCategoricalScoreConfigValues = async (
   projectId: string,
   rows: { label: string; values: string[] }[],
 ): Promise<{ label: string; values: string[] }[]> => {
+  // Get score names from ClickHouse results to query score configs
   const scoreNames = rows.map((row) => row.label);
 
+  // Query score_configs table for categorical configurations
   const scoreConfigs =
     scoreNames.length > 0
       ? await prisma.scoreConfig.findMany({
@@ -1161,18 +1163,23 @@ const mergeCategoricalScoreConfigValues = async (
         })
       : [];
 
+  // Create a map of score configs for easy lookup
   const configMap = new Map(
     scoreConfigs.map((config) => [config.name, config.categories]),
   );
 
+  // Enhance the results with all possible category values from score configs
   return rows.map((row) => {
     const configCategories = configMap.get(row.label);
 
     if (configCategories && Array.isArray(configCategories)) {
+      // Extract all possible category labels from the score config
       const allPossibleValues = (
         configCategories as Array<{ label: string; value: number }>
       ).map((category) => category.label);
 
+      // Merge actual values from ClickHouse with all possible values from config
+      // Use Set to ensure uniqueness
       const mergedValues = Array.from(
         new Set([...row.values, ...allPossibleValues]),
       ).slice(0, FILTER_OPTION_CATEGORICAL_VALUE_LIMIT);
@@ -1183,6 +1190,7 @@ const mergeCategoricalScoreConfigValues = async (
       };
     }
 
+    // If no config found, return original values
     return row;
   });
 };
