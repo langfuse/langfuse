@@ -117,6 +117,7 @@ import {
 import {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
+  buildEventsExactFilterOptionsForColumnsQuery,
   buildEventsMetadataValuesQuery,
   EVENTS_FILTER_OPTION_SAMPLE_ROWS,
   EVENTS_FILTER_OPTION_TOP_N,
@@ -2065,12 +2066,16 @@ type BuiltEventsFilterOptionColumnQuery = NonNullable<
 type BuiltEventsFilterOptionsForColumnsQuery = NonNullable<
   ReturnType<typeof buildEventsFilterOptionsForColumnsQuery>
 >;
+type BuiltEventsExactFilterOptionsForColumnsQuery = NonNullable<
+  ReturnType<typeof buildEventsExactFilterOptionsForColumnsQuery>
+>;
 
 const queryEventsFilterOptionRows = async (
   projectId: string,
   queryWithParams:
     | BuiltEventsFilterOptionColumnQuery
-    | BuiltEventsFilterOptionsForColumnsQuery,
+    | BuiltEventsFilterOptionsForColumnsQuery
+    | BuiltEventsExactFilterOptionsForColumnsQuery,
 ) => {
   return queryClickhouse<EventFilterOptionRow>({
     query: queryWithParams.query,
@@ -2143,6 +2148,30 @@ export const getEventsFilterOptionsForColumns = async (params: {
     ...params,
     limit: params.topN ?? EVENTS_FILTER_OPTION_TOP_N,
   });
+
+/** Exact GROUP BY / LIMIT per column in one ClickHouse round-trip (UNION ALL). */
+export const getEventsExactFilterOptionsForColumns = async (params: {
+  projectId: string;
+  filter: FilterState;
+  columns: readonly EventFilterOptionColumn[];
+  topN?: number;
+  scope?: EventFilterOptionScope;
+}) => {
+  const queryWithParams = buildEventsExactFilterOptionsForColumnsQuery({
+    projectId: params.projectId,
+    filter: params.filter,
+    columns: params.columns,
+    limit: params.topN ?? EVENTS_FILTER_OPTION_TOP_N,
+    scope: params.scope,
+    sampleRows: EVENTS_FILTER_OPTION_SAMPLE_ROWS,
+  });
+
+  if (!queryWithParams) {
+    return [];
+  }
+
+  return queryEventsFilterOptionRows(params.projectId, queryWithParams);
+};
 
 // Unsampled: the cursor contract lets MCP agents page the true distinct set.
 export const getEventsFilterOptionValuesPage = async (params: {

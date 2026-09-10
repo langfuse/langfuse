@@ -45,7 +45,7 @@ import {
   getTracesGroupedByTags,
   getTracesGroupedByName,
   getTracesGroupedByUsers,
-  getEventsFilterOptionsForColumns,
+  getEventsExactFilterOptionsForColumns,
   tracesTableUiColumnDefinitions,
   upsertScore,
   logger,
@@ -426,7 +426,7 @@ export const scoresRouter = createTRPCRouter({
 
       const [names, eventFacets, stringValues] = await Promise.all([
         getScoreNames(input.projectId, timestampFilter ?? []),
-        getEventsFilterOptionsForColumns({
+        getEventsExactFilterOptionsForColumns({
           projectId: input.projectId,
           filter: eventsFilter,
           columns: ["traceTags", "traceName", "userId"],

@@ -75,6 +75,7 @@ export {
 export {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
+  buildEventsExactFilterOptionsForColumnsQuery,
   buildEventsMetadataValuesQuery,
   EVENTS_FILTER_OPTION_TOP_N,
   EVENTS_APPROX_TOTAL_COUNT_MARKER,
@@ -83,7 +84,10 @@ export {
   type EventFilterOptionColumn,
   type EventFilterOptionScope,
 } from "./clickhouse-sql/event-filter-options";
-export { buildScoresFilterOptionsForEventFacetsQuery } from "./clickhouse-sql/score-filter-options";
+export {
+  buildScoresFilterOptionsForEventFacetsQuery,
+  FILTER_OPTION_SCORE_GROUPS_PER_TYPE_LIMIT,
+} from "./clickhouse-sql/score-filter-options";
 export {
   eventsScoresAggregation,
   eventsSessionsAggregation,

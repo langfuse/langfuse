@@ -1,8 +1,10 @@
 import {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
+  buildEventsExactFilterOptionsForColumnsQuery,
   buildEventsMetadataValuesQuery,
   buildScoresFilterOptionsForEventFacetsQuery,
+  FILTER_OPTION_SCORE_GROUPS_PER_TYPE_LIMIT,
   CTEQueryBuilder,
   createFilterFromFilterState,
   EventsAggregationQueryBuilder,
@@ -272,8 +274,8 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(Object.values(built.params)).toContain("quality");
   });
 
-  it("combines scores-view event facets into one events_core scan", () => {
-    const built = buildEventsFilterOptionsForColumnsQuery({
+  it("combines scores-view event facets into one exact UNION ALL query", () => {
+    const built = buildEventsExactFilterOptionsForColumnsQuery({
       projectId: "test-project",
       filter: [
         {
@@ -301,16 +303,22 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(built).not.toBeNull();
     if (!built) throw new Error("expected query");
 
-    expect(built.query.match(/FROM events_core e/g)).toHaveLength(1);
-    expect(built.query).toContain("approx_top_kIf");
-    expect(built.query).toContain("approx_top_kArray");
-    expect(built.query).toContain("tuple('traceTags'");
-    expect(built.query).toContain("tuple('traceName'");
-    expect(built.query).toContain("tuple('userId'");
+    expect(built.query.match(/UNION ALL/g)).toHaveLength(2);
+    expect(built.query.match(/FROM events_core e/g)).toHaveLength(3);
+    expect(built.query.match(/GROUP BY value/g)).toHaveLength(3);
+    expect(built.query).not.toContain("approx_top_k");
+    expect(built.query).toContain("'traceTags' AS column");
+    expect(built.query).toContain("'traceName' AS column");
+    expect(built.query).toContain("'userId' AS column");
     expect(built.query).toContain(
       "e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE project_id = {projectId: String} AND timestamp >= {scoredTracesFromTime: DateTime64(3, 'UTC')} AND timestamp <= {scoredTracesToTime: DateTime64(3, 'UTC')})",
     );
-    expect(built.query).not.toContain("GROUP BY value");
+    expect(built.params).toMatchObject({
+      projectId: "test-project",
+      limit: 1000,
+      scoredTracesFromTime: "2026-01-01 00:00:00.000",
+      scoredTracesToTime: "2026-01-01 00:30:00.000",
+    });
   });
 
   it("bounds the scored traces scope by the view's both-sided window", () => {
@@ -1058,10 +1066,14 @@ describe("buildScoresFilterOptionsForEventFacetsQuery", () => {
     expect(built.query).toContain("countIf(isNull(s.observation_id))");
     expect(built.query).toContain("countIf(isNotNull(s.observation_id))");
     expect(built.query).toContain("GROUP BY name, source, data_type");
+    expect(built.query).toContain(
+      "LIMIT {maxGroupsPerType: UInt32} BY data_type",
+    );
     expect(built.query).not.toContain("FINAL");
     expect(built.query).not.toMatch(/\bJOIN\b/i);
     expect(built.params).toMatchObject({
       projectId: "test-project",
+      maxGroupsPerType: FILTER_OPTION_SCORE_GROUPS_PER_TYPE_LIMIT,
     });
     expect(built.params.dataTypes).toEqual([
       "NUMERIC",

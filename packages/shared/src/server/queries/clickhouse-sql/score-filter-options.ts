@@ -1,4 +1,4 @@
-import { LISTABLE_SCORE_TYPES } from "../../../domain/scores";
+import { LISTABLE_SCORE_TYPES, ScoreSourceArray } from "../../../domain/scores";
 import { scoresTableCols } from "../../../tableDefinitions/scoresTable";
 import type { FilterState } from "../../../types";
 import { scoresColumnsTableUiColumnDefinitions } from "../../tableMappings/mapScoresColumnsTable";
@@ -7,6 +7,10 @@ import { createFilterFromFilterState } from "./factory";
 
 export const FILTER_OPTION_SCORE_NAME_LIMIT = 200;
 export const FILTER_OPTION_CATEGORICAL_VALUE_LIMIT = 20;
+// Enough (name, source) groups per data_type for the 200-name JS cap after
+// collapsing sources. LIMIT BY data_type keeps facets from starving each other.
+export const FILTER_OPTION_SCORE_GROUPS_PER_TYPE_LIMIT =
+  FILTER_OPTION_SCORE_NAME_LIMIT * ScoreSourceArray.length;
 
 /**
  * One `scores` scan that materialises every event-table score-name facet
@@ -57,6 +61,7 @@ export const buildScoresFilterOptionsForEventFacetsQuery = (params: {
       ${filterRes.query ? `AND ${filterRes.query}` : ""}
     GROUP BY name, source, data_type
     ORDER BY count DESC
+    LIMIT {maxGroupsPerType: UInt32} BY data_type
   `.trim();
 
   return {
@@ -64,6 +69,7 @@ export const buildScoresFilterOptionsForEventFacetsQuery = (params: {
     params: {
       projectId: params.projectId,
       dataTypes: [...LISTABLE_SCORE_TYPES],
+      maxGroupsPerType: FILTER_OPTION_SCORE_GROUPS_PER_TYPE_LIMIT,
       ...filterRes.params,
     },
   };

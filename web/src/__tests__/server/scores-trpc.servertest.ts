@@ -1,11 +1,11 @@
 const {
   mockAddScoreDelete,
   mockAddBatchAction,
-  mockGetEventsFilterOptionsForColumns,
+  mockGetEventsExactFilterOptionsForColumns,
 } = vi.hoisted(() => ({
   mockAddScoreDelete: vi.fn(),
   mockAddBatchAction: vi.fn(),
-  mockGetEventsFilterOptionsForColumns: vi.fn(async () => []),
+  mockGetEventsExactFilterOptionsForColumns: vi.fn(async () => []),
 }));
 
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -22,7 +22,8 @@ vi.mock("@langfuse/shared/src/server", async () => {
         add: mockAddBatchAction,
       })),
     },
-    getEventsFilterOptionsForColumns: mockGetEventsFilterOptionsForColumns,
+    getEventsExactFilterOptionsForColumns:
+      mockGetEventsExactFilterOptionsForColumns,
   };
 });
 
@@ -65,7 +66,7 @@ describe("scores trpc", () => {
     orgId = setup.orgId;
     mockAddScoreDelete.mockClear();
     mockAddBatchAction.mockClear();
-    mockGetEventsFilterOptionsForColumns.mockClear();
+    mockGetEventsExactFilterOptionsForColumns.mockClear();
 
     const session: Session = {
       expires: "1",
