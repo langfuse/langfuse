@@ -17,11 +17,12 @@ interface TokenCountWorkerPool {
   >;
 }
 
-class TokenCountWorkerManager {
+export class TokenCountWorkerManager {
   private pool: TokenCountWorkerPool;
   private readonly workerPath: string;
   private readonly poolSize: number;
   private requestCounter = 0;
+  private isShuttingDown = false;
 
   constructor(poolSize: number) {
     this.poolSize = poolSize;
@@ -71,12 +72,15 @@ class TokenCountWorkerManager {
     );
 
     worker.on("error", (error) => {
+      // Terminating workers surface as errors/non-zero exits; don't respawn
+      // into a pool we are tearing down.
+      if (this.isShuttingDown) return;
       logger.error("Worker thread error:", error);
-      // Recreate worker on error
       this.replaceWorker(worker);
     });
 
     worker.on("exit", (code) => {
+      if (this.isShuttingDown) return;
       if (code !== 0) {
         logger.error(`Worker stopped with exit code ${code}`);
         this.replaceWorker(worker);
@@ -106,7 +110,10 @@ class TokenCountWorkerManager {
     }
   }
 
-  private getNextWorker(): Worker {
+  private getNextWorker(): Worker | undefined {
+    if (this.pool.workers.length === 0) {
+      return undefined;
+    }
     const worker = this.pool.workers[this.pool.currentWorkerIndex];
     this.pool.currentWorkerIndex =
       (this.pool.currentWorkerIndex + 1) % this.poolSize;
@@ -117,9 +124,23 @@ class TokenCountWorkerManager {
     params: { model: Model; text: unknown },
     timeoutMs = 30000,
   ): Promise<number | undefined> {
+    // A SIGTERM teardown terminates the pool while ingestion may still be
+    // in-flight. Drop the count instead of posting to a dead thread (which
+    // threw and was logged as a tokenization failure, spiking on rollouts);
+    // the caller commits the observation without usage, as it does for any
+    // tokenization miss.
+    if (this.isShuttingDown) {
+      return undefined;
+    }
+
     return new Promise((resolve, reject) => {
       const id = `token-count-${++this.requestCounter}-${Date.now()}`;
       const worker = this.getNextWorker();
+
+      if (!worker) {
+        resolve(undefined);
+        return;
+      }
 
       const timeout = setTimeout(() => {
         this.pool.pendingRequests.delete(id);
@@ -142,14 +163,19 @@ class TokenCountWorkerManager {
   }
 
   async terminate() {
-    // Clear all pending requests
+    // Set before touching the pool so concurrent tokenCount() calls and the
+    // workers' own exit/error events see the shutdown and stop early.
+    this.isShuttingDown = true;
+
+    // Resolve in-flight requests as misses rather than rejecting: the caller
+    // treats a rejection as a tokenization failure and logs it per request,
+    // which is exactly the shutdown-time noise this guard removes.
     for (const [, request] of this.pool.pendingRequests.entries()) {
       clearTimeout(request.timeout);
-      request.reject(new Error("Worker pool is terminating"));
+      request.resolve(undefined);
     }
     this.pool.pendingRequests.clear();
 
-    // Terminate all workers
     await Promise.all(this.pool.workers.map((worker) => worker.terminate()));
     this.pool.workers = [];
   }
