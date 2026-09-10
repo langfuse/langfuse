@@ -10,7 +10,11 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { BatchExportTableName, auditLogsTableCols } from "@langfuse/shared";
+import {
+  BatchExportTableName,
+  auditLogsTableCols,
+  type FilterState,
+} from "@langfuse/shared";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDebounce } from "@/src/hooks/useDebounce";
@@ -33,6 +37,13 @@ export function AuditLogsTable(props: AuditLogsTableProps) {
     "audit_logs",
     props.scope === "project" ? props.projectId : undefined,
   );
+
+  // A filter change shrinks the result set, so the current offset may point
+  // past its end; both query params update in the same tick (batched).
+  const setFilterStateAndResetPage = useDebounce((state: FilterState) => {
+    setPaginationState({ pageIndex: 0 });
+    setFilterState(state);
+  });
 
   // Use the appropriate query based on scope
   const projectAuditLogs = api.auditLogs.all.useQuery(
@@ -190,7 +201,7 @@ export function AuditLogsTable(props: AuditLogsTableProps) {
         columns={columns}
         filterColumnDefinition={auditLogsTableCols}
         filterState={filterState}
-        setFilterState={useDebounce(setFilterState)}
+        setFilterState={setFilterStateAndResetPage}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         actionButtons={
