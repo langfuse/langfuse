@@ -4,11 +4,15 @@ export type Flag = (typeof availableFlags)[number];
 export type Flags = {
   [key in Exclude<
     Flag,
-    "modernSession" | "normalizedIoPreview" | "sessionTimeline"
+    | "modernSession"
+    | "normalizedIoPreview"
+    | "sessionTimeline"
+    | "updatedTraceView"
   >]: boolean;
 } & {
   // Optional while older sessions and test fixtures roll across new flags.
   modernSession?: boolean;
   normalizedIoPreview?: boolean;
   sessionTimeline?: boolean;
+  updatedTraceView?: boolean;
 };

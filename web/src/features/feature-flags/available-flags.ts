@@ -51,4 +51,6 @@ export const availableFlags = [
   // Internal flag (deliberately NOT in featurePreviewFlags): gates the
   // redesigned compact session timeline for admins/flagged users only.
   "sessionTimeline",
+  // Internal flag: routes the trace detail view to the updated implementation (features/traces) instead of the legacy snapshot (features/traces-legacy).
+  "updatedTraceView",
 ] as const;
