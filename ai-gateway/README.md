@@ -46,8 +46,11 @@ do not load dotenv files. See the root `.env.dev.example`. All settings have def
 | Variable | Default | Validation |
 | --- | --- | --- |
 | `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS` | `0.0.0.0:8080` | IP address and port; IPv6 uses `[::]:8080` |
-| `LANGFUSE_AI_GATEWAY_LOG_LEVEL` | `info` | `off`, `error`, `warn`, `info`, `debug`, `trace` |
+| `LANGFUSE_LOG_LEVEL` | `info` | `trace`, `debug`, `info`, `warn`, `error`, `fatal` |
 | `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10` | Integer from 1 to 300 |
+
+The gateway shares `LANGFUSE_LOG_LEVEL` with Web and worker. Values are lowercase;
+`fatal` maps to Rust's `error` level and therefore includes ordinary error logs.
 
 Invalid values fail startup without echoing their contents. Logs are JSON and
 contain service lifecycle events, not request bodies or headers. For direct

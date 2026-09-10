@@ -23,7 +23,7 @@ impl Config {
         Self::from_values(
             read_env("LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS")?.as_deref(),
             read_env("LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS")?.as_deref(),
-            read_env("LANGFUSE_AI_GATEWAY_LOG_LEVEL")?.as_deref(),
+            read_env("LANGFUSE_LOG_LEVEL")?.as_deref(),
         )
     }
 
@@ -48,11 +48,19 @@ impl Config {
                 "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300",
             ));
         }
-        let log_level = log_level.unwrap_or("info").parse().map_err(|_| {
-            ConfigError(
-                "LANGFUSE_AI_GATEWAY_LOG_LEVEL must be off, error, warn, info, debug or trace",
-            )
-        })?;
+        let log_level = match log_level.unwrap_or("info") {
+            "trace" => LevelFilter::TRACE,
+            "debug" => LevelFilter::DEBUG,
+            "info" => LevelFilter::INFO,
+            "warn" => LevelFilter::WARN,
+            // Tracing has no separate fatal severity.
+            "error" | "fatal" => LevelFilter::ERROR,
+            _ => {
+                return Err(ConfigError(
+                    "LANGFUSE_LOG_LEVEL must be trace, debug, info, warn, error or fatal",
+                ));
+            }
+        };
         Ok(Self {
             listen_address,
             shutdown_timeout: Duration::from_secs(seconds),
@@ -80,10 +88,26 @@ mod tests {
         let default = Config::from_values(None, None, None).unwrap();
         assert_eq!(default.listen_address, "0.0.0.0:8080".parse().unwrap());
         assert_eq!(default.shutdown_timeout, Duration::from_secs(10));
+        assert_eq!(default.log_level, LevelFilter::INFO);
         let custom = Config::from_values(Some("[::1]:9000"), Some("30"), Some("debug")).unwrap();
         assert_eq!(custom.listen_address, "[::1]:9000".parse().unwrap());
         assert_eq!(custom.shutdown_timeout, Duration::from_secs(30));
         assert_eq!(custom.log_level, LevelFilter::DEBUG);
+    }
+
+    #[test]
+    fn accepts_shared_langfuse_log_levels() {
+        for (value, expected) in [
+            ("trace", LevelFilter::TRACE),
+            ("debug", LevelFilter::DEBUG),
+            ("info", LevelFilter::INFO),
+            ("warn", LevelFilter::WARN),
+            ("error", LevelFilter::ERROR),
+            ("fatal", LevelFilter::ERROR),
+        ] {
+            let config = Config::from_values(None, None, Some(value)).unwrap();
+            assert_eq!(config.log_level, expected, "{value}");
+        }
     }
 
     #[test]
@@ -93,6 +117,10 @@ mod tests {
             (Some(sensitive_input), None, None),
             (None, Some(sensitive_input), None),
             (None, None, Some(sensitive_input)),
+            (None, None, Some("off")),
+            (None, None, Some("INFO")),
+            (None, None, Some("3")),
+            (None, None, Some("")),
             (None, Some("0"), None),
             (None, Some("301"), None),
             (None, Some("-1"), None),
