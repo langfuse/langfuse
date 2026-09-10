@@ -112,7 +112,7 @@ jobs:
           if [ "${{ matrix.env_profile }}" = "tests-web" ]; then
             pnpm turbo run build:test
           else
-            pnpm run build
+            pnpm run build --filter=!@langfuse/ai-gateway
           fi
         env:
           NODE_OPTIONS: --max_old_space_size=8192

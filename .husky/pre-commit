@@ -12,7 +12,7 @@ run_lint() {
         return 0
     fi
 
-    pnpm run lint
+    pnpm run lint --filter=!@langfuse/ai-gateway
 }
 
 # Check if the current branch is the protected branch

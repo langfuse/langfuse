@@ -8,7 +8,22 @@ credentials are needed to build, start or test this package.
 ## Run locally
 
 Install Rust through rustup; `rust-toolchain.toml` pins the toolchain and required
-components. Run Cargo from this directory so rustup selects that toolchain:
+components. After the usual repository `pnpm install`, run from the repository
+root:
+
+```sh
+pnpm dev:gateway
+```
+
+This loads the root `.env` and uses Turbo Watch to restart the gateway when its
+source changes. Add gateway settings from the root `.env.dev.example` to your
+existing `.env`. Exported shell variables take precedence. The ordinary root
+`pnpm dev` keeps the gateway opt-in and does not start it.
+
+To start once without watching, run `pnpm dev` from `ai-gateway/`. Cargo also
+works independently of Node/pnpm; it reads exported environment variables only,
+without automatically loading `.env`. Run it from this directory so rustup
+selects the pinned toolchain:
 
 ```sh
 cd ai-gateway
@@ -24,8 +39,9 @@ curl --fail http://localhost:8080/ready
 # {"status":"ready"}
 ```
 
-Configuration is read from the process environment (no automatic dotenv loading).
-See `.env.dev.example`. All settings have defaults:
+The binary reads configuration from the process environment. The pnpm development
+script loads the root `.env` before starting it; production and direct Cargo runs
+do not load dotenv files. See the root `.env.dev.example`. All settings have defaults:
 
 | Variable | Default | Validation |
 | --- | --- | --- |
@@ -104,6 +120,25 @@ The opt-in development profile does not define Helm defaults or deploy anything
 to production. There is no second Web/worker process or production Compose wiring.
 
 ## Tests and module boundaries
+
+From the repository root:
+
+```sh
+pnpm --filter @langfuse/ai-gateway build
+pnpm --filter @langfuse/ai-gateway typecheck
+pnpm --filter @langfuse/ai-gateway lint
+pnpm --filter @langfuse/ai-gateway test
+pnpm --filter @langfuse/ai-gateway format
+```
+
+These scripts delegate to Cargo. Root `pnpm build`, `pnpm typecheck`, `pnpm lint`
+and `pnpm test` include the gateway; its Turbo tasks have no Prisma/JavaScript
+dependencies and disable Turbo caching, leaving incremental builds to Cargo.
+The JavaScript CI jobs and commit-hook lint exclude it; the dedicated Rust CI job
+runs its checks without Node. Root Prettier formatting remains JavaScript/CSS-only;
+use the gateway `format` script for Rust. Docker builds also use Cargo directly.
+
+Equivalent Cargo checks, without pnpm:
 
 ```sh
 cd ai-gateway
