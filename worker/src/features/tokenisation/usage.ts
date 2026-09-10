@@ -29,8 +29,11 @@ const OpenAiChatTokenConfig = z.object({
 });
 
 // An invalid tokenizer config is a static, per-model configuration problem, not
-// a per-event condition. Warn once per model id per process so the signal
-// survives without one line per observation.
+// a per-event condition. Log once per model id so the signal survives without
+// one line per observation. tokenCount runs inside the token-count worker-thread
+// pool (each pool worker is its own module instance), so this dedup is per
+// worker-thread, not strictly per process — still a collapse from per-event to a
+// handful of lines per pod.
 const warnedInvalidTokenizerConfigModelIds = new Set<string>();
 
 export function tokenCount(p: {
@@ -92,11 +95,14 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
       p.model.tokenizerConfig,
     );
     if (!parsedConfig.success) {
-      logger.error(
-        `Invalid tokenizer config for chat model ${
-          p.model.id
-        }: ${JSON.stringify(p.model.tokenizerConfig)}`,
-      );
+      if (!warnedInvalidTokenizerConfigModelIds.has(p.model.id)) {
+        warnedInvalidTokenizerConfigModelIds.add(p.model.id);
+        logger.error(
+          `Invalid tokenizer config for chat model ${
+            p.model.id
+          }: ${JSON.stringify(p.model.tokenizerConfig)}`,
+        );
+      }
       return undefined;
     }
     result = openAiChatTokenCount({
