@@ -560,9 +560,23 @@ export const SingleMessage = meta.story({
     await expect(outerGroup).toHaveClass("bg-secondary");
     await expect(toolbar).toHaveClass("bg-secondary");
     await expect(toolbar).not.toHaveClass("bg-muted/50");
-    await expect(getComputedStyle(editor).backgroundColor).not.toBe(
-      getComputedStyle(toolbar).backgroundColor,
-    );
+    const surfaceColors = () =>
+      [toolbar, editor].map(
+        (surface) => getComputedStyle(surface).backgroundColor,
+      );
+    const lightSurfaceColors = surfaceColors();
+    await expect(new Set(lightSurfaceColors).size).toBe(2);
+    const root = canvasElement.ownerDocument.documentElement;
+    root.classList.add("dark");
+    try {
+      await waitFor(() => {
+        const darkSurfaceColors = surfaceColors();
+        expect(darkSurfaceColors).not.toEqual(lightSurfaceColors);
+        expect(new Set(darkSurfaceColors).size).toBe(2);
+      });
+    } finally {
+      root.classList.remove("dark");
+    }
   },
 });
 
