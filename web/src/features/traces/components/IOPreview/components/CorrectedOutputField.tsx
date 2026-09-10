@@ -174,9 +174,10 @@ export function CorrectedOutputField({
             });
             setIsExpanded(true);
           }}
-          className="text-muted-foreground hover:text-foreground inline-flex items-center text-xs hover:underline"
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs hover:underline"
         >
-          {hasContent ? "Corrected output" : "Add corrected output"}
+          <Pencil className="size-3 shrink-0" aria-hidden />
+          {hasContent ? "Corrected output" : "Correct output"}
         </button>
       </div>
     );
