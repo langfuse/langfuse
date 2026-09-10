@@ -173,6 +173,8 @@ export interface QueryFilter {
   expanded: string[];
   onExpandedChange: (value: string[]) => void;
   clearAll: () => void;
+  /** Explicit Clear all discards facet drafts even when applied values are unchanged. */
+  draftResetKey: number;
   isFiltered: boolean;
   setFilterState: (filters: FilterState) => void;
   /** v3-vs-v4 analytics dimension of the surface (see useSidebarFilterState). */
@@ -770,7 +772,7 @@ export function DataTableControls({
             }
             nodes.push(
               <div
-                key={filter.column}
+                key={`${filter.column}:${queryFilter.draftResetKey}`}
                 hidden={!visibleColumns.has(filter.column)}
               >
                 {renderFacet(filter)}
