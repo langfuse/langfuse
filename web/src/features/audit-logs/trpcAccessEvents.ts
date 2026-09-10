@@ -1,6 +1,6 @@
 import type { Session } from "next-auth";
 import type { prisma as _prisma } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
+import { logger, recordIncrement } from "@langfuse/shared/src/server";
 import {
   recordAccessEvent,
   type AccessEventAction,
@@ -65,6 +65,11 @@ const TRPC_ACCESS_EVENT_ROUTES: Readonly<Record<string, TrpcAccessEventRoute>> =
       resultCount: arrayLength("generations"),
     },
     "events.all": {
+      resourceType: "observation",
+      action: "list",
+      resultCount: arrayLength("observations"),
+    },
+    "events.listCursor": {
       resourceType: "observation",
       action: "list",
       resultCount: arrayLength("observations"),
@@ -144,19 +149,43 @@ async function resolveOrg(
   return project ? { orgId: project.orgId } : null;
 }
 
-/**
- * Records one access event for a successfully completed allowlisted tRPC
- * procedure. Anonymous viewers of public traces and sessions are not recorded:
- * there is no actor to attribute the access to.
- */
-export async function recordTrpcAccessEvent(args: {
+type TrpcAccessEventArgs = {
   path: string;
   /** `ctx.session` as left by the authorisation middleware of the procedure. */
   session: unknown;
   prisma: typeof _prisma;
   rawInput: unknown;
   output: unknown;
-}): Promise<void> {
+};
+
+/**
+ * Records one access event for a successfully completed allowlisted tRPC
+ * procedure. Anonymous viewers of public traces and sessions are not recorded:
+ * there is no actor to attribute the access to.
+ *
+ * Fails open like `recordAccessEvent`: the procedure has already succeeded, so
+ * a failure while resolving the organisation must not turn into an error for
+ * the caller.
+ */
+export async function recordTrpcAccessEvent(
+  args: TrpcAccessEventArgs,
+): Promise<void> {
+  try {
+    await recordTrpcAccessEventOrThrow(args);
+  } catch (error) {
+    logger.error("Failed to record audit log access event", {
+      error,
+      path: args.path,
+    });
+    recordIncrement("langfuse.audit_log.access_event_dropped", 1, {
+      reason: "resolve_failed",
+    });
+  }
+}
+
+async function recordTrpcAccessEventOrThrow(
+  args: TrpcAccessEventArgs,
+): Promise<void> {
   const route = TRPC_ACCESS_EVENT_ROUTES[args.path];
   if (!route) return;
 
