@@ -7,6 +7,11 @@
  * run resumes where it stopped. Inserts are idempotent: the ClickHouse table is
  * a ReplacingMergeTree keyed on the row id, and the web dual-write produces
  * byte-equal rows, so re-inserting a row it already wrote is a no-op.
+ *
+ * Rows younger than the settle window are left to the dual-write. A row whose
+ * created_at precedes the cursor can still be committing while the cursor
+ * passes it, and a cursor-only walk would never see it; staying well behind
+ * the present keeps that race out of the backfill's range.
  */
 
 import { IBackgroundMigration } from "./IBackgroundMigration";
@@ -25,6 +30,7 @@ export const BACKFILL_AUDIT_LOGS_MIGRATION_ID =
 
 const LOG_PREFIX = "[Background Migration] backfillAuditLogsToClickhouse:";
 const DEFAULT_BATCH_SIZE = 1000;
+const DEFAULT_SETTLE_MS = 5 * 60 * 1000;
 
 type BackfillState = {
   cursorCreatedAt?: string;
@@ -77,6 +83,10 @@ export default class BackfillAuditLogsToClickhouse implements IBackgroundMigrati
       typeof args.batchSize === "number" && args.batchSize > 0
         ? args.batchSize
         : DEFAULT_BATCH_SIZE;
+    const settleMs =
+      typeof args.settleMs === "number" && args.settleMs >= 0
+        ? args.settleMs
+        : DEFAULT_SETTLE_MS;
 
     const state = await this.loadState();
     let processedRows = state.processedRows ?? 0;
@@ -90,22 +100,26 @@ export default class BackfillAuditLogsToClickhouse implements IBackgroundMigrati
     );
 
     while (!this.isAborted) {
+      const horizon = new Date(Date.now() - settleMs);
       const rows = await prisma.auditLog.findMany({
-        where: cursor
-          ? {
-              OR: [
-                { createdAt: { gt: cursor.createdAt } },
-                { createdAt: cursor.createdAt, id: { gt: cursor.id } },
-              ],
-            }
-          : undefined,
+        where: {
+          createdAt: { lte: horizon },
+          ...(cursor
+            ? {
+                OR: [
+                  { createdAt: { gt: cursor.createdAt } },
+                  { createdAt: cursor.createdAt, id: { gt: cursor.id } },
+                ],
+              }
+            : {}),
+        },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         take: batchSize,
       });
 
       if (rows.length === 0) {
         logger.info(
-          `${LOG_PREFIX} finished in ${Date.now() - start}ms, ${processedRows} rows copied`,
+          `${LOG_PREFIX} finished in ${Date.now() - start}ms, ${processedRows} rows copied up to ${horizon.toISOString()}`,
         );
         return;
       }
