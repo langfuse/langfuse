@@ -2,7 +2,10 @@ import { getObservationsV2FromEventsTableForPublicApi } from "@langfuse/shared/s
 import { LangfuseNotFoundError } from "@langfuse/shared";
 
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import {
+  createAuthedProjectAPIRoute,
+  publicApiListResultCount,
+} from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { env } from "@/src/env.mjs";
 
 import {
@@ -15,6 +18,12 @@ import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEnt
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Observations V2",
+    audit: {
+      route: "GET /api/public/v2/observations",
+      resourceType: "observation",
+      action: "list",
+      resultCount: publicApiListResultCount,
+    },
     action: "traces:read",
     allowInAppAgentKey: true,
     querySchema: GetObservationsV2Query,
