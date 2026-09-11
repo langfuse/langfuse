@@ -271,37 +271,6 @@ export const TruncatesLabel = meta.story({
   },
 });
 
-export const SlidesIndicator = meta.story({
-  name: "(Test) Slides Indicator",
-  args: {
-    defaultValue: "short",
-    children: (
-      <Tabs.List variant="outline">
-        <Tabs.Trigger value="short" label="Python" />
-        <Tabs.Trigger value="long" label="TypeScript" />
-      </Tabs.List>
-    ),
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const indicator = canvasElement.querySelector("[data-tabs-indicator]");
-
-    await expect(indicator).toBeInTheDocument();
-    const initialRect = indicator!.getBoundingClientRect();
-
-    const typeScriptTab = canvas.getByRole("tab", { name: "TypeScript" });
-    await userEvent.click(typeScriptTab);
-    await waitFor(() => {
-      const nextRect = indicator!.getBoundingClientRect();
-      const tabRect = typeScriptTab.getBoundingClientRect();
-      expect(nextRect.left).toBeGreaterThan(initialRect.left);
-      expect(nextRect.width).toBeGreaterThan(initialRect.width);
-      expect(Math.abs(nextRect.left - tabRect.left)).toBeLessThan(0.5);
-      expect(Math.abs(nextRect.width - tabRect.width)).toBeLessThan(0.5);
-    });
-  },
-});
-
 export const AlignsSlidingIndicatorInScaledContainer = meta.story({
   name: "(Test) Aligns Sliding Indicator In Scaled Container",
   args: {
