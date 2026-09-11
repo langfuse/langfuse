@@ -313,7 +313,7 @@ const enforceDivergences: Record<string, number> = {
   "GET projects/index | org/basic": 200,
 };
 
-describe("public-route auth parity", () => {
+describe("public-api auth parity", () => {
   beforeAll(async () => {
     originalMigration = (env as any).API_AUTH_MIGRATION;
     originalAdminApiKey = (env as any).ADMIN_API_KEY;

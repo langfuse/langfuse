@@ -28,43 +28,46 @@ const orgIdHeader = "x-langfuse-organization-id";
 const projectIdHeader = "x-langfuse-project-id";
 
 /** enforceAuth authenticates the request, then routes it to the admin, organization, or project flow its principal and action select. */
-export async function enforceAuth(
-  params: EnforceAuthParams,
-): Promise<EnforceAuthResult> {
-  const authn = await authenticator.authenticate({
-    headers: params.req.headers,
-    allowInAppAgentKey: params.allowInAppAgentKey,
-    isAdminApiKeyAuthAllowed: params.isAdminApiKeyAuthAllowed,
+export async function enforceAuth({
+  req,
+  action,
+  allowInAppAgentKey,
+  isAdminApiKeyAuthAllowed,
+}: EnforceAuthParams): Promise<EnforceAuthResult> {
+  const auth = await authenticator.authenticate({
+    headers: req.headers,
+    allowInAppAgentKey: allowInAppAgentKey,
+    isAdminApiKeyAuthAllowed: isAdminApiKeyAuthAllowed,
   });
-  if (!authn.success) return authn;
+  if (!auth.success) return auth;
 
-  const { context } = authn;
-  const { principal } = context;
-  if (principal.kind === "admin") {
-    return enforceAdminAuth(context, params);
-  }
-  if (principal.kind !== "apiKey") {
-    return internalServerError(
-      `unexpected principal on the public-API seam: ${principal.kind}`,
-    );
-  }
-  return isOrgAction(params.action)
-    ? enforceOrgAuth(context, principal, params)
-    : enforceProjectAuth(context, principal, params);
+  const adminAuth = await enforceAdminAuth(auth.context, req, action);
+  if (adminAuth) return adminAuth;
+
+  const orgAuth = await enforceOrgAuth(auth.context, req, action);
+  if (orgAuth) return orgAuth;
+
+  const projectAuth = await enforceProjectAuth(auth.context, req, action);
+  if (projectAuth) return projectAuth;
+
+  return internalServerError(`unexpected principal on the public-API`);
 }
 
 /** enforceAdminAuth resolves, authorizes, and scopes a self-host admin-key request against its target project; the authenticator admits admin keys only on opted-in, non-Cloud routes. */
 async function enforceAdminAuth(
   context: AuthorizationContext,
-  params: EnforceAuthParams,
-): Promise<EnforceAuthResult> {
-  const project = getProjectId(context, params.req);
+  req: NextApiRequest,
+  action: Action,
+): Promise<EnforceAuthResult | null> {
+  if (context.principal.kind !== "admin") return null;
+
+  const project = getProjectId(context, req);
   if (!project.success) return project;
 
   const org = await lookupProjectOrgId(project.projectId);
   if (!org.success) return org;
 
-  const decision = authorize(context, params.action, {
+  const decision = authorize(context, action, {
     projectId: project.projectId,
   });
   if (!decision.success) return decision;
@@ -75,37 +78,45 @@ async function enforceAdminAuth(
 /** enforceOrgAuth resolves, authorizes, and scopes an organization-scoped api-key request. */
 function enforceOrgAuth(
   context: AuthorizationContext,
-  principal: ApiKeyPrincipal,
-  params: EnforceAuthParams,
-): EnforceAuthResult {
-  const org = getOrgId(context, params.req);
+  req: NextApiRequest,
+  action: Action,
+): EnforceAuthResult | null {
+  if (context.principal.kind !== "apiKey" || !isOrgAction(action)) return null;
+
+  const org = getOrgId(context, req);
   if (!org.success) return org;
 
-  const decision = authorize(context, params.action, { orgId: org.orgId });
+  const decision = authorize(context, action, { orgId: org.orgId });
   if (!decision.success) return decision;
 
-  return access(context, principal.boundResource.orgId);
+  return access(context, org.orgId);
 }
 
 /** enforceProjectAuth resolves, authorizes, and scopes a project-scoped api-key request against its bound org; an organization key naming a project outside its org is told the project does not exist, as the route handlers do. */
 function enforceProjectAuth(
   context: AuthorizationContext,
-  principal: ApiKeyPrincipal,
-  params: EnforceAuthParams,
-): EnforceAuthResult {
-  const project = getProjectId(context, params.req);
+  req: NextApiRequest,
+  action: Action,
+): EnforceAuthResult | null {
+  if (context.principal.kind !== "apiKey" || isOrgAction(action)) return null;
+
+  const project = getProjectId(context, req);
   if (!project.success) return project;
 
-  if (!ownsProject(principal, project.projectId)) {
+  if (!ownsProject(context.principal, project.projectId)) {
     return notFoundError("Project not found or you don't have access to it");
   }
 
-  const decision = authorize(context, params.action, {
+  const decision = authorize(context, action, {
     projectId: project.projectId,
   });
   if (!decision.success) return decision;
 
-  return access(context, principal.boundResource.orgId, project.projectId);
+  return access(
+    context,
+    context.principal.boundResource.orgId,
+    project.projectId,
+  );
 }
 
 /** getOrgId resolves the target org from the header, falling back to the key's bound org; whether the key may act on it is the policy's call. */
@@ -155,7 +166,8 @@ async function lookupProjectOrgId(
 }
 
 /** ownsProject reports whether the project belongs to one of the key's organizations. */
-const ownsProject = (principal: ApiKeyPrincipal, projectId: string) =>
+const ownsProject = (principal: Principal, projectId: string) =>
+  "organizations" in principal &&
   principal.organizations.some((o) => o.projectIds.includes(projectId));
 
 /** getBoundOrgId returns the org an api key is bound to. */
@@ -264,9 +276,6 @@ type ErrorResult = ErrorResultOf<
   | ForbiddenError
   | LangfuseNotFoundError
 >;
-
-/** ApiKeyPrincipal is the api-key arm of the principal union. */
-type ApiKeyPrincipal = Extract<Principal, { kind: "apiKey" }>;
 
 /** ResolvedOrg is org target resolution's success outcome. */
 type ResolvedOrg = Success & { orgId: string };
