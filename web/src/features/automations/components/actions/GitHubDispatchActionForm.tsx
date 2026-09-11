@@ -8,9 +8,10 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { type UseFormReturn } from "react-hook-form";
-import { type ActionDomain } from "@langfuse/shared";
+import { TriggerEventSource, type ActionDomain } from "@langfuse/shared";
 import { ExternalLink } from "lucide-react";
 import Link from "next/link";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { areGitHubDispatchUrlsEquivalent } from "../../githubDispatchUrl";
 
 interface GitHubDispatchActionFormProps {
@@ -26,6 +27,7 @@ export const GitHubDispatchActionForm: React.FC<
   const displayGitHubToken = form.watch("githubDispatch.displayGitHubToken");
   const currentUrl = form.watch("githubDispatch.url");
   const originalUrl = form.watch("githubDispatch.originalUrl");
+  const eventSource = form.watch("eventSource");
   const isUrlChanged =
     originalUrl !== undefined &&
     !areGitHubDispatchUrlsEquivalent(currentUrl, originalUrl);
@@ -132,6 +134,36 @@ export const GitHubDispatchActionForm: React.FC<
           </FormItem>
         )}
       />
+
+      {eventSource === TriggerEventSource.Prompt ? (
+        <FormField
+          control={form.control}
+          name="githubDispatch.includePromptContent"
+          render={({ field }) => (
+            <FormItem>
+              <div className="flex flex-row items-center gap-2">
+                <FormLabel>Include prompt content</FormLabel>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    disabled={disabled}
+                  />
+                </FormControl>
+              </div>
+              <FormDescription>
+                Send the prompt text and config in the GitHub{" "}
+                <code className="text-xs">client_payload</code>. Turn this off
+                to send only identifying metadata (name, version, labels). Your
+                workflow can fetch the full prompt from the Langfuse API. GitHub
+                limits this payload to 64KB and oversized content is truncated
+                automatically.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      ) : null}
     </div>
   );
 };
