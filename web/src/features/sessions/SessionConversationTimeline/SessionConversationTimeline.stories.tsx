@@ -2275,6 +2275,11 @@ export const ExpandToolObservation = meta.story({
     await expect(toolPreviews).toHaveLength(2);
     await expect(toolPreviews[0]).toHaveTextContent('{"orderId":"LF-20481"}');
     await expect(toolPreviews[1]).toHaveTextContent('"status":"processing"');
+    await expect(
+      expandButton
+        .closest("[data-session-observation-depth]")
+        ?.querySelector("[data-session-observation-rail-end]"),
+    ).not.toBeInTheDocument();
 
     await userEvent.click(
       canvas.getByRole("button", { name: "Collapse Get order" }),
@@ -2340,6 +2345,34 @@ export const ExpandRolledUpTool = meta.story({
     ).toHaveLength(1);
     await expect(
       toolRow?.querySelector("[data-session-observation-rail-end]"),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const ExpandFinalToolObservation = meta.story({
+  name: "(Test) Ends Rail After Final Expanded Tool",
+  args: {
+    ...loadedArgs,
+    traces: [
+      {
+        trace: { ...trace, observationCount: 1 },
+        turnNumber: 1,
+        observations: [observations[1]!],
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const expandButton = canvas.getByRole("button", {
+      name: "Expand Get order",
+    });
+
+    await userEvent.click(expandButton);
+
+    await expect(
+      expandButton
+        .closest("[data-session-observation-depth]")
+        ?.querySelector("[data-session-observation-rail-end]"),
     ).toBeInTheDocument();
   },
 });
@@ -2507,7 +2540,7 @@ export const ExpandNestedObservations = meta.story({
     ).toHaveLength(1);
     await expect(
       nestedTool?.querySelector("[data-session-observation-rail-end]"),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
 
     await userEvent.click(
       canvas.getByRole("button", { name: "Collapse tool-1" }),

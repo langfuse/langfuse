@@ -182,9 +182,11 @@ function getNestedObservationSummary(
 function TruncatedObservation({
   observation,
   phase,
+  showRailEnd,
 }: {
   observation: SessionObservation;
   phase: "complete" | "start" | "end";
+  showRailEnd: boolean;
 }) {
   return (
     <div className="flex flex-col gap-5">
@@ -195,7 +197,9 @@ function TruncatedObservation({
             parts={[{ type: "text", text: toPreviewText(observation.input) }]}
             senderName={undefined}
           />
-          {phase === "complete" && !hasPreviewValue(observation.output) ? (
+          {showRailEnd &&
+          phase === "complete" &&
+          !hasPreviewValue(observation.output) ? (
             <SessionTimelineRailEnd />
           ) : null}
         </div>
@@ -207,7 +211,7 @@ function TruncatedObservation({
             parts={[{ type: "text", text: toPreviewText(observation.output) }]}
             senderName={undefined}
           />
-          <SessionTimelineRailEnd />
+          {showRailEnd ? <SessionTimelineRailEnd /> : null}
         </div>
       ) : null}
     </div>
@@ -224,6 +228,7 @@ function SessionTimelineToolRow({
   inputTruncated,
   outputTruncated,
   isExpanded,
+  showRailEnd,
   onExpandedChange,
   onOpenInTraceView,
   observation,
@@ -238,6 +243,7 @@ function SessionTimelineToolRow({
   inputTruncated?: boolean;
   outputTruncated?: boolean;
   isExpanded: boolean;
+  showRailEnd: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
   onOpenInTraceView: () => void;
   observation?: SessionObservation;
@@ -334,7 +340,9 @@ function SessionTimelineToolRow({
               <pre className="bg-muted/30 max-h-48 overflow-auto rounded-md border p-3 font-mono text-xs break-all whitespace-pre-wrap">
                 {toPreviewText(input)}
               </pre>
-              {!hasPreviewValue(output) ? <SessionTimelineRailEnd /> : null}
+              {!hasPreviewValue(output) && showRailEnd ? (
+                <SessionTimelineRailEnd />
+              ) : null}
             </div>
           ) : null}
           {hasPreviewValue(output) ? (
@@ -345,7 +353,7 @@ function SessionTimelineToolRow({
               <pre className="bg-muted/30 max-h-48 overflow-auto rounded-md border p-3 font-mono text-xs break-all whitespace-pre-wrap">
                 {toPreviewText(output)}
               </pre>
-              <SessionTimelineRailEnd />
+              {showRailEnd ? <SessionTimelineRailEnd /> : null}
             </div>
           ) : null}
           {!hasPreviewValue(input) && !hasPreviewValue(output) ? (
@@ -353,7 +361,7 @@ function SessionTimelineToolRow({
               <span className="text-muted-foreground text-xs">
                 No input or output
               </span>
-              <SessionTimelineRailEnd />
+              {showRailEnd ? <SessionTimelineRailEnd /> : null}
             </div>
           ) : null}
         </div>
@@ -367,6 +375,7 @@ function SessionTimelineConversationObservation({
   parsed,
   processedMessages,
   phase,
+  showRailEnd,
   onOpenInTraceView,
   actions,
 }: {
@@ -374,6 +383,7 @@ function SessionTimelineConversationObservation({
   parsed: ParsedSessionTimelineObservation | null;
   processedMessages: PreparedSessionTimelineMessages;
   phase: "complete" | "start" | "end";
+  showRailEnd: boolean;
   onOpenInTraceView: () => void;
   actions?: SessionObservationActions;
 }) {
@@ -485,7 +495,11 @@ function SessionTimelineConversationObservation({
       ) : null}
       <div className="flex min-w-0 flex-col gap-5 pl-[22px]">
         {isTruncated ? (
-          <TruncatedObservation observation={observation} phase={phase} />
+          <TruncatedObservation
+            observation={observation}
+            phase={phase}
+            showRailEnd={showRailEnd}
+          />
         ) : showNonMessageBody && parsed?.type === "error" ? (
           <div className="border-destructive/40 bg-destructive/5 flex items-center justify-between gap-3 rounded-lg border p-3">
             <span className="text-destructive text-xs">
@@ -517,7 +531,9 @@ function SessionTimelineConversationObservation({
                 className="relative"
               >
                 {messageContent}
-                {phase !== "start" && index === visibleMessages.length - 1 ? (
+                {showRailEnd &&
+                phase !== "start" &&
+                index === visibleMessages.length - 1 ? (
                   <SessionTimelineRailEnd />
                 ) : null}
               </div>
@@ -535,6 +551,7 @@ function SessionTimelineObservation({
   processedMessages,
   phase,
   isToolExpanded,
+  showRailEnd,
   onToolExpandedChange,
   onOpenInTraceView,
   actions,
@@ -544,6 +561,7 @@ function SessionTimelineObservation({
   processedMessages: PreparedSessionTimelineMessages;
   phase: "complete" | "start" | "end";
   isToolExpanded: boolean;
+  showRailEnd: boolean;
   onToolExpandedChange: (isExpanded: boolean) => void;
   onOpenInTraceView: () => void;
   actions?: SessionObservationActions;
@@ -560,6 +578,7 @@ function SessionTimelineObservation({
         inputTruncated={observation.inputTruncated}
         outputTruncated={observation.outputTruncated}
         isExpanded={isToolExpanded}
+        showRailEnd={showRailEnd}
         onExpandedChange={onToolExpandedChange}
         onOpenInTraceView={onOpenInTraceView}
         observation={observation}
@@ -574,6 +593,7 @@ function SessionTimelineObservation({
       parsed={parsed}
       processedMessages={processedMessages}
       phase={phase}
+      showRailEnd={showRailEnd}
       onOpenInTraceView={onOpenInTraceView}
       actions={actions}
     />
@@ -627,10 +647,30 @@ function LoadedSessionConversationTimeline({
     });
   }
 
+  const visibleObservations = observations.filter((item) => {
+    if (
+      item.ancestorObservationIds.some((ancestorId) =>
+        collapsedObservationIds.has(ancestorId),
+      )
+    ) {
+      return false;
+    }
+    if (item.type === "tool") return true;
+    if (item.observation.type === "TOOL" && item.phase === "start") {
+      return Object.keys(item.nestedObservationCounts).length > 0;
+    }
+    if (item.phase !== "end") return true;
+    if (item.processedMessages.messages.length > 0) return true;
+    return Boolean(
+      item.observation.outputTruncated &&
+      hasPreviewValue(item.observation.output),
+    );
+  });
+
   return (
     <TooltipProvider>
       <div className="flex flex-col gap-1">
-        {observations.map((item) => {
+        {visibleObservations.map((item, index) => {
           const {
             observation,
             parsed,
@@ -639,14 +679,6 @@ function LoadedSessionConversationTimeline({
             ancestorObservationIds,
             nestedObservationCounts,
           } = item;
-          if (
-            ancestorObservationIds.some((ancestorId) =>
-              collapsedObservationIds.has(ancestorId),
-            )
-          ) {
-            return null;
-          }
-
           const isToolStart =
             item.type === "observation" &&
             observation.type === "TOOL" &&
@@ -725,6 +757,7 @@ function LoadedSessionConversationTimeline({
                   input={item.toolCall.input}
                   output={undefined}
                   isExpanded={isToolExpanded}
+                  showRailEnd={false}
                   onExpandedChange={(isExpanded) =>
                     setExpandedToolObservationIds((current) => {
                       const next = new Set(current);
@@ -742,6 +775,11 @@ function LoadedSessionConversationTimeline({
                   processedMessages={processedMessages}
                   phase={phase}
                   isToolExpanded={isToolExpanded}
+                  showRailEnd={
+                    depth === 0 &&
+                    (observation.type !== "TOOL" ||
+                      index === visibleObservations.length - 1)
+                  }
                   onToolExpandedChange={(isExpanded) =>
                     setExpandedToolObservationIds((current) => {
                       const next = new Set(current);
