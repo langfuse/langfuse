@@ -27,6 +27,7 @@ import { LatencyBadge } from "@/src/features/traces/components/ObservationMetada
 import { CostUsageBadge } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 
 // Tags shown before the rest folds into a "+N" toggle — tag-heavy traces must
@@ -37,7 +38,9 @@ const MAX_VISIBLE_TAGS = 3;
 const MAX_VISIBLE_TRACE_SCORE_GROUPS = 2;
 
 export function TraceSummaryStrip() {
-  const { trace, observations, mergedScores } = useTraceData();
+  const { trace, observations, mergedScores, traceLevelScoreOwnerIds } =
+    useTraceData();
+  const { setSelectedNodeId, setSelectedTab } = useSelection();
   const [showAllTags, setShowAllTags] = useState(false);
 
   // Trace-level scores render here, once, next to the trace's other facts.
@@ -82,6 +85,12 @@ export function TraceSummaryStrip() {
               compact
               scores={traceScores}
               maxVisible={MAX_VISIBLE_TRACE_SCORE_GROUPS}
+              // The root's Scores tab is the table that lists these.
+              onOverflowClick={() => {
+                const [owner] = traceLevelScoreOwnerIds;
+                setSelectedNodeId(owner ?? null);
+                setSelectedTab("scores");
+              }}
             />
           </div>
         )}

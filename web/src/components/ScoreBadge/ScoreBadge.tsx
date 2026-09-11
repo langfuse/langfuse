@@ -74,7 +74,7 @@ export const ScoreBadge = <
   const commented = scores.filter((score) => Boolean(score.comment));
 
   return (
-    <span className="inline-flex max-w-full min-w-0 items-center gap-1">
+    <span className="inline-flex max-w-full min-w-0 cursor-default items-center gap-1">
       {levels.map((level) => (
         <ScoreTag key={level} level={level} />
       ))}

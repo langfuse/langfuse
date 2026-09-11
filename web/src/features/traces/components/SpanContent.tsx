@@ -39,6 +39,7 @@ import { getSubtreeDurationOverflowMs } from "@/src/features/traces/fns/getSubtr
 import { heatMapTextColor } from "@/src/features/traces/fns/heatMapTextColor";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
 import type Decimal from "decimal.js";
 
@@ -76,6 +77,7 @@ export function SpanContent({
   className,
 }: SpanContentProps) {
   const { mergedScores, nodeMap } = useTraceData();
+  const { setSelectedTab } = useSelection();
   // The heat map compares a row against the trace total. It says nothing on
   // the trace wrapper, on root observations, or on an only child (a lone
   // wrapper span is ~100% of its parent by construction), so those rows are
@@ -289,8 +291,11 @@ export function SpanContent({
               <GroupedScoreBadges
                 compact
                 hideLevels
-                expandable={false}
                 overflowPreview={false}
+                onOverflowClick={() => {
+                  onSelect?.();
+                  setSelectedTab("scores");
+                }}
                 scores={nodeScores}
                 maxVisible={MAX_INLINE_SCORE_GROUPS}
               />

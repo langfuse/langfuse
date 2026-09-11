@@ -5,7 +5,7 @@ import { type ComponentPropsWithoutRef, type ReactNode, type Ref } from "react";
 // and score chips sit in one row. One pixel more on every side, because an
 // outlined box reads smaller than a filled one of the same size.
 const PILL_CLASS_NAME =
-  "text-muted-foreground inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-px text-xs leading-tight whitespace-nowrap";
+  "text-muted-foreground inline-flex shrink-0 cursor-default items-center gap-1 rounded-sm border px-1.5 py-px text-xs leading-tight whitespace-nowrap";
 
 type ModernSessionHeaderPillProps = {
   children: ReactNode;
