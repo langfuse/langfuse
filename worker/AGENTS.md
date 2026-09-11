@@ -19,7 +19,7 @@
   successful direct-v4 writer submissions and dispatches ready traces across projects
   to `trace-batch`; `src/queues/traceBatchQueue.ts` reads their event payloads.
   The cross-project experiment packs due project/trace pairs in readiness order,
-  capped by `LANGFUSE_TRACE_BATCH_MAX_SIZE` (default 80). Upgrade every consumer
+  capped by `LANGFUSE_TRACE_BATCH_MAX_SIZE` (default 60). Upgrade every consumer
   before enabling cross-project dispatch; consumers also accept legacy jobs.
   Intake, dispatcher, and consumer have independent disabled-by-default flags.
   `LANGFUSE_TRACE_BATCH_SAMPLING_RATE` is a 0–1 admission rate (default 1),

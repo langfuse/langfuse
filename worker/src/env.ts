@@ -130,7 +130,7 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .max(1_000)
-    .default(80),
+    .default(60),
   LANGFUSE_TRACE_BATCH_IDLE_MS: z.coerce
     .number()
     .int()

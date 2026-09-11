@@ -17,7 +17,7 @@ observation start time determines the query bounds.
 
 One lease-owning dispatcher snapshots at most 1,000 due members and their state
 atomically and packs them across projects in readiness order into batches of at
-most `LANGFUSE_TRACE_BATCH_MAX_SIZE` traces (default 80). Each trace carries its
+most `LANGFUSE_TRACE_BATCH_MAX_SIZE` traces (default 60). Each trace carries its
 project ID. Partial tails dispatch immediately; the cap is not a minimum fill
 target, and a snapshot boundary can produce a partial batch.
 It acknowledges only after enqueue succeeds, atomically removing state and due
@@ -46,7 +46,7 @@ enabled intake tracks every eligible trace unless a lower rate is configured.
 | `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`  | Turn ready state into queue jobs                   |
 | `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`  | Consume existing `trace-batch` jobs                |
 | `LANGFUSE_TRACE_BATCH_CONCURRENCY`            | `2`      | Concurrent reads **per enabled worker process**    |
-| `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `80`     | Cross-project trace cap per job (1–1,000)          |
+| `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`     | Cross-project trace cap per job (1–1,000)          |
 | `LANGFUSE_TRACE_BATCH_IDLE_MS`                | `600000` | Inactivity before a trace becomes due              |
 | `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`   | `30000`  | Delay between dispatcher runs                      |
 
@@ -154,7 +154,7 @@ Measure the natural project batch distribution with a fixed dispatch interval
 and consumer fleet size. Compare the distribution and singleton trace percentage with
 CPU/bytes per found trace, queue delay, missing rows and ingestion latency. If
 singletons dominate even across projects, try a longer dispatch interval.
-Start with a cap of 80 and compare 60/80 using equal admitted trace cohorts;
+Start with a cap of 60 and compare 60/80 using equal admitted trace cohorts;
 the cap is an experiment setting, not an established production optimum.
 
 ## Semantics and limits
