@@ -26,6 +26,7 @@ import {
   filterGatewayModels,
   type GatewayModelRow,
 } from "./filterGatewayModels";
+import { getGatewayModelConnectionSearchOptions } from "./fns/getGatewayModelConnectionSearchOptions";
 
 const TABLE_NAME = gatewayModelsFilterConfig.tableName;
 
@@ -128,44 +129,49 @@ export function GatewayModelsView({
     }),
     [models],
   );
-  const searchRegistry = useMemo(
-    () =>
-      withFieldOptions(
-        GATEWAY_MODELS_FIELD_REGISTRY,
-        "connection",
-        filterOptions.connection,
-      ),
-    [filterOptions.connection],
-  );
-  const connectionIdByName = useMemo(
-    () =>
-      new Map(
-        filterOptions.connection.map(({ value, displayValue }) => [
-          displayValue,
-          value,
-        ]),
-      ),
-    [filterOptions.connection],
-  );
-  const observedOptions = useMemo(
-    () =>
-      toObservedOptions(
-        {
-          ...filterOptions,
-          connection: filterOptions.connection.map(
-            ({ displayValue }) => displayValue,
-          ),
-        },
-        isLoading,
-      ),
-    [filterOptions, isLoading],
-  );
   const queryFilter = useSidebarFilterState(
     gatewayModelsFilterConfig,
     filterOptions,
     {
       stateLocation: "url",
     },
+  );
+  const retainedConnectionIds = useMemo(
+    () =>
+      queryFilter.filterState.flatMap((filter) =>
+        filter.column === "connection" && filter.type === "arrayOptions"
+          ? filter.value
+          : [],
+      ),
+    [queryFilter.filterState],
+  );
+  const connectionSearchOptions = useMemo(
+    () =>
+      getGatewayModelConnectionSearchOptions(
+        filterOptions.connection,
+        retainedConnectionIds,
+      ),
+    [filterOptions.connection, retainedConnectionIds],
+  );
+  const searchRegistry = useMemo(
+    () =>
+      withFieldOptions(
+        GATEWAY_MODELS_FIELD_REGISTRY,
+        "connection",
+        connectionSearchOptions.registryOptions,
+      ),
+    [connectionSearchOptions.registryOptions],
+  );
+  const observedOptions = useMemo(
+    () =>
+      toObservedOptions(
+        {
+          ...filterOptions,
+          connection: connectionSearchOptions.observedValues,
+        },
+        isLoading,
+      ),
+    [connectionSearchOptions.observedValues, filterOptions, isLoading],
   );
   const filteredModels = useMemo(
     () => filterGatewayModels(models, searchQuery, queryFilter.filterState),
@@ -228,7 +234,10 @@ export function GatewayModelsView({
                     ? {
                         ...filter,
                         value: filter.value.map(
-                          (value) => connectionIdByName.get(value) ?? value,
+                          (value) =>
+                            connectionSearchOptions.connectionIdByDisplayValue.get(
+                              value,
+                            ) ?? value,
                         ),
                       }
                     : filter,
