@@ -23,14 +23,14 @@ export function EvaluatorAssistantHeaderAction(
       type="button"
       variant="link"
       size="sm"
-      className="text-muted-foreground inline h-auto px-0 py-0 align-baseline font-normal"
+      className="text-muted-foreground inline-flex h-auto items-baseline gap-1 px-0 py-0 align-baseline font-normal"
       aria-haspopup={props.mode === "edit" ? "dialog" : undefined}
       onClick={props.onClick}
     >
-      <span>or say what should change</span>
+      <span>or describe what should change</span>
       <BotMessageSquare
         aria-hidden="true"
-        className="ml-1 inline-block h-4 w-4 align-text-bottom"
+        className="inline-block h-4 w-4 align-text-bottom"
       />
     </Button>
   );

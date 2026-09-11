@@ -1004,17 +1004,16 @@ export function EvaluatorSetupPage(
       headerProps={{
         title: headerState.title,
         titleContent: (
-          <>
+          <span className="inline-flex flex-wrap items-baseline gap-x-2">
             <span title={headerState.title} data-testid="page-header-title">
               {headerState.title}
             </span>
             {hasAssistantHeaderAction ? (
-              <span className="hidden md:inline">
-                {" "}
+              <span className="hidden md:inline-flex">
                 {renderAssistantHeaderAction()}
               </span>
             ) : null}
-          </>
+          </span>
         ),
         breadcrumb: [
           { name: "Evaluators", href: `/project/${projectId}/evals` },

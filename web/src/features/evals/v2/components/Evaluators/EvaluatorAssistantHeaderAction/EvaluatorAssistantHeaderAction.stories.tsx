@@ -6,8 +6,8 @@ import { EvaluatorAssistantHeaderAction } from "./EvaluatorAssistantHeaderAction
 const meta = preview.meta({
   component: EvaluatorAssistantHeaderAction,
   render: (args) => (
-    <h2 className="text-primary text-lg leading-7 font-bold">
-      <span>Configure evaluator</span>{" "}
+    <h2 className="text-primary inline-flex flex-wrap items-baseline gap-x-2 text-lg leading-7 font-bold">
+      <span>Configure evaluator</span>
       <EvaluatorAssistantHeaderAction {...args} />
     </h2>
   ),
@@ -46,9 +46,9 @@ export const TriggersChangeDescription = meta.story({
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     const action = canvas.getByRole("button", {
-      name: "or say what should change",
+      name: "or describe what should change",
     });
-    const label = within(action).getByText("or say what should change");
+    const label = within(action).getByText("or describe what should change");
     const icon = action.querySelector("svg.lucide-bot-message-square");
 
     await expect(icon).toHaveAttribute("aria-hidden", "true");

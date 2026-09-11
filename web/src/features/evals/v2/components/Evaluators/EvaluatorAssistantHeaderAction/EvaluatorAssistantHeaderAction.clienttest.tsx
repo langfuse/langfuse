@@ -30,7 +30,7 @@ describe("EvaluatorAssistantHeaderAction", () => {
     render(<DraftHarness />);
     fireEvent.click(
       screen.getByRole("button", {
-        name: "or say what should change",
+        name: "or describe what should change",
       }),
     );
 
@@ -67,7 +67,7 @@ describe("EvaluatorAssistantHeaderAction", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "or say what should change",
+        name: "or describe what should change",
       }),
     );
 

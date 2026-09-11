@@ -1,32 +1,15 @@
-import {
-  type KeyboardEvent,
-  type RefObject,
-  type SyntheticEvent,
-  useRef,
-  useState,
-} from "react";
+import { type RefObject, type SyntheticEvent, useRef, useState } from "react";
 import { Sparkles } from "lucide-react";
 
-import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { Textarea } from "@/src/components/ui/textarea";
-
-const MAX_TEXTAREA_HEIGHT_PX = 240;
-
-function resizeTextarea(textarea: HTMLTextAreaElement | null) {
-  if (!textarea) return;
-
-  textarea.style.height = "auto";
-  textarea.style.height = `${Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT_PX)}px`;
-}
+import { EvaluatorAssistantComposer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAssistantComposer/EvaluatorAssistantComposer";
 
 export function EvaluatorAssistantEditDialog({
   open,
@@ -72,20 +55,10 @@ export function EvaluatorAssistantEditDialog({
     }
   };
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (
-      event.key === "Enter" &&
-      (event.metaKey || event.ctrlKey) &&
-      !event.nativeEvent.isComposing
-    ) {
-      event.preventDefault();
-      event.currentTarget.form?.requestSubmit();
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
+        closeOnInteractionOutside={!isSubmitting}
         onCloseAutoFocus={(event) => {
           if (returnFocusRef?.current) {
             event.preventDefault();
@@ -108,44 +81,20 @@ export function EvaluatorAssistantEditDialog({
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <Textarea
-              aria-label={`Describe how to change this ${evaluatorLabel}`}
-              autoFocus
-              autoComplete="off"
-              maxLength={2000}
-              rows={4}
+            <EvaluatorAssistantComposer
+              ariaLabel={`Describe how to change this ${evaluatorLabel}`}
+              value={request}
               placeholder={
                 evaluatorType === "code"
                   ? "Also fail when the output is empty"
                   : "Score 1–5 instead of true or false"
               }
-              value={request}
-              disabled={isSubmitting}
-              onChange={(event) => {
-                setRequest(event.target.value);
-                resizeTextarea(event.currentTarget);
-              }}
-              onKeyDown={handleKeyDown}
-              className="max-h-60 min-h-24 resize-none"
+              submitLabel="Open Assistant"
+              isSubmitting={isSubmitting}
+              autoFocus
+              onValueChange={setRequest}
             />
           </DialogBody>
-          <DialogFooter className="px-4 py-3">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isSubmitting}
-              onClick={() => handleOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={!request.trim()}
-              loading={isSubmitting}
-            >
-              Open Assistant
-            </Button>
-          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

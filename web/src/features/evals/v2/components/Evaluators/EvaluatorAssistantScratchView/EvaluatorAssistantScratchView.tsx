@@ -1,18 +1,8 @@
-import {
-  type KeyboardEvent,
-  type SyntheticEvent,
-  useRef,
-  useState,
-} from "react";
-import { SendHorizontal, Sparkles } from "lucide-react";
+import { type SyntheticEvent, useRef, useState } from "react";
+import { Sparkles } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { Textarea } from "@/src/components/ui/textarea";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { EvaluatorAssistantComposer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAssistantComposer/EvaluatorAssistantComposer";
 
 const EXAMPLE_PROMPTS = [
   "Fail when the answer contradicts the retrieved context",
@@ -49,17 +39,6 @@ export function EvaluatorAssistantScratchView({
     }
   };
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (
-      event.key === "Enter" &&
-      !event.shiftKey &&
-      !event.nativeEvent.isComposing
-    ) {
-      event.preventDefault();
-      event.currentTarget.form?.requestSubmit();
-    }
-  };
-
   return (
     <main className="flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-4 py-10 sm:px-8 sm:py-16">
       <form
@@ -76,46 +55,15 @@ export function EvaluatorAssistantScratchView({
           </h2>
         </div>
 
-        <div
-          role="group"
-          aria-label="Evaluator request composer"
-          aria-busy={isSubmitting}
-          className="border-border-contrast bg-background ring-offset-background focus-within:ring-ring relative overflow-hidden rounded-md border shadow-xs transition-colors focus-within:ring-2 focus-within:ring-offset-2"
-        >
-          <Textarea
-            aria-label="Describe the evaluator you want"
-            autoFocus
-            autoComplete="off"
-            maxLength={2000}
-            rows={5}
-            placeholder="Classify each user message into one topic: support, billing, technical, sales, feedback"
-            value={request}
-            disabled={isSubmitting}
-            onChange={(event) => setRequest(event.target.value)}
-            onKeyDown={handleKeyDown}
-            className="ph-no-capture min-h-32 resize-y rounded-none border-0 pr-12 pb-12 text-base shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-          />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span
-                className="absolute right-2 bottom-2 inline-flex rounded-full"
-                tabIndex={!request.trim() || isSubmitting ? 0 : undefined}
-              >
-                <Button
-                  type="submit"
-                  size="icon"
-                  aria-label="Create evaluator"
-                  disabled={!request.trim() || isSubmitting}
-                  loading={isSubmitting}
-                  className="size-8 shrink-0 rounded-full p-0"
-                >
-                  <SendHorizontal className="size-3.5" aria-hidden="true" />
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>Create evaluator</TooltipContent>
-          </Tooltip>
-        </div>
+        <EvaluatorAssistantComposer
+          ariaLabel="Describe the evaluator you want"
+          value={request}
+          placeholder="Classify each user message into one topic: support, billing, technical, sales, feedback"
+          submitLabel="Create evaluator"
+          isSubmitting={isSubmitting}
+          autoFocus
+          onValueChange={setRequest}
+        />
 
         <section
           aria-labelledby="evaluator-example-prompts"
