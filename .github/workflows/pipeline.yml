@@ -504,21 +504,51 @@ jobs:
         # object"). Mirror `tests-shared`, which generates the client for the
         # same reason. `prisma generate` only reads the schema; it needs no DB.
         run: pnpm --filter=shared run db:generate
-      - name: Install playwright
-        # apt-get (pulled in by --with-deps) occasionally stalls against a
-        # slow/unresponsive mirror and can ride the job's timeout-minutes
-        # instead of failing fast (observed: a 10-minute hang cancelled by
-        # the job timeout). A normal install takes well under a minute, so
-        # bound each attempt and retry instead of trusting the job-level
-        # timeout as the only guard.
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(pnpm --filter=web exec playwright --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browser
+        id: playwright-cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] Storybook test browser cache only; no released artifacts are built or published from this cached state
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ steps.playwright-version.outputs.version }}-chromium-headless-shell
+      - name: Install Playwright system dependencies
+        # apt-get occasionally stalls against a slow/unresponsive mirror.
         run: |
           attempt=1
-          until timeout 120 pnpm --filter=web exec playwright install --with-deps --only-shell chromium; do
+          until timeout 120 pnpm --filter=web exec playwright install-deps chromium; do
             if [ "$attempt" -ge 3 ]; then
-              echo "Playwright install failed after 3 attempts" >&2
+              echo "Playwright system dependency install failed after 3 attempts" >&2
               exit 1
             fi
-            echo "Attempt $attempt failed (possibly a stalled apt mirror), retrying in $((attempt * 15))s..." >&2
+            if [ "$attempt" -eq 1 ] && [ -f /etc/apt/blacksmith-ubuntu-mirrors.txt ]; then
+              printf '%s\tpriority:%s\n' \
+                https://archive.ubuntu.com/ubuntu 1 \
+                https://mirrors.edge.kernel.org/ubuntu 2 \
+                https://mirror.math.princeton.edu/pub/ubuntu 3 \
+                | sudo tee /etc/apt/blacksmith-ubuntu-mirrors.txt > /dev/null
+              sudo find /etc/apt -maxdepth 2 -type f \( -name '*.list' -o -name '*.sources' \) \
+                -exec sed -i -E \
+                's#https?://(([^/]+\.)?archive|security)\.ubuntu\.com/ubuntu/?#mirror+file:/etc/apt/blacksmith-ubuntu-mirrors.txt#g' {} +
+              printf '%s\n' 'Acquire::http::Timeout "15";' 'Acquire::https::Timeout "15";' \
+                | sudo tee /etc/apt/apt.conf.d/99-playwright-network > /dev/null
+            fi
+            echo "Attempt $attempt failed, retrying in $((attempt * 15))s..." >&2
+            sleep $((attempt * 15))
+            attempt=$((attempt + 1))
+          done
+      - name: Install Playwright browser
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: |
+          attempt=1
+          until timeout 120 pnpm --filter=web exec playwright install --only-shell chromium; do
+            if [ "$attempt" -ge 3 ]; then
+              echo "Playwright browser install failed after 3 attempts" >&2
+              exit 1
+            fi
+            echo "Attempt $attempt failed, retrying in $((attempt * 15))s..." >&2
             sleep $((attempt * 15))
             attempt=$((attempt + 1))
           done
@@ -1156,6 +1186,16 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
+      - name: Get Playwright version
+        id: e2e-playwright-version
+        run: echo "version=$(pnpm --filter=web exec playwright --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browser
+        id: e2e-playwright-cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] e2e test browser cache only; no released artifacts are built or published from this cached state
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ steps.e2e-playwright-version.outputs.version }}-chromium-headless-shell
       - name: Load default env
         run: |
           cp .env.dev.example .env
@@ -1178,8 +1218,51 @@ jobs:
         run: |
           (set +e; docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
       - name: Install playwright in background
+        env:
+          PLAYWRIGHT_CACHE_HIT: ${{ steps.e2e-playwright-cache.outputs.cache-hit }}
         run: |
-          (set +e; pnpm --filter=web exec playwright install --with-deps --only-shell chromium > /tmp/playwright-install.log 2>&1; echo $? > /tmp/playwright-install.exit) &
+          (
+            set +e
+            attempt=1
+            until timeout 75 pnpm --filter=web exec playwright install-deps chromium; do
+              if [ "$attempt" -ge 3 ]; then
+                echo "Playwright system dependency install failed after 3 attempts" >&2
+                echo 1 > /tmp/playwright-install.exit
+                exit 0
+              fi
+              if [ "$attempt" -eq 1 ] && [ -f /etc/apt/blacksmith-ubuntu-mirrors.txt ]; then
+                printf '%s\tpriority:%s\n' \
+                  https://archive.ubuntu.com/ubuntu 1 \
+                  https://mirrors.edge.kernel.org/ubuntu 2 \
+                  https://mirror.math.princeton.edu/pub/ubuntu 3 \
+                  | sudo tee /etc/apt/blacksmith-ubuntu-mirrors.txt > /dev/null
+                sudo find /etc/apt -maxdepth 2 -type f \( -name '*.list' -o -name '*.sources' \) \
+                  -exec sed -i -E \
+                  's#https?://(([^/]+\.)?archive|security)\.ubuntu\.com/ubuntu/?#mirror+file:/etc/apt/blacksmith-ubuntu-mirrors.txt#g' {} +
+                printf '%s\n' 'Acquire::http::Timeout "15";' 'Acquire::https::Timeout "15";' \
+                  | sudo tee /etc/apt/apt.conf.d/99-playwright-network > /dev/null
+              fi
+              echo "System dependency attempt $attempt failed, retrying in $((attempt * 15))s..." >&2
+              sleep $((attempt * 15))
+              attempt=$((attempt + 1))
+            done
+
+            if [ "$PLAYWRIGHT_CACHE_HIT" != "true" ]; then
+              attempt=1
+              until timeout 75 pnpm --filter=web exec playwright install --only-shell chromium; do
+                if [ "$attempt" -ge 3 ]; then
+                  echo "Playwright browser install failed after 3 attempts" >&2
+                  echo 1 > /tmp/playwright-install.exit
+                  exit 0
+                fi
+                echo "Browser attempt $attempt failed, retrying in $((attempt * 15))s..." >&2
+                sleep $((attempt * 15))
+                attempt=$((attempt + 1))
+              done
+            fi
+
+            echo 0 > /tmp/playwright-install.exit
+          ) > /tmp/playwright-install.log 2>&1 &
       - name: Build
         run: pnpm run build --filter=!ai-gateway
         env:
