@@ -15,10 +15,11 @@ Acquire::Retries "3";
 EOF
 
 if [[ -f "${APT_MIRRORS_FILE}" && -f "${APT_SOURCES_FILE}" ]]; then
-  # Entries without a priority are tried after Blacksmith's prioritized mirrors.
+  # Prefer the independent mirrors while Canonical's endpoints are degraded.
   for mirror in "${COMMUNITY_MIRRORS[@]}"; do
-    if ! grep -Fqx "${mirror}" "${APT_MIRRORS_FILE}"; then
-      printf '%s\n' "${mirror}" | sudo tee -a "${APT_MIRRORS_FILE}" > /dev/null
+    mirror_entry="${mirror}"$'\tpriority:0'
+    if ! grep -Fqx "${mirror_entry}" "${APT_MIRRORS_FILE}"; then
+      printf '%s\n' "${mirror_entry}" | sudo tee -a "${APT_MIRRORS_FILE}" > /dev/null
     fi
   done
 
