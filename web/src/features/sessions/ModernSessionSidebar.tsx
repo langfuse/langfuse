@@ -665,7 +665,8 @@ export function ModernSessionSidebar(
                   virtualItem={virtualItem}
                   virtualizer={virtualizer}
                 >
-                  {gap !== null &&
+                  {search.trim() === "" &&
+                  gap !== null &&
                   gap !== undefined &&
                   gap >= IDLE_GAP_THRESHOLD_SECONDS ? (
                     <div className="my-0.5 mb-2 flex items-center bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)] px-3 py-[5px]">

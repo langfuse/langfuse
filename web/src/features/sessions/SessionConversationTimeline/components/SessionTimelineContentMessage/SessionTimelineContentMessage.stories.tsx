@@ -44,12 +44,48 @@ export const Tool = meta.story({
 });
 
 export const StructuredData = meta.story({
+  name: "(Test) Collapses JSON-only Message",
   args: {
     role: "tool",
     parts: [
       { type: "data", name: "confidence", value: 0.9 },
       { type: "custom", kind: "citation", value: 7 },
     ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const toggle = canvas.getByRole("button", {
+      name: "JSON-only message detected",
+    });
+
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(canvas.queryAllByRole("table")).toHaveLength(0);
+    await userEvent.click(toggle);
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(canvas.getAllByRole("table")).toHaveLength(2);
+    await userEvent.click(toggle);
+    await expect(canvas.queryAllByRole("table")).toHaveLength(0);
+  },
+});
+
+export const MixedTextAndData = meta.story({
+  name: "(Test) Keeps Mixed Message Expanded",
+  args: {
+    role: "assistant",
+    parts: [
+      { type: "text", text: "The structured result follows." },
+      { type: "data", value: { confidence: 0.9 } },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.queryByRole("button", { name: "JSON-only message detected" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByText("The structured result follows."),
+    ).toBeVisible();
+    await expect(canvasElement).toHaveTextContent("confidence");
   },
 });
 
@@ -183,6 +219,12 @@ export const RenderSupportedParts = meta.story({
 
     await userEvent.click(canvas.getByRole("button", { name: "Reasoning" }));
     await expect(canvas.getByText("Think")).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "JSON-only message detected" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(
+      canvas.getByRole("button", { name: "JSON-only message detected" }),
+    );
     await expect(canvasElement).toHaveTextContent("confidence");
     await expect(canvasElement).toHaveTextContent("citation");
   },

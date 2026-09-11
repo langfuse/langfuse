@@ -16,12 +16,7 @@ import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { experimentsFieldRegistry } from "@/src/features/experiments/constants/experimentsSearchRegistry";
 import { awaitsDatasetNames } from "@/src/features/experiments/fns/awaitsDatasetNames";
 import { withDatasetNamesResolved } from "@/src/features/experiments/fns/datasetNameFilter";
-import {
-  DEFAULT_SEARCH_TYPE,
-  EventsSearchBarRow,
-  toObservedOptions,
-  useEventsSearchBar,
-} from "@/src/features/search-bar";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
 import {
   getExperimentsFilterConfig,
   getExperimentsColumnName,
@@ -60,6 +55,7 @@ import { createIdTableColumn } from "@/src/components/design-system/table/column
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { useRouter } from "next/router";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import {
@@ -368,8 +364,12 @@ export default function ExperimentsTable({
     [fixedFilter, datasetNameById],
   );
 
+  const { viewControllersRef, onExplicitFilterStateChange } =
+    useTableViewFilterChange();
+
   const queryFilter = useSidebarFilterState(filterConfig, filterOptions, {
     loading: isFilterOptionsPending,
+    onExplicitFilterStateChange,
     stateLocation: "urlAndSessionStorage",
     sessionFilterContextId,
     // v4-only surface — drives `isV4` on filters:* analytics.
@@ -385,7 +385,7 @@ export default function ExperimentsTable({
       !hasAppliedDefaultFilter.current
     ) {
       hasAppliedDefaultFilter.current = true;
-      queryFilter.setFilterState(defaultFilter);
+      queryFilter.setFilterState(defaultFilter, { origin: "system" });
     }
   }, [defaultFilter, queryFilter]);
 
@@ -411,27 +411,6 @@ export default function ExperimentsTable({
     () => toObservedOptions(filterOptions, isFilterOptionsPending),
     [filterOptions, isFilterOptionsPending],
   );
-  // The experiments table has no full-text lane, so the registry rejects free
-  // text and these stay inert.
-  const noSearchLane = useCallback(() => {}, []);
-  const {
-    store: searchBarStore,
-    commit: searchBarCommit,
-    applyFilters: searchBarApplyFilters,
-  } = useEventsSearchBar({
-    projectId,
-    tableName: filterConfig.tableName,
-    enabled: true,
-    filterState: queryFilter.explicitFilterState,
-    searchQuery: null,
-    searchType: DEFAULT_SEARCH_TYPE,
-    observed: observedOptions,
-    setFilterState: setFiltersWrapper,
-    setSearchQuery: noSearchLane,
-    setSearchType: noSearchLane,
-    registry: searchRegistry,
-  });
-
   const combinedFilterState = queryFilter.filterState.concat(
     dateRangeFilter,
     fixedFilter,
@@ -865,7 +844,10 @@ export default function ExperimentsTable({
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
-      setFilters: setFiltersWrapper,
+      setFilters: (filters) =>
+        queryFilterRef.current.setFilterState(filters, {
+          origin: "saved_view",
+        }),
       setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
@@ -883,6 +865,25 @@ export default function ExperimentsTable({
     currentFilterState: queryFilter.explicitFilterState,
     currentExpandedFilters: queryFilter.expanded,
   });
+  viewControllersRef.current = viewControllers;
+
+  const handleOrderByChange: typeof setOrderByState = (next) => {
+    viewControllers.handleUserStateChange(orderByState, next);
+    setOrderByState(next);
+  };
+  const handleColumnOrderChange: typeof setColumnOrder = (update) => {
+    const next = typeof update === "function" ? update(columnOrder) : update;
+    viewControllers.handleUserStateChange(columnOrder, next);
+    setColumnOrder(next);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibilityState = (
+    update,
+  ) => {
+    const next =
+      typeof update === "function" ? update(columnVisibility) : update;
+    viewControllers.handleUserStateChange(columnVisibility, next);
+    setColumnVisibilityState(next);
+  };
 
   const rows: ExperimentsTableRow[] = useMemo(() => {
     return experiments.status === "success" && experiments.rows
@@ -953,13 +954,14 @@ export default function ExperimentsTable({
               toolbar cannot scroll under the composer and render half-clipped;
               pb-1.5 matches the other bar surfaces' spacing above the table. */}
           <div className="bg-background sticky top-0 z-30 pb-1.5">
-            <EventsSearchBarRow
+            <TableSearchBar
+              key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+              isV4={true}
+              filterState={queryFilter.searchBarFilterState}
+              setFilterState={setFiltersWrapper}
               projectId={projectId}
               tableName={filterConfig.tableName}
-              store={searchBarStore}
-              commit={searchBarCommit}
               observed={observedOptions}
-              onApplyFilters={searchBarApplyFilters}
               registry={searchRegistry}
             />
             {/* Toolbar spanning full width */}
@@ -977,9 +979,9 @@ export default function ExperimentsTable({
               onColumnGroupToggle={handleColumnGroupToggle}
               columnsWithCustomSelect={["name", "datasetId"]}
               columnVisibility={columnVisibility}
-              setColumnVisibility={setColumnVisibilityState}
+              setColumnVisibility={handleColumnVisibilityChange}
               columnOrder={columnOrder}
-              setColumnOrder={setColumnOrder}
+              setColumnOrder={handleColumnOrderChange}
               orderByState={orderByState}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
@@ -1011,7 +1013,7 @@ export default function ExperimentsTable({
           <ResizableFilterLayout>
             <DataTableControls
               // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
-              key={viewControllers.selectedViewId ?? "no-view"}
+              key={viewControllers.filterEditorResetKey}
               queryFilter={queryFilter}
             />
 
@@ -1069,12 +1071,12 @@ export default function ExperimentsTable({
                   },
                 }}
                 selectionStore={experimentsTableStore}
-                setOrderBy={setOrderByState}
+                setOrderBy={handleOrderByChange}
                 orderBy={orderByState}
                 columnOrder={columnOrder}
-                onColumnOrderChange={setColumnOrder}
+                onColumnOrderChange={handleColumnOrderChange}
                 columnVisibility={columnVisibility}
-                onColumnVisibilityChange={setColumnVisibilityState}
+                onColumnVisibilityChange={handleColumnVisibilityChange}
                 rowHeight={rowHeight}
                 onRowClick={(row, event) => {
                   // Handle Command/Ctrl+click to open experiment in new tab

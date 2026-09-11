@@ -161,6 +161,7 @@ export function astToFilterState(
   }
 
   const defaultTextFilter = lowerDefaultTextField(ctx);
+  ctx.errors.push(...(registry.filterStateErrors?.(ctx.filters) ?? []));
 
   return {
     filters: ctx.filters,
