@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import { useSession } from "next-auth/react";
 import { Menu } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { useSidebar } from "@/src/components/ui/sidebar";
@@ -28,6 +29,7 @@ export const MobileTopBar = ({
   leadingControl?: ReactNode;
 }) => {
   const { toggleSidebar } = useSidebar();
+  const session = useSession();
   const hasAppSidebar = useHasAppSidebar();
   const envLabel = useEnvLabel();
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
@@ -63,7 +65,7 @@ export const MobileTopBar = ({
           so the brand stays centered. */}
       <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
         {isInAppAgentLauncherVisible && <InAppAiAgentButton prominent />}
-        <TopbarAccount />
+        {session.data?.user && <TopbarAccount user={session.data.user} />}
       </div>
     </div>
   );
