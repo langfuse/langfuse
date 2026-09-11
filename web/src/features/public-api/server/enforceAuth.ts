@@ -10,7 +10,6 @@ import {
 import { type ApiAccessScope } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
-import { env } from "@/src/env.mjs";
 import { authorize } from "@/src/features/auth/policy/authorize";
 import { authenticator } from "@/src/features/apiKey/authenticator";
 import { toApiAccessScope } from "@/src/features/public-api/server/toApiAccessScope";
@@ -55,23 +54,11 @@ export async function enforceAuth(
     : enforceProjectAuth(context, principal, params);
 }
 
-/** enforceAdminAuth resolves, authorizes, and scopes a self-host admin-key request against its target project, 500ing on organization-scoped actions it cannot serve. */
+/** enforceAdminAuth resolves, authorizes, and scopes a self-host admin-key request against its target project; the authenticator admits admin keys only on opted-in, non-Cloud routes. */
 async function enforceAdminAuth(
   context: AuthorizationContext,
   params: EnforceAuthParams,
 ): Promise<EnforceAuthResult> {
-  if (isOrgAction(params.action)) {
-    return invariantBreak(
-      "admin API key cannot serve an organization-scoped action",
-    );
-  }
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-    return errorResult(
-      new ForbiddenError(
-        "Admin API key auth is not available on Langfuse Cloud",
-      ),
-    );
-  }
   const project = getProjectId(context, params.req);
   if (!project.success) return project;
   const org = await lookupProjectOrgId(project.projectId);
