@@ -303,6 +303,7 @@ export class IngestionService {
     // fields as strings, so stringify at this schema boundary.
     const input = this.stringify(eventData.input);
     const output = this.stringify(eventData.output);
+    const level = eventData.level ?? "DEFAULT";
     const modelParameters = parseEventModelParameters(
       eventData.modelParameters,
     );
@@ -350,6 +351,7 @@ export class IngestionService {
               provided_model_name: eventData.modelName,
               provided_usage_details: eventData.providedUsageDetails ?? {},
               provided_cost_details: eventData.providedCostDetails ?? {},
+              level,
               input,
               output,
             },
@@ -393,7 +395,7 @@ export class IngestionService {
       session_id: eventData.sessionId,
 
       // Status
-      level: eventData.level ?? "DEFAULT",
+      level,
       status_message: eventData.statusMessage,
 
       // Timestamps
