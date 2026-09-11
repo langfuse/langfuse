@@ -91,6 +91,7 @@ export function EvaluatorAssistantScratchView({
           </p>
           <Button
             type="submit"
+            aria-label="Create evaluator"
             disabled={!request.trim()}
             loading={isSubmitting}
             className="gap-1.5"
