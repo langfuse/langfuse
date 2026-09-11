@@ -1,11 +1,12 @@
 import {
   createFieldRegistry,
+  fieldRegistryFromColumns,
   EVENTS_FIELD_REGISTRY,
   type FieldRegistry,
 } from "@/src/features/search-bar/lib/fields";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 
-import { usersEventsFilterConfig } from "./users-config";
+import { usersEventsFilterConfig, usersFilterConfig } from "./users-config";
 
 /**
  * The Users bar is the Events bar with the facets the Users query cannot answer
@@ -33,8 +34,7 @@ function usersColumns(config: FilterConfig) {
 }
 
 /**
- * v4 (events-backed) Users. Only the v4 registry exists because the bar is
- * gated on v4 — a v3 variant would be unreachable.
+ * Users grouped from the events read path.
  */
 export const USERS_FIELD_REGISTRY: FieldRegistry = createFieldRegistry({
   id: "users",
@@ -70,3 +70,17 @@ export const USERS_FIELD_REGISTRY: FieldRegistry = createFieldRegistry({
     { observedOptionsKey: "level", promptLabel: "level" },
   ],
 });
+
+export const LEGACY_USERS_FIELD_REGISTRY = fieldRegistryFromColumns(
+  usersColumns(usersFilterConfig),
+  {
+    id: "users",
+    metadata: true,
+    scores: false,
+    traceScores: false,
+    allowFreeText: true,
+    freeTextScopeLabel: "user IDs",
+    searchExamples: ["alice", "-env:dev", "tags:billing"],
+    fields: { environment: { aliases: ["env"] } },
+  },
+);
