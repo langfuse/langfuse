@@ -2200,4 +2200,153 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(runAfterSecond?.createdAt).toEqual(customCreatedAt); // Still original timestamp
   });
+
+  describe("GET /api/public/datasets timestamp window", () => {
+    // Three datasets at deterministic, well-separated `createdAt` values so the
+    // half-open `[fromTimestamp, toTimestamp)` window can be exercised without
+    // relying on clock or ordering accidents.
+    const OLD = new Date("2021-01-01T00:00:00.000Z");
+    const MID = new Date("2021-06-01T00:00:00.000Z");
+    const NEW = new Date("2022-01-01T00:00:00.000Z");
+
+    let oldName: string;
+    let midName: string;
+    let newName: string;
+
+    beforeEach(async () => {
+      // The describe's beforeEach already created the project + api key for
+      // this test. Each dataset is force-pinned to its target createdAt via
+      // Prisma so the time window is deterministic.
+      oldName = `ts-old-${v4()}`;
+      midName = `ts-mid-${v4()}`;
+      newName = `ts-new-${v4()}`;
+
+      await prisma.dataset.create({
+        data: { name: oldName, projectId, createdAt: OLD },
+      });
+      await prisma.dataset.create({
+        data: { name: midName, projectId, createdAt: MID },
+      });
+      await prisma.dataset.create({
+        data: { name: newName, projectId, createdAt: NEW },
+      });
+    });
+
+    it("omits the filter when neither timestamp is provided (existing behavior)", async () => {
+      const response = await makeZodVerifiedAPICall(
+        GetDatasetsV1Response,
+        "GET",
+        "/api/public/datasets",
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const names = response.body.data.map((d) => d.name);
+      expect(names).toEqual(
+        expect.arrayContaining([oldName, midName, newName]),
+      );
+      expect(response.body.meta.totalItems).toBe(3);
+    });
+
+    it("filters by fromTimestamp only (inclusive lower bound)", async () => {
+      // Anything on or after MID: the mid and new datasets.
+      const response = await makeZodVerifiedAPICall(
+        GetDatasetsV1Response,
+        "GET",
+        `/api/public/datasets?fromTimestamp=${MID.toISOString()}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const names = response.body.data.map((d) => d.name);
+      expect(names).toEqual(expect.arrayContaining([midName, newName]));
+      expect(names).not.toContain(oldName);
+      expect(response.body.meta.totalItems).toBe(2);
+    });
+
+    it("filters by toTimestamp only (exclusive upper bound)", async () => {
+      // Anything strictly before NEW: the old and mid datasets. The dataset
+      // created exactly at NEW is excluded because the upper bound is `lt`.
+      const response = await makeZodVerifiedAPICall(
+        GetDatasetsV1Response,
+        "GET",
+        `/api/public/datasets?toTimestamp=${NEW.toISOString()}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const names = response.body.data.map((d) => d.name);
+      expect(names).toEqual(expect.arrayContaining([oldName, midName]));
+      expect(names).not.toContain(newName);
+      expect(response.body.meta.totalItems).toBe(2);
+    });
+
+    it("filters by a half-open [fromTimestamp, toTimestamp) window when both are provided", async () => {
+      // Window [OLD, NEW) → exactly the mid dataset.
+      const response = await makeZodVerifiedAPICall(
+        GetDatasetsV1Response,
+        "GET",
+        `/api/public/datasets?fromTimestamp=${OLD.toISOString()}&toTimestamp=${NEW.toISOString()}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const names = response.body.data.map((d) => d.name);
+      expect(names).toEqual([midName]);
+      expect(response.body.meta.totalItems).toBe(1);
+    });
+
+    it("returns 400 on an invalid fromTimestamp format", async () => {
+      const response = await makeAPICall(
+        "GET",
+        "/api/public/datasets?fromTimestamp=not-a-date",
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("returns 400 on an invalid toTimestamp format", async () => {
+      const response = await makeAPICall(
+        "GET",
+        "/api/public/datasets?toTimestamp=2021-13-40T99:99:99Z",
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("composes the time window with the existing project scope", async () => {
+      // Create a separate project + api key so we can prove the filter does
+      // not leak datasets across the project boundary.
+      const other = await createOrgProjectAndApiKey();
+
+      await prisma.dataset.create({
+        data: {
+          name: `ts-other-project-${v4()}`,
+          projectId: other.projectId,
+          createdAt: NEW,
+        },
+      });
+
+      const response = await makeZodVerifiedAPICall(
+        GetDatasetsV1Response,
+        "GET",
+        `/api/public/datasets?fromTimestamp=${NEW.toISOString()}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      // Only `newName` belongs to `projectId` with createdAt >= NEW.
+      expect(response.body.meta.totalItems).toBe(1);
+      expect(response.body.data.map((d) => d.name)).toEqual([newName]);
+    });
+  });
 });
