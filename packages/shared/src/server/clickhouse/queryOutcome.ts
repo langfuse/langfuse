@@ -132,15 +132,46 @@ export function clickHouseQueryTableLabel(query: string): ClickHouseQueryTable {
   return OTHER_TABLE_LABEL;
 }
 
+/**
+ * Substring/token search over the `input`/`output` columns — the largest
+ * `events_full` columns, whose token index prunes weakly for common terms — is
+ * the confirmed full-scan / timeout class. The outcome counter is otherwise
+ * blind to filter shape: a timeout on `events_full` cannot be told apart from
+ * any other. This tag lets an operator isolate that class directly on the
+ * unsampled metric, instead of estimating it from sampled APM query text.
+ *
+ * Derived from the query text (like the table label) because threading the
+ * filter shape through every call site is impractical. Matches the two shapes
+ * the filter compiler emits — `position(lower(e.input|output), …) > 0` and the
+ * `hasAllTokens(lower(e.input|output), …)` index prefilter — plus a bare
+ * `input|output (I)LIKE` fallback, across any table alias. Anchored to the
+ * `input`/`output` columns so a metadata token search (`hasAllTokens(
+ * e.metadata_values, …)`) never counts.
+ */
+const IO_CONTENT_FILTER_FUNCTION_PATTERN =
+  /\b(?:position(?:caseinsensitive)?|hasalltokens|hasanytokens|hastoken)\s*\(\s*(?:lower\s*\(\s*)?(?:\w+\.)?(?:input|output)\b/i;
+
+const IO_CONTENT_FILTER_LIKE_PATTERN =
+  /\b(?:\w+\.)?(?:input|output)\s+(?:not\s+)?i?like\b/i;
+
+export function clickHouseQueryHasIoContentFilter(query: string): boolean {
+  return (
+    IO_CONTENT_FILTER_FUNCTION_PATTERN.test(query) ||
+    IO_CONTENT_FILTER_LIKE_PATTERN.test(query)
+  );
+}
+
 export function recordClickHouseQueryOutcome(
   outcome: ClickHouseQueryOutcome,
   tags: NormalizedClickHouseQueryTags,
   table: ClickHouseQueryTable,
+  ioContentFilter: boolean,
 ): void {
   recordIncrement(CLICKHOUSE_QUERY_OUTCOME_METRIC, 1, {
     outcome,
     surface: tags.surface,
     route: clickHouseQueryOutcomeRouteLabel(tags.route),
     table,
+    io_content_filter: String(ioContentFilter),
   });
 }

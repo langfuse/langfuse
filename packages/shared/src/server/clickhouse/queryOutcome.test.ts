@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CLICKHOUSE_QUERY_OUTCOME_METRIC,
   CLICKHOUSE_RESOURCE_ERROR_OUTCOMES,
+  clickHouseQueryHasIoContentFilter,
   clickHouseQueryOutcomeRouteLabel,
   clickHouseQueryTableLabel,
   recordClickHouseQueryOutcome,
@@ -133,6 +134,30 @@ describe("ClickHouse query outcome metric", () => {
     });
   });
 
+  describe("io content filter classification", () => {
+    // The two shapes the filter compiler emits for a substring/token search on
+    // input/output, plus a bare (I)LIKE fallback. See fts.ts.
+    it.each([
+      "SELECT id FROM events_full e WHERE position(lower(e.output), lower({p: String})) > 0",
+      "SELECT id FROM events_full e WHERE hasAllTokens(lower(e.input), arraySlice(arrayDistinct(tokens(lower({p: String}))), 1, 64))",
+      "SELECT id FROM observations o WHERE o.input ILIKE {p: String}",
+      "SELECT id FROM events_full e WHERE output LIKE {p: String}",
+    ])("flags a content scan over input/output: %s", (query) => {
+      expect(clickHouseQueryHasIoContentFilter(query)).toBe(true);
+    });
+
+    // A metadata token search uses the same functions on a different column and
+    // must not be counted, nor must an exact equality or an unrelated query.
+    it.each([
+      "SELECT id FROM events_full e WHERE hasAllTokens(e.metadata_values, arraySlice({p: Array(String)}, 1, 64))",
+      "SELECT id FROM events_full e WHERE e.input = {p: String}",
+      "SELECT id FROM events_full e WHERE e.project_id = {p: String}",
+      "SELECT count() FROM traces",
+    ])("does not flag %s", (query) => {
+      expect(clickHouseQueryHasIoContentFilter(query)).toBe(false);
+    });
+  });
+
   it("maps every ClickHouse resource error type to an outcome", () => {
     expect(CLICKHOUSE_RESOURCE_ERROR_OUTCOMES).toEqual({
       TIMEOUT: "timeout",
@@ -154,6 +179,7 @@ describe("ClickHouse query outcome metric", () => {
         userAgent: "python-httpx/0.28.1",
       },
       "events_full",
+      true,
     );
 
     expect(recordIncrement).toHaveBeenCalledTimes(1);
@@ -165,6 +191,7 @@ describe("ClickHouse query outcome metric", () => {
         surface: "publicapi",
         route: "get_/api/public/v2/observations",
         table: "events_full",
+        io_content_filter: "true",
       },
     );
   });
@@ -177,6 +204,7 @@ describe("ClickHouse query outcome metric", () => {
         surface: "unknown",
       },
       "other",
+      false,
     );
 
     expect(recordIncrement).toHaveBeenCalledWith(
@@ -187,6 +215,7 @@ describe("ClickHouse query outcome metric", () => {
         surface: "unknown",
         route: "other",
         table: "other",
+        io_content_filter: "false",
       },
     );
   });

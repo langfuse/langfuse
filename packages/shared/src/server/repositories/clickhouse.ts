@@ -33,6 +33,7 @@ import {
 } from "../clickhouse/queryTags";
 import {
   CLICKHOUSE_RESOURCE_ERROR_OUTCOMES,
+  clickHouseQueryHasIoContentFilter,
   clickHouseQueryTableLabel,
   recordClickHouseQueryOutcome,
 } from "../clickhouse/queryOutcome";
@@ -702,6 +703,7 @@ export async function queryClickhouse<T>(
   if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
   const table = clickHouseQueryTableLabel(opts.query);
+  const ioContentFilter = clickHouseQueryHasIoContentFilter(opts.query);
   return await instrumentAsync(
     { name: "clickhouse-query", spanKind: SpanKind.CLIENT },
     async (span) => {
@@ -764,11 +766,17 @@ export async function queryClickhouse<T>(
             : "error",
           normalizedTags,
           table,
+          ioContentFilter,
         );
         throw wrapped;
       });
 
-      recordClickHouseQueryOutcome("success", normalizedTags, table);
+      recordClickHouseQueryOutcome(
+        "success",
+        normalizedTags,
+        table,
+        ioContentFilter,
+      );
       return rows;
     },
   );
