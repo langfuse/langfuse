@@ -233,7 +233,7 @@ Each agent run starts the six-service source stack with
 `scripts/agents/start-cursor-cloud.sh`.
 
 The start script builds and waits for web, worker, PostgreSQL, ClickHouse,
-Redis, and MinIO, seeds the synthetic demo project, and verifies the web and
+Redis, and Floci, seeds the synthetic demo project, and verifies the web and
 worker health endpoints. The default Cursor VM is accepted only after three
 successful starts without OOMs or restart loops; otherwise use a larger
 Enterprise resource profile.
