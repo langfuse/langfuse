@@ -23,6 +23,7 @@ import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type ObservationLevelType,
   type FilterState,
+  type OrderByState,
   BatchExportTableName,
   type ObservationType,
   TableViewPresetTableName,
@@ -111,7 +112,6 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import {
   demoteViewOnUserFilterEdit,
   type ExplicitFilterStateChange,
-  type ViewDemotionControllers,
 } from "@/src/features/events/lib/demoteViewOnUserFilterEdit";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
@@ -512,7 +512,27 @@ export default function ObservationsEventsTable({
   // hook (and its onExplicitFilterStateChange) is created before
   // useTableViewManager runs, so reach the controllers through a ref (same
   // pattern as queryFilterRef).
-  const viewControllersRef = useRef<ViewDemotionControllers | null>(null);
+  const viewControllersRef = useRef<Pick<
+    ReturnType<typeof useTableViewManager>,
+    "selectedViewId" | "handleSetViewId" | "handleUserStateChange"
+  > | null>(null);
+
+  const handleSearchQueryChange = (query: string | null) => {
+    viewControllersRef.current?.handleUserStateChange(
+      searchQuery ?? "",
+      query ?? "",
+    );
+    setSearchQuery(query);
+  };
+  const handleSearchTypeChange = (next: TracingSearchType[]) => {
+    if (searchQuery?.trim()) {
+      viewControllersRef.current?.handleUserStateChange(
+        [...searchType].sort(),
+        [...next].sort(),
+      );
+    }
+    setSearchType(next);
+  };
 
   const onAppRootExplicitFilterStateChange =
     appRootDefault.onExplicitFilterStateChange;
@@ -757,8 +777,8 @@ export default function ObservationsEventsTable({
     searchType,
     observed: observedOptions,
     setFilterState: setFiltersWrapper,
-    setSearchQuery,
-    setSearchType,
+    setSearchQuery: handleSearchQueryChange,
+    setSearchType: handleSearchTypeChange,
   });
 
   // Non-destructive preview: while a category-chip preset row is hovered or
@@ -1598,6 +1618,24 @@ export default function ObservationsEventsTable({
   });
   viewControllersRef.current = viewControllers;
 
+  const handleOrderByChange = (next: OrderByState) => {
+    viewControllers.handleUserStateChange(orderByState, next);
+    setOrderByState(next);
+  };
+  const handleColumnOrderChange: typeof setColumnOrder = (update) => {
+    const next = typeof update === "function" ? update(columnOrder) : update;
+    viewControllers.handleUserStateChange(columnOrder, next);
+    setColumnOrder(next);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibilityState = (
+    update,
+  ) => {
+    const next =
+      typeof update === "function" ? update(columnVisibility) : update;
+    viewControllers.handleUserStateChange(columnVisibility, next);
+    setColumnVisibilityState(next);
+  };
+
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
     if (hideControls) return undefined;
     return {
@@ -1737,7 +1775,7 @@ export default function ObservationsEventsTable({
               resultCount={totalCount}
               onClearAll={() => {
                 queryFilter.clearAll();
-                setSearchQuery("");
+                handleSearchQueryChange("");
               }}
               search={
                 searchBarMode ? (
@@ -1770,7 +1808,7 @@ export default function ObservationsEventsTable({
                   // desktop has via the toolbar's searchConfig (LFE-11067).
                   <MobileFullTextSearch
                     currentQuery={searchQuery ?? undefined}
-                    updateQuery={setSearchQuery}
+                    updateQuery={handleSearchQueryChange}
                     tableAllowsFullTextSearch
                     metadataSearchFields={["ID", "Name", "Trace Name", "Model"]}
                     tableName={eventsFilterConfig.tableName}
@@ -1832,7 +1870,7 @@ export default function ObservationsEventsTable({
               }
               facets={
                 <DataTableControls
-                  key={viewControllers.selectedViewId ?? "no-view"}
+                  key={viewControllers.filterEditorResetKey}
                   queryFilter={queryFilter}
                   filterWithAI={!searchBarMode}
                   blockedColumnReason={
@@ -1907,10 +1945,10 @@ export default function ObservationsEventsTable({
                         "Trace Name",
                         "Model",
                       ],
-                      updateQuery: setSearchQuery,
+                      updateQuery: handleSearchQueryChange,
                       currentQuery: searchQuery ?? undefined,
                       searchType,
-                      setSearchType,
+                      setSearchType: handleSearchTypeChange,
                       tableAllowsFullTextSearch: true,
                     }
               }
@@ -1926,9 +1964,9 @@ export default function ObservationsEventsTable({
                 "promptName",
               ]}
               columnVisibility={columnVisibility}
-              setColumnVisibility={setColumnVisibilityState}
+              setColumnVisibility={handleColumnVisibilityChange}
               columnOrder={columnOrder}
-              setColumnOrder={setColumnOrder}
+              setColumnOrder={handleColumnOrderChange}
               orderByState={orderByState}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
@@ -2073,8 +2111,7 @@ export default function ObservationsEventsTable({
               in the layout). */}
           {!hideControls && !isMobile && (
             <DataTableControls
-              // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
-              key={viewControllers.selectedViewId ?? "no-view"}
+              key={viewControllers.filterEditorResetKey}
               queryFilter={queryFilter}
               // In bar mode AI filtering lives in the search bar; only offer the
               // sidebar wand on non-bar surfaces (embedded scoped tables).
@@ -2189,12 +2226,12 @@ export default function ObservationsEventsTable({
                 rowSelection={selectedRows}
                 highlightAllRows={selectAll}
                 setRowSelection={setSelectedRows}
-                setOrderBy={setOrderByState}
+                setOrderBy={handleOrderByChange}
                 orderBy={orderByState}
                 columnOrder={columnOrder}
-                onColumnOrderChange={setColumnOrder}
+                onColumnOrderChange={handleColumnOrderChange}
                 columnVisibility={columnVisibility}
-                onColumnVisibilityChange={setColumnVisibilityState}
+                onColumnVisibilityChange={handleColumnVisibilityChange}
                 rowHeight={rowHeight}
                 onRowClick={(row, event) => {
                   // Handle Command/Ctrl+click to open observation in new tab

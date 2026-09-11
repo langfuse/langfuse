@@ -10,11 +10,18 @@ Users can now:
 - Delete views they no longer need
 - Generate permalinks to share specific views
 
-The My Views button names the selected view, including a default applied on
-page load. Its selection stays visible after edits, matching category preset
-chips: it identifies the originating view, not equality with its saved state.
-`TableViewPresetsButton` owns this presentation; the drawer resolves the name
-and default assignment from its existing queries.
+The My Views button displays only the selected custom view's name, including
+a default applied on page load. Categorized patterns show their selection in
+the pattern controls instead. `TableViewPresetsButton` owns this presentation;
+the drawer resolves the name and default assignment from its existing queries.
+
+On Tracing, editing filters, search, sorting, or columns clears the selected
+view from the URL and session. No-op edits and automatic reconciliation preserve
+selection. Incomplete sidebar inputs survive deselection; applying a view resets
+them through `filterEditorResetKey`. A separate `viewUpdateTarget` keeps the
+original view available for updating without marking it active, including the
+column-provenance guard for shared links. It also preserves the edited working
+view across reloads instead of reapplying a default.
 
 ## Robustness to Table Changes
 

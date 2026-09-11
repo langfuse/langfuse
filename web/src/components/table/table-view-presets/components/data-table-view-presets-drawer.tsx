@@ -138,6 +138,10 @@ interface TableViewPresetsDrawerContentProps {
       /** The view whose full state was actually applied this session (null on a
        * shared-link visit where the view is intentionally not applied). */
       appliedViewId: string | null;
+      viewUpdateTarget?: {
+        viewId: string;
+        columnsApplied: boolean;
+      } | null;
       handleSetViewId: (viewId: string | null) => void;
       applyViewState: (
         viewData: TableViewPresetState,
@@ -245,7 +249,8 @@ export function TableViewPresetsDrawer({
     ).length ?? 0;
   const selectedView =
     TableViewPresetsList?.find(
-      (view) => view.id === controllers.selectedViewId,
+      // Categorized presets show their selection in the pattern controls.
+      (view) => view.id === controllers.selectedViewId && !view.category,
     ) ??
     systemFilterPresets?.find((view) => view.id === controllers.selectedViewId);
 
@@ -312,8 +317,14 @@ function TableViewPresetsDrawerContentBody({
   ReturnType<typeof useTableViewPresetsDrawerData>) {
   const [searchQuery, setSearchQueryLocal] = useState("");
   const { tableName, projectId, controllers } = viewConfig;
-  const { handleSetViewId, applyViewState, selectedViewId, appliedViewId } =
-    controllers;
+  const {
+    handleSetViewId,
+    applyViewState,
+    selectedViewId,
+    appliedViewId,
+    viewUpdateTarget,
+  } = controllers;
+  const updateViewId = selectedViewId ?? viewUpdateTarget?.viewId;
   const {
     createMutation,
     updateConfigMutation,
@@ -426,12 +437,13 @@ function TableViewPresetsDrawerContentBody({
     setIsCreateDialogOpen(false);
   };
 
-  const handleUpdateViewConfig = (updatedView: { name: string }) => {
-    if (!selectedViewId) return;
-
+  const handleUpdateViewConfig = (updatedView: {
+    id: string;
+    name: string;
+  }) => {
     capture("saved_views:update_config", {
       tableName,
-      viewId: selectedViewId,
+      viewId: updatedView.id,
       name: updatedView.name,
     });
 
@@ -443,9 +455,12 @@ function TableViewPresetsDrawerContentBody({
     // the view's stored column layout instead (LFE-10486). Filters/sort/search
     // always come from the live state, since updating those to what the visitor
     // currently sees is exactly the intent.
-    const viewWasApplied = appliedViewId === selectedViewId;
+    const viewWasApplied =
+      appliedViewId === updatedView.id ||
+      (viewUpdateTarget?.viewId === updatedView.id &&
+        viewUpdateTarget.columnsApplied);
     const storedView = TableViewPresetsList?.find(
-      (view) => view.id === selectedViewId,
+      (view) => view.id === updatedView.id,
     );
     const columnOrder =
       viewWasApplied || !storedView
@@ -459,7 +474,7 @@ function TableViewPresetsDrawerContentBody({
     updateConfigMutation.mutate({
       projectId,
       name: updatedView.name,
-      id: selectedViewId,
+      id: updatedView.id,
       tableName,
       orderBy: currentState.orderBy,
       filters: currentState.filters,
@@ -706,7 +721,7 @@ function TableViewPresetsDrawerContentBody({
                             {previewText}
                           </span>
                         ) : null}
-                        {!isSystemView && view.id === selectedViewId && (
+                        {!isSystemView && view.id === updateViewId && (
                           <Button
                             variant="ghost"
                             size="xs"
@@ -719,6 +734,7 @@ function TableViewPresetsDrawerContentBody({
                             onClick={(e) => {
                               e.stopPropagation();
                               handleUpdateViewConfig({
+                                id: view.id,
                                 name: view.name,
                               });
                             }}

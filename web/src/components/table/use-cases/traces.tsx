@@ -49,6 +49,7 @@ import {
   TableViewPresetTableName,
   type TimeFilter,
   type ScoreAggregate,
+  type TracingSearchType,
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
@@ -105,6 +106,11 @@ import { DialogController } from "@/src/components/ui/dialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { DeleteTraceDialogContent } from "@/src/features/traces/components/DeleteTraceDialogContent";
+import {
+  demoteViewOnUserFilterEdit,
+  type ExplicitFilterStateChange,
+  type ViewDemotionControllers,
+} from "@/src/features/events/lib/demoteViewOnUserFilterEdit";
 
 export type TracesTableRow = {
   // Shown by default
@@ -383,10 +389,19 @@ function TracesTableInternal({
   const isSidebarFilterLoading =
     traceFilterOptionsResponse.isPending || environmentFilterOptions.isPending;
 
+  const viewControllersRef = useRef<ViewDemotionControllers | null>(null);
+  const onExplicitFilterStateChange = useCallback(
+    (change: ExplicitFilterStateChange) => {
+      demoteViewOnUserFilterEdit(change, viewControllersRef.current);
+    },
+    [],
+  );
+
   const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
       loading: isSidebarFilterLoading,
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+      onExplicitFilterStateChange,
     };
 
     if (peekContext) {
@@ -412,7 +427,14 @@ function TracesTableInternal({
         userId ? "user" : undefined,
       ),
     };
-  }, [hideControls, isSidebarFilterLoading, peekContext, projectId, userId]);
+  }, [
+    hideControls,
+    isSidebarFilterLoading,
+    onExplicitFilterStateChange,
+    peekContext,
+    projectId,
+    userId,
+  ]);
 
   const queryFilter = useSidebarFilterState(
     tracesFilterConfig,
@@ -1232,8 +1254,9 @@ function TracesTableInternal({
   const queryFilterRef = useRef(queryFilter);
   queryFilterRef.current = queryFilter;
 
-  const setFiltersWrapper = useCallback(
-    (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
+  const setSavedViewFilters = useCallback(
+    (filters: FilterState) =>
+      queryFilterRef.current?.setFilterState(filters, { origin: "saved_view" }),
     [],
   );
 
@@ -1242,7 +1265,7 @@ function TracesTableInternal({
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
-      setFilters: setFiltersWrapper,
+      setFilters: setSavedViewFilters,
       setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibility,
@@ -1259,6 +1282,38 @@ function TracesTableInternal({
     currentExpandedFilters: queryFilter.expanded,
     disabled: hideControls,
   });
+  viewControllersRef.current = viewControllers;
+
+  const handleSearchQueryChange = (nextQuery: string) => {
+    viewControllers.handleUserStateChange(searchQuery ?? "", nextQuery);
+    setSearchQuery(nextQuery);
+  };
+  const handleSearchTypeChange = (nextType: TracingSearchType[]) => {
+    if (searchQuery?.trim()) {
+      viewControllers.handleUserStateChange(
+        [...searchType].sort(),
+        [...nextType].sort(),
+      );
+    }
+    setSearchType(nextType);
+  };
+  const handleOrderByChange: typeof setOrderByState = (nextOrderBy) => {
+    viewControllers.handleUserStateChange(orderByState, nextOrderBy);
+    setOrderByState(nextOrderBy);
+  };
+  const handleColumnOrderChange: typeof setColumnOrder = (updater) => {
+    const next = typeof updater === "function" ? updater(columnOrder) : updater;
+    viewControllers.handleUserStateChange(columnOrder, next);
+    setColumnOrder(next);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibility = (
+    updater,
+  ) => {
+    const next =
+      typeof updater === "function" ? updater(columnVisibility) : updater;
+    viewControllers.handleUserStateChange(columnVisibility, next);
+    setColumnVisibility(next);
+  };
 
   const rows = useMemo(() => {
     return traces.isSuccess
@@ -1350,10 +1405,10 @@ function TracesTableInternal({
             }}
             searchConfig={{
               metadataSearchFields: ["ID", "Trace Name", "User ID"],
-              updateQuery: setSearchQuery,
+              updateQuery: handleSearchQueryChange,
               currentQuery: searchQuery ?? undefined,
               tableAllowsFullTextSearch: legacyTracingIoSearchEnabled,
-              setSearchType,
+              setSearchType: handleSearchTypeChange,
               searchType,
             }}
             columnsWithCustomSelect={["traceName", "traceTags"]}
@@ -1402,9 +1457,9 @@ function TracesTableInternal({
             ]}
             orderByState={orderByState}
             columnVisibility={columnVisibility}
-            setColumnVisibility={setColumnVisibility}
+            setColumnVisibility={handleColumnVisibilityChange}
             columnOrder={columnOrder}
-            setColumnOrder={setColumnOrder}
+            setColumnOrder={handleColumnOrderChange}
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
             timeRange={showControlsInPageHeader ? undefined : timeRange}
@@ -1425,8 +1480,7 @@ function TracesTableInternal({
         <ResizableFilterLayout>
           {!hideControls && (
             <DataTableControls
-              // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
-              key={viewControllers.selectedViewId ?? "no-view"}
+              key={viewControllers.filterEditorResetKey}
               queryFilter={queryFilter}
               filterWithAI
             />
@@ -1475,15 +1529,15 @@ function TracesTableInternal({
                       state: paginationState,
                     }
               }
-              setOrderBy={setOrderByState}
+              setOrderBy={handleOrderByChange}
               orderBy={orderByState}
               rowSelection={selectedRows}
               highlightAllRows={selectAll}
               setRowSelection={setSelectedRows}
               columnVisibility={columnVisibility}
-              onColumnVisibilityChange={setColumnVisibility}
+              onColumnVisibilityChange={handleColumnVisibilityChange}
               columnOrder={columnOrder}
-              onColumnOrderChange={setColumnOrder}
+              onColumnOrderChange={handleColumnOrderChange}
               rowHeight={rowHeight}
               peekView={peekConfig}
               tableName="traces"
