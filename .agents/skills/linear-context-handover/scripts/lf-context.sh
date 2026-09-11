@@ -385,6 +385,7 @@ else
   note "then read each description's '🤖 AI post-context' block before designing anything:"
   note "a reversal already litigated once does not need re-litigating."
   note "practice: the linear-context-handover skill (reconstruct + handover)."
+  note "          prefer small reviewable PRs; subtickets under a parent are free."
 fi
 
 printf '\n'

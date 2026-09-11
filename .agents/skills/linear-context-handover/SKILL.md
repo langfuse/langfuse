@@ -19,19 +19,18 @@ Two halves, and the second one is the one people skip:
 
 1. **Before you touch a feature, reconstruct its history.** Most "new" work on an
    existing surface has a paper trail that answers half the design questions.
-2. **When you wrap up, write the handover into the ticket's description.**
+2. **When you wrap up, propose the handover for the ticket's description.**
 
-What an agent may write to Linear, which label stamps it, and what stays
-human-only are not in this file:
+What an agent may write to Linear, which label stamps it, the propose-then-write
+gate, and what stays human-only are not in this file:
 [`linear-agent-writes`](../linear-agent-writes/SKILL.md) is the authority. Read
 it before your first write. This file is the *craft* — where post-context goes,
 what earns a place in it, and the two mechanics that stop it being destroyed on
 the way in.
 
-How to slice a big change into PRs is
-[`pr-stack-workflow`](../pr-stack-workflow/SKILL.md). That is git/PR
-mechanics. Reconstructing history is not a reason to file a stack of
-subtickets.
+How to slice a big change into PRs is ordinary judgment: prefer small reviewable
+PRs, and create subtickets under an existing parent freely when that helps.
+Reconstructing history is not by itself a reason to file a stack of subtickets.
 
 ## Before you touch a feature: reconstruct its history
 
@@ -69,10 +68,21 @@ By hand, the same chain is:
 
 Read all of it before proposing a direction.
 
-## When you wrap up: write the handover
+## When you wrap up: ask, then propose the handover
 
-Into the **description** of the ticket the work belongs to, as a clearly
-separated agent block. Label the ticket `AI edited`.
+Do not end a productive session by silently writing to Linear, and do not omit
+the preserve step. Close with a clear ask — wording close to:
+
+> Should I update the ticket(s) with the results of this session so they are
+> preserved?
+
+Then draft a clearly separated agent block for the **description** of the ticket
+the work belongs to. Show that block in your reply (name the ticket, say it
+would be labelled `AI edited`), and **append it only after an explicit yes** —
+see [`linear-agent-writes`](../linear-agent-writes/SKILL.md). An ask such as
+"write the handover" or "update the ticket" is that yes (no second question). If
+they decline or do not answer, leave the block in the reply so the reasoning
+still survives the session.
 
 **Scale it.** One substantial handover on the project or parent ticket, short
 pointers on the leaves. The same essay repeated on eight tickets is noise, not
