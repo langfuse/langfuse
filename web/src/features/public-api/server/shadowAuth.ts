@@ -151,8 +151,10 @@ function isOrgFamily(allowedAccessLevels: ApiAccessLevel[]): boolean {
   );
 }
 
-/** ShadowAuthParams is enforceAuth's params; the legacy verify reads the same access levels. */
-export type ShadowAuthParams = EnforceAuthParams;
+/** ShadowAuthParams is enforceAuth's params plus the access levels the legacy verify gates on. */
+export type ShadowAuthParams = EnforceAuthParams & {
+  allowedAccessLevels: ApiAccessLevel[];
+};
 
 /** ShadowAuthAccessResult is a verified scope; the authorizing context rides along only when the new pipeline produced it. */
 export type ShadowAuthAccessResult = Success & {

@@ -307,6 +307,12 @@ function walkRoutes(): string[] {
   return routes;
 }
 
+// Enforce cells that intentionally diverge from legacy; every other cell must match.
+const enforceDivergences: Record<string, number> = {
+  // org keys hold project:read, which legacy's ["project"] tier gate refused
+  "GET projects/index | org/basic": 200,
+};
+
 describe("public-route auth parity", () => {
   beforeAll(async () => {
     originalMigration = (env as any).API_AUTH_MIGRATION;
@@ -352,8 +358,11 @@ describe("public-route auth parity", () => {
     expect(matrices.shadow).toEqual(matrices.legacy);
   });
 
-  it("enforce is byte-identical to legacy", () => {
-    expect(matrices.enforce).toEqual(matrices.legacy);
+  it("enforce matches legacy except documented divergences", () => {
+    expect(matrices.enforce).toEqual({
+      ...matrices.legacy,
+      ...enforceDivergences,
+    });
   });
 
   it("covers every public route", () => {
