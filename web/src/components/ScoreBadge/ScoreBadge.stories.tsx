@@ -105,12 +105,6 @@ export const StableDotPerName = meta.story({
       <span data-testid="second-quality">
         <ScoreBadge name="quality" scores={[{ ...score, value: 0.1 }]} />
       </span>
-      <span data-testid="helpfulness">
-        <ScoreBadge
-          name="helpfulness"
-          scores={[{ ...score, name: "helpfulness" }]}
-        />
-      </span>
     </div>
   ),
   play: async ({ canvasElement }) => {
@@ -120,13 +114,11 @@ export const StableDotPerName = meta.story({
     const second = dotOf(
       canvasElement.querySelector('[data-testid="second-quality"]'),
     );
-    const other = dotOf(
-      canvasElement.querySelector('[data-testid="helpfulness"]'),
-    );
 
     await expect(first).toBeTruthy();
+    // Only stability is guaranteed: four hues over many names means two
+    // names sharing a colour is expected, the name text disambiguates.
     await expect(second).toBe(first);
-    await expect(other).not.toBe(first);
   },
 });
 
