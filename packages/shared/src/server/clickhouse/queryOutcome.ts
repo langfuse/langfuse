@@ -53,7 +53,11 @@ const LABELLED_ROUTES = new Set([
  * do not need the method/path parsing REST routes get. Add one when it gains an
  * SLO or drives a meaningful share of timeouts.
  */
-const LABELLED_BARE_ROUTES = new Set(["events.all", "listObservations"]);
+const LABELLED_BARE_ROUTES = new Set([
+  "events.all",
+  "listObservations",
+  "trace_redirect",
+]);
 
 const OTHER_ROUTE_LABEL = "other";
 
