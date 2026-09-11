@@ -1,7 +1,10 @@
 import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
-const getCsp = (cloudRegion?: string) =>
+const getCsp = (
+  cloudRegion?: string,
+  nodeEnv: "development" | "production" | "test" = "production",
+) =>
   execFileSync(
     process.execPath,
     [
@@ -17,6 +20,7 @@ const getCsp = (cloudRegion?: string) =>
       cwd: process.cwd(),
       env: {
         ...process.env,
+        NODE_ENV: nodeEnv,
         DOCKER_BUILD: "1",
         LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: "",
         NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: cloudRegion,
@@ -32,5 +36,11 @@ describe("Content Security Policy", () => {
 
   it("does not allow local connections in Cloud", () => {
     expect(getCsp("US")).not.toContain("connect-src 'self' http://localhost:*");
+  });
+
+  it("allows only the fixed DMX bridge endpoint in development", () => {
+    expect(getCsp("DEV", "development")).toContain("http://127.0.0.1:9097");
+    expect(getCsp("DEV", "production")).not.toContain("http://127.0.0.1:9097");
+    expect(getCsp("US", "production")).not.toContain("http://127.0.0.1:9097");
   });
 });

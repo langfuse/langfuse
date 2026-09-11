@@ -42,6 +42,11 @@ describe("playbackRate", () => {
   it("compresses long traces to exactly the playback window", () => {
     expect(playbackRate(40)).toBe(40 / PLAYBACK_MAX_SECONDS);
   });
+
+  it("stretches short traces and compresses long traces to a presentation duration", () => {
+    expect(playbackRate(4, 120)).toBeCloseTo(1 / 30);
+    expect(playbackRate(240, 120)).toBe(2);
+  });
 });
 
 describe("buildNodeWindows", () => {
@@ -195,5 +200,45 @@ describe("createPlayheadStore actions", () => {
       .actions.syncTrace({ traceDuration: 0, nodeWindows: [], hard: true });
     store.getState().actions.play();
     expect(store.getState().isPlaying).toBe(false);
+  });
+
+  it("changes presentation duration without accumulating activation padding", () => {
+    const store = seededStore();
+    store
+      .getState()
+      .actions.syncTrace({
+        traceDuration: 10,
+        nodeWindows: [{ id: "short", startSec: 1, endSec: 1 }],
+        hard: true,
+      });
+    store.getState().actions.seekToSec(5);
+    store.getState().actions.setPlaybackDuration(100);
+    expect(store.getState().playheadSec).toBe(5);
+    expect(store.getState().nodeWindows[0]!.endSec).toBeCloseTo(1.02);
+    store.getState().actions.setPlaybackDuration(null);
+    expect(store.getState().nodeWindows[0]!.endSec).toBeCloseTo(1.2);
+    store.getState().actions.setPlaybackDuration(Number.NaN);
+    expect(store.getState().playbackDuration).toBeNull();
+  });
+
+  it("preserves presentation duration across refetch but resets it for another trace", () => {
+    const store = seededStore();
+    store.getState().actions.setPlaybackDuration(120);
+    store
+      .getState()
+      .actions.syncTrace({
+        traceDuration: 20,
+        nodeWindows: windows,
+        hard: false,
+      });
+    expect(store.getState().playbackDuration).toBe(120);
+    store
+      .getState()
+      .actions.syncTrace({
+        traceDuration: 20,
+        nodeWindows: windows,
+        hard: true,
+      });
+    expect(store.getState().playbackDuration).toBeNull();
   });
 });

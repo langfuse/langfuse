@@ -33,6 +33,7 @@ import { useSearch } from "@/src/features/traces/contexts/SearchContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
+import { useClubPlayback } from "../club/context";
 
 // A 22px ring around the ~28px (h-7) button; 2px stroke reads at this size.
 const RING_SIZE = 22;
@@ -78,6 +79,7 @@ function useHasPlayback(): boolean {
  * must not inflate usage.
  */
 function usePlaybackClickHandlers() {
+  const clubPlayback = useClubPlayback();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
   const { observations } = useTraceData();
@@ -103,7 +105,8 @@ function usePlaybackClickHandlers() {
         pause();
       } else {
         capture("trace_detail:playback_play", props);
-        play();
+        if (clubPlayback) clubPlayback();
+        else play();
       }
     },
     handleStop: () => {

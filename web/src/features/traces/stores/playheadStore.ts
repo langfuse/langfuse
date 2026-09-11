@@ -44,6 +44,8 @@ const MIN_GLOW_WALL_SECONDS = 0.2;
 interface PlayheadState {
   /** Total trace span in seconds (0 = no timeline to play). */
   traceDuration: number;
+  /** Optional wall-clock duration for a synchronized presentation. */
+  playbackDuration: number | null;
   /** Padded activation windows for every node in the tree. */
   nodeWindows: NodeWindow[];
   /** Playhead time in seconds from the timeline origin. Updated ~60fps during
@@ -58,6 +60,7 @@ interface PlayheadState {
     pause: () => void;
     /** Clear the playhead entirely (position, glow, visibility). */
     stop: () => void;
+    setPlaybackDuration: (seconds: number | null) => void;
     /** Move the playhead to an absolute time (seconds from origin) and pause. */
     seekToSec: (sec: number) => void;
     /**
@@ -77,7 +80,13 @@ interface PlayheadState {
 export type PlayheadStore = StoreApi<PlayheadState>;
 
 /** Playback rate in trace-seconds per wall-clock second. */
-export function playbackRate(traceDuration: number): number {
+export function playbackRate(
+  traceDuration: number,
+  playbackDuration: number | null = null,
+): number {
+  if (playbackDuration !== null && playbackDuration > 0) {
+    return traceDuration / playbackDuration;
+  }
   return traceDuration > PLAYBACK_MAX_SECONDS
     ? traceDuration / PLAYBACK_MAX_SECONDS
     : 1;
@@ -120,8 +129,10 @@ export function buildNodeWindows(
 export function padActivationWindows(
   windows: NodeWindow[],
   traceDuration: number,
+  playbackDuration: number | null = null,
 ): NodeWindow[] {
-  const minSpanSec = MIN_GLOW_WALL_SECONDS * playbackRate(traceDuration);
+  const minSpanSec =
+    MIN_GLOW_WALL_SECONDS * playbackRate(traceDuration, playbackDuration);
   return windows.map((w) =>
     w.endSec - w.startSec >= minSpanSec
       ? w
@@ -161,6 +172,7 @@ export function createPlayheadStore(): PlayheadStore {
   // page can mount two providers) — they live in this closure, not module scope.
   let raf: number | null = null;
   let lastTs = 0;
+  let rawWindows: NodeWindow[] = [];
 
   return createStore<PlayheadState>()((set, get) => {
     const cancelRaf = () => {
@@ -190,6 +202,7 @@ export function createPlayheadStore(): PlayheadStore {
 
     return {
       traceDuration: 0,
+      playbackDuration: null,
       nodeWindows: [],
       playheadSec: 0,
       isPlaying: false,
@@ -211,8 +224,9 @@ export function createPlayheadStore(): PlayheadStore {
             lastTs = ts;
             // Live reads each tick — duration/rate stay correct across
             // same-trace data changes mid-playback.
-            const { traceDuration, playheadSec } = get();
-            const nextSec = playheadSec + dt * playbackRate(traceDuration);
+            const { traceDuration, playheadSec, playbackDuration } = get();
+            const nextSec =
+              playheadSec + dt * playbackRate(traceDuration, playbackDuration);
             if (nextSec >= traceDuration) {
               positionPlayhead(traceDuration, playheadSec);
               pause();
@@ -224,6 +238,21 @@ export function createPlayheadStore(): PlayheadStore {
           raf = requestAnimationFrame(step);
         },
         pause,
+        setPlaybackDuration: (seconds) => {
+          const duration =
+            seconds !== null && Number.isFinite(seconds) && seconds > 0
+              ? seconds
+              : null;
+          set({
+            playbackDuration: duration,
+            nodeWindows: padActivationWindows(
+              rawWindows,
+              get().traceDuration,
+              duration,
+            ),
+          });
+          if (get().showPlayhead) positionPlayhead(get().playheadSec);
+        },
         stop: () => {
           cancelRaf();
           set({
@@ -239,12 +268,18 @@ export function createPlayheadStore(): PlayheadStore {
           positionPlayhead(sec);
         },
         syncTrace: ({ traceDuration, nodeWindows, hard }) => {
-          const padded = padActivationWindows(nodeWindows, traceDuration);
+          rawWindows = nodeWindows;
+          const padded = padActivationWindows(
+            nodeWindows,
+            traceDuration,
+            hard ? null : get().playbackDuration,
+          );
           if (hard) {
             // A different trace loaded — reset playback entirely.
             cancelRaf();
             set({
               traceDuration,
+              playbackDuration: null,
               nodeWindows: padded,
               playheadSec: 0,
               isPlaying: false,

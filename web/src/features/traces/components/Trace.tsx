@@ -30,6 +30,11 @@ import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
 import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
 
 import { useMemo } from "react";
+import dynamic from "next/dynamic";
+
+const TraceClub = dynamic(() =>
+  import("../club/TraceClub").then((module) => module.TraceClub),
+);
 
 export type TraceProps = {
   observations: Array<ObservationReturnTypeWithMetadata>;
@@ -165,7 +170,13 @@ function TraceWithSelection({
         <SearchProvider>
           <JsonExpansionProvider>
             <PlayheadProvider>
-              <TraceContent desktopLayout={desktopLayout} />
+              {process.env.NODE_ENV === "development" ? (
+                <TraceClub>
+                  <TraceContent desktopLayout={desktopLayout} />
+                </TraceClub>
+              ) : (
+                <TraceContent desktopLayout={desktopLayout} />
+              )}
             </PlayheadProvider>
           </JsonExpansionProvider>
         </SearchProvider>

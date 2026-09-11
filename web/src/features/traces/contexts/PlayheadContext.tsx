@@ -96,6 +96,11 @@ export function usePlayhead() {
     () => ({
       ...store.getState().actions,
       getPlayheadSec: () => store.getState().playheadSec,
+      getIsPlaying: () => store.getState().isPlaying,
+      subscribePlayback: (listener: (playing: boolean) => void) =>
+        store.subscribe((state, prev) => {
+          if (state.isPlaying !== prev.isPlaying) listener(state.isPlaying);
+        }),
       /** High-frequency position updates — write the DOM, don't setState. */
       subscribePosition: (listener: (sec: number) => void) =>
         store.subscribe((state, prev) => {
