@@ -690,17 +690,30 @@ function LoadedSessionConversationTimeline({
   const [collapseState, setCollapseState] = useState(() => ({
     scrollRequestId: null as number | null,
     observationIds: new Set(
-      observations.flatMap(({ observation, phase, ancestorObservationIds }) => {
-        if (phase !== "start") return [];
-        if (ancestorObservationIds.length > 0) return [observation.id];
-        if (
-          hasPreviewValue(observation.input) ||
-          hasPreviewValue(observation.output)
-        ) {
-          return [observation.id];
-        }
-        return [];
-      }),
+      observations.flatMap(
+        ({
+          observation,
+          phase,
+          ancestorObservationIds,
+          nestedObservationCounts,
+        }) => {
+          if (phase !== "start") return [];
+          if (
+            Object.keys(nestedObservationCounts).length === 1 &&
+            nestedObservationCounts.TOOL === 1
+          ) {
+            return [];
+          }
+          if (ancestorObservationIds.length > 0) return [observation.id];
+          if (
+            hasPreviewValue(observation.input) ||
+            hasPreviewValue(observation.output)
+          ) {
+            return [observation.id];
+          }
+          return [];
+        },
+      ),
     ),
   }));
   const [expandedToolObservationIds, setExpandedToolObservationIds] = useState(
@@ -795,6 +808,9 @@ function LoadedSessionConversationTimeline({
             );
           const hasNestedObservations =
             Object.keys(nestedObservationCounts).length > 0;
+          const hasSingleNestedTool =
+            Object.keys(nestedObservationCounts).length === 1 &&
+            nestedObservationCounts.TOOL === 1;
           const nestedObservationSummary = hasNestedObservations
             ? (nestedObservationSummaries.get(observation.id) ?? "")
             : "";
@@ -900,7 +916,9 @@ function LoadedSessionConversationTimeline({
                   actions={observationActions}
                 />
               ) : null}
-              {phase === "start" && hasNestedObservations ? (
+              {phase === "start" &&
+              hasNestedObservations &&
+              !hasSingleNestedTool ? (
                 <div
                   className={cn(
                     "relative",
