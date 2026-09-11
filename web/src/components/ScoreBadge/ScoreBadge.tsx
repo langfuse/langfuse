@@ -35,10 +35,12 @@ const hasMetadata = (
 /**
  * `--chart-1` … `--chart-8` from globals.css — the dashboard categorical
  * palette, reused so a score's dot cannot contradict the colour the same score
- * carries in a chart. Both themes define all eight. `--chart-3` is a neutral
- * grey that reads as "disabled" next to the others, so dots skip it.
+ * carries in a chart. Both themes define all eight. Dots use only the cool
+ * hues (indigo, cyan, violet, pink): yellow, red and lime read as status, and a
+ * score named "toxicity" with a green dot is a misread waiting to happen.
+ * `--chart-3` is a neutral grey that reads as "disabled", so it is skipped too.
  */
-const DOT_PALETTE_SLOTS = [1, 2, 4, 5, 6, 7, 8] as const;
+const DOT_PALETTE_SLOTS = [1, 2, 4, 8] as const;
 
 /** Dot colour is a stable function of the score name (djb2 hash). Names can
  * share a colour; the name next to the dot is what disambiguates. */
