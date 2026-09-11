@@ -91,6 +91,17 @@ describe("declared search scopes", () => {
     expect(planCommit(text, undefined, scopedRegistry).status).toBe("invalid");
   });
 
+  it("reports only the phrase conflict when a scoped phrase has a compatibility scope", () => {
+    const { ast } = parse("content:refund in:id", scopedRegistry);
+    expect(astToFilterState(ast, undefined, scopedRegistry).errors).toEqual([
+      "Only one search phrase is supported — use either bare text or one scoped search",
+    ]);
+    const { ast: missingPhrase } = parse("in:id", scopedRegistry);
+    expect(
+      astToFilterState(missingPhrase, undefined, scopedRegistry).errors,
+    ).toEqual(["Add search text after in:"]);
+  });
+
   it.each([
     ["id"],
     ["content"],

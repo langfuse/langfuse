@@ -170,7 +170,11 @@ export function astToFilterState(
       "Only one search phrase is supported — use either bare text or one scoped search",
     );
   }
-  if (ctx.compatibilitySearchType && ctx.searchTerms.length === 0) {
+  if (
+    ctx.compatibilitySearchType &&
+    ctx.searchTerms.length === 0 &&
+    !ctx.scopedSearch
+  ) {
     ctx.errors.push("Add search text after in:");
   }
   ctx.errors.push(...(registry.filterStateErrors?.(ctx.filters) ?? []));

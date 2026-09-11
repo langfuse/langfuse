@@ -219,14 +219,34 @@ export function semanticDiagnostics(
   const termRegistry = registry.filterStateErrors
     ? { ...registry, filterStateErrors: undefined }
     : registry;
+  const { errors: wholeQueryErrors } = astToFilterState(
+    ast,
+    scoreTypes,
+    registry,
+  );
+  let firstCompatibilityScope: ASTNode | undefined;
   for (const node of topLevel) {
-    // A compatibility scope selects the following global phrase; lowering it
-    // alone would incorrectly report that its phrase is missing.
     const ref = node.kind === "filter" ? registry.resolveField(node.key) : null;
-    if (ref?.type === "pseudo" && ref.id === "in") continue;
-    const { errors } = astToFilterState(node, scoreTypes, termRegistry);
+    const isCompatibilityScope = ref?.type === "pseudo" && ref.id === "in";
+    // Include the first accepted scope so duplicate selections are diagnosed
+    // at the later token, using the same adapter rule as whole-query lowering.
+    const term: ASTNode =
+      isCompatibilityScope && firstCompatibilityScope
+        ? { kind: "and", children: [firstCompatibilityScope, node] }
+        : node;
+    const { errors, searchType } = astToFilterState(
+      term,
+      scoreTypes,
+      termRegistry,
+    );
+    if (isCompatibilityScope && searchType !== null) {
+      firstCompatibilityScope ??= node;
+    }
     const span = nodeSpan(node, textLength);
     for (const message of errors) {
+      // A compatibility scope uses a phrase elsewhere in the query. Keep its
+      // precise error span only when the complete query confirms the error.
+      if (isCompatibilityScope && !wholeQueryErrors.includes(message)) continue;
       out.push({ from: span.from, to: span.to, severity: "error", message });
     }
     hasFilterWarnings(node, textLength, out, false, registry);
@@ -236,9 +256,8 @@ export function semanticDiagnostics(
   // filter per column). Check the complete lowering as well as each term so
   // draft validation and commit validation share the same backend boundary.
   {
-    const { errors } = astToFilterState(ast, scoreTypes, registry);
     const span = nodeSpan(ast, textLength);
-    for (const message of errors) {
+    for (const message of wholeQueryErrors) {
       if (!out.some((diagnostic) => diagnostic.message === message)) {
         out.push({ ...span, severity: "error", message });
       }
