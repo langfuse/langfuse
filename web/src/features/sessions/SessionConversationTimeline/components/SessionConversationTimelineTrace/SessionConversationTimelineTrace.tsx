@@ -15,8 +15,8 @@ import {
   type PreparedSessionTimelineItem,
   type PreparedSessionTimelineMessages,
 } from "@/src/features/sessions/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
-import { SessionTimelineContentMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionTimelineContentMessage/SessionTimelineContentMessage";
-import { SessionTimelineSystemMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionTimelineSystemMessage/SessionTimelineSystemMessage";
+import { SessionTimelineContentMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTimelineContentMessage/SessionTimelineContentMessage";
+import { SessionTimelineSystemMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTimelineSystemMessage/SessionTimelineSystemMessage";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
