@@ -326,7 +326,7 @@ export const TestShowsCostAndTokenBreakdown = meta.story({
   parameters: {
     a11y: {
       test: "error",
-      // The open breakdown tooltip is `CostUsageTable`, shared with the trace
+      // The open breakdown tooltip is the shared usage `BreakdownTooltip`, shared with the trace
       // view: its corner `<th>` is empty by design. Same reasoning as the
       // file-level contrast exemption — not this header's component to change.
       config: {
