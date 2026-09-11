@@ -28,6 +28,7 @@ import {
   attributeGrammar,
 } from "@/src/features/traces/components/ObservationAttributesList";
 import { Copy, Check, EllipsisVertical, Filter, FilterX } from "lucide-react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 /**
  * Enables the per-row actions menu in a metadata JSON view: copy value/
@@ -45,7 +46,15 @@ export type MetadataFilterActions = {
    * window covering the source row.
    */
   attributes?: { anchorTime?: Date | null };
+  /** Which detail-panel table this is, for the `attribute_table_action`
+      event. Absent on IO tables, which stay untracked. */
+  analyticsTable?: "attributes" | "model_parameters" | "metadata";
+  /** Plain copy control only, no filter menu (model parameters have no
+      column to filter on). */
+  copyOnly?: boolean;
 };
+
+export type AttributeTableAction = "copy" | "include_filter" | "exclude_filter";
 
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
 const MAX_CELL_DISPLAY_CHARS = 2000;
@@ -239,9 +248,11 @@ function resolveKeyPath(row: Row<JsonTableRow>): string {
 function AttributeActionsMenuContent({
   row,
   metadataActions,
+  onAction,
 }: {
   row: Row<JsonTableRow>;
   metadataActions: MetadataFilterActions;
+  onAction?: (action: AttributeTableAction) => void;
 }) {
   const router = useRouter();
   const { key, value, hasChildren } = row.original;
@@ -270,7 +281,10 @@ function AttributeActionsMenuContent({
     <>
       <DropdownMenuItem
         className="text-xs"
-        onSelect={() => copyTextToClipboard(getCopyValue(value))}
+        onSelect={() => {
+          onAction?.("copy");
+          copyTextToClipboard(getCopyValue(value));
+        }}
       >
         <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
         {hasChildren ? "Copy structure" : "Copy value"}
@@ -280,7 +294,10 @@ function AttributeActionsMenuContent({
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-xs"
-            onSelect={() => navigate(filter.include, filter.target)}
+            onSelect={() => {
+              onAction?.("include_filter");
+              navigate(filter.include, filter.target);
+            }}
           >
             <Filter className="mr-2 h-3.5 w-3.5 shrink-0" />
             <span className="flex min-w-0 flex-col">
@@ -296,7 +313,10 @@ function AttributeActionsMenuContent({
           {excludeClause ? (
             <DropdownMenuItem
               className="text-xs"
-              onSelect={() => navigate(excludeClause, filter.target)}
+              onSelect={() => {
+                onAction?.("exclude_filter");
+                navigate(excludeClause, filter.target);
+              }}
             >
               <FilterX className="mr-2 h-3.5 w-3.5 shrink-0" />
               <span className="flex min-w-0 flex-col">
@@ -325,9 +345,11 @@ function AttributeActionsMenuContent({
 function ValueCellActionsMenuContent({
   row,
   metadataActions,
+  onAction,
 }: {
   row: Row<JsonTableRow>;
   metadataActions: MetadataFilterActions;
+  onAction?: (action: AttributeTableAction) => void;
 }) {
   const router = useRouter();
   const { value, type, hasChildren, level } = row.original;
@@ -337,6 +359,7 @@ function ValueCellActionsMenuContent({
       <AttributeActionsMenuContent
         row={row}
         metadataActions={metadataActions}
+        onAction={onAction}
       />
     );
   }
@@ -375,12 +398,17 @@ function ValueCellActionsMenuContent({
   const displayValue = type === "string" ? `"${filterValue}"` : filterValue;
 
   const handleCopyData = () => {
+    onAction?.("copy");
     copyTextToClipboard(getCopyValue(value));
   };
   const handleCopyPath = () => {
+    onAction?.("copy");
     copyTextToClipboard(resolveKeyPath(row));
   };
   const navigateWithFilter = (operator: MetadataFilterOperator) => {
+    onAction?.(
+      operator === includeOperator ? "include_filter" : "exclude_filter",
+    );
     router.push(
       buildEventsTablePathForMetadataFilter({
         currentPath: router.asPath,
@@ -463,9 +491,19 @@ export const ValueCell = memo(
     const cellId = `${row.id}-value`;
     const isCellExpanded = expandedCells.has(cellId);
     const [showCopySuccess, setShowCopySuccess] = useState(false);
+    const capture = usePostHogClientCapture();
+    const analyticsTable = metadataActions?.analyticsTable;
+    const trackAction = (action: AttributeTableAction) => {
+      if (!analyticsTable) return;
+      capture("trace_detail:attribute_table_action", {
+        table: analyticsTable,
+        action,
+      });
+    };
 
     const handleCopy = async (e: React.MouseEvent) => {
       e.stopPropagation();
+      trackAction("copy");
       const copyValue = getCopyValue(value);
 
       try {
@@ -626,7 +664,7 @@ export const ValueCell = memo(
 
         {/* Hover affordance: a one-click copy by default, or an actions menu
             (copy + filter shortcuts) in metadata views. */}
-        {metadataActions ? (
+        {metadataActions && !metadataActions.copyOnly ? (
           <DropdownMenuController
             align="end"
             maxWidth="320px"
@@ -634,6 +672,7 @@ export const ValueCell = memo(
               <ValueCellActionsMenuContent
                 row={row}
                 metadataActions={metadataActions}
+                onAction={trackAction}
               />
             )}
           >

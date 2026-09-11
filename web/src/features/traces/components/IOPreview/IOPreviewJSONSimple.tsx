@@ -227,6 +227,7 @@ export function IOPreviewJSONSimple({
               projectId,
               filterTarget: observationId ? "observations" : "traces",
               attributes: { anchorTime: attributesAnchorTime },
+              analyticsTable: "attributes",
             }}
             hoverControls
           />
@@ -241,6 +242,12 @@ export function IOPreviewJSONSimple({
             title="Model parameters"
             json={modelParameters}
             currentView="json"
+            metadataActions={{
+              projectId,
+              filterTarget: observationId ? "observations" : "traces",
+              copyOnly: true,
+              analyticsTable: "model_parameters",
+            }}
             hoverControls
           />
         </div>

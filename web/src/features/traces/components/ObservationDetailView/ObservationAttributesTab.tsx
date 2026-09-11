@@ -51,6 +51,7 @@ export function ObservationAttributesTab({
               metadataActions={{
                 ...metadataActions,
                 attributes: { anchorTime: attributesAnchorTime },
+                analyticsTable: "attributes",
               }}
               hoverControls
             />
@@ -63,6 +64,11 @@ export function ObservationAttributesTab({
               title="Model parameters"
               json={modelParameters}
               currentView={currentView}
+              metadataActions={{
+                ...metadataActions,
+                copyOnly: true,
+                analyticsTable: "model_parameters",
+              }}
               hoverControls
             />
           </div>
@@ -74,7 +80,10 @@ export function ObservationAttributesTab({
               title="Metadata"
               json={metadata}
               currentView={currentView}
-              metadataActions={metadataActions}
+              metadataActions={{
+                ...metadataActions,
+                analyticsTable: "metadata",
+              }}
               hoverControls
             />
           </div>

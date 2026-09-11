@@ -391,6 +391,7 @@ export function IOPreviewPretty({
             metadataActions={{
               ...metadataActions,
               attributes: { anchorTime: attributesAnchorTime },
+              analyticsTable: "attributes",
             }}
             hoverControls
           />
@@ -405,6 +406,15 @@ export function IOPreviewPretty({
             title="Model parameters"
             json={modelParameters}
             currentView="pretty"
+            metadataActions={
+              metadataActions
+                ? {
+                    ...metadataActions,
+                    copyOnly: true,
+                    analyticsTable: "model_parameters",
+                  }
+                : undefined
+            }
             hoverControls
           />
         </div>
@@ -422,7 +432,11 @@ export function IOPreviewPretty({
             currentView="pretty"
             externalExpansionState={metadataExpansionState}
             onExternalExpansionChange={onMetadataExpansionChange}
-            metadataActions={metadataActions}
+            metadataActions={
+              metadataActions
+                ? { ...metadataActions, analyticsTable: "metadata" }
+                : undefined
+            }
             hoverControls
           />
         </div>

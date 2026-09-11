@@ -60,6 +60,10 @@ const events = {
     // target tab, `target` is trace vs observation. Answers whether the Log
     // View and Scores tabs earn their place.
     "detail_tab_switch",
+    // Row actions on the Attributes, Model parameters and Metadata tables in
+    // the detail panel: `table` is which of the three, `action` is copy,
+    // include_filter or exclude_filter. Never the key or value text.
+    "attribute_table_action",
     // Controls used *inside* the Log View tab, so a removal decision can weigh
     // what people actually do there. `target` is trace vs observation;
     // `action` is one of (see `LogViewAction` in TraceLogView.tsx):
