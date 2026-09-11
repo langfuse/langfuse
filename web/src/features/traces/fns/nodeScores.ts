@@ -5,7 +5,7 @@
  * have no such row, so the top-level span(s) stand in for the trace and own
  * them alongside their own observation-level scores.
  *
- * Single source of this rule for the Scores tab (LFE-14405). Tree rows show a
+ * Single source of this rule for the Scores tab. Tree rows show a
  * node's own scores only; trace-level scores live in the summary strip.
  */
 
