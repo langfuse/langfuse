@@ -278,10 +278,12 @@ export function TraceDetailView({
                       Scores
                       {/* All scores of the trace (incl. observation-level) —
                           the count must match what the tab's table lists. */}
-                      <ActionButtonCountBadge
-                        count={scores.length}
-                        variant="muted"
-                      />
+                      {scores.length > 0 && (
+                        <ActionButtonCountBadge
+                          count={scores.length}
+                          variant="muted"
+                        />
+                      )}
                     </TabsBarTrigger>
                   )}
 

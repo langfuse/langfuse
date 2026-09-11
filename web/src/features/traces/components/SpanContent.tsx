@@ -289,6 +289,8 @@ export function SpanContent({
               <GroupedScoreBadges
                 compact
                 hideLevels
+                expandable={false}
+                overflowPreview={false}
                 scores={nodeScores}
                 maxVisible={MAX_INLINE_SCORE_GROUPS}
               />

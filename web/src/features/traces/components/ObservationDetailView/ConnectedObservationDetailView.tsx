@@ -246,6 +246,12 @@ export function ConnectedObservationDetailView({
     () => scores.filter((s) => s.observationId === observation.id),
     [scores, observation.id],
   );
+  // Zero is not a count worth a badge: the tab label alone says "Scores".
+  const scoresTabCount =
+    observationScores.length +
+    (ownsTraceLevelScores
+      ? scores.filter((score) => !score.observationId).length
+      : 0);
   const observationCorrections = useMemo(
     () => corrections.filter((c) => c.observationId === observation.id),
     [corrections, observation.id],
@@ -369,16 +375,12 @@ export function ConnectedObservationDetailView({
                       {/* Match the tab's table: observation scores, plus the
                           trace-level ones when this node stands in for the
                           trace. */}
-                      <ActionButtonCountBadge
-                        count={
-                          observationScores.length +
-                          (ownsTraceLevelScores
-                            ? scores.filter((score) => !score.observationId)
-                                .length
-                            : 0)
-                        }
-                        variant="muted"
-                      />
+                      {scoresTabCount > 0 && (
+                        <ActionButtonCountBadge
+                          count={scoresTabCount}
+                          variant="muted"
+                        />
+                      )}
                     </TabsBarTrigger>
                   ) : null}
                   {showLogViewTab ? (

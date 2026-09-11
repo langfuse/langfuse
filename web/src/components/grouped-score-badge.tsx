@@ -10,6 +10,7 @@ import { type LastUserScore, type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { scoreLevelFromScore } from "@/src/components/score-tag";
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
+import { ScoreHoverList } from "@/src/components/ScoreBadge/ScoreHoverList";
 
 /**
  * Bucket scores by name, the way the badges group them. Exported so a caller that
@@ -52,6 +53,7 @@ export const GroupedScoreBadges = <
   compact,
   hideLevels = false,
   expandable = true,
+  overflowPreview = true,
 }: {
   scores: T[];
   maxVisible?: number;
@@ -64,6 +66,11 @@ export const GroupedScoreBadges = <
    * part that actually shows them.
    */
   expandable?: boolean;
+  /**
+   * Whether hovering "+N" lists the scores. Off inside tree rows: the row's
+   * own hover card already lists them, two cards for one row is noise.
+   */
+  overflowPreview?: boolean;
   /** Suppress the level tag even on mixed rows — for dense surfaces (tree
       rows) where the level lives in the detail panel instead. */
   hideLevels?: boolean;
@@ -90,10 +97,16 @@ export const GroupedScoreBadges = <
     expanded && expandable ? undefined : maxVisible,
   );
 
+  // Same colour and weight as the chips it stands in for.
   const overflowButtonClassName = cn(
     expandable ? "cursor-pointer" : "cursor-default",
     compact ? "px-0.5 py-0 leading-tight" : "px-1",
-    "text-xs font-bold",
+    "text-xs font-normal",
+  );
+  // The shell colours its own text; a colour on the asChild element competes
+  // with it by stylesheet order, so the number is coloured on an inner span.
+  const overflowLabel = (
+    <span className="text-muted-foreground">+{hiddenScores.length}</span>
   );
 
   return (
@@ -107,7 +120,17 @@ export const GroupedScoreBadges = <
           showLevels={showLevels}
         />
       ))}
-      {Boolean(hiddenScores.length) && (
+      {Boolean(hiddenScores.length) && !overflowPreview && (
+        <BadgeShell color="neutral" size={compact ? "sm" : "default"}>
+          <span
+            className={overflowButtonClassName}
+            aria-label={`${hiddenScores.length} more score${hiddenScores.length === 1 ? "" : "s"}`}
+          >
+            {overflowLabel}
+          </span>
+        </BadgeShell>
+      )}
+      {Boolean(hiddenScores.length) && overflowPreview && (
         <HoverCard>
           <HoverCardTrigger asChild>
             <BadgeShell
@@ -130,24 +153,14 @@ export const GroupedScoreBadges = <
                   if (expandable) setExpanded(true);
                 }}
               >
-                +{hiddenScores.length}
+                {overflowLabel}
               </button>
             </BadgeShell>
           </HoverCardTrigger>
-          {/* w-max overrides the fixed w-64 base so the card adapts to its
-              chips; the cap makes long selections wrap instead of clipping. */}
-          <HoverCardContent className="max-h-[300px] w-max max-w-[min(420px,90vw)] overflow-y-auto p-2">
-            <div className="flex flex-wrap gap-1">
-              {hiddenScores.map(([name, scores]) => (
-                <ScoreBadge
-                  key={name}
-                  name={name}
-                  scores={scores}
-                  compact={compact}
-                  showLevels={showLevels}
-                />
-              ))}
-            </div>
+          {/* Same score list as the tree row hover card, and ALL of the group's
+              scores, not just the hidden ones: the reader wants one list. */}
+          <HoverCardContent className="w-60 p-2.5 text-xs">
+            <ScoreHoverList scores={scores} />
           </HoverCardContent>
         </HoverCard>
       )}

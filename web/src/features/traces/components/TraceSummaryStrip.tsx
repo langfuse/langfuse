@@ -23,7 +23,6 @@ import {
   SessionBadge,
   UserIdBadge,
 } from "@/src/features/traces/components/TraceMetadataBadges";
-import { SessionHoverCard } from "@/src/features/traces/components/ReferenceHoverCard";
 import { LatencyBadge } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { CostUsageBadge } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
@@ -72,16 +71,10 @@ export function TraceSummaryStrip() {
           usageDetails={aggregatedMetrics.usageDetails}
         />
         {trace.sessionId ? (
-          <SessionHoverCard
+          <SessionBadge
             sessionId={trace.sessionId}
             projectId={trace.projectId}
-            anchorTime={trace.timestamp}
-          >
-            <SessionBadge
-              sessionId={trace.sessionId}
-              projectId={trace.projectId}
-            />
-          </SessionHoverCard>
+          />
         ) : null}
         <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
         {traceScores.length > 0 && (

@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { type ComponentPropsWithoutRef, type ReactNode, type Ref } from "react";
 
+// Same line height as the compact score chip (BadgeShell size "sm"): tags, ids
+// and score chips sit in one row. Half a step more side padding, because an
+// outlined box reads smaller than a filled one of the same size.
 const PILL_CLASS_NAME =
-  "text-muted-foreground inline-flex h-[22px] shrink-0 items-center rounded-sm border px-2 py-0 text-xs leading-none whitespace-nowrap";
+  "text-muted-foreground inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0 text-xs leading-tight whitespace-nowrap";
 
 type ModernSessionHeaderPillProps = {
   children: ReactNode;

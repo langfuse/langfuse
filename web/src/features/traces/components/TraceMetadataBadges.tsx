@@ -34,7 +34,7 @@ export const SessionBadge = forwardRef<
       ref={ref}
       href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
       // Underlined at rest: it owns a hover card, like the token count.
-      className={`ph-no-capture ${REFERENCE_LINK_CLASS} decoration-muted-foreground/30 underline underline-offset-2`}
+      className={`ph-no-capture ${REFERENCE_LINK_CLASS}`}
       title={`Session ${sessionId}`}
       {...props}
     >
