@@ -125,6 +125,11 @@ patchedDependencies:
   # runs), e.g. opening a row-actions dropdown while a table re-renders.
   # Still unfixed upstream as of 1.1.19; remove once Radix guards focusFirst.
   '@radix-ui/react-roving-focus@1.1.11': patches/@radix-ui__react-roving-focus@1.1.11.patch
+  # React 19 detaches/reattaches callback refs when the composed-ref identity
+  # changes. `(node) => setButton(node)` is a new function every render, so
+  # setButton(null) loops into Maximum update depth exceeded. Pass the
+  # stable setter. Fixed upstream in 1.3.x; remove this patch when we bump.
+  '@radix-ui/react-switch@1.2.6': patches/@radix-ui__react-switch@1.2.6.patch
   next-auth@4.24.15: patches/next-auth@4.24.15.patch
   # The document-level drag handlers crash when a panel group unmounts
   # mid-drag: setPointerCapture on the detached separator throws

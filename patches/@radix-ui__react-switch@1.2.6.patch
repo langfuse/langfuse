@@ -1,0 +1,26 @@
+diff --git a/dist/index.js b/dist/index.js
+index 1819185d74ba6db7f9b04a11fae33bc78dea65d5..8767bbf9d56427aa7a5f24e8f215f24f3cb71cd3 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -67,7 +67,7 @@ var Switch = React.forwardRef(
+       ...switchProps
+     } = props;
+     const [button, setButton] = React.useState(null);
+-    const composedRefs = (0, import_react_compose_refs.useComposedRefs)(forwardedRef, (node) => setButton(node));
++    const composedRefs = (0, import_react_compose_refs.useComposedRefs)(forwardedRef, setButton);
+     const hasConsumerStoppedPropagationRef = React.useRef(false);
+     const isFormControl = button ? form || !!button.closest("form") : true;
+     const [checked, setChecked] = (0, import_react_use_controllable_state.useControllableState)({
+diff --git a/dist/index.mjs b/dist/index.mjs
+index be87da8879f67a6fd662a1003d999e94d62abe29..448a95eb5c19e3bed60ef1e3dc069c245acc9627 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -28,7 +28,7 @@ var Switch = React.forwardRef(
+       ...switchProps
+     } = props;
+     const [button, setButton] = React.useState(null);
+-    const composedRefs = useComposedRefs(forwardedRef, (node) => setButton(node));
++    const composedRefs = useComposedRefs(forwardedRef, setButton);
+     const hasConsumerStoppedPropagationRef = React.useRef(false);
+     const isFormControl = button ? form || !!button.closest("form") : true;
+     const [checked, setChecked] = useControllableState({
