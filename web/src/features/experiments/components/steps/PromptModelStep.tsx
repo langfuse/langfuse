@@ -73,6 +73,19 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
   const [open, setOpen] = useState(false);
   const [selectedSchema, setSelectedSchema] = useState<LlmSchema | null>(null);
   const [schemaPopoverOpen, setSchemaPopoverOpen] = useState(false);
+  const [schemaDialogOpen, setSchemaDialogOpen] = useState(false);
+  const [schemaDialogRequest, setSchemaDialogRequest] = useState<{
+    id: number;
+    existingLlmSchema: LlmSchema | null;
+  }>();
+
+  const openSchemaDialog = (existingLlmSchema: LlmSchema | null) => {
+    setSchemaDialogRequest((previous) => ({
+      id: (previous?.id ?? 0) + 1,
+      existingLlmSchema,
+    }));
+    setSchemaDialogOpen(true);
+  };
   const hasToolStructuredOutputConflict = hasPromptToolStructuredOutputConflict(
     selectedPromptToolConfig,
     structuredOutputEnabled,
@@ -375,46 +388,46 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                     </Popover>
 
                     {selectedSchema && (
-                      <CreateOrEditLLMSchemaDialog
-                        projectId={projectId}
-                        existingLlmSchema={selectedSchema}
-                        onSave={(updatedSchema) => {
-                          setSelectedSchema(updatedSchema);
-                          setSelectedSchemaName(updatedSchema.name);
-                          field.onChange(
-                            updatedSchema.schema as Record<string, unknown>,
-                          );
-                        }}
-                        onDelete={() => {
-                          setSelectedSchema(null);
-                          setSelectedSchemaName(null);
-                          field.onChange(undefined);
-                        }}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`View schema ${selectedSchema.name}`}
+                        onClick={() => openSchemaDialog(selectedSchema)}
                       >
-                        <Button variant="ghost" size="icon">
-                          <EyeIcon className="h-4 w-4" />
-                        </Button>
-                      </CreateOrEditLLMSchemaDialog>
+                        <EyeIcon className="h-4 w-4" />
+                      </Button>
                     )}
                   </div>
                 ) : (
-                  <CreateOrEditLLMSchemaDialog
-                    projectId={projectId}
-                    onSave={(newSchema) => {
-                      setSelectedSchema(newSchema);
-                      setSelectedSchemaName(newSchema.name);
-                      field.onChange(
-                        newSchema.schema as Record<string, unknown>,
-                      );
-                      // Toggle is already ON if we're seeing this button
-                      // No need to set it again
-                    }}
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => openSchemaDialog(null)}
                   >
-                    <Button variant="outline" className="w-full">
-                      <PlusIcon className="mr-2 h-4 w-4" />
-                      Add schema
-                    </Button>
-                  </CreateOrEditLLMSchemaDialog>
+                    <PlusIcon className="mr-2 h-4 w-4" />
+                    Add schema
+                  </Button>
+                )}
+                {schemaDialogRequest && (
+                  <CreateOrEditLLMSchemaDialog
+                    key={schemaDialogRequest.id}
+                    projectId={projectId}
+                    open={schemaDialogOpen}
+                    onOpenChange={setSchemaDialogOpen}
+                    existingLlmSchema={
+                      schemaDialogRequest.existingLlmSchema ?? undefined
+                    }
+                    onSave={(schema) => {
+                      setSelectedSchema(schema);
+                      setSelectedSchemaName(schema.name);
+                      field.onChange(schema.schema as Record<string, unknown>);
+                    }}
+                    onDelete={() => {
+                      setSelectedSchema(null);
+                      setSelectedSchemaName(null);
+                      field.onChange(undefined);
+                    }}
+                  />
                 )}
               </>
             )}

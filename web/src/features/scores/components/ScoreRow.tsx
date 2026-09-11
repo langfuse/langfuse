@@ -57,7 +57,9 @@ const ScoreValueSection = ({
       {aggregate ? (
         <>
           <span className="line-clamp-1 font-bold">
-            {resolveScoreValue(aggregate)}
+            {aggregate.type === "NUMERIC"
+              ? aggregate.average.toFixed(2)
+              : resolveScoreValue(aggregate)}
           </span>
           {diff && (
             <DiffLabel diff={diff} formatValue={(value) => value.toFixed(2)} />
