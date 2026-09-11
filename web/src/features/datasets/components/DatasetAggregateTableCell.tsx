@@ -176,7 +176,7 @@ const DatasetAggregateCellContent = ({
           <ConnectedIOTableCell isLoading variant="output" />
         ) : (
           <ConnectedIOTableCell
-            data={data.output ?? "null"}
+            data={data.output ?? null}
             variant="output"
             enableExpandOnHover
           />

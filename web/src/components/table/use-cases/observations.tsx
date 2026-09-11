@@ -57,6 +57,7 @@ import {
 } from "@/src/utils/observationCost";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
@@ -893,7 +894,11 @@ export default function ObservationsTable({
 
         return (
           <span>
-            {timeToFirstToken ? formatIntervalSeconds(timeToFirstToken) : "-"}
+            {timeToFirstToken ? (
+              formatIntervalSeconds(timeToFirstToken)
+            ) : (
+              <EmptyValue />
+            )}
           </span>
         );
       },
@@ -1141,7 +1146,6 @@ export default function ObservationsTable({
           id: "inputCost",
           header: "Input Cost",
           size: 120,
-          emptyValue: "-",
           formatter: (value, { row }) =>
             formatObservationCost(value, row.original.type),
           enableHiding: true,
@@ -1153,7 +1157,6 @@ export default function ObservationsTable({
           id: "outputCost",
           header: "Output Cost",
           size: 120,
-          emptyValue: "-",
           formatter: (value, { row }) =>
             formatObservationCost(value, row.original.type),
           enableHiding: true,

@@ -1,5 +1,6 @@
 import { eventsSearchRegistry } from "../config/eventsSearchRegistry";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -1345,7 +1346,6 @@ export default function ObservationsEventsTable({
           defaultHidden: true,
           enableSorting,
           formatter: (value) => usdFormatter(value),
-          emptyValue: "-",
         }),
         createTextTableColumn<EventsTableRow>({
           accessorFn: (row) =>
@@ -1390,7 +1390,11 @@ export default function ObservationsEventsTable({
 
         return (
           <span>
-            {timeToFirstToken ? formatIntervalSeconds(timeToFirstToken) : "-"}
+            {timeToFirstToken ? (
+              formatIntervalSeconds(timeToFirstToken)
+            ) : (
+              <EmptyValue />
+            )}
           </span>
         );
       },
