@@ -228,7 +228,7 @@ function aggregateIntoMultiUnitBuckets<
     let bucketStart = bucketEnd;
 
     // Go back `count` units
-    for (let i = 0; i < count - 1; i++) {
+    for (let i = 0; i < count; i++) {
       bucketStart = subtractSingleUnit(bucketStart);
     }
 
@@ -251,7 +251,11 @@ function aggregateIntoMultiUnitBuckets<
   for (const dataPoint of data) {
     const ts = toStartOfSingleUnit(dataPoint.timestamp);
 
-    for (const bucket of buckets) {
+    // Iterate newest-first so a point that falls on a shared boundary
+    // is assigned to the later (higher-end) bucket. The rightmost bucket
+    // still includes toDate because ts <= bucket.end holds at the top.
+    for (let i = buckets.length - 1; i >= 0; i--) {
+      const bucket = buckets[i]!;
       if (ts >= bucket.start && ts <= bucket.end) {
         bucket.dataPoints.push(dataPoint);
         break;
@@ -536,7 +540,7 @@ function aggregateCategoricalIntoMultiUnitBuckets<
     let bucketStart = bucketEnd;
 
     // Go back `count` units
-    for (let i = 0; i < count - 1; i++) {
+    for (let i = 0; i < count; i++) {
       bucketStart = subtractSingleUnit(bucketStart);
     }
 
@@ -559,7 +563,10 @@ function aggregateCategoricalIntoMultiUnitBuckets<
   for (const dataPoint of data) {
     const ts = toStartOfSingleUnit(dataPoint.timestamp);
 
-    for (const bucket of buckets) {
+    // Iterate newest-first so a point that falls on a shared boundary
+    // is assigned to the later (higher-end) bucket.
+    for (let i = buckets.length - 1; i >= 0; i--) {
+      const bucket = buckets[i]!;
       if (ts >= bucket.start && ts <= bucket.end) {
         bucket.dataPoints.push(dataPoint);
         break;
