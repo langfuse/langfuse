@@ -14,7 +14,7 @@
 
 import { type ReactNode, useState } from "react";
 import { useRouter } from "next/router";
-import { Copy, Filter, FilterX } from "lucide-react";
+import { Copy, Filter } from "lucide-react";
 import { format } from "date-fns";
 import { type FilterState } from "@langfuse/shared";
 
@@ -77,7 +77,7 @@ function ActionButton({
   );
 }
 
-/** Copy the id; include / exclude it on the traces table, window covering this trace. */
+/** Copy the id, or add it to the traces table filter (window covering this trace). */
 function ReferenceActions({
   value,
   filterKey,
@@ -109,18 +109,11 @@ function ReferenceActions({
         onClick={() => copyTextToClipboard(value)}
       />
       {filter ? (
-        <>
-          <ActionButton
-            icon={Filter}
-            label="Include"
-            onClick={() => go(filter.include)}
-          />
-          <ActionButton
-            icon={FilterX}
-            label="Exclude"
-            onClick={() => go(filter.exclude)}
-          />
-        </>
+        <ActionButton
+          icon={Filter}
+          label="Add to filter"
+          onClick={() => go(filter.include)}
+        />
       ) : null}
     </div>
   );
