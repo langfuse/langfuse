@@ -1,9 +1,8 @@
+/* eslint-disable @repo/no-null-render */
 /**
- * The Compact Timeline renderer, shipped behind the `compactTimeline` feature
- * preview: `TraceTimelineCompact` measures a box and renders this inside it, and
- * the trace panel's Timeline view is this whenever the preview is on — by
- * default for the team, opt-in for everyone else. Real users read traces through
- * it, so a bug here is a bug in the product.
+ * The Timeline. `TraceTimelineCompact` measures a box and renders this inside it,
+ * and the trace panel's Timeline view IS this — for everyone, on every device,
+ * with no flag in front of it. A bug here is a bug in the product.
  *
  * The question it started as a spike to answer, and still answers: in a narrow,
  * tall layout, does killing the names and the text and spending every pixel on
@@ -22,9 +21,11 @@
  *    phone or a peek panel, where there is not, the colour rail becomes the
  *    affordance and a hover or a tap floats the names over the chart.
  *  - Any wheel or two-finger scroll pans both axes; pinch and ⌘/ctrl + wheel zoom
- *    BOTH axes about the cursor, so the time window narrows and the rows grow
- *    together. Zoom is exponential in a zoom level and deltas accumulate per
- *    frame, as in mapping libraries — see the rate constants below.
+ *    about the cursor. While rows are still too short to hold a label, that zoom
+ *    grows only the rows — the whole duration stays on screen until the names
+ *    come back — and after that both axes move together. Zoom is exponential in
+ *    a zoom level and deltas accumulate per frame, as in mapping libraries — see
+ *    the rate constants below.
  *  - Drag pans both axes too, and drag draws a box to zoom into — the one
  *    gesture where the user has stated the window on both axes, so it goes
  *    straight there. There are no scrollbars by design: a map has none, and the
@@ -57,13 +58,14 @@ import {
   type ReactNode,
 } from "react";
 import { useTheme } from "next-themes";
-import { Scan, Minus, Plus } from "lucide-react";
+import { Scan, Minus, Plus, UnfoldVertical } from "lucide-react";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import {
   tooltipPlacement,
   type TooltipPlacement,
 } from "../../fns/timeline/tooltipPlacement";
 import { Layer } from "@/src/components/ui/layer";
+import { TimelineRowMetrics, type RowMetrics } from "./TimelineRowMetrics";
 import { cn } from "@/src/utils/tailwind";
 import { type Density, type PointerModality } from "../../fns/timeline/density";
 import {
@@ -81,6 +83,8 @@ import { traceSpaceOf, type Box } from "../../fns/timeline/viewTransform";
 import {
   HUMAN_ROW_HEIGHT,
   anchorTimeToRows,
+  canExpandRowsToReadable,
+  expandRowsToReadable,
   interpolateViewport,
   rowCountBounds,
   viewportsEqual,
@@ -95,7 +99,7 @@ import {
   rowIndexAtOffset,
   visibleRowRange,
   zoomToBox,
-  zoomViewport,
+  zoomViewportRevealLabels,
   type RowExtent,
   type Viewport,
 } from "../../fns/timeline/viewport";
@@ -269,7 +273,14 @@ export type TimelineDenseProps = {
    * live with the app. At this density hover is how a row is read at all, so it
    * should say what a tree row says.
    */
-  factsOf?: (nodeId: string) => string[];
+  /**
+   * What a row has to say about itself — cost, scores, comments, and the
+   * heat-map classes for its metrics. Supplied rather than derived, so this
+   * renderer keeps deciding only what FITS.
+   */
+  metricsOf?: (nodeId: string) => RowMetrics;
+  /** The view-options duration toggle; the tree honours the same one. */
+  showDuration?: boolean;
   /**
    * The trace playhead, handed in rather than read from context: this renderer
    * takes data and nothing implicit, which is what lets Storybook mount it at
@@ -325,7 +336,8 @@ export function TimelineDense({
   onHover,
   activeIds,
   playhead,
-  factsOf,
+  metricsOf,
+  showDuration = true,
 }: TimelineDenseProps) {
   const [viewport, setViewport] = useState<Viewport | null>(null);
   const [pointerPos, setPointerPos] = useState<{
@@ -380,6 +392,10 @@ export function TimelineDense({
   // A manual override lives until you touch the chart again, which is what
   // "expand to look, then get out of my way" means in practice.
   const [override, setOverride] = useState<GutterMode | null>(null);
+  // An explicit "Show labels" is the other ask: keep the names on screen even
+  // when a gesture would have handed the gutter back, and even when auto would
+  // rather keep the lane. Fit or a rail collapse lets go.
+  const [labelsPinned, setLabelsPinned] = useState(false);
   // Desktop peek: hovering the left edge opens it, moving into the chart closes
   // it again. No click to look, no click to get out of the way.
   const [peeking, setPeeking] = useState(false);
@@ -429,9 +445,16 @@ export function TimelineDense({
    */
   const canShowNames = liveRowHeight >= NAME_MIN_ROW_HEIGHT;
   const wantedGutter = Math.min(Math.max(contentWidth * 0.38, 96), 168);
-  const asked = override === "expanded" || gutterMode === "expanded";
-  const wantsOpen =
-    override === "collapsed" ? false : asked || gutterMode === "auto";
+  const asked =
+    labelsPinned || override === "expanded" || gutterMode === "expanded";
+  // An explicit "Show labels" pin wins over a leftover rail-collapse
+  // override; otherwise the names stay a peek overlay and never take
+  // the gutter the user just asked for.
+  const wantsOpen = labelsPinned
+    ? true
+    : override === "collapsed"
+      ? false
+      : asked || gutterMode === "auto";
   const gutterFits =
     contentWidth - wantedGutter >=
     (asked ? MIN_LANE_WIDTH : AUTO_OPEN_MIN_LANE_WIDTH);
@@ -478,11 +501,22 @@ export function TimelineDense({
   // an explicit ask still gets the names where they could not fit beside the
   // chart.
   const peekWidth =
-    canShowNames && !committedOpen && (peeking || override === "expanded")
+    canShowNames &&
+    !committedOpen &&
+    (peeking || labelsPinned || override === "expanded")
       ? wantedGutter
       : 0;
   const presentation = presentationForRowHeight(rowHeight);
   const fitted = isViewportFitted(current, limits);
+  const canShowLabels = canExpandRowsToReadable(current, limits);
+  const labelsShowing = committedOpen || (labelsPinned && peekWidth > 0);
+  // Replace Fit only while the whole clock is still on screen AND names are
+  // missing. Rows can be too short, or the pane too narrow to volunteer a
+  // gutter — both are the same ask. A time-zoomed hairline keeps Fit.
+  const clockFits = current.time.duration >= limits.traceSpace.duration - 0.5;
+  const offerShowLabels =
+    clockFits && !labelsShowing && (canShowLabels || canShowNames);
+  const fitSpent = fitted && !labelsPinned;
   const barHeight = Math.max(Math.min(rowHeight - 1, MAX_BAR_HEIGHT), 1);
 
   /**
@@ -658,7 +692,7 @@ export function TimelineDense({
     options: { factor: number; xRatio: number; yRatio: number },
   ) => {
     const { limits: live, extentOf: extent } = layoutRef.current;
-    const zoomed = zoomViewport(
+    const zoomed = zoomViewportRevealLabels(
       from ? clampViewport(from, live) : fitViewport(live),
       live,
       options,
@@ -808,6 +842,19 @@ export function TimelineDense({
     [cancelTween],
   );
 
+  const showLabels = () => {
+    const { limits: live, extentOf } = layoutRef.current;
+    setLabelsPinned(true);
+    setOverride(null);
+    flyTo(
+      anchorTimeToRows(
+        expandRowsToReadable(viewportRef.current, live),
+        live,
+        extentOf,
+      ),
+    );
+  };
+
   const scheduleGesture = useCallback(() => {
     // Any gesture on the chart hands the space back: an expanded gutter is for
     // looking, and the moment you work in the chart it gets out of the way. It
@@ -820,8 +867,9 @@ export function TimelineDense({
 
   /**
    * Wheel and trackpad pinch on a non-passive listener, so the page never takes
-   * the gesture. Both zoom, like a map: a Mac pinch arrives as wheel + ctrlKey
-   * and needs no special case; shift or a horizontal wheel pans instead.
+   * the gesture. A Mac pinch arrives as wheel + ctrlKey and needs no special
+   * case; shift or a horizontal wheel pans instead. Pinch-zoom grows only the
+   * rows while labels are hidden, then both axes once they fit.
    */
   const attachSurface = useCallback(
     (element: HTMLDivElement | null) => {
@@ -915,7 +963,14 @@ export function TimelineDense({
       canShowNames &&
       offsetX <= Math.max(railWidth, peekWidth) + PEEK_MARGIN_PX
     ) {
-      setOverride(isOpen ? "collapsed" : "expanded");
+      // Peek overlays never become committedOpen (the pane is too narrow
+      // to give the gutter a lane). Toggle on the held-open state so a
+      // second tap can dismiss a peek the first tap — or Show labels —
+      // just opened.
+      const namesHeldOpen =
+        committedOpen || labelsPinned || override === "expanded";
+      setLabelsPinned(!namesHeldOpen);
+      setOverride(namesHeldOpen ? "collapsed" : "expanded");
       // This tap is spent on the toggle, so it is not half of a double-tap:
       // opening and closing the names inside the double-tap window otherwise read
       // as one, and flew the viewport to whatever row the second tap landed on.
@@ -1299,31 +1354,48 @@ export function TimelineDense({
         </ToolbarButton>
         <ToolbarButton
           label="Zoom in"
-          onClick={() => zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)}
+          onClick={() =>
+            offerShowLabels
+              ? showLabels()
+              : zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)
+          }
         >
           <Plus className="h-3 w-3" />
         </ToolbarButton>
-        <ToolbarButton
-          label={fitted ? "Whole trace already fits" : "Fit whole trace"}
-          onClick={() => flyTo(fitViewport(limits))}
-          disabled={fitted}
-        >
-          {/* A viewfinder, not the diagonal arrows this used to wear: those read
-              as "fullscreen", so a control that was merely spent looked broken. */}
-          <Scan className="h-3 w-3" />
-        </ToolbarButton>
+        {offerShowLabels ? (
+          <ToolbarButton label="Show labels" onClick={showLabels}>
+            <UnfoldVertical className="h-3 w-3" />
+            <span className="pr-0.5" style={{ fontSize: "10px" }}>
+              Show labels
+            </span>
+          </ToolbarButton>
+        ) : (
+          <ToolbarButton
+            label={fitSpent ? "Whole trace already fits" : "Fit whole trace"}
+            onClick={() => {
+              setLabelsPinned(false);
+              setOverride(null);
+              flyTo(fitViewport(limits));
+            }}
+            disabled={fitSpent}
+          >
+            {/* A viewfinder, not the diagonal arrows this used to wear: those
+                read as "fullscreen", so a control that was merely spent looked
+                broken. */}
+            <Scan className="h-3 w-3" />
+          </ToolbarButton>
+        )}
         {/* Where you are, when you are somewhere — and nothing at all when the
-            whole trace is in view. This carried a list of gestures once. Every
-            way of interacting with this surface is one you would have tried:
-            drag, scroll, pinch, double-click, click. A caption explaining them
-            is a caption nobody reads, taking the room a state readout earns. */}
-        <span
-          className="text-muted-foreground truncate"
-          style={{ fontSize: "10px" }}
-          title={fitted ? undefined : windowHint}
-        >
-          {fitted ? null : windowHint}
-        </span>
+            whole trace is in view. */}
+        {!offerShowLabels && !fitted ? (
+          <span
+            className="text-muted-foreground truncate"
+            style={{ fontSize: "10px" }}
+            title={windowHint}
+          >
+            {windowHint}
+          </span>
+        ) : null}
       </div>
 
       {/* The axis doubles as the scrub track: press to place the playhead, drag
@@ -1338,13 +1410,16 @@ export function TimelineDense({
         onPointerMove={onAxisPointerMove}
         data-testid="timeline-dense-axis"
       >
-        {/* Font probe for the measurer: a label's own size, invisible and out of
-            flow so it costs no layout. */}
+        {/* Font probe for the measurer, at the size a label ACTUALLY renders in —
+            `density.labelFontPx`, the same value the metrics set themselves in.
+            Probing one size and rendering another under-prices every string by
+            the difference, which is the direction that clips. Invisible and out
+            of flow, so it costs no layout. */}
         <span
           ref={labelProbeRef}
           aria-hidden
           className="invisible absolute"
-          style={{ fontSize: "10px" }}
+          style={{ fontSize: `${density.labelFontPx}px` }}
         >
           0
         </span>
@@ -1527,56 +1602,41 @@ export function TimelineDense({
                         height: `${barHeight}px`,
                       }}
                       data-testid="timeline-dense-bar"
-                    />
+                    >
+                      {/* Where the first token arrived: a divider rather than the
+                          wide timeline's second shade, because a shade needs a
+                          bar tall enough to read one and these are 1px at the
+                          floor. It also keeps the label's contrast decision on a
+                          single colour. */}
+                      {node.firstTokenX == null ? null : (
+                        <div
+                          className="bg-background/70 absolute inset-y-0 w-px"
+                          style={{
+                            left: `${Math.min(Math.max(node.firstTokenX - node.x, 0), node.width)}px`,
+                          }}
+                          data-testid="timeline-dense-first-token"
+                        />
+                      )}
+                    </div>
                   )}
                   {/* Text comes back on its own as the rows grow — and it goes
                       on whichever side layout() measured room for, rather than
                       always after the bar, which clipped a full-width bar's
                       label at the lane edge. */}
-                  {presentation === "labelled" &&
-                  node.label &&
-                  !node.offscreen &&
-                  node.labelPlacement !== "hidden" ? (
-                    <span
-                      className={cn(
-                        "absolute overflow-hidden whitespace-nowrap",
-                        // A label drawn ON the bar contrasts with the BAR, not
-                        // with the page, so it takes white or black from that
-                        // bar's own luminance — see fns/timeline/barContrast.ts.
-                        // A chip of page-coloured ground read as a hole punched
-                        // in the bar; this reads as a label on it.
-                        node.labelPlacement !== "inside"
-                          ? "text-muted-foreground"
-                          : barTones[barClass] === "dark"
-                            ? "text-black/85"
-                            : "text-white/95",
-                      )}
-                      data-testid="timeline-dense-duration"
-                      data-placement={node.labelPlacement}
-                      style={{
-                        // A `before` label is anchored by its RIGHT edge, so its
-                        // gap from the bar is exact no matter what the measurer
-                        // thought the text was worth. Positioning it from the
-                        // left needs `left = x - gap - measuredWidth`, and any
-                        // under-measure is subtracted straight out of the gap:
-                        // measured 6px narrow and the label sat flush against
-                        // the bar. `after` never had the bug — it grows away
-                        // from its anchor rather than toward it.
-                        ...(node.labelPlacement === "before"
-                          ? {
-                              right: `${Math.max(laneWidth - node.labelX - node.labelWidth, 0)}px`,
-                              maxWidth: `${Math.max(node.labelX + node.labelWidth, 0)}px`,
-                            }
-                          : {
-                              left: `${node.labelX}px`,
-                              maxWidth: `${Math.max(laneWidth - node.labelX, 0)}px`,
-                            }),
-                        top: `${Math.max((rowHeight - 12) / 2, 0)}px`,
-                        fontSize: "10px",
-                      }}
-                    >
-                      {node.label}
-                    </span>
+                  {presentation === "labelled" && !node.offscreen ? (
+                    <TimelineRowMetrics
+                      row={node}
+                      laneWidth={laneWidth}
+                      measurer={measurer}
+                      density={density}
+                      metrics={metricsOf?.(node.id) ?? {}}
+                      showDuration={showDuration}
+                      toneClass={
+                        barTones[barClass] === "dark"
+                          ? "text-black/85"
+                          : "text-white/95"
+                      }
+                    />
                   ) : null}
                 </div>
               </div>
@@ -1712,9 +1772,9 @@ export function TimelineDense({
                     ? "—"
                     : formatDurationMs(focused.durationMs)}
                 </span>
-                {factsOf?.(focused.id).map((fact) => (
-                  <span key={fact}>{fact}</span>
-                ))}
+                {metricsOf?.(focused.id)?.costText ? (
+                  <span>{metricsOf(focused.id).costText}</span>
+                ) : null}
               </span>
             </div>
           </Layer>
@@ -1915,7 +1975,7 @@ function ToolbarButton({
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className="hover:bg-muted flex h-4 w-4 shrink-0 items-center justify-center rounded disabled:pointer-events-none disabled:opacity-40"
+      className="hover:bg-muted flex h-4 min-w-4 shrink-0 items-center justify-center gap-0.5 rounded px-0.5 disabled:pointer-events-none disabled:opacity-40"
     >
       {children}
     </button>

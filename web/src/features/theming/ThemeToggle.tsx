@@ -2,7 +2,7 @@ import * as React from "react";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
@@ -14,7 +14,7 @@ export function ThemeToggle() {
         <Sun
           className={cn(
             theme === "light" ? "text-primary-accent" : "",
-            "text:primary hover:bg-input hover:text-primary-accent h-[1.6rem] w-[1.6rem] rounded-sm p-1",
+            "hover:bg-input hover:text-primary-accent h-[1.6rem] w-[1.6rem] rounded-sm p-1",
           )}
           onClick={(e) => {
             e.preventDefault();

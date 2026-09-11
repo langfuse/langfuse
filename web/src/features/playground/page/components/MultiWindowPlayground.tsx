@@ -1,6 +1,8 @@
+/* eslint-disable @repo/no-null-render */
 import React, { useMemo, useCallback, useRef, useEffect } from "react";
 import { PlaygroundProvider, usePlaygroundContext } from "../context";
 import { SaveToPromptButton } from "./SaveToPromptButton";
+import { SourcePromptHeading } from "./SourcePromptHeading";
 import { Button } from "@/src/components/ui/button";
 import { Plus, X } from "lucide-react";
 import { MULTI_WINDOW_CONFIG, type MultiWindowState } from "../types";
@@ -15,6 +17,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { useIsMobile } from "@/src/hooks/use-mobile";
+import { getMessagesFingerprint } from "@/src/features/playground/page/utils/messagesFingerprint";
 
 /**
  * MultiWindowPlayground Component
@@ -156,6 +159,15 @@ function PlaygroundWindowContent({
   const { registerPageTarget, unregisterPageTarget } =
     useMessageSearchActions();
   const windowContainerRef = useRef<HTMLDivElement | null>(null);
+  const { messages, sourcePrompt } = playgroundContext;
+
+  const isSourcePromtEdited = useMemo(
+    () =>
+      Boolean(sourcePrompt) &&
+      getMessagesFingerprint(messages) !==
+        sourcePrompt?.initialMessagesFingerprint,
+    [messages, sourcePrompt],
+  );
 
   const handleRemove = useCallback(() => {
     onRemove(windowId);
@@ -180,9 +192,8 @@ function PlaygroundWindowContent({
       ref={windowContainerRef}
       className="playground-window bg-background @container flex h-full min-w-0 flex-col rounded-lg border shadow-xs"
     >
-      {/* Window Header */}
-      <div className="bg-muted/50 relative shrink-0 border-b px-3 py-1">
-        <div className="flex items-center pr-32 @xl:pr-96">
+      <div className="bg-muted/50 shrink-0 border-b">
+        <div className="relative flex items-center py-1 pr-32 pl-3 @xl:pr-96">
           <div className="flex items-center gap-2">
             <ModelParameters {...playgroundContext} layout="compact" />
           </div>
@@ -246,7 +257,15 @@ function PlaygroundWindowContent({
         <div className="flex h-full flex-col">
           <ConfigurationDropdowns />
 
-          <div className="flex-1 overflow-auto p-4">
+          <div className="relative flex-1 overflow-auto p-4">
+            {playgroundContext.sourcePrompt && (
+              <div className="absolute top-1 flex max-w-[calc(100%-4rem)] justify-end">
+                <SourcePromptHeading
+                  sourcePrompt={playgroundContext.sourcePrompt}
+                  isEdited={isSourcePromtEdited}
+                />
+              </div>
+            )}
             <Messages {...playgroundContext} />
           </div>
         </div>

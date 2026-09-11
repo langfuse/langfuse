@@ -15,7 +15,7 @@ import { type ErrorEvent } from "@sentry/nextjs";
  * Matched by URL path SUFFIX so an optional `NEXT_PUBLIC_BASE_PATH` prefix
  * (e.g. `/self-hosted/api/auth/session`) still matches.
  */
-export const HTTP_CLIENT_NOISE_PATHS = [
+const HTTP_CLIENT_NOISE_PATHS = [
   "/api/auth/session", // NextAuth session poll (5-min interval + on window focus)
   // The two probes below are defensive/inert: they are only fetched by infra
   // liveness/readiness checks, never by the browser, so they cannot actually
@@ -26,6 +26,14 @@ export const HTTP_CLIENT_NOISE_PATHS = [
   "/api/public/ready", // readiness probe (infra-only)
 ] as const;
 
+function isHttpClientIntegrationEvent(event: ErrorEvent): boolean {
+  const mechanismType = event.exception?.values?.[0]?.mechanism?.type;
+  return (
+    typeof mechanismType === "string" &&
+    mechanismType.startsWith("auto.http.client")
+  );
+}
+
 /**
  * True only for events created by `httpClientIntegration` (exception mechanism
  * `auto.http.client.fetch` / `auto.http.client.xhr`) whose request URL targets
@@ -35,9 +43,10 @@ export const HTTP_CLIENT_NOISE_PATHS = [
  * never drop:
  *  - a genuine thrown exception or a captured console error (different / no
  *    mechanism), or
- *  - a 5xx on any real API/tRPC endpoint — e.g. `/api/trpc/...`,
- *    `/api/public/traces`, `/api/public/ingestion` — those are not in the noise
- *    list and keep flowing to Sentry.
+ *  - an application 5xx (HTTP 500, etc.) on a real API/tRPC endpoint —
+ *    `/api/trpc/...`, `/api/public/traces`, `/api/public/ingestion`. Gateway
+ *    statuses 502/503/504 on those same URLs are dropped by
+ *    {@link isNoisyHttpClientGatewayEvent}, not this poll-path filter.
  *
  * This does not hide real outages: a genuine `/api/auth/session` 5xx is still
  * observable server-side via request tracing/APM spans and application logs, and
@@ -46,11 +55,7 @@ export const HTTP_CLIENT_NOISE_PATHS = [
  * of that same failure across thousands of browsers.
  */
 export function isNoisyHttpClientPollEvent(event: ErrorEvent): boolean {
-  const mechanismType = event.exception?.values?.[0]?.mechanism?.type;
-  const isHttpClientEvent =
-    typeof mechanismType === "string" &&
-    mechanismType.startsWith("auto.http.client");
-  if (!isHttpClientEvent) return false;
+  if (!isHttpClientIntegrationEvent(event)) return false;
 
   const requestUrl = event.request?.url;
   if (typeof requestUrl !== "string") return false;
@@ -66,6 +71,116 @@ export function isNoisyHttpClientPollEvent(event: ErrorEvent): boolean {
   }
 
   return HTTP_CLIENT_NOISE_PATHS.some((noisePath) => path.endsWith(noisePath));
+}
+
+/**
+ * Proxy / load-balancer statuses that mean the browser reached an edge (ALB,
+ * nginx, Cloudflare) which could not get a response from our app: Bad Gateway,
+ * Service Unavailable, Gateway Timeout. Our tRPC handlers do not produce these
+ * — application failures serialize as JSON with HTTP 500 (`INTERNAL_SERVER_ERROR`).
+ *
+ * `httpClientIntegration` still reports them as unhandled
+ * `HTTP Client Error with status code: N`. The tRPC seam already treats the
+ * matching HTML-body parse failure as transport noise
+ * (`isTrpcResponseParseError` in `api.ts`); this predicate drops the duplicate
+ * httpClient copy so one LB blip does not mint a Sentry issue.
+ *
+ * URL-scoped like {@link isNoisyHttpClientPollEvent}: only same-origin URLs,
+ * {@link HTTP_CLIENT_NOISE_PATHS}, and `/api/trpc/...` paths. Third-party
+ * httpClient 502/503/504 (e.g. S3/GCS presigned uploads) are KEPT — those are
+ * not our edge and are often the only Sentry signal for a failed upload.
+ *
+ * True only for `auto.http.client.*` events whose status is 502, 503, or 504
+ * AND whose request URL is app-owned. Never drops:
+ *  - a genuine thrown exception or console error (different / no mechanism);
+ *  - an application HTTP 500 (or any non-gateway 5xx) on tRPC or the public API
+ *    — those still flow, and JSON 5xx are also captured at `handleTrpcError`;
+ *  - a gateway status on a third-party origin (storage, analytics, …).
+ *
+ * Real outages remain observable server-side via request tracing/APM spans and
+ * logs. This only removes the client-side amplification of our own edge.
+ */
+const HTTP_CLIENT_GATEWAY_STATUSES: ReadonlySet<number> = new Set([
+  502, 503, 504,
+]);
+
+const HTTP_CLIENT_STATUS_MESSAGE =
+  /^HTTP Client Error with status code: (\d+)$/;
+
+/** Path segment for tRPC routes, matched with an optional base-path prefix. */
+const HTTP_CLIENT_TRPC_PATH_RE = /(?:^|\/)api\/trpc(?:\/|$)/;
+
+function readHttpClientStatus(event: ErrorEvent): number | undefined {
+  const responseContext = event.contexts?.response;
+  if (
+    responseContext &&
+    typeof responseContext === "object" &&
+    "status_code" in responseContext &&
+    typeof responseContext.status_code === "number"
+  ) {
+    return responseContext.status_code;
+  }
+
+  const text =
+    event.exception?.values?.[0]?.value ??
+    event.message ??
+    event.logentry?.message;
+  if (typeof text !== "string") return undefined;
+  const match = HTTP_CLIENT_STATUS_MESSAGE.exec(text.trim());
+  if (!match) return undefined;
+  return Number(match[1]);
+}
+
+/**
+ * True when the request URL targets our app (LB noise on our edge) rather than
+ * a third-party origin. Matches same-origin, {@link HTTP_CLIENT_NOISE_PATHS},
+ * or a `/api/trpc` path (including behind `NEXT_PUBLIC_BASE_PATH`).
+ */
+function isHttpClientAppOwnedRequestUrl(requestUrl: string): boolean {
+  let parsed: URL;
+  try {
+    const base =
+      typeof window !== "undefined" && typeof window.location?.href === "string"
+        ? window.location.href
+        : "http://localhost";
+    parsed = new URL(requestUrl, base);
+  } catch {
+    return false;
+  }
+
+  const path = parsed.pathname;
+
+  if (HTTP_CLIENT_NOISE_PATHS.some((noisePath) => path.endsWith(noisePath))) {
+    return true;
+  }
+
+  if (HTTP_CLIENT_TRPC_PATH_RE.test(path)) {
+    return true;
+  }
+
+  if (
+    typeof window !== "undefined" &&
+    typeof window.location?.origin === "string" &&
+    window.location.origin !== "null" &&
+    parsed.origin === window.location.origin
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+export function isNoisyHttpClientGatewayEvent(event: ErrorEvent): boolean {
+  if (!isHttpClientIntegrationEvent(event)) return false;
+  const status = readHttpClientStatus(event);
+  if (status === undefined || !HTTP_CLIENT_GATEWAY_STATUSES.has(status)) {
+    return false;
+  }
+
+  const requestUrl = event.request?.url;
+  if (typeof requestUrl !== "string") return false;
+
+  return isHttpClientAppOwnedRequestUrl(requestUrl);
 }
 
 /**
@@ -136,6 +251,10 @@ const NOISE_MESSAGE_PREFIXES: readonly string[] = [
   "[next-auth][error][CLIENT_FETCH_ERROR]",
   // PostHog analytics SDK notices / client-side rate-limit logs. Third-party.
   "[PostHog.js]",
+  // Cloudflare / Cursor Kitesurf console-errors its own localhost CORS probe
+  // with this unbracketed prefix (LANGFUSE-610). Distinct from bracketed
+  // `[kitesurf]` listener wraps — those go through {@link isKitesurfInternalEvent}.
+  "kitesurf:",
   // `Response.json()` on a non-JSON body (a 5xx / HTML proxy page returned where
   // JSON was expected). This is the response not being ours-as-JSON, i.e. a
   // transport/infra artifact, not app logic.
@@ -183,6 +302,68 @@ const BENIGN_NON_ERROR_REJECTION_VALUE_PREFIXES: readonly string[] = [
   // scripts that reject with `Object Not Found Matching Id:<n>, MethodName:…`.
   // Industry-known scanner noise, never a browser session (LANGFUSE-11Z).
   "Object Not Found Matching Id:",
+];
+
+/**
+ * Chromium Android WebView wording when a host-app `@JavascriptInterface`
+ * method fails. The method name is a Java identifier; the suffix is fixed.
+ * Observed: LANGFUSE-60G (`Error invoking batch: Java bridge method
+ * invocation error`).
+ */
+const ANDROID_WEBVIEW_JAVA_BRIDGE_ERROR_RE =
+  /^Error invoking [A-Za-z_][\w$]*: Java bridge method invocation error$/;
+
+/**
+ * Chromium wording when `new URL(input, base)` rejects the base. A `data:`
+ * document URL cannot resolve a path-absolute URL, so Next.js App Router's
+ * `new URL(canonicalUrl, window.location.href)` throws during hydrate.
+ * Observed: LANGFUSE-60K (Electron health probe loading the app HTML as a
+ * `data:` URL; stack is Next.js `Router` only, 0 users).
+ */
+const CHROMIUM_INVALID_URL_CONSTRUCTOR_MESSAGE =
+  "Failed to construct 'URL': Invalid URL";
+
+/**
+ * Firefox wording for the same `new URL` rejection (`URL constructor: <x>
+ * is not a valid URL`).
+ */
+const FIREFOX_INVALID_URL_CONSTRUCTOR_RE =
+  /^URL constructor: .+ is not a valid URL\.?$/;
+
+function isInvalidUrlConstructorMessage(value: string): boolean {
+  return (
+    value === CHROMIUM_INVALID_URL_CONSTRUCTOR_MESSAGE ||
+    FIREFOX_INVALID_URL_CONSTRUCTOR_RE.test(value)
+  );
+}
+
+/**
+ * True when the event's page URL is a `data:` document. Checks `request.url`
+ * first, then `tags.url` — Sentry's transaction/culprit often strips the
+ * `data:` scheme, so those fields are not used.
+ */
+function isDataDocumentUrl(event: ErrorEvent): boolean {
+  const requestUrl = event.request?.url;
+  if (typeof requestUrl === "string" && requestUrl.startsWith("data:")) {
+    return true;
+  }
+  const taggedUrl = event.tags?.url;
+  return typeof taggedUrl === "string" && taggedUrl.startsWith("data:");
+}
+
+/**
+ * Chrome's exact `chrome.runtime.sendMessage` / `chrome.runtime.connect`
+ * lastError when the extension background or content-script port is gone.
+ * Extensions inject this into the page; Langfuse never calls `chrome.runtime`.
+ * Observed as an unhandled rejection with no stack (LANGFUSE-614), so
+ * `denyUrls` cannot match. Whole-message only — an app error that merely
+ * quotes the phrase is longer and is KEPT.
+ *
+ * Stored without a trailing period because {@link coreMessage} strips one.
+ */
+const CHROME_EXTENSION_PORT_MESSAGES: readonly string[] = [
+  "Could not establish connection. Receiving end does not exist",
+  "The message port closed before a response was received",
 ];
 
 /**
@@ -250,8 +431,9 @@ export function isReactDevtoolsInternalEvent(event: ErrorEvent): boolean {
 /**
  * True for known-benign CLIENT-side noise that cannot be a real Langfuse app
  * bug: browser-level network/transport failures, transient framework/vendor
- * poll logs, and expected browser-permission / cancellation artifacts. Returning
- * `true` drops the event in `beforeSend`.
+ * poll logs, expected browser-permission / cancellation artifacts, and
+ * native HTMLMediaElement codec failures. Returning `true` drops the event
+ * in `beforeSend`.
  *
  * Design rule (safety first): only signatures that CANNOT represent a real app
  * error are listed, each keyed on an unambiguous signature (whole-message match,
@@ -357,6 +539,25 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       return true;
     }
 
+    // Browser cannot decode an <audio>/<video> resource (codec missing, empty
+    // source list). Firefox and Chromium reject HTMLMediaElement resource
+    // selection / autoplay as an unhandled NotSupportedError with no app
+    // stack. Onboarding splash videos and inline media players already hide
+    // or fall back in the UI; this is an expected capability gap, not an
+    // application bug. Guarded to the global handler so an app-captured
+    // NotSupportedError with the same wording is KEPT. Other
+    // NotSupportedError families (WebGL, WebRTC, "The operation is not
+    // supported.") have different messages and are KEPT.
+    if (
+      isGlobalHandlerUnsupportedMediaResourceEvent(
+        exceptionType,
+        exceptionValue,
+        exception?.mechanism?.type,
+      )
+    ) {
+      return true;
+    }
+
     // Known-benign non-Error promise rejections. The `UnhandledRejection`
     // exception type is SDK-synthesized (a real `Error` rejection keeps its own
     // type, e.g. `TypeError`), and the value denylist is exact/prefix-anchored:
@@ -401,9 +602,91 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     ) {
       return true;
     }
+
+    // Android WebView `@JavascriptInterface` methods only accept primitives.
+    // Chromium throws `Error invoking <method>: Java bridge method invocation
+    // error` when an injected host-app bridge fails — typically on `unload`,
+    // after the Java side is already torn down. Sentry's addEventListener wrap
+    // then captures the HOST APP's listener, not Langfuse code. We have no
+    // Java bridge (LANGFUSE-60G: Chrome Mobile WebView, anonymous `batch`
+    // frames only).
+    //
+    // Chrome extension port lastError (LANGFUSE-614) is the same class of
+    // injected-browser artifact: Chromium's exact `chrome.runtime` wording,
+    // no stack, `denyUrls` cannot match. Sibling message is the other
+    // documented lastError for a torn-down extension port.
+    //
+    // Both are anchored to a Sentry browser-API / global-handler mechanism
+    // so an app-captured exception that merely quotes the phrase is KEPT.
+    const mechanismType = exception?.mechanism?.type;
+    if (
+      typeof mechanismType === "string" &&
+      mechanismType.startsWith("auto.browser.")
+    ) {
+      if (ANDROID_WEBVIEW_JAVA_BRIDGE_ERROR_RE.test(exceptionValue)) {
+        return true;
+      }
+      if (
+        CHROME_EXTENSION_PORT_MESSAGES.includes(coreMessage(exceptionValue))
+      ) {
+        return true;
+      }
+    }
+
+    // Next.js App Router hydrates with
+    // `new URL(canonicalUrl, window.location.href)`. A `data:` document is
+    // not a valid base for a path-absolute canonical URL, so Chromium throws
+    // TypeError. Observed only from third-party Electron probes that load the
+    // app HTML as a data: URL (LANGFUSE-60K) — 0 users, Next.js frames only.
+    // We cannot fix Next.js here, and the page is not a real session.
+    //
+    // Requires TypeError + exact constructor wording + a data: page URL +
+    // a Sentry browser/global-handler mechanism so:
+    //  - the same TypeError on an https:// page is KEPT (real app bug);
+    //  - an app-captured exception that merely quotes the phrase is KEPT.
+    if (
+      exceptionType === "TypeError" &&
+      typeof mechanismType === "string" &&
+      mechanismType.startsWith("auto.browser.") &&
+      isInvalidUrlConstructorMessage(exceptionValue) &&
+      isDataDocumentUrl(event)
+    ) {
+      return true;
+    }
   }
 
   return false;
+}
+
+/**
+ * Exact browser-generated HTMLMediaElement messages. Whole-string match only:
+ * an app error that quotes a phrase is longer and is therefore KEPT.
+ */
+const UNSUPPORTED_MEDIA_RESOURCE_MESSAGES: readonly string[] = [
+  // Firefox
+  "The media resource indicated by the src attribute or assigned media provider object was not suitable.",
+  // Chromium / WebKit
+  "Failed to load because no supported source was found.",
+];
+
+/**
+ * True for a native HTMLMediaElement NotSupportedError delivered by the
+ * browser global handlers (`onunhandledrejection` / `onerror`). See the
+ * call site in {@link isDenylistedNoiseEvent} for why this is dropped.
+ */
+function isGlobalHandlerUnsupportedMediaResourceEvent(
+  exceptionType: string | undefined,
+  exceptionValue: string,
+  mechanismType: string | undefined,
+): boolean {
+  if (exceptionType !== "NotSupportedError") return false;
+  if (
+    typeof mechanismType !== "string" ||
+    !mechanismType.startsWith("auto.browser.global_handlers")
+  ) {
+    return false;
+  }
+  return UNSUPPORTED_MEDIA_RESOURCE_MESSAGES.includes(exceptionValue);
 }
 
 /**
@@ -524,4 +807,70 @@ export function isPosthogRecorderInternalEvent(event: ErrorEvent): boolean {
     return false;
   }
   return sawRecorderFrame;
+}
+
+/**
+ * Kitesurf's injected page-world scripts. Served as root-relative paths on our
+ * origin (`/__ks_user_classic_regular.js`), so `denyUrls` never matches them.
+ */
+const KITESURF_USER_SCRIPT_RE = /(?:^|\/)__ks_user[^/]*\.js$/i;
+const KITESURF_DOM_SHIM_RE = /(?:^|\/)dom-shim\.js$/i;
+
+/**
+ * Bare `page.js` as Sentry reports Kitesurf's page controller. Must NOT match
+ * a Next.js `/_next/.../page.js` — basename-only matching is intentional.
+ */
+function isKitesurfPageControllerFilename(path: string): boolean {
+  return path === "page.js" || path === "/page.js";
+}
+
+function isKitesurfVendorFilename(path: string): boolean {
+  return KITESURF_USER_SCRIPT_RE.test(path) || KITESURF_DOM_SHIM_RE.test(path);
+}
+
+/**
+ * True for Kitesurf (Cursor / Cloudflare agent-browser) internals that mint
+ * production Sentry noise without involving Langfuse app code:
+ *
+ *  1. Console: `[kitesurf] …` via `captureConsoleIntegration` (LANGFUSE-60W).
+ *     Dropped only when the text has no `/_next/` chunk — a wrap of a real
+ *     app listener throw usually quotes our chunk and is KEPT.
+ *  2. Stack: every attributable frame in `__ks_user_*.js` / `dom-shim.js`
+ *     (plus opaque / bare `page.js` controller frames). Covers
+ *     `ReferenceError: DOMRect is not defined` (LANGFUSE-60Z) and the
+ *     iframe-load `Proxy` TypeError (LANGFUSE-60X).
+ *
+ * Unbracketed `kitesurf:` CORS probes are handled by
+ * {@link NOISE_MESSAGE_PREFIXES} (LANGFUSE-610).
+ *
+ * Same posture as {@link isPosthogRecorderInternalEvent}.
+ */
+export function isKitesurfInternalEvent(event: ErrorEvent): boolean {
+  const text = eventText(event);
+  if (text.length > 0) {
+    const core = coreMessage(text);
+    if (core.startsWith("[kitesurf]") && !text.includes("/_next/")) {
+      return true;
+    }
+  }
+
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+
+  let sawKitesurfVendorFrame = false;
+  for (const stackFrame of frames) {
+    const filename = stackFrame?.filename;
+    if (typeof filename !== "string" || filename.length === 0) continue;
+    const path = filename.split(/[?#]/)[0];
+    if (isKitesurfVendorFilename(path)) {
+      sawKitesurfVendorFrame = true;
+      continue;
+    }
+    if (isOpaqueOrSdkFrame(filename)) continue;
+    // Bare `page.js` is Kitesurf's controller only when a vendor script is
+    // also on the stack. An all-`page.js` stack is kept.
+    if (isKitesurfPageControllerFilename(path)) continue;
+    return false;
+  }
+  return sawKitesurfVendorFrame;
 }

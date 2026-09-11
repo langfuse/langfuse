@@ -389,7 +389,10 @@ packages/shared/src/features/<domain>/interfaces/api/
 
 When modifying public API types in `web/src/features/public-api/types/` or under
 `packages/shared/src/features/<domain>/interfaces/api/`, update the matching
-Fern API definitions in `fern/apis/server/definition/`.
+Fern API definitions in `fern/apis/server/definition/`. After editing Fern
+sources, run `pnpm run openapi:export` and commit `web/public/generated/**`.
+PRs that touch `fern/**` fail CI when those served specs drift
+(`pnpm run openapi:check`).
 
 **Zod to Fern Type Mapping:**
 

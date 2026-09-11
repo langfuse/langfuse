@@ -1,13 +1,8 @@
-import { BaseError } from "@langfuse/shared";
+import { BaseError, LangfuseConflictError } from "@langfuse/shared";
 
-export class EvaluatorVersionConflictError extends BaseError {
+export class EvaluatorVersionConflictError extends LangfuseConflictError {
   constructor() {
-    super(
-      "EvaluatorVersionConflictError",
-      409,
-      "Evaluator was updated concurrently. Retry the request.",
-      true,
-    );
+    super("Evaluator was updated concurrently. Retry the request.");
   }
 }
 

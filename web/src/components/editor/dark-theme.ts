@@ -5,11 +5,11 @@ import {
 import { tags as t } from "@lezer/highlight";
 import { createTheme, type CreateThemeOptions } from "@uiw/codemirror-themes";
 
-export const defaultSettingsDarkTheme: CreateThemeOptions["settings"] = {
+const defaultSettingsDarkTheme: CreateThemeOptions["settings"] = {
   ...defaultSettingsBothThemes,
 };
 
-export const darkThemeStyle: CreateThemeOptions["styles"] = [
+const darkThemeStyle: CreateThemeOptions["styles"] = [
   ...bothThemeStyles,
   { tag: t.keyword, color: "#bb9af7" },
   {
@@ -33,7 +33,7 @@ export const darkThemeStyle: CreateThemeOptions["styles"] = [
   { tag: t.strikethrough, textDecoration: "line-through" },
 ];
 
-export const darkThemeInit = (options?: Partial<CreateThemeOptions>) => {
+const darkThemeInit = (options?: Partial<CreateThemeOptions>) => {
   const { theme = "dark", settings = {}, styles = [] } = options || {};
   return createTheme({
     theme: theme,

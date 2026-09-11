@@ -7,7 +7,7 @@ import {
   validatePricingTiers,
 } from "@langfuse/shared";
 
-export const PricingTierSchema = z.object({
+const PricingTierSchema = z.object({
   id: z.string(),
   name: z.string(),
   isDefault: z.boolean(),
@@ -16,7 +16,7 @@ export const PricingTierSchema = z.object({
   prices: z.record(z.string(), z.number()),
 });
 
-export const DefaultModelPriceSchema = z
+const DefaultModelPriceSchema = z
   .object({
     id: z.string(),
     modelName: z.string(),

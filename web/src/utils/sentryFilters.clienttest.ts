@@ -2,6 +2,8 @@ import { type ErrorEvent } from "@sentry/nextjs";
 
 import {
   isDenylistedNoiseEvent,
+  isKitesurfInternalEvent,
+  isNoisyHttpClientGatewayEvent,
   isNoisyHttpClientPollEvent,
   isPosthogRecorderInternalEvent,
   isReactDevtoolsInternalEvent,
@@ -105,6 +107,17 @@ describe("isNoisyHttpClientPollEvent", () => {
       ).toBe(false);
     });
 
+    it("does not drop a tRPC 502 by path (gateway statuses are a separate predicate)", () => {
+      expect(
+        isNoisyHttpClientPollEvent(
+          httpClientEvent(
+            "https://us.cloud.langfuse.com/api/trpc/annotationQueues.byObjectId",
+            502,
+          ),
+        ),
+      ).toBe(false);
+    });
+
     it("keeps a public API 5xx (ingestion / traces)", () => {
       expect(
         isNoisyHttpClientPollEvent(
@@ -180,6 +193,190 @@ describe("isNoisyHttpClientPollEvent", () => {
         },
       } as ErrorEvent;
       expect(isNoisyHttpClientPollEvent(event)).toBe(false);
+    });
+  });
+});
+
+describe("isNoisyHttpClientGatewayEvent", () => {
+  describe("drops proxy/LB 502/503/504 from httpClientIntegration on app URLs", () => {
+    it("drops a tRPC 502 (annotationQueues.byObjectId shape)", () => {
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent(
+            "https://us.cloud.langfuse.com/api/trpc/annotationQueues.byObjectId",
+            502,
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops 503 and 504 on tRPC (xhr included)", () => {
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent(
+            "https://cloud.langfuse.com/api/trpc/traces.all?batch=1",
+            503,
+          ),
+        ),
+      ).toBe(true);
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent(
+            "https://cloud.langfuse.com/api/trpc/traces.all?batch=1",
+            504,
+            "xhr",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops tRPC behind a NEXT_PUBLIC_BASE_PATH prefix", () => {
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent(
+            "https://example.com/self-hosted/api/trpc/traces.all",
+            502,
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops a same-origin public API 502 (LB blip, not an app 500)", () => {
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent(`${window.location.origin}/api/public/traces`, 502),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops a poll-path 503 (overlaps poll filter; still URL-scoped)", () => {
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent("https://cloud.langfuse.com/api/auth/session", 503),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops when status lives only on the exception message (no response context)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: "HTTP Client Error with status code: 502",
+              mechanism: { type: "auto.http.client.fetch", handled: false },
+            },
+          ],
+        },
+        request: {
+          url: "https://us.cloud.langfuse.com/api/trpc/annotationQueues.byObjectId",
+        },
+      } as ErrorEvent;
+      expect(isNoisyHttpClientGatewayEvent(event)).toBe(true);
+    });
+  });
+
+  describe("KEEPS genuine application 5xx, third-party gateways, and non-httpClient events", () => {
+    it("keeps an application HTTP 500 on tRPC", () => {
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent(
+            "https://cloud.langfuse.com/api/trpc/traces.all?batch=1",
+            500,
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps an application HTTP 500 on the public API", () => {
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent(
+            "https://cloud.langfuse.com/api/public/ingestion",
+            500,
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a third-party S3 presigned-upload 503", () => {
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent(
+            "https://my-bucket.s3.us-east-1.amazonaws.com/media/item.bin?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc",
+            503,
+            "fetch",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a third-party GCS presigned-upload 503", () => {
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent(
+            "https://storage.googleapis.com/my-bucket/media/item.bin?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Signature=abc",
+            503,
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a cross-origin non-tRPC /api/public 502 (not same-origin)", () => {
+      // Path alone is not enough outside tRPC / noise paths — only same-origin
+      // covers other app routes. A foreign host must not be suppressed.
+      expect(
+        isNoisyHttpClientGatewayEvent(
+          httpClientEvent("https://other.example.com/api/public/traces", 502),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a genuine thrown exception even if response context is 502", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined",
+              mechanism: { type: "onunhandledrejection", handled: false },
+            },
+          ],
+        },
+        contexts: { response: { status_code: 502 } },
+      } as ErrorEvent;
+      expect(isNoisyHttpClientGatewayEvent(event)).toBe(false);
+    });
+
+    it("keeps an httpClient event with no readable status", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: "HTTP Client Error with status code: unknown",
+              mechanism: { type: "auto.http.client.fetch", handled: false },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isNoisyHttpClientGatewayEvent(event)).toBe(false);
+    });
+
+    it("keeps an httpClient gateway event with no request url", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: "HTTP Client Error with status code: 503",
+              mechanism: { type: "auto.http.client.fetch", handled: false },
+            },
+          ],
+        },
+        contexts: { response: { status_code: 503 } },
+      } as ErrorEvent;
+      expect(isNoisyHttpClientGatewayEvent(event)).toBe(false);
     });
   });
 });
@@ -314,6 +511,60 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(true);
     });
 
+    // Firefox (and Chromium) reject HTMLMediaElement resource selection /
+    // autoplay as an unhandled NotSupportedError when the codec is unavailable
+    // (typical on Linux without proprietary codecs). The splash onboarding
+    // videos and inline audio/video players already degrade in the UI; the
+    // native promise has no app stack for us to catch.
+    const unsupportedMediaResourceEvent = (
+      value: string,
+      type = "NotSupportedError",
+      mechanismType = "auto.browser.global_handlers.onunhandledrejection",
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type,
+              value,
+              mechanism: { type: mechanismType, handled: false },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops Firefox HTMLMediaElement NotSupportedError (LANGFUSE-60C)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          unsupportedMediaResourceEvent(
+            "The media resource indicated by the src attribute or assigned media provider object was not suitable.",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops Chromium HTMLMediaElement NotSupportedError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          unsupportedMediaResourceEvent(
+            "Failed to load because no supported source was found.",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same Firefox media error from the global onerror handler", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          unsupportedMediaResourceEvent(
+            "The media resource indicated by the src attribute or assigned media provider object was not suitable.",
+            "NotSupportedError",
+            "auto.browser.global_handlers.onerror",
+          ),
+        ),
+      ).toBe(true);
+    });
+
     it("drops an intentional request cancellation (AbortError)", () => {
       expect(
         isDenylistedNoiseEvent(
@@ -335,6 +586,26 @@ describe("isDenylistedNoiseEvent", () => {
           messageEvent("[PostHog.js] was already loaded elsewhere."),
         ),
       ).toBe(true);
+    });
+
+    it("drops a kitesurf: localhost CORS console error (message event)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "kitesurf: Access to fetch at 'http://127.0.0.1:8765/' from origin 'https://example.com' has been blocked by CORS policy: Response to preflight request doesn't pass access control check (preflight response status 403 is not ok)",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("does not treat [kitesurf] wraps as denylist prefixes (dedicated predicate)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "[kitesurf] event listener for load threw: TypeError: Cannot create proxy with a non-object as target or handler",
+          ),
+        ),
+      ).toBe(false);
     });
 
     it("drops the @sentry/nextjs '_error.js called with falsy error (…)' artifact", () => {
@@ -545,6 +816,188 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("G. drops Android WebView Java-bridge listener failures", () => {
+    // Real shape (LANGFUSE-60G): Chrome Mobile WebView throws Chromium's
+    // `Error invoking <method>: Java bridge method invocation error` from a
+    // host-app `@JavascriptInterface` during `unload`. Sentry's
+    // addEventListener wrap captures it — stack is SDK wrap + anonymous
+    // `batch` frames, no Langfuse frames.
+    const webViewJavaBridgeEvent = (
+      value: string,
+      mechanismType = "auto.browser.browserapierrors.addEventListener",
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the LANGFUSE-60G addEventListener batch-bridge error", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          webViewJavaBridgeEvent(
+            "Error invoking batch: Java bridge method invocation error",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same Chromium wording for another Java method name", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          webViewJavaBridgeEvent(
+            "Error invoking onPause: Java bridge method invocation error",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording via a global browser handler", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          webViewJavaBridgeEvent(
+            "Error invoking batch: Java bridge method invocation error",
+            "auto.browser.global_handlers.onerror",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
+  describe("H. drops Next.js App Router Invalid URL on data: documents", () => {
+    // Real shape (LANGFUSE-60K): Electron loads the Next.js HTML as a
+    // `data:text/html,…` document. App Router does
+    // `new URL(canonicalUrl, window.location.href)` and Chromium throws
+    // because a data: URL is not a valid base. Mechanism is the global
+    // onerror handler; stack is Next.js Router only.
+    const dataDocumentInvalidUrlEvent = (
+      value: string,
+      url: string,
+      mechanismType = "auto.browser.global_handlers.onerror",
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+            },
+          ],
+        },
+        request: { url },
+      }) as ErrorEvent;
+
+    it("drops the Chromium constructor TypeError on a data: page URL", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          dataDocumentInvalidUrlEvent(
+            "Failed to construct 'URL': Invalid URL",
+            "data:text/html,<!DOCTYPE html><html></html>",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same TypeError when only tags.url is the data: document", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Failed to construct 'URL': Invalid URL",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+        tags: { url: "data:text/html,probe" },
+      } as unknown as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(true);
+    });
+
+    it("drops the Firefox constructor wording on a data: page URL", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          dataDocumentInvalidUrlEvent(
+            "URL constructor: /health is not a valid URL",
+            "data:text/html,probe",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
+  describe("I. drops Chrome extension port lastError (no stack, so denyUrls misses them)", () => {
+    // Real shape (LANGFUSE-614): Chrome rejects `chrome.runtime.sendMessage`
+    // / `connect` when the extension background or content-script port is
+    // gone. Unhandled rejection, no frames, so denyUrls never matches.
+    const chromeExtensionPortEvent = (
+      value: string,
+      mechanismType = "auto.browser.global_handlers.onunhandledrejection",
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the LANGFUSE-614 receiving-end lastError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          chromeExtensionPortEvent(
+            "Could not establish connection. Receiving end does not exist.",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording without a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          chromeExtensionPortEvent(
+            "Could not establish connection. Receiving end does not exist",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the sibling Chrome lastError for a closed message port", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          chromeExtensionPortEvent(
+            "The message port closed before a response was received.",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording via a global onerror handler", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          chromeExtensionPortEvent(
+            "Could not establish connection. Receiving end does not exist.",
+            "auto.browser.global_handlers.onerror",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -590,6 +1043,24 @@ describe("isDenylistedNoiseEvent", () => {
       expect(
         isDenylistedNoiseEvent(
           exceptionEvent("Failed to fetch traces (batch 3 of 5)"),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a CORS console error that is not namespaced by kitesurf", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "Access to fetch at 'https://example.com/api' from origin 'https://example.com' has been blocked by CORS policy",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps an app error that merely mentions kitesurf mid-message", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent("Failed to load kitesurf: connection timed out"),
         ),
       ).toBe(false);
     });
@@ -681,6 +1152,41 @@ describe("isDenylistedNoiseEvent", () => {
           exceptionEvent(
             "play() failed because the user didn't interact with the document first",
             "NotAllowedError",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a non-media NotSupportedError (WebGL / WebRTC / etc.)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "The operation is not supported.",
+            "NotSupportedError",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps an app-captured NotSupportedError even with the media wording", () => {
+      // captureException / generic mechanism is our code reporting a real
+      // failure. Only the browser global handler shape is dropped.
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "The media resource indicated by the src attribute or assigned media provider object was not suitable.",
+            "NotSupportedError",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a TypeError that merely quotes the media wording", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "The media resource indicated by the src attribute or assigned media provider object was not suitable.",
+            "TypeError",
           ),
         ),
       ).toBe(false);
@@ -823,6 +1329,178 @@ describe("isDenylistedNoiseEvent", () => {
           ),
         ),
       ).toBe(false);
+    });
+
+    it("keeps an app-captured Java-bridge phrase (not a Sentry browser wrap)", () => {
+      // Mechanism guard: captureException / capture_console must still surface
+      // if our code ever throws or logs this wording.
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Error invoking batch: Java bridge method invocation error",
+          ),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value:
+                "Error invoking batch: Java bridge method invocation error",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps a listener TypeError that is not the Chromium Java-bridge wording", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'map')",
+              mechanism: {
+                type: "auto.browser.browserapierrors.addEventListener",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps the same Invalid URL TypeError on an https page (real app bug)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Failed to construct 'URL': Invalid URL",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+        request: { url: "https://cloud.langfuse.com/project/abc/traces" },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured Invalid URL TypeError even on a data: page", () => {
+      // Mechanism guard: captureException / capture_console must still surface.
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent("Failed to construct 'URL': Invalid URL", "TypeError"),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Failed to construct 'URL': Invalid URL",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+        request: { url: "data:text/html,probe" },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps a different TypeError on a data: page", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'map')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+        request: { url: "data:text/html,probe" },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes the Java-bridge suffix", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value:
+                "Failed to persist playground batch: Java bridge method invocation error",
+              mechanism: {
+                type: "auto.browser.browserapierrors.addEventListener",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured Chrome port lastError (not a Sentry browser wrap)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Could not establish connection. Receiving end does not exist.",
+          ),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value:
+                "Could not establish connection. Receiving end does not exist.",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+    it("keeps a longer app message that merely quotes the Chrome port lastError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value:
+                "Worker handshake failed: Could not establish connection. Receiving end does not exist.",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
     });
 
     it("keeps an event with no exception values", () => {
@@ -1303,6 +1981,206 @@ describe("isPosthogRecorderInternalEvent", () => {
         isPosthogRecorderInternalEvent(exceptionEvent("boom", "TypeError")),
       ).toBe(false);
       expect(isPosthogRecorderInternalEvent(messageEvent("boom"))).toBe(false);
+    });
+  });
+});
+
+describe("isKitesurfInternalEvent", () => {
+  const PROXY_TYPEERROR =
+    "Cannot create proxy with a non-object as target or handler";
+  const KS_USER = "/__ks_user_classic_regular.js";
+  const KS_SHIM = "dom-shim.js";
+  const KS_PAGE = "page.js";
+
+  describe("drops Kitesurf recorder / agent-browser internals", () => {
+    it("drops the [kitesurf] console.error message event (LANGFUSE-60W)", () => {
+      expect(
+        isKitesurfInternalEvent(
+          messageEvent(
+            `[kitesurf] event listener for load threw: TypeError: ${PROXY_TYPEERROR}`,
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same [kitesurf] text on event.logentry.message", () => {
+      expect(
+        isKitesurfInternalEvent(
+          logentryEvent("[kitesurf] event listener for click threw: boom"),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops ReferenceError: DOMRect is not defined from the user script (LANGFUSE-60Z)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "ReferenceError",
+              value: "DOMRect is not defined",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+              stacktrace: {
+                frames: [
+                  frame(KS_USER, "h"),
+                  frame(KS_USER, "o1"),
+                  frame(KS_USER, "sl"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(true);
+    });
+
+    it("drops the proxy TypeError spanning page.js / dom-shim.js / user script (LANGFUSE-60X)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: PROXY_TYPEERROR,
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  frame(KS_PAGE, "fireIframeLoad"),
+                  frame(KS_SHIM, "invokeListeners"),
+                  frame(KS_USER, "e.recordDOM.c.win"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(true);
+    });
+
+    it("drops the same TypeError when the injector has an origin + query", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: PROXY_TYPEERROR,
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  frame(
+                    "https://us.cloud.langfuse.com/__ks_user_classic_regular.js?v=1",
+                    "e.recordDOM.c.win",
+                  ),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(true);
+    });
+  });
+
+  describe("KEEPS real errors (never masks a genuine app error)", () => {
+    it("keeps a [kitesurf] wrap that quotes a first-party /_next/ frame", () => {
+      expect(
+        isKitesurfInternalEvent(
+          messageEvent(
+            `[kitesurf] event listener for click threw: TypeError: Cannot read properties of undefined (reading 'map')\n    at handleSubmit (https://us.cloud.langfuse.com/_next/static/chunks/app.js:1:1)`,
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps the same TypeError when a first-party /_next/ frame is present", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: PROXY_TYPEERROR,
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  frame(KS_USER, "e.recordDOM.c.win"),
+                  frame(
+                    "app:///_next/static/chunks/0r47ep231kqhy.js",
+                    "createStore",
+                  ),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps a first-party Proxy TypeError with no __ks_ frames", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: PROXY_TYPEERROR,
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  frame(
+                    "https://us.cloud.langfuse.com/_next/static/chunks/app.js",
+                    "createStore",
+                  ),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps an all-page.js stack (too generic without a vendor script)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: PROXY_TYPEERROR,
+              stacktrace: {
+                frames: [frame(KS_PAGE, "fireIframeLoad")],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isKitesurfInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps a message that quotes Proxy wording without the [kitesurf] prefix", () => {
+      expect(
+        isKitesurfInternalEvent(
+          messageEvent(`Proxy setup failed: ${PROXY_TYPEERROR}`),
+        ),
+      ).toBe(false);
+    });
+
+    it("does not let the generic denylist swallow this TypeError on its own", () => {
+      expect(
+        isDenylistedNoiseEvent(exceptionEvent(PROXY_TYPEERROR, "TypeError")),
+      ).toBe(false);
     });
   });
 });

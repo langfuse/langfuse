@@ -20,7 +20,7 @@ export function VariableMappingEditorContainer({
   const state = useStore(
     store,
     useShallow((state) => ({
-      prompt: state.prompt,
+      promptMessages: state.promptMessages,
       variableFields: state.variableFields,
       activeMapping: state.activeMapping,
       selectedObservationId: state.selectedObservation?.id ?? null,
@@ -30,10 +30,10 @@ export function VariableMappingEditorContainer({
   const mappings = useMemo(
     () =>
       buildEvaluatorVariableMappings({
-        prompt: state.prompt,
+        promptMessages: state.promptMessages,
         variableFields: state.variableFields,
       }),
-    [state.prompt, state.variableFields],
+    [state.promptMessages, state.variableFields],
   );
   const lastCompletedSample = useRef(resolvedSample);
 

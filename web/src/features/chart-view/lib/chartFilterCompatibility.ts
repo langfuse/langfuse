@@ -1,5 +1,5 @@
 import { type FilterState } from "@langfuse/shared";
-import { resolveField } from "@/src/features/search-bar/lib/fields";
+import { resolveField } from "@/src/features/search-bar";
 
 /**
  * Which of the events table's sidebar/search filters a chart can honour, and a
@@ -26,7 +26,7 @@ import { resolveField } from "@/src/features/search-bar/lib/fields";
  * `traceTags` is the one whose query dimension name differs (`tags`) — see
  * {@link CHART_FILTER_COLUMN_RENAME}.
  */
-export const FORWARDABLE_CHART_FILTER_COLUMNS: ReadonlySet<string> = new Set([
+const FORWARDABLE_CHART_FILTER_COLUMNS: ReadonlySet<string> = new Set([
   "environment",
   "type",
   "name",
@@ -68,9 +68,11 @@ const MEASURE_COLUMNS = new Set([
   "latency",
   "timeToFirstToken",
   "inputTokens",
+  "cachedInputTokens",
   "outputTokens",
   "totalTokens",
   "inputCost",
+  "cachedInputCost",
   "outputCost",
   "totalCost",
 ]);

@@ -18,7 +18,7 @@ import {
   getLatestEvaluatorRunCost,
   getRecentEvaluatorExecutionTraces,
   getRecentRuleExecutionTraces,
-  getTotalCostByEvaluatorTraceNames,
+  getTotalCostByEvaluatorIds,
   getTotalCostByRule,
   createScoresCh,
   createTraceScore,
@@ -71,43 +71,40 @@ describe("Clickhouse Events Repository Test", () => {
   maybe("evaluator execution metrics", () => {
     it("returns evaluator costs from the last seven days excluding test runs", async () => {
       const evaluatorId = randomUUID();
-      const evaluatorTraceName = `Execute evaluator: Quality ${evaluatorId}`;
       const testTraceId = randomUUID();
       const eightDaysAgo = (Date.now() - 8 * 24 * 60 * 60 * 1000) * 1000;
 
       await createEventsCh([
         createEvent({
           project_id: projectId,
-          trace_name: evaluatorTraceName,
+          evaluator_id: evaluatorId,
           cost_details: { total: 1.5 },
         }),
         createEvent({
           project_id: projectId,
           start_time: eightDaysAgo,
-          trace_name: evaluatorTraceName,
+          evaluator_id: evaluatorId,
           cost_details: { total: 20 },
         }),
         createEvent({
           project_id: projectId,
           trace_id: testTraceId,
-          trace_name: evaluatorTraceName,
           type: "SPAN",
-          metadata_names: ["evaluator_id", "evaluator_test"],
-          metadata_values: [evaluatorId, "true"],
+          evaluator_id: evaluatorId,
+          evaluator_execution_is_test: true,
           cost_details: { total: 0.1 },
         }),
         createEvent({
           project_id: projectId,
           trace_id: testTraceId,
-          trace_name: evaluatorTraceName,
           type: "GENERATION",
           cost_details: { total: 0.9 },
         }),
       ]);
 
       await expect(
-        getTotalCostByEvaluatorTraceNames(projectId, [evaluatorTraceName]),
-      ).resolves.toEqual([{ traceName: evaluatorTraceName, totalCost: 1.5 }]);
+        getTotalCostByEvaluatorIds(projectId, [evaluatorId]),
+      ).resolves.toEqual([{ evaluatorId, totalCost: 1.5 }]);
     });
 
     it("returns the latest evaluator trace cost", async () => {
@@ -125,8 +122,7 @@ describe("Clickhouse Events Repository Test", () => {
           trace_id: traceId,
           start_time: now,
           type: "SPAN",
-          metadata_names: ["evaluator_id"],
-          metadata_values: [evaluatorId],
+          evaluator_id: evaluatorId,
           cost_details: { total: 0.1 },
         }),
         createEvent({
@@ -141,8 +137,8 @@ describe("Clickhouse Events Repository Test", () => {
           trace_id: earlierTestTraceId,
           start_time: oneHourAgo,
           type: "SPAN",
-          metadata_names: ["evaluator_id", "evaluator_test"],
-          metadata_values: [evaluatorId, "true"],
+          evaluator_id: evaluatorId,
+          evaluator_execution_is_test: true,
           cost_details: { total: 1 },
         }),
         createEvent({
@@ -157,8 +153,7 @@ describe("Clickhouse Events Repository Test", () => {
           trace_id: staleTraceId,
           start_time: eightDaysAgo,
           type: "SPAN",
-          metadata_names: ["evaluator_id"],
-          metadata_values: [staleEvaluatorId],
+          evaluator_id: staleEvaluatorId,
           cost_details: { total: 2 },
         }),
         createEvent({
@@ -184,24 +179,21 @@ describe("Clickhouse Events Repository Test", () => {
       const failedTestSpanId = randomUUID();
       const untaggedTestTraceId = randomUUID();
       const evaluatorId = randomUUID();
-      const evaluatorTraceName = `Execute evaluator: Quality ${evaluatorId}`;
       await createEventsCh([
         createEvent({
           project_id: projectId,
           trace_id: traceId,
-          trace_name: evaluatorTraceName,
           type: "SPAN",
           level: "ERROR",
-          metadata_names: ["evaluator_id"],
-          metadata_values: [evaluatorId],
+          evaluator_id: evaluatorId,
           cost_details: { total: 0 },
         }),
         createEvent({
           project_id: projectId,
           trace_id: testTraceId,
           type: "SPAN",
-          metadata_names: ["evaluator_id", "evaluator_test"],
-          metadata_values: [evaluatorId, "true"],
+          evaluator_id: evaluatorId,
+          evaluator_execution_is_test: true,
           cost_details: { total: 0 },
         }),
         createEvent({
@@ -211,8 +203,7 @@ describe("Clickhouse Events Repository Test", () => {
           trace_id: testTraceId,
           type: "SPAN",
           level: "ERROR",
-          metadata_names: ["evaluator_id"],
-          metadata_values: [evaluatorId],
+          evaluator_id: evaluatorId,
           cost_details: { total: 0 },
         }),
         createEvent({
@@ -220,18 +211,17 @@ describe("Clickhouse Events Repository Test", () => {
           trace_id: untaggedTestTraceId,
           trace_name: "Test evaluator: Legacy code evaluator",
           type: "SPAN",
-          metadata_names: ["evaluator_id"],
-          metadata_values: [evaluatorId],
+          evaluator_id: evaluatorId,
           cost_details: { total: 0 },
         }),
       ]);
 
       await expect(
-        getRecentEvaluatorExecutionTraces(projectId, [evaluatorTraceName]),
+        getRecentEvaluatorExecutionTraces(projectId, [evaluatorId]),
       ).resolves.toEqual([
         expect.objectContaining({
           id: traceId,
-          traceName: evaluatorTraceName,
+          evaluatorId,
           level: "ERROR",
         }),
       ]);
@@ -874,6 +864,56 @@ describe("Clickhouse Events Repository Test", () => {
       expect(byId?.modelParameters).toBe(
         "<not serializable object of type: dict>",
       );
+    });
+  });
+
+  maybe("getObservationByIdFromEventsTable startTimeLowerBound", () => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+
+    it("prunes on start_time while absorbing trace-to-observation skew", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const observationStart = Date.now() - 5 * DAY_MS;
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          start_time: observationStart,
+        }),
+      ]);
+
+      const atStart = await getObservationByIdFromEventsTable({
+        id: observationId,
+        projectId,
+        traceId,
+        startTimeLowerBound: new Date(observationStart),
+      });
+      expect(atStart?.id).toBe(observationId);
+
+      // Anchor one day after start (e.g. a trace whose timestamp trails the
+      // observation): still returned because the 2-day skew lookback covers it.
+      const withinSkew = await getObservationByIdFromEventsTable({
+        id: observationId,
+        projectId,
+        traceId,
+        startTimeLowerBound: new Date(observationStart + DAY_MS),
+      });
+      expect(withinSkew?.id).toBe(observationId);
+
+      // Anchor three days after start: the lower bound (anchor - 2 days) now
+      // excludes the observation, proving the bound actually prunes.
+      await expect(
+        getObservationByIdFromEventsTable({
+          id: observationId,
+          projectId,
+          traceId,
+          startTimeLowerBound: new Date(observationStart + 3 * DAY_MS),
+        }),
+      ).rejects.toThrow();
     });
   });
 
@@ -4120,6 +4160,168 @@ describe("Clickhouse Events Repository Test", () => {
       });
       expect(io3?.metadata).toBeDefined();
       expect(io3?.metadata?.key3).toBe("value3");
+    });
+
+    it("matches trace and observation ids within the authorized session", async () => {
+      const observationId = randomUUID();
+      const outsideObservationId = randomUUID();
+      const firstTraceId = randomUUID();
+      const secondTraceId = randomUUID();
+      const outsideTraceId = randomUUID();
+      const sessionId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: firstTraceId,
+          session_id: sessionId,
+          type: "GENERATION",
+          input: "first trace",
+          start_time: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: secondTraceId,
+          session_id: sessionId,
+          type: "GENERATION",
+          input: "second trace",
+          start_time: nowMicro + 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: outsideObservationId,
+          project_id: projectId,
+          trace_id: outsideTraceId,
+          session_id: randomUUID(),
+          type: "GENERATION",
+          input: "outside session",
+          start_time: nowMicro + 2000,
+        }),
+      ]);
+
+      const result = await getObservationsBatchIOFromEventsTable({
+        projectId,
+        sessionId,
+        observations: [
+          { id: observationId, traceId: firstTraceId },
+          { id: observationId, traceId: secondTraceId },
+          { id: outsideObservationId, traceId: outsideTraceId },
+        ],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      });
+
+      expect(result).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: observationId,
+            traceId: firstTraceId,
+            input: "first trace",
+          }),
+          expect.objectContaining({
+            id: observationId,
+            traceId: secondTraceId,
+            input: "second trace",
+          }),
+        ]),
+      );
+      expect(result).toHaveLength(2);
+    });
+
+    it("authorizes observations using the trace's latest session", async () => {
+      const uniqueProjectId = randomUUID();
+      const previousSessionId = randomUUID();
+      const currentSessionId = randomUUID();
+      const observationId = randomUUID();
+      const traceId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: observationId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          session_id: previousSessionId,
+          type: "GENERATION",
+          input: "observation input",
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          session_id: currentSessionId,
+          type: "SPAN",
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+      ]);
+
+      const params = {
+        projectId: uniqueProjectId,
+        observations: [{ id: observationId, traceId }],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      };
+
+      await expect(
+        getObservationsBatchIOFromEventsTable({
+          ...params,
+          sessionId: previousSessionId,
+        }),
+      ).resolves.toEqual([]);
+      await expect(
+        getObservationsBatchIOFromEventsTable({
+          ...params,
+          sessionId: currentSessionId,
+        }),
+      ).resolves.toEqual([
+        expect.objectContaining({
+          id: observationId,
+          traceId,
+          input: "observation input",
+        }),
+      ]);
+    });
+
+    it("keeps the session filter when the session id is empty", async () => {
+      const observationId = randomUUID();
+      const traceId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          session_id: randomUUID(),
+          type: "GENERATION",
+          input: "outside empty session",
+          start_time: nowMicro,
+        }),
+      ]);
+
+      const result = await getObservationsBatchIOFromEventsTable({
+        projectId,
+        sessionId: "",
+        observations: [{ id: observationId, traceId }],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      });
+
+      expect(result).toEqual([]);
     });
 
     it("should handle empty observation array", async () => {

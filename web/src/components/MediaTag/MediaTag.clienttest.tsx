@@ -14,6 +14,43 @@ const OFFICE_CONTENT_TYPES = [
 ] as const;
 
 describe("MediaTag", () => {
+  it("blocks the portaled preview from PostHog session recordings", () => {
+    const description = "customer-provided media description";
+
+    render(
+      <MediaTag
+        contentType="image/png"
+        description={description}
+        status="ready"
+        url="data:image/png;base64,"
+        open
+      />,
+    );
+
+    expect(screen.getByText(description).parentElement).toHaveClass(
+      "ph-no-capture",
+    );
+  });
+
+  it("stops portaled preview actions from triggering parent clicks", () => {
+    const onParentClick = vi.fn();
+
+    render(
+      <div onClick={onParentClick}>
+        <MediaTag
+          contentType="image/png"
+          status="ready"
+          url="data:image/png;base64,"
+          open
+        />
+      </div>,
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: "Open in new tab" }));
+
+    expect(onParentClick).not.toHaveBeenCalled();
+  });
+
   it("opens the preview on click", async () => {
     const onOpenChange = vi.fn();
 

@@ -1,7 +1,10 @@
+import { randomUUID } from "crypto";
+
+import { SpanKind, type Span } from "@opentelemetry/api";
 import { z } from "zod";
 
 import { env } from "@/src/env.mjs";
-import { logger } from "@langfuse/shared/src/server";
+import { instrumentAsync, logger } from "@langfuse/shared/src/server";
 
 import {
   ChbAccessTokenProvider,
@@ -24,7 +27,7 @@ export class ChbApiError extends Error {
 }
 
 /**
- * CHB returns 409 Conflict on bundle mutations when the organization has no
+ * CHB returns 409 Conflict on attached-plan mutations when the organization has no
  * active payment method. Callers translate this into the same "needs checkout"
  * UX path the billing dialog already handles.
  */
@@ -39,19 +42,21 @@ export class ChbPaymentRequiredError extends ChbApiError {
   }
 }
 
-export const ChbScheduledChangeSchema = z.object({
+// A pending change on the attached plan, as GET /attachedplan reports it.
+// Kept permissive (no discriminated union) because this is a read path that
+// renders the billing page: an unknown type must degrade, not throw.
+const ChbAttachedPlanScheduledSchema = z.object({
   type: z.string(), // "upgrade" | "downgrade" | "cancel"
-  when: z.string(), // "immediate" | "billing_cycle_end" | ISO date
-  planCode: z.string().nullish(),
-  startDate: z.string().nullish(),
+  planCode: z.string().nullish(), // upgrade / downgrade target
+  startDate: z.string().nullish(), // upgrade / downgrade effective date
+  endDate: z.string().nullish(), // cancel: when the plan ends
 });
-export type ChbScheduledChange = z.infer<typeof ChbScheduledChangeSchema>;
 
-export const ChbBundleSchema = z.object({
+const ChbAttachedPlanSchema = z.object({
   id: z.string(),
   plan: z
     .object({
-      planCode: z.string().nullish(),
+      code: z.string().nullish(),
     })
     .nullish(),
   period: z
@@ -62,37 +67,37 @@ export const ChbBundleSchema = z.object({
     .nullish(),
   payment: z
     .object({
-      status: z.string().nullish(),
-      nextPaymentDate: z.string().nullish(),
+      status: z.string().nullish(), // "active" | "past-due" | "failed"
       provider: z
         .object({
+          name: z.string().nullish(),
           customerId: z.string().nullish(),
         })
         .nullish(),
     })
     .nullish(),
-  scheduled: ChbScheduledChangeSchema.nullish(),
+  scheduled: ChbAttachedPlanScheduledSchema.nullish(),
 });
-export type ChbBundle = z.infer<typeof ChbBundleSchema>;
+export type ChbAttachedPlan = z.infer<typeof ChbAttachedPlanSchema>;
 
-export const ChbCheckoutSessionSchema = z.object({
-  url: z.string(),
+const ChbCheckoutSessionSchema = z.object({
+  checkoutUrl: z.url(),
   // ClickHouse Organization ID — persisted on the Langfuse org right away so a
   // checkout retry recovers the same CH org instead of orphaning one.
   organizationId: z.uuid(),
 });
 export type ChbCheckoutSession = z.infer<typeof ChbCheckoutSessionSchema>;
 
-export const ChbInvoiceSchema = z.object({
+const ChbInvoiceSchema = z.object({
   id: z.string().nullish(),
   number: z.string().nullish(),
-  status: z.string().nullish(),
+  status: z.string().nullish(), // "draft" | "open" | "paid" | "void" | "uncollectible"
   currency: z.string().nullish(),
   createdAt: z.string().nullish(),
-  totalCents: z.number().nullish(),
-  // Still an open question with CHB: a hosted download URL and draft/upcoming
-  // rows are requested but not confirmed in the invoice payload yet.
-  downloadUrl: z.string().nullish(),
+  // Minor units (cents for USD)
+  amount: z.number().nullish(),
+  hostedUrl: z.string().nullish(),
+  pdfUrl: z.string().nullish(),
 });
 export type ChbInvoice = z.infer<typeof ChbInvoiceSchema>;
 
@@ -100,13 +105,19 @@ const ChbInvoiceListSchema = z.object({
   invoices: z.array(ChbInvoiceSchema).default([]),
 });
 
-export const ChbPortalSessionSchema = z.object({
-  url: z.string(),
+const ChbPortalSessionSchema = z.object({
+  portalUrl: z.string(),
 });
 
 const REQUEST_TIMEOUT_MS = 15_000;
 
 type ChbRequestOptions = {
+  /**
+   * APM span name for the CHB operation, e.g. `chb.checkout_session.create`.
+   * Named after the operation rather than the route so a path carrying an id
+   * does not fan one operation out into unrelated APM resources.
+   */
+  operation: string;
   method: "GET" | "POST" | "PUT" | "DELETE";
   path: string;
   /** CH-Organization-Id header — required for org-scoped endpoints */
@@ -141,33 +152,102 @@ export class ChbApiClient {
     return url;
   }
 
-  private async send(url: URL, opts: ChbRequestOptions): Promise<Response> {
-    return await fetch(url, {
-      method: opts.method,
-      headers: {
-        authorization: `Bearer ${await this.tokenProvider.getToken()}`,
-        ...(opts.chOrganizationId
-          ? { "CH-Organization-Id": opts.chOrganizationId }
-          : {}),
-        ...(opts.body !== undefined
-          ? { "content-type": "application/json" }
-          : {}),
-        ...(opts.idempotencyKey
-          ? { "Idempotency-Key": opts.idempotencyKey }
-          : {}),
+  /**
+   * One span per HTTP attempt, so a token replay shows as two attempt spans —
+   * each with the token mint it triggered nested underneath — rather than as
+   * one opaque slow call.
+   */
+  private async send(
+    url: URL,
+    opts: ChbRequestOptions,
+    attempt: number,
+  ): Promise<Response> {
+    return await instrumentAsync(
+      { name: "chb.api.request", spanKind: SpanKind.CLIENT },
+      async (span) => {
+        span.setAttributes({
+          "http.method": opts.method,
+          "http.route": opts.path,
+          "peer.hostname": url.hostname,
+          "chb.operation": opts.operation,
+          "chb.attempt": attempt,
+        });
+
+        const response = await fetch(url, {
+          method: opts.method,
+          headers: {
+            authorization: `Bearer ${await this.tokenProvider.getToken()}`,
+            ...(opts.chOrganizationId
+              ? { "CH-Organization-Id": opts.chOrganizationId }
+              : {}),
+            ...(opts.body !== undefined
+              ? { "content-type": "application/json" }
+              : {}),
+            ...(opts.idempotencyKey
+              ? { "Idempotency-Key": opts.idempotencyKey }
+              : {}),
+          },
+          body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+          // The base URL is operator-configured; an unexpected redirect is an
+          // error, not something to follow with a bearer token attached.
+          redirect: "error",
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        });
+
+        span.setAttribute("http.status_code", response.status);
+        return response;
       },
-      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-      // The base URL is operator-configured; an unexpected redirect is an
-      // error, not something to follow with a bearer token attached.
-      redirect: "error",
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
+    );
   }
 
   private async request(opts: ChbRequestOptions): Promise<unknown> {
+    const outcome = await instrumentAsync(
+      { name: opts.operation, spanKind: SpanKind.CLIENT },
+      async (span) => {
+        span.setAttributes({
+          "http.method": opts.method,
+          "http.route": opts.path,
+          ...(opts.chOrganizationId
+            ? { "chb.ch_organization_id": opts.chOrganizationId }
+            : {}),
+          ...(opts.idempotencyKey
+            ? { "chb.idempotency_key": opts.idempotencyKey }
+            : {}),
+        });
+
+        try {
+          return {
+            thrown: undefined,
+            body: await this.sendWithReplay(opts, span),
+          };
+        } catch (error) {
+          // A 409 is the "organization needs a payment method" UX branch, not
+          // an incident — which is why it is deliberately not logged as an
+          // error either. Carrying it out of the span instead of throwing
+          // through it keeps instrumentAsync from marking the operation as an
+          // APM error, so a routine checkout prompt cannot inflate the error
+          // rate this instrumentation exists to make readable.
+          if (error instanceof ChbPaymentRequiredError) {
+            span.setAttribute("chb.payment_required", true);
+            return { thrown: error, body: undefined };
+          }
+          throw error;
+        }
+      },
+    );
+
+    // Rethrown outside the span so the caller contract is unchanged.
+    if (outcome.thrown) throw outcome.thrown;
+    return outcome.body;
+  }
+
+  private async sendWithReplay(
+    opts: ChbRequestOptions,
+    span: Span,
+  ): Promise<unknown> {
     const url = this.requestUrl(opts);
 
-    let response = await this.send(url, opts);
+    let response = await this.send(url, opts, 1);
     if (response.status === 401) {
       // CHB rejected a token we still considered fresh — revoked, or the Auth0
       // signing key rotated. A 401 means CHB did no work, and the retry carries
@@ -176,9 +256,12 @@ export class ChbApiClient {
         method: opts.method,
         path: opts.path,
       });
+      span.setAttribute("chb.token_replayed", true);
       this.tokenProvider.invalidate();
-      response = await this.send(url, opts);
+      response = await this.send(url, opts, 2);
     }
+
+    span.setAttribute("http.status_code", response.status);
 
     const responseBody = await response
       .json()
@@ -212,6 +295,7 @@ export class ChbApiClient {
     idempotencyKey?: string;
   }): Promise<ChbCheckoutSession> {
     const body = await this.request({
+      operation: "chb.checkout_session.create",
       method: "POST",
       path: "checkout-sessions",
       body: {
@@ -221,32 +305,36 @@ export class ChbApiClient {
         email: params.email,
         planCode: params.planCode,
         returnUrl: params.returnUrl,
-        ...(params.idempotencyKey
-          ? { idempotencyKey: params.idempotencyKey }
-          : {}),
+        // Required by CHB. Without an opId there is nothing to dedupe against,
+        // so a fresh key makes the call unique rather than rejected.
+        idempotencyKey: params.idempotencyKey ?? randomUUID(),
       },
       idempotencyKey: params.idempotencyKey,
     });
     return ChbCheckoutSessionSchema.parse(body);
   }
 
-  async getBundle(params: {
+  /**
+   * The organization's current attached plan. CHB scopes the attached-plan
+   * routes by the CH-Organization-Id header, there is no id in the path; a 404
+   * means the organization has none.
+   */
+  async getAttachedPlan(params: {
     chOrganizationId: string;
-    bundleId: string;
-  }): Promise<ChbBundle> {
+  }): Promise<ChbAttachedPlan> {
     const body = await this.request({
+      operation: "chb.attachedplan.get",
       method: "GET",
-      path: `bundles/${encodeURIComponent(params.bundleId)}`,
+      path: "attachedplan",
       chOrganizationId: params.chOrganizationId,
       searchParams: { fields: "plan,period,payment,scheduled" },
     });
-    return ChbBundleSchema.parse(body);
+    return ChbAttachedPlanSchema.parse(body);
   }
 
-  /** Schedule an upgrade / downgrade / cancellation on a bundle (202). */
+  /** Upgrade now, schedule a downgrade for the cycle end, or cancel the plan. */
   async setScheduledChange(params: {
     chOrganizationId: string;
-    bundleId: string;
     change: {
       type: "upgrade" | "downgrade" | "cancel";
       when: "immediate" | "billing_cycle_end";
@@ -255,37 +343,42 @@ export class ChbApiClient {
     idempotencyKey?: string;
   }): Promise<void> {
     await this.request({
+      operation: "chb.attachedplan.scheduled.set",
       method: "PUT",
-      path: `bundles/${encodeURIComponent(params.bundleId)}/scheduled`,
+      path: "attachedplan/scheduled",
       chOrganizationId: params.chOrganizationId,
       body: params.change,
       idempotencyKey: params.idempotencyKey,
     });
   }
 
-  /** Clear a pending scheduled change — reactivate / undo plan switch (202). */
+  /** Clear a pending scheduled change — reactivate / undo plan switch. */
   async clearScheduledChange(params: {
     chOrganizationId: string;
-    bundleId: string;
     idempotencyKey?: string;
   }): Promise<void> {
     await this.request({
+      operation: "chb.attachedplan.scheduled.clear",
       method: "DELETE",
-      path: `bundles/${encodeURIComponent(params.bundleId)}/scheduled`,
+      path: "attachedplan/scheduled",
       chOrganizationId: params.chOrganizationId,
       idempotencyKey: params.idempotencyKey,
     });
   }
 
+  /**
+   * Issued invoices, most recent first. Unlike the attached-plan routes this
+   * one is scoped by an `organizationId` query parameter.
+   */
   async listInvoices(params: {
     chOrganizationId: string;
-    bundleId: string;
   }): Promise<ChbInvoice[]> {
     const body = await this.request({
+      operation: "chb.invoices.list",
       method: "GET",
       path: "invoices",
       chOrganizationId: params.chOrganizationId,
-      searchParams: { bundleId: params.bundleId },
+      searchParams: { organizationId: params.chOrganizationId },
     });
     return ChbInvoiceListSchema.parse(body).invoices;
   }
@@ -295,12 +388,13 @@ export class ChbApiClient {
     returnUrl: string;
   }): Promise<string> {
     const body = await this.request({
+      operation: "chb.portal_session.create",
       method: "POST",
       path: "portal-sessions",
       chOrganizationId: params.chOrganizationId,
       body: { returnUrl: params.returnUrl },
     });
-    return ChbPortalSessionSchema.parse(body).url;
+    return ChbPortalSessionSchema.parse(body).portalUrl;
   }
 }
 

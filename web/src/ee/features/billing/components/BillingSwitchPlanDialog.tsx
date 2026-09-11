@@ -22,7 +22,7 @@ import {
   isUpgrade,
 } from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { ActionButton } from "@/src/components/ActionButton";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useBillingInformation } from "@/src/ee/features/billing/components/useBillingInformation";
 import { api } from "@/src/utils/api";
 import { StripeCancellationButton } from "./StripeCancellationButton";
@@ -44,6 +44,7 @@ export const BillingSwitchPlanDialog = ({
     scheduledPlanSwitch,
     isLegacySubscription,
     hasValidPaymentMethod,
+    currentProductId,
   } = useBillingInformation();
   const capture = usePostHogClientCapture();
 
@@ -89,8 +90,6 @@ export const BillingSwitchPlanDialog = ({
             {stripeProducts
               .filter((product) => Boolean(product.checkout))
               .map((product) => {
-                const currentProductId =
-                  organization?.cloudConfig?.stripe?.activeProductId;
                 const isThisUpgrade = currentProductId
                   ? isUpgrade(currentProductId, product.stripeProductId)
                   : true;
@@ -112,14 +111,12 @@ export const BillingSwitchPlanDialog = ({
                             <span className="ml-1">Starts next period</span>
                           )}
                         {scheduledPlanSwitch &&
-                          organization?.cloudConfig?.stripe?.activeProductId ===
-                            product.stripeProductId && (
+                          currentProductId === product.stripeProductId && (
                             <span className="ml-1">(Until next period)</span>
                           )}
                         {!scheduledPlanSwitch &&
                           cancellation?.isCancelled &&
-                          organization?.cloudConfig?.stripe?.activeProductId ===
-                            product.stripeProductId && (
+                          currentProductId === product.stripeProductId && (
                             <span className="ml-1">(Until next period)</span>
                           )}
                       </div>
@@ -164,7 +161,7 @@ export const BillingSwitchPlanDialog = ({
                       Learn more about plan →
                     </Link>
                     {/* The default behavior the user is on a paid plan.*/}
-                    {organization?.cloudConfig?.stripe?.activeProductId ? (
+                    {currentProductId ? (
                       // Change plan view
                       <div className="mt-2 space-y-2">
                         {isCurrentPlan && (
@@ -278,8 +275,7 @@ export const BillingSwitchPlanDialog = ({
                               }
                             }}
                             disabled={
-                              organization?.cloudConfig?.stripe
-                                ?.activeProductId === product.stripeProductId
+                              currentProductId === product.stripeProductId
                             }
                             loading={
                               processingPlanId === product.stripeProductId

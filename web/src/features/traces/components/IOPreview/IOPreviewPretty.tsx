@@ -1,13 +1,16 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { type MediaReturnType } from "@/src/features/media/validation";
+import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import {
-  type ChatMLParserResult,
-  useChatMLParser,
-} from "../../hooks/useChatMLParser";
+  type IOPreviewParserComparisonOutcome,
+  type IOPreviewParserMode,
+  hasRenderableChatMessages,
+  useIOPreviewParser,
+} from "../../hooks/useIOPreviewParser";
 import { ChatMessageList } from "../ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import {
@@ -15,7 +18,6 @@ import {
   type IOPreviewContentMode,
 } from "./IOPreview";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
-import { isOnlyJsonMessage } from "../../fns/chatMessageUtils";
 import { StatusMessageSection } from "./components/StatusMessageSection";
 import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
 
@@ -112,6 +114,11 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   showCorrections?: boolean;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
+  // Which parser produces the preview; the normalized parser is admin-only
+  // while it is being validated. Legacy remains the safe default.
+  parser?: IOPreviewParserMode;
+  // Called once after a normalized parser comparison has settled.
+  onParserComparison?: (outcome: IOPreviewParserComparisonOutcome) => void;
 }
 
 /**
@@ -123,8 +130,8 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
  * - Large content safety (markdown rendering limit)
  * - Accepts pre-parsed data to avoid duplicate parsing
  *
- * This component performs ChatML parsing which is only needed for pretty view.
- * For JSON view, use IOPreviewJSON instead.
+ * This component selects and renders the pretty-view parser output. For JSON
+ * view, use IOPreviewJSON instead.
  */
 export function IOPreviewPretty({
   input,
@@ -157,6 +164,8 @@ export function IOPreviewPretty({
   showCorrections = true,
   contentMode = "all",
   showSystemPrompt,
+  parser = "legacy",
+  onParserComparison,
 }: IOPreviewPrettyProps) {
   // Use pre-parsed data if available (from useParsedObservation hook),
   // otherwise parse with size/depth limits to prevent UI freeze
@@ -184,18 +193,10 @@ export function IOPreviewPretty({
     [projectId, observationId],
   );
 
-  // Parse ChatML format
-  const {
-    canDisplayAsChat,
-    allMessages,
-    additionalInput,
-    allTools,
-    toolCallCounts,
-    toolCallsByName,
-    messageToToolCallNumbers,
-    toolNameToDefinitionNumber,
-    inputMessageCount,
-  } = useChatMLParser(
+  // Parse into the shared preview contract. The normalized parser is opt-in
+  // while it is being rolled out; legacy remains the safe default.
+  const { result: parserResult, comparisonOutcome } = useIOPreviewParser(
+    parser,
     input,
     output,
     metadata,
@@ -205,6 +206,44 @@ export function IOPreviewPretty({
     parsedMetadata,
     chatMLParserResult,
   );
+
+  const {
+    allMessages,
+    additionalInput,
+    allTools,
+    toolCallCounts,
+    toolCallsByName,
+    messageToToolCallNumbers,
+    toolNameToDefinitionNumber,
+    inputMessageCount,
+  } = parserResult;
+
+  const capturedComparisonRecord = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (
+      parser !== "normalized" ||
+      comparisonOutcome === undefined ||
+      !onParserComparison ||
+      isLoading ||
+      isParsing
+    ) {
+      return;
+    }
+
+    const recordKey = `${observationId ? "observation" : "trace"}:${observationId ?? traceId}`;
+    if (capturedComparisonRecord.current === recordKey) return;
+
+    capturedComparisonRecord.current = recordKey;
+    onParserComparison(comparisonOutcome);
+  }, [
+    comparisonOutcome,
+    isLoading,
+    isParsing,
+    observationId,
+    onParserComparison,
+    parser,
+    traceId,
+  ]);
 
   const characterLimit = useMarkdownRenderCharacterLimit();
 
@@ -271,8 +310,7 @@ export function IOPreviewPretty({
   // Determine if metadata should be shown
   const shouldShowMetadata = showMetadata && parsedMetadata !== undefined;
   const showData = contentMode !== "conversation";
-  const shouldRenderMessages =
-    canDisplayAsChat && !allMessages.every(isOnlyJsonMessage);
+  const shouldRenderMessages = hasRenderableChatMessages(parserResult);
 
   return (
     <div>
@@ -280,7 +318,7 @@ export function IOPreviewPretty({
         <StatusMessageSection status={status} currentView="pretty" />
       ) : null}
 
-      {showData ? (
+      {showData && allTools.length > 0 ? (
         <SectionToolDefinitions
           tools={allTools}
           toolCallCounts={toolCallCounts}

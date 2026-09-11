@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import React, { useState, useRef, useLayoutEffect, useMemo } from "react";
 import type { DefaultLegendContentProps, LegendPayload } from "recharts";
 import { MoreVertical } from "lucide-react";

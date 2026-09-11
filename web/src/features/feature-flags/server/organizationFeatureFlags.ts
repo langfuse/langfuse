@@ -160,7 +160,7 @@ export async function getUserFeaturePreviewManagementCapabilities({
   );
 }
 
-export async function setUserFeaturePreviewInTransaction({
+async function setUserFeaturePreviewInTransaction({
   tx,
   userId,
   flag,

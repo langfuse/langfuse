@@ -18,7 +18,7 @@ import { type FilterCondition } from "@langfuse/shared";
  * Wraps createEvent with experiment defaults.
  */
 function createExperimentEvent(
-  params: Partial<EventRecordInsertType> & {
+  params: Parameters<typeof createEvent>[0] & {
     experimentId: string;
     experimentName: string;
     datasetId?: string;
@@ -1470,6 +1470,84 @@ describe("Clickhouse Experiment Items Repository Test", () => {
       );
       expect(item2Result?.experiments).toHaveLength(1);
       expect(item2Result?.experiments[0].experimentId).toBe(compExpId);
+    });
+  });
+
+  maybe("getExperimentItemsFromEvents - Level Filtering", () => {
+    it("should include items that carry an ERROR event and exclude items that do not", async () => {
+      const baselineExpId = randomUUID();
+      const datasetId = randomUUID();
+      const failingItemId = randomUUID();
+      const cleanItemId = randomUUID();
+      const failingTraceId = randomUUID();
+      const cleanTraceId = randomUUID();
+      const failingRootId = randomUUID();
+      const failingChildId = randomUUID();
+      const cleanRootId = randomUUID();
+      const now = Date.now() * 1000;
+
+      await createEventsCh([
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: failingTraceId,
+          span_id: failingRootId,
+          experimentId: baselineExpId,
+          experimentName: "baseline-exp",
+          datasetId,
+          itemId: failingItemId,
+          experimentItemRootSpanId: failingRootId,
+          level: "DEFAULT",
+          start_time: now,
+        }),
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: failingTraceId,
+          span_id: failingChildId,
+          parent_span_id: failingRootId,
+          experimentId: baselineExpId,
+          experimentName: "baseline-exp",
+          datasetId,
+          itemId: failingItemId,
+          experimentItemRootSpanId: failingRootId,
+          level: "ERROR",
+          start_time: now + 1,
+        }),
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: cleanTraceId,
+          span_id: cleanRootId,
+          experimentId: baselineExpId,
+          experimentName: "baseline-exp",
+          datasetId,
+          itemId: cleanItemId,
+          experimentItemRootSpanId: cleanRootId,
+          level: "DEFAULT",
+          start_time: now + 2,
+        }),
+      ]);
+
+      const result = await getExperimentItemsFromEvents({
+        projectId,
+        baseExperimentId: baselineExpId,
+        compExperimentIds: [],
+        filterByExperiment: [
+          {
+            experimentId: baselineExpId,
+            filters: [
+              {
+                column: "level",
+                type: "stringOptions",
+                operator: "any of",
+                value: ["ERROR"],
+              } as FilterCondition,
+            ],
+          },
+        ],
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result.map((row) => row.itemId)).toEqual([failingItemId]);
     });
   });
 

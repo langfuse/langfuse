@@ -1,9 +1,9 @@
 import { PlusCircle } from "lucide-react";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useState } from "react";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
 import { FormDescription, FormLabel } from "@/src/components/ui/form";
-import { Accordion } from "@/src/components/ui/accordion";
 import { derivePriorities } from "@/src/features/models/fns/derivePriorities";
 import { makeUsageTypeKeys } from "@/src/features/models/fns/makeUsageTypeKeys";
 import { TierAccordionItem } from "./components/TierAccordionItem";
@@ -137,13 +137,13 @@ export function PricingSection({ form }: PricingSectionProps) {
         </FormDescription>
       </div>
 
-      <Accordion
+      <AccordionPrimitive.Root
+        className="space-y-2"
         type="multiple"
         value={tierIds.filter((id) => !collapsedTiers.includes(id))}
         onValueChange={(open) =>
           setCollapsedTiers(tierIds.filter((id) => !open.includes(id)))
         }
-        className="space-y-2"
       >
         {tiers.fields.map((field, index) => (
           <TierAccordionItem
@@ -165,7 +165,7 @@ export function PricingSection({ form }: PricingSectionProps) {
             />
           </TierAccordionItem>
         ))}
-      </Accordion>
+      </AccordionPrimitive.Root>
 
       <Button type="button" variant="outline" onClick={addTier}>
         <PlusCircle className="mr-2 h-4 w-4" />

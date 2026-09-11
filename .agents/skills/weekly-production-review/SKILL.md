@@ -18,10 +18,14 @@ audit from the linked source rows.
   timezone. State both local and UTC query windows in one short scope line.
 - Cover all production environments unless the user narrows scope:
   `prod-us`, `prod-eu`, `prod-hipaa`, and `prod-jp`.
-- Keep the first pass read-only. Do not create or update Linear issues,
-  comments, incident.io records, follow-ups, alerts, Datadog monitors, files,
-  Slack messages, or production systems unless the user explicitly asks after
-  reviewing the findings.
+- The review itself changes nothing outside the tracker. Do not touch incident.io
+  records, follow-ups, alerts, monitors, files, Slack messages, or production
+  systems unless the user explicitly asks after reviewing the findings.
+- Linear is the exception: evidence comments on existing issues and new
+  parentless filings both need a propose-then-write yes — show the set, take
+  one go-ahead, then write and label. [`linear-agent-writes`](../linear-agent-writes/SKILL.md)
+  is the authority; [`linear-bug-triage`](../linear-bug-triage/SKILL.md) applies
+  it to measured findings.
 - For chat-only reviews, avoid creating report artifacts or local analysis
   workspaces unless a required tool workflow explicitly does so or the user asks
   for a file. If incident.io analysis tooling requires a local playbook
@@ -34,11 +38,12 @@ audit from the linked source rows.
 
 - Use [`datadog-query-recipes`](../datadog-query-recipes/SKILL.md) for
   production Datadog query shapes and environment/site routing.
-- Use [`linear-bug-triage`](../linear-bug-triage/SKILL.md) only after a human
-  explicitly approves a Linear write-back.
+- Use [`linear-bug-triage`](../linear-bug-triage/SKILL.md) for the Linear
+  write-back: it proposes measured evidence comments and new filings, then
+  writes once you approve the set.
 - Use [`incident-alert-tickets`](../incident-alert-tickets/SKILL.md) to check
-  each Datadog alert cluster against the per-monitor knowledge base and, only
-  after explicit human approval, record newly root-caused clusters there.
+  each alert cluster against the per-monitor knowledge base and record newly
+  root-caused clusters there as a labelled description edit.
 
 ## Workflow
 

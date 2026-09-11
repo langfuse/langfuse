@@ -1,27 +1,25 @@
 # Search Bar
 
-Grammar-based query bar shared by the observations (v4 events) table and
-evaluation-rule observation filters. On the events table it does NOT replace
-the facet sidebar — it is an ADDITIONAL keyboard-driven editor that coexists
-with the sidebar and stays in sync with it. The facet sidebar's `FilterState`
-(+ the table's full-text search) remains the single source of truth; the bar
-reads from and writes to it. Only the legacy toolbar search field is replaced
-(full-text search goes inline in the bar). Generally available on the v4 events
-tables (no opt-in). Based on the `langfuse-search-bar` prototype.
+Grammar-based query editor for tables with a facet sidebar, including legacy
+and embedded read paths. The sidebar's `FilterState` and the host's search
+state remain canonical; both editors update the same state.
 
 ## Enablement
 
-- **Generally available on the v4 events tables** — every user gets the bar; it
-  is no longer a per-user Feature Preview opt-in. `hooks/useSearchBarEnabled.ts`
-  now returns `true` for everyone, so the bar renders wherever the v4 events
-  table does.
-- `EventsTable` activates the bar when the table is a full-page surface
-  (`!hideControls && !externalFilterState && !peekContext && !userId && !sessionId`).
-  The **v4 beta** gate is implicit: `EventsTable` only mounts on the v4
-  Observations/Traces tables, so call sites still read as
-  `isBetaEnabled && useSearchBarEnabled()`.
-- The search bar is not a Feature Preview and has no user or organization
-  toggle.
+- Each sidebar host supplies a registry derived from its exposed facets. Settings
+  lists and other tables without a sidebar retain their existing controls.
+- `EventsTable` enables the bar when its controls are visible and filters are
+  internally owned. Embedded tables exclude fields locked by their parent.
+- `TableSearchBar` wraps the shared store, commit hook, and row for other hosts.
+  Pass the host's existing search query and scope without changing their meaning.
+  Tables without a backend text-search lane use a registry default field or
+  disable free text. Organization catalogs omit `projectId`, which disables
+  project recent searches and AI filtering.
+- Key the wrapper by the saved-view `filterEditorResetKey` and sidebar
+  `draftResetKey`. Applying a view or clearing filters resets unfinished drafts;
+  deselecting a view after a user edit preserves them.
+- There is no search-bar feature toggle. A registry enables AI only when its
+  backend has a matching prompt and the organization enables AI features.
 
 ## Query language
 
@@ -154,13 +152,19 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
   on a `textSearch` field — `-name:=v` — is representable: it lowers to a
   `stringOptions none of`, the exact-inequality form the facet emits when one
   value is unchecked. It is NOT `does not contain`.)
-- **User-authored filters are never auto-removed.** The bar reads the sidebar's
-  **explicit** `FilterState`, so the managed-environment implicit default
-  (`environment none of [hidden internal envs]`, derived into _effective_ state
-  by `features/filters/lib/managedEnvironmentPolicy.ts`) never shows as a token.
-  That policy strips exactly one shape from explicit state — that same implicit
-  `none of [hidden]` default (which the facet also re-creates on "clear back to
-  default"). A user-authored positive selection (`environment:default`, typed or
+- **User-authored filters are never auto-removed.** The bar reads a display
+  projection of the sidebar's **explicit** `FilterState`, so the
+  managed-environment implicit default (`environment none of [hidden internal
+envs]`, derived into _effective_ state by
+  `features/filters/lib/managedEnvironmentPolicy.ts`) never shows as a token.
+  That policy strips the implicit `none of [hidden]` default (which the facet
+  also re-creates on "clear back to default") and keeps
+  `none of [hidden ∪ extras]` in persisted/effective state so queries still
+  exclude the hidden set. The search-bar projection shows only extras
+  (`-environment:production`). A bar commit of that extras-only chip expands
+  back to the full exclusion set. Enabling any hidden environment stores a
+  positive `any of [checked]` instead, so it cannot be remasked as extras-only
+  none-of. A user-authored positive selection (`environment:default`, typed or
   saved) is kept explicit even when it equals the current default set; the user
   returns to the default by removing the filter, never by us inferring it.
 
@@ -396,15 +400,29 @@ registry + grammar + value validation. Keep it that way.
 adapter, serializer, completion planner, token projection, store, and AI prompt
 all take an injected `FieldRegistry`. `EVENTS_FIELD_REGISTRY` remains the default
 for existing call sites; evaluation rules pass `RULE_FIELD_REGISTRY`, which is
-derived from the same `eventsEvalFilterColumns` used by backend validation.
+derived from the same `eventsEvalFilterColumns` used by backend validation, and
+the v4 sessions table passes `SESSIONS_FIELD_REGISTRY`
+(`features/filters/config/sessionsSearchRegistry.ts`).
+
+**Use `TableSearchBar` for table hosts.** It passes one registry to the hook and
+row. A specialized host that uses `useEventsSearchBar` and `EventsSearchBarRow`
+directly must pass the same registry to both, so autocomplete and commits agree.
 
 **Recipe to add the bar to a view:**
 
-1. **Derive the field registry from that view's `ColumnDefinition[]`** — do NOT
-   hand-author a second 47-entry list. ~70% is mechanical: `type → kind`
-   (`number`/`datetime`/`boolean` map directly, everything else → `text`),
-   `nullable`, `options → observed values`, `unit`. Use the existing
-   `fieldRegistryFromColumns(cols, overlay)` helper.
+1. **Derive the field registry from the view's FACETS, not its raw columns.** Use
+   `fieldRegistryFromColumns(cols, overlay)` — never hand-author a second
+   47-entry list; ~70% is mechanical (`type → kind`, `nullable`,
+   `options → observed values`, `unit`). But feed it the columns the _facet
+   sidebar_ exposes, as `sessionsSearchRegistry.ts` does, not the whole
+   `ColumnDefinition[]`. A view's column list also carries internals the sidebar
+   deliberately never offers — a duplicate (`usage` = `totalTokens`), a column
+   owned by another control (`createdAt`, the time-range picker), a retired one
+   (`bookmarked`). Deriving from facets keeps the bar a strict SUBSET of the
+   sidebar by construction: no bar-authored filter the sidebar cannot display or
+   clear, and adding a facet gives the bar the field for free. Anything outside
+   that set resolves to null, so an old saved view's filter on it lands in
+   `skippedFilters` (preserved) instead of becoming an unparsable token.
 2. **Add a thin per-view grammar overlay** for what `ColumnDefinition`
    deliberately does not carry (it is a UI/SQL contract, not a grammar):
    user-facing **field aliases** (`env`, `tags`, `ttft`), **inline filter
@@ -412,9 +430,33 @@ derived from the same `eventsEvalFilterColumns` used by backend validation.
    (`metadata.`, `scores.`/`traceScores.` and their score columns), and
    **value-parse hints** (datetime ISO, numeric, boolean). Keep it small and
    declarative.
+   A field's `syncMode` can override the column-derived default: Scores uses
+   `textSearch` plus `suggestObservedValues` for option-backed score names, so
+   bare text searches within names while selected exact values still round-trip.
+   The derived `exactMatchUsesOptions` flag keeps singleton exact selections in
+   a categorical facet's `stringOptions` shape, so its checkbox stays selected.
+   Three flags are per-view capabilities, not cosmetics:
+   - `metadata` / `scores` / `traceScores` — the keyed dot-path roots. Set them
+     from the columns the view's BACKEND has, not from what reads well: sessions
+     aggregates scores at session level and has no `trace_scores_*` columns, so
+     it keeps `scores.` and closes `traceScores.`. A dot path the backend cannot
+     answer is worse than an unknown-field diagnostic. `fieldRegistryFromColumns`
+     drops the keyed score columns from the field list when `scores` is on
+     (`score_categories` is `categoryOptions`, not `*Object`, so the `*Object`
+     filter alone would leave a bogus keyless `score_categories:` field).
+   - `allowFreeText` + `defaultTextField` — see "Bare text on a view with no
+     full-text lane" below.
+   - `searchExamples` — the placeholder, **written per view, never derived from
+     field ids**. The events examples (`level:ERROR`, `latency:>2`) advertised
+     fields that do not exist on either of the other two surfaces.
 3. **Reuse the view's `filterOptions` tRPC** for observed values —
    `observed-options.ts` already maps that payload to per-column observed
    values; point it at the new view's procedure (do not invent a parallel one).
+   When a field displays labels but persists stable values, declare its
+   canonical `filterColumn` in the registry overlay and hydrate it with
+   `withFieldOptions([{ value, displayValue }])`. The shared adapter then emits
+   the canonical column/value while the reverse adapter renders the label.
+   Do not add a host-specific post-lowering conversion.
 4. **Keep the adapter targeting the shared `FilterState`.** Reuse the
    already-registry-driven `operatorIssue`/`negationIssue` and the existing
    per-kind lowering. Never add a second lowering path — that breaks the
@@ -425,6 +467,27 @@ derived from the same `eventsEvalFilterColumns` used by backend validation.
    that owns both, so the two cannot drift.
 6. **Add the round-trip property test for the new registry** (see Hardening) —
    run it per registry. This is the universal safety net across views.
+
+**Bare text on a view with no full-text lane.** Sessions has no `searchQuery`
+at all — `sessions.all*` takes none. Two registry options cover that:
+
+- `allowFreeText: false` alone — bare words are a commit-blocking diagnostic
+  (evaluation rules).
+- `allowFreeText: false` + `defaultTextField: "<field>"` — bare words become a
+  `contains` filter on that field (sessions uses `id`: it is that view's
+  most-applied filter by an order of magnitude, and every application of it is
+  `contains`). Two properties make this safe rather than magic: the rewrite is
+  **offered before Enter** (it joins the matching-filter suggestions, so the user
+  sees `id:"…"` while typing), and it is **visible and terminal after** — the bar
+  re-renders the word as an `id:` pill which commits to the identical filter. It
+  lowers through the normal field path; there is no second lowering path.
+- A multi-word run is ONE phrase, coalesced exactly like `searchQuery` is. Per
+  word it would AND `id contains test` with `id contains 123` — matching neither
+  the input nor the suggestion.
+
+**`createFieldRegistry` stays unexported.** Both derived views (rules, sessions)
+are fully expressed by `fieldRegistryFromColumns` + overlay; nothing has yet
+needed to hand-assemble a registry. Do not export it speculatively.
 
 **What stays grammar-global — do not make per-view:** tokenizing, quoting
 (`serializeValue` ↔ `reservedTokenIssue` is a **mirror invariant**: add a
@@ -459,11 +522,19 @@ real consumer and validate it against that view's backend filter contract.
   The harness is **pure and registry-shaped**: it generates the matrix from the
   passed `view.registry`, so it auto-covers added/changed fields. Each
   filterable view gets the same coverage by adding one block to the
-  `.clienttest.ts` with its registry — see "Extending to other views".
+  `.clienttest.ts` with its registry — see "Extending to other views". It only
+  exercises free text through `freeTextValues` (INV-3, serialize↔parse), so a
+  `defaultTextField` view must also pin its phrase/round-trip behaviour
+  explicitly, as the sessions block does.
 
 - **`SearchComposer` (~1.3k LOC) has no unit tests** — the contenteditable
   controller is browser-reviewed only. Extracting the selection/`beforeinput`
   machinery into a hook (below) is the prerequisite to testing it.
+- **Client integration coverage** in `web/src/components/table/data-table-controls.clienttest.tsx`
+  exercises real sidebar inputs, filter state, and bar commits: delayed string
+  and numeric edits preserve newly committed bar filters, and clearing a facet
+  cancels its pending edit. This does not cover the table's network request or
+  rendered result rows.
 - **No e2e** for bar↔sidebar sync or the embedded-vs-full-page mount matrix
   (the bar leaking onto user/session detail was a review find, not caught by a
   test).

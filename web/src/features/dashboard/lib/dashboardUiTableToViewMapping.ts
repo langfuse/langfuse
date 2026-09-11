@@ -2,8 +2,6 @@ import { z } from "zod";
 import { singleFilter } from "@langfuse/shared";
 import { type views } from "@langfuse/shared/query";
 
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
 export const FilterArray = z.array(singleFilter);
 
 /**
@@ -57,6 +55,23 @@ const defineField = (
   current,
   legacy,
 });
+
+const evaluatorFilterDefinitions = [
+  defineField(
+    "evaluatorId",
+    sourceSpec("Evaluator", {
+      uiTableId: "evaluatorId",
+      aliases: ["Evaluator ID"],
+    }),
+  ),
+  defineField(
+    "isEvaluatorTest",
+    sourceSpec("Evaluator test run", {
+      uiTableId: "isEvaluatorTest",
+      aliases: ["Evaluator execution"],
+    }),
+  ),
+] as const;
 
 const viewFilterDefinitions: Record<
   ViewName,
@@ -147,6 +162,7 @@ const viewFilterDefinitions: Record<
       "environment",
       sourceSpec("Environment", { uiTableId: "environment" }),
     ),
+    ...evaluatorFilterDefinitions,
     defineField(
       "release",
       sourceSpec("Release", {
@@ -222,6 +238,7 @@ const viewFilterDefinitions: Record<
       "traceVersion",
       sourceSpec("Version", { uiTableId: "version" }),
     ),
+    ...evaluatorFilterDefinitions,
   ],
   "scores-boolean": [
     defineField("name", sourceSpec("Score Name", { uiTableId: "scoreName" })),
@@ -269,6 +286,7 @@ const viewFilterDefinitions: Record<
       "traceVersion",
       sourceSpec("Version", { uiTableId: "version" }),
     ),
+    ...evaluatorFilterDefinitions,
   ],
   "scores-categorical": [
     defineField("name", sourceSpec("Score Name", { uiTableId: "scoreName" })),
@@ -316,6 +334,7 @@ const viewFilterDefinitions: Record<
       "traceVersion",
       sourceSpec("Version", { uiTableId: "version" }),
     ),
+    ...evaluatorFilterDefinitions,
   ],
 };
 

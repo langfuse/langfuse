@@ -36,7 +36,7 @@ export function CollapsibleCard({
               title={triggerTitle}
             >
               <ChevronDown className="text-muted-foreground h-3.5 w-3.5 shrink-0 -rotate-90 transition-transform group-data-[state=open]:rotate-0" />
-              <span className="flex min-w-0 flex-1 items-center gap-2">
+              <span className="flex min-w-0 flex-1 items-baseline gap-2">
                 {header}
               </span>
             </button>

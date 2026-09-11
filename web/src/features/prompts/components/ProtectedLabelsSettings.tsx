@@ -11,8 +11,8 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import Header from "@/src/components/layouts/header";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasEntitlement } from "@/src/features/entitlements";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { XIcon, Check, ChevronsUpDown } from "lucide-react";

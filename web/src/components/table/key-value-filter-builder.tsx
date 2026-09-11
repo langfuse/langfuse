@@ -74,6 +74,12 @@ type KeyValueFilterBuilderProps =
       keyPlaceholder?: string;
     };
 
+type KeyedFilterEntry =
+  | KeyValueFilterEntry
+  | NumericKeyValueFilterEntry
+  | BooleanKeyValueFilterEntry
+  | StringKeyValueFilterEntry;
+
 // Map operators to human-readable labels
 const NUMERIC_OPERATOR_LABELS = {
   "=": "equals",
@@ -256,7 +262,6 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
     keyOptions,
     keyLevels,
     activeFilters,
-    onChange,
     keyPlaceholder = "Key",
   } = props;
   const availableValues = mode === "categorical" ? props.availableValues : {};
@@ -266,15 +271,40 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   // Track which popover is open (by index)
   const [openPopoverIndex, setOpenPopoverIndex] = useState<number | null>(null);
 
-  // Local UI state for filter rows (includes incomplete filters)
-  // Initialize once from activeFilters but don't sync on every change
-  // This allows incomplete filter rows to persist in the UI while being edited
-  const [localFilters, setLocalFilters] = useState<
-    | KeyValueFilterEntry[]
-    | NumericKeyValueFilterEntry[]
-    | BooleanKeyValueFilterEntry[]
-    | StringKeyValueFilterEntry[]
-  >(() => (activeFilters.length > 0 ? activeFilters : []));
+  // Applied rows belong to the parent; only incomplete edits stay local.
+  const [draftFilters, setDraftFilters] = useState<
+    { index: number; filter: KeyedFilterEntry }[]
+  >([]);
+  const localFilters: KeyedFilterEntry[] = [...activeFilters];
+  for (const draft of draftFilters) {
+    localFilters.splice(draft.index, 0, draft.filter);
+  }
+
+  const isComplete = (filter: KeyedFilterEntry) =>
+    !!filter.key &&
+    (Array.isArray(filter.value)
+      ? filter.value.length > 0
+      : typeof filter.value === "string"
+        ? filter.value.trim() !== ""
+        : true);
+
+  const updateFilters = (filters: KeyedFilterEntry[]) => {
+    setDraftFilters(
+      filters.flatMap((filter, index) =>
+        isComplete(filter) ? [] : [{ index, filter }],
+      ),
+    );
+    const completeFilters = filters.filter(isComplete);
+    if (props.mode === "categorical") {
+      props.onChange(completeFilters as KeyValueFilterEntry[]);
+    } else if (props.mode === "numeric") {
+      props.onChange(completeFilters as NumericKeyValueFilterEntry[]);
+    } else if (props.mode === "boolean") {
+      props.onChange(completeFilters as BooleanKeyValueFilterEntry[]);
+    } else {
+      props.onChange(completeFilters as StringKeyValueFilterEntry[]);
+    }
+  };
 
   const handleFilterChange = (
     index: number,
@@ -284,108 +314,26 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
       | Partial<BooleanKeyValueFilterEntry>
       | Partial<StringKeyValueFilterEntry>,
   ) => {
-    // TypeScript can't narrow the union array type automatically, so we narrow explicitly based on mode
-    if (mode === "categorical") {
-      const filters = localFilters as KeyValueFilterEntry[];
-      const newFilters = [...filters];
-      newFilters[index] = {
-        ...newFilters[index],
-        ...updates,
-      } as KeyValueFilterEntry;
-      setLocalFilters(newFilters);
-      (onChange as (filters: KeyValueFilterEntry[]) => void)(newFilters);
-    } else if (mode === "numeric") {
-      const filters = localFilters as NumericKeyValueFilterEntry[];
-      const newFilters = [...filters];
-      newFilters[index] = {
-        ...newFilters[index],
-        ...updates,
-      } as NumericKeyValueFilterEntry;
-      setLocalFilters(newFilters);
-      (onChange as (filters: NumericKeyValueFilterEntry[]) => void)(newFilters);
-    } else if (mode === "boolean") {
-      const filters = localFilters as BooleanKeyValueFilterEntry[];
-      const newFilters = [...filters];
-      newFilters[index] = {
-        ...newFilters[index],
-        ...updates,
-      } as BooleanKeyValueFilterEntry;
-      setLocalFilters(newFilters);
-      (onChange as (filters: BooleanKeyValueFilterEntry[]) => void)(newFilters);
-    } else {
-      const filters = localFilters as StringKeyValueFilterEntry[];
-      const newFilters = [...filters];
-      newFilters[index] = {
-        ...newFilters[index],
-        ...updates,
-      } as StringKeyValueFilterEntry;
-      setLocalFilters(newFilters);
-      (onChange as (filters: StringKeyValueFilterEntry[]) => void)(newFilters);
-    }
+    const filters = [...localFilters];
+    filters[index] = { ...filters[index], ...updates } as KeyedFilterEntry;
+    updateFilters(filters);
   };
 
   const handleAddFilter = () => {
-    if (mode === "categorical") {
-      const newFilter: KeyValueFilterEntry = {
-        key: "",
-        operator: "any of" as const,
-        value: [],
-      };
-      const filters = localFilters as KeyValueFilterEntry[];
-      const newFilters = [...filters, newFilter];
-      setLocalFilters(newFilters);
-    } else if (mode === "numeric") {
-      const newFilter: NumericKeyValueFilterEntry = {
-        key: "",
-        operator: "=" as const,
-        value: "",
-      };
-      const filters = localFilters as NumericKeyValueFilterEntry[];
-      const newFilters = [...filters, newFilter];
-      setLocalFilters(newFilters);
-    } else if (mode === "boolean") {
-      const newFilter: BooleanKeyValueFilterEntry = {
-        key: "",
-        operator: "=" as const,
-        value: "",
-      };
-      const filters = localFilters as BooleanKeyValueFilterEntry[];
-      const newFilters = [...filters, newFilter];
-      setLocalFilters(newFilters);
-    } else {
-      const newFilter: StringKeyValueFilterEntry = {
-        key: "",
-        operator: "=" as const,
-        value: "",
-      };
-      const filters = localFilters as StringKeyValueFilterEntry[];
-      const newFilters = [...filters, newFilter];
-      setLocalFilters(newFilters);
-    }
+    setDraftFilters([
+      ...draftFilters,
+      {
+        index: localFilters.length,
+        filter:
+          mode === "categorical"
+            ? { key: "", operator: "any of", value: [] }
+            : { key: "", operator: "=", value: "" },
+      },
+    ]);
   };
 
   const handleRemoveFilter = (index: number) => {
-    if (mode === "categorical") {
-      const filters = localFilters as KeyValueFilterEntry[];
-      const newFilters = filters.filter((_, i) => i !== index);
-      setLocalFilters(newFilters);
-      (onChange as (filters: KeyValueFilterEntry[]) => void)(newFilters);
-    } else if (mode === "numeric") {
-      const filters = localFilters as NumericKeyValueFilterEntry[];
-      const newFilters = filters.filter((_, i) => i !== index);
-      setLocalFilters(newFilters);
-      (onChange as (filters: NumericKeyValueFilterEntry[]) => void)(newFilters);
-    } else if (mode === "boolean") {
-      const filters = localFilters as BooleanKeyValueFilterEntry[];
-      const newFilters = filters.filter((_, i) => i !== index);
-      setLocalFilters(newFilters);
-      (onChange as (filters: BooleanKeyValueFilterEntry[]) => void)(newFilters);
-    } else {
-      const filters = localFilters as StringKeyValueFilterEntry[];
-      const newFilters = filters.filter((_, i) => i !== index);
-      setLocalFilters(newFilters);
-      (onChange as (filters: StringKeyValueFilterEntry[]) => void)(newFilters);
-    }
+    updateFilters(localFilters.filter((_, i) => i !== index));
   };
 
   return (
@@ -486,11 +434,9 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                                 {option}
                               </span>
                               {keyLevels?.[option]?.map((level) => (
-                                <ScoreTag
-                                  key={level}
-                                  level={level}
-                                  className="ml-1.5"
-                                />
+                                <span key={level} className="ml-1.5">
+                                  <ScoreTag level={level} />
+                                </span>
                               ))}
                             </InputCommandItem>
                           ))}

@@ -73,7 +73,7 @@ export function AutocompleteListbox({
       data-testid="search-bar-autocomplete"
       data-stage={plan.stage}
       className={cn(
-        "w-max max-w-[calc(100vw-16px)] min-w-[min(420px,calc(100vw-16px))]",
+        "ph-no-capture w-max max-w-[calc(100vw-16px)] min-w-[min(420px,calc(100vw-16px))]",
         "max-h-[min(420px,40vh)] overflow-x-hidden overflow-y-auto",
         "bg-popover text-popover-foreground rounded-md border py-1 shadow-md",
       )}
@@ -137,7 +137,7 @@ export function AutocompleteListbox({
               </span>
               {o.kind === "field" &&
                 o.scoreLevels?.map((level) => (
-                  <ScoreTag key={level} level={level} className="flex-none" />
+                  <ScoreTag key={level} level={level} />
                 ))}
               {o.kind === "value" && o.active && (
                 <Check

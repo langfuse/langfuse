@@ -11,7 +11,7 @@ import {
   usePreviewData,
 } from "@/src/features/evals/hooks/usePreviewData";
 import { useFirstEvalPreviewPointer } from "@/src/features/evals/hooks/useEvalPreviewNavigation";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events";
 import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import {
@@ -26,10 +26,6 @@ import { useMemo } from "react";
 import { toast } from "sonner";
 
 import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
-import {
-  isEventTarget,
-  isExperimentTarget,
-} from "@/src/features/evals/utils/typeHelpers";
 
 type CodeEvalTestRunResult =
   | RouterOutputs["evals"]["testRunCodeEval"]
@@ -43,41 +39,31 @@ type CodeEvalInputPreviewData = Extract<
   { type: typeof EvalTargetObject.EVENT }
 >;
 
-function isCodeEvalTestTarget(
-  target: EvalFormType["target"],
-): target is
-  | typeof EvalTargetObject.EVENT
-  | typeof EvalTargetObject.EXPERIMENT {
-  return isEventTarget(target) || isExperimentTarget(target);
-}
-
 export function CodeEvalTestRunCard({
   projectId,
   evalTemplate,
   target,
   scoreName,
-  disabled = false,
   enableExecutionTracePeek = true,
 }: {
   projectId: string;
   evalTemplate: EvalTemplate;
-  target: EvalFormType["target"];
+  target: typeof EvalTargetObject.EVENT | typeof EvalTargetObject.EXPERIMENT;
   scoreName: EvalFormType["scoreName"];
-  disabled?: boolean;
   enableExecutionTracePeek?: boolean;
 }) {
-  const { isBetaEnabled } = useV4Beta();
-  const isSupportedTarget = isCodeEvalTestTarget(target);
-  const canPreview = isSupportedTarget && !disabled;
+  const { isV4 } = useReadPath();
   const previewPointer = useFirstEvalPreviewPointer({
     target,
-    useEventsTable: isBetaEnabled,
+    useEventsTable: isV4,
   });
   const peekNavigationProps = usePeekNavigation({
     // traceId: not written here, but cleared (and preferred by the trace
     // reader) so a stray param cannot pin the peek to a foreign trace
     // (LFE-11041).
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: "evalTemplates",
+    isV4,
     expandConfig: {
       basePath: `/project/${projectId}/traces`,
     },
@@ -93,7 +79,7 @@ export function CodeEvalTestRunCard({
 
   const { previewData, isLoading } = usePreviewData({
     projectId,
-    enabled: canPreview && Boolean(previewPointer),
+    enabled: Boolean(previewPointer),
     target,
     traceId: previewPointer?.traceId,
     observationId: previewPointer?.observationId,
@@ -113,8 +99,6 @@ export function CodeEvalTestRunCard({
       toast.error(result.error.message);
     },
   });
-
-  if (!isSupportedTarget || !canPreview) return null;
 
   return (
     <>
@@ -162,7 +146,7 @@ export function CodeEvalTestRunCard({
                   observationId,
                   traceId,
                   startTime: timestamp,
-                  shouldReadFromObservationsTable: !isBetaEnabled,
+                  shouldReadFromObservationsTable: !isV4,
                 });
               }}
             >

@@ -71,6 +71,43 @@ describe("/api/public/v2/observations API Endpoint", () => {
   });
 
   maybe("GET /api/public/v2/observations", () => {
+    it("clamps Hobby observation access to the last 30 days", async () => {
+      const fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
+      const oldId = randomUUID();
+      const recentId = randomUUID();
+      const createObservationAt = (id: string, timestamp: number) =>
+        createEvent({
+          id,
+          span_id: id,
+          trace_id: randomUUID(),
+          project_id: fixture.projectId,
+          name: `data-access-${id}`,
+          type: "SPAN",
+          level: "DEFAULT",
+          start_time: timestamp * 1000,
+          end_time: timestamp * 1000 + 1_000,
+        });
+      await createEventsCh([
+        createObservationAt(oldId, Date.now() - 100 * 24 * 60 * 60 * 1000),
+        createObservationAt(recentId, Date.now() - 24 * 60 * 60 * 1000),
+      ]);
+
+      const response = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        "/api/public/v2/observations",
+        undefined,
+        fixture.auth,
+      );
+
+      expect(response.body.data.map((observation) => observation.id)).toContain(
+        recentId,
+      );
+      expect(
+        response.body.data.map((observation) => observation.id),
+      ).not.toContain(oldId);
+    });
+
     it("allows legacy v1 contains filters on IO", async () => {
       const filterParam = JSON.stringify([
         {

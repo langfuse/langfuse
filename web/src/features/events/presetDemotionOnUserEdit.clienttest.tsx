@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import {
   TableViewPresetTableName,
   encodeFiltersGeneric,
@@ -6,22 +12,22 @@ import {
   type TableViewPresetState,
 } from "@langfuse/shared";
 import { useCallback, useRef } from "react";
-import { useSidebarFilterState } from "../filters/hooks/useSidebarFilterState";
-import type { FilterConfig } from "../filters/lib/filter-config";
+import { useStore } from "zustand";
+import { useEventsTableSearch } from "./hooks/useEventsTableSearch";
+import {
+  type FilterConfig,
+  useSidebarFilterState,
+} from "@/src/features/filters";
 import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
+import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   demoteViewOnUserFilterEdit,
   type ViewDemotionControllers,
 } from "./lib/demoteViewOnUserFilterEdit";
 
-// LFE-14699: applying a system preset chip (e.g. "Latency over 10s") writes
-// `?viewId` to the URL AND to sessionStorage. Deleting the preset's filter
-// used to clear only the filter layer — the stored viewId survived, so the
-// next clean-URL mount ("Priority 1: Session storage" bootstrap) re-fetched
-// the preset and resurrected the filter the user just deleted, with the chip
-// staying lit the whole time. A user-origin filter edit must fully demote an
-// active SYSTEM preset (URL + session storage). User-saved views are
-// deliberately untouched (see demoteViewOnUserFilterEdit).
+// Editing an applied view clears its selection in both URL and session
+// storage, so a later table visit cannot restore the filters just edited.
 
 const mockUseRouter = vi.fn();
 const mockCapture = vi.fn();
@@ -127,6 +133,12 @@ const TEST_FILTER_CONFIG: FilterConfig = {
       options: [],
       internal: "name",
     },
+    {
+      id: "metadata",
+      name: "Metadata",
+      type: "stringObject",
+      internal: "metadata",
+    },
   ],
   facets: [
     {
@@ -134,6 +146,7 @@ const TEST_FILTER_CONFIG: FilterConfig = {
       column: "name",
       label: "Name",
     },
+    { type: "stringKeyValue", column: "metadata", label: "Metadata" },
   ],
 };
 
@@ -171,6 +184,20 @@ const PRESET_VIEW_DATA = {
   ...PRESET_VIEW_STATE,
 };
 
+const USER_VIEW_STATE: TableViewPresetState = {
+  ...PRESET_VIEW_STATE,
+  filters: [
+    ...PRESET_FILTERS,
+    {
+      column: "metadata",
+      type: "stringObject",
+      key: "region",
+      operator: "=",
+      value: "eu",
+    },
+  ],
+};
+
 const storedViewId = () => {
   const raw = sessionStorage.getItem(VIEW_ID_STORAGE_KEY);
   return raw === null ? null : JSON.parse(raw);
@@ -179,17 +206,25 @@ const storedViewId = () => {
 /** Mirrors the EventsTable wiring: sidebar filter state with the demotion
  * callback (reading late-bound view controllers through a ref), and the view
  * manager applying saved-view filters with origin "saved_view". */
-function Harness() {
+function Harness({ projectId = PROJECT_ID }: { projectId?: string }) {
   const viewControllersRef = useRef<ViewDemotionControllers | null>(null);
+  const [orderBy, setOrderBy] = useOrderByState(null);
+  const resetSearchDraftRef = useRef<((filters: FilterState) => void) | null>(
+    null,
+  );
 
   const queryFilter = useSidebarFilterState(
     TEST_FILTER_CONFIG,
     { name: ["checkout", "search"] },
     {
       stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: PROJECT_ID,
-      onExplicitFilterStateChange: (change) =>
-        demoteViewOnUserFilterEdit(change, viewControllersRef.current),
+      sessionFilterContextId: projectId,
+      onExplicitFilterStateChange: (change) => {
+        demoteViewOnUserFilterEdit(change, viewControllersRef.current);
+        if (change.origin === "user" && change.action === "clear") {
+          resetSearchDraftRef.current?.(change.nextFilters);
+        }
+      },
     },
   );
 
@@ -200,35 +235,90 @@ function Harness() {
       queryFilterRef.current.setFilterState(filters, { origin: "saved_view" }),
     [],
   );
-
-  const { selectedViewId, appliedViewId, handleSetViewId, applyViewState } =
-    useTableViewManager({
-      tableName: TableViewPresetTableName.ObservationsEvents,
-      projectId: PROJECT_ID,
-      stateUpdaters: {
-        setFilters: setSavedViewFiltersWrapper,
-        setColumnOrder: () => {},
-        setColumnVisibility: () => {},
-      },
-      validationContext: {
-        columns: [],
-        filterColumnDefinition: TEST_FILTER_CONFIG.columnDefinitions,
-      },
-      currentFilterState: queryFilter.explicitFilterState,
-      allowBackendSystemPresets: true,
+  const searchBar = useEventsTableSearch({
+    projectId,
+    tableName: "observations-events",
+    enabled: true,
+    useHostSearchScopes: false,
+    filterState: queryFilter.searchBarFilterState,
+    searchQuery: null,
+    searchType: ["id", "content"],
+    observed: undefined,
+    setFilterState: queryFilter.setFilterState,
+    setSearchQuery: () => {},
+    setSearchType: () => {},
+  });
+  const searchDraft = useStore(searchBar.store, (state) => state.draft);
+  resetSearchDraftRef.current = (filters) =>
+    searchBar.resetDraft({
+      filters: queryFilter.projectFiltersForSearchBar(filters),
+      searchQuery: null,
+      searchType: ["id", "content"],
     });
+
+  const {
+    selectedViewId,
+    appliedViewId,
+    viewUpdateTarget,
+    filterEditorResetKey,
+    handleSetViewId,
+    handleUserStateChange,
+    applyViewState,
+  } = useTableViewManager({
+    tableName: TableViewPresetTableName.ObservationsEvents,
+    projectId,
+    stateUpdaters: {
+      setFilters: setSavedViewFiltersWrapper,
+      setOrderBy,
+      setColumnOrder: () => {},
+      setColumnVisibility: () => {},
+    },
+    validationContext: {
+      columns: [],
+      filterColumnDefinition: TEST_FILTER_CONFIG.columnDefinitions,
+    },
+    currentFilterState: queryFilter.explicitFilterState,
+    allowBackendSystemPresets: true,
+    onViewApplied: (viewState) =>
+      searchBar.resetDraft({
+        filters: queryFilter.projectFiltersForSearchBar(viewState.filters),
+        searchQuery: viewState.searchQuery ?? null,
+        searchType: ["id", "content"],
+      }),
+  });
   viewControllersRef.current = {
     selectedViewId,
     handleSetViewId,
+    handleUserStateChange,
   };
+  const metadataFacet = queryFilter.filters.find(
+    (filter) => filter.type === "stringKeyValue",
+  );
+  if (!metadataFacet) throw new Error("Missing metadata facet");
 
   return (
     <div>
       <div data-testid="selected-view-id">{selectedViewId ?? "null"}</div>
       <div data-testid="applied-view-id">{appliedViewId ?? "null"}</div>
+      <pre data-testid="view-update-target">
+        {JSON.stringify(viewUpdateTarget ?? null)}
+      </pre>
       <pre data-testid="explicit-state">
         {JSON.stringify(queryFilter.explicitFilterState)}
       </pre>
+      <textarea
+        aria-label="Search draft"
+        value={searchDraft}
+        onChange={(event) =>
+          searchBar.store.getState().actions.setDraft(event.target.value)
+        }
+      />
+      <KeyValueFilterBuilder
+        key={filterEditorResetKey}
+        mode="string"
+        activeFilters={metadataFacet.value}
+        onChange={metadataFacet.onChange}
+      />
       <button
         onClick={() => {
           // Mirrors a CategoryPresetChips row click.
@@ -245,7 +335,7 @@ function Harness() {
         onClick={() => {
           // Mirrors the saved-views drawer's handleSelectView.
           handleSetViewId(USER_VIEW_ID);
-          applyViewState(PRESET_VIEW_STATE, {
+          applyViewState(USER_VIEW_STATE, {
             trigger: "select",
             viewId: USER_VIEW_ID,
           });
@@ -256,6 +346,15 @@ function Harness() {
       <button onClick={() => queryFilter.setFilterState([])}>
         user-clear-filters
       </button>
+      <button
+        onClick={() => {
+          handleSetViewId(USER_VIEW_ID);
+          applyViewState({ ...USER_VIEW_STATE, filters: [] });
+        }}
+      >
+        apply-empty-view
+      </button>
+      <button onClick={queryFilter.clearAll}>clear-all</button>
       <button onClick={() => queryFilter.setFilterState(EXTRA_FILTERS)}>
         user-add-filter
       </button>
@@ -265,6 +364,30 @@ function Harness() {
         }
       >
         user-recommit-same
+      </button>
+      <button
+        onClick={() =>
+          queryFilter.setFilterState(EXTRA_FILTERS, { origin: "system" })
+        }
+      >
+        system-reconcile
+      </button>
+      <button
+        onClick={() => {
+          handleUserStateChange(orderBy, null);
+          setOrderBy(null);
+        }}
+      >
+        user-keep-sort
+      </button>
+      <button
+        onClick={() => {
+          const nextOrderBy = { column: "name", order: "ASC" as const };
+          handleUserStateChange(orderBy, nextOrderBy);
+          setOrderBy(nextOrderBy);
+        }}
+      >
+        user-sort
       </button>
     </div>
   );
@@ -284,7 +407,7 @@ const applyPresetAndAssertActive = async () => {
   });
 };
 
-describe("system preset demotion on user filter edits (LFE-14699)", () => {
+describe("saved-view demotion on user filter edits", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sessionStorage.clear();
@@ -380,7 +503,7 @@ describe("system preset demotion on user filter edits (LFE-14699)", () => {
     });
   });
 
-  it("does not demote on a no-op user write (unchanged filters)", async () => {
+  it("preserves selection for no-op edits and system reconciliation", async () => {
     render(<Harness />);
     await applyPresetAndAssertActive();
 
@@ -392,14 +515,68 @@ describe("system preset demotion on user filter edits (LFE-14699)", () => {
       );
       expect(storedViewId()).toBe(PRESET_ID);
     });
+
+    fireEvent.click(screen.getByRole("button", { name: "system-reconcile" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("explicit-state").textContent).toContain(
+        "search",
+      );
+    });
+    expect(screen.getByTestId("selected-view-id").textContent).toBe(PRESET_ID);
+    expect(storedViewId()).toBe(PRESET_ID);
   });
 
-  it("does not demote a user-saved view on a user filter edit (system presets only)", async () => {
-    // Deliberate scoping: demoting a user-saved view (even session-only)
-    // breaks the appliedViewId === selectedViewId column-trust signal the
-    // drawer's "Update view" relies on (LFE-10486) — user views keep today's
-    // behavior wholesale.
+  it("discards an invalid search draft when explicitly reapplying the same empty view", async () => {
     render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "apply-empty-view" }));
+    const draft = screen.getByRole("textbox", { name: "Search draft" });
+    fireEvent.change(draft, { target: { value: "level:(" } });
+    expect(draft).toHaveValue("level:(");
+    fireEvent.click(screen.getByRole("button", { name: "apply-empty-view" }));
+    expect(draft).toHaveValue("");
+  });
+
+  it("discards an invalid search draft when clearing an already-empty applied filter state", async () => {
+    render(<Harness />);
+    const draft = screen.getByRole("textbox", { name: "Search draft" });
+    fireEvent.change(draft, { target: { value: "level:(" } });
+    fireEvent.click(screen.getByRole("button", { name: "clear-all" }));
+    expect(draft).toHaveValue("");
+  });
+
+  it("preserves a search draft while a sorting edit deselects its view", async () => {
+    render(<Harness />);
+    await applyPresetAndAssertActive();
+    const draft = screen.getByRole("textbox", { name: "Search draft" });
+    fireEvent.change(draft, { target: { value: "level:(" } });
+    fireEvent.click(screen.getByRole("button", { name: "user-sort" }));
+    expect(draft).toHaveValue("level:(");
+    expect(screen.getByTestId("selected-view-id")).toHaveTextContent("null");
+  });
+
+  it("leaves an empty saved view on Clear all and retains its update destination", async () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "apply-empty-view" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe(
+        USER_VIEW_ID,
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "clear-all" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
+    });
+    expect(storedViewId()).toBe(null);
+    expect(queryParamStore.has("viewId")).toBe(false);
+    expect(screen.getByTestId("view-update-target").textContent).toContain(
+      USER_VIEW_ID,
+    );
+  });
+
+  it("clears a user-saved view from shared state, URL and session on an actual filter edit", async () => {
+    const { unmount } = render(<Harness />);
 
     fireEvent.click(screen.getByRole("button", { name: "apply-user-view" }));
 
@@ -410,28 +587,87 @@ describe("system preset demotion on user filter edits (LFE-14699)", () => {
       expect(storedViewId()).toBe(USER_VIEW_ID);
     });
 
+    fireEvent.click(screen.getByRole("button", { name: "user-recommit-same" }));
+    expect(screen.getByTestId("selected-view-id").textContent).toBe(
+      USER_VIEW_ID,
+    );
+    expect(storedViewId()).toBe(USER_VIEW_ID);
+
     fireEvent.click(screen.getByRole("button", { name: "user-clear-filters" }));
 
     await waitFor(() => {
       expect(screen.getByTestId("explicit-state").textContent).toBe("[]");
     });
-    // URL viewId AND session restore both stay: user views are untouched.
-    expect(screen.getByTestId("selected-view-id").textContent).toBe(
-      USER_VIEW_ID,
-    );
-    expect(screen.getByTestId("applied-view-id").textContent).toBe(
-      USER_VIEW_ID,
-    );
-    expect(storedViewId()).toBe(USER_VIEW_ID);
+    expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
+    expect(screen.getByTestId("applied-view-id").textContent).toBe("null");
+    expect(queryParamStore.has("viewId")).toBe(false);
+    expect(storedViewId()).toBe(null);
+    expect(urlParamWrites).toContainEqual({
+      key: "viewId",
+      value: null,
+      updateType: "replaceIn",
+    });
+    const updateTarget = {
+      viewId: USER_VIEW_ID,
+      columnsApplied: true,
+    };
+    expect(
+      JSON.parse(screen.getByTestId("view-update-target").textContent!),
+    ).toEqual(updateTarget);
+    unmount();
+    mockGetDefaultUseQuery.mockReturnValue({
+      data: { viewId: USER_VIEW_ID, scope: "project" },
+      isLoading: false,
+    });
+    render(<Harness />);
+    expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
+    expect(
+      JSON.parse(screen.getByTestId("view-update-target").textContent!),
+    ).toEqual(updateTarget);
+    fireEvent.click(screen.getByRole("button", { name: "apply-user-view" }));
+    expect(screen.getByTestId("view-update-target").textContent).toBe("null");
   });
 
-  it("ignores a stale sessionStorage preset id when the URL names a user view", async () => {
-    // sessionStorage's storedViewId is deliberately NOT synced when a link
-    // with explicit table state is opened (hasExplicitTableStateInUrl), so it
-    // can go stale: chip applied earlier in the tab → user opens a saved
-    // view's permalink. Keying the demotion off the stale stored id would
-    // strip the user view's ?viewId on the next edit — the decision must read
-    // the URL's selectedViewId only.
+  it("keeps an edited view's update target scoped to its project during navigation", async () => {
+    const otherProjectId = "project-2";
+    const { rerender, unmount } = render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "apply-user-view" }));
+    fireEvent.click(screen.getByRole("button", { name: "user-clear-filters" }));
+
+    const updateTarget = { viewId: USER_VIEW_ID, columnsApplied: true };
+    const storageKey = (projectId: string) =>
+      `${TableViewPresetTableName.ObservationsEvents}-${projectId}-viewUpdateTarget`;
+    expect(JSON.parse(sessionStorage.getItem(storageKey(PROJECT_ID))!)).toEqual(
+      updateTarget,
+    );
+
+    rerender(<Harness projectId={otherProjectId} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("view-update-target").textContent).toBe("null");
+    });
+    expect(sessionStorage.getItem(storageKey(otherProjectId))).toBe("null");
+    expect(JSON.parse(sessionStorage.getItem(storageKey(PROJECT_ID))!)).toEqual(
+      updateTarget,
+    );
+
+    unmount();
+    mockGetDefaultUseQuery.mockReturnValue({
+      data: { viewId: PRESET_ID, scope: "project" },
+      isLoading: false,
+    });
+    render(<Harness projectId={otherProjectId} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe(
+        PRESET_ID,
+      );
+      expect(screen.getByTestId("explicit-state").textContent).toContain(
+        "checkout",
+      );
+    });
+  });
+
+  it("clears both IDs after editing a shared view whose session ID is stale", async () => {
+    // A shared link with explicit state can leave the prior session ID intact.
     sessionStorage.setItem(VIEW_ID_STORAGE_KEY, JSON.stringify(PRESET_ID));
     queryParamStore.set("viewId", USER_VIEW_ID);
     queryParamStore.set("filter", encodeFiltersGeneric(PRESET_FILTERS));
@@ -454,23 +690,66 @@ describe("system preset demotion on user filter edits (LFE-14699)", () => {
         "search",
       );
     });
-    // The user view's URL provenance survives; the demotion never fired.
+    expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
+    expect(screen.getByTestId("applied-view-id").textContent).toBe("null");
+    expect(queryParamStore.has("viewId")).toBe(false);
+    expect(storedViewId()).toBe(null);
+    expect(
+      JSON.parse(screen.getByTestId("view-update-target").textContent!),
+    ).toEqual({
+      viewId: USER_VIEW_ID,
+      columnsApplied: false,
+    });
+  });
+
+  it("preserves an incomplete metadata edit on deselection and resets drafts only when a view is applied", () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "apply-user-view" }));
+
+    const value = screen.getByDisplayValue("eu");
+    act(() => value.focus());
+    fireEvent.change(value, { target: { value: "" } });
+
+    expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
+    expect(queryParamStore.has("viewId")).toBe(false);
+    expect(storedViewId()).toBe(null);
+    expect(screen.getByDisplayValue("region")).toBeInTheDocument();
+    expect(value).toHaveFocus();
+
+    fireEvent.change(screen.getByDisplayValue("region"), {
+      target: { value: "draft-region" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "apply-user-view" }));
+    expect(screen.queryByDisplayValue("draft-region")).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue("eu")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Add filter"));
+    fireEvent.change(screen.getAllByPlaceholderText("Key")[1], {
+      target: { value: "pending-key" },
+    });
     expect(screen.getByTestId("selected-view-id").textContent).toBe(
       USER_VIEW_ID,
     );
-    expect(queryParamStore.get("viewId")).toBe(USER_VIEW_ID);
-    expect(
-      urlParamWrites.filter(
-        (write) => write.key === "viewId" && write.value === null,
-      ),
-    ).toEqual([]);
-    // The two signals diverge for the whole visit: sessionStorage still names
-    // the stale preset while the URL names the user view. selectedViewId is
-    // what the events table feeds CategoryPresetChips as activeViewId — the
-    // stale stored id must not light a chip either.
+    fireEvent.click(screen.getByRole("button", { name: "apply-user-view" }));
+    expect(screen.queryByDisplayValue("pending-key")).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue("eu")).toBeInTheDocument();
+  });
+
+  it("keeps selection for unchanged sorting and clears it when the sort changes", async () => {
+    render(<Harness />);
+    await applyPresetAndAssertActive();
+
+    fireEvent.click(screen.getByRole("button", { name: "user-keep-sort" }));
+    expect(queryParamStore.get("viewId")).toBe(PRESET_ID);
     expect(storedViewId()).toBe(PRESET_ID);
-    expect(screen.getByTestId("selected-view-id").textContent).not.toBe(
-      PRESET_ID,
-    );
+
+    fireEvent.click(screen.getByRole("button", { name: "user-sort" }));
+    expect(queryParamStore.get("orderBy")).toEqual({
+      column: "name",
+      order: "ASC",
+    });
+    expect(queryParamStore.has("viewId")).toBe(false);
+    expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
+    expect(storedViewId()).toBe(null);
   });
 });

@@ -1,3 +1,4 @@
+import { showErrorToast } from "@/src/features/notifications";
 import CodeMirror, {
   Decoration,
   EditorView,
@@ -24,7 +25,7 @@ import {
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   Tooltip,
   TooltipContent,
@@ -33,7 +34,8 @@ import {
 import { darkTheme } from "@/src/components/editor/dark-theme";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { tolerateUnstableViewportPosAtCoords } from "@/src/components/editor/tolerateUnstableViewportPosAtCoords";
+import { codeMirrorSearchPanel } from "@/src/constants/codeMirrorSearchPanel";
 import {
   getCodeEvalHoverDocs,
   PROPERTY_ACCESS_ONLY_HOVER_KEYS,
@@ -256,6 +258,12 @@ export function CodeEvalTemplateFormBody({
     sourceCodeRef.current = sourceCode;
   });
   const handleSourceCodeChange = useCallback((value: string) => {
+    // CodeMirror's MutationObserver can echo the current document back through
+    // onChange while React is already committing the same value. Pushing that
+    // echo into form state nests setState until React hits max update depth.
+    if (value === sourceCodeRef.current) {
+      return;
+    }
     sourceCodeRef.current = value;
     onSourceCodeChangeRef.current(value);
   }, []);
@@ -364,6 +372,7 @@ export function CodeEvalTemplateFormBody({
   );
   const extensions = useMemo(
     () => [
+      tolerateUnstableViewportPosAtCoords,
       // The `editable` prop only blocks direct typing; readOnly also blocks
       // paste and drag-and-drop edits.
       ...(!editable ? [EditorState.readOnly.of(true)] : []),
@@ -376,6 +385,7 @@ export function CodeEvalTemplateFormBody({
         : []),
       EditorView.lineWrapping,
       codeMirrorLayoutTheme,
+      codeMirrorSearchPanel,
     ],
     [
       codeEvalCompletionExtension,
@@ -397,15 +407,9 @@ export function CodeEvalTemplateFormBody({
     >
       {isFormatting && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
       Format
-      <KeyboardShortcut
-        className="ml-2 h-4"
-        keys={
-          typeof navigator !== "undefined" &&
-          navigator.userAgent.includes("Macintosh")
-            ? ["⇧", "⌥", "F"]
-            : ["Shift", "Alt", "F"]
-        }
-      />
+      <span className="ml-2 hidden md:inline-flex">
+        <KeyboardShortcut size="sm" keys={["Shift", "Alt", "F"]} />
+      </span>
     </Button>
   );
 
@@ -439,7 +443,7 @@ export function CodeEvalTemplateFormBody({
         editable={editable}
         onChange={handleSourceCodeChange}
         onCreateEditor={handleCreateEditor}
-        className="overflow-hidden rounded-md border text-xs"
+        className="ph-no-capture overflow-hidden rounded-md border text-xs"
       />
       <p className="text-muted-foreground text-xs">
         Hover over <code className="font-mono">ctx</code> to preview its type

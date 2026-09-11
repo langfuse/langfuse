@@ -1,4 +1,4 @@
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { DataTable } from "@/src/components/table/data-table";
 import {
   type CustomHeights,
@@ -11,26 +11,42 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { EVAL_LOGS_FIELD_REGISTRY } from "@/src/features/evals/constants/tableSearchRegistry";
 import { evalLogFilterConfig } from "@/src/features/filters/config/eval-logs-config";
+import { useSidebarFilterState } from "@/src/features/filters";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
-import { type Prisma } from "@langfuse/shared";
+import { JobExecutionStatus, type Prisma } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
+
+const jobExecutionStatusToStatus = {
+  [JobExecutionStatus.COMPLETED]: "completed",
+  [JobExecutionStatus.ERROR]: "error",
+  [JobExecutionStatus.PENDING]: "pending",
+  [JobExecutionStatus.CANCELLED]: "cancelled",
+  [JobExecutionStatus.DELAYED]: "delayed",
+} satisfies Record<JobExecutionStatus, Status>;
 
 export type JobExecutionRow = {
-  status: string;
+  status: JobExecutionStatus;
   scoreName?: string;
   scoreValue?: number | string;
   scoreComment?: string;
   scoreMetadata?: Prisma.JsonValue;
-  startTime?: string;
-  endTime?: string;
+  startTime?: Date;
+  endTime?: Date;
   traceId?: string;
   executionTraceId?: string;
   templateId: string;
@@ -57,9 +73,14 @@ export default function EvalLogTable({
     pageSize: withDefault(NumberParam, 50),
   });
 
+  const filterOptions = Object.fromEntries(
+    evalLogFilterConfig.columnDefinitions.flatMap((column) =>
+      column.type === "stringOptions" ? [[column.id, column.options]] : [],
+    ),
+  );
   const queryFilter = useSidebarFilterState(
     evalLogFilterConfig,
-    {}, // No dynamic options needed - status options are in column definition
+    filterOptions,
     {
       loading: false,
       stateLocation: "urlAndSessionStorage",
@@ -78,31 +99,25 @@ export default function EvalLogTable({
 
   const columnHelper = createColumnHelper<JobExecutionRow>();
   const columns = [
-    columnHelper.accessor("status", {
+    createStatusTableColumn<JobExecutionRow, JobExecutionStatus>({
+      accessorKey: "status",
       header: "Status",
-      id: "status",
-      cell: (row) => {
-        const status = row.getValue();
-        return (
-          <div className="w-fit self-start">
-            <StatusBadge type={status.toLowerCase()} />
-          </div>
-        );
-      },
+      getStatus: (status) =>
+        status ? jobExecutionStatusToStatus[status] : undefined,
     }),
-    columnHelper.accessor("startTime", {
-      id: "startTime",
+    createDateTableColumn<JobExecutionRow>({
+      accessorKey: "startTime",
       header: "Start Time",
       enableHiding: true,
     }),
-    columnHelper.accessor("endTime", {
-      id: "endTime",
+    createDateTableColumn<JobExecutionRow>({
+      accessorKey: "endTime",
       header: "End Time",
       enableHiding: true,
     }),
-    columnHelper.accessor("scoreName", {
+    createIdTableColumn<JobExecutionRow>({
+      accessorKey: "scoreName",
       header: "Score Name",
-      id: "scoreName",
       enableHiding: true,
     }),
     columnHelper.accessor("scoreValue", {
@@ -120,57 +135,21 @@ export default function EvalLogTable({
         return value;
       },
     }),
-    columnHelper.accessor("scoreComment", {
+    createIOTableColumn<JobExecutionRow>({
+      accessorKey: "scoreComment",
       header: "Score Comment",
-      id: "scoreComment",
       enableHiding: true,
       cellPadding: "none",
-      loadingCell: () => (
-        <IOTableCell
-          isLoading
-          data={undefined}
-          padding="compact"
-          singleLine={rowHeight === "s"}
-        />
-      ),
-      cell: (row) => {
-        const value = row.getValue();
-        return (
-          value !== undefined && (
-            <IOTableCell
-              data={value}
-              padding="compact"
-              singleLine={rowHeight === "s"}
-            />
-          )
-        );
-      },
+      compact: true,
+      singleLine: rowHeight === "s",
     }),
-    columnHelper.accessor("error", {
-      id: "error",
+    createIOTableColumn<JobExecutionRow>({
+      accessorKey: "error",
       header: "Error",
       enableHiding: true,
       cellPadding: "none",
-      loadingCell: () => (
-        <IOTableCell
-          isLoading
-          data={undefined}
-          padding="compact"
-          singleLine={rowHeight === "s"}
-        />
-      ),
-      cell: (row) => {
-        const value = row.getValue();
-        return (
-          value !== undefined && (
-            <IOTableCell
-              data={value}
-              padding="compact"
-              singleLine={rowHeight === "s"}
-            />
-          )
-        );
-      },
+      compact: true,
+      singleLine: rowHeight === "s",
     }),
     createLinkTableColumn<JobExecutionRow>({
       accessorKey: "traceId",
@@ -266,8 +245,8 @@ export default function EvalLogTable({
         jobConfig.score?.stringValue ?? jobConfig.score?.value ?? undefined,
       scoreComment: jobConfig.score?.comment ?? undefined,
       scoreMetadata: jobConfig.score?.metadata ?? undefined,
-      startTime: jobConfig.startTime?.toLocaleString() ?? undefined,
-      endTime: jobConfig.endTime?.toLocaleString() ?? undefined,
+      startTime: jobConfig.startTime ?? undefined,
+      endTime: jobConfig.endTime ?? undefined,
       traceId: jobConfig.jobInputTraceId ?? undefined,
       executionTraceId: jobConfig.executionTraceId ?? undefined,
       templateId: jobConfig.jobTemplateId ?? "",
@@ -282,7 +261,18 @@ export default function EvalLogTable({
       defaultSidebarCollapsed={evalLogFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
+        <TableSearchBar
+          key={queryFilter.draftResetKey}
+          projectId={projectId}
+          tableName={evalLogFilterConfig.tableName}
+          registry={EVAL_LOGS_FIELD_REGISTRY}
+          filterState={queryFilter.searchBarFilterState}
+          setFilterState={queryFilter.setFilterState}
+          observed={toObservedOptions(filterOptions, false)}
+          isV4={false}
+        />
         <DataTableToolbar
+          tableName="evalLogs"
           columns={columns}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}
@@ -294,7 +284,10 @@ export default function EvalLogTable({
         />
 
         <ResizableFilterLayout>
-          <DataTableControls queryFilter={queryFilter} />
+          <DataTableControls
+            key={queryFilter.draftResetKey}
+            queryFilter={queryFilter}
+          />
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable

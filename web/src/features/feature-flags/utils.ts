@@ -1,6 +1,7 @@
 import {
   availableFlags,
   filterFeaturePreviewFlags,
+  isRestrictedFlag,
   isFeaturePreviewFlag,
   isFeaturePreviewAvailable,
   type FeaturePreviewAvailabilityContext,
@@ -11,9 +12,7 @@ import { type Flags } from "./types";
 export const getFeaturePreviewOptOutFlag = (flag: FeaturePreviewFlag) =>
   `feature-preview:${flag}:disabled`;
 
-export const receivesFeaturePreviewsByDefault = (
-  email: string | null | undefined,
-) => {
+const receivesFeaturePreviewsByDefault = (email: string | null | undefined) => {
   const normalizedEmail = email?.toLowerCase();
   return (
     normalizedEmail?.endsWith("@langfuse.com") === true ||
@@ -25,6 +24,7 @@ export const parseFlags = (
   dbFlags: string[],
   context: FeaturePreviewAvailabilityContext & {
     email: string | null | undefined;
+    aiGatewayEnabled?: boolean;
   },
 ): Flags => {
   const parsedFlags = {} as Flags;
@@ -33,6 +33,11 @@ export const parseFlags = (
   );
 
   availableFlags.forEach((flag) => {
+    if (isRestrictedFlag(flag)) {
+      parsedFlags[flag] = context.aiGatewayEnabled === true;
+      return;
+    }
+
     if (
       isFeaturePreviewFlag(flag) &&
       dbFlags.includes(getFeaturePreviewOptOutFlag(flag))
@@ -61,6 +66,7 @@ export const parseFlagsWithOrganizationDefaults = (
   organizationDefaults: string[],
   context: FeaturePreviewAvailabilityContext & {
     email: string | null | undefined;
+    aiGatewayEnabled?: boolean;
   },
 ): Flags => {
   const featurePreviewDefaults =

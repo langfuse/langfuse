@@ -16,7 +16,7 @@ export function convertRowIdToKeyPath(rowId: string): string {
 }
 
 // Utility function to get children from lazy-loaded rows
-export function getRowChildren(row: JsonTableRow): JsonTableRow[] {
+function getRowChildren(row: JsonTableRow): JsonTableRow[] {
   if (row.subRows && row.subRows.length > 0) {
     return row.subRows;
   }

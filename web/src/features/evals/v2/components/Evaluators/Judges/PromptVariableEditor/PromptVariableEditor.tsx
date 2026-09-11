@@ -1,4 +1,4 @@
-import { Fragment, useMemo } from "react";
+import { Fragment, useMemo, type ReactNode } from "react";
 import {
   Decoration,
   type DecorationSet,
@@ -31,7 +31,7 @@ const promptFontTheme = EditorView.theme({
   // Match createTheme's selector specificity so this prompt-only override wins
   // over the shared editor theme's monospace default.
   "&.cm-editor .cm-scroller": { fontFamily: "var(--font-sans)" },
-  ".cm-content": { padding: "8px 0" },
+  ".cm-content": { padding: "8px 0", lineHeight: "1.25rem" },
   ".cm-line": { padding: "0 12px" },
 });
 
@@ -41,7 +41,7 @@ const promptFontTheme = EditorView.theme({
 // Tailwind class cannot outrank.
 const readOnlySurfaceTheme = EditorView.theme({
   "&.cm-editor, &.cm-editor .cm-gutters": {
-    backgroundColor: "hsl(var(--muted))",
+    backgroundColor: "hsl(var(--muted) / 0.5)",
   },
 });
 
@@ -162,6 +162,12 @@ export function PromptVariableEditor({
   preview,
   readOnly = false,
   validateVariableMappings = true,
+  renderPreviewText = (value) => value,
+  toolbarStart,
+  toolbarActionsBeforePreview,
+  toolbarActions,
+  onToolbarClick,
+  collapsed = false,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -183,6 +189,18 @@ export function PromptVariableEditor({
   readOnly?: boolean;
   /** Whether variables without a known mapping should receive a warning. */
   validateVariableMappings?: boolean;
+  /** Optional media-aware renderer for interpolated preview text. */
+  renderPreviewText?: (value: string) => ReactNode;
+  /** Controls rendered on the left side of the prompt header. */
+  toolbarStart?: ReactNode;
+  /** Controls rendered before the preview toggle on the right side. */
+  toolbarActionsBeforePreview?: ReactNode;
+  /** Controls rendered after the preview toggle on the right side. */
+  toolbarActions?: ReactNode;
+  /** Makes non-interactive areas of the prompt header toggle the message. */
+  onToolbarClick?: () => void;
+  /** Hides the editor/preview while preserving the prompt header. */
+  collapsed?: boolean;
 }) {
   // Statuses and labels travel as serialized keys and are parsed back inside
   // the memo, so the memo depends on their content rather than their identity.
@@ -207,71 +225,116 @@ export function PromptVariableEditor({
     ];
   }, [statusKey, mappingsKey, readOnly, validateVariableMappings]);
 
+  const hasToolbar =
+    !readOnly &&
+    Boolean(
+      showPreviewToggle ||
+      toolbarStart ||
+      toolbarActionsBeforePreview ||
+      toolbarActions,
+    );
+  const activePreview = previewEnabled ? preview : undefined;
+
   return (
     <div className="flex flex-col">
       {/* Toolbar attached above the prompt; the editor's (or preview's) own
           top border draws the seam. */}
-      {!readOnly && showPreviewToggle ? (
-        <div className="bg-secondary text-secondary-foreground flex items-center justify-end gap-1 rounded-t-md border border-b-0 px-1.5 py-1">
-          <label
-            className={cn(
-              "text-muted-foreground flex h-6 items-center gap-1.5 px-2 text-xs leading-none font-normal",
-              previewDisabledReason
-                ? "cursor-not-allowed opacity-60"
-                : "cursor-pointer",
-            )}
-            title={previewDisabledReason ?? undefined}
-          >
-            <Switch
-              size="sm"
-              checked={previewEnabled}
-              disabled={Boolean(previewDisabledReason)}
-              onCheckedChange={(checked) => onPreviewEnabledChange?.(checked)}
-            />
-            Preview
-          </label>
+      {hasToolbar ? (
+        <div
+          className={cn(
+            "bg-secondary text-secondary-foreground flex h-9 items-center justify-between gap-1 rounded-t-md border px-1.5",
+            collapsed ? "rounded-b-md" : "border-b-transparent",
+            onToolbarClick && "cursor-pointer",
+          )}
+          onClick={(event) => {
+            if (!onToolbarClick) return;
+            const target = event.target as HTMLElement;
+            if (
+              target.closest(
+                "button, a, input, label, [role='button'], [role='menuitem'], [role='switch']",
+              )
+            )
+              return;
+            onToolbarClick();
+          }}
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+            {toolbarStart}
+          </div>
+          <div className="flex h-6 shrink-0 items-center gap-1">
+            {toolbarActionsBeforePreview}
+            {showPreviewToggle ? (
+              <label
+                className={cn(
+                  "text-muted-foreground flex h-6 items-center gap-1.5 px-2 text-xs leading-none font-normal",
+                  previewDisabledReason
+                    ? "cursor-not-allowed opacity-60"
+                    : "cursor-pointer",
+                )}
+                title={previewDisabledReason ?? undefined}
+              >
+                <Switch
+                  size="sm"
+                  checked={previewEnabled}
+                  disabled={Boolean(previewDisabledReason)}
+                  onCheckedChange={(checked) =>
+                    onPreviewEnabledChange?.(checked)
+                  }
+                />
+                Preview
+              </label>
+            ) : null}
+            {toolbarActions}
+          </div>
         </div>
       ) : null}
 
-      {previewEnabled && preview ? (
-        preview.status === "unavailable" ? (
-          <p className="bg-card text-muted-foreground rounded-b-md border p-3 text-sm">
-            {preview.message}
-          </p>
-        ) : (
-          <pre className="bg-card text-card-foreground max-h-[60dvh] overflow-y-auto rounded-b-md border p-3 font-sans text-sm whitespace-pre-wrap">
-            {preview.fragments.map((fragment, index) => (
-              <Fragment key={index}>
-                {fragment.type === "text" ? (
-                  fragment.text
-                ) : (
-                  <span
-                    className="bg-primary-accent/10 rounded px-0.5"
-                    title={`{{${fragment.name}}}`}
-                  >
-                    {fragment.value}
-                  </span>
-                )}
-              </Fragment>
-            ))}
-          </pre>
-        )
-      ) : (
-        <CodeMirrorEditor
-          value={value}
-          onChange={onChange}
-          editable={!readOnly}
-          mode="prompt"
-          // Low enough that typical prompts hug their content — a tall fixed
-          // min-height leaves a dead strip under the last line that reads as
-          // broken bottom padding.
-          minHeight={140}
-          maxHeight="50dvh"
-          lineNumbers={false}
-          extensions={extensions}
-          className={cn(!readOnly && "rounded-t-none", "text-sm")}
-        />
-      )}
+      {!collapsed ? (
+        <div className="relative">
+          <div
+            className={cn(activePreview && "invisible")}
+            aria-hidden={activePreview ? true : undefined}
+          >
+            <CodeMirrorEditor
+              value={value}
+              onChange={onChange}
+              editable={!readOnly}
+              mode="prompt"
+              // Keep the editor mounted while previewing so it remains the
+              // stable height anchor for both surfaces.
+              minHeight={48}
+              maxHeight="50dvh"
+              lineNumbers={false}
+              extensions={extensions}
+              className={cn(hasToolbar && "rounded-t-none", "text-sm")}
+            />
+          </div>
+          {activePreview ? (
+            activePreview.status === "unavailable" ? (
+              <p className="ph-no-capture bg-muted/50 text-muted-foreground absolute inset-0 overflow-y-auto rounded-b-md border px-3 py-2 text-sm leading-5">
+                {activePreview.message}
+              </p>
+            ) : (
+              <pre className="ph-no-capture bg-muted/50 text-card-foreground absolute inset-0 overflow-y-auto rounded-b-md border px-3 py-2 font-sans text-sm leading-5 whitespace-pre-wrap">
+                {activePreview.fragments.map((fragment, index) => (
+                  <Fragment key={index}>
+                    {fragment.type === "text" ? (
+                      renderPreviewText(fragment.text)
+                    ) : (
+                      <span
+                        className="bg-primary-accent/10 dark:bg-accent-light-blue dark:text-accent-dark-blue rounded px-0.5"
+                        title={`{{${fragment.name}}}`}
+                      >
+                        {renderPreviewText(fragment.value)}
+                      </span>
+                    )}
+                  </Fragment>
+                ))}
+              </pre>
+            )
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,10 +1,6 @@
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import {
-  type CategoryCounts,
-  type ChartBin,
-  type HistogramBin,
-} from "@/src/features/scores/types";
+import type { CategoryCounts, ChartBin } from "@/src/features/scores";
 import { type RouterOutputs } from "@/src/utils/api";
 
 export const RESOURCE_METRICS = [
@@ -81,19 +77,6 @@ export function createHistogramData(
     chartLabels: ["count"],
     chartData,
   };
-}
-
-export function padChartData(chartData: HistogramBin[]) {
-  const emptyBin = { binLabel: "", empty: 0 };
-  if (chartData.length < 3) {
-    return [emptyBin, emptyBin, ...chartData, emptyBin, emptyBin];
-  }
-
-  if (chartData.length < 5) {
-    return [emptyBin, ...chartData, emptyBin];
-  }
-
-  return chartData;
 }
 
 // categorical score analytics helpers

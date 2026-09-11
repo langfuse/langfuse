@@ -4,15 +4,15 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
-import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
-import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
-import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createLinkListTableColumn } from "@/src/components/design-system/table/columns/createLinkListTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
   type UseSidebarFilterStateOptions,
@@ -55,6 +55,7 @@ import { TableHeaderControls } from "@/src/components/table/table-header-control
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { type TableAction } from "@/src/features/table/types";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
@@ -64,6 +65,9 @@ import { TableSelectionManager } from "@/src/features/table/components/TableSele
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { sessionsFieldRegistry } from "@/src/features/filters/config/sessionsSearchRegistry";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 
 export type SessionTableRow = {
   id: string;
@@ -86,7 +90,7 @@ export type SessionTableProps = {
   projectId: string;
   userId?: string;
   omittedFilter?: SessionOmittableFilterColumn[];
-  isBetaEnabled?: boolean;
+  isV4?: boolean;
   /**
    * When true, render the time-range picker and auto-refresh button in the
    * page header (next to the title) via the header controls slot, instead of
@@ -100,12 +104,12 @@ export default function SessionsTable({
   projectId,
   userId,
   omittedFilter = [],
-  isBetaEnabled = false,
+  isV4 = false,
   showControlsInPageHeader = false,
 }: SessionTableProps) {
   const sessionsFilterConfig = useMemo(
-    () => getSessionFilterConfig(omittedFilter, isBetaEnabled),
-    [isBetaEnabled, omittedFilter],
+    () => getSessionFilterConfig(omittedFilter, isV4),
+    [isV4, omittedFilter],
   );
   const { setDetailPageList } = useDetailPageLists();
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
@@ -194,7 +198,7 @@ export default function SessionsTable({
           : undefined,
     },
     {
-      enabled: !isBetaEnabled,
+      enabled: !isV4,
       trpc: {
         context: {
           skipBatch: true,
@@ -212,7 +216,7 @@ export default function SessionsTable({
           : undefined,
     },
     {
-      enabled: isBetaEnabled,
+      enabled: isV4,
       trpc: {
         context: {
           skipBatch: true,
@@ -221,7 +225,7 @@ export default function SessionsTable({
     },
   );
 
-  const filterOptions = isBetaEnabled ? filterOptionsV4 : filterOptionsV3;
+  const filterOptions = isV4 ? filterOptionsV4 : filterOptionsV3;
 
   const newFilterOptions = useMemo(() => {
     const scoreCategories =
@@ -262,9 +266,13 @@ export default function SessionsTable({
   const isSidebarFilterLoading =
     filterOptions.isPending || environmentFilterOptions.isPending;
 
+  const { viewControllersRef, onExplicitFilterStateChange } =
+    useTableViewFilterChange();
+
   const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(
     () => ({
       loading: isSidebarFilterLoading,
+      onExplicitFilterStateChange,
       stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: buildSidebarFilterSessionContextId(
         projectId,
@@ -272,9 +280,15 @@ export default function SessionsTable({
       ),
       // Sidebar-only implicit environment defaults
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
-      isV4: isBetaEnabled,
+      isV4,
     }),
-    [isBetaEnabled, isSidebarFilterLoading, projectId, userId],
+    [
+      isV4,
+      isSidebarFilterLoading,
+      projectId,
+      userId,
+      onExplicitFilterStateChange,
+    ],
   );
 
   const queryFilter = useSidebarFilterState(
@@ -290,6 +304,12 @@ export default function SessionsTable({
   const setFiltersWrapper = useCallback(
     (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
     [],
+  );
+
+  const searchRegistry = sessionsFieldRegistry(sessionsFilterConfig);
+  const observedOptions = toObservedOptions(
+    newFilterOptions,
+    isSidebarFilterLoading,
   );
 
   const combinedFilterState = queryFilter.effectiveFilterState.concat(
@@ -317,29 +337,27 @@ export default function SessionsTable({
   };
 
   const sessionsV3 = api.sessions.all.useQuery(payloadGetAll, {
-    enabled: !isBetaEnabled,
+    enabled: !isV4,
     refetchOnWindowFocus: true,
   });
   const sessionsV4 = api.sessions.allFromEvents.useQuery(payloadGetAll, {
-    enabled: isBetaEnabled,
+    enabled: isV4,
     refetchOnWindowFocus: true,
   });
-  const sessions = isBetaEnabled ? sessionsV4 : sessionsV3;
+  const sessions = isV4 ? sessionsV4 : sessionsV3;
 
   const sessionCountQueryV3 = api.sessions.countAll.useQuery(payloadCount, {
-    enabled: !isBetaEnabled,
+    enabled: !isV4,
     refetchOnWindowFocus: true,
   });
   const sessionCountQueryV4 = api.sessions.countAllFromEvents.useQuery(
     payloadCount,
     {
-      enabled: isBetaEnabled,
+      enabled: isV4,
       refetchOnWindowFocus: true,
     },
   );
-  const sessionCountQuery = isBetaEnabled
-    ? sessionCountQueryV4
-    : sessionCountQueryV3;
+  const sessionCountQuery = isV4 ? sessionCountQueryV4 : sessionCountQueryV3;
 
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
     onSuccess: (data) => {
@@ -368,7 +386,7 @@ export default function SessionsTable({
       sessionIds: sessionsV3.data?.sessions.map((s) => s.id) ?? [],
     },
     {
-      enabled: sessionsV3.data !== undefined && !isBetaEnabled,
+      enabled: sessionsV3.data !== undefined && !isV4,
       refetchOnWindowFocus: true,
     },
   );
@@ -380,12 +398,12 @@ export default function SessionsTable({
       queryFromTimestamp: dateRange?.from ?? null,
     },
     {
-      enabled: sessionsV4.data !== undefined && isBetaEnabled,
+      enabled: sessionsV4.data !== undefined && isV4,
       refetchOnWindowFocus: true,
     },
   );
 
-  const sessionMetrics = isBetaEnabled ? sessionMetricsV4 : sessionMetricsV3;
+  const sessionMetrics = isV4 ? sessionMetricsV4 : sessionMetricsV3;
 
   type SessionCoreOutput = RouterOutput["sessions"]["all"]["sessions"][number];
   type SessionMetricOutput = RouterOutput["sessions"]["metrics"][number];
@@ -488,7 +506,7 @@ export default function SessionsTable({
       header: "Duration",
       size: 130,
       enableHiding: true,
-      formatter: formatIntervalSeconds,
+      formatter: (value) => formatIntervalSeconds(value),
       getValue: (value) => {
         if (!sessionMetrics.isSuccess) return { type: "loading" };
         if (!value) return undefined;
@@ -510,36 +528,26 @@ export default function SessionsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return isColumnLoading ? <TableTextLoadingCell /> : null;
+        return isColumnLoading ? <Skeleton className="h-4 w-1/2" /> : null;
       },
       columns: scoreColumns,
     },
-    {
+    createLinkListTableColumn<SessionTableRow>({
       accessorKey: "userIds",
       enableColumnFilter: !omittedFilter.includes("userIds"),
-      id: "userIds",
       header: "User IDs",
       size: 200,
       enableHiding: true,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const value: SessionTableRow["userIds"] = row.getValue("userIds");
-        if (!sessionMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
-        }
-        return value && Array.isArray(value) ? (
-          <div className="flex gap-1">
-            {(value as string[]).map((user) => (
-              <TableLink
-                key={user}
-                path={`/project/${projectId}/users/${encodeURIComponent(user)}`}
-                value={user}
-              />
-            ))}
-          </div>
-        ) : undefined;
+      getCell: (userIds) => {
+        if (!sessionMetrics.isSuccess) return { type: "loading" };
+        if (!userIds?.length) return undefined;
+
+        return userIds.map((userId) => ({
+          path: `/project/${projectId}/users/${encodeURIComponent(userId)}`,
+          value: userId,
+        }));
       },
-    },
+    }),
     createNumberTableColumn<SessionTableRow>({
       accessorKey: "countTraces",
       header: "Traces",
@@ -565,7 +573,7 @@ export default function SessionsTable({
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
-      formatter: usdFormatter,
+      formatter: (value) => usdFormatter(value),
       getValue: (value) => {
         if (!sessionMetrics.isSuccess) return { type: "loading" };
         if (!value) return undefined;
@@ -581,7 +589,7 @@ export default function SessionsTable({
       enableHiding: true,
       enableSorting: true,
       defaultHidden: true,
-      formatter: usdFormatter,
+      formatter: (value) => usdFormatter(value),
       getValue: (value) => {
         if (!sessionMetrics.isSuccess) return { type: "loading" };
         if (!value) return undefined;
@@ -596,7 +604,7 @@ export default function SessionsTable({
       size: 110,
       enableHiding: true,
       enableSorting: true,
-      formatter: usdFormatter,
+      formatter: (value) => usdFormatter(value),
       getValue: (value) => {
         if (!sessionMetrics.isSuccess) return { type: "loading" };
         if (!value) return undefined;
@@ -649,34 +657,24 @@ export default function SessionsTable({
         return value;
       },
     }),
-    {
-      accessorKey: "usage",
+    createTokenUsageTableColumn<SessionTableRow, number | undefined>({
       id: "usage",
+      accessorFn: (row) => row.totalTokens,
       header: "Usage",
       size: 220,
       enableHiding: true,
       enableSorting: true,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const promptTokens: SessionTableRow["inputTokens"] =
-          row.getValue("inputTokens");
-        const completionTokens: SessionTableRow["outputTokens"] =
-          row.getValue("outputTokens");
-        const totalTokens: SessionTableRow["totalTokens"] =
-          row.getValue("totalTokens");
-        if (!sessionMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
-        }
-        return (
-          <TokenUsageBadge
-            inputUsage={Number(promptTokens ?? 0)}
-            outputUsage={Number(completionTokens ?? 0)}
-            totalUsage={Number(totalTokens ?? 0)}
-            inline
-          />
-        );
+      getCell: (_value, { row }) => {
+        if (!sessionMetrics.isSuccess) return { type: "loading" };
+
+        return {
+          type: "usage",
+          inputUsage: Number(row.original.inputTokens ?? 0),
+          outputUsage: Number(row.original.outputTokens ?? 0),
+          totalUsage: Number(row.original.totalTokens ?? 0),
+        };
       },
-    },
+    }),
     {
       accessorKey: "traceTags",
       id: "traceTags",
@@ -684,11 +682,11 @@ export default function SessionsTable({
       size: 250,
       enableHiding: true,
       defaultHidden: true,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value: SessionTableRow["traceTags"] = row.getValue("traceTags");
         if (!sessionMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
+          return <Skeleton className="h-4 w-1/2" />;
         }
         return (
           value &&
@@ -732,7 +730,10 @@ export default function SessionsTable({
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
-      setFilters: setFiltersWrapper,
+      setFilters: (filters) =>
+        queryFilterRef.current.setFilterState(filters, {
+          origin: "saved_view",
+        }),
       setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibility,
@@ -747,6 +748,23 @@ export default function SessionsTable({
     currentFilterState: queryFilter.explicitFilterState,
     currentExpandedFilters: queryFilter.expanded,
   });
+  viewControllersRef.current = viewControllers;
+
+  const handleOrderByChange: typeof setOrderByState = (next) => {
+    viewControllers.handleUserStateChange(orderByState, next);
+    setOrderByState(next);
+  };
+  const handleColumnOrderChange: typeof setColumnOrder = (update) => {
+    const next = typeof update === "function" ? update(columnOrder) : update;
+    viewControllers.handleUserStateChange(columnOrder, next);
+    setColumnOrder(next);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibility = (update) => {
+    const next =
+      typeof update === "function" ? update(columnVisibility) : update;
+    viewControllers.handleUserStateChange(columnVisibility, next);
+    setColumnVisibility(next);
+  };
 
   return (
     <DataTableControlsProvider tableName={sessionsFilterConfig.tableName}>
@@ -757,63 +775,80 @@ export default function SessionsTable({
             setTimeRange={setTimeRange}
           />
         )}
-        {/* Toolbar spanning full width */}
-        <DataTableToolbar
-          filterState={queryFilter.explicitFilterState}
-          actionButtons={[
-            selectedSessionIds.length > 0 || selectAll ? (
-              <TableActionMenu
-                key="sessions-multi-select-actions"
-                projectId={projectId}
-                actions={tableActions}
-                tableName={BatchExportTableName.Sessions}
-                selectedCount={selectedSessionCount}
-                onClearSelection={() => {
-                  setSelectedRows({});
-                  setSelectAll(false);
+        {/* In bar mode the composer and the toolbar stick together as one band
+            (matching EventsTable) so the toolbar cannot scroll under the
+            composer and render half-clipped; pb-1.5 gives the band the same
+            breathing room above the table that the events tables have. */}
+        <div className="bg-background sticky top-0 z-30 pb-1.5">
+          <TableSearchBar
+            key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+            isV4={isV4}
+            filterState={queryFilter.searchBarFilterState}
+            setFilterState={setFiltersWrapper}
+            projectId={projectId}
+            tableName={sessionsFilterConfig.tableName}
+            observed={observedOptions}
+            registry={searchRegistry}
+          />
+          {/* Toolbar spanning full width */}
+          <DataTableToolbar
+            rowClassName="my-1"
+            filterState={queryFilter.explicitFilterState}
+            actionButtons={[
+              selectedSessionIds.length > 0 || selectAll ? (
+                <TableActionMenu
+                  key="sessions-multi-select-actions"
+                  projectId={projectId}
+                  actions={tableActions}
+                  tableName={BatchExportTableName.Sessions}
+                  selectedCount={selectedSessionCount}
+                  onClearSelection={() => {
+                    setSelectedRows({});
+                    setSelectAll(false);
+                  }}
+                />
+              ) : null,
+              <BatchExportTableButton
+                {...{
+                  projectId,
+                  filterState: backendFilterState,
+                  orderByState,
                 }}
-              />
-            ) : null,
-            <BatchExportTableButton
-              {...{
-                projectId,
-                filterState: backendFilterState,
-                orderByState,
-              }}
-              tableName={BatchExportTableName.Sessions}
-              key="batchExport"
-            />,
-          ]}
-          columns={columns}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibility}
-          columnOrder={columnOrder}
-          setColumnOrder={setColumnOrder}
-          viewConfig={{
-            tableName: TableViewPresetTableName.Sessions,
-            projectId,
-            controllers: viewControllers,
-          }}
-          timeRange={showControlsInPageHeader ? undefined : timeRange}
-          setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-          columnsWithCustomSelect={["userIds"]}
-          rowHeight={rowHeight}
-          setRowHeight={setRowHeight}
-          multiSelect={{
-            selectAll,
-            setSelectAll,
-            selectedRowIds: selectedSessionIds,
-            setRowSelection: setSelectedRows,
-            totalCount,
-            ...paginationState,
-          }}
-        />
+                tableName={BatchExportTableName.Sessions}
+                key="batchExport"
+              />,
+            ]}
+            columns={columns}
+            columnVisibility={columnVisibility}
+            setColumnVisibility={handleColumnVisibilityChange}
+            columnOrder={columnOrder}
+            setColumnOrder={handleColumnOrderChange}
+            viewConfig={{
+              tableName: TableViewPresetTableName.Sessions,
+              projectId,
+              controllers: viewControllers,
+            }}
+            timeRange={showControlsInPageHeader ? undefined : timeRange}
+            setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+            columnsWithCustomSelect={["userIds"]}
+            rowHeight={rowHeight}
+            setRowHeight={setRowHeight}
+            multiSelect={{
+              selectAll,
+              setSelectAll,
+              selectedRowIds: selectedSessionIds,
+              setRowSelection: setSelectedRows,
+              totalCount,
+              ...paginationState,
+            }}
+          />
+        </div>
 
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
           <DataTableControls
             // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
-            key={viewControllers.selectedViewId ?? "no-view"}
+            key={viewControllers.filterEditorResetKey}
             queryFilter={queryFilter}
           />
 
@@ -860,12 +895,12 @@ export default function SessionsTable({
                 onChange: setPaginationState,
                 state: paginationState,
               }}
-              setOrderBy={setOrderByState}
+              setOrderBy={handleOrderByChange}
               orderBy={orderByState}
               columnVisibility={columnVisibility}
-              onColumnVisibilityChange={setColumnVisibility}
+              onColumnVisibilityChange={handleColumnVisibilityChange}
               columnOrder={columnOrder}
-              onColumnOrderChange={setColumnOrder}
+              onColumnOrderChange={handleColumnOrderChange}
               rowSelection={selectedRows}
               highlightAllRows={selectAll}
               setRowSelection={setSelectedRows}

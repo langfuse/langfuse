@@ -1,15 +1,14 @@
 import { prisma } from "../../db";
-import type { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import {
+  TupleParam,
+  type ClickHouseClientConfigOptions,
+} from "@clickhouse/client";
 import type {
   EventsObservation,
   MetadataDomain,
   ObservationType,
 } from "../../domain";
 import { env } from "../../env";
-import {
-  EvalExecutionMetadataKey,
-  type EvalExecutionMetadataKey as EvalExecutionMetadataKeyType,
-} from "../../features/evals/evalExecutionMetadata";
 import {
   InternalServerError,
   InvalidRequestError,
@@ -21,6 +20,7 @@ import {
 } from "../clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
+import { OBSERVATIONS_TO_TRACE_INTERVAL } from "./constants";
 import {
   convertClickhouseToDomain,
   convertClickhouseTracesListToDomain,
@@ -140,6 +140,7 @@ import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
 export type EventBatchIOStringOutput = {
   id: string;
+  traceId: string;
   input: string | null;
   output: string | null;
   metadata: MetadataDomain;
@@ -925,6 +926,7 @@ export const getObservationByIdFromEventsTable = async ({
   projectId,
   fetchWithInputOutput = false,
   startTime,
+  startTimeLowerBound,
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
@@ -934,6 +936,7 @@ export const getObservationByIdFromEventsTable = async ({
   projectId: string;
   fetchWithInputOutput?: boolean;
   startTime?: Date;
+  startTimeLowerBound?: Date;
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
@@ -944,6 +947,7 @@ export const getObservationByIdFromEventsTable = async ({
     projectId,
     fetchWithInputOutput,
     startTime,
+    startTimeLowerBound,
     type,
     traceId,
     renderingProps,
@@ -992,6 +996,7 @@ async function getObservationByIdFromEventsTableInternal({
   projectId,
   fetchWithInputOutput = false,
   startTime,
+  startTimeLowerBound,
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
@@ -1001,6 +1006,7 @@ async function getObservationByIdFromEventsTableInternal({
   projectId: string;
   fetchWithInputOutput?: boolean;
   startTime?: Date;
+  startTimeLowerBound?: Date;
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
@@ -1015,10 +1021,30 @@ async function getObservationByIdFromEventsTableInternal({
       ),
     )
     .whereRaw("span_id = {id: String}", { id })
+    // Matched at minute resolution: minute is the finest the events_full primary
+    // key (project_id, toStartOfMinute(start_time), ...) can prune on, and
+    // flooring absorbs sub-minute precision differences in the caller-supplied
+    // start time.
     .when(Boolean(startTime), (b) =>
-      b.whereRaw("toDate(start_time) = toDate({startTime: DateTime64(3)})", {
-        startTime: convertDateToClickhouseDateTime(startTime!),
-      }),
+      b.whereRaw(
+        "toStartOfMinute(start_time) = toStartOfMinute({startTime: DateTime64(3)})",
+        {
+          startTime: convertDateToClickhouseDateTime(startTime!),
+        },
+      ),
+    )
+    // Lower-bound start_time on an anchor (e.g. the parent trace's timestamp) so
+    // the lookup can prune events_full parts/partitions. Subtract the skew
+    // interval because an observation may start slightly before its anchor.
+    .when(Boolean(startTimeLowerBound), (b) =>
+      b.whereRaw(
+        `start_time >= {startTimeLowerBound: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}`,
+        {
+          startTimeLowerBound: convertDateToClickhouseDateTime(
+            startTimeLowerBound!,
+          ),
+        },
+      ),
     )
     .when(Boolean(type), (b) => b.whereRaw("type = {type: String}", { type }))
     .when(Boolean(traceId), (b) =>
@@ -2534,6 +2560,8 @@ export const getObservationsBatchIOFromEventsTable = async <
    * the payload. Ignored for truncated reads (events_core caps far tighter).
    */
   ioCharLimit?: number;
+  /** Restricts every requested observation to an already-authorized session. */
+  sessionId?: string;
   includeExperimentFields?: TIncludeExperiment;
   /** Opt-in: tool-call arrays can be large; only eval consumers need them. */
   includeToolCallFields?: TIncludeToolCalls;
@@ -2552,9 +2580,13 @@ export const getObservationsBatchIOFromEventsTable = async <
       ? Math.max(1, Math.trunc(opts.ioCharLimit))
       : undefined;
 
-  // Extract IDs and trace IDs for filtering
+  // Keep the individual filters for primary-key pruning and the tuple filter
+  // for exact trace/observation matching.
   const observationIds = opts.observations.map((o) => o.id);
-  const traceIds = [...new Set(opts.observations.map((o) => o.traceId))];
+  const traceIds = Array.from(new Set(opts.observations.map((o) => o.traceId)));
+  const observationTuples = opts.observations.map(
+    (observation) => new TupleParam([observation.traceId, observation.id]),
+  );
 
   // Use provided timestamp range with buffer for efficient filtering
   const minTimestamp = new Date(opts.minStartTime.getTime() - 1000); // -1 second buffer
@@ -2590,12 +2622,24 @@ export const getObservationsBatchIOFromEventsTable = async <
     ? `
       e.tool_calls as tool_calls,
       e.tool_call_names as tool_call_names,
-    `
+      `
     : "";
+  const sessionTraceFilter =
+    opts.sessionId !== undefined
+      ? `AND e.trace_id IN (
+          SELECT trace_id
+          FROM events_core
+          WHERE project_id = {projectId: String}
+            AND trace_id IN {traceIds: Array(String)}
+          GROUP BY trace_id
+          HAVING argMaxIf(session_id, event_ts, session_id <> '') = {sessionId: String}
+        )`
+      : "";
 
   const query = `
-    SELECT
-      e.span_id as id,
+      SELECT
+        e.span_id as id,
+        e.trace_id as trace_id,
       ${inputSelect},
       ${outputSelect},
       ${experimentFieldsSelect}
@@ -2603,14 +2647,17 @@ export const getObservationsBatchIOFromEventsTable = async <
       mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(${metadataValues})) as metadata
     FROM ${tableName} e
     WHERE e.project_id = {projectId: String}
-      AND e.span_id IN {observationIds: Array(String)}
-      AND e.trace_id IN {traceIds: Array(String)}
+        AND e.span_id IN {observationIds: Array(String)}
+        AND e.trace_id IN {traceIds: Array(String)}
+        AND (e.trace_id, e.span_id) IN {observationTuples: Array(Tuple(String, String))}
+        ${sessionTraceFilter}
       AND e.start_time >= {minTimestamp: DateTime64(3)}
       AND e.start_time <= {maxTimestamp: DateTime64(3)}
   `;
 
   const results = await queryClickhouse<{
     id: string;
+    trace_id: string;
     input: string | null;
     output: string | null;
     metadata: Record<string, string>;
@@ -2624,6 +2671,8 @@ export const getObservationsBatchIOFromEventsTable = async <
       projectId: opts.projectId,
       observationIds,
       traceIds,
+      observationTuples,
+      sessionId: opts.sessionId,
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
@@ -2633,6 +2682,7 @@ export const getObservationsBatchIOFromEventsTable = async <
 
   return results.map((r) => ({
     id: r.id,
+    traceId: r.trace_id,
     input: applyBatchIOStringRendering(r.input),
     output: applyBatchIOStringRendering(r.output),
     metadata:
@@ -3171,7 +3221,7 @@ const buildEventsForBlobStorageExportQuery = (
 
   queryBuilder
     .whereRaw(
-      "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time <= {maxTimestamp: DateTime64(3)}",
+      "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time < {maxTimestamp: DateTime64(3)}",
       {
         minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
         maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
@@ -3404,34 +3454,16 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
   });
 };
 
-const eventMetadataValue = (key: EvalExecutionMetadataKeyType) =>
-  `arrayElement(e.metadata_values, indexOf(e.metadata_names, '${key}'))`;
+const evalExecutionIdentifierColumn = (identifier: "evaluator" | "rule") =>
+  identifier === "evaluator" ? "e.evaluator_id" : "e.evaluation_rule_id";
 
-/**
- * Value of the first key that is present, so callers can read a renamed
- * metadata key while executions written before the rename still resolve.
- */
-const eventMetadataValueWithFallback = (
-  keys: readonly EvalExecutionMetadataKeyType[],
-) =>
-  keys
-    .slice(0, -1)
-    .reduceRight(
-      (fallback, key) =>
-        `if(notEmpty(${eventMetadataValue(key)}), ${eventMetadataValue(key)}, ${fallback})`,
-      eventMetadataValue(keys[keys.length - 1]!),
-    );
+const evaluatorTestEventCondition =
+  "e.evaluator_execution_is_test OR startsWith(e.trace_name, 'Test evaluator')";
 
-const hasAnyEventMetadataKey = (
-  keys: readonly EvalExecutionMetadataKeyType[],
-) => keys.map((key) => `has(e.metadata_names, '${key}')`).join(" OR ");
-
-const evaluatorTestEventCondition = `(has(e.metadata_names, '${EvalExecutionMetadataKey.EVALUATOR_TEST}') AND ${eventMetadataValue(EvalExecutionMetadataKey.EVALUATOR_TEST)} = 'true') OR startsWith(e.trace_name, 'Test evaluator')`;
-
-const traceCostsByMetadata = (params: {
+const traceCostsByIdentifier = (params: {
   projectId: string;
-  metadata: Array<{
-    keys: readonly EvalExecutionMetadataKeyType[];
+  identifiers: Array<{
+    identifier: "evaluator" | "rule";
     alias: string;
   }>;
   additionalSelect?: string[];
@@ -3441,10 +3473,10 @@ const traceCostsByMetadata = (params: {
     groupByColumn: "e.trace_id",
     selectExpression: [
       "e.trace_id as trace_id",
-      ...params.metadata.map(
-        ({ keys, alias }) =>
-          `anyIf(${eventMetadataValueWithFallback(keys)}, ${hasAnyEventMetadataKey(keys)}) as ${alias}`,
-      ),
+      ...params.identifiers.map(({ identifier, alias }) => {
+        const identifierColumn = evalExecutionIdentifierColumn(identifier);
+        return `anyIf(${identifierColumn}, notEmpty(${identifierColumn})) as ${alias}`;
+      }),
       "sum(e.total_cost) as trace_total_cost",
       ...(params.additionalSelect ?? []),
     ].join(", "),
@@ -3467,28 +3499,25 @@ const costMetricFields = {
   },
 } as const;
 
-const getCostMetricsByMetadataIds = async <
+const getCostMetricsByIdentifierIds = async <
   const TFields extends readonly (keyof typeof costMetricFields)[],
 >(params: {
   projectId: string;
-  metadataIds: string[];
+  identifierIds: string[];
   fields: TFields;
-  metadataKeys: readonly Exclude<
-    EvalExecutionMetadataKeyType,
-    typeof EvalExecutionMetadataKey.EVALUATOR_TEST
-  >[];
+  identifier: "evaluator" | "rule";
 }) => {
-  if (params.metadataIds.length === 0) return [];
+  if (params.identifierIds.length === 0) return [];
 
-  const traceCostsBuilder = traceCostsByMetadata({
+  const traceCostsBuilder = traceCostsByIdentifier({
     projectId: params.projectId,
-    metadata: [{ keys: params.metadataKeys, alias: "metadata_id" }],
+    identifiers: [{ identifier: params.identifier, alias: "identifier_id" }],
     additionalSelect: [
       `countIf(${evaluatorTestEventCondition}) as test_event_count`,
     ],
   })
-    .havingRaw("metadata_id IN ({metadataIds: Array(String)})", {
-      metadataIds: params.metadataIds,
+    .havingRaw("identifier_id IN ({identifierIds: Array(String)})", {
+      identifierIds: params.identifierIds,
     })
     .havingRaw("test_event_count = 0");
 
@@ -3496,14 +3525,14 @@ const getCostMetricsByMetadataIds = async <
   const queryBuilder = new CTEQueryBuilder()
     .withCTE("trace_costs", {
       ...traceCosts,
-      schema: ["trace_id", "metadata_id", "trace_total_cost"] as const,
+      schema: ["trace_id", "identifier_id", "trace_total_cost"] as const,
     })
     .from("trace_costs", "tc")
     .select(
-      "tc.metadata_id as metadata_id",
+      "tc.identifier_id as identifier_id",
       ...params.fields.map((field) => costMetricFields[field].select),
     )
-    .groupBy("tc.metadata_id");
+    .groupBy("tc.identifier_id");
 
   const { query, params: queryParams } = queryBuilder.buildWithParams();
   const rows = await queryClickhouse<Record<string, string>>({
@@ -3521,7 +3550,7 @@ const getCostMetricsByMetadataIds = async <
       ]),
     ) as Record<TFields[number], number>;
 
-    return { metadataId: row.metadata_id, ...metrics };
+    return { identifierId: row.identifier_id, ...metrics };
   });
 };
 
@@ -3529,14 +3558,14 @@ export const getAvgCostByEvaluatorIds = async (
   projectId: string,
   evaluatorIds: string[],
 ) => {
-  const metrics = await getCostMetricsByMetadataIds({
+  const metrics = await getCostMetricsByIdentifierIds({
     projectId,
-    metadataIds: evaluatorIds,
+    identifierIds: evaluatorIds,
     fields: ["avgCost", "executionCount"],
-    metadataKeys: [EvalExecutionMetadataKey.EVALUATOR_ID],
+    identifier: "evaluator",
   });
-  return metrics.map(({ metadataId, ...costs }) => ({
-    evaluatorId: metadataId,
+  return metrics.map(({ identifierId, ...costs }) => ({
+    evaluatorId: identifierId,
     ...costs,
   }));
 };
@@ -3545,20 +3574,14 @@ export const getTotalCostByRule = async (
   projectId: string,
   ruleIds: string[],
 ) => {
-  const metrics = await getCostMetricsByMetadataIds({
+  const metrics = await getCostMetricsByIdentifierIds({
     projectId,
-    metadataIds: ruleIds,
+    identifierIds: ruleIds,
     fields: ["totalCost"],
-    // Rules replaced job configurations, but executions written before the
-    // rename only carry `job_configuration_id`, and the v1 evals UI still
-    // reads costs by job-configuration id.
-    metadataKeys: [
-      EvalExecutionMetadataKey.EVALUATION_RULE_ID,
-      EvalExecutionMetadataKey.JOB_CONFIGURATION_ID,
-    ],
+    identifier: "rule",
   });
-  return metrics.map(({ metadataId, totalCost }) => ({
-    ruleId: metadataId,
+  return metrics.map(({ identifierId, totalCost }) => ({
+    ruleId: identifierId,
     totalCost,
   }));
 };
@@ -3567,66 +3590,15 @@ export const getTotalCostByEvaluatorIds = async (
   projectId: string,
   evaluatorIds: string[],
 ) => {
-  const metrics = await getCostMetricsByMetadataIds({
+  const metrics = await getCostMetricsByIdentifierIds({
     projectId,
-    metadataIds: evaluatorIds,
+    identifierIds: evaluatorIds,
     fields: ["totalCost"],
-    metadataKeys: [EvalExecutionMetadataKey.EVALUATOR_ID],
+    identifier: "evaluator",
   });
-  return metrics.map(({ metadataId, totalCost }) => ({
-    evaluatorId: metadataId,
+  return metrics.map(({ identifierId, totalCost }) => ({
+    evaluatorId: identifierId,
     totalCost,
-  }));
-};
-
-// Temporary compatibility path: remove in a few weeks in favor of evaluator_id.
-export const getTotalCostByEvaluatorTraceNames = async (
-  projectId: string,
-  traceNames: string[],
-) => {
-  if (traceNames.length === 0) return [];
-
-  const traceCostsBuilder = new EventsAggQueryBuilder({
-    projectId,
-    groupByColumn: "e.trace_id, e.trace_name",
-    selectExpression: [
-      "e.trace_id as trace_id",
-      "e.trace_name as trace_name",
-      "sum(e.total_cost) as trace_total_cost",
-      `countIf(${evaluatorTestEventCondition}) as test_event_count`,
-    ].join(", "),
-  })
-    .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
-    .whereRaw("e.trace_name IN ({traceNames: Array(String)})", { traceNames })
-    .havingRaw("test_event_count = 0");
-
-  const traceCosts = traceCostsBuilder.buildWithParams();
-  const queryBuilder = new CTEQueryBuilder()
-    .withCTE("trace_costs", {
-      ...traceCosts,
-      schema: ["trace_id", "trace_name", "trace_total_cost"] as const,
-    })
-    .from("trace_costs", "tc")
-    .select(
-      "tc.trace_name as trace_name",
-      "sum(tc.trace_total_cost) as total_cost",
-    )
-    .groupBy("tc.trace_name");
-
-  const { query, params } = queryBuilder.buildWithParams();
-  const rows = await queryClickhouse<{
-    trace_name: string;
-    total_cost: string;
-  }>({
-    query,
-    params,
-    tags: { projectId },
-    preferredClickhouseService: "EventsReadOnly",
-  });
-
-  return rows.map((row) => ({
-    traceName: row.trace_name,
-    totalCost: Number(row.total_cost),
   }));
 };
 
@@ -3635,12 +3607,12 @@ export const getLatestEvaluatorRunCost = async (
   projectId: string,
   evaluatorId: string,
 ) => {
-  const builder = traceCostsByMetadata({
+  const builder = traceCostsByIdentifier({
     projectId,
-    metadata: [
+    identifiers: [
       {
-        keys: [EvalExecutionMetadataKey.EVALUATOR_ID],
-        alias: EvalExecutionMetadataKey.EVALUATOR_ID,
+        identifier: "evaluator",
+        alias: "evaluator_id",
       },
     ],
     additionalSelect: [
@@ -3648,10 +3620,7 @@ export const getLatestEvaluatorRunCost = async (
       "countIf(e.type = 'GENERATION') as generation_count",
     ],
   })
-    .havingRaw(
-      `${EvalExecutionMetadataKey.EVALUATOR_ID} = {evaluatorId: String}`,
-      { evaluatorId },
-    )
+    .havingRaw("evaluator_id = {evaluatorId: String}", { evaluatorId })
     .havingRaw("generation_count > 0")
     .orderBy("ORDER BY timestamp DESC, trace_id DESC")
     .limit(1);
@@ -3669,32 +3638,32 @@ export const getLatestEvaluatorRunCost = async (
 
 export const getRecentEvaluatorExecutionTraces = async (
   projectId: string,
-  traceNames: string[],
+  evaluatorIds: string[],
 ) => {
-  if (traceNames.length === 0) return [];
+  if (evaluatorIds.length === 0) return [];
 
   const builder = new EventsAggQueryBuilder({
     projectId,
-    groupByColumn: "e.trace_id, e.trace_name",
+    groupByColumn: "e.trace_id, e.evaluator_id",
     selectExpression: [
       "e.trace_id as id",
-      "e.trace_name as trace_name",
+      "e.evaluator_id as evaluator_id",
       "multiIf(countIf(e.level = 'ERROR') > 0, 'ERROR', countIf(e.level = 'WARNING') > 0, 'WARNING', 'DEFAULT') as level",
       "min(e.start_time) as timestamp",
     ].join(", "),
   })
     .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
-    .whereRaw("e.trace_name IN ({traceNames: Array(String)})", {
-      traceNames,
+    .whereRaw("e.evaluator_id IN ({evaluatorIds: Array(String)})", {
+      evaluatorIds,
     })
     .havingRaw(`countIf(${evaluatorTestEventCondition}) = 0`)
     .orderBy("ORDER BY timestamp DESC, id DESC")
-    .limitByCount(5, "trace_name");
+    .limitByCount(5, "evaluator_id");
 
   const { query, params } = builder.buildWithParams();
   const rows = await queryClickhouse<{
     id: string;
-    trace_name: string;
+    evaluator_id: string;
     level: string;
     timestamp: string;
   }>({
@@ -3706,7 +3675,7 @@ export const getRecentEvaluatorExecutionTraces = async (
 
   return rows.map((row) => ({
     id: row.id,
-    traceName: row.trace_name,
+    evaluatorId: row.evaluator_id,
     level: row.level,
     timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
   }));
@@ -3718,29 +3687,20 @@ export const getRecentRuleExecutionTraces = async (
 ) => {
   if (ruleIds.length === 0) return [];
 
-  const evaluationRuleId = eventMetadataValueWithFallback([
-    EvalExecutionMetadataKey.EVALUATION_RULE_ID,
-    EvalExecutionMetadataKey.JOB_CONFIGURATION_ID,
-  ]);
-  const hasEvaluationRuleId = hasAnyEventMetadataKey([
-    EvalExecutionMetadataKey.EVALUATION_RULE_ID,
-    EvalExecutionMetadataKey.JOB_CONFIGURATION_ID,
-  ]);
   const builder = new EventsAggQueryBuilder({
     projectId,
-    groupByColumn: `e.trace_id, ${EvalExecutionMetadataKey.EVALUATION_RULE_ID}`,
+    groupByColumn: "e.trace_id, e.evaluation_rule_id",
     selectExpression: [
       "e.trace_id as id",
-      `${evaluationRuleId} as ${EvalExecutionMetadataKey.EVALUATION_RULE_ID}`,
+      "e.evaluation_rule_id as evaluation_rule_id",
       "multiIf(countIf(e.level = 'ERROR') > 0, 'ERROR', countIf(e.level = 'WARNING') > 0, 'WARNING', 'DEFAULT') as level",
       "min(e.start_time) as timestamp",
     ].join(", "),
   })
     .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
-    .whereRaw(`(${hasEvaluationRuleId})`)
-    .whereRaw(`${evaluationRuleId} IN ({ruleIds: Array(String)})`, { ruleIds })
+    .whereRaw("e.evaluation_rule_id IN ({ruleIds: Array(String)})", { ruleIds })
     .orderBy("ORDER BY timestamp DESC, id DESC")
-    .limitByCount(5, EvalExecutionMetadataKey.EVALUATION_RULE_ID);
+    .limitByCount(5, "evaluation_rule_id");
 
   const { query, params } = builder.buildWithParams();
   const rows = await queryClickhouse<
@@ -3748,7 +3708,7 @@ export const getRecentRuleExecutionTraces = async (
       id: string;
       level: string;
       timestamp: string;
-    } & Record<typeof EvalExecutionMetadataKey.EVALUATION_RULE_ID, string>
+    } & { evaluation_rule_id: string }
   >({
     query,
     params,
@@ -3758,7 +3718,7 @@ export const getRecentRuleExecutionTraces = async (
 
   return rows.map((row) => ({
     id: row.id,
-    ruleId: row[EvalExecutionMetadataKey.EVALUATION_RULE_ID],
+    ruleId: row.evaluation_rule_id,
     level: row.level,
     timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
   }));

@@ -39,6 +39,7 @@ export * from "./server/llm/promptToolConfig";
 export * from "./features/evals/types";
 export * from "./features/evals/evalExecutionMetadata";
 export * from "./features/evals/outputDefinition";
+export * from "./features/evals/codeEvalConstants";
 export {
   extractValueFromObject,
   extractValueFromObjectAsString,

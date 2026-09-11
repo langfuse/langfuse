@@ -236,7 +236,9 @@ export function explainSegment(
     case "freeText":
       return {
         subject: "Full-text search",
-        predicate: `for ${quote(seg.raw.trim())} — matches id, name, input and output.`,
+        predicate: registry.freeTextScopeLabel
+          ? `for ${quote(seg.raw.trim())} — matches ${registry.freeTextScopeLabel}.`
+          : `for ${quote(seg.raw.trim())}.`,
       };
     case "operator":
       return KEYWORDS[seg.raw.toUpperCase()] ?? null;

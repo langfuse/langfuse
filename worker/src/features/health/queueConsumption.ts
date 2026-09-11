@@ -56,7 +56,7 @@ export const resetQueueConsumptionStateForTest = (): void => {
  * a fresh boot gets a full threshold of grace before the probe may fail, and a
  * container without any registered consumers (API-only) is never stuck.
  */
-export const evaluateQueueConsumptionStuck = (input: {
+const evaluateQueueConsumptionStuck = (input: {
   nowMs: number;
   registeredWorkerCount: number;
   trackingSinceMs: number | null;

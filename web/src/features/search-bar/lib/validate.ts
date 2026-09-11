@@ -15,7 +15,7 @@ import { astToFilterState, type ScoreTypeContext } from "./adapter";
 import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "./fields";
 import { parse, type Diagnostic, type ParseResult } from "./langQ";
 
-export const MAX_QUERY_LENGTH = 2048;
+const MAX_QUERY_LENGTH = 2048;
 
 function nodeSpan(node: ASTNode, textLength: number): Span {
   if (node.kind === "and" || node.kind === "or") {
@@ -159,6 +159,43 @@ function incompleteFieldTokenDiagnostics(
   }
 }
 
+function labeledOptionValueDiagnostics(
+  node: ASTNode,
+  textLength: number,
+  out: Diagnostic[],
+  registry: FieldRegistry,
+): void {
+  if (node.kind === "not") {
+    labeledOptionValueDiagnostics(node.child, textLength, out, registry);
+    return;
+  }
+  if (node.kind === "and" || node.kind === "or") {
+    for (const child of node.children) {
+      labeledOptionValueDiagnostics(child, textLength, out, registry);
+    }
+    return;
+  }
+  if (node.kind !== "filter") return;
+
+  const ref = registry.resolveField(node.key);
+  if (
+    ref?.type !== "field" ||
+    ref.field.filterValueByDisplayValue === undefined
+  )
+    return;
+
+  for (const value of node.values) {
+    if (ref.field.filterValueByDisplayValue.has(value)) continue;
+    const span = nodeSpan(node, textLength);
+    out.push({
+      from: span.from,
+      to: span.to,
+      severity: "error",
+      message: `"${value}" is not a valid ${ref.field.label.toLowerCase()}`,
+    });
+  }
+}
+
 export function semanticDiagnostics(
   ast: ASTNode | null,
   textLength: number,
@@ -172,19 +209,36 @@ export function semanticDiagnostics(
   // filter, not free text — checked over the WHOLE tree (not per top-level
   // node) so the adjacency scoping can see each text node's siblings.
   incompleteFieldTokenDiagnostics(ast, out, registry);
+  labeledOptionValueDiagnostics(ast, textLength, out, registry);
 
   // Lower each top-level node independently so error spans point at the
   // offending node instead of the whole query. The lowering must see the same
   // scoreTypes the commit-time lowering does, or the two disagree on score
   // routing and a clean validation hides an error the commit then drops.
   const topLevel: ASTNode[] = ast.kind === "and" ? ast.children : [ast];
+  const termRegistry = registry.filterStateErrors
+    ? { ...registry, filterStateErrors: undefined }
+    : registry;
   for (const node of topLevel) {
-    const { errors } = astToFilterState(node, scoreTypes, registry);
+    const { errors } = astToFilterState(node, scoreTypes, termRegistry);
     const span = nodeSpan(node, textLength);
     for (const message of errors) {
       out.push({ from: span.from, to: span.to, severity: "error", message });
     }
     hasFilterWarnings(node, textLength, out, false, registry);
+  }
+
+  // Some view contracts constrain the complete filter set (for example, one
+  // filter per column). Check the complete lowering as well as each term so
+  // draft validation and commit validation share the same backend boundary.
+  if (registry.filterStateErrors) {
+    const { errors } = astToFilterState(ast, scoreTypes, registry);
+    const span = nodeSpan(ast, textLength);
+    for (const message of errors) {
+      if (!out.some((diagnostic) => diagnostic.message === message)) {
+        out.push({ ...span, severity: "error", message });
+      }
+    }
   }
 
   return out;

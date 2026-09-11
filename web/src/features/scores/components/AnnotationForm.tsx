@@ -42,7 +42,7 @@ import {
   isScoreUnsaved,
 } from "@/src/features/scores/lib/helpers";
 import Header from "@/src/components/layouts/header";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { cn } from "@/src/utils/tailwind";
 import {
   type AnnotationScoreFormData,
@@ -66,7 +66,7 @@ import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-sel
 import { CategoricalScoreInput } from "@/src/features/scores/components/CategoricalScoreInput";
 import { DropdownMenuItemWithSecondaryAction } from "@/src/components/ui/dropdown-menu";
 import { useScoreConfigSelection } from "@/src/features/scores/hooks/useScoreConfigSelection";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   hasBlockingOverlay,
   hasModifier,
@@ -1155,32 +1155,22 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
             <div className="text-muted-foreground hidden flex-wrap items-center gap-x-2 gap-y-1 px-0.5 text-[11px] md:flex">
               {rowCount > 1 && (
                 <span className="flex items-center gap-1">
-                  <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
-                    ↑
-                  </KeyboardShortcut>
-                  <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
-                    ↓
-                  </KeyboardShortcut>
+                  <KeyboardShortcut size="sm" keys={["ArrowUp"]} />
+                  <KeyboardShortcut size="sm" keys={["ArrowDown"]} />
                   move between fields
                 </span>
               )}
               {optionRowCount > 0 && (
                 <span className="flex items-center gap-1">
-                  <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
-                    1
-                  </KeyboardShortcut>
+                  <KeyboardShortcut size="sm" keys={["1"]} />
                   <span className="text-muted-foreground">…</span>
-                  <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
-                    9
-                  </KeyboardShortcut>
+                  <KeyboardShortcut size="sm" keys={["9"]} />
                   select option
                 </span>
               )}
               {hasEditableRow && (
                 <span className="flex items-center gap-1">
-                  <KeyboardShortcut className="h-4 px-1 text-[9px]">
-                    ↵
-                  </KeyboardShortcut>
+                  <KeyboardShortcut size="sm" keys={["Enter"]} />
                   edit field
                 </span>
               )}

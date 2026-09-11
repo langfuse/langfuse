@@ -9,40 +9,63 @@ import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-l
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
 import { LightbulbIcon } from "lucide-react";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { useSidebarFilterState } from "@/src/features/filters";
 import {
   getExperimentItemsColumnName,
   experimentItemsFilterConfig,
 } from "../../config/experiment-items-filter-config";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
+  type AggregatedScoreData,
   type FilterState,
   type FilterCondition,
   TableViewPresetTableName,
   BatchExportTableName,
   ActionId,
   BatchActionType,
+  EXPERIMENT_IO_TRUNCATE_LENGTH,
 } from "@langfuse/shared";
 import { ExperimentFilterPills } from "./ExperimentFilterPills";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import {
+  COMPARISON_OPERATOR_PROPERTY,
+  itemRegressionFilterAppliedProps,
+  scoreColumnScopeToggledProps,
+} from "@/src/features/experiments/lib/analytics";
+import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
-import { type RowSelectionState } from "@tanstack/react-table";
-import TableIdOrName from "@/src/components/table/table-id";
-import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
+import {
+  type RowSelectionState,
+  type VisibilityState,
+} from "@tanstack/react-table";
+import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { ExperimentGridView } from "./ExperimentGridView";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { EXPERIMENT_ITEMS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentItemsSearchRegistry";
+import {
+  reconcileFilterTargets,
+  hasAmbiguousTargetChange,
+} from "@/src/features/experiments/lib/reconcileFilterTargets";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useExperimentItemsTableData } from "../../hooks/useExperimentItemsTableData";
 import {
   type ExperimentItemsTableRow,
@@ -51,11 +74,17 @@ import {
   type ExperimentOutputData,
   getExperimentColorStyles,
 } from "./types";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
+import { Badge } from "@/src/components/ui/badge";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
-import { createScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import {
+  collectPresentScoreKeys,
+  composeAggregateScoreKey,
+  createScoreColumns,
+  revealScoreColumns,
+  withPresentScoreKeys,
+} from "@/src/features/scores";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ExperimentCompareTable } from "./ExperimentCompareTable";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
@@ -63,9 +92,63 @@ import {
   useExperimentItemsFilterOptions,
   type ScoreColumnDef,
 } from "@/src/features/experiments/hooks/useExperimentItemsFilterOptions";
-import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
-import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
+import {
+  calculateNumericDiff,
+  computeScoreDiffs,
+  DiffLabel,
+} from "@/src/features/datasets";
+import { describeRunComparison } from "@/src/features/experiments/fns/describeRunComparison";
 import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/peek-experiment-item-detail";
+import { NotRecordedMetric } from "./NotRecordedMetric";
+import {
+  summariseScoreColumn,
+  type ScoreColumnDataType,
+  type ScoreColumnSummary,
+} from "@/src/features/experiments/fns/summariseScoreColumn";
+import { ScoreColumnHeaderSummary } from "./ScoreColumnHeaderSummary";
+import {
+  ScoreColumnFilterMenu,
+  ScoreColumnFilterMenuTrigger,
+} from "./ScoreColumnFilterMenu";
+import { ScoreComparisonFilterPills } from "./ScoreComparisonFilterPills";
+import {
+  ExperimentScoreMatrix,
+  type ScoreMatrixRow,
+} from "./ExperimentScoreMatrix";
+import { useScoreComparisonFilters } from "@/src/features/experiments/hooks/useScoreComparisonFilters";
+import {
+  describeEmptyScoreComparison,
+  rowPassesScoreComparisonFilters,
+  scoreFieldForLevel,
+  type ScoreComparisonFilter,
+  type ScoreLevel,
+} from "@/src/features/experiments/fns/scoreComparisonFilter";
+import { resetStaleDefaultColumnOrder } from "@/src/features/experiments/fns/experimentItemsColumnOrder";
+import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
+import { resolveExperimentPeekTarget } from "@/src/features/experiments/fns/resolveExperimentPeekTarget";
+
+/**
+ * A row on its way into the peek, carrying which experiment's cell was
+ * clicked. Absent for a click on the row itself, which still opens the
+ * baseline.
+ */
+type ClickedExperimentRow = ExperimentItemsTableRow & {
+  clickedExperimentId?: string;
+};
+
+/** `usePeekNavigation`'s `openPeek`, as the cell handlers need it. */
+type PeekOpener = (itemId: string, row: ClickedExperimentRow) => void;
+
+/**
+ * Opens the peek on one experiment's cell. Passed to every per-experiment
+ * cell; `undefined` when the peek cannot open, which also removes the
+ * pointer affordance.
+ */
+type ExperimentCellClickHandler = (
+  event: React.MouseEvent,
+  row: ExperimentItemsTableRow,
+  experimentId: string,
+) => void;
 
 const renderExperimentSpecificHeader = (label: string) => (
   <span className="text-muted-foreground">{label}</span>
@@ -93,12 +176,59 @@ function toScoreColumnInput(scoreColumnDefs: ScoreColumnDef[]): Array<{
   }));
 }
 
-export const getDefaultExperimentFilterTarget = (props: {
+/**
+ * One summary per score column: the primary experiment's aggregate over the
+ * items in view, and the same for the comparison it is read against. Built once
+ * per fetch rather than per header render.
+ */
+function buildScoreColumnSummaries({
+  rows,
+  scoreField,
+  dataTypeByKey,
+  primaryExperimentId,
+  comparisonExperimentId,
+}: {
+  rows: ExperimentItemsTableRow[];
+  scoreField: "observationScores" | "traceScores";
+  dataTypeByKey: Map<string, ScoreColumnDataType>;
+  primaryExperimentId?: string;
+  comparisonExperimentId?: string;
+}): Map<string, ScoreColumnSummary> {
+  const summaries = new Map<string, ScoreColumnSummary>();
+  if (!primaryExperimentId) return summaries;
+
+  const scoresFor = (row: ExperimentItemsTableRow, experimentId?: string) =>
+    experimentId
+      ? row.experiments.find((exp) => exp.experimentId === experimentId)?.[
+          scoreField
+        ]
+      : undefined;
+
+  for (const [key, dataType] of dataTypeByKey) {
+    summaries.set(
+      key,
+      summariseScoreColumn({
+        // Every item in view is a pair, including the ones only one of the two
+        // experiments scored — those are counted as not comparable.
+        pairs: rows.map((row) => ({
+          baseline: scoresFor(row, primaryExperimentId)?.[key] ?? null,
+          comparison: scoresFor(row, comparisonExperimentId)?.[key] ?? null,
+        })),
+        dataType,
+        hasComparison: Boolean(comparisonExperimentId),
+      }),
+    );
+  }
+
+  return summaries;
+}
+
+const getDefaultExperimentFilterTarget = (props: {
   baselineId?: string;
   comparisonIds: string[];
 }) => props.baselineId ?? props.comparisonIds[0];
 
-export const shouldEnableExperimentPeek = (props: {
+const shouldEnableExperimentPeek = (props: {
   hasBaseline: boolean;
   hideControls: boolean;
 }) => !props.hideControls && props.hasBaseline;
@@ -107,18 +237,37 @@ export const shouldEnableExperimentPeek = (props: {
  * Cell component that renders stacked values for each experiment.
  * Uses CSS grid for consistent horizontal alignment across columns.
  */
+/**
+ * A single score's value, as `ScoresTableCell` renders it in the smart format
+ * — for the hover sentence next to it, which has to quote the same number the
+ * cell shows.
+ */
+const formatScoreAggregateValue = (
+  aggregate?: AggregatedScoreData | null,
+): string => {
+  if (!aggregate) return "nothing";
+  return aggregate.type === "NUMERIC"
+    ? aggregate.average.toFixed(4)
+    : (aggregate.values[0] ?? "nothing");
+};
+
 const StackedExperimentCell = ({
   experiments,
   allExperimentIds,
   colorExperimentIds,
   renderValue,
   className,
+  row,
+  onExperimentClick,
 }: {
   experiments: ExperimentItemData[];
   allExperimentIds: string[];
   colorExperimentIds?: string[];
   renderValue: (exp: ExperimentItemData) => React.ReactNode;
   className?: string;
+  row?: ExperimentItemsTableRow;
+  /** Clicking one experiment's line opens that run, not the row's baseline. */
+  onExperimentClick?: ExperimentCellClickHandler;
 }) => {
   const experimentsById = useMemo(
     () => new Map(experiments.map((exp) => [exp.experimentId, exp])),
@@ -139,10 +288,21 @@ const StackedExperimentCell = ({
           colorExperimentIds ?? allExperimentIds,
         );
         const content = exp ? renderValue(exp) : null;
+        // Clickable because this run exists for the item — never because it
+        // rendered a value. A run with an empty value still has a trace.
+        const isClickable = Boolean(exp && row && onExperimentClick);
         return (
           <div
             key={experimentId}
-            className="flex min-h-0 items-start overflow-hidden py-0.5 pr-2 pl-1.5"
+            className={cn(
+              "flex min-h-0 items-start overflow-hidden py-0.5 pr-2 pl-1.5",
+              isClickable && "cursor-pointer",
+            )}
+            onClick={
+              isClickable
+                ? (event) => onExperimentClick?.(event, row!, experimentId)
+                : undefined
+            }
           >
             {content ? (
               <>
@@ -167,33 +327,75 @@ const StackedExperimentCell = ({
 /**
  * A single experiment's output within the stacked list cell. Renders the
  * compact (truncated) output value from the list query.
+ *
+ * `h-full min-h-0` is what makes a long output scrollable rather than clipped:
+ * the IO cell inside sizes itself to its parent, so an auto-height row hands it
+ * the content's own height and the row's `overflow-hidden` then cuts it off
+ * with no way to read the rest. Bounded to the row, the IO cell's own
+ * scrollport takes over.
  */
 const StackedOutputRow = ({
   output,
   markerClass,
   singleLine,
+  chip,
 }: {
   output: string;
   markerClass: string;
   singleLine: boolean;
+  /** Rendered after the value, e.g. the expected-output verdict. */
+  chip?: React.ReactNode;
 }) => {
   return (
-    <div className="flex min-w-0 items-start">
+    <div className="flex h-full min-h-0 min-w-0 items-start">
       <span
         className={cn(
           "mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full",
           markerClass,
         )}
       />
-      <MemoizedIOTableCell
-        isLoading={false}
+      <ConnectedIOTableCell
         data={output}
         singleLine={singleLine}
-        className="bg-accent-light-green"
+        variant="output"
       />
+      {chip}
     </div>
   );
 };
+
+/**
+ * Whether an output is the expected one. Exact match after trimming — anything
+ * looser would be guessing at what "close enough" means for the user's data.
+ *
+ * `null` when the answer is not knowable from what the table loaded: the values
+ * arrive truncated, so two that agree up to the cut may still differ past it.
+ * A verdict that can be wrong is worse than no verdict, so the caller shows
+ * nothing instead.
+ */
+const matchesExpectedOutput = (
+  output: string | null | undefined,
+  expectedOutput: string | null | undefined,
+): boolean | null => {
+  if (!output || !expectedOutput) return null;
+  const left = output.trim();
+  const right = expectedOutput.trim();
+  if (left !== right) return false;
+  const mayBeTruncated =
+    output.length >= EXPERIMENT_IO_TRUNCATE_LENGTH ||
+    expectedOutput.length >= EXPERIMENT_IO_TRUNCATE_LENGTH;
+  return mayBeTruncated ? null : true;
+};
+
+const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
+  <Badge
+    size="sm"
+    variant={matches ? "success" : "error"}
+    className="mt-0.5 ml-1 shrink-0 font-bold"
+  >
+    {matches ? "match" : "differs"}
+  </Badge>
+);
 
 /**
  * Cell component that renders stacked output values for each experiment.
@@ -204,50 +406,99 @@ const StackedOutputCell = ({
   colorExperimentIds,
   singleLine,
   isLoading,
+  expectedOutput,
+  row,
+  onExperimentClick,
 }: {
   outputs: ExperimentOutputData[];
   allExperimentIds: string[];
   colorExperimentIds?: string[];
   singleLine: boolean;
   isLoading: boolean;
+  /**
+   * The item's expected output, shown as the cell's first line with a verdict on
+   * each output — the `Expected → Output` diff mode. Undefined in every other
+   * mode, and for the items that simply have no expected output.
+   */
+  expectedOutput?: string | null;
+  row?: ExperimentItemsTableRow;
+  /** Clicking one experiment's line opens that run, not the row's baseline. */
+  onExperimentClick?: ExperimentCellClickHandler;
 }) => {
   const outputsByExperimentId = useMemo(
     () => new Map(outputs.map((out) => [out.experimentId, out])),
     [outputs],
   );
 
+  const showExpectedLine = Boolean(expectedOutput);
+
   return (
     <div
       className="grid h-full min-h-0 gap-1"
       style={{
-        gridTemplateRows: `repeat(${Math.max(allExperimentIds.length, 1)}, minmax(0, 1fr))`,
+        gridTemplateRows: `repeat(${Math.max(allExperimentIds.length, 1) + (showExpectedLine ? 1 : 0)}, minmax(0, 1fr))`,
       }}
     >
+      {showExpectedLine && (
+        <div className="flex min-h-0 items-start overflow-hidden py-0.5 pr-1 pl-1.5">
+          <div className="flex h-full min-h-0 min-w-0 items-start">
+            <span className="text-muted-foreground mt-0.5 mr-1 shrink-0 text-[10px] font-bold uppercase">
+              Exp
+            </span>
+            <ConnectedIOTableCell
+              isLoading={false}
+              data={expectedOutput ?? null}
+              singleLine={singleLine}
+            />
+          </div>
+        </div>
+      )}
       {allExperimentIds.map((experimentId) => {
         const out = outputsByExperimentId.get(experimentId);
         const colorStyles = getExperimentColorStyles(
           experimentId,
           colorExperimentIds ?? allExperimentIds,
         );
+        // null when the loaded text cannot settle the question, so no chip.
+        const expectedMatch = showExpectedLine
+          ? matchesExpectedOutput(out?.output, expectedOutput)
+          : null;
+        // Gated on the run existing for this item, never on the output being
+        // truthy: a run that legitimately returned "" still has a trace to
+        // open, and testing the text would drop the handler and let the click
+        // fall through to the row — back to the baseline.
+        const hasRun = row?.experiments.some(
+          (exp) => exp.experimentId === experimentId,
+        );
+        const isClickable = Boolean(hasRun && row && onExperimentClick);
         return (
           <div
             key={experimentId}
-            className="flex min-h-0 items-start overflow-hidden py-0.5 pr-1 pl-1.5"
+            className={cn(
+              "flex min-h-0 items-start overflow-hidden py-0.5 pr-1 pl-1.5",
+              isClickable && "cursor-pointer",
+            )}
+            onClick={
+              isClickable
+                ? (event) => onExperimentClick?.(event, row!, experimentId)
+                : undefined
+            }
           >
             {isLoading ? (
-              <div className="flex min-w-0 items-start">
+              <div className="flex h-full min-h-0 min-w-0 items-start">
                 <span className="bg-muted mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full" />
-                <MemoizedIOTableCell
-                  isLoading={true}
-                  data={null}
-                  singleLine={singleLine}
-                />
+                <ConnectedIOTableCell isLoading singleLine={singleLine} />
               </div>
             ) : out?.output ? (
               <StackedOutputRow
                 output={out.output}
                 markerClass={colorStyles.markerClass}
                 singleLine={singleLine}
+                chip={
+                  expectedMatch === null ? undefined : (
+                    <ExpectedMatchChip matches={expectedMatch} />
+                  )
+                }
               />
             ) : (
               <span className="text-muted-foreground px-2 py-1">—</span>
@@ -273,13 +524,14 @@ export default function ExperimentItemsTable({
   projectId,
   ioRenderMode,
   hideControls = false,
+  settingsSections,
 }: ExperimentItemsTableProps) {
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
   const hasEvalAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
   });
 
   const {
@@ -288,8 +540,15 @@ export default function ExperimentItemsTable({
     comparisonIds,
     allExperimentIds,
     layout,
+    diffMode,
     itemVisibility,
   } = useExperimentResultsState();
+
+  // "Off" turns the whole diff apparatus into plain values; "expected" keeps the
+  // baseline deltas on the scores (a score has no expected value to diff
+  // against) and points the output cell at the item's expected output instead.
+  const showComparisonDiff = diffMode !== "off";
+  const isExpectedDiff = diffMode === "expected";
 
   const defaultFilterTargetExperimentId = getDefaultExperimentFilterTarget({
     baselineId,
@@ -300,12 +559,52 @@ export default function ExperimentItemsTable({
     hasBaseline,
     hideControls,
   });
+
+  // `openPeek` lives on `usePeekNavigation` further down (it needs state this
+  // component only has by then), but the column builders below need a click
+  // handler at definition time. The ref bridges the two without making every
+  // memoized column depend on a callback that is a fresh literal each render.
+  const openPeekRef = useRef<PeekOpener | null>(null);
+  const openClickedExperimentPeek = useCallback(
+    (
+      event: React.MouseEvent,
+      row: ExperimentItemsTableRow,
+      experimentId: string,
+    ) => {
+      // A real control inside the cell (a link, a button) owns its own click.
+      if (shouldIgnoreRowClickTarget(event.target)) return;
+      // Otherwise the row handler would win and re-open the baseline.
+      event.stopPropagation();
+      openPeekRef.current?.(row.itemId, {
+        ...row,
+        clickedExperimentId: experimentId,
+      });
+    },
+    [],
+  );
+  // Undefined when the peek cannot open, so the cells neither act nor offer a
+  // pointer cursor — same gate on the affordance as on the action.
+  const onExperimentCellClick = canUsePeek
+    ? openClickedExperimentPeek
+    : undefined;
+
   const { experimentNames } = useExperimentNames({ projectId });
   const selectedExperimentNames = useMemo(() => {
     return experimentNames.filter((exp) =>
       allExperimentIds.includes(exp.experimentId),
     );
   }, [experimentNames, allExperimentIds]);
+
+  // A stacked cell holds one line per run, told apart by a colour marker only,
+  // so every value and every comparison chip in it names its run on hover.
+  const runNameOf = useCallback(
+    (experimentId?: string) =>
+      experimentId
+        ? experimentNames.find((exp) => exp.experimentId === experimentId)
+            ?.experimentName
+        : undefined,
+    [experimentNames],
+  );
 
   const { selectAll, setSelectAll } = useSelectAll(
     projectId,
@@ -317,9 +616,12 @@ export default function ExperimentItemsTable({
     limit: "pageSize",
   });
 
+  // Medium by default: with the ids out of the cell a row no longer needs the
+  // tallest option to show its output, and two rows per screen was the
+  // complaint. Large stays one click away for reading long outputs.
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "experiment-items",
-    "l",
+    "m",
   );
   const ioSingleLine = ioRenderMode === "text";
 
@@ -340,26 +642,53 @@ export default function ExperimentItemsTable({
 
   // Use sidebar filter state for the sidebar UI (provides proper facets, options, etc.)
   // This is the single source of truth for filters
+  const capture = usePostHogClientCapture();
+  const { viewControllersRef, onExplicitFilterStateChange } =
+    useTableViewFilterChange();
+  const [filterTargetState, setFilterTargetState] = useState<{
+    filters: FilterState;
+    targets: Record<number, string>;
+  }>({ filters: [], targets: {} });
   const queryFilter = useSidebarFilterState(
     experimentItemsFilterConfig,
     scoreFilterOptions,
-    { stateLocation: "url", loading: isFilterOptionsLoading },
+    {
+      stateLocation: "url",
+      onExplicitFilterStateChange: (change) => {
+        setFilterTargetState((state) => ({
+          filters: change.nextFilters,
+          targets:
+            change.origin === "saved_view"
+              ? {}
+              : reconcileFilterTargets(
+                  change.previousFilters,
+                  change.nextFilters,
+                  reconcileFilterTargets(
+                    state.filters,
+                    change.previousFilters,
+                    state.targets,
+                  ),
+                ),
+        }));
+        onExplicitFilterStateChange(change);
+      },
+      loading: isFilterOptionsLoading,
+      // v4-only surface — drives `isV4` on filters:* analytics.
+      isV4: true,
+    },
+  );
+
+  // The assignment carries its condition so URL navigation cannot attach a
+  // previous index's experiment to an unrelated condition.
+  const filterTargets = reconcileFilterTargets(
+    filterTargetState.filters,
+    queryFilter.filterState,
+    filterTargetState.targets,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
   queryFilterRef.current = queryFilter;
-
-  const setFiltersWrapper = useCallback(
-    (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
-    [],
-  );
-
-  // Per-experiment filter targeting state (maps filter index to experiment ID)
-  // Default: all filters target the baseline experiment
-  const [filterTargets, setFilterTargets] = useState<Record<number, string>>(
-    {},
-  );
 
   // Build filter list for pills display
   // Group filters by their target experiment (defaults to baseline)
@@ -398,7 +727,7 @@ export default function ExperimentItemsTable({
       const filterState = queryFilterRef.current.filterState;
 
       // Count filters up to the current group to find original index
-      let originalIndex = 0;
+      let originalIndex = -1;
       let currentGroupIndex = 0;
 
       for (let i = 0; i < filterState.length; i++) {
@@ -412,13 +741,18 @@ export default function ExperimentItemsTable({
         }
       }
 
+      if (originalIndex < 0) return;
+      viewControllersRef.current?.handleUserStateChange(
+        filterTargets[originalIndex] ?? defaultFilterTargetExperimentId,
+        toExperimentId,
+      );
       // Update the target for this filter
-      setFilterTargets((prev) => ({
-        ...prev,
-        [originalIndex]: toExperimentId,
-      }));
+      setFilterTargetState({
+        filters: filterState,
+        targets: { ...filterTargets, [originalIndex]: toExperimentId },
+      });
     },
-    [filterTargets, defaultFilterTargetExperimentId],
+    [filterTargets, defaultFilterTargetExperimentId, viewControllersRef],
   );
 
   // Handler for removing a filter via pill
@@ -427,7 +761,7 @@ export default function ExperimentItemsTable({
       const filterState = queryFilterRef.current.filterState;
 
       // Find the original filter index
-      let originalIndex = 0;
+      let originalIndex = -1;
       let currentGroupIndex = 0;
 
       for (let i = 0; i < filterState.length; i++) {
@@ -441,24 +775,10 @@ export default function ExperimentItemsTable({
         }
       }
 
+      if (originalIndex < 0) return;
       // Remove the filter from queryFilter
       const newFilters = filterState.filter((_, idx) => idx !== originalIndex);
       queryFilterRef.current.setFilterState(newFilters);
-
-      // Clean up the filter targets (shift indices down)
-      setFilterTargets((prev) => {
-        const newTargets: Record<number, string> = {};
-        Object.entries(prev).forEach(([key, value]) => {
-          const idx = parseInt(key);
-          if (idx < originalIndex) {
-            newTargets[idx] = value;
-          } else if (idx > originalIndex) {
-            newTargets[idx - 1] = value;
-          }
-          // Skip the removed index
-        });
-        return newTargets;
-      });
     },
     [filterTargets, defaultFilterTargetExperimentId],
   );
@@ -481,45 +801,41 @@ export default function ExperimentItemsTable({
       itemVisibility,
     });
 
+  // Running items without an expected output is common, so don't spend a column
+  // on it when nothing has one. Kept while IO loads so it doesn't flash.
+  //
+  // Whether the column exists is a property of the runs being compared, not of
+  // the page that happens to be loaded, so a page of items that all lack an
+  // expected output must not take the column away again. Latched per selection:
+  // once any page has shown one, the column stays until the selection changes.
+  const expectedOutputOnPage = useMemo(
+    () => (items.rows ?? []).some((row) => Boolean(row.expectedOutput)),
+    [items.rows],
+  );
+  const experimentSelectionKey = useMemo(
+    () => allExperimentIds.join(","),
+    [allExperimentIds],
+  );
+  // The selection arrives as a fresh array on every render, so anything that
+  // reaches a hook dependency has to come off the key, which is stable by
+  // value. `rows` below is one of those: it feeds the effect that publishes the
+  // peek navigation list, and publishing re-renders every consumer of that
+  // provider — this table included. Depending on the array identity there
+  // leaves the two re-triggering each other for as long as the page is open.
+  const comparableExperimentIds = useMemo(
+    () => (experimentSelectionKey ? experimentSelectionKey.split(",") : []),
+    [experimentSelectionKey],
+  );
+  const [expectedOutputSeenFor, setExpectedOutputSeenFor] = useState<
+    string | null
+  >(null);
   useEffect(() => {
-    if (items.status === "success") {
-      // Store all experiment targets for peek navigation
-      setDetailPageList(
-        "experiment-items",
-        items?.rows?.map((item: ExperimentItemsTableRow) => {
-          const baselineExp = baselineId
-            ? item.experiments.find((e) => e.experimentId === baselineId)
-            : item.experiments[0];
-
-          // Build experiment targets map for all experiments
-          const experimentTargets = Object.fromEntries(
-            item.experiments.map((exp) => [
-              exp.experimentId,
-              {
-                traceId: exp.traceId,
-                observationId: exp.observationId,
-                timestamp: exp.startTime.toISOString(),
-              },
-            ]),
-          );
-
-          return {
-            id: item.itemId,
-            params: {
-              // Primary trace params (baseline, for URL compat and initial load)
-              traceId: baselineExp?.traceId ?? "",
-              observation: baselineExp?.observationId ?? "",
-              timestamp: baselineExp?.startTime?.toISOString() ?? "",
-            },
-            // All experiment targets for switching between experiments.
-            // Kept out of `params` so they never leak into the URL.
-            meta: { experimentTargets },
-          };
-        }),
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items.status, items.rows, baselineId]);
+    if (expectedOutputOnPage) setExpectedOutputSeenFor(experimentSelectionKey);
+  }, [expectedOutputOnPage, experimentSelectionKey]);
+  const showExpectedOutput =
+    ioLoading ||
+    expectedOutputOnPage ||
+    expectedOutputSeenFor === experimentSelectionKey;
 
   const { selectActionColumn } = TableSelectionManager<ExperimentItemsTableRow>(
     {
@@ -535,108 +851,416 @@ export default function ExperimentItemsTable({
     [hasBaseline, allExperimentIds],
   );
 
+  // A score column that is empty for every item in view is noise, so only keep
+  // the keys the items query actually returned. Undefined while items load, so
+  // columns don't disappear and come back on each fetch.
+  const presentScoreKeys = useMemo(() => {
+    if (items.status !== "success") return undefined;
+    const experimentsInView = (items.rows ?? []).flatMap(
+      (row) => row.experiments,
+    );
+    return {
+      observation: collectPresentScoreKeys(
+        experimentsInView.map((exp) => exp.observationScores),
+      ),
+      trace: collectPresentScoreKeys(
+        experimentsInView.map((exp) => exp.traceScores),
+      ),
+    };
+  }, [items]);
+
   // Create score columns from the shared filter options data
   // This ensures sidebar filters and column visibility use the same data source
   const observationScoreColumns = useMemo(
     () =>
-      createScoreColumns<ExperimentItemData>(
-        toScoreColumnInput(scoreColumnDefs.observationScoreColumns),
-        "observationScores",
-        "smart",
-        undefined,
-        undefined,
-        true,
-      ),
-    [scoreColumnDefs.observationScoreColumns],
+      createScoreColumns<ExperimentItemData>({
+        scoreColumns: withPresentScoreKeys(
+          toScoreColumnInput(scoreColumnDefs.observationScoreColumns),
+          presentScoreKeys?.observation,
+        ),
+        scoreColumnKey: "observationScores",
+        displayFormat: "smart",
+        headerPrefix: "Observation",
+        rawKey: true,
+        valueTitle: (exp) => runNameOf(exp.experimentId),
+      }),
+    [
+      scoreColumnDefs.observationScoreColumns,
+      presentScoreKeys?.observation,
+      runNameOf,
+    ],
   );
 
   const traceScoreColumns = useMemo(
     () =>
-      createScoreColumns<ExperimentItemData>(
-        toScoreColumnInput(scoreColumnDefs.traceScoreColumns),
-        "traceScores",
-        "smart",
-        "Trace",
-        true,
-        true,
-      ),
-    [scoreColumnDefs.traceScoreColumns],
+      createScoreColumns<ExperimentItemData>({
+        scoreColumns: withPresentScoreKeys(
+          toScoreColumnInput(scoreColumnDefs.traceScoreColumns),
+          presentScoreKeys?.trace,
+        ),
+        scoreColumnKey: "traceScores",
+        displayFormat: "smart",
+        prefix: "Trace",
+        rawKey: true,
+        valueTitle: (exp) => runNameOf(exp.experimentId),
+      }),
+    [scoreColumnDefs.traceScoreColumns, presentScoreKeys?.trace, runNameOf],
   );
 
   // Use the shared loading state for both sidebar and columns
   const isObservationScoreColumnsLoading = isFilterOptionsLoading;
   const isTraceScoreColumnsLoading = isFilterOptionsLoading;
 
+  // The experiment a score column's header reads as "this experiment", and the
+  // one it is compared against. Without an explicit baseline the first selected
+  // run still stands in as "this experiment", but nothing is compared against
+  // it: the cells only draw a diff once there is an explicit baseline, so a
+  // header delta here would count movements no row in the table shows.
+  const primaryExperimentId = baselineId ?? allExperimentIds[0];
+  const primaryComparisonId = hasBaseline
+    ? allExperimentIds.find((id) => id !== primaryExperimentId)
+    : undefined;
+  const primaryComparisonName = useMemo(
+    () =>
+      selectedExperimentNames.find(
+        (exp) => exp.experimentId === primaryComparisonId,
+      )?.experimentName,
+    [selectedExperimentNames, primaryComparisonId],
+  );
+
+  const scoreDataTypesByKey = useMemo(() => {
+    const build = (columns: ScoreColumnDef[]) =>
+      new Map(
+        toScoreColumnInput(columns).map(({ key, dataType }) => [key, dataType]),
+      );
+    return {
+      observationScores: build(scoreColumnDefs.observationScoreColumns),
+      traceScores: build(scoreColumnDefs.traceScoreColumns),
+    };
+  }, [
+    scoreColumnDefs.observationScoreColumns,
+    scoreColumnDefs.traceScoreColumns,
+  ]);
+
+  const scoreNamesByKey = useMemo(() => {
+    const build = (columns: ScoreColumnDef[]) =>
+      new Map(toScoreColumnInput(columns).map(({ key, name }) => [key, name]));
+    return {
+      observationScores: build(scoreColumnDefs.observationScoreColumns),
+      traceScores: build(scoreColumnDefs.traceScoreColumns),
+    };
+  }, [
+    scoreColumnDefs.observationScoreColumns,
+    scoreColumnDefs.traceScoreColumns,
+  ]);
+
+  const {
+    filters: scoreComparisonFilters,
+    setFilter: setScoreComparisonFilter,
+    removeFilter: removeScoreComparisonFilter,
+  } = useScoreComparisonFilters();
+
+  // Is the regression filter used once it exists? The question the whole
+  // rebuild is for, so it carries the score's level and type, which comparison
+  // it reads against, and whether the user picked it or arrived with it in a
+  // shared URL. No score name and no score value — those are user content.
+  const captureScoreComparisonFilter = useCallback(
+    ({
+      filter,
+      dataType,
+      source,
+    }: {
+      filter: ScoreComparisonFilter;
+      dataType: ScoreColumnDataType | undefined;
+      source: "header_menu" | "url";
+    }) => {
+      const props = itemRegressionFilterAppliedProps({
+        tableName: "experiment-items",
+        scoreLevel: filter.level,
+        dataType,
+        operator: COMPARISON_OPERATOR_PROPERTY[filter.operator],
+        comparisonExperimentId: filter.comparisonExperimentId,
+        comparisonIds,
+        source,
+      });
+      if (props) capture("experiment:item_regression_filter_applied", props);
+    },
+    [capture, comparisonIds],
+  );
+
+  // A results page can arrive with the filter already in the URL. Reported once
+  // per page, after the score column definitions land (they carry the data
+  // type), and never again — it is a shared view, not an action.
+  const hasReportedUrlScoreFilters = useRef(false);
+  useEffect(() => {
+    if (hasReportedUrlScoreFilters.current) return;
+    if (isFilterOptionsLoading) return;
+    hasReportedUrlScoreFilters.current = true;
+    for (const filter of scoreComparisonFilters) {
+      captureScoreComparisonFilter({
+        filter,
+        dataType: scoreDataTypesByKey[scoreFieldForLevel(filter.level)].get(
+          filter.scoreKey,
+        ),
+        source: "url",
+      });
+    }
+  }, [
+    isFilterOptionsLoading,
+    scoreComparisonFilters,
+    scoreDataTypesByKey,
+    captureScoreComparisonFilter,
+  ]);
+
+  // The runs a score can be read against, the auto-selected comparison first so
+  // the menu's default is the one the column header already reports.
+  const comparisonTargets = useMemo(() => {
+    const others = selectedExperimentNames.filter(
+      (exp) => exp.experimentId !== primaryExperimentId,
+    );
+    return [
+      ...others.filter((exp) => exp.experimentId === primaryComparisonId),
+      ...others.filter((exp) => exp.experimentId !== primaryComparisonId),
+    ].map(({ experimentId, experimentName }) => ({
+      experimentId,
+      experimentName,
+    }));
+  }, [selectedExperimentNames, primaryExperimentId, primaryComparisonId]);
+
+  const scoreDataTypeFor = useCallback(
+    (filter: ScoreComparisonFilter) =>
+      scoreDataTypesByKey[scoreFieldForLevel(filter.level)].get(
+        filter.scoreKey,
+      ),
+    [scoreDataTypesByKey],
+  );
+
+  const scoreColumnSummaries = useMemo(() => {
+    const rowsInView = items.rows ?? [];
+    return {
+      observationScores: buildScoreColumnSummaries({
+        rows: rowsInView,
+        scoreField: "observationScores",
+        dataTypeByKey: scoreDataTypesByKey.observationScores,
+        primaryExperimentId,
+        comparisonExperimentId: primaryComparisonId,
+      }),
+      traceScores: buildScoreColumnSummaries({
+        rows: rowsInView,
+        scoreField: "traceScores",
+        dataTypeByKey: scoreDataTypesByKey.traceScores,
+        primaryExperimentId,
+        comparisonExperimentId: primaryComparisonId,
+      }),
+    };
+  }, [
+    items.rows,
+    scoreDataTypesByKey,
+    primaryExperimentId,
+    primaryComparisonId,
+  ]);
+
   const buildExperimentScoreColumns = useCallback(
     (
       scoreColumns: LangfuseColumnDef<ExperimentItemData>[],
       scoreField: "observationScores" | "traceScores",
     ): LangfuseColumnDef<ExperimentItemsTableRow>[] =>
-      scoreColumns.map((scoreCol) => ({
-        ...scoreCol,
-        // Override the cell renderer to show stacked scores for each experiment
-        cell: ({ row }) => {
-          const experiments = row.original.experiments;
-          const baselineExperiment = hasBaseline
-            ? experiments.find((exp) => exp.experimentId === baselineId)
-            : undefined;
-          const baselineScoresData = baselineExperiment?.[scoreField] ?? null;
-          // todo: fix properly
-          const scoreKey = scoreCol.accessorKey?.replace(`Trace-`, "");
-          return (
-            <StackedExperimentCell
-              experiments={experiments}
-              allExperimentIds={allExperimentIds}
-              colorExperimentIds={colorExperimentIds}
-              renderValue={(exp) => {
-                const scoresData = exp[scoreField] ?? {};
-                const value = scoresData[scoreKey];
+      scoreColumns.map((scoreCol) => {
+        const key = scoreCol.accessorKey?.replace(`Trace-`, "");
+        const summary = key
+          ? scoreColumnSummaries[scoreField].get(key)
+          : undefined;
+        const dataType = key
+          ? scoreDataTypesByKey[scoreField].get(key)
+          : undefined;
+        const label =
+          typeof scoreCol.header === "string"
+            ? scoreCol.header
+            : (scoreCol.accessorKey ?? "");
+        const level: ScoreLevel =
+          scoreField === "traceScores" ? "trace" : "observation";
+        const activeComparisonFilter = key
+          ? scoreComparisonFilters.find(
+              (filter) => filter.level === level && filter.scoreKey === key,
+            )
+          : undefined;
 
-                if (!value)
-                  return <span className="text-muted-foreground">-</span>;
+        return {
+          ...scoreCol,
+          // The header holds this column's analysis, so it also sets the
+          // column's floor: the shared table's default lets a column be dragged
+          // to 20px, which is narrower than `−0.12 ↗1 ↘14` and would clip a
+          // count into a different, wrong number. 120px holds the delta and the
+          // movement counts whole.
+          minSize: 120,
+          // The header carries the column's aggregate over the items in view, and
+          // the movement against the comparison. Keeps the plain name for the
+          // column picker.
+          ...(summary && dataType
+            ? {
+                headerBlock: true,
+                headerLabel: label,
+                header: () => (
+                  <ScoreColumnHeaderSummary
+                    label={label}
+                    dataType={dataType}
+                    summary={summary}
+                    comparisonName={primaryComparisonName}
+                    hasBaseline={hasBaseline}
+                    filterMenu={
+                      comparisonTargets.length === 0 ? undefined : (
+                        <ScoreColumnFilterMenu
+                          targets={comparisonTargets}
+                          hasOrder={dataType !== "CATEGORICAL"}
+                          active={activeComparisonFilter}
+                          onSelect={(operator, comparisonExperimentId) => {
+                            if (!key) return;
+                            const nextFilter = {
+                              level,
+                              scoreKey: key,
+                              operator,
+                              comparisonExperimentId,
+                            };
+                            captureScoreComparisonFilter({
+                              filter: nextFilter,
+                              dataType,
+                              source: "header_menu",
+                            });
+                            setScoreComparisonFilter(nextFilter);
+                          }}
+                          onClear={() =>
+                            activeComparisonFilter &&
+                            removeScoreComparisonFilter(activeComparisonFilter)
+                          }
+                        >
+                          {({ Trigger }) => (
+                            // The header cell sorts on click, so opening the menu
+                            // must not also reorder the table.
+                            <Trigger
+                              asChild
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <ScoreColumnFilterMenuTrigger
+                                isActive={Boolean(activeComparisonFilter)}
+                              />
+                            </Trigger>
+                          )}
+                        </ScoreColumnFilterMenu>
+                      )
+                    }
+                  />
+                ),
+              }
+            : {}),
+          // Override the cell renderer to show stacked scores for each experiment
+          cell: ({ row }) => {
+            const experiments = row.original.experiments;
+            const baselineExperiment = hasBaseline
+              ? experiments.find((exp) => exp.experimentId === baselineId)
+              : undefined;
+            const baselineScoresData = baselineExperiment?.[scoreField] ?? null;
+            // todo: fix properly
+            const scoreKey = scoreCol.accessorKey?.replace(`Trace-`, "");
+            return (
+              <StackedExperimentCell
+                experiments={experiments}
+                allExperimentIds={allExperimentIds}
+                colorExperimentIds={colorExperimentIds}
+                row={row.original}
+                onExperimentClick={onExperimentCellClick}
+                renderValue={(exp) => {
+                  const scoresData = exp[scoreField] ?? {};
+                  const value = scoresData[scoreKey];
 
-                const mockRow = {
-                  getValue: (key: string) =>
-                    key === scoreField ? scoresData : undefined,
-                  original: exp,
-                } as any;
-                const scoreCell = scoreCol.cell;
-                const diff =
-                  hasBaseline &&
-                  baselineId &&
-                  exp.experimentId !== baselineId &&
-                  scoreKey &&
-                  baselineScoresData
-                    ? computeScoreDiffs(scoresData, baselineScoresData)[
-                        scoreKey
-                      ]
-                    : null;
+                  if (!value)
+                    return <span className="text-muted-foreground">-</span>;
 
-                const renderedScore =
-                  typeof scoreCell === "function"
-                    ? scoreCell({
-                        row: mockRow,
-                        getValue: mockRow.getValue,
-                      } as any)
-                    : null;
+                  const mockRow = {
+                    getValue: (key: string) =>
+                      key === scoreField ? scoresData : undefined,
+                    original: exp,
+                  } as any;
+                  const scoreCell = scoreCol.cell;
+                  const diff =
+                    showComparisonDiff &&
+                    hasBaseline &&
+                    baselineId &&
+                    exp.experimentId !== baselineId &&
+                    scoreKey &&
+                    baselineScoresData
+                      ? computeScoreDiffs(scoresData, baselineScoresData)[
+                          scoreKey
+                        ]
+                      : null;
 
-                return (
-                  <div className="flex items-center gap-1">
-                    {renderedScore}
-                    {diff && (
-                      <DiffLabel
-                        diff={diff}
-                        formatValue={(v) => v.toFixed(2)}
-                      />
-                    )}
-                  </div>
-                );
-              }}
-            />
-          );
-        },
-      })) as LangfuseColumnDef<ExperimentItemsTableRow>[],
-    [allExperimentIds, baselineId, colorExperimentIds, hasBaseline],
+                  const renderedScore =
+                    typeof scoreCell === "function"
+                      ? scoreCell({
+                          row: mockRow,
+                          getValue: mockRow.getValue,
+                        } as any)
+                      : null;
+
+                  // `true → false` and `+0.07` do not say which side is the
+                  // baseline; the hover title does.
+                  const diffTitle = diff
+                    ? describeRunComparison({
+                        baselineName: runNameOf(baselineId),
+                        ...(diff.type === "CATEGORICAL"
+                          ? {
+                              baselineText: diff.from ?? "several values",
+                              currentText: diff.to ?? "several values",
+                            }
+                          : {
+                              baselineText: formatScoreAggregateValue(
+                                baselineScoresData?.[scoreKey ?? ""],
+                              ),
+                              currentText: formatScoreAggregateValue(value),
+                            }),
+                      })
+                    : undefined;
+
+                  return (
+                    // The value never gives up width for the chip beside it:
+                    // a clipped value reads as data, so the move wraps under
+                    // it instead. `max-w-full` keeps a pathological value
+                    // inside the cell, where its own truncation has a title.
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
+                      <span className="flex max-w-full shrink-0 items-center">
+                        {renderedScore}
+                      </span>
+                      {diff && (
+                        <DiffLabel
+                          diff={diff}
+                          formatValue={(v) => v.toFixed(2)}
+                          title={diffTitle}
+                        />
+                      )}
+                    </div>
+                  );
+                }}
+              />
+            );
+          },
+        };
+      }) as LangfuseColumnDef<ExperimentItemsTableRow>[],
+    [
+      allExperimentIds,
+      baselineId,
+      colorExperimentIds,
+      hasBaseline,
+      primaryComparisonName,
+      scoreColumnSummaries,
+      scoreDataTypesByKey,
+      showComparisonDiff,
+      comparisonTargets,
+      scoreComparisonFilters,
+      setScoreComparisonFilter,
+      removeScoreComparisonFilter,
+      captureScoreComparisonFilter,
+      runNameOf,
+      onExperimentCellClick,
+    ],
   );
 
   const observationExperimentScoreColumns = useMemo(
@@ -670,6 +1294,54 @@ export default function ExperimentItemsTable({
     scoreColumnDefs.observationScoreColumns.length > 0 &&
     scoreColumnDefs.traceScoreColumns.length > 0;
 
+  const expectedOutputColumn = createIOTableColumn<ExperimentItemsTableRow>({
+    accessorKey: "expectedOutput",
+    header: "Expected Output",
+    size: 300,
+    enableHiding: true,
+    // An empty expected output used to render as two literal quote characters.
+    getCell: (value) => (ioLoading ? { type: "loading" } : value || undefined),
+    singleLine: ioSingleLine,
+    variant: "output",
+  }) as LangfuseColumnDef<ExperimentItemsTableRow>;
+
+  const baselineExperimentOf = (experiments: ExperimentItemData[]) =>
+    hasBaseline && baselineId
+      ? experiments.find((exp) => exp.experimentId === baselineId)
+      : undefined;
+
+  /** A comparison line's move against the baseline's, lower being better. */
+  const renderMetricDiff = ({
+    exp,
+    value,
+    baselineValue,
+    format,
+    verb,
+  }: {
+    exp: ExperimentItemData;
+    value?: number | null;
+    baselineValue?: number | null;
+    format: (value: number) => string;
+    verb: "cost" | "took";
+  }) => {
+    if (!showComparisonDiff || exp.experimentId === baselineId) return null;
+    const diff = calculateNumericDiff(value, baselineValue);
+    if (!diff) return null;
+    return (
+      <DiffLabel
+        diff={diff}
+        preferNegativeDiff
+        formatValue={format}
+        title={describeRunComparison({
+          baselineName: runNameOf(baselineId),
+          baselineText: format(baselineValue ?? 0),
+          currentText: format(value ?? 0),
+          verb,
+        })}
+      />
+    );
+  };
+
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = [
     ...(hideControls ? [] : [selectActionColumn]),
     createIdTableColumn<ExperimentItemsTableRow>({
@@ -678,9 +1350,161 @@ export default function ExperimentItemsTable({
       size: 150,
       enableHiding: true,
     }),
+    createIOTableColumn<ExperimentItemsTableRow>({
+      accessorKey: "input",
+      header: "Input",
+      size: 300,
+      enableHiding: true,
+      getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
+      singleLine: ioSingleLine,
+    }),
+    // The scores sit between the item's input and its outputs: the input says
+    // which item this is, the score headers carry the judgement, and the outputs
+    // are the drill-down a regression sends you to (peek carries it too).
+    {
+      accessorKey: "observationScores",
+      header: "Observation Scores",
+      id: "observationScores",
+      enableHiding: true,
+      cell: () => {
+        return isObservationScoreColumnsLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
+      },
+      columns: observationExperimentScoreColumns,
+    },
+    {
+      accessorKey: "traceScores",
+      header: "Trace Scores",
+      id: "traceScores",
+      enableHiding: true,
+      cell: () => {
+        return isTraceScoreColumnsLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
+      },
+      columns: traceExperimentScoreColumns,
+    },
+    // The expected output moves inside the output cell in that diff mode, so it
+    // does not also hold a column of its own.
+    ...(showExpectedOutput && !isExpectedDiff ? [expectedOutputColumn] : []),
+    {
+      accessorKey: "output",
+      id: "output",
+      header: "Output",
+      size: 300,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const outputs = row.original.outputs ?? [];
+        return (
+          <StackedOutputCell
+            outputs={outputs}
+            allExperimentIds={allExperimentIds}
+            colorExperimentIds={colorExperimentIds}
+            row={row.original}
+            onExperimentClick={onExperimentCellClick}
+            singleLine={ioSingleLine}
+            isLoading={ioLoading}
+            // Items with no expected output get no expected line and no
+            // verdict, rather than a diff against nothing.
+            expectedOutput={
+              isExpectedDiff
+                ? (row.original.expectedOutput ?? undefined)
+                : undefined
+            }
+          />
+        );
+      },
+    },
+    // Cost and latency read as measurements, the ids as lookups — both
+    // sit behind the score columns so the analysis is above the fold.
+    {
+      accessorKey: "totalCost",
+      id: "totalCost",
+      headerLabel: getExperimentItemsColumnName("totalCost"),
+      header: () =>
+        renderExperimentSpecificHeader(
+          getExperimentItemsColumnName("totalCost"),
+        ),
+      size: 120,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const experiments = row.original.experiments;
+        const baselineCost = baselineExperimentOf(experiments)?.totalCost;
+        return (
+          <StackedExperimentCell
+            experiments={experiments}
+            allExperimentIds={allExperimentIds}
+            colorExperimentIds={colorExperimentIds}
+            row={row.original}
+            onExperimentClick={onExperimentCellClick}
+            renderValue={(exp) => (
+              // Wraps rather than clipping: in a 120px column a six-decimal
+              // cost and its delta do not fit on one line, and half a currency
+              // value reads as data.
+              <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
+                {exp.totalCost ? (
+                  usdFormatter(exp.totalCost, 2, 6)
+                ) : (
+                  <NotRecordedMetric metric="cost" />
+                )}
+                {renderMetricDiff({
+                  exp,
+                  value: exp.totalCost,
+                  baselineValue: baselineCost,
+                  format: (value) => usdFormatter(value, 2, 6),
+                  verb: "cost",
+                })}
+              </span>
+            )}
+          />
+        );
+      },
+    },
+    {
+      accessorKey: "latencyMs",
+      id: "latencyMs",
+      headerLabel: getExperimentItemsColumnName("latencyMs"),
+      header: () =>
+        renderExperimentSpecificHeader(
+          getExperimentItemsColumnName("latencyMs"),
+        ),
+      size: 120,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const experiments = row.original.experiments;
+        const baselineLatency = baselineExperimentOf(experiments)?.latencyMs;
+        return (
+          <StackedExperimentCell
+            experiments={experiments}
+            allExperimentIds={allExperimentIds}
+            colorExperimentIds={colorExperimentIds}
+            row={row.original}
+            onExperimentClick={onExperimentCellClick}
+            renderValue={(exp) => (
+              <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
+                {exp.latencyMs != null ? (
+                  latencyFormatter(exp.latencyMs)
+                ) : (
+                  <NotRecordedMetric metric="latency" />
+                )}
+                {renderMetricDiff({
+                  exp,
+                  value: exp.latencyMs,
+                  baselineValue: baselineLatency,
+                  format: latencyFormatter,
+                  verb: "took",
+                })}
+              </span>
+            )}
+          />
+        );
+      },
+    },
     {
       accessorKey: "observationId",
       id: "observationId",
+      headerLabel: "Observation ID",
       header: () => renderExperimentSpecificHeader("Observation ID"),
       size: 180,
       enableHiding: true,
@@ -691,7 +1515,9 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
-            renderValue={(exp) => <TableIdOrName value={exp.observationId} />}
+            row={row.original}
+            onExperimentClick={onExperimentCellClick}
+            renderValue={(exp) => <IdTableCell value={exp.observationId} />}
           />
         );
       },
@@ -699,6 +1525,7 @@ export default function ExperimentItemsTable({
     {
       accessorKey: "startTime",
       id: "startTime",
+      headerLabel: getExperimentItemsColumnName("startTime"),
       header: () =>
         renderExperimentSpecificHeader(
           getExperimentItemsColumnName("startTime"),
@@ -714,7 +1541,17 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
-            renderValue={(exp) => <LocalIsoDate date={exp.startTime} />}
+            row={row.original}
+            onExperimentClick={onExperimentCellClick}
+            renderValue={(exp) => {
+              const preparedDate = buildLocalIsoDatePresentation({
+                date: exp.startTime,
+              });
+
+              return preparedDate ? (
+                <span title={preparedDate.title}>{preparedDate.display}</span>
+              ) : null;
+            }}
           />
         );
       },
@@ -722,6 +1559,7 @@ export default function ExperimentItemsTable({
     {
       accessorKey: "level",
       id: "level",
+      headerLabel: getExperimentItemsColumnName("level"),
       header: () =>
         renderExperimentSpecificHeader(getExperimentItemsColumnName("level")),
       size: 120,
@@ -734,61 +1572,9 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
+            row={row.original}
+            onExperimentClick={onExperimentCellClick}
             renderValue={(exp) => <span>{exp.level}</span>}
-          />
-        );
-      },
-    },
-    {
-      accessorKey: "totalCost",
-      id: "totalCost",
-      header: () =>
-        renderExperimentSpecificHeader(
-          getExperimentItemsColumnName("totalCost"),
-        ),
-      size: 120,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const experiments = row.original.experiments;
-        return (
-          <StackedExperimentCell
-            experiments={experiments}
-            allExperimentIds={allExperimentIds}
-            colorExperimentIds={colorExperimentIds}
-            renderValue={(exp) => (
-              <span>
-                {exp.totalCost != null ? (
-                  usdFormatter(exp.totalCost, 2, 6)
-                ) : (
-                  <span className="text-muted-foreground">-</span>
-                )}
-              </span>
-            )}
-          />
-        );
-      },
-    },
-    {
-      accessorKey: "latencyMs",
-      id: "latencyMs",
-      header: () =>
-        renderExperimentSpecificHeader(
-          getExperimentItemsColumnName("latencyMs"),
-        ),
-      size: 120,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const experiments = row.original.experiments;
-        return (
-          <StackedExperimentCell
-            experiments={experiments}
-            allExperimentIds={allExperimentIds}
-            colorExperimentIds={colorExperimentIds}
-            renderValue={(exp) =>
-              exp.latencyMs != null ? (
-                <span>{latencyFormatter(exp.latencyMs)}</span>
-              ) : undefined
-            }
           />
         );
       },
@@ -796,6 +1582,7 @@ export default function ExperimentItemsTable({
     {
       accessorKey: "experimentId",
       id: "experimentId",
+      headerLabel: "Experiment",
       header: () => renderExperimentSpecificHeader("Experiment"),
       size: 150,
       defaultHidden: true,
@@ -807,6 +1594,8 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
+            row={row.original}
+            onExperimentClick={onExperimentCellClick}
             renderValue={(exp) => {
               const expOption = selectedExperimentNames.find(
                 (e) => e.experimentId === exp.experimentId,
@@ -823,95 +1612,113 @@ export default function ExperimentItemsTable({
         );
       },
     },
-    {
-      accessorKey: "input",
-      id: "input",
-      header: "Input",
-      size: 300,
-      enableHiding: true,
-      cell: ({ row }) => {
-        return (
-          <MemoizedIOTableCell
-            isLoading={ioLoading}
-            data={row.original.input ?? null}
-            singleLine={ioSingleLine}
-          />
-        );
-      },
-    },
-    {
-      accessorKey: "expectedOutput",
-      id: "expectedOutput",
-      header: "Expected Output",
-      size: 300,
-      enableHiding: true,
-      cell: ({ row }) => {
-        return (
-          <MemoizedIOTableCell
-            isLoading={ioLoading}
-            data={row.original.expectedOutput ?? ""}
-            singleLine={ioSingleLine}
-            className="bg-accent-light-green"
-          />
-        );
-      },
-    },
-    {
-      accessorKey: "output",
-      id: "output",
-      header: "Output",
-      size: 300,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const outputs = row.original.outputs ?? [];
-        return (
-          <StackedOutputCell
-            outputs={outputs}
-            allExperimentIds={allExperimentIds}
-            colorExperimentIds={colorExperimentIds}
-            singleLine={ioSingleLine}
-            isLoading={ioLoading}
-          />
-        );
-      },
-    },
-    {
-      accessorKey: "observationScores",
-      header: "Observation Scores",
-      id: "observationScores",
-      enableHiding: true,
-      defaultHidden: true,
-      cell: () => {
-        return isObservationScoreColumnsLoading ? (
-          <Skeleton className="h-3 w-1/2" />
-        ) : null;
-      },
-      columns: observationExperimentScoreColumns,
-    },
-    {
-      accessorKey: "traceScores",
-      header: "Trace Scores",
-      id: "traceScores",
-      enableHiding: true,
-      defaultHidden: true,
-      cell: () => {
-        return isTraceScoreColumnsLoading ? (
-          <Skeleton className="h-3 w-1/2" />
-        ) : null;
-      },
-      columns: traceExperimentScoreColumns,
-    },
   ];
+
+  const scoreColumnIds = useMemo(
+    () =>
+      [...observationScoreColumns, ...traceScoreColumns].map(
+        (column) => column.accessorKey,
+      ),
+    [observationScoreColumns, traceScoreColumns],
+  );
+
+  // Score columns are now visible by default. A returning user has `false`
+  // persisted for every one of them from the previous default, so this one-time
+  // migration reaches them too — see `revealScoreColumns` for how a user who
+  // picked their own score columns is left alone. It is consumed once and for
+  // good, so it waits for the score columns to be known rather than running
+  // against an empty or half-loaded set.
+  const columnVisibilityMigrations = useMemo(
+    () => [
+      {
+        versionKey: `experimentItemsColumnVisibility-scoresVisible-v1-${projectId}`,
+        apply: (visibility: VisibilityState) =>
+          isFilterOptionsLoading
+            ? null
+            : revealScoreColumns(visibility, scoreColumnIds),
+      },
+    ],
+    [projectId, scoreColumnIds, isFilterOptionsLoading],
+  );
 
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<ExperimentItemsTableRow>(
       `experimentItemsColumnVisibility-${projectId}`,
       columns,
+      columnVisibilityMigrations,
     );
+
+  // the score columns moved ahead of the metrics and ids so their
+  // headers' analysis needs no horizontal scroll. A returning user has the old
+  // order persisted, so the new default only reaches him through a migration —
+  // and only when that stored order is still a default, not one he arranged.
+  const columnOrderMigrations = useMemo(
+    () => [
+      {
+        versionKey: `experimentItemsColumnOrder-scoresEarlier-v2-${projectId}`,
+        apply: resetStaleDefaultColumnOrder,
+      },
+    ],
+    [projectId],
+  );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<ExperimentItemsTableRow>(
     `experimentItemsColumnOrder-${projectId}`,
     columns,
+    columnOrderMigrations,
+  );
+
+  // The transposed layout's axes: score columns as rows —
+  // respecting what the column picker hid — and the selected runs as columns,
+  // baseline first. Both are a re-read of what the grid already has, so the
+  // layout needs no query of its own.
+  const matrixScoreRows = useMemo<ScoreMatrixRow[]>(() => {
+    const build = (
+      scoreCols: LangfuseColumnDef<ExperimentItemData>[],
+      level: ScoreLevel,
+    ): ScoreMatrixRow[] =>
+      scoreCols.flatMap((scoreCol) => {
+        const accessorKey = scoreCol.accessorKey;
+        if (!accessorKey || columnVisibility[accessorKey] === false) return [];
+        const scoreKey = accessorKey.replace(/^Trace-/, "");
+        const dataType =
+          scoreDataTypesByKey[scoreFieldForLevel(level)].get(scoreKey);
+        if (!dataType) return [];
+        return [
+          {
+            scoreKey,
+            level,
+            dataType,
+            label:
+              typeof scoreCol.header === "string" ? scoreCol.header : scoreKey,
+          },
+        ];
+      });
+    return [
+      ...build(observationScoreColumns, "observation"),
+      ...build(traceScoreColumns, "trace"),
+    ];
+  }, [
+    observationScoreColumns,
+    traceScoreColumns,
+    scoreDataTypesByKey,
+    columnVisibility,
+  ]);
+
+  const matrixExperiments = useMemo(
+    () =>
+      [
+        ...(primaryExperimentId ? [primaryExperimentId] : []),
+        ...allExperimentIds.filter((id) => id !== primaryExperimentId),
+      ].map((experimentId) => ({
+        experimentId,
+        experimentName:
+          selectedExperimentNames.find(
+            (exp) => exp.experimentId === experimentId,
+          )?.experimentName ?? experimentId.slice(0, 8),
+        isBaseline: experimentId === primaryExperimentId,
+      })),
+    [allExperimentIds, primaryExperimentId, selectedExperimentNames],
   );
 
   const peekNavigationProps = usePeekNavigation({
@@ -922,17 +1729,23 @@ export default function ExperimentItemsTable({
       "traceId",
       "peekExperimentId",
     ],
-    extractParamsValuesFromRow: (row: ExperimentItemsTableRow) => {
-      // Use the explicit baseline when present. Without one, use the first
-      // selected experiment only as the primary trace for URL-compatible peek
-      // navigation; it is not treated as a baseline in comparison logic.
-      const baselineExp = baselineId
-        ? row.experiments.find((e) => e.experimentId === baselineId)
-        : row.experiments[0];
+    tableName: experimentItemsFilterConfig.tableName,
+    isV4: true,
+    extractParamsValuesFromRow: (row: ClickedExperimentRow) => {
+      const targetExp = resolveExperimentPeekTarget({
+        experiments: row.experiments,
+        baselineId,
+        clickedExperimentId: row.clickedExperimentId,
+      });
       return {
-        traceId: baselineExp?.traceId || "",
-        timestamp: baselineExp?.startTime.toISOString() || "",
-        observation: baselineExp?.observationId || "",
+        traceId: targetExp?.traceId || "",
+        timestamp: targetExp?.startTime.toISOString() || "",
+        observation: targetExp?.observationId || "",
+        // Tells the peek which experiment it opened on, so its prev/next
+        // switcher starts from the clicked run rather than the baseline.
+        ...(row.clickedExperimentId
+          ? { peekExperimentId: row.clickedExperimentId }
+          : {}),
       };
     },
     expandConfig: {
@@ -941,12 +1754,16 @@ export default function ExperimentItemsTable({
     },
   });
 
+  // Hand the per-experiment cell handlers above the live `openPeek`.
+  openPeekRef.current = peekNavigationProps.openPeek;
+
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.ExperimentItems,
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
-      setFilters: setFiltersWrapper,
+      setFilters: (filters) =>
+        queryFilter.setFilterState(filters, { origin: "saved_view" }),
       setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
@@ -962,6 +1779,38 @@ export default function ExperimentItemsTable({
     currentExpandedFilters: queryFilter.expanded,
   });
 
+  viewControllersRef.current = viewControllers;
+  const handleColumnOrderChange: typeof setColumnOrder = (next) => {
+    const value = typeof next === "function" ? next(columnOrder) : next;
+    viewControllers.handleUserStateChange(columnOrder, value);
+    setColumnOrder(value);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibilityState = (
+    next,
+  ) => {
+    const value = typeof next === "function" ? next(columnVisibility) : next;
+    viewControllers.handleUserStateChange(columnVisibility, value);
+    setColumnVisibilityState(value);
+  };
+  const handleOrderByChange: typeof setOrderByState = (next) => {
+    viewControllers.handleUserStateChange(orderByState, next);
+    setOrderByState(next);
+  };
+  const searchRegistry = {
+    ...EXPERIMENT_ITEMS_FIELD_REGISTRY,
+    filterStateErrors: (filters: FilterState) =>
+      hasAmbiguousTargetChange(
+        queryFilter.searchBarFilterState,
+        filters,
+        filterTargets,
+        defaultFilterTargetExperimentId,
+      )
+        ? [
+            "These edits cannot preserve the filters’ experiment targets. Edit one condition at a time or use its experiment pill.",
+          ]
+        : [],
+  };
+
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
     if (!canUsePeek) return undefined;
     return {
@@ -971,13 +1820,112 @@ export default function ExperimentItemsTable({
     };
   }, [peekNavigationProps, canUsePeek]);
 
-  const rows: ExperimentItemsTableRow[] = useMemo(() => {
-    if (items.status === "success" && items.rows) {
-      // Add 'id' field for DataTable row identification (peek view requires it)
-      return items.rows.map((row) => ({ ...row, id: row.itemId }));
-    }
-    return [];
+  // The page as fetched. The score column header aggregates — and the score
+  // matrix, which reads the same ones — deliberately describe this whole page,
+  // so the movement a comparison filter was built from stays readable while
+  // that filter is applied.
+  const unfilteredRows: ExperimentItemsTableRow[] = useMemo(() => {
+    if (items.status !== "success" || !items.rows) return [];
+    // Add 'id' field for DataTable row identification (peek view requires it)
+    return items.rows.map((row) => ({ ...row, id: row.itemId }));
   }, [items]);
+
+  // The score comparison filters narrow the page here rather than in the
+  // query — see `useScoreComparisonFilters` for why.
+  const rows: ExperimentItemsTableRow[] = useMemo(
+    () =>
+      unfilteredRows.filter((row) =>
+        rowPassesScoreComparisonFilters({
+          filters: scoreComparisonFilters,
+          experiments: row.experiments,
+          baselineExperimentId: primaryExperimentId,
+          comparableExperimentIds,
+          dataTypeFor: scoreDataTypeFor,
+        }),
+      ),
+    [
+      unfilteredRows,
+      scoreComparisonFilters,
+      primaryExperimentId,
+      comparableExperimentIds,
+      scoreDataTypeFor,
+    ],
+  );
+
+  useEffect(() => {
+    if (items.status === "success") {
+      // Store all experiment targets for peek navigation
+      setDetailPageList(
+        "experiment-items",
+        rows.map((item: ExperimentItemsTableRow) => {
+          // The list's own default target, same rule the peek uses for a row
+          // click. A cell click overrides it via `clickedExperimentId`.
+          const baselineExp = resolveExperimentPeekTarget({
+            experiments: item.experiments,
+            baselineId,
+          });
+
+          // Build experiment targets map for all experiments
+          const experimentTargets = Object.fromEntries(
+            item.experiments.map((exp) => [
+              exp.experimentId,
+              {
+                traceId: exp.traceId,
+                observationId: exp.observationId,
+                timestamp: exp.startTime.toISOString(),
+              },
+            ]),
+          );
+
+          return {
+            id: item.itemId,
+            params: {
+              // Primary trace params (baseline, for URL compat and initial load)
+              traceId: baselineExp?.traceId ?? "",
+              observation: baselineExp?.observationId ?? "",
+              timestamp: baselineExp?.startTime?.toISOString() ?? "",
+            },
+            // All experiment targets for switching between experiments.
+            // Kept out of `params` so they never leak into the URL.
+            meta: { experimentTargets },
+          };
+        }),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.status, rows, baselineId]);
+
+  // Plain English for the active comparisons, and for the table when they leave
+  // nothing: "no regressions on this score" is an answer, not a broken table.
+  const scoreComparisonPills = useMemo(
+    () =>
+      scoreComparisonFilters.map((filter) => ({
+        filter,
+        scoreName:
+          scoreNamesByKey[scoreFieldForLevel(filter.level)].get(
+            filter.scoreKey,
+          ) ?? filter.scoreKey,
+        comparisonName:
+          selectedExperimentNames.find(
+            (exp) => exp.experimentId === filter.comparisonExperimentId,
+          )?.experimentName ?? filter.comparisonExperimentId,
+      })),
+    [scoreComparisonFilters, scoreNamesByKey, selectedExperimentNames],
+  );
+
+  const scoreComparisonEmptyMessage = useMemo(() => {
+    if (rows.length > 0 || (items.rows ?? []).length === 0) return undefined;
+    if (scoreComparisonPills.length !== 1)
+      return scoreComparisonPills.length > 1
+        ? "No item on this page matches every score comparison."
+        : undefined;
+    const [pill] = scoreComparisonPills;
+    return describeEmptyScoreComparison({
+      operator: pill.filter.operator,
+      scoreName: pill.scoreName,
+      comparisonName: pill.comparisonName,
+    });
+  }, [rows.length, items.rows, scoreComparisonPills]);
 
   const pagination = useMemo(
     () => ({
@@ -1053,6 +2001,20 @@ export default function ExperimentItemsTable({
     [filtersByExperiment, orderByState, allExperimentIds],
   );
 
+  const handleColumnGroupToggle = useCallback(
+    ({ groupId, enabledCount }: ColumnGroupTogglePayload) => {
+      const props = scoreColumnScopeToggledProps({
+        tableName: "experiment-items",
+        groupId,
+        enabledCount,
+      });
+      if (props) {
+        capture("experiment:score_column_scope_toggled", props);
+      }
+    },
+    [capture],
+  );
+
   const tableActions: TableAction[] = hasEvalAccess
     ? [
         {
@@ -1063,7 +2025,7 @@ export default function ExperimentItemsTable({
           icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
           customDialog: true,
           accessCheck: {
-            scope: "evalJob:CUD",
+            scope: "evaluationRule:CUD",
           },
         } as TableAction,
       ]
@@ -1074,6 +2036,21 @@ export default function ExperimentItemsTable({
       tableName={experimentItemsFilterConfig.tableName}
     >
       <div className="flex h-full w-full flex-col">
+        {!hideControls && (
+          <TableSearchBar
+            key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+            projectId={projectId}
+            tableName="experiment-items"
+            registry={searchRegistry}
+            filterState={queryFilter.searchBarFilterState}
+            setFilterState={queryFilter.setFilterState}
+            observed={toObservedOptions(
+              scoreFilterOptions,
+              isFilterOptionsLoading,
+            )}
+            isV4={true}
+          />
+        )}
         {/* Toolbar spanning full width */}
         {!hideControls && (
           <DataTableToolbar
@@ -1082,16 +2059,33 @@ export default function ExperimentItemsTable({
             viewConfig={{
               tableName: TableViewPresetTableName.ExperimentItems,
               projectId,
-              controllers: viewControllers,
+              controllers: {
+                ...viewControllers,
+                applyViewState: (
+                  ...args: Parameters<typeof viewControllers.applyViewState>
+                ) => {
+                  setFilterTargetState({ filters: [], targets: {} });
+                  viewControllers.applyViewState(...args);
+                },
+              },
             }}
+            tableName={experimentItemsFilterConfig.tableName}
+            isV4={true}
+            onColumnGroupToggle={handleColumnGroupToggle}
             columnsWithCustomSelect={["datasetItemId"]}
             columnVisibility={columnVisibility}
-            setColumnVisibility={setColumnVisibilityState}
+            setColumnVisibility={handleColumnVisibilityChange}
             columnOrder={columnOrder}
-            setColumnOrder={setColumnOrder}
+            setColumnOrder={handleColumnOrderChange}
             orderByState={orderByState}
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
+            // One "Table settings" button for the controls that shape this
+            // table, as on the experiments list — where two buttons plus a
+            // third control in the page header was the inconsistency between
+            // the two surfaces of the same feature.
+            mergeSettingsIntoPopover
+            settingsSections={settingsSections}
             multiSelect={{
               selectAll,
               setSelectAll,
@@ -1131,6 +2125,14 @@ export default function ExperimentItemsTable({
           />
         )}
 
+        {/* Score comparison filters — evaluated over the loaded page */}
+        {scoreComparisonPills.length > 0 && (
+          <ScoreComparisonFilterPills
+            pills={scoreComparisonPills}
+            onRemove={removeScoreComparisonFilter}
+          />
+        )}
+
         {/* Filter Pills with Experiment Targeting */}
         {filtersByExperiment.length > 0 && (
           <ExperimentFilterPills
@@ -1146,14 +2148,29 @@ export default function ExperimentItemsTable({
         <ResizableFilterLayout>
           {!hideControls && (
             <DataTableControls
-              // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
-              key={viewControllers.selectedViewId ?? "no-view"}
+              key={viewControllers.filterEditorResetKey}
               queryFilter={queryFilter}
             />
           )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
-            {layout === "grid" ? (
+            {layout === "matrix" ? (
+              hasSelectedRuns ? (
+                <ExperimentScoreMatrix
+                  rows={unfilteredRows}
+                  scoreRows={matrixScoreRows}
+                  experiments={matrixExperiments}
+                  isLoading={items.status === "loading" || isViewLoading}
+                  pagination={pagination}
+                />
+              ) : (
+                <div className="flex flex-1 items-center justify-center">
+                  <span className="text-muted-foreground text-sm">
+                    Please select a baseline experiment.
+                  </span>
+                </div>
+              )
+            ) : layout === "grid" ? (
               hasSelectedRuns ? (
                 <ExperimentGridView
                   projectId={projectId}
@@ -1162,10 +2179,12 @@ export default function ExperimentItemsTable({
                     baselineId ? comparisonIds : allExperimentIds
                   }
                   useExperimentColors={hasBaseline}
+                  showDiff={showComparisonDiff}
                   singleLine={ioSingleLine}
                   rows={rows}
                   isLoading={items.status === "loading" || isViewLoading}
                   rowHeight={rowHeight}
+                  showExpectedOutput={showExpectedOutput}
                   pagination={pagination}
                   observationScoreOrder={observationScoreOrder}
                   traceScoreOrder={traceScoreOrder}
@@ -1178,6 +2197,13 @@ export default function ExperimentItemsTable({
                   rowSelection={selectedRows}
                   setRowSelection={setSelectedRows}
                   highlightAllRows={selectAll}
+                  noResultsMessage={
+                    scoreComparisonEmptyMessage ? (
+                      <span className="text-muted-foreground text-sm">
+                        {scoreComparisonEmptyMessage}
+                      </span>
+                    ) : undefined
+                  }
                 />
               ) : (
                 <div className="flex flex-1 items-center justify-center">
@@ -1196,18 +2222,22 @@ export default function ExperimentItemsTable({
                 pagination={pagination}
                 rowSelection={selectedRows}
                 setRowSelection={setSelectedRows}
-                setOrderBy={setOrderByState}
+                setOrderBy={handleOrderByChange}
                 orderBy={orderByState}
                 columnOrder={columnOrder}
-                onColumnOrderChange={setColumnOrder}
+                onColumnOrderChange={handleColumnOrderChange}
                 columnVisibility={columnVisibility}
-                onColumnVisibilityChange={setColumnVisibilityState}
+                onColumnVisibilityChange={handleColumnVisibilityChange}
                 rowHeight={rowHeight}
                 peekView={peekConfig}
                 noResultsMessage={
                   !hasSelectedRuns ? (
                     <span className="text-muted-foreground text-sm">
                       Please select a baseline experiment.
+                    </span>
+                  ) : scoreComparisonEmptyMessage ? (
+                    <span className="text-muted-foreground text-sm">
+                      {scoreComparisonEmptyMessage}
                     </span>
                   ) : undefined
                 }

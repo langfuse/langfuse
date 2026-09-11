@@ -150,6 +150,10 @@ const nextConfig = {
     browserToTerminal: true,
   },
   experimental: {
+    // Ephemeral CI builds can skip writing compiler state they never restore.
+    ...(process.env.NEXT_DISABLE_BUILD_CACHE === "true"
+      ? { turbopackFileSystemCacheForBuild: false }
+      : {}),
     // Use the Rust port instead of the Babel transform
     // turbopackRustReactCompiler: true,
     // Keep `new Worker(new URL(..., import.meta.url))` on the app origin when
@@ -173,6 +177,14 @@ const nextConfig = {
     defaultLocale: "en",
   },
   output: "standalone",
+  // Keep Scalar outside Next's client compilation by tracing its prebuilt bundle.
+  // Its MIT notice must ship with redistributed copies.
+  outputFileTracingIncludes: {
+    "/api/docs": [
+      "./node_modules/@scalar/api-reference/dist/browser/standalone.js",
+      "./third-party-licenses/scalar-api-reference.LICENSE.txt",
+    ],
+  },
 
   async redirects() {
     return renamedRouteRedirects;
@@ -183,6 +195,10 @@ const nextConfig = {
       {
         source: "/.well-known/mcp.json",
         destination: "/api/well-known/mcp.json",
+      },
+      {
+        source: "/api/openapi.yaml",
+        destination: "/generated/api/openapi.yml",
       },
     ];
   },
@@ -273,6 +289,19 @@ const nextConfig = {
       // all files in /public/generated are public and can be accessed from any origin, e.g. to render an API reference based on our openapi schema
       {
         source: "/generated/:path*",
+        headers: [
+          {
+            key: "Access-Control-Allow-Origin",
+            value: "*",
+          },
+          {
+            key: "Access-Control-Allow-Methods",
+            value: "GET",
+          },
+        ],
+      },
+      {
+        source: "/api/openapi.yaml",
         headers: [
           {
             key: "Access-Control-Allow-Origin",

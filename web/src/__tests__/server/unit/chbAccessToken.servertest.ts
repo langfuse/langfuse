@@ -176,6 +176,14 @@ describe("chbAccessToken", () => {
     await expect(provider().getToken()).rejects.toBeInstanceOf(ChbAuthError);
   });
 
+  it("hands back a token whose claims cannot be decoded", async () => {
+    // The provider reads iss/aud off the token to tag the APM span. That is a
+    // diagnostic, so a token it cannot parse must not fail the billing request.
+    fetchMock.mockResolvedValue(grant("not.base64url-{{.sig"));
+
+    await expect(provider().getToken()).resolves.toBe("not.base64url-{{.sig");
+  });
+
   it("retries the grant after a failure instead of latching onto it", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse(500, {}))

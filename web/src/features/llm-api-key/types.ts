@@ -7,7 +7,7 @@ import {
   LLMApiKeySchema,
 } from "@langfuse/shared";
 
-export const LlmApiKeySchema = z.object({
+const LlmApiKeySchema = z.object({
   projectId: z.string(),
   provider: z
     .string()
@@ -57,5 +57,3 @@ export const SafeLlmApiKeySchema = LLMApiKeySchema.extend({
   extraHeaders: z.undefined(),
   authMethod: BedrockAuthMethodSchema.optional(),
 });
-
-export type SafeLlmApiKey = z.infer<typeof SafeLlmApiKeySchema>;

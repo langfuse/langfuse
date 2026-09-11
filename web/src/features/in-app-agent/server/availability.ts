@@ -8,7 +8,7 @@ import {
   LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
 } from "@langfuse/shared/in-app-agent/server/modelProvider";
 
-import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { hasEntitlement } from "@/src/features/entitlements/server";
 
 export async function assertInAppAgentAvailable({
   prisma,

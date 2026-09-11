@@ -30,7 +30,9 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
 # pnpm is installed pinned via npm instead of corepack: the corepack shim would
 # fetch pnpm from an unpinned CDN on first use.
-RUN npm install -g turbo@2.10.5 pnpm@11.22.0
+RUN npm install -g turbo@2.10.5 pnpm@12.3.1
+# Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
+ARG NODE_USE_ENV_PROXY
 
 # Runtime rootfs assembled with dnf --installroot and layered onto ubi9-micro:
 # the final image carries no package manager, python, or curl. It holds only
@@ -111,7 +113,7 @@ COPY --from=pruner /app/out/json/ .
 
 RUN pnpm install --frozen-lockfile
 
-# pnpm 11 defaults verify-deps-before-run to "install", so every `pnpm run`
+# pnpm can verify dependencies before each `pnpm run`, so every command
 # spawned by turbo re-checks node_modules via file mtimes. Cached install
 # layers make those mtimes look stale, and the concurrent auto-installs race
 # in the hoisting step (ENOENT unlink in node_modules/.pnpm/node_modules).
@@ -136,8 +138,8 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} builder AS prod-deps
 # we only need the prod + generated prisma client plus .prisma artifacts
 # @langfuse/shared still pulls in next-auth transitively, so keep the deploy output
 # intact here instead of pruning node_modules in Docker.
-# Keep legacy deploy until the worker Docker image is verified with pnpm's default deploy implementation.
-RUN pnpm --filter worker deploy --legacy --prod /prod/worker && \
+# pnpm deploy materializes linked workspace packages into the standalone artifact.
+RUN pnpm --filter worker deploy --prod /prod/worker && \
     builder_prisma_client_dir="$(find /app/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
     deployed_prisma_client_dir="$(find /prod/worker/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
     builder_prisma_runtime_dir="$(dirname "$(dirname "$builder_prisma_client_dir")")/.prisma" && \

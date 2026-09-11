@@ -21,8 +21,8 @@ with `<ScoreTag>`.**
 
 The coding is **global**: one hue per level, identical on every surface
 (filter bar, sidebar facets, trace Scores tab, tree/timeline, tables). The
-hues are theme tokens in `globals.css` (light + dark) and live only in
-`score-tag.tsx` — never restate them at a call site.
+hues are theme tokens in `globals.css` (light + dark) and are applied through
+the design-system `Badge` — never restate them at a call site.
 
 <Canvas of={ScoreTagStories.VariantMatrix} />
 

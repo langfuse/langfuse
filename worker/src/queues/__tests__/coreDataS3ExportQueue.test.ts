@@ -4,6 +4,8 @@ import { type StorageService } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   coreDataTableExports,
+  mapDashboardToCoreDataRow,
+  mapDashboardWidgetToCoreDataRow,
   mapEvaluationRuleToCoreDataRow,
   mapJobConfigurationToCoreDataRow,
   mapUserToCoreDataRow,
@@ -129,6 +131,8 @@ describe("coreDataTableExports", () => {
       prisma.evaluationRule,
       prisma.evaluationRuleEvaluatorAssignment,
       prisma.jobConfiguration,
+      prisma.dashboard,
+      prisma.dashboardWidget,
     ];
     for (const delegate of delegates) {
       vi.spyOn(delegate, "findMany").mockResolvedValue([]);
@@ -157,8 +161,136 @@ describe("coreDataTableExports", () => {
         "core/evaluatorVersions.jsonl",
         "core/evaluationRules.jsonl",
         "core/evaluationRuleEvaluatorAssignments.jsonl",
+        "core/dashboards.jsonl",
+        "core/dashboardWidgets.jsonl",
       ]),
     );
+  });
+});
+
+describe("mapDashboardWidgetToCoreDataRow", () => {
+  it("allowlists dimensions/metrics and replaces unknown strings with a sentinel", () => {
+    const row = mapDashboardWidgetToCoreDataRow({
+      id: "widget-1",
+      dimensions: [
+        { field: "calledToolNames" },
+        { field: "customer entered free text" },
+      ],
+      metrics: [
+        { measure: "toolCalls", agg: "sum" },
+        { measure: "leaked customer string", agg: "not-an-agg" },
+      ],
+      filters: [],
+      chartConfig: {
+        type: "PIVOT_TABLE",
+        row_limit: 20,
+        defaultSort: { column: "customer column text", order: "DESC" },
+      },
+    });
+
+    expect(row.dimensions).toStrictEqual([
+      { field: "calledToolNames" },
+      { field: "__invalid__" },
+    ]);
+    expect(row.metrics).toStrictEqual([
+      { measure: "toolCalls", agg: "sum" },
+      { measure: "__invalid__", agg: "__invalid__" },
+    ]);
+    expect(row.chartConfig).toStrictEqual({
+      type: "PIVOT_TABLE",
+      row_limit: 20,
+      bins: null,
+    });
+    const serialized = JSON.stringify(row);
+    expect(serialized).not.toContain("customer entered free text");
+    expect(serialized).not.toContain("leaked customer string");
+    expect(serialized).not.toContain("customer column text");
+  });
+
+  it("keeps filter shape but strips customer-entered values and keys", () => {
+    const row = mapDashboardWidgetToCoreDataRow({
+      id: "widget-1",
+      projectId: "project-1",
+      view: "OBSERVATIONS",
+      dimensions: [],
+      metrics: [{ measure: "toolCalls", agg: "sum" }],
+      chartConfig: { type: "LINE_TIME_SERIES" },
+      filters: [
+        {
+          column: "userId",
+          operator: "any of",
+          value: ["customer-user-42"],
+          type: "stringOptions",
+        },
+        {
+          column: "metadata",
+          key: "customer-secret-key",
+          operator: "=",
+          value: "customer-value",
+          type: "stringObject",
+        },
+      ],
+    });
+
+    expect(row.filters).toStrictEqual([
+      { column: "userId", operator: "any of", type: "stringOptions" },
+      { column: "metadata", operator: "=", type: "stringObject" },
+    ]);
+    const serialized = JSON.stringify(row);
+    expect(serialized).not.toContain("customer-user-42");
+    expect(serialized).not.toContain("customer-secret-key");
+    expect(serialized).not.toContain("customer-value");
+  });
+
+  it("normalizes a non-array filters column to an empty list", () => {
+    const row = mapDashboardWidgetToCoreDataRow({
+      id: "widget-2",
+      dimensions: null,
+      metrics: null,
+      filters: null,
+      chartConfig: null,
+    });
+
+    expect(row.filters).toStrictEqual([]);
+    expect(row.dimensions).toStrictEqual([]);
+    expect(row.metrics).toStrictEqual([]);
+  });
+});
+
+describe("mapDashboardToCoreDataRow", () => {
+  it("exports only known placement fields from the definition", () => {
+    const row = mapDashboardToCoreDataRow({
+      id: "dashboard-1",
+      definition: {
+        widgets: [
+          {
+            type: "widget",
+            widgetId: "widget-1",
+            x: 0,
+            y: 0,
+            x_size: 6,
+            y_size: 4,
+            id: "placement-1",
+            unexpectedCustomerField: "customer text",
+          },
+        ],
+        unexpectedTopLevel: "more customer text",
+      },
+    });
+
+    expect(row.definition).toStrictEqual({
+      widgets: [
+        {
+          type: "widget",
+          widgetId: "widget-1",
+          x: 0,
+          y: 0,
+          x_size: 6,
+          y_size: 4,
+        },
+      ],
+    });
+    expect(JSON.stringify(row)).not.toContain("customer text");
   });
 });
 

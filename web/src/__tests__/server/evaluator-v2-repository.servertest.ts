@@ -6,10 +6,7 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import * as evaluatorRepository from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
 import { EvaluatorVersionConflictError } from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
-import type {
-  EvaluatorDefinition,
-  EvaluatorDefinitionForPersistence,
-} from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+import type { EvaluatorDefinitionForPersistence } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 
 const orgIds: string[] = [];
 let projectId = "";
@@ -27,18 +24,18 @@ const codeDefinition = (
 
 const llmDefinition = (
   overrides: Partial<
-    Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>
+    Extract<EvaluatorDefinitionForPersistence, { type: "LLM_AS_JUDGE" }>
   > = {},
-): Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }> => ({
+): Extract<EvaluatorDefinitionForPersistence, { type: "LLM_AS_JUDGE" }> => ({
   type: "LLM_AS_JUDGE",
   prompt: "Judge {{output}}",
+  promptMessages: [{ role: "user", content: "Judge {{output}}" }],
   provider: null,
   model: null,
   modelParams: null,
   vars: ["output"],
   variableMapping: null,
   outputDefinition: {
-    version: 2,
     dataType: "NUMERIC",
     score: { description: "Quality" },
     reasoning: { description: "Reasoning" },
@@ -262,7 +259,7 @@ describe("evaluator v2 repository", () => {
       });
     });
 
-    it("paginates evaluators in descending update order", async () => {
+    it("preserves default update order and supports explicit creation order", async () => {
       const [recentlyUpdated, newerButUnchanged] = await Promise.all([
         createEvaluator(),
         createEvaluator(),
@@ -306,6 +303,22 @@ describe("evaluator v2 repository", () => {
         }),
       ).resolves.toEqual({
         evaluators: [expect.objectContaining({ id: newerButUnchanged.id })],
+        totalItems: 2,
+      });
+
+      await expect(
+        evaluatorRepository.listEvaluators({
+          prisma,
+          projectId,
+          page: 1,
+          limit: 2,
+          orderBy: { column: "createdAt", order: "DESC" },
+        }),
+      ).resolves.toEqual({
+        evaluators: [
+          expect.objectContaining({ id: newerButUnchanged.id }),
+          expect.objectContaining({ id: recentlyUpdated.id }),
+        ],
         totalItems: 2,
       });
     });
@@ -971,6 +984,62 @@ describe("evaluator v2 repository", () => {
           },
         ],
       });
+    });
+
+    it("round-trips ordered prompt messages across evaluator versions", async () => {
+      const evaluator = await createEvaluator({
+        definition: llmDefinition({
+          promptMessages: [
+            { role: "system", content: "Judge carefully" },
+            { role: "user", content: "Judge {{output}}" },
+          ],
+        }),
+      });
+
+      await prisma.$transaction((tx) =>
+        evaluatorRepository.appendEvaluatorVersion({
+          tx,
+          evaluatorId: evaluator.id,
+          version: 2,
+          definition: llmDefinition({
+            promptMessages: [
+              { role: "system", content: "Judge very carefully" },
+              { role: "user", content: "Judge {{output}}" },
+              { role: "assistant", content: "Return a score" },
+            ],
+          }),
+          createdByUserId: null,
+        }),
+      );
+
+      const versions = await evaluatorRepository.listEvaluatorVersions({
+        prisma,
+        projectId,
+        evaluatorId: evaluator.id,
+        limit: 10,
+      });
+      expect(
+        versions.data.map(({ version, promptMessages }) => ({
+          version,
+          promptMessages,
+        })),
+      ).toEqual([
+        {
+          version: 2,
+          promptMessages: [
+            { role: "system", content: "Judge very carefully" },
+            { role: "user", content: "Judge {{output}}" },
+            { role: "assistant", content: "Return a score" },
+          ],
+        },
+        {
+          version: 1,
+          promptMessages: [
+            { role: "system", content: "Judge carefully" },
+            { role: "user", content: "Judge {{output}}" },
+          ],
+        },
+      ]);
     });
 
     it("persists LLM evaluator fields", async () => {

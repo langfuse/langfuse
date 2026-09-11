@@ -6,12 +6,7 @@ import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
 } from "../../features/inAppAgent/types";
-import {
-  ChatMessageRole,
-  ChatMessageType,
-  LangfuseInternalTraceEnvironment,
-  logger,
-} from "../../server";
+import { ChatMessageRole, ChatMessageType, logger } from "../../server";
 import { isSettledInAppAgentRunStatus } from "../constants";
 import { recordRunTerminalOutcome } from "./runMetrics";
 import { Prisma } from "../../db";
@@ -478,6 +473,10 @@ export async function maybeInferAndPersistConversationTitle(params: {
       return;
     }
 
+    if (!isUnsetConversationTitle(conversation.title)) {
+      return;
+    }
+
     const transcript = buildConversationTitleTranscript(
       await getConversationMessages({
         prisma: params.prisma,
@@ -548,7 +547,6 @@ ${JSON.stringify(transcript, null, 2)}
       maxTokens: 1000,
       traceSinkParams: params.aiTelemetryEnabled
         ? getLangfuseAITraceSinkParams({
-            environment: LangfuseInternalTraceEnvironment.InAppAgent,
             feature: "in-app-agent-conversation-title",
             projectId: params.projectId,
             traceName: "in-app-agent-conversation-title",
@@ -1502,6 +1500,14 @@ function getDefaultConversationTitle(date: Date) {
   const minutes = String(date.getMinutes()).padStart(2, "0");
 
   return `Chat on ${weekday} at ${hours}:${minutes}`;
+}
+
+function isUnsetConversationTitle(title: string | null) {
+  if (!title) {
+    return true;
+  }
+
+  return /^Chat on [A-Za-z]+ at \d{2}:\d{2}$/.test(title);
 }
 
 export function buildConversationTitleTranscript(

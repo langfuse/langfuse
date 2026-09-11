@@ -24,3 +24,4 @@ pnpm run agents:sync
 # concern, and failing it here would break `pnpm i` and with it every CI job
 # that installs. The lint job runs the full check.
 node scripts/agents/sync-agent-shims.mjs --check
+

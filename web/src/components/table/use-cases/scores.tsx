@@ -6,14 +6,16 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
-import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
-import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { IOTableCell } from "../../ui/IOTableCell";
-import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
   type UseSidebarFilterStateOptions,
@@ -42,6 +44,7 @@ import {
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
+import { ScoresSearchBar } from "@/src/features/scores/components/ScoresSearchBar";
 import { getScoreChartTimeRange } from "@/src/features/scores-chart-view/fns/scoreChartConfig";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -63,9 +66,10 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
-import TableIdOrName from "@/src/components/table/table-id";
+import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   ScoreTag,
   scoreLevelFromScore,
@@ -170,14 +174,14 @@ export default function ScoresTable({
     () => new Set<string>(hiddenColumns),
     [hiddenColumns],
   );
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   // In v4beta, scores must exclusively use events-backed endpoints (no traces-table route).
-  const useEventsBackedScores = isBetaEnabled;
+  const useEventsBackedScores = isV4;
   // Same derivation `WidgetForm.tsx`/`ChartScores` use (`activeVersion`/
   // `metricsVersion`) — the chart/outlier strip must read the same version
   // as the table's own data, or a non-beta project's trace/observation
   // breakdown would run against the events-backed view and come back empty.
-  const chartViewVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
+  const chartViewVersion: ViewVersion = isV4 ? "v2" : "v1";
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
@@ -238,6 +242,8 @@ export default function ScoresTable({
     // the peek to that trace instead of the one just clicked — matches the
     // same guard `traces.tsx`/`EventsTable.tsx` already have.
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: scoresFilterConfig.tableName,
+    isV4,
     extractParamsValuesFromRow: (
       row: ScoresTableRow,
     ): Record<string, string> =>
@@ -427,8 +433,13 @@ export default function ScoresTable({
   const isSidebarFilterLoading =
     filterOptions.isPending || environmentFilterOptions.isPending;
 
+  const { viewControllersRef, onExplicitFilterStateChange } =
+    useTableViewFilterChange();
+
   const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
+      onExplicitFilterStateChange,
+      isV4,
       loading: isSidebarFilterLoading,
       implicitDefaultConfig: showAllEnvironments
         ? undefined
@@ -457,6 +468,8 @@ export default function ScoresTable({
     };
   }, [
     disableUrlPersistence,
+    onExplicitFilterStateChange,
+    isV4,
     isSidebarFilterLoading,
     peekContext,
     projectId,
@@ -574,22 +587,15 @@ export default function ScoresTable({
 
   const rawColumns: LangfuseColumnDef<ScoresTableRow>[] = [
     selectActionColumn,
-    {
+    createIdTableColumn<ScoresTableRow>({
       accessorKey: "id",
-      id: "id",
       enableColumnFilter: false,
       header: "Score ID",
       size: 100,
       enableSorting: false,
       defaultHidden: true,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value = row.getValue("id");
-        return typeof value === "string" ? (
-          <TableIdOrName value={value} />
-        ) : undefined;
-      },
-    },
+    }),
     createDateTableColumn<ScoresTableRow>({
       accessorKey: "timestamp",
       header: "Timestamp",
@@ -597,14 +603,13 @@ export default function ScoresTable({
       enableSorting: true,
       size: 150,
     }),
-    {
+    createTextTableColumn<ScoresTableRow>({
       accessorKey: "name",
       header: "Name",
-      id: "name",
       enableHiding: true,
       enableSorting: true,
       size: 150,
-    },
+    }),
     {
       accessorKey: "value",
       header: "Value",
@@ -613,15 +618,14 @@ export default function ScoresTable({
       enableSorting: true,
       size: 100,
     },
-    {
+    createTextTableColumn<ScoresTableRow>({
       accessorKey: "dataType",
       header: "Data Type",
-      id: "dataType",
       enableHiding: true,
       enableSorting: true,
       defaultHidden: true,
       size: 100,
-    },
+    }),
     {
       accessorKey: "source",
       header: "Source",
@@ -648,26 +652,14 @@ export default function ScoresTable({
         return <ScoreTag level={level} />;
       },
     },
-    {
+    createIOTableColumn<ScoresTableRow>({
       accessorKey: "comment",
       header: "Comment",
-      id: "comment",
       enableHiding: true,
       size: 400,
-      loadingCell: () => (
-        <IOTableCell
-          isLoading
-          data={undefined}
-          singleLine={rowHeight === "s"}
-        />
-      ),
-      cell: ({ row }) => {
-        const value = row.getValue("comment") as ScoresTableRow["comment"];
-        return (
-          !!value && <IOTableCell data={value} singleLine={rowHeight === "s"} />
-        );
-      },
-    },
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
     createBadgeTableColumn<ScoresTableRow>({
       accessorKey: "environment",
       header: "Environment",
@@ -682,10 +674,11 @@ export default function ScoresTable({
       size: 250,
       enableHiding: true,
       defaultHidden: true,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
-        if (isBetaEnabled && !scoreMetrics.data)
-          return <TableTextLoadingCell />;
+        if (isV4 && !scoreMetrics.data) {
+          return <Skeleton className="h-4 w-1/2" />;
+        }
         const traceTags: string[] | undefined = row.getValue("traceTags");
         return (
           traceTags &&
@@ -708,11 +701,7 @@ export default function ScoresTable({
       id: "metadata",
       size: 400,
       loadingCell: () => (
-        <IOTableCell
-          isLoading
-          data={undefined}
-          singleLine={rowHeight === "s"}
-        />
+        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
       ),
       headerTooltip: {
         description: "Add metadata to scores to track additional information.",
@@ -740,7 +729,7 @@ export default function ScoresTable({
       defaultHidden: true,
       size: 150,
       getCell: (value) => {
-        if (isBetaEnabled && !scoreMetrics.data) return { type: "loading" };
+        if (isV4 && !scoreMetrics.data) return { type: "loading" };
         if (!value) return undefined;
 
         const filter = encodeURIComponent(
@@ -868,7 +857,7 @@ export default function ScoresTable({
       defaultHidden: true,
       size: 100,
       getCell: (value) => {
-        if (isBetaEnabled && !scoreMetrics.data) return { type: "loading" };
+        if (isV4 && !scoreMetrics.data) return { type: "loading" };
         if (typeof value !== "string") return undefined;
 
         return {
@@ -880,35 +869,29 @@ export default function ScoresTable({
         };
       },
     }),
-    {
+    createUserTableColumn<ScoresTableRow, ScoresTableRow["author"]>({
       accessorKey: "author",
-      id: "author",
       header: "Author",
       enableHiding: true,
       defaultHidden: true,
       size: 150,
-      cell: ({ row }) => {
-        const { userId, name, image } = row.getValue(
-          "author",
-        ) as ScoresTableRow["author"];
-        return (
-          <div className="flex items-center space-x-2">
-            <Avatar className="h-7 w-7">
-              <AvatarImage
-                src={image ?? undefined}
-                alt={name ?? "User Avatar"}
-              />
-            </Avatar>
-            <span>{name ?? userId}</span>
-          </div>
-        );
+      variant: "avatar",
+      emptyValue: "",
+      getUser: (author) => {
+        if (!author) return undefined;
+
+        const { userId, name, image } = author;
+        return {
+          type: "user",
+          user: { id: userId, name, image },
+        };
       },
-    },
+    }),
     createLinkTableColumn<ScoresTableRow>({
       accessorKey: "jobConfigurationId",
-      header: isBetaEnabled ? "Evaluator" : "Eval Configuration ID",
+      header: isV4 ? "Evaluator" : "Eval Configuration ID",
       headerTooltip: {
-        description: isBetaEnabled
+        description: isV4
           ? "The evaluator associated with the score."
           : "The Job Configuration ID associated with the score.",
         href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
@@ -918,7 +901,7 @@ export default function ScoresTable({
       defaultHidden: true,
       size: 150,
       getCell: (_, { row }) => {
-        if (isBetaEnabled) {
+        if (isV4) {
           const value = row.original.evaluatorId;
           if (typeof value !== "string") return undefined;
 
@@ -1017,7 +1000,7 @@ export default function ScoresTable({
 
   // Merge v4 metrics into table rows
   const enrichedScores = useMemo(() => {
-    if (!isBetaEnabled) {
+    if (!isV4) {
       return scoresV3.data?.scores.map(convertToTableRow);
     }
 
@@ -1063,14 +1046,17 @@ export default function ScoresTable({
       } satisfies ScoresTableRow;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scores.data, scoreMetrics.data, isBetaEnabled]);
+  }, [scores.data, scoreMetrics.data, isV4]);
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Scores,
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
-      setFilters: setFiltersWrapper,
+      setFilters: (filters) =>
+        queryFilterRef.current.setFilterState(filters, {
+          origin: "saved_view",
+        }),
       setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibility,
@@ -1085,6 +1071,23 @@ export default function ScoresTable({
     currentFilterState: queryFilter.explicitFilterState,
     currentExpandedFilters: queryFilter.expanded,
   });
+  viewControllersRef.current = viewControllers;
+
+  const handleOrderByChange: typeof setOrderByState = (next) => {
+    viewControllers.handleUserStateChange(orderByState, next);
+    setOrderByState(next);
+  };
+  const handleColumnOrderChange: typeof setColumnOrder = (update) => {
+    const next = typeof update === "function" ? update(columnOrder) : update;
+    viewControllers.handleUserStateChange(columnOrder, next);
+    setColumnOrder(next);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibility = (update) => {
+    const next =
+      typeof update === "function" ? update(columnVisibility) : update;
+    viewControllers.handleUserStateChange(columnVisibility, next);
+    setColumnVisibility(next);
+  };
 
   const visibleSelectedScoreIds = useMemo(
     () =>
@@ -1110,14 +1113,24 @@ export default function ScoresTable({
             setTimeRange={setTimeRange}
           />
         )}
+        <ScoresSearchBar
+          key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+          isV4={isV4}
+          projectId={projectId}
+          filterConfig={scoresFilterConfig}
+          filterState={queryFilter.searchBarFilterState}
+          setFilterState={setFiltersWrapper}
+          filterOptions={newFilterOptions}
+          isLoading={isSidebarFilterLoading}
+        />
         {/* Toolbar spanning full width */}
         <DataTableToolbar
           columns={columns}
           filterState={queryFilter.explicitFilterState}
           columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibility}
+          setColumnVisibility={handleColumnVisibilityChange}
           columnOrder={columnOrder}
-          setColumnOrder={setColumnOrder}
+          setColumnOrder={handleColumnOrderChange}
           viewConfig={{
             tableName: TableViewPresetTableName.Scores,
             projectId,
@@ -1173,7 +1186,7 @@ export default function ScoresTable({
         <ResizableFilterLayout>
           <DataTableControls
             // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
-            key={viewControllers.selectedViewId ?? "no-view"}
+            key={viewControllers.filterEditorResetKey}
             queryFilter={queryFilter}
           />
 
@@ -1241,15 +1254,15 @@ export default function ScoresTable({
                   onChange: setPaginationState,
                   state: paginationState,
                 }}
-                setOrderBy={setOrderByState}
+                setOrderBy={handleOrderByChange}
                 orderBy={orderByState}
                 rowSelection={selectedRows}
                 highlightAllRows={selectAll}
                 setRowSelection={setSelectedRows}
                 columnVisibility={columnVisibility}
-                onColumnVisibilityChange={setColumnVisibility}
+                onColumnVisibilityChange={handleColumnVisibilityChange}
                 columnOrder={columnOrder}
-                onColumnOrderChange={setColumnOrder}
+                onColumnOrderChange={handleColumnOrderChange}
                 rowHeight={rowHeight}
               />
             )}
@@ -1260,6 +1273,8 @@ export default function ScoresTable({
             closePeek={closeScorePeek}
             expandPeek={expandScorePeek}
             itemType="TRACE"
+            tableName={scoresFilterConfig.tableName}
+            isV4={isV4}
             projectId={projectId}
           />
         )}
@@ -1289,11 +1304,11 @@ const ScoresMetadataCell = ({
       refetchOnMount: false, // prevents refetching loops
     },
   );
+  if (score.isPending) {
+    return <ConnectedIOTableCell isLoading singleLine={singleLine} />;
+  }
+
   return (
-    <IOTableCell
-      isLoading={score.isPending}
-      data={score.data?.metadata}
-      singleLine={singleLine}
-    />
+    <ConnectedIOTableCell data={score.data?.metadata} singleLine={singleLine} />
   );
 };

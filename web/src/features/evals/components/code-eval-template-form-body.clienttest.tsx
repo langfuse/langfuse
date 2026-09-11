@@ -40,6 +40,50 @@ describe("CodeEvalTemplateFormBody", () => {
     vi.clearAllMocks();
   });
 
+  it("opens the search panel above the code editor", async () => {
+    const { container } = render(
+      <CodeEvalTemplateFormBody
+        sourceCode="return JSON.stringify(ctx)"
+        sourceCodeLanguage="TYPESCRIPT"
+        onSourceCodeChange={vi.fn()}
+        editable
+        validationResult={null}
+        ctxSample={null}
+      />,
+      { wrapper: TestTooltipProvider },
+    );
+
+    const editorContent = container.querySelector<HTMLElement>(".cm-content");
+    expect(editorContent).not.toBeNull();
+    fireEvent.keyDown(editorContent!, {
+      key: "f",
+      code: "KeyF",
+      ctrlKey: true,
+    });
+
+    await waitFor(() => {
+      expect(container.querySelector(".cm-panels-top .cm-search")).toBeTruthy();
+    });
+  });
+
+  it("blocks evaluator source from PostHog session recordings", () => {
+    const { container } = render(
+      <CodeEvalTemplateFormBody
+        sourceCode="customer evaluator source"
+        sourceCodeLanguage="PYTHON"
+        onSourceCodeChange={vi.fn()}
+        editable={false}
+        validationResult={null}
+        ctxSample={null}
+      />,
+      { wrapper: TestTooltipProvider },
+    );
+
+    expect(container.querySelector(".ph-no-capture")).toContainElement(
+      container.querySelector(".cm-editor"),
+    );
+  });
+
   it("shows Python validation errors that arrive after the editor mounts", async () => {
     const sourceCode = "def evaluate(ctx):\n  return missing_name";
     const props = {

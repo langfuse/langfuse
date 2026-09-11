@@ -2,8 +2,8 @@ import { type ReactNode, useState } from "react";
 import { ActionId, BatchExportTableName } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { useEntitlementLimit } from "@/src/features/entitlements";
 import { AddTracesToAnnotationQueueSelectDialogContent } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueSelectDialogContent";
 import { AnnotationQueueFormDialogController } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogController";
 

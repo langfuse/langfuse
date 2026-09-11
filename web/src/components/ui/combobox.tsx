@@ -21,9 +21,7 @@ import {
 } from "@/src/components/ui/popover";
 import { Badge } from "@/src/components/ui/badge";
 
-export interface ComboboxOption<
-  T extends string | number | boolean | { id: string },
-> {
+interface ComboboxOption<T extends string | number | boolean | { id: string }> {
   value: T;
   label?: string;
   /** Rendered before the label (e.g. a brand/ownership icon). */

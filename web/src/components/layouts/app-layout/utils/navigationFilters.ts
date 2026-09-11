@@ -19,7 +19,7 @@ type Organization =
  * Individual filter functions - each handles one concern
  * Exported for testing and composition
  */
-export const filters = {
+const filters = {
   /**
    * Filter routes that require a project ID when none is available
    */
@@ -170,6 +170,9 @@ export const filters = {
       organization: organization ?? undefined,
       projectId: ctx.routerProjectId,
       isLangfuseCloud: ctx.isLangfuseCloud,
+      hasActiveCloudIncident: ctx.hasActiveCloudIncident,
+      canToggleV4: ctx.session?.user?.canToggleV4 === true,
+      forceV3Experience: ctx.forceV3Experience,
       v4WriteMode: ctx.session?.environment?.v4WriteMode,
       v4UpgradeUiAvailable: ctx.session?.user?.v4UpgradeUiAvailable === true,
     })

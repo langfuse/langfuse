@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "4.22.0",
+  "version": "4.34.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -34,6 +34,7 @@
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@ag-ui/core": "^0.0.52",
     "@ag-ui/mastra": "1.1.1",
+    "@repo/langfuse-skills": "workspace:*",
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
     "@langfuse/shared": "workspace:*",
     "@aws-sdk/client-lambda-microvms": "catalog:",
@@ -59,7 +60,7 @@
     "ai-sdk-openai-v4": "npm:@ai-sdk/openai@3.0.99",
     "bullmq": "^5.76.3",
     "cors": "^2.8.5",
-    "csv-parse": "^5.6.0",
+    "csv-parse": "^7.0.2",
     "dd-trace": "5.109.0",
     "decimal.js": "^10.4.3",
     "dockerode": "^4.0.9",
@@ -74,8 +75,7 @@
     "posthog-node": "^5.49.1",
     "stripe": "^17.4.0",
     "tiktoken": "^1.0.20",
-    "uuid": "^14.0.0",
-    "yaml": "^2.9.0",
+    "uuid": "^14.0.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -86,12 +86,12 @@
     "@types/express": "^5.0.6",
     "@types/lodash": "^4.17.24",
     "@types/node": "^24.3.0",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.11",
     "eslint": "catalog:",
     "msw": "^2.6.5",
     "tsx": "^4.20.5",
     "typescript": "catalog:",
-    "vitest": "^4.1.10",
+    "vitest": "^4.1.11",
     "wait-for-expect": "^3.0.2"
   }
 }

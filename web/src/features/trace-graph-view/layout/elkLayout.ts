@@ -10,7 +10,7 @@ import {
 } from "../types";
 import { measureNode } from "./measureNode";
 
-export interface PositionedNode {
+interface PositionedNode {
   id: string;
   x: number;
   y: number;
@@ -18,7 +18,7 @@ export interface PositionedNode {
   height: number;
 }
 
-export interface PositionedEdge {
+interface PositionedEdge {
   id: string;
   source: string;
   target: string;
@@ -127,7 +127,7 @@ export const MAX_GRAPH_LAYOUT_NODES = 2_500;
  * exemption included. Without this, the raised ceiling above would let a dense
  * graph freeze the tab for minutes on the fallback path.
  */
-export const MAX_MAIN_THREAD_LAYOUT_EDGES = 250;
+const MAX_MAIN_THREAD_LAYOUT_EDGES = 250;
 export const MAX_MAIN_THREAD_LAYOUT_NODES = 500;
 
 /** True when a request is too big to lay out on the calling thread. */

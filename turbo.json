@@ -5,7 +5,8 @@
   "globalEnv": [
     "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF",
     "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF",
-    "NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF"
+    "NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF",
+    "CLICKHOUSE_BIN"
   ],
   "envMode": "loose",
   "tasks": {
@@ -21,7 +22,7 @@
     },
     "build:test": {
       "dependsOn": ["db:generate", "^build"],
-      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
+      "env": ["NEXT_IGNORE_BUILD_ERRORS", "NEXT_DISABLE_BUILD_CACHE"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
       "cache": true,
       "outputLogs": "errors-only"

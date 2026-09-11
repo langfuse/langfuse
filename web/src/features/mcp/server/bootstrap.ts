@@ -5,27 +5,28 @@
  * This file is imported once when the server starts to initialize the tool registry.
  *
  * To add a new MCP feature:
- * 1. Create feature module in /features/[feature-name]/
+ * 1. Create feature module in /server/[feature-name]/
  * 2. Import feature module here
  * 3. Call toolRegistry.register(featureModule)
  */
 
 import { toolRegistry, type McpFeatureModule } from "./registry";
-import { promptsFeature } from "../features/prompts";
-import { observationsFeature } from "../features/observations";
-import { annotationQueuesFeature } from "../features/annotationQueues";
-import { commentsFeature } from "../features/comments";
-import { datasetsFeature } from "../features/datasets";
-import { healthFeature } from "../features/health";
-import { scoresFeature } from "../features/scores";
-import { metricsFeature } from "../features/metrics";
-import { modelsFeature } from "../features/models";
-import { mediaFeature } from "../features/media";
-import { evalsFeature } from "../features/evals";
-import { dashboardWidgetsFeature } from "../features/dashboardWidgets";
-import { feedbackFeature } from "../features/feedback";
-import { experimentsFeature } from "../features/experiments";
-import { monitorsFeature } from "../features/monitors";
+import { promptsFeature } from "./prompts";
+import { observationsFeature } from "./observations";
+import { annotationQueuesFeature } from "./annotationQueues";
+import { commentsFeature } from "./comments";
+import { datasetsFeature } from "./datasets";
+import { healthFeature } from "./health";
+import { scoresFeature } from "./scores";
+import { metricsFeature } from "./metrics";
+import { modelsFeature } from "./models";
+import { mediaFeature } from "./media";
+import { evalsFeature } from "./evals";
+import { dashboardWidgetsFeature } from "./dashboardWidgets";
+import { feedbackFeature } from "./feedback";
+import { experimentsFeature } from "./experiments";
+import { monitorsFeature } from "./monitors";
+import { v4MigrationFeature } from "./v4Migration";
 
 const MCP_FEATURES = [
   promptsFeature,
@@ -43,9 +44,10 @@ const MCP_FEATURES = [
   feedbackFeature,
   experimentsFeature,
   monitorsFeature,
+  v4MigrationFeature,
 ] as const satisfies readonly McpFeatureModule[];
 
-export type McpFeature = (typeof MCP_FEATURES)[number];
+type McpFeature = (typeof MCP_FEATURES)[number];
 export type McpToolName = McpFeature["tools"][number]["definition"]["name"];
 
 /**

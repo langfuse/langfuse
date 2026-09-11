@@ -99,7 +99,7 @@ if (typeof evaluate !== "function") {
           ? CodeEvalDispatcherErrorCodes.TIMEOUT
           : CodeEvalDispatcherErrorCodes.USER_CODE_ERROR,
         cause: error,
-        retryable: message.includes(SCRIPT_TIMEOUT_MESSAGE),
+        retryable: false,
       });
     } finally {
       if (timeoutId) clearTimeout(timeoutId);

@@ -23,7 +23,7 @@ const SCORES_HIDDEN_COLUMN_TO_FILTER_COLUMN: Partial<
   traceTags: "tags",
 };
 
-export const scoreFilterConfig: FilterConfig = {
+const scoreFilterConfig: FilterConfig = {
   tableName: "scores",
 
   columnDefinitions: scoresTableCols,

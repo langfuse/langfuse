@@ -1,6 +1,6 @@
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
 import { api } from "@/src/utils/api";
@@ -9,12 +9,14 @@ import { cn } from "@/src/utils/tailwind";
 import { ClockIcon, ListTree } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
-import { ScoreRow } from "@/src/features/scores/components/ScoreRow";
-import { type ScoreColumn } from "@/src/features/scores/types";
+import {
+  type ScoreColumn,
+  ScoreRow,
+  useMergedAggregates,
+  useMergeScoreColumns,
+} from "@/src/features/scores";
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useMergedAggregates } from "@/src/features/scores/lib/useMergedAggregates";
-import { useMergeScoreColumns } from "@/src/features/scores/lib/mergeScoreColumns";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useTrpcError } from "@/src/hooks/useTrpcError";
 import { type ScoreAggregate } from "@langfuse/shared";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
@@ -23,8 +25,7 @@ import { type BaselineDiff } from "@/src/features/datasets/lib/calculateBaseline
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { useResourceMetricsDiff } from "@/src/features/datasets/hooks/useResourceMetricsDiff";
 import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 const DatasetAggregateCellContent = ({
   projectId,
@@ -43,7 +44,6 @@ const DatasetAggregateCellContent = ({
 }) => {
   const router = useRouter();
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled: isV4 } = useV4Beta();
   const silentHttpCodes = [404];
   const { selectedFields } = useDatasetCompareFields();
   const { activeCell, setActiveCell } = useActiveCell();
@@ -114,7 +114,8 @@ const DatasetAggregateCellContent = ({
       capture("peek:opened", {
         routePattern: router.pathname,
         wasOpen: router.query.peek !== undefined,
-        isV4,
+        isV4: false,
+        tableName: "datasetCompareRuns",
       });
     }
     const newQuery: Record<string, string | string[] | undefined> = {
@@ -162,7 +163,7 @@ const DatasetAggregateCellContent = ({
       {/* Displays trace/observation output */}
       <div
         className={cn(
-          "relative h-[50%] w-full min-w-0 shrink-0 overflow-auto",
+          "relative h-[50%] min-h-8 w-full min-w-0 shrink-0 overflow-auto",
           !selectedFields.includes("output") && "hidden",
         )}
       >
@@ -171,12 +172,12 @@ const DatasetAggregateCellContent = ({
             itemType={value.observation ? "observation" : "trace"}
             singleLine={false}
           />
+        ) : isLoading || !data ? (
+          <ConnectedIOTableCell isLoading variant="output" />
         ) : (
-          <MemoizedIOTableCell
-            isLoading={isLoading || !data}
-            data={data?.output ?? "null"}
-            className="bg-accent-light-green min-h-8"
-            singleLine={false}
+          <ConnectedIOTableCell
+            data={data.output ?? "null"}
+            variant="output"
             enableExpandOnHover
           />
         )}

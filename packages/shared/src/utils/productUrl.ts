@@ -73,6 +73,34 @@ export function parseSavedViewFromURL(
   return undefined;
 }
 
+/**
+ * Tables whose permalink includes a resource id already present in the
+ * current path (e.g. `/sessions/[sessionId]`). The server
+ * `generatePermalink` helper only knows project + table, so these must be
+ * built from `window.location` on the client.
+ */
+export const tableViewPresetPermalinkUsesCurrentPath = (
+  tableName: TableViewPresetTableName,
+): boolean => tableName === TableViewPresetTableName.SessionDetail;
+
+/**
+ * Permalink for a saved view that cannot be expressed as
+ * `/project/:id/<table>?viewId=…` because the page also needs a resource
+ * id (session detail). Drops existing query/hash so a non-active view
+ * shares its stored state, not the page's in-progress filters.
+ */
+export function buildCurrentPageSavedViewPermalink(params: {
+  origin: string;
+  pathname: string;
+  viewId: string;
+}): string {
+  const url = new URL(params.pathname, params.origin);
+  url.search = "";
+  url.hash = "";
+  url.searchParams.set("viewId", params.viewId);
+  return url.toString();
+}
+
 type TracesPathTimeRange =
   | { preset: (typeof TABLE_AGGREGATION_OPTIONS)[number] }
   | { from: string; to: string };
@@ -164,9 +192,14 @@ export const buildExperimentsPath = (params: { projectId: string }) =>
 export const buildExperimentPath = (params: {
   projectId: string;
   experimentId: string;
+  filters?: FilterState;
 }) =>
   appendProductPathQuery(`${buildExperimentsPath(params)}/results`, {
     baseline: params.experimentId,
+    filter:
+      params.filters && params.filters.length > 0
+        ? encodeFiltersGeneric(params.filters)
+        : undefined,
   });
 
 export const buildModelsPath = (params: { projectId: string }) =>

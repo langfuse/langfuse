@@ -21,13 +21,6 @@ export const Menu = meta.story({
   },
 });
 
-export const Empty = meta.story({
-  args: {
-    totalCount: 0,
-    layout: "toolbar",
-  },
-});
-
 export const CountIsCapped = meta.story({
   name: "(Test) Caps Queue Count",
   args: {

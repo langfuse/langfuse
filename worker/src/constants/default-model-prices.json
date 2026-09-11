@@ -3249,7 +3249,7 @@
     "modelName": "gemini-2.5-flash",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-2.5-flash)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2026-07-14T00:00:00.000Z",
+    "updatedAt": "2026-09-09T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmcnjkfwn000107l43bf5e8ax_tier_default",
@@ -3264,6 +3264,7 @@
           "prompt_token_count": 3e-7,
           "promptTokenCount": 3e-7,
           "input_cached_tokens": 3e-8,
+          "input_cache_read": 3e-8,
           "cached_content_token_count": 3e-8,
           "output": 0.0000025,
           "output_text": 0.0000025,
@@ -3284,7 +3285,7 @@
     "modelName": "gemini-2.5-flash-lite",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-2.5-flash-lite)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2026-07-14T00:00:00.000Z",
+    "updatedAt": "2026-09-09T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmcnjkrfa000207l4fpnh5mnv_tier_default",
@@ -3299,6 +3300,7 @@
           "prompt_token_count": 1e-7,
           "promptTokenCount": 1e-7,
           "input_cached_tokens": 1e-8,
+          "input_cache_read": 1e-8,
           "cached_content_token_count": 1e-8,
           "output": 4e-7,
           "output_text": 4e-7,
@@ -4297,6 +4299,68 @@
     ]
   },
   {
+    "id": "4cbb2cdd-e3b9-41ce-b07e-36136282d92a",
+    "modelName": "claude-fable-5-1",
+    "matchPattern": "(?i)^((anthropic\/)?claude-fable-5-1|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-fable-5-1(-v1(:0)?)?)$",
+    "createdAt": "2026-09-02T00:00:00.000Z",
+    "updatedAt": "2026-09-02T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "4cbb2cdd-e3b9-41ce-b07e-36136282d92a_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 10e-6,
+          "input_tokens": 10e-6,
+          "output": 50e-6,
+          "output_tokens": 50e-6,
+          "cache_creation_input_tokens": 12.5e-6,
+          "input_cache_creation": 12.5e-6,
+          "input_cache_creation_5m": 12.5e-6,
+          "input_cache_creation_1h": 20e-6,
+          "cache_read_input_tokens": 0.25e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "0e053111-eda4-4015-8d36-88f553adabc3",
+    "modelName": "claude-mythos-5-1",
+    "matchPattern": "(?i)^(anthropic\/)?claude-mythos-5-1$",
+    "createdAt": "2026-09-02T00:00:00.000Z",
+    "updatedAt": "2026-09-02T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "0e053111-eda4-4015-8d36-88f553adabc3_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 10e-6,
+          "input_tokens": 10e-6,
+          "output": 50e-6,
+          "output_tokens": 50e-6,
+          "cache_creation_input_tokens": 12.5e-6,
+          "input_cache_creation": 12.5e-6,
+          "input_cache_creation_5m": 12.5e-6,
+          "input_cache_creation_1h": 20e-6,
+          "cache_read_input_tokens": 0.25e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "7c2e1f89-3a54-4b67-9d21-58e634b79a0c",
     "modelName": "claude-sonnet-5",
     "matchPattern": "(?i)^((anthropic\\/)?claude-sonnet-5|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-sonnet-5(-v1(:0)?)?)$",
@@ -4390,7 +4454,7 @@
     "modelName": "gemini-2.5-pro",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-2.5-pro)$",
     "createdAt": "2025-11-26T13:27:53.545Z",
-    "updatedAt": "2026-07-14T00:00:00.000Z",
+    "updatedAt": "2026-09-09T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmig1hb7i000104l72qrzgc6h_tier_default",
@@ -4405,6 +4469,7 @@
           "prompt_token_count": 1.25e-6,
           "promptTokenCount": 1.25e-6,
           "input_cached_tokens": 0.125e-6,
+          "input_cache_read": 0.125e-6,
           "cached_content_token_count": 0.125e-6,
           "output": 10e-6,
           "output_text": 10e-6,
@@ -4437,6 +4502,7 @@
           "prompt_token_count": 2.5e-6,
           "promptTokenCount": 2.5e-6,
           "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6,
           "cached_content_token_count": 0.25e-6,
           "output": 15e-6,
           "output_text": 15e-6,
@@ -4456,7 +4522,7 @@
     "modelName": "gemini-3-pro-preview",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3-pro-preview)$",
     "createdAt": "2025-11-26T13:27:53.545Z",
-    "updatedAt": "2026-07-14T00:00:00.000Z",
+    "updatedAt": "2026-09-09T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmig1wmep000404l7fh6q5uog_tier_default",
@@ -4471,6 +4537,7 @@
           "prompt_token_count": 2e-6,
           "promptTokenCount": 2e-6,
           "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6,
           "cached_content_token_count": 0.2e-6,
           "output": 12e-6,
           "output_text": 12e-6,
@@ -4507,6 +4574,7 @@
           "prompt_token_count": 4e-6,
           "promptTokenCount": 4e-6,
           "input_cached_tokens": 0.4e-6,
+          "input_cache_read": 0.4e-6,
           "cached_content_token_count": 0.4e-6,
           "output": 18e-6,
           "output_text": 18e-6,
@@ -4530,7 +4598,7 @@
     "modelName": "gemini-3.1-pro-preview",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.1-pro-preview(-customtools)?)$",
     "createdAt": "2026-02-19T00:00:00.000Z",
-    "updatedAt": "2026-07-14T00:00:00.000Z",
+    "updatedAt": "2026-09-09T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "55106bba-a5dd-441b-bc0d-5652582b349d_tier_default",
@@ -4545,6 +4613,7 @@
           "prompt_token_count": 2e-6,
           "promptTokenCount": 2e-6,
           "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6,
           "cached_content_token_count": 0.2e-6,
           "output": 12e-6,
           "output_text": 12e-6,
@@ -4581,6 +4650,7 @@
           "prompt_token_count": 4e-6,
           "promptTokenCount": 4e-6,
           "input_cached_tokens": 0.4e-6,
+          "input_cache_read": 0.4e-6,
           "cached_content_token_count": 0.4e-6,
           "output": 18e-6,
           "output_text": 18e-6,
@@ -4820,7 +4890,7 @@
     "modelName": "gpt-5.3-codex",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.3-codex)$",
     "createdAt": "2026-07-27T00:00:00.000Z",
-    "updatedAt": "2026-07-29T00:00:00.000Z",
+    "updatedAt": "2026-09-02T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4838,9 +4908,38 @@
           "input": 1.75e-6,
           "input_cached_tokens": 0.175e-6,
           "input_cache_read": 0.175e-6,
+          "cache_read_input_tokens": 0.175e-6,
           "output": 14e-6,
           "output_reasoning_tokens": 14e-6,
-          "output_reasoning": 14e-6
+          "output_reasoning": 14e-6,
+          "reasoning_tokens": 14e-6
+        }
+      },
+      {
+        "id": "365e9e81-8ae0-4c17-94b5-0359ad9c184c",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": [
+              "fast",
+              "priority"
+            ]
+          }
+        ],
+        "prices": {
+          "input": 3.5e-6,
+          "input_cached_tokens": 0.35e-6,
+          "input_cache_read": 0.35e-6,
+          "cache_read_input_tokens": 0.35e-6,
+          "output": 28e-6,
+          "output_reasoning_tokens": 28e-6,
+          "output_reasoning": 28e-6,
+          "reasoning_tokens": 28e-6
         }
       }
     ]
@@ -6315,11 +6414,187 @@
     ]
   },
   {
+    "id": "92f817ff-d8a1-479b-87eb-405f9c7b4a18",
+    "modelName": "gpt-6-astra",
+    "matchPattern": "(?i)^(openai/)?(gpt-6-astra)$",
+    "createdAt": "2026-09-03T00:00:00.000Z",
+    "updatedAt": "2026-09-03T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "92f817ff-d8a1-479b-87eb-405f9c7b4a18_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 10e-6,
+          "input_cached_tokens": 1e-6,
+          "input_cache_read": 1e-6,
+          "cache_read_input_tokens": 1e-6,
+          "input_cache_creation": 12.5e-6,
+          "cache_write_tokens": 12.5e-6,
+          "output": 50e-6,
+          "output_reasoning_tokens": 50e-6,
+          "output_reasoning": 50e-6,
+          "reasoning_tokens": 50e-6
+        }
+      },
+      {
+        "id": "d3151184-4443-430a-a4ed-961dd55d223c",
+        "name": "Fast mode · Large context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          },
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 40e-6,
+          "input_cached_tokens": 4e-6,
+          "input_cache_read": 4e-6,
+          "cache_read_input_tokens": 4e-6,
+          "input_cache_creation": 50e-6,
+          "cache_write_tokens": 50e-6,
+          "output": 150e-6,
+          "output_reasoning_tokens": 150e-6,
+          "output_reasoning": 150e-6,
+          "reasoning_tokens": 150e-6
+        }
+      },
+      {
+        "id": "1b8d0945-bd74-4223-8bed-320f2063a2db",
+        "name": "Flex · Large context (>272K)",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          },
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 10e-6,
+          "input_cached_tokens": 1e-6,
+          "input_cache_read": 1e-6,
+          "cache_read_input_tokens": 1e-6,
+          "input_cache_creation": 12.5e-6,
+          "cache_write_tokens": 12.5e-6,
+          "output": 37.5e-6,
+          "output_reasoning_tokens": 37.5e-6,
+          "output_reasoning": 37.5e-6,
+          "reasoning_tokens": 37.5e-6
+        }
+      },
+      {
+        "id": "2da4af90-9c52-452a-b9d2-73e8306bad6e",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 3,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 20e-6,
+          "input_cached_tokens": 2e-6,
+          "input_cache_read": 2e-6,
+          "cache_read_input_tokens": 2e-6,
+          "input_cache_creation": 25e-6,
+          "cache_write_tokens": 25e-6,
+          "output": 100e-6,
+          "output_reasoning_tokens": 100e-6,
+          "output_reasoning": 100e-6,
+          "reasoning_tokens": 100e-6
+        }
+      },
+      {
+        "id": "ec8b3a8e-86c2-4a31-8c60-5f8c4ade98a8",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 4,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 5e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6,
+          "cache_read_input_tokens": 0.5e-6,
+          "input_cache_creation": 6.25e-6,
+          "cache_write_tokens": 6.25e-6,
+          "output": 25e-6,
+          "output_reasoning_tokens": 25e-6,
+          "output_reasoning": 25e-6,
+          "reasoning_tokens": 25e-6
+        }
+      },
+      {
+        "id": "296fbd59-2e9a-43c0-8308-cbc3b9014fdd",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 5,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 20e-6,
+          "input_cached_tokens": 2e-6,
+          "input_cache_read": 2e-6,
+          "cache_read_input_tokens": 2e-6,
+          "input_cache_creation": 25e-6,
+          "cache_write_tokens": 25e-6,
+          "output": 75e-6,
+          "output_reasoning_tokens": 75e-6,
+          "output_reasoning": 75e-6,
+          "reasoning_tokens": 75e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "6ed696e7-5f3a-4113-a233-019155fb3ff0",
     "modelName": "gemini-3.5-flash",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.5-flash)$",
     "createdAt": "2026-05-20T00:00:00.000Z",
-    "updatedAt": "2026-07-14T00:00:00.000Z",
+    "updatedAt": "2026-09-09T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "6ed696e7-5f3a-4113-a233-019155fb3ff0_tier_default",
@@ -6334,6 +6609,7 @@
           "prompt_token_count": 1.5e-6,
           "promptTokenCount": 1.5e-6,
           "input_cached_tokens": 0.15e-6,
+          "input_cache_read": 0.15e-6,
           "cached_content_token_count": 0.15e-6,
           "output": 9e-6,
           "output_text": 9e-6,
@@ -6357,7 +6633,7 @@
     "modelName": "gemini-3-flash-preview",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3-flash-preview)$",
     "createdAt": "2025-12-21T12:01:42.282Z",
-    "updatedAt": "2026-07-14T00:00:00.000Z",
+    "updatedAt": "2026-09-09T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmjfoeykl000004l8ffzra8c7_tier_default",
@@ -6372,6 +6648,7 @@
           "prompt_token_count": 0.5e-6,
           "promptTokenCount": 0.5e-6,
           "input_cached_tokens": 0.05e-6,
+          "input_cache_read": 0.05e-6,
           "cached_content_token_count": 0.05e-6,
           "output": 3e-6,
           "output_text": 3e-6,
@@ -6395,7 +6672,7 @@
     "modelName": "gemini-3.1-flash-lite",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.1-flash-lite)$",
     "createdAt": "2026-05-20T00:00:00.000Z",
-    "updatedAt": "2026-07-14T00:00:00.000Z",
+    "updatedAt": "2026-09-09T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "79f4d62c-22fb-4ec3-82e1-6e56cdd5e23c_tier_default",
@@ -6410,6 +6687,7 @@
           "prompt_token_count": 0.25e-6,
           "promptTokenCount": 0.25e-6,
           "input_cached_tokens": 0.025e-6,
+          "input_cache_read": 0.025e-6,
           "cached_content_token_count": 0.025e-6,
           "output": 1.5e-6,
           "output_text": 1.5e-6,
@@ -6434,7 +6712,7 @@
     "modelName": "gemini-3.1-flash-lite-preview",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.1-flash-lite-preview)$",
     "createdAt": "2026-03-03T00:00:00.000Z",
-    "updatedAt": "2026-07-14T00:00:00.000Z",
+    "updatedAt": "2026-09-09T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "0707bef8-10c8-46e2-a871-0436f05f0b92_tier_default",
@@ -6449,6 +6727,7 @@
           "prompt_token_count": 0.25e-6,
           "promptTokenCount": 0.25e-6,
           "input_cached_tokens": 0.025e-6,
+          "input_cache_read": 0.025e-6,
           "cached_content_token_count": 0.025e-6,
           "output": 1.5e-6,
           "output_text": 1.5e-6,
@@ -6498,7 +6777,7 @@
     "modelName": "gemini-3.6-flash",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.6-flash)$",
     "createdAt": "2026-07-22T00:00:00.000Z",
-    "updatedAt": "2026-08-14T00:00:00.000Z",
+    "updatedAt": "2026-09-09T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d_tier_default",
@@ -6513,6 +6792,7 @@
           "prompt_token_count": 0.75e-6,
           "promptTokenCount": 0.75e-6,
           "input_cached_tokens": 0.075e-6,
+          "input_cache_read": 0.075e-6,
           "cached_content_token_count": 0.075e-6,
           "output": 3.75e-6,
           "output_text": 3.75e-6,
@@ -6536,7 +6816,7 @@
     "modelName": "gemini-3.7-flash",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.7-flash)$",
     "createdAt": "2026-08-14T00:00:00.000Z",
-    "updatedAt": "2026-08-14T00:00:00.000Z",
+    "updatedAt": "2026-09-09T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "b91d332c-a2fd-b85c-f6e6-971796f3f111_tier_default",
@@ -6551,6 +6831,46 @@
           "prompt_token_count": 0.75e-6,
           "promptTokenCount": 0.75e-6,
           "input_cached_tokens": 0.075e-6,
+          "input_cache_read": 0.075e-6,
+          "cached_content_token_count": 0.075e-6,
+          "output": 3.75e-6,
+          "output_text": 3.75e-6,
+          "output_modality_1": 3.75e-6,
+          "candidates_token_count": 3.75e-6,
+          "candidatesTokenCount": 3.75e-6,
+          "thoughtsTokenCount": 3.75e-6,
+          "thoughts_token_count": 3.75e-6,
+          "output_reasoning_tokens": 3.75e-6,
+          "output_reasoning": 3.75e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
+        }
+      }
+    ]
+  },
+  {
+    "id": "c3a9f9a6-b79a-4e42-8835-9f0f8204a709",
+    "modelName": "gemini-3.8-flash",
+    "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.8-flash)$",
+    "createdAt": "2026-09-02T00:00:00.000Z",
+    "updatedAt": "2026-09-09T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "c3a9f9a6-b79a-4e42-8835-9f0f8204a709_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.75e-6,
+          "input_text": 0.75e-6,
+          "input_modality_1": 0.75e-6,
+          "prompt_token_count": 0.75e-6,
+          "promptTokenCount": 0.75e-6,
+          "input_cached_tokens": 0.075e-6,
+          "input_cache_read": 0.075e-6,
           "cached_content_token_count": 0.075e-6,
           "output": 3.75e-6,
           "output_text": 3.75e-6,
@@ -6574,7 +6894,7 @@
     "modelName": "gemini-3.5-flash-lite",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.5-flash-lite)$",
     "createdAt": "2026-07-22T00:00:00.000Z",
-    "updatedAt": "2026-08-04T00:00:00.000Z",
+    "updatedAt": "2026-09-09T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e_tier_default",
@@ -6589,6 +6909,7 @@
           "prompt_token_count": 0.3e-6,
           "promptTokenCount": 0.3e-6,
           "input_cached_tokens": 0.03e-6,
+          "input_cache_read": 0.03e-6,
           "cached_content_token_count": 0.03e-6,
           "output": 2.5e-6,
           "output_text": 2.5e-6,

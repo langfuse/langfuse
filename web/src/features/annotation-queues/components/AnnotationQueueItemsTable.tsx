@@ -4,16 +4,13 @@ import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { type AnnotationQueueStatus } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { ChevronDown, ListTree, Trash } from "lucide-react";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
 import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useState } from "react";
@@ -33,10 +30,12 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
-import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
+import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 
 const QueueItemTableMultiSelectAction = ({
   selectedItemIds,
@@ -302,16 +301,21 @@ export function AnnotationQueueItemsTable({
       enableHiding: true,
       defaultHidden: true,
     }),
-    {
+    createStatusTableColumn<QueueItemRowData, AnnotationQueueStatus>({
       accessorKey: "status",
       header: "Status",
-      id: "status",
+      getStatus: (status) =>
+        status
+          ? (
+              {
+                PENDING: "pending",
+                COMPLETED: "completed",
+              } satisfies Record<AnnotationQueueStatus, Status>
+            )[status]
+          : undefined,
       size: 60,
-      cell: ({ row }) => {
-        const status: QueueItemRowData["status"] = row.getValue("status");
-        return <StatusBadge type={status.toLowerCase()} isLive={false} />;
-      },
-    },
+      isLive: false,
+    }),
     {
       accessorKey: "completedAt",
       header: "Completed At",
@@ -320,40 +324,23 @@ export function AnnotationQueueItemsTable({
       enableHiding: true,
       size: 60,
     },
-    {
+    createUserTableColumn<QueueItemRowData, QueueItemRowData["annotatorUser"]>({
       accessorKey: "annotatorUser",
       header: "Completed by",
-      id: "annotatorUser",
       enableHiding: true,
       size: 80,
-      cell: ({ row }) => {
-        const annotatorUser: QueueItemRowData["annotatorUser"] =
-          row.getValue("annotatorUser");
-        if (!annotatorUser || !annotatorUser.userId) return null;
+      variant: "avatar",
+      emptyValue: "",
+      getUser: (annotatorUser) => {
+        if (!annotatorUser || !annotatorUser.userId) return undefined;
 
         const { userId, userName, image } = annotatorUser;
-        return (
-          <div className="flex items-center space-x-2">
-            <Avatar className="h-7 w-7">
-              <AvatarImage
-                src={image ?? undefined}
-                alt={userName ?? "User Avatar"}
-              />
-              <AvatarFallback>
-                {userName
-                  ? userName
-                      .split(" ")
-                      .map((word) => word[0])
-                      .slice(0, 2)
-                      .concat("")
-                  : null}
-              </AvatarFallback>
-            </Avatar>
-            <span>{userName ?? userId}</span>
-          </div>
-        );
+        return {
+          type: "user",
+          user: { id: userId, name: userName, image },
+        };
       },
-    },
+    }),
   ];
 
   const convertToTableRow = (
@@ -416,6 +403,7 @@ export function AnnotationQueueItemsTable({
   return (
     <>
       <DataTableToolbar
+        tableName="annotation-queue-items"
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
