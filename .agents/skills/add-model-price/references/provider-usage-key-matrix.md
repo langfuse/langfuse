@@ -69,13 +69,21 @@ Use these core aliases for priced text-generation models:
 | -------------------------- | ---------------------------------------------------------------------------------------------- |
 | Input                      | `input`, `input_text`, `input_modality_1`, `prompt_token_count`, `promptTokenCount`            |
 | Output                     | `output`, `output_text`, `output_modality_1`, `candidates_token_count`, `candidatesTokenCount` |
-| Cache read, when supported | `input_cached_tokens`, `cached_content_token_count`                                            |
+| Cache read, when supported | `input_cached_tokens`, `cached_content_token_count`, `input_cache_read`                        |
 | Reasoning, when supported  | `thoughts_token_count`, `thoughtsTokenCount`, `output_reasoning_tokens`, `output_reasoning`    |
 
 Add `input_audio_tokens`, grounding/search aliases, or other modality/tool keys
 only when the official model pricing has those distinct dimensions. Use
 `gemini-3.1-pro-preview` as the mature reasoning, caching, and grounding
 template, but remove capability families that official docs mark unavailable.
+
+`input_cache_read` was added as a third cache-read alias to every Gemini
+pricing entry that already had `input_cached_tokens` in PR #17229
+("fix(pricing): price Gemini LangChain cache reads", merged 2026-09-09) so
+that Gemini generations traced through the LangChain integration price their
+cache reads correctly. Include it alongside `input_cached_tokens` and
+`cached_content_token_count` for any new Gemini model that supports prompt
+caching.
 
 ## Other Bedrock models
 

@@ -594,6 +594,34 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   add even if the scope exclusion were lifted. Treat the whole Daybreak cyber
   family (currently three members) as one standing scope exclusion rather than
   re-investigating each member separately in future audits.
+- **September 11 2026 audit: no price or catalog drift; confirmed a same-week
+  human fix already completed Gemini `input_cache_read` alias coverage** —
+  Re-fetched the full Anthropic pricing page (model table, Fast mode, batch,
+  and long-context sections), the OpenAI aggregate Standard pricing table
+  (all short- and long-context tiers for the gpt-5.x/gpt-6 families plus
+  gpt-4.1/gpt-4o/o1/o3/o4-mini) and the full OpenAI model catalog
+  (`developers.openai.com/api/docs/models/all`), and both Gemini pricing
+  pages (`ai.google.dev/gemini-api/docs/pricing` for the 3.x family,
+  `ai.google.dev/pricing` for the 2.5 family) plus the Gemini models catalog
+  page. Every price already in the pricing file matched verbatim; no updates
+  were needed. Separately, `git log` on the pricing file surfaced PR #17229
+  ("fix(pricing): price Gemini LangChain cache reads", merged 2026-09-09,
+  outside this audit) which added a third cache-read alias,
+  `input_cache_read` (populated by Langfuse's OTel ingestion normalization,
+  `packages/shared/src/server/otel/OtelIngestionProcessor.ts`), to every
+  Gemini pricing entry that already had `input_cached_tokens`. Verified via
+  `jq` that this fix is complete — every Gemini entry with
+  `input_cached_tokens` also has `input_cache_read` — so no follow-up edit
+  was needed here. Documented the new alias in
+  `provider-usage-key-matrix.md`'s Gemini table so a future audit adding a
+  new cache-enabled Gemini model includes it from the start instead of
+  treating it as a two-alias bucket. No new general-purpose text/chat model
+  was found; the Gemini models catalog still lists the same
+  audio/video/agent/robotics specialized-modality wave noted in the
+  September 6/8/9 entries above (this run's fetch used slightly different
+  names — `gemini-omni-flash` rather than `gemini-omni-1.1-flash` — which is
+  most likely provider-side catalog churn rather than a Langfuse-relevant
+  change; still out of scope either way).
 
 Capture:
 
