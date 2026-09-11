@@ -3,7 +3,7 @@ import { numberFormatter } from "@/src/utils/numbers";
 /**
  * The card lists everything up to this many names; "+N more" only past it.
  */
-export const MAX_HOVER_SCORES = 10;
+const MAX_HOVER_SCORES = 10;
 
 type HoverListScore = {
   name: string;
@@ -12,7 +12,7 @@ type HoverListScore = {
   stringValue?: string | null;
 };
 
-export function formatScoreValue(score: Omit<HoverListScore, "name">): string {
+function formatScoreValue(score: Omit<HoverListScore, "name">): string {
   if (score.dataType === "NUMERIC" && score.value != null) {
     return numberFormatter(score.value, 2);
   }

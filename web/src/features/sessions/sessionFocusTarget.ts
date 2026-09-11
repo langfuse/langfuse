@@ -12,11 +12,11 @@ import { StringParam, useQueryParam } from "use-query-params";
  * treats `traceId` as a v4-dialect peek target and clears `observation` on
  * close, so reusing either would pin or drop the focus.
  */
-export const SESSION_FOCUS_TRACE_PARAM = "focusTraceId";
-export const SESSION_FOCUS_OBSERVATION_PARAM = "focusObservationId";
+const SESSION_FOCUS_TRACE_PARAM = "focusTraceId";
+const SESSION_FOCUS_OBSERVATION_PARAM = "focusObservationId";
 
 /** Marks the focused trace's row shell; rows set it, the pin loop finds it. */
-export const SESSION_FOCUSED_TRACE_ATTRIBUTE = "data-session-focused-trace";
+const SESSION_FOCUSED_TRACE_ATTRIBUTE = "data-session-focused-trace";
 
 export type SessionFocusTarget = {
   traceId: string;
