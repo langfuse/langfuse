@@ -164,6 +164,8 @@ export const PostDatasetsV2Response = APIDataset.strict();
 // GET /v2/datasets
 export const GetDatasetsV2Query = z.object({
   ...publicApiPaginationZod,
+  fromTimestamp: stringDateTime,
+  toTimestamp: stringDateTime,
 });
 export const GetDatasetsV2Response = z
   .object({
@@ -317,6 +319,8 @@ export const PostDatasetsV1Response = APIDataset.extend({
 // GET /datasets
 export const GetDatasetsV1Query = z.object({
   ...paginationZod,
+  fromTimestamp: stringDateTime,
+  toTimestamp: stringDateTime,
 });
 export const GetDatasetsV1Response = z
   .object({
