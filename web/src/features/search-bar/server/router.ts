@@ -55,6 +55,7 @@ import {
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { DATASET_NAME_COLUMN } from "@/src/features/evals/v2/utils/datasetNameFilter";
 import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
+import { USERS_FIELD_REGISTRY } from "@/src/features/filters/config/usersSearchRegistry";
 import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
 import {
   EVENTS_FIELD_REGISTRY,
@@ -75,6 +76,7 @@ const REGISTRY_IDS = [
   "ruleSamples",
   "sessions",
   "experiments",
+  "users",
 ] as const;
 
 /**
@@ -90,6 +92,7 @@ const REGISTRIES_BY_ID: Record<(typeof REGISTRY_IDS)[number], FieldRegistry> = {
   ruleSamples: RULE_SAMPLE_FIELD_REGISTRY,
   sessions: SESSIONS_FIELD_REGISTRY,
   experiments: EXPERIMENTS_FIELD_REGISTRY,
+  users: USERS_FIELD_REGISTRY,
 };
 
 const GenerateFilterInput = z.object({
