@@ -2200,4 +2200,83 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(runAfterSecond?.createdAt).toEqual(customCreatedAt); // Still original timestamp
   });
+
+  it("should filter GET /api/public/v2/datasets by fromTimestamp and toTimestamp", async () => {
+    const prefix = `v2-filter-test-${v4()}`;
+    const d1 = await prisma.dataset.create({
+      data: {
+        id: v4(),
+        name: `${prefix}-1`,
+        projectId,
+        createdAt: new Date("2026-08-10T00:00:00.000Z"),
+      },
+    });
+    const d2 = await prisma.dataset.create({
+      data: {
+        id: v4(),
+        name: `${prefix}-2`,
+        projectId,
+        createdAt: new Date("2026-08-20T00:00:00.000Z"),
+      },
+    });
+    const d3 = await prisma.dataset.create({
+      data: {
+        id: v4(),
+        name: `${prefix}-3`,
+        projectId,
+        createdAt: new Date("2026-08-30T00:00:00.000Z"),
+      },
+    });
+
+    // 1. fromTimestamp filter
+    const fromRes = await makeZodVerifiedAPICall(
+      GetDatasetsV2Response,
+      "GET",
+      `/api/public/v2/datasets?fromTimestamp=2026-08-20T00:00:00.000Z`,
+      undefined,
+      auth,
+    );
+    expect(fromRes.status).toBe(200);
+    const fromNames = fromRes.body.data.map((d) => d.name);
+    expect(fromNames).toContain(`${prefix}-2`);
+    expect(fromNames).toContain(`${prefix}-3`);
+    expect(fromNames).not.toContain(`${prefix}-1`);
+
+    // 2. toTimestamp filter (exclusive)
+    const toRes = await makeZodVerifiedAPICall(
+      GetDatasetsV2Response,
+      "GET",
+      `/api/public/v2/datasets?toTimestamp=2026-08-20T00:00:00.000Z`,
+      undefined,
+      auth,
+    );
+    expect(toRes.status).toBe(200);
+    const toNames = toRes.body.data.map((d) => d.name);
+    expect(toNames).toContain(`${prefix}-1`);
+    expect(toNames).not.toContain(`${prefix}-2`);
+    expect(toNames).not.toContain(`${prefix}-3`);
+
+    // 3. half-open interval [fromTimestamp, toTimestamp)
+    const rangeRes = await makeZodVerifiedAPICall(
+      GetDatasetsV2Response,
+      "GET",
+      `/api/public/v2/datasets?fromTimestamp=2026-08-15T00:00:00.000Z&toTimestamp=2026-08-25T00:00:00.000Z`,
+      undefined,
+      auth,
+    );
+    expect(rangeRes.status).toBe(200);
+    const rangeNames = rangeRes.body.data.map((d) => d.name);
+    expect(rangeNames).toContain(`${prefix}-2`);
+    expect(rangeNames).not.toContain(`${prefix}-1`);
+    expect(rangeNames).not.toContain(`${prefix}-3`);
+
+    // 4. Invalid timestamp returns 400
+    const invalidRes = await makeAPICall(
+      "GET",
+      "/api/public/v2/datasets?fromTimestamp=invalid-date",
+      undefined,
+      auth,
+    );
+    expect(invalidRes.status).toBe(400);
+  });
 });

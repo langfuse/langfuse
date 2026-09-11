@@ -164,6 +164,8 @@ export const PostDatasetsV2Response = APIDataset.strict();
 // GET /v2/datasets
 export const GetDatasetsV2Query = z.object({
   ...publicApiPaginationZod,
+  fromTimestamp: stringDateTime.nullish(),
+  toTimestamp: stringDateTime.nullish(),
 });
 export const GetDatasetsV2Response = z
   .object({
