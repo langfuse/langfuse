@@ -539,6 +539,7 @@ export default function ExperimentItemsTable({
     hasBaseline,
     comparisonIds,
     allExperimentIds,
+    colorExperimentIds,
     layout,
     diffMode,
     itemVisibility,
@@ -844,11 +845,6 @@ export default function ExperimentItemsTable({
       setSelectedRows,
       setSelectAll,
     },
-  );
-
-  const colorExperimentIds = useMemo(
-    () => (hasBaseline ? allExperimentIds : []),
-    [hasBaseline, allExperimentIds],
   );
 
   // A score column that is empty for every item in view is noise, so only keep
@@ -2160,6 +2156,7 @@ export default function ExperimentItemsTable({
                   rows={unfilteredRows}
                   scoreRows={matrixScoreRows}
                   experiments={matrixExperiments}
+                  colorExperimentIds={colorExperimentIds}
                   isLoading={items.status === "loading" || isViewLoading}
                   pagination={pagination}
                 />
