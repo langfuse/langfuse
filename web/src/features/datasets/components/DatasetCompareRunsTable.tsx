@@ -240,12 +240,14 @@ function DatasetCompareRunsTableInternal(props: {
           </DropdownMenu>
         }
       />
-      <FilteredRunPills
-        projectId={props.projectId}
-        datasetId={props.datasetId}
-        filteredRuns={activeRunFilters}
-        className="px-2 pb-2"
-      />
+      {hasActiveRunFilters && (
+        <FilteredRunPills
+          projectId={props.projectId}
+          datasetId={props.datasetId}
+          filteredRuns={activeRunFilters}
+          className="px-2 pb-2"
+        />
+      )}
       <DataTable
         tableName="datasetCompareRuns"
         columns={columns}

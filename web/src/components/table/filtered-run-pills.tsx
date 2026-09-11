@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-null-render */
+/* eslint-disable @repo/no-style-props */
 import { Badge } from "@/src/components/ui/badge";
 import {
   HoverCard,
@@ -83,10 +83,6 @@ export function FilteredRunPills({
       key: `${runFilter.runId}-${index}`,
     })),
   );
-
-  if (allFilters.length === 0) {
-    return null;
-  }
 
   return (
     <div className={`flex flex-wrap items-center gap-1 ${className ?? ""}`}>
