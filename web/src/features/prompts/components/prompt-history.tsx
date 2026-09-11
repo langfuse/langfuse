@@ -1,5 +1,4 @@
 import { type RouterOutputs } from "@/src/utils/api";
-import { type NextRouter, useRouter } from "next/router";
 import { useState, useRef, useEffect } from "react";
 import { PromptVersionDiffDialogContent } from "./PromptVersionDiffDialog";
 import {
@@ -20,7 +19,7 @@ const PromptHistoryTraceNode = (props: {
   currentPrompt?: RouterOutputs["prompts"]["allVersions"]["promptVersions"][number];
   currentPromptVersion: number | undefined;
   setCurrentPromptVersion: (version: number | undefined) => void;
-  router: NextRouter;
+  openCommentDrawer: (promptId: string, promptVersion: number) => void;
   commentCounts?: Map<string, number>;
 }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -113,20 +112,7 @@ const PromptHistoryTraceNode = (props: {
               <span
                 onClick={(e) => {
                   e.stopPropagation();
-                  props.router.push(
-                    {
-                      pathname: props.router.pathname,
-                      query: {
-                        ...props.router.query,
-                        version: prompt.version,
-                        comments: "open",
-                        commentObjectType: "PROMPT",
-                        commentObjectId: prompt.id,
-                      },
-                    },
-                    undefined,
-                    { shallow: true },
-                  );
+                  props.openCommentDrawer(prompt.id, prompt.version);
                 }}
                 className="cursor-pointer"
                 role="button"
@@ -200,9 +186,9 @@ export const PromptHistoryNode = (props: {
   prompts: RouterOutputs["prompts"]["allVersions"]["promptVersions"];
   currentPromptVersion: number | undefined;
   setCurrentPromptVersion: (id: number | undefined) => void;
+  openCommentDrawer: (promptId: string, promptVersion: number) => void;
   commentCounts?: Map<string, number>;
 }) => {
-  const router = useRouter();
   const currentPrompt = props.prompts.find(
     (p) => p.version === props.currentPromptVersion,
   );
@@ -217,7 +203,7 @@ export const PromptHistoryNode = (props: {
           currentPrompt={currentPrompt}
           currentPromptVersion={props.currentPromptVersion}
           setCurrentPromptVersion={props.setCurrentPromptVersion}
-          router={router}
+          openCommentDrawer={props.openCommentDrawer}
           commentCounts={props.commentCounts}
         />
       ))}

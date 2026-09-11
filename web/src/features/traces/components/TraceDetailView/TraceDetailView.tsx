@@ -15,8 +15,12 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useCallback, useMemo, useState } from "react";
-import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
+import {
+  CommentDrawerController,
+  getCommentDrawerInitialStateFromUrl,
+} from "@/src/features/comments/CommentDrawerController";
 import { api } from "@/src/utils/api";
+import { useRouter } from "next/router";
 import {
   Tooltip,
   TooltipContent,
@@ -73,6 +77,7 @@ export function TraceDetailView({
   corrections,
   projectId,
 }: TraceDetailViewProps) {
+  const router = useRouter();
   // Tab and view state from URL (via SelectionContext)
   const { selectedTab, setSelectedTab } = useSelection();
   const utils = api.useUtils();
@@ -220,8 +225,7 @@ export function TraceDetailView({
   return (
     <CommentDrawerController
       projectId={projectId}
-      objectId={trace.id}
-      objectType="TRACE"
+      initialState={() => getCommentDrawerInitialStateFromUrl(router.query)}
       count={comments.get(trace.id)}
     >
       {({ disabled, openDrawer }) => (
@@ -235,7 +239,12 @@ export function TraceDetailView({
             commentCount={comments.get(trace.id)}
             commentDrawerControl={{
               disabled,
-              openDrawer: () => openDrawer({ type: "comments" }),
+              openDrawer: () =>
+                openDrawer({
+                  type: "comments",
+                  objectId: trace.id,
+                  objectType: "TRACE",
+                }),
             }}
           />
 
@@ -429,7 +438,12 @@ export function TraceDetailView({
                   }
                   enableInlineComments={true}
                   onAddInlineComment={(selection) =>
-                    openDrawer({ type: "inline-comment", selection })
+                    openDrawer({
+                      type: "inline-comment",
+                      selection,
+                      objectId: trace.id,
+                      objectType: "TRACE",
+                    })
                   }
                   commentedPathsByField={commentedPathsByField}
                   showMetadata

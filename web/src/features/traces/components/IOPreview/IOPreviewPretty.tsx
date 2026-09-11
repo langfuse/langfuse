@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
@@ -6,7 +6,9 @@ import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCh
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import {
+  type IOPreviewParserComparisonOutcome,
   type IOPreviewParserMode,
+  hasRenderableChatMessages,
   useIOPreviewParser,
 } from "../../hooks/useIOPreviewParser";
 import { ChatMessageList } from "../ChatMessageList";
@@ -16,7 +18,6 @@ import {
   type IOPreviewContentMode,
 } from "./IOPreview";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
-import { isOnlyJsonMessage } from "../../fns/chatMessageUtils";
 import { StatusMessageSection } from "./components/StatusMessageSection";
 import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
 
@@ -123,6 +124,8 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   // Which parser produces the preview; the normalized parser is admin-only
   // while it is being validated. Legacy remains the safe default.
   parser?: IOPreviewParserMode;
+  // Called once after a normalized parser comparison has settled.
+  onParserComparison?: (outcome: IOPreviewParserComparisonOutcome) => void;
 }
 
 /**
@@ -171,6 +174,7 @@ export function IOPreviewPretty({
   contentMode = "all",
   showSystemPrompt,
   parser = "legacy",
+  onParserComparison,
 }: IOPreviewPrettyProps) {
   // Use pre-parsed data if available (from useParsedObservation hook),
   // otherwise parse with size/depth limits to prevent UI freeze
@@ -200,17 +204,7 @@ export function IOPreviewPretty({
 
   // Parse into the shared preview contract. The normalized parser is opt-in
   // while it is being rolled out; legacy remains the safe default.
-  const {
-    canDisplayAsChat,
-    allMessages,
-    additionalInput,
-    allTools,
-    toolCallCounts,
-    toolCallsByName,
-    messageToToolCallNumbers,
-    toolNameToDefinitionNumber,
-    inputMessageCount,
-  } = useIOPreviewParser(
+  const { result: parserResult, comparisonOutcome } = useIOPreviewParser(
     parser,
     input,
     output,
@@ -221,6 +215,44 @@ export function IOPreviewPretty({
     parsedMetadata,
     chatMLParserResult,
   );
+
+  const {
+    allMessages,
+    additionalInput,
+    allTools,
+    toolCallCounts,
+    toolCallsByName,
+    messageToToolCallNumbers,
+    toolNameToDefinitionNumber,
+    inputMessageCount,
+  } = parserResult;
+
+  const capturedComparisonRecord = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (
+      parser !== "normalized" ||
+      comparisonOutcome === undefined ||
+      !onParserComparison ||
+      isLoading ||
+      isParsing
+    ) {
+      return;
+    }
+
+    const recordKey = `${observationId ? "observation" : "trace"}:${observationId ?? traceId}`;
+    if (capturedComparisonRecord.current === recordKey) return;
+
+    capturedComparisonRecord.current = recordKey;
+    onParserComparison(comparisonOutcome);
+  }, [
+    comparisonOutcome,
+    isLoading,
+    isParsing,
+    observationId,
+    onParserComparison,
+    parser,
+    traceId,
+  ]);
 
   const characterLimit = useMarkdownRenderCharacterLimit();
 
@@ -287,8 +319,7 @@ export function IOPreviewPretty({
   // Determine if metadata should be shown
   const shouldShowMetadata = showMetadata && parsedMetadata !== undefined;
   const showData = contentMode !== "conversation";
-  const shouldRenderMessages =
-    canDisplayAsChat && !allMessages.every(isOnlyJsonMessage);
+  const shouldRenderMessages = hasRenderableChatMessages(parserResult);
 
   return (
     <div>

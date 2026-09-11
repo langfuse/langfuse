@@ -106,10 +106,19 @@ export function useExperimentFilterOptions({
     };
   }, [usedDatasets, filterOptions.data]);
 
+  // The SETTLE state of the names query, not its contents: callers that must
+  // wait for a name -> id translation cannot read that off the map, which is
+  // empty both while loading and for a project with no datasets.
+  const datasetNamesQuery = useMemo(
+    () => ({ isSuccess: datasets.isSuccess, isError: datasets.isError }),
+    [datasets.isSuccess, datasets.isError],
+  );
+
   return {
     filterOptions: experimentFilterOptions,
     datasetIdByName,
     datasetNameById,
+    datasetNamesQuery,
     isFilterOptionsPending: datasets.isLoading || filterOptions.isLoading,
   };
 }
