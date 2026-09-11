@@ -94,7 +94,7 @@ export const BreakdownTooltip = ({
         >
           {children}
         </TooltipTrigger>
-        <TooltipContent className="w-[36rem] max-w-[calc(100vw-2rem)] p-4">
+        <TooltipContent className="w-[32rem] max-w-[calc(100vw-2rem)] p-4">
           <div className="flex min-w-0 flex-col gap-4">
             <div className="flex flex-col gap-1">
               <span className="font-bold">
@@ -201,7 +201,7 @@ const breakdownRowVariants = cva("min-w-0 items-center gap-3 text-xs", {
     layout: {
       default: "flex",
       waterfall:
-        "grid grid-cols-[minmax(0,1fr)_10rem_auto] max-sm:grid-cols-[minmax(0,1fr)_6rem_auto]",
+        "grid grid-cols-[minmax(0,1fr)_8rem_auto] max-sm:grid-cols-[minmax(0,1fr)_6rem_auto]",
     },
     variant: {
       item: "text-muted-foreground",
