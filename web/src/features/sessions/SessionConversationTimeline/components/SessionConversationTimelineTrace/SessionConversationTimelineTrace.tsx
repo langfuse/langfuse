@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ChevronDown,
   ChevronsUpDown,
@@ -682,6 +682,26 @@ function LoadedSessionConversationTimeline({
     null,
   );
   const highlightedSubsectionId = hoveredSubsectionId ?? focusedSubsectionId;
+  const nestedObservationSummaries = useMemo(() => {
+    const observationsByAncestorId = new Map<
+      string,
+      PreparedSessionTimelineItem<SessionObservation>[]
+    >();
+    for (const item of observations) {
+      for (const ancestorId of item.ancestorObservationIds) {
+        const nestedObservations = observationsByAncestorId.get(ancestorId);
+        if (nestedObservations) nestedObservations.push(item);
+        else observationsByAncestorId.set(ancestorId, [item]);
+      }
+    }
+
+    return new Map(
+      Array.from(observationsByAncestorId, ([observationId, nestedItems]) => [
+        observationId,
+        getNestedObservationSummary(nestedItems),
+      ]),
+    );
+  }, [observations]);
   let collapsedObservationIds = collapseState.observationIds;
   if (
     scrollTarget &&
@@ -745,11 +765,7 @@ function LoadedSessionConversationTimeline({
           const hasNestedObservations =
             Object.keys(nestedObservationCounts).length > 0;
           const nestedObservationSummary = hasNestedObservations
-            ? getNestedObservationSummary(
-                observations.filter(({ ancestorObservationIds }) =>
-                  ancestorObservationIds.includes(observation.id),
-                ),
-              )
+            ? (nestedObservationSummaries.get(observation.id) ?? "")
             : "";
           const isCollapsed = collapsedObservationIds.has(observation.id);
           const itemId = item.type === "tool" ? item.id : observation.id;
