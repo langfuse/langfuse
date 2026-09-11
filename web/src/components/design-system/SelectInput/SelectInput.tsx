@@ -46,7 +46,7 @@ type SelectInputProps<V> = {
   placeholder: string;
 } & Pick<
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>,
-  "id" | "aria-describedby" | "aria-invalid"
+  "id" | "aria-describedby" | "aria-invalid" | "aria-label" | "disabled"
 >;
 
 function isSelectGroup<V>(node: SelectInputNode<V>): node is SelectGroup<V> {
