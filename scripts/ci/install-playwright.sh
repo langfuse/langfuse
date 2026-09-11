@@ -53,7 +53,7 @@ until install_playwright; do
     exit 1
   fi
 
-  echo "Fallback attempt ${attempt} failed; retrying in $((attempt * 15))s." >&2
-  sleep "$((attempt * 15))"
+  echo "Fallback attempt ${attempt} failed; retrying in 5s." >&2
+  sleep 5
   attempt=$((attempt + 1))
 done
