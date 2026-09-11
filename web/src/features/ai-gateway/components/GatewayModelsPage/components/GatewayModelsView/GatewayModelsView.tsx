@@ -59,7 +59,7 @@ const columns: LangfuseColumnDef<GatewayModelRow, unknown>[] = [
         additionalOverflowCount={0}
         getKey={(connection) => connection.connectionId}
         renderItem={(connection) => (
-          <Badge variant="outline-solid">
+          <Badge variant="secondary">
             {connection.connectionName} · {providerLabels[connection.provider]}
           </Badge>
         )}
@@ -67,7 +67,7 @@ const columns: LangfuseColumnDef<GatewayModelRow, unknown>[] = [
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="inline-flex" tabIndex={0}>
-                <Badge variant="outline-solid">+{overflowItemCount}</Badge>
+                <Badge variant="secondary">+{overflowItemCount}</Badge>
               </span>
             </TooltipTrigger>
             <TooltipContent className="max-w-xs">
