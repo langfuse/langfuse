@@ -8,17 +8,20 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 import { EvaluatorAssistantScratchView } from "./EvaluatorAssistantScratchView";
+import { TooltipProvider } from "@/src/components/ui/tooltip";
 
 describe("EvaluatorAssistantScratchView", () => {
   it("keeps the icon submit accessible and examples below the composer", async () => {
     const onSubmit = vi.fn();
 
     render(
-      <EvaluatorAssistantScratchView
-        evaluatorType="CODE"
-        onSubmit={onSubmit}
-        onConfigureManually={vi.fn()}
-      />,
+      <TooltipProvider>
+        <EvaluatorAssistantScratchView
+          evaluatorType="CODE"
+          onSubmit={onSubmit}
+          onConfigureManually={vi.fn()}
+        />
+      </TooltipProvider>,
     );
 
     const composer = screen.getByRole("group", {
@@ -66,11 +69,13 @@ describe("EvaluatorAssistantScratchView", () => {
     );
 
     render(
-      <EvaluatorAssistantScratchView
-        evaluatorType="LLM_AS_JUDGE"
-        onSubmit={onSubmit}
-        onConfigureManually={vi.fn()}
-      />,
+      <TooltipProvider>
+        <EvaluatorAssistantScratchView
+          evaluatorType="LLM_AS_JUDGE"
+          onSubmit={onSubmit}
+          onConfigureManually={vi.fn()}
+        />
+      </TooltipProvider>,
     );
 
     const input = screen.getByLabelText("Describe the evaluator you want");
@@ -102,11 +107,13 @@ describe("EvaluatorAssistantScratchView", () => {
     const onConfigureManually = vi.fn();
 
     render(
-      <EvaluatorAssistantScratchView
-        evaluatorType="CODE"
-        onSubmit={onSubmit}
-        onConfigureManually={onConfigureManually}
-      />,
+      <TooltipProvider>
+        <EvaluatorAssistantScratchView
+          evaluatorType="CODE"
+          onSubmit={onSubmit}
+          onConfigureManually={onConfigureManually}
+        />
+      </TooltipProvider>,
     );
 
     fireEvent.click(
