@@ -335,7 +335,10 @@ export class TableViewService {
       );
     }
 
-    return tableViewPresets as unknown as TableViewPresetDomain;
+    return {
+      ...tableViewPresets,
+      filters: coerceLegacyEmptyMetadataFilters(tableViewPresets.filters),
+    } as unknown as TableViewPresetDomain;
   }
 
   /**

@@ -1009,8 +1009,9 @@ describe("InMemoryFilterService", () => {
       expect(presence("toString", "is not set")).toBe(true);
     });
 
-    test("declines to match empty substring values (agrees with the rejected DB path)", () => {
+    test("treats a legacy empty substring value as key presence (matches when the key exists)", () => {
       const emptySubstring = (
+        key: string,
         operator: "contains" | "starts with" | "ends with",
       ) =>
         InMemoryFilterService.evaluateFilter(
@@ -1019,7 +1020,7 @@ describe("InMemoryFilterService", () => {
             {
               column: "metadata",
               type: "stringObject",
-              key: "userId",
+              key,
               operator,
               value: "",
             },
@@ -1027,11 +1028,15 @@ describe("InMemoryFilterService", () => {
           fieldMapper,
         );
 
-      // `userId` is present, so `contains ""` would otherwise match; the DB
-      // path rejects the same filter, so in memory it must not match either.
-      expect(emptySubstring("contains")).toBe(false);
-      expect(emptySubstring("starts with")).toBe(false);
-      expect(emptySubstring("ends with")).toBe(false);
+      // Legacy `contains ""` / `starts with ""` / `ends with ""` behaved as a
+      // key-existence check; persisted rules using it must keep matching a
+      // present key (they are coerced to `is set` at the read boundary, and the
+      // in-memory evaluator must not flip them to never-match if one slips
+      // through uncoerced).
+      for (const op of ["contains", "starts with", "ends with"] as const) {
+        expect(emptySubstring("userId", op)).toBe(true);
+        expect(emptySubstring("missingKey", op)).toBe(false);
+      }
     });
 
     test("evaluates numberObject filters correctly", () => {

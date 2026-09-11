@@ -359,18 +359,6 @@ export class InMemoryFilterService {
       return !hasKey;
     }
 
-    // An empty substring value is rejected at the ClickHouse query boundary
-    // (it degrades to a full-scan key-existence check). Decline to match here
-    // too so a legacy stored filter cannot match in memory but throw in the DB.
-    if (
-      filterValue === "" &&
-      (operator === "contains" ||
-        operator === "starts with" ||
-        operator === "ends with")
-    ) {
-      return false;
-    }
-
     if (!hasKey) {
       // The key does not exist on the object. Coalescing this to an empty
       // string below would make e.g. `contains ""` incorrectly match rows
