@@ -7,6 +7,13 @@ export const featurePreviewFlags = [
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
 
+const restrictedFlags = ["aiGateway"] as const;
+
+type RestrictedFlag = (typeof restrictedFlags)[number];
+
+export const isRestrictedFlag = (flag: string): flag is RestrictedFlag =>
+  restrictedFlags.some((restrictedFlag) => restrictedFlag === flag);
+
 export const isFeaturePreviewFlag = (
   flag: string,
 ): flag is FeaturePreviewFlag =>
@@ -42,6 +49,7 @@ export const isFeaturePreviewAvailable = (
 
 export const availableFlags = [
   ...featurePreviewFlags,
+  ...restrictedFlags,
   "searchBar",
   "templateFlag",
   "excludeClickhouseRead",
