@@ -48,7 +48,7 @@ pnpm run test        # see "Running Unit Tests" below for the setup this needs
 
 `lint` and `typecheck` are cached, so a pass can be a replay of an earlier run. Read turbo's `Cached:` line as well as its `Tasks:` line, and re-run with `pnpm exec turbo run lint --force` if you need to be sure it executed. For a user-visible change, also open the affected screen in a browser and check it — every pull request gets a full preview deployment at `pr-<N>.preview.langfuse.com`.
 
-If a change is too large to review in one pull request, split it into a chained stack of small PRs rather than widening one. `.agents/skills/pr-stack-workflow/SKILL.md` describes where to cut the slices and how to land them.
+If a change is too large to review in one pull request, split it into a chained stack of small PRs rather than widening one.
 
 A good first step is to search for open [issues](https://github.com/langfuse/langfuse/issues). Issues are labeled, and some good issues to start with are labeled: [good first issue](https://github.com/langfuse/langfuse/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
@@ -130,6 +130,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
+- [Rust via rustup](https://rust-lang.org/tools/install/) and a native compiler/linker for the AI gateway, which starts with `pnpm dev`. See [gateway setup](ai-gateway/README.md#run-locally).
 - pnpm 12.3.1 as specified in `package.json`
 - Docker to run the database locally
 - Clickhouse client

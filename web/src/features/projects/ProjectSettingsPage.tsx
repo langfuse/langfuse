@@ -158,15 +158,14 @@ const getProjectSettingsPages = ({
                 "Once you delete a project, there is no going back. Please be certain.",
               button: (
                 <DeleteProjectDialogController>
-                  {({ hasAccess, Trigger }) => (
-                    <Trigger asChild>
-                      <Button
-                        variant="destructive-secondary"
-                        disabled={!hasAccess}
-                      >
-                        Delete Project
-                      </Button>
-                    </Trigger>
+                  {({ hasAccess, openDialog }) => (
+                    <Button
+                      variant="destructive-secondary"
+                      disabled={!hasAccess}
+                      onClick={openDialog}
+                    >
+                      Delete Project
+                    </Button>
                   )}
                 </DeleteProjectDialogController>
               ),

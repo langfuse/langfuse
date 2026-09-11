@@ -69,7 +69,10 @@ import {
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
-import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
+import {
+  CommentDrawerController,
+  getCommentDrawerInitialStateFromUrl,
+} from "@/src/features/comments/CommentDrawerController";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import {
   PromptReferenceProvider,
@@ -366,17 +369,56 @@ export const PromptDetail = ({
               </Link>
             </Button>
           </div>
-          <div className="flex flex-col overflow-y-auto">
-            <PromptHistoryNode
-              prompts={promptHistory.data.promptVersions}
-              currentPromptVersion={prompt.version}
-              setCurrentPromptVersion={(version) => {
-                setCurrentPromptVersion(version);
-                setCurrentPromptLabel(null);
-              }}
-              commentCounts={commentCounts}
-            />
-          </div>
+          <CommentDrawerController
+            projectId={projectId as string}
+            mode="read-only"
+            onCommentChange={() =>
+              utils.prompts.allVersions.invalidate(promptHistoryInput)
+            }
+          >
+            {({ openDrawer }) => {
+              const openPromptComments = (
+                promptId: string,
+                promptVersion: number,
+              ) => {
+                const { label, ...query } = router.query;
+                router.push(
+                  {
+                    pathname: router.pathname,
+                    query: {
+                      ...query,
+                      version: promptVersion,
+                      comments: "open",
+                      commentObjectType: "PROMPT",
+                      commentObjectId: promptId,
+                    },
+                  },
+                  undefined,
+                  { shallow: true },
+                );
+                openDrawer({
+                  type: "comments",
+                  objectId: promptId,
+                  objectType: "PROMPT",
+                });
+              };
+
+              return (
+                <div className="flex flex-col overflow-y-auto">
+                  <PromptHistoryNode
+                    prompts={promptHistory.data.promptVersions}
+                    currentPromptVersion={prompt.version}
+                    setCurrentPromptVersion={(version) => {
+                      setCurrentPromptVersion(version);
+                      setCurrentPromptLabel(null);
+                    }}
+                    openCommentDrawer={openPromptComments}
+                    commentCounts={commentCounts}
+                  />
+                </div>
+              );
+            }}
+          </CommentDrawerController>
         </Command>
         <div className="col-span-2 mt-3 flex max-h-full min-h-0 flex-col md:col-span-3">
           <div className="flex flex-col items-start gap-2">
@@ -474,8 +516,9 @@ export const PromptDetail = ({
                 )}
                 <CommentDrawerController
                   projectId={projectId as string}
-                  objectId={prompt.id}
-                  objectType="PROMPT"
+                  initialState={() =>
+                    getCommentDrawerInitialStateFromUrl(router.query)
+                  }
                   count={getNumberFromMap(commentCounts, prompt.id)}
                   onCommentChange={() =>
                     utils.prompts.allVersions.invalidate(promptHistoryInput)
@@ -486,7 +529,13 @@ export const PromptDetail = ({
                       type="button"
                       variant="outline"
                       disabled={disabled}
-                      onClick={openDrawer}
+                      onClick={() =>
+                        openDrawer({
+                          type: "comments",
+                          objectId: prompt.id,
+                          objectType: "PROMPT",
+                        })
+                      }
                       className="gap-1"
                     >
                       {disabled ? (
