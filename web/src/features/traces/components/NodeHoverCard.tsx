@@ -60,12 +60,8 @@ function formatScoreValue(score: {
 }
 
 export function NodeHoverCardContent({ node }: { node: TreeNode }) {
-  const { mergedScores, traceLevelScoreOwnerIds } = useTraceData();
-  const scores = selectNodeScores(
-    mergedScores,
-    node.id,
-    traceLevelScoreOwnerIds,
-  );
+  const { mergedScores } = useTraceData();
+  const scores = selectNodeScores(mergedScores, node.id);
 
   const isRoot = node.type === "TRACE";
   const isGeneration = node.type === "GENERATION";

@@ -75,7 +75,7 @@ export function SpanContent({
   onHover,
   className,
 }: SpanContentProps) {
-  const { mergedScores, traceLevelScoreOwnerIds, nodeMap } = useTraceData();
+  const { mergedScores, nodeMap } = useTraceData();
   // The heat map compares a row against the trace total. It says nothing on
   // the trace wrapper, on root observations, or on an only child (a lone
   // wrapper span is ~100% of its parent by construction), so those rows are
@@ -131,11 +131,7 @@ export function SpanContent({
   const shouldRenderAnyMetrics =
     shouldRenderDuration || shouldRenderCost || shouldRenderModel;
 
-  const nodeScores = selectNodeScores(
-    mergedScores,
-    node.id,
-    traceLevelScoreOwnerIds,
-  );
+  const nodeScores = selectNodeScores(mergedScores, node.id);
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
 

@@ -5,9 +5,8 @@
  * have no such row, so the top-level span(s) stand in for the trace and own
  * them alongside their own observation-level scores.
  *
- * Single source of this rule: the tree badge, the timeline badge and the Scores
- * tab all derive from it, so a node's badge count and its Scores tab agree
- * (LFE-14405).
+ * Single source of this rule for the Scores tab (LFE-14405). Tree rows show a
+ * node's own scores only; trace-level scores live in the summary strip.
  */
 
 import { type TreeNode } from "../types/treeNode";
@@ -37,16 +36,16 @@ export function traceLevelScoreOwnerIds(
   return new Set(owners.map((owner) => owner.id));
 }
 
-/** Scores to show for one node, in the order they were given. */
+/**
+ * Scores to show for one node, in the order they were given: its own only.
+ * Trace-level scores (`observationId === null`) render once, in the trace
+ * summary strip next to the trace's metrics and tags, not on the root row.
+ * The Scores tab keeps using the owner rule above so the root's table still
+ * lists them.
+ */
 export function selectNodeScores<T extends LeveledScore>(
   scores: T[],
   nodeId: string,
-  traceLevelOwnerIds: Set<string>,
 ): T[] {
-  return traceLevelOwnerIds.has(nodeId)
-    ? scores.filter(
-        (score) =>
-          score.observationId === nodeId || score.observationId === null,
-      )
-    : scores.filter((score) => score.observationId === nodeId);
+  return scores.filter((score) => score.observationId === nodeId);
 }
