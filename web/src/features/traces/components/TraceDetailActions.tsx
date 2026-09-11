@@ -122,7 +122,7 @@ export function TraceDetailActions({
           deleteConfirmation={name ?? ""}
           variant="ghost"
           size="sm"
-          className="w-full justify-start font-normal"
+          className="h-auto w-full justify-start rounded-sm py-1.5 pr-2 pl-1.5 font-normal"
         />
       </div>
     );

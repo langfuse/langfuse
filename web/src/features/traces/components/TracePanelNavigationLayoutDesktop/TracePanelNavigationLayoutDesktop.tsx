@@ -38,7 +38,7 @@ export function TracePanelNavigationLayoutDesktop({
         <>
           <TraceTruncationNotice />
           <TracePanelNavigationHiddenNotice />
-          <div className="flex-1 overflow-hidden">{children}</div>
+          <div className="flex-1 overflow-hidden pt-1.5">{children}</div>
         </>
       )}
     </div>
