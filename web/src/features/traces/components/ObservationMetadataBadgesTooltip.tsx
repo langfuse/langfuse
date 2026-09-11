@@ -7,7 +7,7 @@
  * Cost and usage share ONE element (`CostUsageBadge`): cost first, tokens
  * face whenever it exists (`$0.016079` — the leading `$` is the glyph, no
  * icon), tokens are the fallback face for unpriced/unlinked models
- * (`∑ 10,200` — `∑` is that glyph). The input→output split never renders
+ * (coin icon + `10,200`). The input→output split never renders
  * inline — only on hover, in a breakdown tooltip. When there is a cost,
  * hover shows a small Input/Output/Total table (tokens, cost, % of total
  * cost); when there is no cost at all, hover reuses the existing usage-only
@@ -16,7 +16,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ExternalLink, InfoIcon } from "lucide-react";
+import { Coins, ExternalLink, InfoIcon } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -254,7 +254,8 @@ export function CostUsageBadge({
             title="Usage breakdown on hover"
             className={BREAKDOWN_AFFORDANCE_CLASS}
           >
-            {`∑ ${numberFormatter(total, 0)}`}
+            <Coins className="size-3 shrink-0" aria-hidden />
+            {numberFormatter(total, 0)}
           </span>
         ) : (
           <span className={METRIC_TEXT_CLASS}>
@@ -285,7 +286,8 @@ export function CostUsageBadge({
                 title="Usage breakdown on hover"
                 className={BREAKDOWN_AFFORDANCE_CLASS}
               >
-                {`∑ ${numberFormatter(total, 0)}`}
+                <Coins className="size-3 shrink-0" aria-hidden />
+                {numberFormatter(total, 0)}
               </span>
             </TooltipTrigger>
             <TooltipContent className="w-max max-w-80 min-w-52 p-4">
