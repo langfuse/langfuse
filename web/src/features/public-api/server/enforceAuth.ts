@@ -24,7 +24,7 @@ import {
 /** orgIdHeader selects the target org. */
 const orgIdHeader = "x-langfuse-organization-id";
 
-/** projectIdHeader selects the target project for keys without a bound project. */
+/** projectIdHeader selects the target project for an admin key. */
 const projectIdHeader = "x-langfuse-project-id";
 
 /** enforceAuth authenticates the request, then routes it to the admin, organization, or project flow its principal and action select. */
@@ -61,7 +61,7 @@ async function enforceAdminAuth(
 ): Promise<EnforceAuthResult | null> {
   if (context.principal.kind !== "admin") return null;
 
-  const project = getProjectId(context, req);
+  const project = getAdminProjectId(req);
   if (!project.success) return project;
 
   const org = await lookupProjectOrgId(project.projectId);
@@ -132,20 +132,26 @@ function getOrgId(
   return { success: true, orgId };
 }
 
-/** getProjectId resolves the target project the key's bound project, the URL param, and the header agree on. */
+/** getProjectId resolves the target project the key's bound project and the URL param agree on. */
 function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
 ): ResolvedProject | ErrorResult {
-  const requested = [
-    getBoundProjectId(context),
-    getUrlProjectId(req),
-    getHeaderProjectId(req),
-  ];
+  const requested = [getBoundProjectId(context), getUrlProjectId(req)];
 
   const projectId = first(requested);
   if (!equal(requested) || !projectId) {
     return forbiddenError();
+  }
+
+  return { success: true, projectId };
+}
+
+/** getAdminProjectId resolves an admin key's target project from the header. */
+function getAdminProjectId(req: NextApiRequest): ResolvedProject | ErrorResult {
+  const projectId = getHeaderProjectId(req);
+  if (!projectId) {
+    return forbiddenError(`Missing '${projectIdHeader}' header`);
   }
 
   return { success: true, projectId };
