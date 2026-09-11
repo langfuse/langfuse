@@ -1,5 +1,5 @@
-import React from "react";
-import { Bot, UserRound, Wrench } from "lucide-react";
+import React, { useState } from "react";
+import { Bot, ChevronDown, UserRound, Wrench } from "lucide-react";
 import { type ReasoningPart } from "@langfuse/shared/src/utils/normalized-io";
 
 import { type SessionTimelineConversationMessage } from "@/src/features/sessions/SessionConversationTimeline/fns/processTimelineMessages";
@@ -47,6 +47,9 @@ export function SessionTimelineContentMessage({
   const presentation = rolePresentation[role];
   const Icon = presentation.icon;
   const showSender = Boolean(senderName && senderName !== presentation.label);
+  const [expandedJsonGroupIndices, setExpandedJsonGroupIndices] = useState(
+    () => new Set<number>(),
+  );
   type MessagePart = SessionTimelineConversationMessage["parts"][number];
   type ContentPart = Exclude<MessagePart, ReasoningPart>;
   const groups: Array<
@@ -95,6 +98,11 @@ export function SessionTimelineContentMessage({
           );
         }
 
+        const isJsonOnly = group.parts.every(
+          (part) => part.type === "data" || part.type === "custom",
+        );
+        const isJsonExpanded = expandedJsonGroupIndices.has(groupIndex);
+
         return (
           <div
             key={`content-${groupIndex}`}
@@ -114,14 +122,45 @@ export function SessionTimelineContentMessage({
                   </span>
                 </div>
               ) : null}
-              <div className="flex flex-col gap-2 text-sm leading-6">
-                {group.parts.map((part, partIndex) => (
-                  <SessionTimelinePart
-                    key={`${part.type}-${partIndex}`}
-                    part={part}
+              {isJsonOnly ? (
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground flex w-full items-center gap-1.5 text-left font-mono text-xs transition-colors"
+                  aria-expanded={isJsonExpanded}
+                  onClick={() =>
+                    setExpandedJsonGroupIndices((current) => {
+                      const next = new Set(current);
+                      if (isJsonExpanded) next.delete(groupIndex);
+                      else next.add(groupIndex);
+                      return next;
+                    })
+                  }
+                >
+                  <ChevronDown
+                    className={cn(
+                      "h-3 w-3 shrink-0 transition-transform",
+                      !isJsonExpanded && "-rotate-90",
+                    )}
+                    aria-hidden="true"
                   />
-                ))}
-              </div>
+                  JSON-only message detected
+                </button>
+              ) : null}
+              {!isJsonOnly || isJsonExpanded ? (
+                <div
+                  className={cn(
+                    "flex flex-col gap-2 text-sm leading-6",
+                    isJsonOnly && "mt-2",
+                  )}
+                >
+                  {group.parts.map((part, partIndex) => (
+                    <SessionTimelinePart
+                      key={`${part.type}-${partIndex}`}
+                      part={part}
+                    />
+                  ))}
+                </div>
+              ) : null}
             </article>
           </div>
         );
