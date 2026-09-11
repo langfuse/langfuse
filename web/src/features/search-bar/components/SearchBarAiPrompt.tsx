@@ -40,6 +40,7 @@ function unknownScoresMessage(names: string[]): string {
 export function SearchBarAiPrompt({
   projectId,
   tableName,
+  isV4 = true,
   store,
   dataContext,
   scoreNames,
@@ -50,6 +51,7 @@ export function SearchBarAiPrompt({
   projectId: string;
   /** Table this bar filters — the `tableName` analytics dimension. */
   tableName: string;
+  isV4?: boolean;
   /** The bar store; its `draft` is read as the live refine context. */
   store: SearchBarStore;
   /** Observed values + metadata keys + result count, so the model maps to the
@@ -59,7 +61,17 @@ export function SearchBarAiPrompt({
    *  model's returned score keys against these (a misspelled name would
    *  otherwise apply as a dead filter that silently matches nothing). */
   scoreNames?: ObservedScoreNames;
-  registryId?: FieldRegistry["id"];
+  registryId?: Extract<
+    FieldRegistry["id"],
+    | "events"
+    | "evaluationRules"
+    | "evaluatorSamples"
+    | "ruleSamples"
+    | "sessions"
+    | "scores"
+    | "experiments"
+    | "users"
+  >;
   /** Apply generated filters via the bar's setFilterState (apply-immediately). */
   onApply: (filters: FilterState) => void;
   /** Leave AI mode and restore the grammar composer. */
@@ -116,13 +128,12 @@ export function SearchBarAiPrompt({
     // mid-request; the model returns the COMPLETE set based on this snapshot.
     const refine = store.getState().draft.trim();
     const refineMode = refine.length > 0;
-    // Analytics (LFE-10781): METADATA ONLY — `promptLength` is a CHAR COUNT, the
-    // prompt text itself is never sent. Ask-AI is a v4-only surface (isV4 true).
+    // Report prompt length, never prompt text. The host supplies its read path.
     capture("filters:ai_generate_requested", {
       tableName,
       refineMode,
       promptLength: prompt.length,
-      isV4: true,
+      isV4,
     });
     try {
       const result = await generateFilter.mutateAsync({
@@ -145,7 +156,7 @@ export function SearchBarAiPrompt({
           tableName,
           refineMode,
           reason: "stale",
-          isV4: true,
+          isV4,
         });
         setError("Filters changed while generating — try again.");
         return;
@@ -155,7 +166,7 @@ export function SearchBarAiPrompt({
           tableName,
           refineMode,
           reason: "empty",
-          isV4: true,
+          isV4,
         });
         // A dropped unknown score name explains the empty result better than
         // the generic rephrase hint ("no such score X" beats a dead filter).
@@ -170,7 +181,7 @@ export function SearchBarAiPrompt({
         tableName,
         refineMode,
         generatedFilterCount: result.filters.length,
-        isV4: true,
+        isV4,
       });
       onApply(result.filters as FilterState);
       if (result.unknownScoreNames.length > 0) {
@@ -194,7 +205,7 @@ export function SearchBarAiPrompt({
         tableName,
         refineMode,
         reason: "error",
-        isV4: true,
+        isV4,
       });
       setError("Couldn't reach the AI service. Please try again.");
     }
