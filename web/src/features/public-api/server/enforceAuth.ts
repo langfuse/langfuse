@@ -24,7 +24,7 @@ import {
 /** orgIdHeader selects the target org. */
 const orgIdHeader = "x-langfuse-organization-id";
 
-/** projectIdHeader selects the target project for an admin key. */
+/** projectIdHeader selects the target project for keys without a bound project. */
 const projectIdHeader = "x-langfuse-project-id";
 
 /** enforceAuth authenticates the request, then routes it to the admin, organization, or project flow its principal and action select. */
@@ -61,18 +61,16 @@ async function enforceAdminAuth(
 ): Promise<EnforceAuthResult | null> {
   if (context.principal.kind !== "admin") return null;
 
-  const project = getAdminProjectId(req);
-  if (!project.success) return project;
+  const projectId = getHeaderProjectId(req);
+  if (!projectId) return forbiddenError(`Missing '${projectIdHeader}' header`);
 
-  const org = await lookupProjectOrgId(project.projectId);
+  const org = await lookupProjectOrgId(projectId);
   if (!org.success) return org;
 
-  const decision = authorize(context, action, {
-    projectId: project.projectId,
-  });
+  const decision = authorize(context, action, { projectId });
   if (!decision.success) return decision;
 
-  return access(context, org.orgId, project.projectId);
+  return access(context, org.orgId, projectId);
 }
 
 /** enforceOrgAuth resolves, authorizes, and scopes an organization-scoped api-key request. */
@@ -132,26 +130,20 @@ function getOrgId(
   return { success: true, orgId };
 }
 
-/** getProjectId resolves the target project the key's bound project and the URL param agree on. */
+/** getProjectId resolves the target project the key's bound project, the URL param, and the header agree on. */
 function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
 ): ResolvedProject | ErrorResult {
-  const requested = [getBoundProjectId(context), getUrlProjectId(req)];
+  const requested = [
+    getBoundProjectId(context),
+    getUrlProjectId(req),
+    getHeaderProjectId(req),
+  ];
 
   const projectId = first(requested);
   if (!equal(requested) || !projectId) {
     return forbiddenError();
-  }
-
-  return { success: true, projectId };
-}
-
-/** getAdminProjectId resolves an admin key's target project from the header. */
-function getAdminProjectId(req: NextApiRequest): ResolvedProject | ErrorResult {
-  const projectId = getHeaderProjectId(req);
-  if (!projectId) {
-    return forbiddenError(`Missing '${projectIdHeader}' header`);
   }
 
   return { success: true, projectId };
