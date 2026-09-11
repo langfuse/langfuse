@@ -1,0 +1,17 @@
+{
+  "name": "gateway-benchmark-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "5.2.1",
+    "undici": "7.29.0"
+  }
+}

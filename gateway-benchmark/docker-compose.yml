@@ -1,0 +1,95 @@
+name: langfuse-gateway-benchmark
+
+services:
+  mock-upstream:
+    build:
+      context: ./mock-upstream
+    environment:
+      PORT: 4000
+    ports:
+      - "${MOCK_UPSTREAM_HOST_PORT:-14000}:4000"
+
+  mock-otel:
+    build:
+      context: ./mock-otel
+    environment:
+      PORT: 4318
+    ports:
+      - "${MOCK_OTEL_HOST_PORT:-14318}:4318"
+
+  node24-gateway:
+    build:
+      context: ./node-gateway
+      args:
+        NODE_VERSION: ${NODE24_VERSION:-24.19.0}
+    environment:
+      PORT: 3100
+      UPSTREAM_ORIGIN: http://mock-upstream:4000
+      OTEL_URL: http://mock-otel:4318/v1/traces
+      BODY_LIMIT_BYTES: 33554432
+      CAPTURE_LIMIT_BYTES: ${GATEWAY_CAPTURE_LIMIT_BYTES:-2097152}
+      TELEMETRY_QUEUE_CAPACITY: 1024
+      TELEMETRY_MODE: inline
+      TELEMETRY_BATCH_MAX_SPANS: ${TELEMETRY_BATCH_MAX_SPANS:-50}
+      TELEMETRY_BATCH_MAX_WAIT_MS: ${TELEMETRY_BATCH_MAX_WAIT_MS:-250}
+    depends_on:
+      - mock-upstream
+      - mock-otel
+    cpus: ${GATEWAY_CPUS:-4}
+    mem_limit: ${GATEWAY_MEMORY_LIMIT:-2g}
+    ports:
+      - "${NODE24_GATEWAY_HOST_PORT:-13100}:3100"
+
+  node26-gateway:
+    build:
+      context: ./node-gateway
+      args:
+        NODE_VERSION: ${NODE26_VERSION:-26.7.0}
+    environment:
+      PORT: 3100
+      UPSTREAM_ORIGIN: http://mock-upstream:4000
+      OTEL_URL: http://mock-otel:4318/v1/traces
+      BODY_LIMIT_BYTES: 33554432
+      CAPTURE_LIMIT_BYTES: ${GATEWAY_CAPTURE_LIMIT_BYTES:-2097152}
+      TELEMETRY_QUEUE_CAPACITY: 1024
+      TELEMETRY_MODE: inline
+      TELEMETRY_BATCH_MAX_SPANS: ${TELEMETRY_BATCH_MAX_SPANS:-50}
+      TELEMETRY_BATCH_MAX_WAIT_MS: ${TELEMETRY_BATCH_MAX_WAIT_MS:-250}
+    depends_on:
+      - mock-upstream
+      - mock-otel
+    cpus: ${GATEWAY_CPUS:-4}
+    mem_limit: ${GATEWAY_MEMORY_LIMIT:-2g}
+    ports:
+      - "${NODE26_GATEWAY_HOST_PORT:-13300}:3100"
+
+  rust-gateway:
+    build:
+      context: ./rust-gateway
+    environment:
+      PORT: 3200
+      UPSTREAM_ORIGIN: http://mock-upstream:4000
+      OTEL_URL: http://mock-otel:4318/v1/traces
+      BODY_LIMIT_BYTES: 33554432
+      CAPTURE_LIMIT_BYTES: ${GATEWAY_CAPTURE_LIMIT_BYTES:-2097152}
+      TELEMETRY_QUEUE_CAPACITY: 1024
+      TELEMETRY_BATCH_MAX_SPANS: ${TELEMETRY_BATCH_MAX_SPANS:-50}
+      TELEMETRY_BATCH_MAX_WAIT_MS: ${TELEMETRY_BATCH_MAX_WAIT_MS:-250}
+      TOKIO_WORKER_THREADS: ${TOKIO_WORKER_THREADS:-4}
+    depends_on:
+      - mock-upstream
+      - mock-otel
+    cpus: ${GATEWAY_CPUS:-4}
+    mem_limit: ${GATEWAY_MEMORY_LIMIT:-2g}
+    ports:
+      - "${RUST_GATEWAY_HOST_PORT:-13200}:3200"
+
+  loadgen:
+    build:
+      context: ./loadgen
+    profiles:
+      - tools
+    depends_on:
+      - node24-gateway
+      - node26-gateway
+      - rust-gateway
