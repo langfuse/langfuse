@@ -1,5 +1,5 @@
 import { ClickHouseClientManager, logger } from "@langfuse/shared/src/server";
-import { redis } from "@langfuse/shared/src/server";
+import { disconnectAllRedisInstances } from "@langfuse/shared/src/server";
 
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { setSigtermReceived } from "../features/health";
@@ -108,8 +108,13 @@ const runDrainAndClose = async () => {
   await ClickhouseWriter.getInstance().shutdown();
   logger.info("Clickhouse writer has been shut down.");
 
-  redis?.disconnect();
-  logger.info("Redis connection has been closed.");
+  // Closes the shared client and every per-queue client in one pass. Each
+  // queue holds its own client; without this they stay connected, retry
+  // forever, and keep the event loop alive so the process never exits.
+  const closedRedisConnections = disconnectAllRedisInstances();
+  logger.info(
+    `Redis connections have been closed (${closedRedisConnections} clients).`,
+  );
 
   await prisma.$disconnect();
   logger.info("Prisma connection has been closed.");
