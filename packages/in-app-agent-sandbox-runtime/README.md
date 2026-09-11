@@ -16,7 +16,7 @@ and prevent `sudo`-based user switching at runtime.
 
 ## Endpoints:
 
-- `GET /health`
+- `GET /health` — `{ status: "ok", protocolVersion: <int> }`. The worker refuses a sandbox whose `protocolVersion` does not match `SANDBOX_RUNTIME_PROTOCOL_VERSION`.
 - `POST /sandbox`
 - `POST /aws/lambda-microvms/runtime/v1/ready`
 - `POST /aws/lambda-microvms/runtime/v1/run`

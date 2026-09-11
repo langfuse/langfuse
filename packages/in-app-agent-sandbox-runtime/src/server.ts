@@ -8,6 +8,7 @@ import {
 import path from "node:path";
 
 import {
+  SANDBOX_RUNTIME_PROTOCOL_VERSION,
   SandboxFileSchema,
   SandboxOperationSchema,
   type BashSandboxOperation,
@@ -109,7 +110,10 @@ async function syncToolCallFiles(toolCallFiles: unknown, requestId: string) {
 async function routeRequest(request: IncomingMessage, requestId: string) {
   if (request.method === "GET" && request.url === "/health") {
     logSandboxServer("health.ok", { requestId });
-    return { statusCode: 200, body: { status: "ok" } };
+    return {
+      statusCode: 200,
+      body: { status: "ok", protocolVersion: SANDBOX_RUNTIME_PROTOCOL_VERSION },
+    };
   }
 
   if (

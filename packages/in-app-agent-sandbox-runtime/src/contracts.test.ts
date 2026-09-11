@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { SandboxFileSchema, SandboxOperationSchema } from "./contracts.js";
+import {
+  SANDBOX_RUNTIME_PROTOCOL_VERSION,
+  SandboxFileSchema,
+  SandboxOperationSchema,
+} from "./contracts.js";
+
+describe("SANDBOX_RUNTIME_PROTOCOL_VERSION", () => {
+  it("is a positive integer the worker can compare against /health", () => {
+    expect(SANDBOX_RUNTIME_PROTOCOL_VERSION).toBe(1);
+  });
+});
 
 describe("SandboxOperationSchema", () => {
   it("accepts each supported sandbox operation", () => {
