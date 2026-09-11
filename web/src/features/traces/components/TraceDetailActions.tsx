@@ -96,7 +96,9 @@ export function TraceDetailActions({
         deleteConfirmation={name ?? ""}
         variant="ghost"
         size="sm"
-        className="w-full justify-start font-normal"
+        // Same box as the peek menu's other rows (py-1.5, pl-1.5, 8px icon
+        // gap from the icon's own mr-2), so the three items line up.
+        className="h-auto w-full justify-start rounded-sm py-1.5 pr-2 pl-1.5 font-normal"
       />
     );
   }
@@ -120,7 +122,7 @@ export function TraceDetailActions({
           deleteConfirmation={name ?? ""}
           variant="ghost"
           size="sm"
-          className="w-full justify-start font-normal"
+          className="h-auto w-full justify-start rounded-sm py-1.5 pr-2 pl-1.5 font-normal"
         />
       </div>
     );

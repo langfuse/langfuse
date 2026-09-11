@@ -1,8 +1,9 @@
 import { percentile, type ScoreDomain } from "@langfuse/shared";
-import { ArrowUpRight, Plus, Search, X } from "lucide-react";
+import { Clock, Plus, Search, X } from "lucide-react";
 import { type ReactNode, type SyntheticEvent, useState } from "react";
 
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
+import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 import { ModernSessionHeaderPill } from "@/src/features/sessions/ModernSessionHeaderPill";
 import { sessionHeaderDynamicDetailKey } from "@/src/features/sessions/sessionHeaderVisibility";
 import {
@@ -15,6 +16,13 @@ import {
   INITIAL_SESSION_USERS_DISPLAY_COUNT,
   SESSION_USERS_PER_PAGE,
 } from "@/src/features/sessions/sessionUsers";
+import { UserIdBadge } from "@/src/features/traces/components/TraceMetadataBadges";
+import {
+  EnvironmentBadge,
+  KeyValueText,
+  METRIC_TEXT_CLASS,
+} from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+import { CostUsageBadge } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import { Label } from "@/src/components/ui/label";
@@ -25,12 +33,21 @@ import {
 } from "@/src/components/ui/popover";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import {
-  compactNumberFormatter,
-  numberFormatter,
-  usdFormatter,
-} from "@/src/utils/numbers";
+import { numberFormatter } from "@/src/utils/numbers";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+
+/**
+ * Session detail header, in the trace view's visual grammar
+ * (`TraceSummaryStrip` / `TraceDetailViewHeader`): metrics are quiet muted
+ * text, references are links, attributes are key:value text, and only scores
+ * are boxed (as `ScoreBadge` chips, matching the trace tree). The pill
+ * primitive survives for the "+N" overflow control alone.
+ *
+ * The latency metric is the median trace latency alone. Behaviour is
+ * unchanged: one measured line with a searchable "+N" overflow popover (users
+ * paginate inside it), pinned metadata JSONPaths with a hover remove and a `+`
+ * editor, and the PostHog captures on JSONPath config changes.
+ */
 
 type ModernSessionHeaderProps = {
   projectId: string;
@@ -51,12 +68,9 @@ type ModernSessionHeaderProps = {
   environment: string | null;
   users: readonly string[];
   metadataJsonPaths: SessionMetadataJsonPathState;
-  scores: ReadonlyArray<
-    Pick<
-      WithStringifiedMetadata<ScoreDomain>,
-      "id" | "name" | "dataType" | "value" | "stringValue"
-    >
-  >;
+  /** Full score rows: `ScoreBadge` renders the comment / metadata hover
+      cards off the same fields the trace tree chips use. */
+  scores: ReadonlyArray<WithStringifiedMetadata<ScoreDomain>>;
 };
 
 type SessionHeaderDetailType =
@@ -65,7 +79,6 @@ type SessionHeaderDetailType =
   | "latency"
   | "metadata"
   | "score"
-  | "tokens"
   | "traces"
   | "user";
 
@@ -76,40 +89,22 @@ type SessionHeaderDetail = {
   content: ReactNode;
 };
 
-const ChipValue = ({ children }: { children: React.ReactNode }) => (
+/** Numbers carry the emphasis inside a metric; the words stay muted. */
+const MetricValue = ({ children }: { children: React.ReactNode }) => (
   <span className="text-foreground">{children}</span>
 );
 
-const ChipDot = () => <span className="text-foreground-tertiary">·</span>;
+const MetricDot = () => <span className="text-foreground-tertiary">·</span>;
 
-const compactTokenFormatter = (tokens: number) =>
-  compactNumberFormatter(tokens, 0).toLowerCase();
-
-const scoreChipValue = (
+const scoreSearchValue = (
   score: Pick<WithStringifiedMetadata<ScoreDomain>, "stringValue" | "value">,
 ) => {
   if (score.stringValue) return score.stringValue;
-  if (score.value === null || score.value === undefined) return "—";
+  if (score.value === null || score.value === undefined) return "";
   return Number.isInteger(score.value)
     ? String(score.value)
     : score.value.toFixed(2);
 };
-
-const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
-  <ModernSessionHeaderPill
-    variant="link"
-    href={`/project/${projectId}/users/${encodeURIComponent(user)}`}
-  >
-    user{" "}
-    <span
-      className="text-foreground group-hover:text-link truncate"
-      title={user}
-    >
-      {user}
-    </span>
-    <ArrowUpRight className="text-link h-3 w-3 shrink-0" />
-  </ModernSessionHeaderPill>
-);
 
 const resolveAgainstSource = (
   source: FirstVisibleObservationMetadataState,
@@ -141,36 +136,31 @@ const getConfiguredMetadataDisplay = (
   };
 };
 
-const MetadataJsonPathPill = ({
+/**
+ * A pinned metadata JSONPath reads as the same key:value attribute text as
+ * `env` — the only extra is the remove affordance, which stays hidden until
+ * the row is hovered or focused so the line still scans as text.
+ */
+const MetadataJsonPathText = ({
   display,
   onRemove,
 }: {
   display: ReturnType<typeof getConfiguredMetadataDisplay>;
   onRemove: (path: string) => void;
 }) => (
-  <span className="group flex items-center">
-    <ModernSessionHeaderPill variant="display">
-      <span className="max-w-40 truncate" title={display.path}>
-        {display.label}
-      </span>
-      <span
-        className="text-foreground max-w-56 truncate"
-        title={display.displayValue}
+  <span className="group flex items-center" title={display.path}>
+    <KeyValueText label={display.label} value={display.displayValue} />
+    <span className="inline-flex w-0 overflow-hidden transition-[width,margin] group-focus-within:ml-1 group-focus-within:w-4 group-hover:ml-1 group-hover:w-4">
+      <button
+        type="button"
+        aria-label={`Remove metadata JSONPath ${display.path}`}
+        title="Remove metadata JSONPath"
+        className="hover:bg-muted focus-visible:ring-ring inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
+        onClick={() => onRemove(display.path)}
       >
-        {display.displayValue}
-      </span>
-      <span className="-ml-1.5 inline-flex w-0 overflow-hidden transition-[width,margin] group-focus-within:ml-0 group-focus-within:w-4 group-hover:ml-0 group-hover:w-4">
-        <button
-          type="button"
-          aria-label={`Remove metadata JSONPath ${display.path}`}
-          title="Remove metadata JSONPath"
-          className="hover:bg-muted focus-visible:ring-ring inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
-          onClick={() => onRemove(display.path)}
-        >
-          <X className="h-3 w-3" />
-        </button>
-      </span>
-    </ModernSessionHeaderPill>
+        <X className="h-3 w-3" />
+      </button>
+    </span>
   </span>
 );
 
@@ -327,136 +317,83 @@ export function ModernSessionHeader({
       ? traces.data.reduce((total, trace) => total + trace.observationCount, 0)
       : null;
   const p50LatencyMs = latencies.length > 0 ? percentile(latencies, 0.5) : null;
-  const p95LatencyMs =
-    latencies.length > 0 ? percentile(latencies, 0.95) : null;
-  const pills: SessionHeaderDetail[] = [
+  const details: SessionHeaderDetail[] = [
     {
       key: "traces",
       searchText: `traces ${countTraces} spans ${spanCount ?? ""}`,
       type: "traces",
       content: (
-        <ModernSessionHeaderPill variant="display">
+        <span className={METRIC_TEXT_CLASS}>
           <span>
-            <ChipValue>{numberFormatter(countTraces, 0)}</ChipValue> traces
+            <MetricValue>{numberFormatter(countTraces, 0)}</MetricValue> traces
           </span>
           {spanCount !== null ? (
             <>
-              <ChipDot />
+              <MetricDot />
               <span>
-                <ChipValue>{numberFormatter(spanCount, 0)}</ChipValue> spans
+                <MetricValue>{numberFormatter(spanCount, 0)}</MetricValue> spans
               </span>
             </>
           ) : null}
-        </ModernSessionHeaderPill>
+        </span>
       ),
     },
   ];
 
   if (p50LatencyMs !== null) {
-    pills.push({
+    details.push({
       key: "latency",
-      searchText: `latency p50 ${p50LatencyMs} p95 ${p95LatencyMs ?? ""}`,
+      searchText: `latency p50 ${p50LatencyMs}`,
       type: "latency",
       content: (
-        <ModernSessionHeaderPill variant="display">
+        <span title="Median trace latency" className={METRIC_TEXT_CLASS}>
+          <Clock className="size-3 shrink-0" aria-hidden />
           <span>
             p50{" "}
-            <ChipValue>{formatIntervalSeconds(p50LatencyMs / 1000)}</ChipValue>
+            <MetricValue>
+              {formatIntervalSeconds(p50LatencyMs / 1000)}
+            </MetricValue>
           </span>
-          {p95LatencyMs !== null ? (
-            <>
-              <ChipDot />
-              <span>
-                p95{" "}
-                <ChipValue>
-                  {formatIntervalSeconds(p95LatencyMs / 1000)}
-                </ChipValue>
-              </span>
-            </>
-          ) : null}
-        </ModernSessionHeaderPill>
+        </span>
       ),
     });
   }
 
-  if (totalTokens > 0) {
-    const exactTokenCounts = `${numberFormatter(tokensIn, 0)} → ${numberFormatter(tokensOut, 0)} (Σ ${numberFormatter(totalTokens, 0)})`;
-    pills.push({
-      key: "tokens",
-      searchText: `tokens ${tokensIn} ${tokensOut} ${totalTokens}`,
-      type: "tokens",
-      content: (
-        <ModernSessionHeaderPill
-          variant="display"
-          title={`tokens ${exactTokenCounts}`}
-        >
-          <span>
-            tokens{" "}
-            <ChipValue>
-              {compactTokenFormatter(tokensIn)} →{" "}
-              {compactTokenFormatter(tokensOut)} (Σ{" "}
-              {compactTokenFormatter(totalTokens)})
-            </ChipValue>
-          </span>
-        </ModernSessionHeaderPill>
-      ),
-    });
-  }
-
-  pills.push({
+  // One element for cost AND usage, exactly as the trace summary strip does
+  // it: cost as plain text, then a coin icon + the token total whose hover
+  // carries the input/output breakdown. Sessions have no per-direction cost
+  // or per-key usage map, so the detail maps go in empty.
+  details.push({
     key: "cost",
-    searchText: `cost ${totalCost}`,
+    searchText: `cost ${totalCost} tokens ${tokensIn} ${tokensOut} ${totalTokens}`,
     type: "cost",
     content: (
-      <ModernSessionHeaderPill
-        variant="display"
-        title={`exact $${totalCost.toFixed(6)}`}
-      >
-        <span>
-          cost <ChipValue>{usdFormatter(totalCost, 2, 3)}</ChipValue>
-        </span>
-      </ModernSessionHeaderPill>
+      <CostUsageBadge
+        totalCost={totalCost}
+        costDetails={{}}
+        inputUsage={tokensIn}
+        outputUsage={tokensOut}
+        totalUsage={totalTokens}
+        usageDetails={{}}
+      />
     ),
   });
 
   scores.forEach((score) => {
-    const value = scoreChipValue(score);
-    const isFraction =
-      score.dataType === "NUMERIC" &&
-      score.value !== null &&
-      score.value !== undefined &&
-      score.value >= 0 &&
-      score.value <= 1;
-    pills.push({
+    details.push({
       key: sessionHeaderDynamicDetailKey("score", score.id),
-      searchText: `score ${score.name} ${value}`,
+      searchText: `score ${score.name} ${scoreSearchValue(score)}`,
       type: "score",
-      content: (
-        <ModernSessionHeaderPill variant="display" title={score.name}>
-          {isFraction ? (
-            <span className="bg-dark-yellow h-1.5 w-1.5 shrink-0 rounded-[1px]" />
-          ) : null}
-          <span className="max-w-40 truncate" title={score.name}>
-            {score.name}
-          </span>
-          <ChipValue>{value}</ChipValue>
-        </ModernSessionHeaderPill>
-      ),
+      content: <ScoreBadge name={score.name} scores={[score]} compact />,
     });
   });
 
   if (environment) {
-    pills.push({
+    details.push({
       key: "environment",
       searchText: `environment env ${environment}`,
       type: "environment",
-      content: (
-        <ModernSessionHeaderPill variant="display">
-          <span>
-            env <ChipValue>{environment}</ChipValue>
-          </span>
-        </ModernSessionHeaderPill>
-      ),
+      content: <EnvironmentBadge environment={environment} />,
     });
   }
 
@@ -465,14 +402,16 @@ export function ModernSessionHeader({
       key: sessionHeaderDynamicDetailKey("user", user),
       searchText: `user ${user}`,
       type: "user",
-      content: <UserChip projectId={projectId} user={user} />,
+      // UserIdBadge already carries `ph-no-capture`, so user ids stay masked
+      // in PostHog session recordings.
+      content: <UserIdBadge userId={user} projectId={projectId} />,
     }),
   );
   const visibleUserDetails = userDetails.slice(
     0,
     INITIAL_SESSION_USERS_DISPLAY_COUNT,
   );
-  visibleUserDetails.forEach((detail) => pills.push(detail));
+  visibleUserDetails.forEach((detail) => details.push(detail));
   const visibleUserDetailKeySet = new Set(
     visibleUserDetails.map((detail) => detail.key),
   );
@@ -485,12 +424,12 @@ export function ModernSessionHeader({
       path,
       metadataJsonPaths.source,
     );
-    pills.push({
+    details.push({
       key: sessionHeaderDynamicDetailKey("metadata", path),
       searchText: `metadata ${display.path} ${display.label} ${display.displayValue}`,
       type: "metadata",
       content: (
-        <MetadataJsonPathPill
+        <MetadataJsonPathText
           display={display}
           onRemove={removeMetadataJsonPath}
         />
@@ -500,22 +439,26 @@ export function ModernSessionHeader({
   return (
     <div className="bg-header border-b px-4 py-2">
       <SingleLineOverflowList
-        items={pills}
+        items={details}
         additionalOverflowCount={overflowUserDetails.length}
-        getKey={(pill) => pill.key}
-        renderItem={(pill) => pill.content}
+        spacing="comfortable"
+        getKey={(detail) => detail.key}
+        renderItem={(detail) => detail.content}
         trailingContent={
           <Popover
             open={isMetadataEditorOpen}
             onOpenChange={handleMetadataEditorOpenChange}
           >
             <PopoverTrigger asChild>
-              <ModernSessionHeaderPill
-                variant="button"
-                ariaLabel="Add metadata JSONPath"
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Add metadata JSONPath"
+                title="Add metadata JSONPath"
               >
                 <Plus className="h-3 w-3" />
-              </ModernSessionHeaderPill>
+              </Button>
             </PopoverTrigger>
             {isMetadataEditorOpen ? (
               <MetadataJsonPathEditorContent
@@ -526,13 +469,18 @@ export function ModernSessionHeader({
             ) : null}
           </Popover>
         }
-        renderOverflow={({ hiddenItems: overflowPills, overflowItemCount }) => {
+        renderOverflow={({
+          hiddenItems: overflowDetails,
+          overflowItemCount,
+        }) => {
           const normalizedSearch = search.trim().toLocaleLowerCase();
-          const filteredPills = normalizedSearch
-            ? overflowPills.filter((pill) =>
-                pill.searchText.toLocaleLowerCase().includes(normalizedSearch),
+          const filteredDetails = normalizedSearch
+            ? overflowDetails.filter((detail) =>
+                detail.searchText
+                  .toLocaleLowerCase()
+                  .includes(normalizedSearch),
               )
-            : overflowPills;
+            : overflowDetails;
           const filteredUserDetails = normalizedSearch
             ? overflowUserDetails.filter((detail) =>
                 detail.searchText
@@ -542,7 +490,7 @@ export function ModernSessionHeader({
             : overflowUserDetails;
           const visibleUsers = filteredUserDetails.slice(0, visibleUserCount);
           const hasResults =
-            filteredPills.length > 0 || visibleUsers.length > 0;
+            filteredDetails.length > 0 || visibleUsers.length > 0;
 
           return (
             <Popover
@@ -600,9 +548,9 @@ export function ModernSessionHeader({
                 >
                   {hasResults ? (
                     <>
-                      {filteredPills.map((pill) => (
-                        <span key={pill.key} className="flex items-center">
-                          {pill.content}
+                      {filteredDetails.map((detail) => (
+                        <span key={detail.key} className="flex items-center">
+                          {detail.content}
                         </span>
                       ))}
                       {visibleUsers.map((detail) => (

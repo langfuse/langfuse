@@ -1,6 +1,6 @@
 import React from "react";
 import { KeyRound, User } from "lucide-react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { Tabs } from "./Tabs";
@@ -52,6 +52,26 @@ const fullWidthChildren = (
     <Tabs.Content value="second">Second tab fills its wrapper.</Tabs.Content>
   </>
 );
+
+function ResizableSlidingTabs() {
+  const [expanded, setExpanded] = React.useState(false);
+
+  return (
+    <div className="[&_[role=tablist]]:w-80 [&_[role=tablist]]:justify-start">
+      <button type="button" onClick={() => setExpanded(true)}>
+        Expand active tab
+      </button>
+      <Tabs defaultValue="first">
+        <Tabs.List variant="outline">
+          <span className={expanded ? "w-40" : "w-20"}>
+            <Tabs.Trigger value="first" label="First" />
+          </span>
+          <Tabs.Trigger value="second" label="Second" />
+        </Tabs.List>
+      </Tabs>
+    </div>
+  );
+}
 
 export const Default = meta.story({
   args: {
@@ -248,5 +268,123 @@ export const TruncatesLabel = meta.story({
       "A label that is too long for its trigger",
     );
     await expect(label.scrollWidth).toBeGreaterThan(label.clientWidth);
+  },
+});
+
+export const SlidesIndicator = meta.story({
+  name: "(Test) Slides Indicator",
+  args: {
+    defaultValue: "short",
+    children: (
+      <Tabs.List variant="outline">
+        <Tabs.Trigger value="short" label="Python" />
+        <Tabs.Trigger value="long" label="TypeScript" />
+      </Tabs.List>
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const indicator = canvasElement.querySelector("[data-tabs-indicator]");
+
+    await expect(indicator).toBeInTheDocument();
+    const initialRect = indicator!.getBoundingClientRect();
+
+    const typeScriptTab = canvas.getByRole("tab", { name: "TypeScript" });
+    await userEvent.click(typeScriptTab);
+    await waitFor(() => {
+      const nextRect = indicator!.getBoundingClientRect();
+      const tabRect = typeScriptTab.getBoundingClientRect();
+      expect(nextRect.left).toBeGreaterThan(initialRect.left);
+      expect(nextRect.width).toBeGreaterThan(initialRect.width);
+      expect(Math.abs(nextRect.left - tabRect.left)).toBeLessThan(0.5);
+      expect(Math.abs(nextRect.width - tabRect.width)).toBeLessThan(0.5);
+    });
+  },
+});
+
+export const AlignsSlidingIndicatorInScaledContainer = meta.story({
+  name: "(Test) Aligns Sliding Indicator In Scaled Container",
+  args: {
+    defaultValue: "short",
+    children: (
+      <Tabs.List variant="outline">
+        <Tabs.Trigger value="short" label="Python" />
+        <Tabs.Trigger value="long" label="TypeScript" />
+      </Tabs.List>
+    ),
+  },
+  render: (args) => (
+    <div className="origin-top-left scale-75">
+      <Tabs {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const activeTab = canvas.getByRole("tab", { name: "Python" });
+    const indicator = canvasElement.querySelector("[data-tabs-indicator]");
+
+    await expect(indicator).toBeInTheDocument();
+    await waitFor(() => {
+      const indicatorRect = indicator!.getBoundingClientRect();
+      const tabRect = activeTab.getBoundingClientRect();
+      expect(Math.abs(indicatorRect.left - tabRect.left)).toBeLessThan(0.5);
+      expect(Math.abs(indicatorRect.width - tabRect.width)).toBeLessThan(0.5);
+    });
+  },
+});
+
+export const KeepsUnderlineStyle = meta.story({
+  name: "(Test) Keeps Underline Style",
+  args: {
+    defaultValue: "first",
+    children: (
+      <Tabs.List variant="underline">
+        <Tabs.Trigger value="first" variant="underline" label="First" />
+        <Tabs.Trigger value="second" variant="underline" label="Second" />
+      </Tabs.List>
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("tab", { name: "First" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(
+      canvasElement.querySelector("[data-tabs-indicator]"),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const TracksTriggerResize = meta.story({
+  name: "(Test) Tracks Trigger Resize",
+  render: () => <ResizableSlidingTabs />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const activeTab = canvas.getByRole("tab", { name: "First" });
+    const indicator = canvasElement.querySelector("[data-tabs-indicator]");
+
+    await expect(indicator).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        Math.abs(
+          indicator!.getBoundingClientRect().width -
+            activeTab.getBoundingClientRect().width,
+        ),
+      ).toBeLessThan(0.5);
+    });
+    const initialWidth = activeTab.getBoundingClientRect().width;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Expand active tab" }),
+    );
+    await waitFor(() => {
+      const indicatorRect = indicator!.getBoundingClientRect();
+      const tabRect = activeTab.getBoundingClientRect();
+      expect(tabRect.width).toBeGreaterThan(initialWidth);
+      expect(Math.abs(indicatorRect.width - tabRect.width)).toBeLessThan(0.5);
+    });
   },
 });

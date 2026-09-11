@@ -168,7 +168,6 @@ export function SpanContent({
               // at 12px, regular gave no hierarchy over the metrics line.
               // eslint-disable-next-line @repo/no-raw-font-weight
               className="shrink truncate text-xs font-medium"
-              title={nodeDisplayName}
             >
               {nodeDisplayName}
             </span>
@@ -194,11 +193,6 @@ export function SpanContent({
               {/* Duration (own span) */}
               {shouldRenderDuration && (duration || node.latency) ? (
                 <span
-                  title={
-                    node.type === "TRACE"
-                      ? "Total trace duration"
-                      : "Own span duration"
-                  }
                   className={cn(
                     "text-foreground-tertiary text-xs",
                     parentTotalDuration &&
@@ -220,10 +214,7 @@ export function SpanContent({
 
               {/* Subtree wall-clock duration — async descendants outlive the parent span */}
               {shouldRenderSubtreeDuration ? (
-                <span
-                  title="Subtree wall-clock duration (first start → last end)"
-                  className="text-foreground-tertiary text-xs"
-                >
+                <span className="text-foreground-tertiary text-xs">
                   {"∑ "}
                   {formatIntervalSeconds(subtreeWallClockOverflowMs / 1000)}
                 </span>
@@ -232,11 +223,6 @@ export function SpanContent({
               {/* Cost */}
               {shouldRenderCost && totalCost ? (
                 <span
-                  title={
-                    node.children.length > 0 || node.type === "TRACE"
-                      ? "Aggregated cost of all child observations"
-                      : undefined
-                  }
                   className={cn(
                     "text-foreground-tertiary text-xs",
                     parentTotalCost &&
@@ -254,10 +240,7 @@ export function SpanContent({
 
               {/* Model (generations only) */}
               {shouldRenderModel ? (
-                <span
-                  title={`Model: ${node.model}`}
-                  className="text-foreground-tertiary max-w-40 truncate text-xs"
-                >
+                <span className="text-foreground-tertiary max-w-40 truncate text-xs">
                   {node.model}
                 </span>
               ) : null}

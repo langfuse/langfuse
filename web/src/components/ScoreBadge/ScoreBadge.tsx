@@ -129,7 +129,8 @@ const ScoreChipContent = <
                 </HoverCardContent>
               </HoverCard>
             )}
-            {hasMetadata(score) && (
+            {/* Compact chips already sit inside the comment hover trigger; a nested trigger would open two cards. */}
+            {hasMetadata(score) && !compact && (
               <HoverCard>
                 <HoverCardTrigger
                   aria-label={`View metadata for ${name}: ${value}`}

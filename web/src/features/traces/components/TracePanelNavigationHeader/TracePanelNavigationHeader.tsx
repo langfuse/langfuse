@@ -22,6 +22,7 @@ import {
   Download,
   Loader2,
   SlidersHorizontal,
+  X,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -32,7 +33,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { StringParam, useQueryParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { TraceViewOptionsMenuItems } from "../TraceSettingsDropdown";
 import {
   downloadLegacyTraceAsJson,
@@ -94,6 +95,13 @@ function TracePanelNavigationHeaderExpanded({
   // collapsed rail (see TraceLayoutDesktop), so the header needs no button.
   const layout = useDesktopLayoutContextOptional();
   const isDetailPanelCollapsed = layout?.isDetailPanelCollapsed ?? false;
+
+  // Search results render as a flat tree-style list whatever the view, so
+  // the segment follows: a query flips the switch to Tree. Highlighting
+  // matches inside Timeline / Graph is LFE-16210.
+  useEffect(() => {
+    if (searchInputValue.trim() && viewMode) setViewMode(null);
+  }, [searchInputValue, viewMode, setViewMode]);
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -197,11 +205,24 @@ function TracePanelNavigationHeaderExpanded({
           <CommandInput
             showBorder={false}
             placeholder="Search"
-            className="h-7 min-w-20 border-0 pr-0 focus:ring-0 @max-[300px]/navheader:min-w-10"
+            className={cn(
+              "h-7 min-w-20 border-0 focus:ring-0 @max-[300px]/navheader:min-w-10",
+              searchInputValue ? "pr-6" : "pr-0",
+            )}
             value={searchInputValue}
             onValueChange={setSearchInputValue}
             onKeyDown={handleSearchKeyDown}
           />
+          {searchInputValue ? (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => setSearchInputValue("")}
+              className="text-muted-foreground hover:text-foreground absolute top-1/2 right-1 -translate-y-1/2 rounded p-0.5"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
         </div>
         <div className="flex shrink-0 flex-row items-center gap-0.5">
           {/* Download stays inline (heavily used); lower-traffic tools live

@@ -111,9 +111,10 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
         <div className="flex min-w-0 flex-auto flex-row items-center gap-1">
           <span
             className={cn(
-              "line-clamp-2 min-w-0 text-base font-bold break-all md:break-normal md:wrap-break-word",
+              "min-w-0 truncate text-base font-bold",
               isMobile && "flex-1",
             )}
+            title={trace.name || trace.id}
           >
             {trace.name || trace.id}
           </span>

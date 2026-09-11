@@ -56,6 +56,14 @@ import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavi
 import { ExperimentGridView } from "./ExperimentGridView";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { EXPERIMENT_ITEMS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentItemsSearchRegistry";
+import {
+  reconcileFilterTargets,
+  hasAmbiguousTargetChange,
+} from "@/src/features/experiments/lib/reconcileFilterTargets";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { useExperimentItemsTableData } from "../../hooks/useExperimentItemsTableData";
@@ -516,6 +524,7 @@ export default function ExperimentItemsTable({
   projectId,
   ioRenderMode,
   hideControls = false,
+  settingsSections,
 }: ExperimentItemsTableProps) {
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
@@ -530,6 +539,7 @@ export default function ExperimentItemsTable({
     hasBaseline,
     comparisonIds,
     allExperimentIds,
+    colorExperimentIds,
     layout,
     diffMode,
     itemVisibility,
@@ -634,31 +644,52 @@ export default function ExperimentItemsTable({
   // Use sidebar filter state for the sidebar UI (provides proper facets, options, etc.)
   // This is the single source of truth for filters
   const capture = usePostHogClientCapture();
+  const { viewControllersRef, onExplicitFilterStateChange } =
+    useTableViewFilterChange();
+  const [filterTargetState, setFilterTargetState] = useState<{
+    filters: FilterState;
+    targets: Record<number, string>;
+  }>({ filters: [], targets: {} });
   const queryFilter = useSidebarFilterState(
     experimentItemsFilterConfig,
     scoreFilterOptions,
     {
       stateLocation: "url",
+      onExplicitFilterStateChange: (change) => {
+        setFilterTargetState((state) => ({
+          filters: change.nextFilters,
+          targets:
+            change.origin === "saved_view"
+              ? {}
+              : reconcileFilterTargets(
+                  change.previousFilters,
+                  change.nextFilters,
+                  reconcileFilterTargets(
+                    state.filters,
+                    change.previousFilters,
+                    state.targets,
+                  ),
+                ),
+        }));
+        onExplicitFilterStateChange(change);
+      },
       loading: isFilterOptionsLoading,
       // v4-only surface — drives `isV4` on filters:* analytics.
       isV4: true,
     },
   );
 
+  // The assignment carries its condition so URL navigation cannot attach a
+  // previous index's experiment to an unrelated condition.
+  const filterTargets = reconcileFilterTargets(
+    filterTargetState.filters,
+    queryFilter.filterState,
+    filterTargetState.targets,
+  );
+
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
   queryFilterRef.current = queryFilter;
-
-  const setFiltersWrapper = useCallback(
-    (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
-    [],
-  );
-
-  // Per-experiment filter targeting state (maps filter index to experiment ID)
-  // Default: all filters target the baseline experiment
-  const [filterTargets, setFilterTargets] = useState<Record<number, string>>(
-    {},
-  );
 
   // Build filter list for pills display
   // Group filters by their target experiment (defaults to baseline)
@@ -697,7 +728,7 @@ export default function ExperimentItemsTable({
       const filterState = queryFilterRef.current.filterState;
 
       // Count filters up to the current group to find original index
-      let originalIndex = 0;
+      let originalIndex = -1;
       let currentGroupIndex = 0;
 
       for (let i = 0; i < filterState.length; i++) {
@@ -711,13 +742,18 @@ export default function ExperimentItemsTable({
         }
       }
 
+      if (originalIndex < 0) return;
+      viewControllersRef.current?.handleUserStateChange(
+        filterTargets[originalIndex] ?? defaultFilterTargetExperimentId,
+        toExperimentId,
+      );
       // Update the target for this filter
-      setFilterTargets((prev) => ({
-        ...prev,
-        [originalIndex]: toExperimentId,
-      }));
+      setFilterTargetState({
+        filters: filterState,
+        targets: { ...filterTargets, [originalIndex]: toExperimentId },
+      });
     },
-    [filterTargets, defaultFilterTargetExperimentId],
+    [filterTargets, defaultFilterTargetExperimentId, viewControllersRef],
   );
 
   // Handler for removing a filter via pill
@@ -726,7 +762,7 @@ export default function ExperimentItemsTable({
       const filterState = queryFilterRef.current.filterState;
 
       // Find the original filter index
-      let originalIndex = 0;
+      let originalIndex = -1;
       let currentGroupIndex = 0;
 
       for (let i = 0; i < filterState.length; i++) {
@@ -740,24 +776,10 @@ export default function ExperimentItemsTable({
         }
       }
 
+      if (originalIndex < 0) return;
       // Remove the filter from queryFilter
       const newFilters = filterState.filter((_, idx) => idx !== originalIndex);
       queryFilterRef.current.setFilterState(newFilters);
-
-      // Clean up the filter targets (shift indices down)
-      setFilterTargets((prev) => {
-        const newTargets: Record<number, string> = {};
-        Object.entries(prev).forEach(([key, value]) => {
-          const idx = parseInt(key);
-          if (idx < originalIndex) {
-            newTargets[idx] = value;
-          } else if (idx > originalIndex) {
-            newTargets[idx - 1] = value;
-          }
-          // Skip the removed index
-        });
-        return newTargets;
-      });
     },
     [filterTargets, defaultFilterTargetExperimentId],
   );
@@ -823,11 +845,6 @@ export default function ExperimentItemsTable({
       setSelectedRows,
       setSelectAll,
     },
-  );
-
-  const colorExperimentIds = useMemo(
-    () => (hasBaseline ? allExperimentIds : []),
-    [hasBaseline, allExperimentIds],
   );
 
   // A score column that is empty for every item in view is noise, so only keep
@@ -1741,7 +1758,8 @@ export default function ExperimentItemsTable({
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
-      setFilters: setFiltersWrapper,
+      setFilters: (filters) =>
+        queryFilter.setFilterState(filters, { origin: "saved_view" }),
       setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
@@ -1756,6 +1774,38 @@ export default function ExperimentItemsTable({
     currentFilterState: queryFilter.explicitFilterState,
     currentExpandedFilters: queryFilter.expanded,
   });
+
+  viewControllersRef.current = viewControllers;
+  const handleColumnOrderChange: typeof setColumnOrder = (next) => {
+    const value = typeof next === "function" ? next(columnOrder) : next;
+    viewControllers.handleUserStateChange(columnOrder, value);
+    setColumnOrder(value);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibilityState = (
+    next,
+  ) => {
+    const value = typeof next === "function" ? next(columnVisibility) : next;
+    viewControllers.handleUserStateChange(columnVisibility, value);
+    setColumnVisibilityState(value);
+  };
+  const handleOrderByChange: typeof setOrderByState = (next) => {
+    viewControllers.handleUserStateChange(orderByState, next);
+    setOrderByState(next);
+  };
+  const searchRegistry = {
+    ...EXPERIMENT_ITEMS_FIELD_REGISTRY,
+    filterStateErrors: (filters: FilterState) =>
+      hasAmbiguousTargetChange(
+        queryFilter.searchBarFilterState,
+        filters,
+        filterTargets,
+        defaultFilterTargetExperimentId,
+      )
+        ? [
+            "These edits cannot preserve the filters’ experiment targets. Edit one condition at a time or use its experiment pill.",
+          ]
+        : [],
+  };
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
     if (!canUsePeek) return undefined;
@@ -1982,6 +2032,21 @@ export default function ExperimentItemsTable({
       tableName={experimentItemsFilterConfig.tableName}
     >
       <div className="flex h-full w-full flex-col">
+        {!hideControls && (
+          <TableSearchBar
+            key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+            projectId={projectId}
+            tableName="experiment-items"
+            registry={searchRegistry}
+            filterState={queryFilter.searchBarFilterState}
+            setFilterState={queryFilter.setFilterState}
+            observed={toObservedOptions(
+              scoreFilterOptions,
+              isFilterOptionsLoading,
+            )}
+            isV4={true}
+          />
+        )}
         {/* Toolbar spanning full width */}
         {!hideControls && (
           <DataTableToolbar
@@ -1990,19 +2055,33 @@ export default function ExperimentItemsTable({
             viewConfig={{
               tableName: TableViewPresetTableName.ExperimentItems,
               projectId,
-              controllers: viewControllers,
+              controllers: {
+                ...viewControllers,
+                applyViewState: (
+                  ...args: Parameters<typeof viewControllers.applyViewState>
+                ) => {
+                  setFilterTargetState({ filters: [], targets: {} });
+                  viewControllers.applyViewState(...args);
+                },
+              },
             }}
             tableName={experimentItemsFilterConfig.tableName}
             isV4={true}
             onColumnGroupToggle={handleColumnGroupToggle}
             columnsWithCustomSelect={["datasetItemId"]}
             columnVisibility={columnVisibility}
-            setColumnVisibility={setColumnVisibilityState}
+            setColumnVisibility={handleColumnVisibilityChange}
             columnOrder={columnOrder}
-            setColumnOrder={setColumnOrder}
+            setColumnOrder={handleColumnOrderChange}
             orderByState={orderByState}
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
+            // One "Table settings" button for the controls that shape this
+            // table, as on the experiments list — where two buttons plus a
+            // third control in the page header was the inconsistency between
+            // the two surfaces of the same feature.
+            mergeSettingsIntoPopover
+            settingsSections={settingsSections}
             multiSelect={{
               selectAll,
               setSelectAll,
@@ -2065,8 +2144,7 @@ export default function ExperimentItemsTable({
         <ResizableFilterLayout>
           {!hideControls && (
             <DataTableControls
-              // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
-              key={viewControllers.selectedViewId ?? "no-view"}
+              key={viewControllers.filterEditorResetKey}
               queryFilter={queryFilter}
             />
           )}
@@ -2078,6 +2156,7 @@ export default function ExperimentItemsTable({
                   rows={unfilteredRows}
                   scoreRows={matrixScoreRows}
                   experiments={matrixExperiments}
+                  colorExperimentIds={colorExperimentIds}
                   isLoading={items.status === "loading" || isViewLoading}
                   pagination={pagination}
                 />
@@ -2140,12 +2219,12 @@ export default function ExperimentItemsTable({
                 pagination={pagination}
                 rowSelection={selectedRows}
                 setRowSelection={setSelectedRows}
-                setOrderBy={setOrderByState}
+                setOrderBy={handleOrderByChange}
                 orderBy={orderByState}
                 columnOrder={columnOrder}
-                onColumnOrderChange={setColumnOrder}
+                onColumnOrderChange={handleColumnOrderChange}
                 columnVisibility={columnVisibility}
-                onColumnVisibilityChange={setColumnVisibilityState}
+                onColumnVisibilityChange={handleColumnVisibilityChange}
                 rowHeight={rowHeight}
                 peekView={peekConfig}
                 noResultsMessage={

@@ -67,14 +67,9 @@ export const TablePeekViewTraceDetail = (
     <TablePeekView
       {...props}
       title={traceDetailTitle(trace.data, traceId)}
-      actions={
-        actionProps ? (
-          <TraceDetailActions {...actionProps} layout="share-only" />
-        ) : undefined
-      }
       actionsMenu={
         actionProps ? (
-          <TraceDetailActions {...actionProps} layout="delete-only" />
+          <TraceDetailActions {...actionProps} layout="menu" />
         ) : undefined
       }
     >

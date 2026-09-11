@@ -1,27 +1,25 @@
 # Search Bar
 
-Grammar-based query bar shared by the observations (v4 events) table,
-evaluation-rule observation filters, and the sessions table. On the events table it does NOT replace
-the facet sidebar — it is an ADDITIONAL keyboard-driven editor that coexists
-with the sidebar and stays in sync with it. The facet sidebar's `FilterState`
-(+ the table's full-text search) remains the single source of truth; the bar
-reads from and writes to it. Only the legacy toolbar search field is replaced
-(full-text search goes inline in the bar). Generally available on the v4 events
-tables (no opt-in). Based on the `langfuse-search-bar` prototype.
+Grammar-based query editor for tables with a facet sidebar, including legacy
+and embedded read paths. The sidebar's `FilterState` and the host's search
+state remain canonical; both editors update the same state.
 
 ## Enablement
 
-- **Generally available on the v4 events tables** — every user gets the bar; it
-  is no longer a per-user Feature Preview opt-in. `hooks/useSearchBarEnabled.ts`
-  now returns `true` for everyone, so the bar renders wherever the v4 events
-  table does.
-- `EventsTable` activates the bar when the table is a full-page surface
-  (`!hideControls && !externalFilterState && !peekContext && !userId && !sessionId`).
-  The **v4 beta** gate is implicit: `EventsTable` only mounts on the v4
-  Observations/Traces tables, so call sites still read as
-  `isV4 && useSearchBarEnabled()`.
-- The search bar is not a Feature Preview and has no user or organization
-  toggle.
+- Each sidebar host supplies a registry derived from its exposed facets. Settings
+  lists and other tables without a sidebar retain their existing controls.
+- `EventsTable` enables the bar when its controls are visible and filters are
+  internally owned. Embedded tables exclude fields locked by their parent.
+- `TableSearchBar` wraps the shared store, commit hook, and row for other hosts.
+  Pass the host's existing search query and scope without changing their meaning.
+  Tables without a backend text-search lane use a registry default field or
+  disable free text. Organization catalogs omit `projectId`, which disables
+  project recent searches and AI filtering.
+- Key the wrapper by the saved-view `filterEditorResetKey` and sidebar
+  `draftResetKey`. Applying a view or clearing filters resets unfinished drafts;
+  deselecting a view after a user edit preserves them.
+- There is no search-bar feature toggle. A registry enables AI only when its
+  backend has a matching prompt and the organization enables AI features.
 
 ## Query language
 
@@ -406,11 +404,9 @@ derived from the same `eventsEvalFilterColumns` used by backend validation, and
 the v4 sessions table passes `SESSIONS_FIELD_REGISTRY`
 (`features/filters/config/sessionsSearchRegistry.ts`).
 
-**Pass the registry to BOTH halves.** `registry` is an optional prop defaulting
-to `EVENTS_FIELD_REGISTRY` on `useEventsSearchBar` AND on `EventsSearchBarRow`.
-Give it to the hook only and the view still _works_: commits validate against
-the right fields while the autocomplete offers the events list. Nothing throws —
-so a new view must check the field dropdown, not just that Enter applies.
+**Use `TableSearchBar` for table hosts.** It passes one registry to the hook and
+row. A specialized host that uses `useEventsSearchBar` and `EventsSearchBarRow`
+directly must pass the same registry to both, so autocomplete and commits agree.
 
 **Recipe to add the bar to a view:**
 
@@ -433,7 +429,13 @@ so a new view must check the field dropdown, not just that Enter applies.
    aliases/macros**, **AI context fields**, **dot-path roots**
    (`metadata.`, `scores.`/`traceScores.` and their score columns), and
    **value-parse hints** (datetime ISO, numeric, boolean). Keep it small and
-   declarative. Three flags are per-view capabilities, not cosmetics:
+   declarative.
+   A field's `syncMode` can override the column-derived default: Scores uses
+   `textSearch` plus `suggestObservedValues` for option-backed score names, so
+   bare text searches within names while selected exact values still round-trip.
+   The derived `exactMatchUsesOptions` flag keeps singleton exact selections in
+   a categorical facet's `stringOptions` shape, so its checkbox stays selected.
+   Three flags are per-view capabilities, not cosmetics:
    - `metadata` / `scores` / `traceScores` — the keyed dot-path roots. Set them
      from the columns the view's BACKEND has, not from what reads well: sessions
      aggregates scores at session level and has no `trace_scores_*` columns, so
@@ -528,6 +530,11 @@ real consumer and validate it against that view's backend filter contract.
 - **`SearchComposer` (~1.3k LOC) has no unit tests** — the contenteditable
   controller is browser-reviewed only. Extracting the selection/`beforeinput`
   machinery into a hook (below) is the prerequisite to testing it.
+- **Client integration coverage** in `web/src/components/table/data-table-controls.clienttest.tsx`
+  exercises real sidebar inputs, filter state, and bar commits: delayed string
+  and numeric edits preserve newly committed bar filters, and clearing a facet
+  cancels its pending edit. This does not cover the table's network request or
+  rendered result rows.
 - **No e2e** for bar↔sidebar sync or the embedded-vs-full-page mount matrix
   (the bar leaking onto user/session detail was a review find, not caught by a
   test).

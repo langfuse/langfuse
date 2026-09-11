@@ -137,7 +137,7 @@ export function PeekHeader({
 
   // Actions and open-in-tab ALWAYS live in the "…" menu — the header shows
   // only nav / expand / close inline (usage data: nav dwarfs everything else).
-  const hasMenu = Boolean(actionsMenu || openInNewTab || expand);
+  const hasMenu = Boolean(actionsMenu || expand);
   const hasNav = Boolean(detailNavigationKey && resolveDetailNavigationPath);
 
   // Measure + plan in a layout effect (before paint), reading width from the
@@ -164,10 +164,6 @@ export function PeekHeader({
       headerWidth: width,
       minTitle: MIN_TITLE_PX,
       badgeLabelWidth: widthsRef.current.badgeLabel ?? BADGE_LABEL_FALLBACK_PX,
-      // The badge always renders `showLabel hideIcon` below — it never
-      // actually shrinks to icon-only — so the planner must see the same
-      // width for both inputs, or it credits the title with space the badge
-      // never gives up.
       badgeIconWidth: widthsRef.current.badgeLabel ?? BADGE_LABEL_FALLBACK_PX,
       navFullWidth: hasNav
         ? (widthsRef.current.navFull ?? NAV_FULL_FALLBACK_PX)
@@ -176,8 +172,6 @@ export function PeekHeader({
         ? (widthsRef.current.navCompact ?? NAV_COMPACT_FALLBACK_PX)
         : 0,
       otherPinnedWidth: widthsRef.current.otherPinned ?? 0,
-      // The "…" trigger sits inside the pinned cluster now (always shown), so
-      // it is already counted in otherPinnedWidth.
       moreWidth: 0,
     });
     setPlan((prev) => (samePlan(prev, next) ? prev : next));
@@ -207,8 +201,8 @@ export function PeekHeader({
           ref={clusterRef}
           className="flex shrink-0 flex-row items-center gap-1"
         >
-          {/* Pinned block, in order: "…" menu (delete / open-in-tab / expand),
-              share, nav (keeps K/J live), close. */}
+          {/* Pinned block, in order: "…" menu (share / delete / expand),
+              open in new tab, nav (keeps K/J live), close. */}
           <div
             ref={pinnedRef}
             className="flex h-full flex-row items-center gap-1"
@@ -238,16 +232,6 @@ export function PeekHeader({
                   className="flex w-auto min-w-44 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
                 >
                   {actionsMenu}
-                  {openInNewTab ? (
-                    <button
-                      type="button"
-                      onClick={openInNewTab}
-                      className="hover:bg-accent flex w-full items-center gap-2 rounded-sm py-1.5 pr-2 pl-1.5 text-sm"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                      Open in new tab
-                    </button>
-                  ) : null}
                   {expand ? (
                     <button
                       type="button"
@@ -265,6 +249,21 @@ export function PeekHeader({
                 </PopoverContent>
               </Popover>
             )}
+            {openInNewTab ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label="Open in new tab"
+                    onClick={openInNewTab}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Open in new tab</TooltipContent>
+              </Tooltip>
+            ) : null}
             {actions}
             {hasNav && (
               <div ref={navRef} className="flex flex-row items-center">
