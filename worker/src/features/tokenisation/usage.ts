@@ -58,6 +58,9 @@ type ChatMessage = {
   role: string;
   name?: string;
   content: string;
+  // Chat completions carry more than the three keys we match on, and the ones
+  // that matter for the token count (tool_calls, function_call) are objects.
+  [key: string]: unknown;
 };
 
 function openAiTokenCount(p: { model: Model; text: unknown }) {
@@ -141,7 +144,13 @@ function openAiChatTokenCount(params: {
           "functionCall",
         ].some((k) => k === key)
       ) {
-        const tokens = getTokensByModel(model, value);
+        // tool_calls and function_call arrive as objects. Handing one straight
+        // to the tokeniser stringifies it as "[object Object]", which prices a
+        // whole tool call at a handful of tokens, so serialise it first.
+        const tokens = getTokensByModel(
+          model,
+          isString(value) ? value : JSON.stringify(value),
+        );
         if (tokens) numTokens += tokens;
       }
       if (key === "name") {
