@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
   ChevronDown,
-  ChevronsDownUp,
   ChevronsUpDown,
   FileWarning,
   MessageSquareOff,
@@ -678,6 +677,7 @@ function LoadedSessionConversationTimeline({
               ? (phase !== "end" && hasPreviewValue(observation.input)) ||
                 (phase !== "start" && hasPreviewValue(observation.output))
               : processedMessages.messages.length > 0);
+          const moveCollapseControlUp = !isCollapsed && hasChatBubbles;
 
           const depth = ancestorObservationIds.length;
 
@@ -755,12 +755,20 @@ function LoadedSessionConversationTimeline({
                 />
               ) : null}
               {phase === "start" && hasNestedObservations ? (
-                <div className="relative h-7">
+                <div
+                  className={cn(
+                    "relative",
+                    moveCollapseControlUp ? "h-0" : "h-7",
+                  )}
+                >
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-xs"
-                    className="bg-background text-muted-foreground hover:text-foreground absolute top-5 z-[1] -translate-x-1/2 -translate-y-1/2 rounded-full"
+                    className={cn(
+                      "bg-background text-muted-foreground hover:text-foreground absolute z-[1] -translate-x-1/2 -translate-y-1/2 rounded-full",
+                      moveCollapseControlUp ? "-top-2" : "top-5",
+                    )}
                     style={{ left: "7.5px" }}
                     aria-expanded={!isCollapsed}
                     aria-label={`${isCollapsed ? "Show" : "Hide"} ${nestedObservationSummary}`}
@@ -777,7 +785,7 @@ function LoadedSessionConversationTimeline({
                     {isCollapsed ? (
                       <ChevronsUpDown className="h-3 w-3" aria-hidden="true" />
                     ) : (
-                      <ChevronsDownUp className="h-3 w-3" aria-hidden="true" />
+                      <ChevronDown className="h-3 w-3" aria-hidden="true" />
                     )}
                   </Button>
                   {isCollapsed ? (

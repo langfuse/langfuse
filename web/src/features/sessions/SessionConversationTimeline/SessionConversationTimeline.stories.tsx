@@ -2443,16 +2443,16 @@ export const ExpandNestedObservations = meta.story({
     // Expanding a parent reveals its direct children, but nested groups remain collapsed.
     await userEvent.click(rootToggle);
 
-    // Expanding the rail must not move the toggle the user just clicked.
+    // Message content leaves room to move the collapse control up one row.
     await expect(rootToggle.getBoundingClientRect().top).toBe(
-      initialRootToggleTop,
+      initialRootToggleTop - 28,
     );
     await expect(canvas.getByText("generation-1")).toBeInTheDocument();
     await expect(canvas.getByText("generation-2")).toBeInTheDocument();
     await expect(canvas.queryByText("tool-1")).not.toBeInTheDocument();
-    await expect(rootToggle.parentElement).toHaveClass("h-7");
+    await expect(rootToggle.parentElement).toHaveClass("h-0");
     await expect(
-      rootToggle.querySelector(".lucide-chevrons-down-up"),
+      rootToggle.querySelector(".lucide-chevron-down"),
     ).not.toBeNull();
     const nestedGeneration = canvasElement
       .querySelector('[data-session-observation-id="generation-1"]')
@@ -2479,7 +2479,7 @@ export const ExpandNestedObservations = meta.story({
     // Nested observations expand independently from their ancestors.
     await userEvent.click(nestedToggle);
 
-    // Expanding a nested rail must keep its toggle anchored too.
+    // A message-less observation retains its control row to avoid its icon.
     await expect(nestedToggle.getBoundingClientRect().top).toBe(
       initialNestedToggleTop,
     );
@@ -2523,7 +2523,7 @@ export const ExpandNestedObservations = meta.story({
 
     await userEvent.click(nestedToggle);
 
-    // Collapsing the nested rail must not move the toggle either.
+    // Collapsing returns the expand control to its summary row.
     await expect(nestedToggle.getBoundingClientRect().top).toBe(
       initialNestedToggleTop,
     );
