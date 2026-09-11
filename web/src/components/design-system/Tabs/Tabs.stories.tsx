@@ -62,7 +62,7 @@ function ResizableSlidingTabs() {
         Expand active tab
       </button>
       <Tabs defaultValue="first">
-        <Tabs.List variant="outline" slidingIndicator>
+        <Tabs.List variant="outline">
           <span className={expanded ? "w-40" : "w-20"}>
             <Tabs.Trigger value="first" label="First" />
           </span>
@@ -276,7 +276,7 @@ export const SlidesIndicator = meta.story({
   args: {
     defaultValue: "short",
     children: (
-      <Tabs.List variant="outline" slidingIndicator>
+      <Tabs.List variant="outline">
         <Tabs.Trigger value="short" label="Python" />
         <Tabs.Trigger value="long" label="TypeScript" />
       </Tabs.List>
@@ -307,7 +307,7 @@ export const AlignsSlidingIndicatorInScaledContainer = meta.story({
   args: {
     defaultValue: "short",
     children: (
-      <Tabs.List variant="outline" slidingIndicator>
+      <Tabs.List variant="outline">
         <Tabs.Trigger value="short" label="Python" />
         <Tabs.Trigger value="long" label="TypeScript" />
       </Tabs.List>
@@ -330,6 +330,30 @@ export const AlignsSlidingIndicatorInScaledContainer = meta.story({
       expect(Math.abs(indicatorRect.left - tabRect.left)).toBeLessThan(0.5);
       expect(Math.abs(indicatorRect.width - tabRect.width)).toBeLessThan(0.5);
     });
+  },
+});
+
+export const KeepsUnderlineStyle = meta.story({
+  name: "(Test) Keeps Underline Style",
+  args: {
+    defaultValue: "first",
+    children: (
+      <Tabs.List variant="underline">
+        <Tabs.Trigger value="first" variant="underline" label="First" />
+        <Tabs.Trigger value="second" variant="underline" label="Second" />
+      </Tabs.List>
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("tab", { name: "First" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(
+      canvasElement.querySelector("[data-tabs-indicator]"),
+    ).not.toBeInTheDocument();
   },
 });
 

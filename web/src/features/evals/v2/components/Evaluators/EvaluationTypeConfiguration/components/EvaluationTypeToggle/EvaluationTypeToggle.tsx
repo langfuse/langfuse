@@ -18,7 +18,7 @@ export function EvaluationTypeToggle({
       value={value}
       onValueChange={(mode) => onValueChange(mode as EvalTemplateType)}
     >
-      <Tabs.List variant="outline" slidingIndicator>
+      <Tabs.List variant="outline">
         {!disabled || value === EvalTemplateTypeEnum.LLM_AS_JUDGE ? (
           <Tabs.Trigger
             value={EvalTemplateTypeEnum.LLM_AS_JUDGE}

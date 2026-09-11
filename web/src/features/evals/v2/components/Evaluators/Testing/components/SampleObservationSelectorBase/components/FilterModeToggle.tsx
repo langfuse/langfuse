@@ -15,7 +15,7 @@ export function FilterModeToggle({
       value={mode}
       onValueChange={(value) => onChange(value as EvaluatorFilterExperience)}
     >
-      <Tabs.List aria-label="Filter editor mode" slidingIndicator>
+      <Tabs.List aria-label="Filter editor mode">
         <Tabs.Trigger value="query" icon={Braces} label="Query" />
         <Tabs.Trigger value="builder" icon={ListFilter} label="Builder" />
       </Tabs.List>

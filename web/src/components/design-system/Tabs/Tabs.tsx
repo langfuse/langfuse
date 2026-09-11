@@ -16,10 +16,6 @@ const tabsListVariants = cva(
         underline: "rounded-none border-b bg-transparent",
         outline: "bg-background rounded-md border",
       },
-      slidingIndicator: {
-        true: "relative isolate",
-        false: "",
-      },
       size: {
         default: "",
         md: "",
@@ -50,15 +46,9 @@ const tabsListVariants = cva(
       { variant: "underline", size: "md", class: "h-auto p-0" },
       { variant: "underline", size: "sm", class: "h-auto p-0" },
       { variant: "underline", size: "auto", class: "h-auto p-0" },
-      {
-        variant: "outline",
-        slidingIndicator: false,
-        class: "**:data-[state=active]:bg-muted",
-      },
     ],
     defaultVariants: {
       variant: "default",
-      slidingIndicator: false,
       size: "default",
       layout: "default",
       gap: "none",
@@ -92,7 +82,6 @@ const tabsTriggerVariants = cva(
 type TabsListProps = {
   "aria-label"?: string;
   children: React.ReactNode;
-  slidingIndicator?: boolean;
 } & Pick<
   VariantProps<typeof tabsListVariants>,
   "gap" | "layout" | "size" | "variant"
@@ -133,14 +122,14 @@ function TabsList({
   gap,
   layout,
   size,
-  slidingIndicator = false,
   variant,
 }: TabsListProps) {
   const listRef = React.useRef<HTMLDivElement>(null);
   const indicatorRef = React.useRef<HTMLSpanElement>(null);
+  const hasSlidingIndicator = variant !== "underline";
 
   React.useLayoutEffect(() => {
-    if (!slidingIndicator) return;
+    if (!hasSlidingIndicator) return;
 
     const list = listRef.current;
     const indicator = indicatorRef.current;
@@ -222,22 +211,19 @@ function TabsList({
       resizeObserver?.disconnect();
       mutationObserver.disconnect();
     };
-  }, [slidingIndicator]);
+  }, [hasSlidingIndicator]);
 
   return (
-    <TabsIndicatorContext value={slidingIndicator}>
+    <TabsIndicatorContext value={hasSlidingIndicator}>
       <TabsPrimitive.List
         ref={listRef}
         aria-label={ariaLabel}
-        className={tabsListVariants({
-          gap,
-          layout,
-          size,
-          slidingIndicator,
-          variant,
-        })}
+        className={cn(
+          tabsListVariants({ gap, layout, size, variant }),
+          hasSlidingIndicator && "relative isolate",
+        )}
       >
-        {slidingIndicator ? (
+        {hasSlidingIndicator ? (
           <span
             ref={indicatorRef}
             data-tabs-indicator=""
