@@ -115,6 +115,15 @@ export const ConfiguredMetadata = meta.story({
 
 export const TestSearchesOverflowPills = meta.story({
   name: "(Test) Searches overflow pills",
+  // Scores collapse to two chips + "+N", so the line only overflows when the
+  // header is narrow, as on a split trace/session layout.
+  decorators: [
+    (Story) => (
+      <div className="w-[560px]">
+        <Story />
+      </div>
+    ),
+  ],
   args: {
     ...defaultArgs,
     scores: overflowScores,

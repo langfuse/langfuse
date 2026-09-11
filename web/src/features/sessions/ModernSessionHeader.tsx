@@ -3,7 +3,7 @@ import { Clock, Plus, Search, X } from "lucide-react";
 import { type ReactNode, type SyntheticEvent, useState } from "react";
 
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
-import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ModernSessionHeaderPill } from "@/src/features/sessions/ModernSessionHeaderPill";
 import { sessionHeaderDynamicDetailKey } from "@/src/features/sessions/sessionHeaderVisibility";
 import {
@@ -40,7 +40,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
  * Session detail header, in the trace view's visual grammar
  * (`TraceSummaryStrip` / `TraceDetailViewHeader`): metrics are quiet muted
  * text, references are links, attributes are key:value text, and only scores
- * are boxed (as `ScoreBadge` chips, matching the trace tree). The pill
+ * are boxed (as score chips, two inline then "+N", matching the trace
+ * header). The pill
  * primitive survives for the "+N" overflow control alone.
  *
  * The latency metric is the median trace latency alone. Behaviour is
@@ -68,10 +69,13 @@ type ModernSessionHeaderProps = {
   environment: string | null;
   users: readonly string[];
   metadataJsonPaths: SessionMetadataJsonPathState;
-  /** Full score rows: `ScoreBadge` renders the comment / metadata hover
-      cards off the same fields the trace tree chips use. */
+  /** Full score rows: the chips render the comment / metadata hover cards
+      off the same fields the trace tree chips use. */
   scores: ReadonlyArray<WithStringifiedMetadata<ScoreDomain>>;
 };
+
+// Score names shown before "+N", same cap as the trace header and tree rows.
+const MAX_INLINE_SCORE_GROUPS = 2;
 
 type SessionHeaderDetailType =
   | "cost"
@@ -379,14 +383,27 @@ export function ModernSessionHeader({
     ),
   });
 
-  scores.forEach((score) => {
+  // Same grammar as the trace header: two score names inline, then "+N"
+  // whose hover lists them all. One detail item, so the overflow search
+  // still finds every score name.
+  if (scores.length > 0) {
     details.push({
-      key: sessionHeaderDynamicDetailKey("score", score.id),
-      searchText: `score ${score.name} ${scoreSearchValue(score)}`,
+      key: "scores",
+      searchText: `scores ${scores
+        .map((score) => `${score.name} ${scoreSearchValue(score)}`)
+        .join(" ")}`,
       type: "score",
-      content: <ScoreBadge name={score.name} scores={[score]} compact />,
+      content: (
+        <span className="inline-flex items-center gap-1">
+          <GroupedScoreBadges
+            compact
+            scores={[...scores]}
+            maxVisible={MAX_INLINE_SCORE_GROUPS}
+          />
+        </span>
+      ),
     });
-  });
+  }
 
   if (environment) {
     details.push({
