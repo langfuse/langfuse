@@ -115,11 +115,9 @@ description, and why an attachment is not optional are
 Label `AI created`. Say in the description that an agent created it and who it is
 for.
 
-**A subticket of an existing ticket needs no permission.** The intended use is
-planning: one subticket per PR in an intended stack, created up front so the plan
-is visible before any branch exists, with enough context in each that an agent
-could implement it from the ticket alone —
-[`linear-planning`](../linear-planning/SKILL.md) is how.
+**A subticket of an existing ticket needs no permission.** Use that for
+planning when it helps: one subticket per PR in an intended stack, with enough
+context in each that an agent could implement it from the ticket alone.
 
 **A ticket with no parent needs the human's yes first** — a top-level issue, or
 one filed straight into a project. Show the title and the description you intend

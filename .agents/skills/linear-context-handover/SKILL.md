@@ -28,8 +28,8 @@ it before your first write. This file is the *craft* — where post-context goes
 what earns a place in it, and the two mechanics that stop it being destroyed on
 the way in.
 
-How to slice a big change into PRs, and what a planning subticket must contain,
-are the sibling skill: [`linear-planning`](../linear-planning/SKILL.md).
+How to slice a big change into PRs is ordinary judgment: prefer small reviewable
+PRs, and create subtickets under an existing parent freely when that helps.
 
 ## Before you touch a feature: reconstruct its history
 

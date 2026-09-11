@@ -84,7 +84,7 @@ fi
 
 umask 077
 if ! mkdir -p "$identity_dir"; then
-  echo "Langfuse identity: could not create $identity_dir; onboarding can retry during the agent session."
+  echo "Langfuse identity: could not create $identity_dir; will retry later in the session if needed."
   exit 0
 fi
 chmod 700 "$identity_dir"
@@ -150,6 +150,6 @@ status=$?
 set -e
 
 if [[ "$status" -ne 0 ]]; then
-  echo "Langfuse identity: recovery skipped; onboarding can retry during the agent session."
+  echo "Langfuse identity: recovery skipped; will retry later in the session if needed."
   exit 0
 fi

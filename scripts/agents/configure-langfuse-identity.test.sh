@@ -96,35 +96,6 @@ if [[ "$mkdir_fail_status" -ne 0 ]]; then
   exit 1
 fi
 
-# The onboarding probe must still report the GitHub signals when the Linear
-# side fails outright, so a blocked egress path cannot truncate step 1.
-probe_tree="$tmpdir/probe-tree"
-mkdir -p "$probe_tree/.agents/skills/langfuse-onboarding/scripts" "$probe_tree/scripts/agents"
-cp \
-  "$repo_root/.agents/skills/langfuse-onboarding/scripts/whoami.sh" \
-  "$probe_tree/.agents/skills/langfuse-onboarding/scripts/whoami.sh"
-cat >"$probe_tree/scripts/agents/configure-langfuse-identity.sh" <<'EOF'
-#!/usr/bin/env bash
-echo "stub identity probe failed" >&2
-exit 1
-EOF
-chmod +x "$probe_tree/scripts/agents/configure-langfuse-identity.sh"
-
-cat >"$tmpdir/bin/gh" <<'EOF'
-#!/usr/bin/env bash
-echo "gh: Resource not accessible by integration (HTTP 403)" >&2
-exit 1
-EOF
-chmod +x "$tmpdir/bin/gh"
-
-probe_output="$(
-  PATH="$tmpdir/bin:$PATH" \
-  HOME="$tmpdir/probe-home" \
-    bash "$probe_tree/.agents/skills/langfuse-onboarding/scripts/whoami.sh"
-)"
-grep -Fq "linear_viewer: unavailable" <<<"$probe_output"
-grep -Fq "gh_user: unavailable" <<<"$probe_output"
-
 # A rejected or unreachable Linear endpoint reports in the probe's own label
 # format rather than aborting the probe.
 cat >"$tmpdir/bin/curl" <<'EOF'

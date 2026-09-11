@@ -19,10 +19,9 @@ change daily, and a plausible answer assembled from memory is worse than no
 answer because nobody can tell it is stale.
 
 Who the person is comes from `~/.config/langfuse/me.md`. If it is not there,
-run [`langfuse-onboarding`](../langfuse-onboarding/SKILL.md) step 1 — on Cursor
-Cloud that is `run-info` plus the roster, **not** Cloud `gh` permissions, and
-not a "what's your name" interview. Do not guess, and do not answer this
-question for an outside contributor, who owns none of it.
+use the Cloud run owner plus roster, or desktop `gh` (see `AGENTS.md`). Do not
+guess, and do not answer this question for an outside contributor, who owns none
+of it.
 
 If Linear MCP is `needsAuth` and no `LINEAR_API_KEY` (or `LINEAR_TOKEN` /
 `LINEAR_API_TOKEN`) is set, **stop**. Tell them to add `LINEAR_API_KEY` as a
@@ -255,14 +254,13 @@ it is asking for, and propose the next step — do not ask which skill applies.
 
 - **A tracker ticket** → reconstruct its history first
   ([`linear-context-handover`](../linear-context-handover/SKILL.md)), then say
-  whether it is one commit or needs planning
-  ([`linear-planning`](../linear-planning/SKILL.md)).
+  whether it is one commit or needs a few subtickets under the parent.
 - **A Slack permalink** → read the thread if a Slack tool is connected. If it is
   not, say so in one line and ask them to paste it; do not guess from the URL.
   What usually follows is a ticket, so offer to draft one — and remember a
   parentless ticket needs their yes.
-- **A pull request** → the review conventions are `git-workflow`, and whether it
-  wants a stack is `pr-stack-workflow`.
+- **A pull request** → the review conventions are `git-workflow`; if it is too
+  large, prefer splitting into small stacked PRs.
 
 ## Writing anything back
 

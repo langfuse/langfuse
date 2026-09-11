@@ -5,61 +5,24 @@ evaluating, and debugging AI applications.
 
 ## Who You Are Working For
 
-This repo serves two different people, and they get different halves of it.
-Work out which before anything else, and never guess silently.
+Read `~/.config/langfuse/me.md` when it exists. If it does not: on Cursor Cloud
+use the run owner (`cursor-cloud` `run-info`) plus the team roster — not Cloud
+`gh` permissions (read-only integration, often `push: false` for maintainers);
+on desktop use `gh api user` then `.permissions.push`. Ask once for anything
+those cannot tell you, and write it to `me.md`.
 
-It is a configuration question, not an interview. Read
-`~/.config/langfuse/me.md`; if it is not there, `langfuse-onboarding` step 1
-names them. On Cursor Cloud that is the run owner (`cursor-cloud` `run-info`)
-plus the team roster — **not** `gh api …permissions`, because Cloud's GitHub
-token is a read-only integration and reports `push: false` for maintainers.
-Desktop still uses `gh api user` then `.permissions.push`. For anything those
-cannot tell you — which areas they work on — **just ask, once**, and write the
-answer to that file so nobody asks again. Someone who has worked here for a
-year does not need onboarding; they need you to know their name.
-`langfuse-onboarding` is for people who are actually new.
+**Outside contributor** → code and `CONTRIBUTING.md` only (build, checks, PRs).
+No tracker, handbook, or working-week context.
 
-**An outside contributor** gets the code and `CONTRIBUTING.md`: how to build it,
-what the checks require, how to open a pull request. Nothing about the tracker,
-the handbook, or the working week — they cannot open any of it, and offering it
-describes a locked door.
-
-**A maintainer** gets all of that plus an assistant that holds the
-organisational context they would otherwise carry in their head. Be that
-assistant, not a code-completion engine waiting for instructions:
-
-- **Answer "what should I do today."** Not from memory — from the tracker. Which
-  projects they lead, which owe an update before Monday planning, what shipped
-  but is not finished. `linear-work-rhythm`.
-- **Know what the rest of the team is doing.** Colleagues post project updates
-  weekly. Before someone designs against a surface, check whether a colleague
-  touched it recently and say so: *"Trang was reworking that flow last week —
-  worth asking her to review."* Naming the person is more useful than naming the
-  ticket.
-- **Take a link and run with it.** A tracker ticket, a pull request, a Slack
-  permalink, a screenshot: read it, work out what it is asking for, and propose
-  the next step. Do not ask which skill to use — that is your job to know.
-- **Volunteer what is organisationally due**, briefly, when it is relevant: an
-  update nobody has written, an issue sitting in `Merged` with no docs decision,
-  a project whose target date has quietly passed. Once, in a line, not as a
-  standing report.
-- **Propose the implementation.** Not everyone here works with agents the same
-  way. When someone describes a problem, offer a route through it rather than
-  waiting to be told the design.
-
-The handbook is the source for how the team works, and it is not optional
-reading: `content/handbook/**` in `langfuse/langfuse-docs`, read from
-`origin/main`. When it disagrees with a skill, say so — one of the two is wrong.
-
-Keep it short. A maintainer is mid-task; a paragraph they have to skim is worse
-than two sentences they read.
+**Maintainer** → that plus a short organisational assist: what the tracker says
+they should do today (`linear-work-rhythm`), who else touched a surface recently,
+and a concrete next step when handed a link. Keep answers short. Handbook:
+`content/handbook/**` in `langfuse/langfuse-docs` on `origin/main`.
 
 ## How To Work
 
-- Know who you are working for before you assume what they may do. An outside
-  contributor and a Langfuse maintainer get different halves of this repo, and
-  the difference is derivable — `~/.config/langfuse/me.md` if it exists, else
-  `langfuse-onboarding` step 1 (Cloud run owner, not Cloud `gh` permissions).
+- Know who you are working for before you assume what they may do
+  (`~/.config/langfuse/me.md`, else Cloud run owner / desktop `gh` — see above).
   Never guess it silently.
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
@@ -130,29 +93,15 @@ than two sentences they read.
 
 ## Context Handover
 
-Two moments in every task, both easy to skip and both expensive:
-
-- **Before you touch an existing feature, reconstruct its history.** Walk
-  commits, the PRs that carried them, and the head branch name — which is where
-  the work-item identifier lives — through to the work item itself and any prior
-  agent context on it. The commands are in
-  `.agents/skills/pr-stack-workflow/references/stack-commands.md` → *Recover the
-  context before you slice*. A decision already reversed once does not need
-  proposing again.
-- **Before you ask for review or merge — and at the end of a productive
-  session — ask whether to preserve results on the ticket(s).** Wording close
-  to: "Should I update the ticket(s) with the results of this session so they
-  are preserved?" Then show the handover block (decisions, reversals, how the
-  human steered, the traps) and append it only after a yes (an ask such as
-  "write the handover" counts). It survives one session otherwise. Do it before
-  the PR, not after the merge: there is no later.
-
-The practice, its template and its tooling are the `linear-context-handover` and
-`linear-planning` skills, alongside `linear-agent-writes`, which is the policy for
-what an agent may write to the tracker (propose updates; mark every write) and
-how it must be marked. Read those rather than improvise. If this environment cannot reach the tracker, say so in your reply and
-hand back the text that should have gone on the work item — never skip either
-step silently, because silent non-compliance looks exactly like compliance.
+- **Before changing an existing feature**, reconstruct history (commits → PRs →
+  branch → ticket). Prefer `linear-context-handover` over guessing.
+- **Before review/merge, or at the end of a productive session**, ask whether to
+  preserve results on the ticket(s) — e.g. "Should I update the ticket(s) with
+  the results of this session so they are preserved?" Show the block; write only
+  after a yes ("write the handover" counts). Policy: `linear-agent-writes`.
+- Large work: prefer small reviewable PRs; create subtickets under an existing
+  parent freely when that helps. If the tracker is unreachable, say so and leave
+  the text in the reply.
 
 ## Project Structure
 
