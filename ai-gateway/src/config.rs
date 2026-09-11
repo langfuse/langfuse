@@ -26,6 +26,11 @@ impl fmt::Display for ConfigError {
 impl Error for ConfigError {}
 
 impl Config {
+    /// Read gateway configuration from the process environment, using defaults for absent values.
+    ///
+    /// # Errors
+    /// Returns an error if a configured value is not Unicode or fails validation
+    /// in [`Self::from_values`]. Error messages never include the supplied values.
     pub fn from_env() -> Result<Self, ConfigError> {
         Self::from_values(
             read_env("LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS")?.as_deref(),
@@ -35,6 +40,11 @@ impl Config {
         )
     }
 
+    /// Parse gateway configuration, using defaults for absent values.
+    ///
+    /// # Errors
+    /// Returns an error for an invalid IP address and port, a shutdown timeout outside
+    /// 1–300 integer seconds, or an unsupported log level or format.
     pub fn from_values(
         listen_address: Option<&str>,
         shutdown_timeout: Option<&str>,

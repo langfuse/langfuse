@@ -48,6 +48,10 @@ async fn readiness(State(state): State<AppState>) -> (StatusCode, Json<Probe>) {
 
 /// Serve an initialized router until shutdown, then bound connection draining.
 /// A timeout must terminate the owning process/runtime to stop remaining tasks.
+///
+/// # Errors
+/// Returns the server's I/O error, or [`io::ErrorKind::TimedOut`] if connections
+/// do not finish draining within `shutdown_timeout`.
 pub async fn serve(
     listener: TcpListener,
     app: Router,
@@ -69,7 +73,7 @@ pub async fn serve(
     state.ready.store(true, Ordering::Release);
     let result = tokio::select! {
         result = &mut server => result,
-        _ = async {
+        () = async {
             let _ = draining_rx.await;
             tokio::time::sleep(shutdown_timeout).await;
         } => Err(io::Error::new(io::ErrorKind::TimedOut, "gateway shutdown deadline exceeded")),
