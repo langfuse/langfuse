@@ -9,7 +9,7 @@
  * - Two view modes: chronological (by time) and tree-order (DFS hierarchy)
  * - Search filtering by name, type, or ID
  * - Expandable rows with full I/O preview
- * - Copy/Download JSON functionality
+ * - Copy JSON functionality
  *
  * Uses JSONTableView for table rendering with domain-specific column definitions.
  *
@@ -292,10 +292,9 @@ export const TraceLogView = ({
     projectId,
   });
 
-  // Download and copy handlers
+  // Copy handler
   const { handleCopyJson: copyJson, isActionLoading: isCopyOrDownloadLoading } =
     useLogViewDownload({
-      traceId,
       isCacheOnly: isCopyOrDownloadCacheOnly,
       allObservationsData: allObservationsIO.data,
       isLoadingAllData: allObservationsIO.isLoading,
