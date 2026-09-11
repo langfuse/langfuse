@@ -516,6 +516,37 @@ describe("createFilterFromFilterState filter type validation", () => {
     expect(Object.values(params)).toEqual(["source", "needle"]);
   });
 
+  it("accelerates event metadata equality with a text-index prefilter", () => {
+    const filters = [
+      {
+        column: "metadata",
+        type: "stringObject",
+        operator: "=",
+        key: "source",
+        value: "needle",
+      },
+    ] satisfies EventsTableFilterState;
+
+    const [result] = createFilterFromFilterState(
+      filters,
+      [mappings.eventMetadata],
+      columnDefinitions,
+    );
+
+    const { query, params } = result.apply();
+
+    expect(query).toContain("has(e.metadata_names,");
+    // `hasAllTokens` engages idx_fts_metadata_values as a correctness-safe superset.
+    expect(query).toContain("hasAllTokens(e.metadata_values,");
+    // Exact equality remains the precise post-filter.
+    expect(query).toContain("e.metadata_values[indexOf(e.metadata_names,");
+    // Equality is served by the index alone; no non-indexed array scan.
+    expect(query).not.toMatch(/has\(e\.metadata_values,/);
+    // Metadata is case-sensitive: tokens are not lowered.
+    expect(query).not.toContain("lower(");
+    expect(Object.values(params)).toEqual(["source", "needle"]);
+  });
+
   it("adds ngram prefilter params for event metadata substring filters", () => {
     const filters = [
       {
