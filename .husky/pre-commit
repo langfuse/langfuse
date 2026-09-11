@@ -6,6 +6,8 @@ current_branch=$(git rev-parse --abbrev-ref HEAD)
 # Define the protected branch
 protected_branch="main"
 
+echo "Running pre-commit checks..."
+
 run_check() {
   label="$1"
   shift
