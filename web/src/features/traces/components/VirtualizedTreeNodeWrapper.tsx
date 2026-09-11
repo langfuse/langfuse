@@ -158,7 +158,7 @@ export function VirtualizedTreeNodeWrapper({
 
         {/* 5. Expand/Collapse button */}
         {hasChildren && (
-          <div className="flex items-start justify-end py-0.5 pr-1">
+          <div className="flex items-start justify-end pr-1">
             <Button
               aria-expanded={!isCollapsed}
               data-expand-button
@@ -168,8 +168,9 @@ export function VirtualizedTreeNodeWrapper({
                 ev.stopPropagation();
                 onToggleCollapse();
               }}
-              // 20px button on a 20px first line: hit target equals the row, so
-              // consecutive rows never overlap.
+              // 20px button, no column padding: same 20px as the icon column, so
+              // the chevron centres on the first line and rows with children
+              // are no taller than leaves.
               className="hover:bg-primary/10 h-5 w-5 shrink-0"
             >
               <span
