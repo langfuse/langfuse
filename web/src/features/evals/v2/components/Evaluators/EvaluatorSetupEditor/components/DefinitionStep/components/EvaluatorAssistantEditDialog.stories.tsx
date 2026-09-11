@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../../../../../../../.storybook/preview";
 import { EvaluatorAssistantEditDialog } from "./EvaluatorAssistantEditDialog";
@@ -63,10 +63,12 @@ export const DismissesFromBackdrop = meta.story({
     await expect(overlay).not.toBeNull();
     await userEvent.click(overlay!);
     await expect(args.onOpenChange).toHaveBeenCalledWith(false);
-    await expect(body.queryByRole("dialog")).not.toBeInTheDocument();
-    await expect(
-      body.getByRole("button", { name: "Edit evaluator" }),
-    ).toHaveFocus();
+    await waitFor(() => {
+      expect(body.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(
+        body.getByRole("button", { name: "Edit evaluator" }),
+      ).toHaveFocus();
+    });
   },
 });
 
