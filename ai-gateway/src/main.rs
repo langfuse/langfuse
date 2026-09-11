@@ -2,6 +2,8 @@ use std::{error::Error, process::ExitCode};
 
 use ai_gateway::{
     config::{Config, LogFormat},
+    execution::Execution,
+    http,
     server::{self, AppState},
 };
 use tokio::net::TcpListener;
@@ -26,18 +28,18 @@ async fn run() -> Result<(), Box<dyn Error>> {
         LogFormat::Text => logging.compact().init(),
         LogFormat::Json => logging.json().init(),
     }
+    let execution = config.resolver.map(Execution::new).transpose()?;
+    let inference_enabled = execution.is_some();
+    let state = if inference_enabled {
+        AppState::default()
+    } else {
+        AppState::unconfigured()
+    };
+    let app = server::router(state.clone()).merge(http::router(execution, state.clone()));
     let shutdown = shutdown_signal()?;
     let listener = TcpListener::bind(config.listen_address).await?;
-    tracing::info!(address = %listener.local_addr()?, "gateway listening");
-    let state = AppState::default();
-    server::serve(
-        listener,
-        server::router(state.clone()),
-        state,
-        shutdown,
-        config.shutdown_timeout,
-    )
-    .await?;
+    tracing::info!(address = %listener.local_addr()?, inference_enabled, "gateway listening");
+    server::serve(listener, app, state, shutdown, config.shutdown_timeout).await?;
     tracing::info!("gateway stopped");
     Ok(())
 }

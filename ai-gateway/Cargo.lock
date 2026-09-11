@@ -9,6 +9,7 @@ dependencies = [
  "axum",
  "futures-util",
  "hmac",
+ "http-body-util",
  "reqwest",
  "serde",
  "serde_json",

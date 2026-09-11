@@ -8,6 +8,7 @@ fn invalid_configuration_exits_without_disclosing_the_value() {
         "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS",
         "LANGFUSE_LOG_LEVEL",
         "LANGFUSE_LOG_FORMAT",
+        "LANGFUSE_AI_GATEWAY_WEB_URL",
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_ai-gateway"))
             .env_clear()
