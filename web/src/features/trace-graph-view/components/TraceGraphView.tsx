@@ -24,7 +24,11 @@ import {
   transformLanggraphToGeneralized,
 } from "../buildGraphCanvasData";
 import { buildExpandedGraph } from "../buildExpandedGraph";
-import { matchedGraphNodeNames } from "../matchedGraphNodeNames";
+import {
+  matchedGraphNodeNames,
+  nearestGraphNodeName,
+  type GraphNodeResolution,
+} from "../graphNodeMatching";
 
 type TraceGraphViewProps = {
   agentGraphData: AgentGraphDataResponse[];
@@ -155,6 +159,26 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
     return map;
   }, [normalizedData, agentGraphData, isExpanded]);
 
+  /**
+   * Everything the "which node is this observation?" walk needs, in the active
+   * view mode. Built once and shared by the selection fallback below and the
+   * search projection, so a click and a query resolve an unmapped observation
+   * to the same node.
+   */
+  const nodeResolution = useMemo<GraphNodeResolution>(
+    () => ({
+      isExpanded,
+      observationsById: agentGraphById,
+      graphNodeIds,
+      nodeByObservationId: new Map(
+        normalizedData.flatMap((o) =>
+          o.id && o.node ? [[o.id, o.node] as [string, string]] : [],
+        ),
+      ),
+    }),
+    [isExpanded, agentGraphById, graphNodeIds, normalizedData],
+  );
+
   const activeNodeNames = useMemo(() => {
     if (!activeObservationIds || activeObservationIds.size === 0) return null;
     const names = new Set<string>();
@@ -166,15 +190,18 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   }, [activeObservationIds, observationToNodeName]);
 
   // A node stands for every call of its step, so it keeps its colour when ANY
-  // observation behind it matched. `null` means no query and nothing dims; an
-  // empty set means a query that hit nothing, and the whole graph fades.
+  // observation behind it matched — including the ones no node registers, which
+  // resolve to the nearest ancestor the graph kept. `null` means no query and
+  // nothing dims; an empty set means a query that hit nothing, and the whole
+  // graph fades.
   const matchedNodeNames = useMemo(() => {
     if (!search) return null;
-    return matchedGraphNodeNames(
+    return matchedGraphNodeNames({
+      matchedObservationIds: search.matchedObservationIds,
       nodeToObservationsMap,
-      search.matchedObservationIds,
-    );
-  }, [search, nodeToObservationsMap]);
+      resolution: nodeResolution,
+    });
+  }, [search, nodeToObservationsMap, nodeResolution]);
 
   // Reset indices when graph data changes (new trace loaded)
   useEffect(() => {
@@ -216,49 +243,16 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
       }
     }
 
-    // Fallback for observations not in the cycling map. Expanded modes: node
-    // ids are observation ids, so walk UP the parent chain to the nearest
-    // ancestor that has a node in the graph (covers observations filtered out
-    // of the graph, e.g. EVENTs and LangGraph child spans). Aggregated:
-    // nested/repeated same-name observations (only the top-most of a
-    // same-name chain is registered) map to their own node; descendants
-    // WITHOUT a node of their own resolve by walking UP the parent chain in
-    // the unfiltered data until an ancestor carries one — so selecting any
-    // descendant keeps its enclosing node focused instead of clearing the
-    // selection.
+    // Fallback for observations the cycling map does not register: resolve to
+    // the nearest ancestor the graph kept. EVENTs, LangGraph child spans and
+    // nested same-name calls all land here, and selecting one should keep its
+    // enclosing node focused rather than clearing the selection. The search
+    // highlight resolves them through the same function.
     if (!foundNodeName && currentObservationId) {
-      if (isExpanded) {
-        const seen = new Set<string>();
-        let cursor = agentGraphById.get(currentObservationId);
-        while (cursor && !seen.has(cursor.id)) {
-          seen.add(cursor.id);
-          if (graphNodeIds.has(cursor.id)) {
-            foundNodeName = cursor.id;
-            break;
-          }
-          cursor = cursor.parentObservationId
-            ? agentGraphById.get(cursor.parentObservationId)
-            : undefined;
-        }
-      } else {
-        const own = normalizedData.find((o) => o.id === currentObservationId);
-        if (own?.node) {
-          foundNodeName = own.node;
-        } else {
-          const seen = new Set<string>();
-          let cursor = agentGraphById.get(currentObservationId);
-          while (cursor && !seen.has(cursor.id)) {
-            seen.add(cursor.id);
-            if (cursor.node) {
-              foundNodeName = cursor.node;
-              break;
-            }
-            cursor = cursor.parentObservationId
-              ? agentGraphById.get(cursor.parentObservationId)
-              : undefined;
-          }
-        }
-      }
+      foundNodeName = nearestGraphNodeName(
+        currentObservationId,
+        nodeResolution,
+      );
     }
 
     if (foundNodeName && graphNodeIds.has(foundNodeName)) {
@@ -281,11 +275,9 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
     }
   }, [
     currentObservationId,
-    agentGraphById,
     graphNodeIds,
-    isExpanded,
     nodeToObservationsMap,
-    normalizedData,
+    nodeResolution,
   ]);
 
   const onCanvasNodeNameChange = useCallback(
