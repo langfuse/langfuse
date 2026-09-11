@@ -614,6 +614,14 @@ export default function ScoresTable({
       accessorKey: "value",
       header: "Value",
       id: "value",
+      cell: ({ row }) =>
+        row.original.dataType === "NUMERIC" && row.original.value !== "" ? (
+          <span title={Number(row.original.value).toFixed(4)}>
+            {Number(row.original.value).toFixed(2)}
+          </span>
+        ) : (
+          row.original.value
+        ),
       enableHiding: true,
       enableSorting: true,
       size: 100,
@@ -974,9 +982,7 @@ export default function ScoresTable({
       dataType: score.dataType,
       value:
         isNumericDataType(score.dataType) && isPresent(score.value)
-          ? score.value % 1 === 0
-            ? String(score.value)
-            : score.value.toFixed(4)
+          ? String(score.value)
           : (score.stringValue ?? ""),
       author: {
         userId: score.authorUserId ?? undefined,
@@ -1022,9 +1028,7 @@ export default function ScoresTable({
         dataType: score.dataType,
         value:
           isNumericDataType(score.dataType) && isPresent(score.value)
-            ? score.value % 1 === 0
-              ? String(score.value)
-              : score.value.toFixed(4)
+            ? String(score.value)
             : (score.stringValue ?? ""),
         author: {
           userId: score.authorUserId ?? undefined,
