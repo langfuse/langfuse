@@ -32,7 +32,25 @@ export const Compact = meta.story({
   },
 });
 
+export const Focused = meta.story({
+  name: "(Test) Focused",
+  args: {
+    evaluatorType: "CODE",
+    onSubmit: fn(async () => true),
+    onConfigureManually: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("textbox", {
+        name: "Describe the evaluator you want",
+      }),
+    );
+  },
+});
+
 export const Loading = meta.story({
+  name: "(Test) Loading",
   args: {
     evaluatorType: "CODE",
     onSubmit: fn(() => new Promise<boolean>(() => undefined)),

@@ -93,13 +93,28 @@ describe("EvaluatorAssistantScratchView", () => {
       screen.getByRole("button", { name: "Create evaluator" }),
     ).toBeDisabled();
     expect(
+      screen.getByRole("group", { name: "Evaluator request composer" }),
+    ).toHaveAttribute("aria-busy", "true");
+    expect(input).toBeDisabled();
+    expect(
       screen.getByRole("button", {
         name: "Fail when the answer contradicts the retrieved context",
       }),
     ).toBeDisabled();
+    expect(
+      screen.getByRole("button", {
+        name: "Configure it manually instead",
+      }),
+    ).toBeDisabled();
 
     finishSubmission(true);
-    await waitFor(() => expect(input).toHaveValue(""));
+    await waitFor(() => {
+      expect(input).toHaveValue("");
+      expect(input).toBeEnabled();
+      expect(
+        screen.getByRole("group", { name: "Evaluator request composer" }),
+      ).toHaveAttribute("aria-busy", "false");
+    });
   });
 
   it("hands off to manual configuration without submitting", () => {

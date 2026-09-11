@@ -79,7 +79,8 @@ export function EvaluatorAssistantScratchView({
         <div
           role="group"
           aria-label="Evaluator request composer"
-          className="border-input bg-background focus-within:ring-ring relative rounded-md border shadow-xs focus-within:ring-1"
+          aria-busy={isSubmitting}
+          className="border-border-contrast bg-background ring-offset-background focus-within:ring-ring relative overflow-hidden rounded-md border shadow-xs transition-colors focus-within:ring-2 focus-within:ring-offset-2"
         >
           <Textarea
             aria-label="Describe the evaluator you want"
@@ -92,7 +93,7 @@ export function EvaluatorAssistantScratchView({
             disabled={isSubmitting}
             onChange={(event) => setRequest(event.target.value)}
             onKeyDown={handleKeyDown}
-            className="ph-no-capture min-h-32 resize-y rounded-none border-0 pr-12 pb-12 text-base shadow-none focus-visible:ring-0"
+            className="ph-no-capture min-h-32 resize-y rounded-none border-0 pr-12 pb-12 text-base shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
           />
           <Tooltip>
             <TooltipTrigger asChild>
