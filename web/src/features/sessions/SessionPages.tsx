@@ -78,6 +78,7 @@ import {
 import { StringParam, useQueryParam } from "use-query-params";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { Separator } from "@/src/components/ui/separator";
 import {
@@ -1283,11 +1284,18 @@ const LoadedSessionEventsPage: React.FC<{
     [filterColumns],
   );
 
+  const { viewControllersRef, onExplicitFilterStateChange } =
+    useTableViewFilterChange();
+  const hasUserFilterEditRef = useRef(false);
   const queryFilter = useSidebarFilterState(
     sessionEventsFilterConfig,
     typedFilterOptions,
     {
       loading: isFilterOptionsPending,
+      onExplicitFilterStateChange: (change) => {
+        if (change.origin === "user") hasUserFilterEditRef.current = true;
+        onExplicitFilterStateChange(change);
+      },
       stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId,
     },
@@ -1322,6 +1330,7 @@ const LoadedSessionEventsPage: React.FC<{
     (filters: FilterState) =>
       queryFilter.setFilterState(
         normalizeLegacySessionPositionInTraceFilters(filters),
+        { origin: "saved_view" },
       ),
     [queryFilter],
   );
@@ -1346,6 +1355,8 @@ const LoadedSessionEventsPage: React.FC<{
     currentExpandedFilters: queryFilter.expanded,
   });
 
+  viewControllersRef.current = viewControllers;
+
   // Auto-apply path only (the drawer's user-driven preset selection has its
   // own handler). Writes with `replaceIn`: this is the page deciding its own
   // default, not a user step — pushing would leave the pre-default URL as a
@@ -1354,7 +1365,10 @@ const LoadedSessionEventsPage: React.FC<{
   const applySystemPreset = useCallback(
     (preset: SessionDetailSystemPreset) => {
       viewControllers.handleSetViewId(preset.id, { updateType: "replaceIn" });
-      queryFilter.setFilterState(preset.filters, { updateType: "replaceIn" });
+      queryFilter.setFilterState(preset.filters, {
+        updateType: "replaceIn",
+        origin: "system",
+      });
     },
     [queryFilter, viewControllers],
   );
@@ -1384,20 +1398,11 @@ const LoadedSessionEventsPage: React.FC<{
 
   const selectedViewId = viewControllers.selectedViewId;
 
-  // Which named view drives the empty-state notice. Derived from the applied
-  // FilterState (the single source of truth) so the label survives the manager
-  // stripping the viewId on reload, and drops to null the moment the filter is
-  // edited. Mirrors the drawer trigger's rule: only name a view when it also
-  // matches the selected view id — so a selected saved view, or a filter
-  // hand-edited into another preset's exact shape, doesn't make the notice and
-  // the drawer trigger disagree.
-  const filterMatchedView = findSessionDetailViewByFilters(visibleFilterState);
-  const matchedView =
-    filterMatchedView &&
-    (!selectedViewId || filterMatchedView.id === selectedViewId)
-      ? filterMatchedView
-      : null;
-  const viewLabel = matchedView?.name ?? null;
+  // A named view is selected explicitly; matching filter values alone cannot
+  // turn a user's edited working state back into a selected preset.
+  const viewLabel =
+    SESSION_DETAIL_SYSTEM_PRESETS.find((preset) => preset.id === selectedViewId)
+      ?.name ?? null;
   const hasSessionControls =
     !isModernSessionEnabled ||
     Boolean(session.users?.length || session.scores.length);
@@ -1477,6 +1482,8 @@ const LoadedSessionEventsPage: React.FC<{
   useEffect(() => {
     if (isViewLoading) return;
     if (selectedViewId) return;
+    if (viewControllers.viewUpdateTarget || hasUserFilterEditRef.current)
+      return;
     const filterMatchedView =
       findSessionDetailViewByFilters(visibleFilterState);
     if (!filterMatchedView) return;
@@ -1514,6 +1521,8 @@ const LoadedSessionEventsPage: React.FC<{
     if (defaultPresetResolvedSessionRef.current === sessionId) return;
     if (isViewLoading) return; // Wait for view manager to initialize
     defaultPresetResolvedSessionRef.current = sessionId;
+    if (viewControllers.viewUpdateTarget || hasUserFilterEditRef.current)
+      return;
     if (selectedViewId) return;
     if (initialViewIdRef.current) return;
     if (arrivedOnVisitedHistoryEntry) return;
@@ -1530,6 +1539,7 @@ const LoadedSessionEventsPage: React.FC<{
     selectedViewId,
     sessionId,
     visibleFilterState,
+    viewControllers.viewUpdateTarget,
   ]);
 
   const virtualizer = useVirtualizer({
@@ -1905,6 +1915,7 @@ const LoadedSessionEventsPage: React.FC<{
                 so (LFE-10520). */}
               {!isModernSessionEnabled ? (
                 <PopoverFilterBuilder
+                  key={viewControllers.filterEditorResetKey}
                   columns={filterColumns}
                   filterState={visibleFilterState}
                   onChange={queryFilter.setFilterState}
