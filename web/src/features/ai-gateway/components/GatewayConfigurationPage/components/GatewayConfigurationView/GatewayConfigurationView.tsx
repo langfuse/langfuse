@@ -32,8 +32,6 @@ import { DEFAULT_GATEWAY_INGESTION_PROJECT_NAME } from "@/src/features/ai-gatewa
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { cn } from "@/src/utils/tailwind";
 
-const GATEWAY_BASE_URL = "https://gateway.langfuse.com/v1";
-
 type IngestionMode = "USAGE" | "FULL";
 type Project = {
   id: string;
@@ -63,6 +61,7 @@ const ingestionModes: Array<{
 
 export function GatewayConfigurationView({
   projects,
+  gatewayBaseUrl,
   initialProjectId,
   initialIngestionMode,
   isSaving,
@@ -71,6 +70,7 @@ export function GatewayConfigurationView({
   onCreateProject,
 }: {
   projects: Project[];
+  gatewayBaseUrl: string;
   initialProjectId: string | null;
   initialIngestionMode: IngestionMode;
   isSaving: boolean;
@@ -116,7 +116,7 @@ export function GatewayConfigurationView({
             Use this fixed base URL in any supported SDK.
           </CardDescription>
         </div>
-        <GatewayUrl />
+        <GatewayUrl gatewayBaseUrl={gatewayBaseUrl} />
       </div>
 
       <div>
@@ -311,18 +311,18 @@ function CreateIngestionProjectDialog({
   );
 }
 
-function GatewayUrl() {
+function GatewayUrl({ gatewayBaseUrl }: { gatewayBaseUrl: string }) {
   const { copy, isCopied } = useCopyToClipboard();
   return (
     <div className="bg-muted flex w-fit max-w-full items-center justify-between gap-3 rounded-md border px-3 py-2">
-      <code className="truncate text-sm" title={GATEWAY_BASE_URL}>
-        {GATEWAY_BASE_URL}
+      <code className="truncate text-sm" title={gatewayBaseUrl}>
+        {gatewayBaseUrl}
       </code>
       <Button
         size="icon-xs"
         variant="ghost"
         aria-label="Copy gateway base URL"
-        onClick={() => copy(GATEWAY_BASE_URL)}
+        onClick={() => copy(gatewayBaseUrl)}
       >
         {isCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
       </Button>

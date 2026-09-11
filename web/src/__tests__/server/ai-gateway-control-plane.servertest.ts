@@ -181,6 +181,23 @@ async function prepare(role: Role = Role.OWNER) {
 }
 
 describe("AI gateway control plane", () => {
+  it("returns the gateway endpoint for the deployment host", async () => {
+    const { caller, org } = await prepare();
+    const originalNextAuthUrl = env.NEXTAUTH_URL;
+    (env as { NEXTAUTH_URL: string }).NEXTAUTH_URL =
+      "https://staging.langfuse.com";
+
+    try {
+      await expect(
+        caller.aiGateway.getConfig({ orgId: org.id }),
+      ).resolves.toMatchObject({
+        gatewayBaseUrl: "https://gateway.staging.langfuse.com/v1",
+      });
+    } finally {
+      (env as { NEXTAUTH_URL: string }).NEXTAUTH_URL = originalNextAuthUrl;
+    }
+  });
+
   it("applies the environment-specific organization allowlist", async () => {
     const { caller, org } = await prepare();
     env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.splice(
@@ -190,7 +207,7 @@ describe("AI gateway control plane", () => {
 
     const request = caller.aiGateway.getConfig({ orgId: org.id });
     if (env.NODE_ENV === "development") {
-      await expect(request).resolves.toBeNull();
+      await expect(request).resolves.toMatchObject({ config: null });
     } else {
       await expect(request).rejects.toMatchObject({ code: "FORBIDDEN" });
     }

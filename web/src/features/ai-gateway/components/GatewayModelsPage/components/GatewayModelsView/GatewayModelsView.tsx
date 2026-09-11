@@ -24,6 +24,7 @@ const TABLE_NAME = "gateway-models";
 export type GatewayModelRow = {
   id: string;
   availableVia: Array<{
+    connectionId: string;
     connectionName: string;
     provider: GatewayProvider;
   }>;
@@ -31,6 +32,13 @@ export type GatewayModelRow = {
 };
 
 const filterColumns: ColumnDefinition[] = [
+  {
+    name: "Provider credentials",
+    id: "connection",
+    type: "arrayOptions",
+    internal: "connection",
+    options: [],
+  },
   {
     name: "Provider",
     id: "provider",
@@ -53,8 +61,13 @@ const filterColumns: ColumnDefinition[] = [
 const filterConfig: FilterConfig = {
   tableName: TABLE_NAME,
   columnDefinitions: filterColumns,
-  defaultExpanded: ["provider", "apiFormat"],
+  defaultExpanded: ["connection", "provider", "apiFormat"],
   facets: [
+    {
+      type: "categorical",
+      column: "connection",
+      label: "Provider credentials",
+    },
     { type: "categorical", column: "provider", label: "Provider" },
     { type: "categorical", column: "apiFormat", label: "API format" },
   ],
@@ -136,6 +149,20 @@ export function GatewayModelsView({
   const [searchQuery, setSearchQuery] = useState("");
   const filterOptions = useMemo(
     () => ({
+      connection: [
+        ...new Map(
+          models
+            .flatMap((model) => model.availableVia)
+            .map((connection) => [connection.connectionId, connection]),
+        ).values(),
+      ]
+        .toSorted((left, right) =>
+          left.connectionName.localeCompare(right.connectionName),
+        )
+        .map((connection) => ({
+          value: connection.connectionId,
+          displayValue: connection.connectionName,
+        })),
       provider: uniqueSorted(
         models.flatMap((model) =>
           model.availableVia.map((connection) => connection.provider),
@@ -146,7 +173,7 @@ export function GatewayModelsView({
     [models],
   );
   const queryFilter = useSidebarFilterState(filterConfig, filterOptions, {
-    stateLocation: "memory",
+    stateLocation: "url",
   });
   const filteredModels = useMemo(
     () => filterGatewayModels(models, searchQuery, queryFilter.filterState),
@@ -260,6 +287,8 @@ function uniqueSorted(values: string[]) {
 
 function getModelFilterValues(model: GatewayModelRow, column: string) {
   switch (column) {
+    case "connection":
+      return model.availableVia.map((connection) => connection.connectionId);
     case "provider":
       return model.availableVia.map((connection) => connection.provider);
     case "apiFormat":
