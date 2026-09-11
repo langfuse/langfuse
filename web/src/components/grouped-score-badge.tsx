@@ -90,10 +90,11 @@ export const GroupedScoreBadges = <
     expanded && expandable ? undefined : maxVisible,
   );
 
+  // Padding comes from the chip size variant, not from here: the shell and an
+  // `asChild` className both setting padding resolves by stylesheet order.
   const overflowButtonClassName = cn(
     expandable ? "cursor-pointer" : "cursor-default",
-    compact ? "px-0.5 py-0 leading-tight" : "px-1",
-    "text-xs font-bold",
+    "font-bold",
   );
 
   return (
@@ -112,8 +113,8 @@ export const GroupedScoreBadges = <
           <HoverCardTrigger asChild>
             <BadgeShell
               asChild
-              color="neutral"
-              size={compact ? "sm" : "default"}
+              color="outline"
+              size={compact ? "chipSm" : "chip"}
             >
               <button
                 type="button"
@@ -152,7 +153,7 @@ export const GroupedScoreBadges = <
         </HoverCard>
       )}
       {expanded && overflows && (
-        <BadgeShell asChild color="neutral" size={compact ? "sm" : "default"}>
+        <BadgeShell asChild color="outline" size={compact ? "chipSm" : "chip"}>
           <button
             type="button"
             className={overflowButtonClassName}

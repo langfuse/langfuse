@@ -25,11 +25,14 @@ const allColors = Object.keys({
   violet: true,
   teal: true,
   green: true,
+  outline: true,
 } satisfies Record<Color, true>) as Color[];
 
 const allSizes = Object.keys({
   default: true,
   sm: true,
+  chip: true,
+  chipSm: true,
 } satisfies Record<Size, true>) as Size[];
 
 export const Default = meta.story({});
