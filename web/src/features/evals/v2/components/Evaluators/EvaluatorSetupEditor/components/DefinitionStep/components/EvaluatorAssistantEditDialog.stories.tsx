@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../../../../../../../.storybook/preview";
@@ -32,7 +33,29 @@ export const DismissesFromBackdrop = meta.story({
     evaluatorType: "code",
     onOpenChange: fn(),
   },
+  render: function Render(args) {
+    const [open, setOpen] = useState(true);
+    const triggerRef = useRef<HTMLButtonElement>(null);
+
+    return (
+      <>
+        <button ref={triggerRef} type="button" onClick={() => setOpen(true)}>
+          Edit evaluator
+        </button>
+        <EvaluatorAssistantEditDialog
+          {...args}
+          open={open}
+          returnFocusRef={triggerRef}
+          onOpenChange={(nextOpen) => {
+            args.onOpenChange(nextOpen);
+            setOpen(nextOpen);
+          }}
+        />
+      </>
+    );
+  },
   play: async ({ canvasElement, args }) => {
+    const body = within(canvasElement.ownerDocument.body);
     const overlay = canvasElement.ownerDocument.querySelector<HTMLElement>(
       '[data-state="open"].fixed.inset-0',
     );
@@ -40,6 +63,10 @@ export const DismissesFromBackdrop = meta.story({
     await expect(overlay).not.toBeNull();
     await userEvent.click(overlay!);
     await expect(args.onOpenChange).toHaveBeenCalledWith(false);
+    await expect(body.queryByRole("dialog")).not.toBeInTheDocument();
+    await expect(
+      body.getByRole("button", { name: "Edit evaluator" }),
+    ).toHaveFocus();
   },
 });
 
