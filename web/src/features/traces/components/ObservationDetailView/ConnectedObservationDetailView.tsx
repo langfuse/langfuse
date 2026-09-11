@@ -573,10 +573,12 @@ export function ConnectedObservationDetailView({
                       objectStartTime: observation.startTime,
                     }),
                   commentedPathsByField,
-                  showMetadata: true,
-                  attributes,
+                  // DEMO ONLY: the three tables live in the Attributes tab;
+                  // revert this commit to show them in Preview again.
+                  showMetadata: false,
+                  attributes: undefined,
                   attributesAnchorTime: observation.startTime,
-                  modelParameters,
+                  modelParameters: undefined,
                   observationId: observation.id,
                   projectId,
                   traceId,
