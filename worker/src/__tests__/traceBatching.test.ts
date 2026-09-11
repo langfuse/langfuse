@@ -60,6 +60,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   const originalSamplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
   const originalMaxSize = env.LANGFUSE_TRACE_BATCH_MAX_SIZE;
   const originalPendingTtl = env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS;
+  const originalIdle = env.LANGFUSE_TRACE_BATCH_IDLE_MS;
   let queue: Queue<TQueueJobTypes[QueueName.TraceBatch]>;
   let connection: NonNullable<ReturnType<typeof createNewRedisInstance>>;
   const runners: TraceBatchDispatcher[] = [];
@@ -111,6 +112,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = originalSamplingRate;
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE = originalMaxSize;
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = originalPendingTtl;
+    env.LANGFUSE_TRACE_BATCH_IDLE_MS = originalIdle;
     await queue.obliterate({ force: true });
     await queue.close();
     connection.disconnect();
@@ -468,6 +470,95 @@ describe("trace micro-batch scheduling with Redis", () => {
     },
   );
 
+  it("groups the complete due cohort by sorted project across Redis pages and the former run limit", async () => {
+    const due = Date.now() - 100_000;
+    const traces = Array.from({ length: 10_061 }, (_, i) => ({
+      projectId: ["project-c", "project-a", "project-b"][i % 3],
+      traceId: `trace-${String(i).padStart(5, "0")}`,
+      due: due + Math.floor(i / 2_000) * 1_000,
+    }));
+    for (const projectId of ["project-c", "project-a", "project-b"]) {
+      await trackTraceBatchActivity(
+        projectId,
+        traces
+          .filter((trace) => trace.projectId === projectId)
+          .map((trace) => event(trace.traceId)),
+      );
+    }
+    await client().zadd(
+      dueKey,
+      ...traces.flatMap((trace) => [
+        trace.due,
+        member(trace.projectId, trace.traceId),
+      ]),
+    );
+    const add = vi.spyOn(queue, "add");
+    await runner().processBatch();
+    const batches = add.mock.calls.map(([, job]) => job.payload.traces);
+    expect(batches.map((batch) => batch.length)).toEqual([
+      ...Array(167).fill(60),
+      41,
+    ]);
+    const expected = traces.sort(
+      (a, b) =>
+        a.projectId.localeCompare(b.projectId) ||
+        a.due - b.due ||
+        a.traceId.localeCompare(b.traceId),
+    );
+    expect(
+      batches.flat().map((trace) => member(trace.projectId, trace.traceId)),
+    ).toEqual(expected.map((trace) => member(trace.projectId, trace.traceId)));
+    expect(await client().zcard(dueKey)).toBe(0);
+    expect(await client().hlen(stateKey)).toBe(0);
+  });
+
+  it("does not skip equal-score traces when a page cursor is reactivated and earlier members disappear", async () => {
+    const traces = Array.from(
+      { length: 2_001 },
+      (_, i) => `trace-${String(i).padStart(5, "0")}`,
+    );
+    await trackTraceBatchActivity(
+      "project",
+      traces.map((id) => event(id)),
+    );
+    const due = Date.now() - 1_000;
+    await client().zadd(
+      dueKey,
+      ...traces.flatMap((id) => [due, member("project", id)]),
+    );
+    const evaluate = client().eval.bind(client());
+    let changed = false;
+    vi.spyOn(client(), "eval").mockImplementation(async (...args) => {
+      const result = await evaluate(...args);
+      if (!changed && String(args[0]).includes("WITHSCORES")) {
+        changed = true;
+        // Both removals shift ranks; the cursor's new due time is outside this run.
+        await client().zrem(dueKey, member("project", traces[0]));
+        await client().hdel(stateKey, member("project", traces[0]));
+        env.LANGFUSE_TRACE_BATCH_IDLE_MS = 1;
+        await trackTraceBatchActivity("project", [
+          event(traces[999]),
+          event("new-after-cutoff"),
+        ]);
+      }
+      return result;
+    });
+    const add = vi.spyOn(queue, "add");
+    await runner().processBatch();
+    expect(changed).toBe(true);
+    expect(
+      add.mock.calls.flatMap(([, job]) =>
+        job.payload.traces.map((trace) => trace.traceId),
+      ),
+    ).toEqual(traces.filter((_, i) => i !== 0 && i !== 999));
+    expect((await client().hkeys(stateKey)).sort()).toEqual(
+      [
+        member("project", "new-after-cutoff"),
+        member("project", traces[999]),
+      ].sort(),
+    );
+  });
+
   it("expires bounded pending state during ingestion without dispatch and preserves refreshed traces", async () => {
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 60_000;
     const expired = Array.from({ length: 1_001 }, (_, i) =>
@@ -512,7 +603,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(await queue.getWaitingCount()).toBe(0);
   });
 
-  it("bounds expiry work per dispatcher run and never queues an expired backlog", async () => {
+  it("cleans an expired backlog in bounded pages without queueing expired traces", async () => {
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 60_000;
     const expired = Array.from({ length: 10_001 }, (_, i) =>
       event(`expired-${i}`),
@@ -529,10 +620,14 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
     const dispatcher = runner();
     await dispatcher.processBatch();
-    expect(await client().hlen(stateKey)).toBe(2);
-    expect(await client().zcard(dueKey)).toBe(2);
-    expect(await queue.getWaitingCount()).toBe(0);
-    await dispatcher.processBatch();
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(
+          ([name]) => name === "langfuse.trace_batch.expired_traces",
+        )
+        .every(([, count]) => count <= 1_000),
+    ).toBe(true);
     const jobs = await queue.getJobs(["wait"]);
     expect(
       jobs.flatMap((job) =>

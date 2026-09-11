@@ -15,17 +15,35 @@ keys in one Redis Cluster slot. There is no project index. Each member encodes
 and a unique revision. Redis server time determines ten minutes of inactivity;
 observation start time determines the query bounds.
 
-One lease-owning dispatcher snapshots at most 1,000 due members and their state
-atomically and packs them across projects in readiness order into batches of at
-most `LANGFUSE_TRACE_BATCH_MAX_SIZE` traces (default 60). Each trace carries its
-project ID. Partial tails dispatch immediately; the cap is not a minimum fill
-target, and a snapshot boundary can produce a partial batch.
-It acknowledges only after enqueue succeeds, atomically removing state and due
-membership when the revision still matches. New arrivals remain scheduled.
-Each run stops at 10 seconds or 10,000 traces, checking the budget between jobs;
-an in-flight Redis/queue operation can exceed that elapsed-time budget. A
-60-second lease is renewed before snapshots and enqueues. Shutdown waits for the
-in-flight dispatch to finish and stops before another batch.
+One lease-owning dispatcher fixes a cutoff using Redis server time and collects
+all nonexpired traces due by that cutoff, in atomic pages of at most 1,000.
+The cursor contains both due score and member, so equal timestamps and concurrent
+removals/reactivations cannot shift pagination past unseen traces. Each page
+captures current state; this is not one transaction over the entire run.
+
+A temporary on-disk SQLite table orders the complete cohort by binary project ID,
+then readiness time and member within each project. It uses Node 24's built-in
+SQLite, an 8 MiB page-cache target, and no additional Redis index. Only trace
+identifiers, time bounds and revisions are stored there, not event payloads.
+The dispatcher streams this ordering into batches of at most
+`LANGFUSE_TRACE_BATCH_MAX_SIZE` traces (default 60). For A:70 and B:70, the
+jobs contain A:60, A:10+B:50, then B:20. Batches span Redis and SQLite read pages;
+only the final tail is partial unless activity invalidates selected traces.
+
+Before delivery, bounded Redis validation excludes expired, deleted or changed
+revisions. After enqueue succeeds, acknowledgement atomically removes state and
+due membership only when the revision still matches. Arrivals during enqueue
+remain scheduled. New readiness after the cutoff waits for the next run.
+
+There is no 10-second/10,000-trace run cutoff: all eligible pages participate.
+The 60-second lease is renewed as collection and delivery progress. Only one run
+is active; a long run delays the next cohort. Shutdown stops between operations
+and removes its temporary files, preserving all unscheduled Redis entries.
+Collecting the entire cohort delays the first enqueue. Temporary disk scales
+with backlog; disk errors fail the run before unscheduled work is acknowledged.
+Normal completion/failure cleans the spool in `finally`; abrupt process death
+can leave scratch files until the container's ephemeral filesystem is removed.
+The SQLite cache target is not a cap on process RSS or filesystem page cache.
 
 The consumer makes one streamed query per batch with exact project/trace
 pair filters, explicit trace-hash pruning, and one shared min/max start-time
@@ -131,7 +149,9 @@ Also inspect these metrics under `langfuse.trace_batch`:
 | `sampling_rate`                                                 | Configured admission fraction on producers handling eligible jobs, gauge                              |
 | `sampling_decisions`                                            | Distinct trace decisions per ingestion job, counter tagged `decision:selected` or `decision:excluded` |
 | `tracked_traces`, `tracking_errors`                             | Successful state updates and failed tracking calls, counters                                          |
-| `pending_traces`, `ready_traces`                                | Global due-set depth and currently due subset, gauges                                                 |
+| `pending_traces`, `ready_traces`                                | Global due-set depth and eligible subset at the run cutoff, gauges                                    |
+| `snapshot_size`, `spool_bytes`                                  | Complete collected cohort size and temporary SQLite file bytes, distributions                         |
+| `skipped_traces`                                                | Collected entries excluded by pre-delivery validation, counter                                        |
 | `expired_traces`                                                | Pending trace entries discarded after retention, counter                                              |
 | `oldest_due_age_ms`, `due_lag_ms`                               | Oldest backlog age gauge and per-dispatch trace lag distribution                                      |
 | `reactivated_traces`                                            | Acknowledgements that preserved changed revisions, counter                                            |
@@ -140,7 +160,8 @@ Also inspect these metrics under `langfuse.trace_batch`:
 
 Backlog gauges are emitted by the active dispatcher; use a **max**, not a sum,
 across hosts for one Redis deployment. They stop updating when dispatch is off.
-Due-lag samples use the snapshot time, before that chunk's batches are enqueued.
+Due-lag samples are recorded after each successful enqueue using worker time.
+Snapshot gauges describe collection; the next run refreshes them after delivery.
 The existing `langfuse.queue.trace_batch` metrics cover queue waiting/processing
 time, depth and failures; periodic-runner metrics cover dispatch failures.
 ClickHouse query tags identify `worker: langfuse.queue.trace_batch` so compare
@@ -182,7 +203,7 @@ the cap is an experiment setting, not an established production optimum.
   Existing pending entries use the same cutoff; no migration or third index is
   needed. Expired entries are discarded without enqueueing and counted in
   `langfuse.trace_batch.expired_traces`. Already queued jobs are unaffected.
-  The dispatcher's 10,000-trace/10-second work budget includes expiry cleanup.
+  Expiry cleanup remains bounded per Lua call and continues across pages.
 - This is opportunistic retention, not native Redis TTL or a hard memory cap.
   Ingestion cleanup runs even with the dispatcher disabled, but with both paths
   stopped no entries are removed until activity resumes. Cleanup can lag behind
@@ -268,3 +289,7 @@ Redis, OTLP conversion and ClickHouse. It checks fixed 10% sampling identities,
 delay reset, persistence of excluded observations, and draining after sampling
 is set to zero. A fixed 1,000-trace cohort also covers 0/10/50/100% admission,
 reordered replay, nested samples and per-ingestion-job decision counts.
+
+The project-ordering regressions cover a 10,061-trace cohort spanning Redis pages
+and the former run limit, equal due scores, a reactivated cursor and deleted
+earlier members, and exclusion of traces becoming due after the run cutoff.
