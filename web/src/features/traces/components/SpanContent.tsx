@@ -166,8 +166,9 @@ export function SpanContent({
             <span
               // Medium weight approved for the tree name: bold read too heavy
               // at 12px, regular gave no hierarchy over the metrics line.
+              // No native title: the full name lives in the row hover card.
               // eslint-disable-next-line @repo/no-raw-font-weight
-              className="shrink truncate text-xs font-medium"
+              className="shrink overflow-hidden text-xs font-medium text-ellipsis whitespace-nowrap"
             >
               {nodeDisplayName}
             </span>
@@ -240,7 +241,10 @@ export function SpanContent({
 
               {/* Model (generations only) */}
               {shouldRenderModel ? (
-                <span className="text-foreground-tertiary max-w-40 truncate text-xs">
+                <span
+                  // No native title: the model is in the row hover card.
+                  className="text-foreground-tertiary max-w-40 overflow-hidden text-xs text-ellipsis whitespace-nowrap"
+                >
                   {node.model}
                 </span>
               ) : null}
