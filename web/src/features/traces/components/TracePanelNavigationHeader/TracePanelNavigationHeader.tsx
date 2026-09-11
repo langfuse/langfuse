@@ -33,7 +33,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { StringParam, useQueryParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { TraceViewOptionsMenuItems } from "../TraceSettingsDropdown";
 import {
   downloadLegacyTraceAsJson,
@@ -95,6 +95,13 @@ function TracePanelNavigationHeaderExpanded({
   // collapsed rail (see TraceLayoutDesktop), so the header needs no button.
   const layout = useDesktopLayoutContextOptional();
   const isDetailPanelCollapsed = layout?.isDetailPanelCollapsed ?? false;
+
+  // Search results render as a flat tree-style list whatever the view, so
+  // the segment follows: a query flips the switch to Tree. Highlighting
+  // matches inside Timeline / Graph is LFE-16210.
+  useEffect(() => {
+    if (searchInputValue.trim() && viewMode) setViewMode(null);
+  }, [searchInputValue, viewMode, setViewMode]);
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
