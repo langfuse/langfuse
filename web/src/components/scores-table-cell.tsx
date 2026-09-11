@@ -87,9 +87,13 @@ export const ScoresTableCell = ({
         : aggregate.values[0];
 
     return (
+      // The value and its icons are one line, so they are centred as one:
+      // `inline-flex` triggers keep each icon's box the size of the icon, which
+      // the row then centres. Left to stretch, a trigger's box grows with the
+      // row and pins the icon to its top, off the value's centre.
       <span
         className={cn(
-          "flex min-w-0 flex-row gap-0.5 rounded-sm",
+          "flex min-w-0 flex-row items-center gap-0.5 rounded-sm",
           COLOR_MAP.get(value),
         )}
       >
@@ -101,7 +105,7 @@ export const ScoresTableCell = ({
         </span>
         {aggregate.comment && (
           <HoverCard>
-            <HoverCardTrigger className="inline-block shrink-0 cursor-pointer">
+            <HoverCardTrigger className="inline-flex shrink-0 cursor-pointer items-center">
               <MessageCircleMore size={12} />
             </HoverCardTrigger>
             <HoverCardContent className="flex flex-col p-0 text-xs break-normal whitespace-normal">
@@ -212,7 +216,7 @@ function AggregateScoreMetadataPeek({
 
   return (
     <HoverCard onOpenChange={setIsOpen}>
-      <HoverCardTrigger className="inline-block cursor-pointer">
+      <HoverCardTrigger className="inline-flex shrink-0 cursor-pointer items-center">
         <BracesIcon size={12} />
       </HoverCardTrigger>
       <HoverCardContent className="overflow-hidden rounded-md border-none p-0 text-xs break-normal whitespace-normal">

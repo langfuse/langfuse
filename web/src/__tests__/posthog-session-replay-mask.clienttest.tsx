@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 
 import type { PostHogConfig } from "posthog-js";
+import { createElement } from "react";
+import { render, screen } from "@testing-library/react";
+import { AutocompleteListbox } from "@/src/features/search-bar/components/AutocompleteListbox";
+import { ComposerWithPreview } from "@/src/features/search-bar/components/ComposerWithPreview";
+import { SearchComposer } from "@/src/features/search-bar/components/SearchComposer";
+import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
+import { createSearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
 
 const { initMock } = vi.hoisted(() => ({
   initMock: vi.fn(),
@@ -21,6 +28,59 @@ describe("PostHog session replay privacy", () => {
     vi.resetModules();
     vi.unstubAllEnvs();
     initMock.mockReset();
+  });
+
+  it("blocks observed search values outside the masked input", () => {
+    render(
+      createElement(AutocompleteListbox, {
+        highlightedId: null,
+        plan: {
+          stage: "value",
+          from: 0,
+          to: 0,
+          loading: false,
+          sections: [
+            {
+              title: "Observed values",
+              options: [
+                {
+                  id: "private-option",
+                  kind: "value",
+                  label: "private-search-value",
+                  value: "private-search-value",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(
+      screen.getByText("private-search-value").closest(".ph-no-capture"),
+    ).not.toBeNull();
+  });
+
+  it("blocks draft and preview attributes outside the contenteditable", () => {
+    const store = createSearchBarStore();
+    store.getState().actions.setDraft("private-draft");
+    store.getState().actions.setPreview("private-preview");
+    const { rerender } = render(
+      <SearchBarStoreProvider store={store} commit={vi.fn()}>
+        <SearchComposer observed={undefined} />
+      </SearchBarStoreProvider>,
+    );
+    expect(
+      screen.getByTestId("search-bar-surface").closest(".ph-no-capture"),
+    ).not.toBeNull();
+    rerender(
+      <SearchBarStoreProvider store={store} commit={vi.fn()}>
+        <ComposerWithPreview observed={undefined} />
+      </SearchBarStoreProvider>,
+    );
+    expect(
+      screen.getByTestId("search-bar-preview").closest(".ph-no-capture"),
+    ).not.toBeNull();
   });
 
   it("records regular UI text while masking input values", async () => {
