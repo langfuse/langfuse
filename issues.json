@@ -136,5 +136,45 @@
     ],
     "lastCheckedAt": "2026-09-07",
     "outcome": "Filed with no suggested diff. First real regression since the issue-output regime began: perceived +21.3% and execution +21.2% against the dense 08-18..08-24 checkpoint, with runner wait flat, so it is execution-bound not queue-bound. A same-day fast/slow pair on 09-03 attributes it to host capacity rather than code: wall-clock run tests grew 90% while summed test durations grew only 23%, and the inflation was confined to write-heavy DB files while read-heavy files got faster. No single job regressed day-over-day. One new recurring flaky test found with a precise root cause but no verifiable diff (needs Redis). Both prior flaky watchlist entries cleared."
+  },
+  {
+    "number": null,
+    "url": null,
+    "openedAt": "2026-09-11",
+    "title": "CI Runtime Report: 2026-09-05..09-11 (trailing 7 days)",
+    "note": "Number/url are null (same structural reason: safe-outputs creates the issue after the agent exits, and no issue-read tool exists). Identify by label ci-performance, assignee wochinge, title prefix, opened 2026-09-11. Do NOT re-file missing_tool for this; it has been filed twice already.",
+    "suggestedDiff": false,
+    "expectedImpact": null,
+    "baselineStats": {
+      "window": "2026-09-05..2026-09-11",
+      "isoWeek": "2026-W37",
+      "mergeGroupRunsSampledForTiming": 25,
+      "dataQualityNote": "4 populated days charted (09-07..09-10), all clearing the >=5/day bar. 09-05/09-06 zero merge_group runs (weekend). 09-11 had only 2 successful merge_group runs and is excluded from the weekly aggregate.",
+      "perceivedP50": 194,
+      "perceivedP90": 224.2,
+      "weeklyMedianOfDailyMedians": {
+        "perceived": 192,
+        "execution": 175.3,
+        "runnerWait": 17,
+        "webBuildStep": 47.3,
+        "webRunTestsStep": 69,
+        "workerRunTestsStep": 72.8,
+        "e2eTestsJob": 155.5
+      }
+    },
+    "appliedOnMain": false,
+    "appliedAt": null,
+    "appliedCheckNote": "n/a — no diff proposed.",
+    "followUps": [
+      "PRIMARY / URGENT: main was RED at report time. Every run started at or after 2026-09-11T06:35Z failed across merge_group, pull_request and push-on-main, including push runs for 0de1d9c2f and 77f9e4561. Failing jobs are e2e-tests and tests-storybook (all-ci-passed is just the gate). Uniform ~700-725s wall time suggests a timeout. The specific error line was NOT isolated. FIRST THING NEXT RUN: confirm whether this was resolved, how long main stayed red, and what the root cause was — then record it so the signature is recognisable next time.",
+      "admin-api-keys.servertest.ts > 'invalidates all cached API keys without deleting other redis entries' did NOT recur this week. Stays at 2 lifetime occurrences (09-04, 09-06). Keep on the watchlist one more week, then drop if still quiet. Fix remains a one-line assertion change needing Redis to verify.",
+      "Confirm the #17122 gain holds. W37 is the best week on record (perceived 192s) off a capacity/concurrency change merged 09-07T10:24Z. Verify it is a durable plateau and not a short-lived host allocation, since W36 taught us host capacity can move these numbers ~20% on its own.",
+      "PR #17103 'chore(ci): test fast' is STILL OPEN and conflicted (mergeable_state dirty, label has-conflicts). Its VITEST_MAX_WORKERS=12 idea already reached main via #17122, so the PR is now redundant. Worth telling the author it can probably be closed. Do not propose competing concurrency work.",
+      "DEAD, do not re-propose: worker/src/__tests__/bufferedStreamUploader.test.ts 3.00s retry test — grepped 2026-09-11, internal sleeps are only 10-100ms, so the 3s is real concurrency orchestration, not a fixed wait.",
+      "PARKED, weak: worker/src/__tests__/redisConsumer.test.ts:116 unconditional setTimeout(2000). Real and mechanical, but worth only ~1.5s on a shard with ~80s of critical-path slack, and shortening it narrows a negative assertion. Do not propose unless the test shards ever become the critical path.",
+      "DEAD, do not re-propose: webhooks.test.ts fake timers (grepped 2026-09-07, no timer APIs in the file; the 23.5s is real DB and HTTP work)."
+    ],
+    "lastCheckedAt": "2026-09-11",
+    "outcome": "Filed with no suggested diff. Best week on record: perceived 192s and execution 175.3s, beating the previous best (08-18..08-24 dense checkpoint) by 3.2% and 5.4%, and beating last week's regressed W36 by 20.2% and 21.9%. Last week's open question is answered decisively — the +21% did not persist; it reverted and went past the prior record because aa5f60aa8 'chore(ci): increase Blacksmith CPUs and tune concurrency (#17122)' merged 2026-09-07T10:24:32Z. Attribution is clean: a same-day pre/post split at that exact timestamp shows webRunTests 89s->64s and workerRunTests 107s->72s, the job env gains VITEST_MAX_WORKERS=12, and the client test step drops 79-82s->44-45s. Cross-check confirms real parallelism rather than cheaper tests: summed test durations rose ~117s->~136.5s while wall time fell. Zero retried tests in every sampled shard. No diff proposed on critical-path grounds: e2e-tests (155.5s) dominates a 192s total while the test shards sit at 69s/72.8s with ~80s of slack, so shard micro-optimisations cannot move the headline. Report also flags that main went red from 06:35Z on 09-11 (e2e-tests + tests-storybook, all event types) — an active incident, not a flaky test."
   }
 ]

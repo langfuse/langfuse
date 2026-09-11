@@ -1,0 +1,146 @@
+{
+  "isoWeek": "2026-W37",
+  "openedAt": "2026-09-11",
+  "window": {
+    "from": "2026-09-05",
+    "to": "2026-09-11",
+    "kind": "trailing-7-days",
+    "daysWithMergeGroupTraffic": ["2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11"],
+    "emptyDays": ["2026-09-05", "2026-09-06"],
+    "emptyDayNote": "09-05 (Sat) and 09-06 (Sun) had zero merge_group runs. Weekend gap is normal for this repo; charts omit these days rather than plotting zeros.",
+    "daysChartedForDailyMedians": ["2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10"],
+    "excludedDayNote": "2026-09-11 (today, partial to ~07:57Z) had only 2 successful merge_group runs, below the >=5/day bar for a daily median, so it is excluded from daily medians, pooled percentiles and the weekly aggregate. It is reported separately because of the failure incident below."
+  },
+  "population": {
+    "timing": "successful merge_group runs only",
+    "mergeGroupRunsSampledForTiming": 25,
+    "sampledPerDay": { "2026-09-07": 6, "2026-09-08": 6, "2026-09-09": 6, "2026-09-10": 7 },
+    "successfulRunsPerDayAllEvents": { "2026-09-07": 14, "2026-09-08": 26, "2026-09-09": 57, "2026-09-10": 61 },
+    "successfulRunsPerDayCaveat": "The per-day counts above were computed across all events (they were not re-filtered to merge_group). The 25 timing samples themselves are verified merge_group successes. 2026-09-11 was re-verified exactly from a full 30-run page.",
+    "verified20260911": {
+      "runsInDay": 30,
+      "byEventAndConclusion": {
+        "push/success": 3,
+        "pull_request/success": 1,
+        "merge_group/success": 2,
+        "merge_group/failure": 8,
+        "pull_request/failure": 9,
+        "push/failure": 2,
+        "pull_request/cancelled": 1,
+        "merge_group/in_progress": 1,
+        "pull_request/in_progress": 2,
+        "pull_request/queued": 1
+      }
+    }
+  },
+  "dailyMedians": {
+    "2026-09-07": { "n": 6, "perceived": 213.5, "execution": 197.5, "runnerWait": 16, "webBuildStep": 45.5, "webRunTestsStep": 78, "workerRunTestsStep": 89, "e2eTestsJob": 147 },
+    "2026-09-08": { "n": 6, "perceived": 183.5, "execution": 163.5, "runnerWait": 20, "webBuildStep": 45, "webRunTestsStep": 64, "workerRunTestsStep": 73.5, "e2eTestsJob": 151 },
+    "2026-09-09": { "n": 6, "perceived": 189, "execution": 173.5, "runnerWait": 15.5, "webBuildStep": 49, "webRunTestsStep": 68, "workerRunTestsStep": 72, "e2eTestsJob": 165 },
+    "2026-09-10": { "n": 7, "perceived": 195, "execution": 177, "runnerWait": 18, "webBuildStep": 49, "webRunTestsStep": 70, "workerRunTestsStep": 68, "e2eTestsJob": 160 }
+  },
+  "pooledPercentiles": {
+    "n": 25,
+    "perceived": { "p50": 194, "p90": 224.2 },
+    "execution": { "p50": 177, "p90": 208.8 },
+    "runnerWait": { "p50": 16, "p90": 18.6 },
+    "webBuildStep": { "p50": 47, "p90": 50.6 },
+    "webRunTestsStep": { "p50": 68, "p90": 88.6 },
+    "workerRunTestsStep": { "p50": 73, "p90": 103.6 },
+    "e2eTestsJob": { "p50": 160, "p90": 184.6 }
+  },
+  "weeklyMedianOfDailyMedians": {
+    "perceived": 192,
+    "execution": 175.3,
+    "runnerWait": 17,
+    "webBuildStep": 47.3,
+    "webRunTestsStep": 69,
+    "workerRunTestsStep": 72.8,
+    "e2eTestsJob": 155.5
+  },
+  "comparisons": {
+    "vsW36": {
+      "perceived": "240.5 -> 192 (-20.2%)",
+      "execution": "224.5 -> 175.3 (-21.9%)",
+      "runnerWait": "15 -> 17 (+13.3%)",
+      "webBuildStep": "52 -> 47.3 (-9.0%)",
+      "webRunTestsStep": "91.5 -> 69 (-24.6%)",
+      "workerRunTestsStep": "113.5 -> 72.8 (-35.9%)",
+      "e2eTestsJob": "165.5 -> 155.5 (-6.0%)"
+    },
+    "vsW35PartialDenseCheckpoint_0818_0824": {
+      "note": "previous best week on record",
+      "perceived": "198.3 -> 192 (-3.2%)",
+      "execution": "185.3 -> 175.3 (-5.4%)",
+      "runnerWait": "15.3 -> 17 (+11.1%)",
+      "webBuildStep": "48 -> 47.3 (-1.5%)",
+      "webRunTestsStep": "77.8 -> 69 (-11.3%)",
+      "workerRunTestsStep": "106 -> 72.8 (-31.3%)",
+      "e2eTestsJob": "158.3 -> 155.5 (-1.8%)"
+    }
+  },
+  "causeAnalysis": {
+    "headline": "The W36 +21% regression fully reverted and then went past the prior record. This is the best week on record.",
+    "attribution": {
+      "commit": "aa5f60aa8",
+      "title": "chore(ci): increase Blacksmith CPUs and tune concurrency (#17122)",
+      "mergedAt": "2026-09-07T10:24:32Z",
+      "evidence": "Sampling 2026-09-07 on both sides of that timestamp: PRE (n=3, <10:24Z) perceived 227 / execution 212 / webBuild 46 / webRunTests 89 / workerRunTests 107. POST (n=3, >10:24Z) perceived 205 / execution 189 / webBuild 45 / webRunTests 64 / workerRunTests 72. Job env confirms the mechanism: no VITEST_MAX_WORKERS before, VITEST_MAX_WORKERS=12 after. The tests-web-client 'run test-client' step dropped 79-82s -> 44-45s at the same moment.",
+      "crossCheck": "Applied the W36 technique in reverse: summed top-10 slowest-file durations went UP (~117s -> ~136.5s) while wall-clock 'run tests' went DOWN (89s -> 63s). Per-test contention rising while wall time falls is the signature of genuinely increased parallelism, not of tests getting cheaper. Structural win, not measurement noise."
+    },
+    "otherCiCommitsInWindow": [
+      "b28c32ae1 chore(ci): don't run again on no changes (#17147) - 2026-09-08T12:44Z",
+      "9e1eea3f9 chore(ci): hit turbo caches more often and prune them (#17199) - 2026-09-09T08:44Z",
+      "bb65111ff chore(ci): don't write next build cache always (#17292) - 2026-09-10"
+    ],
+    "runStructureChange": "Job count went 26 -> 29 on 2026-09-10 between 12:58Z and 14:27Z, from dabb3bb8b (feat(ai-gateway): bootstrap Rust service) and 8ee053bb1 (feat(gateway): add organization control plane). New jobs: tests-ai-gateway (54s), tests-in-app-agent-sandbox-runtime (25s), ai-gateway-filter (6s), llm-connections-filter (6s), plus skipped test-ai-gateway-e2e / test-worker-llm-connections. None on the critical path."
+  },
+  "incident20260911": {
+    "summary": "main is red. Every pipeline run started at or after 06:35Z on 2026-09-11 failed, across merge_group, pull_request AND push-on-main, on unrelated branches.",
+    "lastGreen": "34569771888 merge_group 06:24Z (166s), sha bf69690d",
+    "firstFailure": "34570600332 merge_group 06:35Z (709s), sha 5f572598",
+    "failingJobs": ["e2e-tests", "tests-storybook", "all-ci-passed (aggregator gate only)"],
+    "signature": "Uniform ~700-725s wall time on failures vs ~166s on the last green runs, strongly suggesting a timeout rather than an assertion failure. Both genuinely failing jobs are the browser/Playwright-based ones.",
+    "redOnMain": ["0de1d9c2f (push 07:05Z, 420s, failure)", "77f9e4561 (push 07:15Z, 346s, failure)"],
+    "notIsolated": "The specific error line was NOT isolated. The post-job docker-manifest cleanup block is now ~150 lines, so a tail-based fetch at 22 lines returned only cleanup for all three failed jobs. Root-causing needs a much larger tail_lines or the run's web UI.",
+    "notFlaky": "This is not a flaky test: it is 100% of runs after a cutover, spanning all event types and unrelated branches."
+  },
+  "vitestAnalysis": {
+    "runsSampled": ["34103244565 (09-07 pre)", "34137179690 (09-07 post)", "34489148124 (09-10)", "34569771888 (09-11)"],
+    "retriedTests": "ZERO. The worker shard of 34569771888 printed no 'Retried tests (N):' block at all (180 files, 2366 passed, 1 skipped, 68.28s). No retries observed in any sampled shard this week.",
+    "flakyWatchlist": {
+      "admin-api-keys.servertest.ts > invalidates all cached API keys without deleting other redis entries": "Did NOT recur this week. Stays at 2 lifetime occurrences (2026-09-04, 2026-09-06). Keep on the watchlist one more week, then drop if still quiet."
+    },
+    "slowestWorkerTestFiles": [
+      "13.45s src/__tests__/batchExport.test.ts (77 tests)",
+      "12.79s src/services/IngestionService/tests/IngestionService.integration.test.ts (59 tests)",
+      "11.25s src/__tests__/evalService.test.ts (108 tests)",
+      "7.18s src/__tests__/traceBatchDeleteBatchAction.test.ts (7 tests)",
+      "6.46s src/__tests__/bufferedStreamUploader.test.ts (46 tests)",
+      "5.87s src/__tests__/blobStorageIntegrationProcessing.test.ts (38 tests)",
+      "5.23s src/__tests__/evalService.filtering.test.ts (15 tests)",
+      "3.35s src/features/in-app-agent/executeInAppAgentRun.test.ts (32 tests)",
+      "3.24s src/__tests__/projectDeletionProcessing.test.ts (18 tests)",
+      "2.40s src/__tests__/webhook-redirect.test.ts (7 tests)"
+    ],
+    "slowestWorkerTests": [
+      "3.00s bufferedStreamUploader.test.ts > upload concurrency > should count retries on transient failures",
+      "2.57s traceBatchDeleteBatchAction.test.ts > deletes only selected events-backed traces from a persisted batch action",
+      "2.00s redisConsumer.test.ts > handle redis events > handle no matching queue worker",
+      "1.76s traceBatchDeleteBatchAction.test.ts > deletes only selected legacy traces from a persisted batch action",
+      "1.72s deletedMaskCleaner.test.ts > applies a deleted mask for a real events patch partition",
+      "1.34s IngestionService.integration.test.ts > should match observations to internal models",
+      "1.30s monitorProcessorScalarQuery.test.ts > verifies which parameters return zero and which return null",
+      "1.19s lambdaMicrovm.test.ts > uses suspend for suspendSession and terminate for terminateSession",
+      "1.19s otelToObservationForEval.test.ts > should process multiple spans and all conform to schema",
+      "1.18s traceBatchDeleteBatchAction.test.ts > runner advances a bounded batch action without queue continuation"
+    ]
+  },
+  "suggestedDiff": false,
+  "suggestedDiffReasoning": "No diff proposed, on critical-path grounds rather than for lack of candidates. The weekly medians put e2e-tests at 155.5s against a perceived total of 192s, while the web and worker test shards sit at 69s and 72.8s. Those shards therefore carry ~80s of slack and run fully parallel to e2e-tests: shaving seconds off them cannot move the headline number. The one genuinely mechanical candidate found (worker/src/__tests__/redisConsumer.test.ts:116, an unconditional 'await new Promise(r => setTimeout(r, 2000))' used to assert a job stays 'waiting' when no worker matches) would save ~1.5s on a shard with 80s of slack, at the cost of narrowing the negative-assertion window. Not worth it, and it edges toward loosening a test purely to improve a number. bufferedStreamUploader's 3.00s test was investigated and rejected as a candidate: its internal sleeps are only 10-100ms, so the 3s is real concurrency orchestration, not a fixed wait.",
+  "structuralWasteReportOnly": "The turbo compile-cache reservation race persists and has widened. The 2026-09-07 post-change log shows three caches failing to save (Linux-turbo-tests-web-compile-..., node-cache-Linux-x64-pnpm-..., pnpm-lockfile-verified-Linux-x64-...). The fix lives in .github/workflows/**, which this workflow may never edit even temporarily. Report only; never propose.",
+  "followUpsResolvedThisWeek": [
+    "RESOLVED: 'Re-measure whether the +21% is transient host variance or the new normal.' It was neither purely - it reverted AND improved past the prior record, because a capacity/concurrency change (#17122) landed on 09-07. Answered decisively.",
+    "RESOLVED: 'PR #17103 chore(ci): test fast - check whether it merged.' It did NOT merge. Still open, mergeable_state 'dirty', label 'has-conflicts'. Its VITEST_MAX_WORKERS=12 idea reached main by another route (#17122), so the caution against proposing competing concurrency work still holds."
+  ]
+}

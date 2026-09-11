@@ -139,6 +139,28 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   (~165s), `tests-storybook` (~160s). `tests-web`: `run tests` 93s + `Build`
   54s = ~147s of the ~201.5s step-median sum.
 
+- **Check the critical path before mining tests for optimisations.** Added
+  2026-09-11. The weekly segment medians tell you where the slack is, and for
+  many weeks now the answer has been the same: `e2e-tests` is the long pole
+  (W37: 155.5s against a 192s perceived total) while the web and worker test
+  shards run fully parallel to it at 69s and 72.8s — roughly 80s of slack.
+  Shaving seconds off a shard with 80s of slack cannot move the headline
+  number, no matter how real the saving is. So do the arithmetic first: if the
+  candidate is not on the critical path, say so and stop, rather than spending
+  the run verifying a change that provably cannot help. This is also the
+  honest answer to "why no diff again this week" — it is a structural fact
+  about the pipeline shape, not a failure to find candidates.
+- **A capacity/concurrency change can swing these numbers ~20-35% on its own.**
+  W36 regressed +21% on host capacity; W37 recovered -20% and beat the prior
+  record when #17122 raised Blacksmith CPUs and set `VITEST_MAX_WORKERS=12`.
+  Two consequences: (1) never attribute a swing of this size to code changes
+  without checking `git log` on the CI workflow first; (2) to tell increased
+  parallelism apart from genuinely cheaper tests, compare wall-clock `run
+  tests` against the summed top-10 file durations. If wall time falls while
+  summed durations RISE, that is more parallelism under contention — a real
+  structural win. If both fall together, the tests themselves got cheaper.
+  This test has now worked in both directions (W36 and W37).
+
 ## Tooling notes (for future runs)
 
 - **Compute the ISO week label, don't assume it.** 09-07 is a Monday and
@@ -156,10 +178,31 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   `.jobs.jobs[]`, `.jobs.total_count`. **Never `Read` those files** — they
   blow the context window. Parse them with a small Node script written via
   the `Write` tool that prints only a tiny extract.
-- `get_job_logs` `tail_lines` sizing (the vitest reporter blocks sit at the
-  very end): client shards need ~55-60; web/worker SERVER shards need 70-95.
-  **Just use 92 for server shards — do not economize.** 32 and 40 both return
-  only post-job cleanup; two calls were wasted re-discovering this on 09-07.
+- `get_job_logs` `tail_lines` sizing. **SUPERSEDED 2026-09-11 — the old "92 for
+  server shards" number is now WRONG and cost two more wasted calls this run.**
+  The Blacksmith post-job cleanup block grew: it now prints a full docker image
+  manifest (~50 images, one line each) plus orphan-process kills, so roughly
+  150-160 lines of trailing noise sit between the vitest reporter blocks and
+  the end of the log. 40, 95 and 150 all return cleanup only.
+  **Use 265 for server shards.** That reliably lands the `Test Files` summary,
+  `Slowest tests (top 10)`, `Slowest test files (top 10)` and the
+  `Retried tests (N)` block. That last block prints only when retries
+  occurred — once you are fetching enough lines, its absence is a real finding
+  (zero retries), not a fetch miss. Client shards have likely grown similarly;
+  assume ~220. Re-measure whenever the runner image changes.
+- **`git log` is the cheapest attribution tool available — use it first.**
+  A bare `git log` in the working dir needs no approval (unlike `git -C` /
+  `cd && git`, per the bullet below). Verified 2026-09-11:
+  `git log --oneline -25 --since=<date> -- .github/workflows/pipeline.yml` and
+  `git log --pretty=format:'%h %cI %s' ...` both run fine. Two uses every week:
+  (a) pin a step-time inflection to a specific commit, (b) check whether a
+  previously suggested diff ever landed on main — far cheaper than API calls.
+  This is what attributed the W37 speedup to aa5f60aa8 / #17122 at
+  2026-09-07T10:24:32Z. Keep commands single (no `;`/`&&`) and quote paths.
+- **Write temp scripts to `/tmp/gh-aw/agent/`, never the repo.** Slipped once on
+  09-11 and had to `rm` a stray `tmp_parse_*.js` out of the repo root. Also:
+  when a large tool response is saved to a file, copy the path from the tool
+  message **including the session-id segment** — dropping it yields ENOENT.
 - Sandbox bash blocks compound commands (some `;`, `&&`, `for`, `...`
   revspecs), `bash script.sh`, `jq -f`, heredocs, redirects outside the
   workspace, `ls`/`find`/`getent`/`wc` outside the repo working dir, and
