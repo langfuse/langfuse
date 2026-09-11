@@ -346,6 +346,13 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_DEAD_LETTER_RETRY_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  QUEUE_CONSUMER_AUDIT_LOG_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  LANGFUSE_AUDIT_LOG_QUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(10),
   QUEUE_CONSUMER_WEBHOOK_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),

@@ -21,6 +21,7 @@ import {
   MonitorWebhookQueueEventSchema,
 } from "../features/monitors/scheduler/types";
 import { ProjectNotificationWebhookQueueEventSchema } from "./notifications/types";
+import type { AuditLogRecordInsertType } from "./repositories/definitions";
 
 export type { MonitorQueueEvent, MonitorQueueEventInput };
 
@@ -443,6 +444,7 @@ export enum QueueName {
   MonitorQueue = "monitor-queue",
   InAppAgentRunQueue = "in-app-agent-run-queue",
   V4LegacyApiUsageQueue = "v4-legacy-api-usage-queue",
+  AuditLogQueue = "audit-log-queue", // Buffers audit log rows on their way into ClickHouse
 }
 
 export enum QueueJobs {
@@ -482,6 +484,7 @@ export enum QueueJobs {
   MonitorJob = "monitor-job",
   InAppAgentRunJob = "in-app-agent-run-job",
   V4LegacyApiUsageJob = "v4-legacy-api-usage-job",
+  AuditLogJob = "audit-log-job",
 }
 
 export type TQueueJobTypes = {
@@ -674,5 +677,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: InAppAgentRunQueueEventType;
     name: QueueJobs.InAppAgentRunJob;
+  };
+  [QueueName.AuditLogQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: AuditLogRecordInsertType;
+    name: QueueJobs.AuditLogJob;
   };
 };
