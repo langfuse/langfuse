@@ -38,6 +38,7 @@ import type { QueryPresetSection } from "@/src/features/search-bar/lib/completio
 export function EventsSearchBarRow({
   projectId,
   tableName,
+  isV4 = true,
   store,
   commit,
   observed,
@@ -53,9 +54,10 @@ export function EventsSearchBarRow({
   className,
   registry = EVENTS_FIELD_REGISTRY,
 }: {
-  projectId: string;
+  projectId?: string;
   /** Table this bar filters — threaded to AI-prompt analytics (LFE-10781). */
   tableName: string;
+  isV4?: boolean;
   store: SearchBarStore;
   commit: SearchCommit;
   observed: ObservedOptions | undefined;
@@ -104,8 +106,20 @@ export function EventsSearchBarRow({
   // Org entitlement AND a prompt written for this view — see
   // FieldRegistry.aiFilterPrompt. Without the second half a new surface silently
   // inherits the events prompt.
+  const aiRegistryId =
+    registry.id === "events" ||
+    registry.id === "evaluationRules" ||
+    registry.id === "evaluatorSamples" ||
+    registry.id === "ruleSamples" ||
+    registry.id === "sessions" ||
+    registry.id === "scores" ||
+    registry.id === "experiments" ||
+    registry.id === "users"
+      ? registry.id
+      : undefined;
   const aiAvailable =
-    Boolean(organization?.aiFeaturesEnabled) && registry.aiFilterPrompt;
+    Boolean(projectId && aiRegistryId && organization?.aiFeaturesEnabled) &&
+    registry.aiFilterPrompt;
 
   const activateAi = React.useCallback(() => {
     // Ground the model on real project values: lazily request the AI columns so
@@ -116,14 +130,15 @@ export function EventsSearchBarRow({
 
   return (
     <div className={cn("min-w-0 px-2 pt-2 pb-1", className)}>
-      {aiOpen && aiAvailable ? (
+      {aiOpen && aiAvailable && aiRegistryId && projectId ? (
         <SearchBarAiPrompt
           projectId={projectId}
           tableName={tableName}
+          isV4={isV4}
           store={store}
           dataContext={aiDataContext}
           scoreNames={aiScoreNames}
-          registryId={registry.id}
+          registryId={aiRegistryId}
           onApply={onApplyFilters}
           onExit={() => setAiOpen(false)}
         />

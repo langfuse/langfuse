@@ -23,6 +23,12 @@ original view available for updating without marking it active, including the
 column-provenance guard for shared links. It also preserves the edited working
 view across reloads instead of reapplying a default.
 
+Search scopes are saved alongside `searchQuery` in `searchType`. Hosts with
+scope controls pass `currentSearchType` to the toolbar (or `searchType` in a
+custom drawer's `currentState`) and provide `stateUpdaters.setSearchType` to the
+manager. Older views with no stored scopes leave the host's current/default
+scope unchanged. Permalinks restore both values through the saved `viewId`.
+
 ## Robustness to Table Changes
 
 The table view presets system is designed to gracefully handle changes to table structure:

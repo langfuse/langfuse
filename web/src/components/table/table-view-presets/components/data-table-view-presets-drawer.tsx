@@ -41,6 +41,7 @@ import {
   type FilterState,
   type TableViewPresetTableName,
   type TableViewPresetState,
+  type TracingSearchType,
   buildCurrentPageSavedViewPermalink,
   tableViewPresetPermalinkUsesCurrentPath,
 } from "@langfuse/shared";
@@ -158,6 +159,7 @@ interface TableViewPresetsDrawerContentProps {
     columnOrder: ColumnOrderState;
     columnVisibility: VisibilityState;
     searchQuery: string;
+    searchType?: TracingSearchType[];
   };
   /** Page-specific system filter presets (e.g. "Last Generation in Trace") */
   systemFilterPresets?: SystemFilterPreset[];
@@ -432,6 +434,7 @@ function TableViewPresetsDrawerContentBody({
       columnOrder: currentState.columnOrder,
       columnVisibility: currentState.columnVisibility,
       searchQuery: currentState.searchQuery,
+      searchType: currentState.searchType,
     });
 
     setIsCreateDialogOpen(false);
@@ -481,6 +484,7 @@ function TableViewPresetsDrawerContentBody({
       columnOrder,
       columnVisibility,
       searchQuery: currentState.searchQuery,
+      searchType: currentState.searchType,
     });
   };
 
@@ -953,17 +957,19 @@ function TableViewPresetsDrawerContentBody({
           <Separator />
 
           <div className="p-2">
-            <Button
-              onClick={() => {
-                setIsCreateDialogOpen(true);
-                capture("saved_views:create_form_open", { tableName });
-              }}
-              variant="ghost"
-              className="w-full justify-start px-1"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Create Custom View
-            </Button>
+            <DrawerClose asChild>
+              <Button
+                onClick={() => {
+                  setIsCreateDialogOpen(true);
+                  capture("saved_views:create_form_open", { tableName });
+                }}
+                variant="ghost"
+                className="w-full justify-start px-1"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Create Custom View
+              </Button>
+            </DrawerClose>
           </div>
         </div>
       </DrawerContent>

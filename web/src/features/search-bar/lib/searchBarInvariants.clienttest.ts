@@ -14,7 +14,10 @@ import {
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters";
 import { usersEventsFilterConfig } from "@/src/features/filters/config/users-config";
-import { USERS_FIELD_REGISTRY } from "@/src/features/filters/config/usersSearchRegistry";
+import {
+  USERS_FIELD_REGISTRY,
+  LEGACY_USERS_FIELD_REGISTRY,
+} from "@/src/features/filters/config/usersSearchRegistry";
 import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
 import { SCORES_FIELD_REGISTRY } from "@/src/features/scores/constants/scoresSearchRegistry";
 import { getScoreFilterConfig } from "@/src/features/filters/config/scores-config";
@@ -999,6 +1002,48 @@ const usersView: RegistryUnderTest = {
 };
 
 describe("search bar invariants — users registry", () => {
+  it("preserves legacy user metadata while rejecting fields that require joins", () => {
+    const registry = LEGACY_USERS_FIELD_REGISTRY;
+    const filters: FilterState = [
+      {
+        type: "stringObject",
+        column: "metadata",
+        key: "region",
+        operator: "=",
+        value: "eu",
+      },
+    ];
+    const projection = filterStateToQueryText(filters, {}, registry);
+    expect(projection.skippedFilters).toEqual([]);
+    expect(planCommit(projection.text, undefined, registry)).toMatchObject({
+      status: "committed",
+      filters,
+    });
+    expect(
+      runSearchBarInvariants({
+        ...usersView,
+        name: "users legacy",
+        registry,
+        sidebarFilters: [filters],
+      }),
+    ).toEqual([]);
+    for (const query of [
+      "level:ERROR",
+      "latency:>1",
+      "scores.quality:>0.8",
+      "traceScores.nps:>5",
+      "comment:test",
+      "input:test",
+    ]) {
+      expect(planCommit(query, undefined, registry).status).toBe("invalid");
+    }
+    expect(planCommit("alice smith", undefined, registry)).toMatchObject({
+      status: "committed",
+      searchQuery: "alice smith",
+      filters: [],
+    });
+  });
+
   it("holds all three invariants (parity, round-trip, serialize symmetry)", () => {
     const failures = runSearchBarInvariants(usersView);
     expect(

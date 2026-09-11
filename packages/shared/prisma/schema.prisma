@@ -1649,6 +1649,7 @@ model TableViewPreset {
   columnOrder      Json    @map("column_order")
   columnVisibility Json    @map("column_visibility")
   searchQuery      String? @map("search_query")
+  searchType       Json?   @map("search_type")
   orderBy          Json?   @map("order_by")
 
   @@unique([projectId, tableName, name])

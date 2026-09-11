@@ -7,13 +7,18 @@ export type ViewDemotionControllers = {
     viewId: string | null,
     options?: { updateType?: UrlUpdateType },
   ) => void;
-  handleUserStateChange: (previousValue: unknown, nextValue: unknown) => void;
+  handleUserStateChange: (
+    previousValue: unknown,
+    nextValue: unknown,
+    options?: { force?: boolean },
+  ) => void;
 };
 
 export type ExplicitFilterStateChange = {
   previousFilters: FilterState;
   nextFilters: FilterState;
   origin: "user" | "saved_view" | "system";
+  action?: "clear";
 };
 
 /** User edits leave the selected view; view application and reconciliation do not. */
@@ -25,5 +30,6 @@ export function demoteViewOnUserFilterEdit(
   controllers?.handleUserStateChange(
     change.previousFilters,
     change.nextFilters,
+    { force: change.action === "clear" },
   );
 }

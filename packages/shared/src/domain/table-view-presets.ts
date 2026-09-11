@@ -1,5 +1,6 @@
 import { singleFilter } from "../interfaces/filters";
 import { orderBy } from "../interfaces/orderBy";
+import { TracingSearchType } from "../interfaces/search";
 import z from "zod";
 
 export enum TableViewPresetTableName {
@@ -14,6 +15,9 @@ export enum TableViewPresetTableName {
   ExperimentItems = "experiment-items",
   Evaluators = "evaluators-v2",
   EvaluationRules = "evaluation-rules-v2",
+  Users = "users",
+  Prompts = "prompts",
+  Monitors = "monitors",
 }
 
 /**
@@ -68,6 +72,7 @@ export const TableViewPresetDomainSchema = z.object({
   columnOrder: z.array(z.string()),
   columnVisibility: z.record(z.string(), z.boolean()),
   searchQuery: z.string().nullable(),
+  searchType: z.array(TracingSearchType).nullish(),
   orderBy: orderBy,
 });
 
@@ -77,4 +82,6 @@ export type TableViewPresetState = Pick<
   "filters" | "columnOrder" | "columnVisibility" | "orderBy"
 > & {
   searchQuery?: string | null;
+  /** Omitted on older views, which leave the host's search scope unchanged. */
+  searchType?: TracingSearchType[] | null;
 };

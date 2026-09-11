@@ -19,6 +19,7 @@
 import {
   eventsTableCols,
   type ColumnDefinition,
+  type FilterState,
   type SingleValueOption,
 } from "@langfuse/shared";
 
@@ -78,10 +79,22 @@ export type FieldRegistry = {
     | "sessions"
     | "scores"
     | "experiments"
-    | "users";
+    | "users"
+    | "traces"
+    | "observations"
+    | "evaluatorsList"
+    | "evaluationRulesList"
+    | "legacyEvaluators"
+    | "evalLogs"
+    | "prompts"
+    | "monitors"
+    | "gatewayModels"
+    | "experimentItems";
   fields: readonly FieldDef[];
   columns: readonly ColumnDefinition[];
   allowFreeText: boolean;
+  /** View-specific backend constraints beyond individual column operators. */
+  filterStateErrors?: (filters: FilterState) => readonly string[];
   metadata: boolean;
   scores: boolean;
   /** Trace-level `traceScores.<name>` paths. Views whose backend has no
@@ -159,6 +172,7 @@ export function fieldRegistryFromColumns(
     /** Defaults to `scores`. */
     traceScores?: boolean;
     allowFreeText?: boolean;
+    filterStateErrors?: (filters: FilterState) => readonly string[];
     defaultTextField?: string;
     freeTextScopeLabel?: string;
     searchExamples?: readonly string[];
@@ -222,6 +236,7 @@ export function fieldRegistryFromColumns(
     scores,
     traceScores: overlay.traceScores ?? scores,
     allowFreeText: overlay.allowFreeText ?? true,
+    filterStateErrors: overlay.filterStateErrors,
     defaultTextField: overlay.defaultTextField ?? null,
     freeTextScopeLabel: overlay.freeTextScopeLabel ?? null,
     searchExamples: overlay.searchExamples ?? [],
@@ -250,6 +265,7 @@ export function extendFieldRegistryWithColumns(
     scores: registry.scores,
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
+    filterStateErrors: registry.filterStateErrors,
     defaultTextField: registry.defaultTextField,
     freeTextScopeLabel: registry.freeTextScopeLabel,
     searchExamples: registry.searchExamples,
@@ -293,6 +309,7 @@ export function withFieldOptions(
     scores: registry.scores,
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
+    filterStateErrors: registry.filterStateErrors,
     defaultTextField: registry.defaultTextField,
     freeTextScopeLabel: registry.freeTextScopeLabel,
     searchExamples: registry.searchExamples,
@@ -414,6 +431,7 @@ export function createFieldRegistry({
   scores,
   traceScores,
   allowFreeText,
+  filterStateErrors,
   defaultTextField,
   freeTextScopeLabel,
   searchExamples,
@@ -429,6 +447,8 @@ export function createFieldRegistry({
   scores: boolean;
   traceScores: boolean;
   allowFreeText: boolean;
+  /** View-specific backend constraints beyond individual column operators. */
+  filterStateErrors?: (filters: FilterState) => readonly string[];
   defaultTextField: string | null;
   freeTextScopeLabel: string | null;
   searchExamples: readonly string[];
@@ -462,6 +482,7 @@ export function createFieldRegistry({
     fields,
     columns,
     allowFreeText,
+    filterStateErrors,
     metadata,
     scores,
     traceScores,

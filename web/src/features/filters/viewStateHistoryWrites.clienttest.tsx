@@ -1,5 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { TableViewPresetTableName, type FilterState } from "@langfuse/shared";
+import {
+  TableViewPresetTableName,
+  type FilterState,
+  type TracingSearchType,
+} from "@langfuse/shared";
 import { useState } from "react";
 import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
 import type { FilterConfig } from "./lib/filter-config";
@@ -135,25 +139,45 @@ function ViewManagerHarness({
   tableName?: TableViewPresetTableName;
 }) {
   const [appliedFilters, setAppliedFilters] = useState<FilterState>([]);
-  const { selectedViewId, handleSetViewId } = useTableViewManager({
-    tableName,
-    projectId: "project-1",
-    stateUpdaters: {
-      setFilters: setAppliedFilters,
-      setColumnOrder: () => {},
-      setColumnVisibility: () => {},
-    },
-    validationContext: {
-      columns: [],
-      filterColumnDefinition: TEST_FILTER_CONFIG.columnDefinitions,
-    },
-    currentFilterState: appliedFilters,
-  });
+  const [searchQuery, setSearchQuery] = useState<string | null>(null);
+  const [searchType, setSearchType] = useState<TracingSearchType[]>(["id"]);
+  const { selectedViewId, handleSetViewId, applyViewState } =
+    useTableViewManager({
+      tableName,
+      projectId: "project-1",
+      stateUpdaters: {
+        setFilters: setAppliedFilters,
+        setSearchQuery,
+        setSearchType,
+        setColumnOrder: () => {},
+        setColumnVisibility: () => {},
+      },
+      validationContext: {
+        columns: [],
+        filterColumnDefinition: TEST_FILTER_CONFIG.columnDefinitions,
+      },
+      currentFilterState: appliedFilters,
+    });
 
   return (
     <div>
       <div data-testid="selected-view-id">{selectedViewId ?? "null"}</div>
       <div data-testid="applied-filter-count">{appliedFilters.length}</div>
+      <div data-testid="applied-search-query">{searchQuery}</div>
+      <div data-testid="applied-search-type">{JSON.stringify(searchType)}</div>
+      <button
+        onClick={() =>
+          applyViewState({
+            filters: [],
+            columnOrder: [],
+            columnVisibility: {},
+            orderBy: null,
+            searchQuery: "legacy",
+          })
+        }
+      >
+        apply-legacy-view
+      </button>
       <button
         onClick={() => handleSetViewId("view-1", { updateType: "replaceIn" })}
       >
@@ -333,6 +357,48 @@ describe("view-state URL writes and browser history (LFE-10715)", () => {
     for (const write of viewIdWrites) {
       expect(write.updateType).toBe("replaceIn");
     }
+  });
+
+  it("restores a saved search scope and preserves it when applying a legacy view", async () => {
+    queryParamStore.set("viewId", "scoped-view");
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { viewId: "scoped-view" },
+    });
+    mockGetByIdUseQuery.mockReturnValue({
+      data: {
+        id: "scoped-view",
+        name: "Input search",
+        tableName: TableViewPresetTableName.Traces,
+        filters: [],
+        columnOrder: [],
+        columnVisibility: {},
+        orderBy: null,
+        searchQuery: "needle",
+        searchType: ["input"],
+      },
+      isSuccess: true,
+      isError: false,
+      error: null,
+    });
+
+    render(<ViewManagerHarness tableName={TableViewPresetTableName.Traces} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("applied-search-query")).toHaveTextContent(
+        "needle",
+      );
+      expect(screen.getByTestId("applied-search-type")).toHaveTextContent(
+        '["input"]',
+      );
+    });
+
+    fireEvent.click(screen.getByText("apply-legacy-view"));
+    expect(screen.getByTestId("applied-search-query")).toHaveTextContent(
+      "legacy",
+    );
+    expect(screen.getByTestId("applied-search-type")).toHaveTextContent(
+      '["input"]',
+    );
   });
 
   it("forwards a replaceIn updateType through handleSetViewId", async () => {

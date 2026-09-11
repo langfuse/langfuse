@@ -4,6 +4,7 @@ import {
   type FilterState,
   type OrderByState,
   type TableViewPresetState,
+  type TracingSearchType,
   type ColumnDefinition,
 } from "@langfuse/shared";
 import { type NextRouter, useRouter } from "next/router";
@@ -45,6 +46,7 @@ interface TableStateUpdaters {
   setOrderBy?: (orderBy: OrderByState) => void;
   setFilters?: (filters: FilterState) => void;
   setSearchQuery?: (searchQuery: string | null) => void;
+  setSearchType?: (searchType: TracingSearchType[]) => void;
   setExpandedFilters?: (expandedFilters: string[]) => void;
 }
 
@@ -69,6 +71,8 @@ interface UseTableStateProps {
   currentExpandedFilters?: string[];
   disabled?: boolean;
   allowBackendSystemPresets?: boolean;
+  /** Called after an application even when the validated state is unchanged. */
+  onViewApplied?: (state: TableViewPresetState) => void;
 }
 
 const isViewApplicableToTable = (
@@ -110,6 +114,7 @@ export function useTableViewManager({
   currentExpandedFilters,
   disabled = false,
   allowBackendSystemPresets = false,
+  onViewApplied,
 }: UseTableStateProps) {
   const router = useRouter();
   const isRouterReady = router.isReady;
@@ -174,9 +179,14 @@ export function useTableViewManager({
   );
 
   const handleUserStateChange = useCallback(
-    (previousValue: unknown, nextValue: unknown) => {
+    (
+      previousValue: unknown,
+      nextValue: unknown,
+      options?: { force?: boolean },
+    ) => {
       const viewId = selectedViewIdRef.current;
-      if (!viewId || isEqual(previousValue, nextValue)) return;
+      if (!viewId || (!options?.force && isEqual(previousValue, nextValue)))
+        return;
       const columnsApplied = storedViewIdRef.current === viewId;
       handleSetViewId(null, { updateType: "replaceIn" });
       setViewUpdateTarget({ viewId, columnsApplied });
@@ -191,6 +201,7 @@ export function useTableViewManager({
     setColumnOrder,
     setColumnVisibility,
     setSearchQuery,
+    setSearchType,
     setExpandedFilters,
   } = stateUpdaters;
 
@@ -199,13 +210,17 @@ export function useTableViewManager({
   const setFiltersRef = useRef(setFilters);
   const setOrderByRef = useRef(setOrderBy);
   const setSearchQueryRef = useRef(setSearchQuery);
+  const setSearchTypeRef = useRef(setSearchType);
   const setExpandedFiltersRef = useRef(setExpandedFilters);
+  const onViewAppliedRef = useRef(onViewApplied);
 
   // Update refs immediately on every render
   setFiltersRef.current = setFilters;
   setOrderByRef.current = setOrderBy;
   setSearchQueryRef.current = setSearchQuery;
+  setSearchTypeRef.current = setSearchType;
   setExpandedFiltersRef.current = setExpandedFilters;
+  onViewAppliedRef.current = onViewApplied;
 
   // Extract primitive for effect dep (rerender-dependencies: avoid object deps)
   const defaultViewId = resolvedDefault?.viewId;
@@ -372,6 +387,11 @@ export function useTableViewManager({
         setFiltersRef.current(validFilters);
       }
 
+      // Older views have no stored scope and retain the host's current default.
+      if (viewData.searchType != null) {
+        setSearchTypeRef.current?.(viewData.searchType);
+      }
+
       if (setSearchQueryRef.current) {
         // `||` (not `??`): a persisted empty string — the common case for views
         // saved without a free-text search — must map to null too, or it
@@ -407,6 +427,12 @@ export function useTableViewManager({
 
       // Applying a view discards drafts; leaving a view while editing preserves them.
       setFilterEditorResetKey((key) => key + 1);
+      onViewAppliedRef.current?.({
+        ...viewData,
+        filters: validFilters,
+        orderBy: validOrderBy,
+        searchQuery: viewData.searchQuery || null,
+      });
 
       // Unlock as soon as the view is applied. Earlier versions kept the table
       // locked until a useEffect observer saw the filter change propagate to

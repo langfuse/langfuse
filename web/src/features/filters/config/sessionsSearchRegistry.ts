@@ -117,13 +117,13 @@ function sessionsRegistry(config: FilterConfig, metadata: boolean) {
   });
 }
 
-/**
- * v4 (events-backed) sessions. The v3 config differs by exactly one column — v4
- * adds `metadata` — so one derivation parameterised by the metadata flag would
- * cover both. Only the v4 registry exists because the bar is gated on v4; a v3
- * variant would be unreachable, and the recipe forbids speculative registries.
- */
-export const SESSIONS_FIELD_REGISTRY: FieldRegistry = sessionsRegistry(
+export function sessionsFieldRegistry(config: FilterConfig): FieldRegistry {
+  return sessionsRegistry(
+    config,
+    config.facets.some((facet) => facet.column === "metadata"),
+  );
+}
+
+export const SESSIONS_FIELD_REGISTRY = sessionsFieldRegistry(
   sessionEventsFilterConfig,
-  true,
 );
