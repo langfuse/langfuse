@@ -822,7 +822,7 @@ export default function ObservationsEventsTable({
               searchQuery: state.searchQuery,
               searchType: tableStatePolicy.useHostSearchScopes
                 ? DEFAULT_SEARCH_TYPE
-                : (state.searchType ?? searchType),
+                : searchType,
             },
             searchRegistry,
           ).text,
@@ -1638,7 +1638,6 @@ export default function ObservationsEventsTable({
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
       setSearchQuery: setSearchQuery,
-      setSearchType,
     },
     validationContext: {
       columns,
@@ -1659,7 +1658,7 @@ export default function ObservationsEventsTable({
       resetSearchBarDraft({
         filters: projectFiltersForSearchBar(viewState.filters),
         searchQuery: viewState.searchQuery ?? null,
-        searchType: viewState.searchType ?? searchType,
+        searchType,
       }),
   });
   viewControllersRef.current = viewControllers;
@@ -1930,7 +1929,6 @@ export default function ObservationsEventsTable({
                       columnOrder,
                       columnVisibility,
                       searchQuery: searchQuery ?? "",
-                      searchType,
                     }}
                   />
                 )
@@ -2037,7 +2035,6 @@ export default function ObservationsEventsTable({
               currentSearchQuery={
                 searchBarMode ? (searchQuery ?? "") : undefined
               }
-              currentSearchType={searchType}
               columnsWithCustomSelect={[
                 "providedModelName",
                 "name",
@@ -2173,7 +2170,6 @@ export default function ObservationsEventsTable({
                         columnOrder,
                         columnVisibility,
                         searchQuery: searchQuery ?? "",
-                        searchType,
                       }}
                     />
                   </div>

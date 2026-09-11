@@ -15,7 +15,7 @@ export const useFullTextSearch = ({
 } = {}) => {
   const peekContext = usePeekTableState();
   // Apply the host policy on reads too: instance config can resolve after a
-  // URL or saved view has already restored its scope.
+  // URL has already restored its scope.
   const allowedSearchType = (type: TracingSearchType[]): TracingSearchType[] =>
     !tableAllowsFullTextSearch && hasFullTextSearchType(type) ? ["id"] : type;
 

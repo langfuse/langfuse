@@ -447,7 +447,6 @@ export function PromptTable() {
       setFilters: (filters) =>
         queryFilter.setFilterState(filters, { origin: "saved_view" }),
       setSearchQuery,
-      setSearchType,
       setExpandedFilters: queryFilter.onExpandedChange,
     },
     validationContext: {
@@ -531,7 +530,6 @@ export function PromptTable() {
           columnsWithCustomSelect={["labels", "tags"]}
           isV4={false}
           currentSearchQuery={searchQuery ?? ""}
-          currentSearchType={searchType}
           orderByState={orderBy}
           columnOrder={columnOrder}
           setColumnOrder={handleColumnOrderChange}

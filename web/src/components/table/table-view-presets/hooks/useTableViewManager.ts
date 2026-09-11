@@ -4,7 +4,6 @@ import {
   type FilterState,
   type OrderByState,
   type TableViewPresetState,
-  type TracingSearchType,
   type ColumnDefinition,
 } from "@langfuse/shared";
 import { type NextRouter, useRouter } from "next/router";
@@ -46,7 +45,6 @@ interface TableStateUpdaters {
   setOrderBy?: (orderBy: OrderByState) => void;
   setFilters?: (filters: FilterState) => void;
   setSearchQuery?: (searchQuery: string | null) => void;
-  setSearchType?: (searchType: TracingSearchType[]) => void;
   setExpandedFilters?: (expandedFilters: string[]) => void;
 }
 
@@ -201,7 +199,6 @@ export function useTableViewManager({
     setColumnOrder,
     setColumnVisibility,
     setSearchQuery,
-    setSearchType,
     setExpandedFilters,
   } = stateUpdaters;
 
@@ -210,7 +207,6 @@ export function useTableViewManager({
   const setFiltersRef = useRef(setFilters);
   const setOrderByRef = useRef(setOrderBy);
   const setSearchQueryRef = useRef(setSearchQuery);
-  const setSearchTypeRef = useRef(setSearchType);
   const setExpandedFiltersRef = useRef(setExpandedFilters);
   const onViewAppliedRef = useRef(onViewApplied);
 
@@ -218,7 +214,6 @@ export function useTableViewManager({
   setFiltersRef.current = setFilters;
   setOrderByRef.current = setOrderBy;
   setSearchQueryRef.current = setSearchQuery;
-  setSearchTypeRef.current = setSearchType;
   setExpandedFiltersRef.current = setExpandedFilters;
   onViewAppliedRef.current = onViewApplied;
 
@@ -385,11 +380,6 @@ export function useTableViewManager({
       // — and the URL it writes to — reflect the view synchronously.
       if (setFiltersRef.current && !filtersAlreadyApplied) {
         setFiltersRef.current(validFilters);
-      }
-
-      // Older views have no stored scope and retain the host's current default.
-      if (viewData.searchType != null) {
-        setSearchTypeRef.current?.(viewData.searchType);
       }
 
       if (setSearchQueryRef.current) {

@@ -4,7 +4,6 @@ import {
   singleFilter,
   SystemTableViewPresetCategory,
   TableViewPresetTableName,
-  TracingSearchType,
 } from "../../..";
 
 export const CreateTableViewPresetsInput = z.object({
@@ -15,7 +14,6 @@ export const CreateTableViewPresetsInput = z.object({
   columnOrder: z.array(z.string()),
   columnVisibility: z.record(z.string(), z.boolean()),
   searchQuery: z.string().optional(),
-  searchType: z.array(TracingSearchType).optional(),
   orderBy: orderBy,
 });
 
@@ -61,7 +59,6 @@ export const TableViewPresetsNamesCreatorListSchema = z.array(
     columnOrder: z.array(z.string()),
     columnVisibility: z.record(z.string(), z.boolean()),
     searchQuery: z.string().nullish(),
-    searchType: z.array(TracingSearchType).nullish(),
     orderBy: orderBy,
   }),
 );

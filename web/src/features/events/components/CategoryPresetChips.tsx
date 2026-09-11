@@ -155,7 +155,6 @@ export function CategoryPresetChips({
           columnOrder: view.columnOrder,
           columnVisibility: view.columnVisibility,
           searchQuery: view.searchQuery,
-          searchType: view.searchType,
         },
       });
       grouped.set(view.category, list);

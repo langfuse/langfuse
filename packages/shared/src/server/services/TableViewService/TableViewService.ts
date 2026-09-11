@@ -2,7 +2,6 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../../db";
 import {
   TableViewPresetTableName,
-  TableViewPresetDomainSchema,
   type TableViewPresetDomain,
 } from "../../../domain/table-view-presets";
 import {
@@ -69,11 +68,6 @@ const throwTableViewPresetConflictIfDuplicateName = (error: unknown): never => {
   throw error;
 };
 
-function parseSavedSearchType(value: unknown) {
-  const parsed = TableViewPresetDomainSchema.shape.searchType.safeParse(value);
-  return parsed.success ? (parsed.data ?? null) : null;
-}
-
 export class TableViewService {
   /**
    * Creates a table view preset
@@ -91,10 +85,7 @@ export class TableViewService {
       },
     });
 
-    return {
-      ...newTableViewPresets,
-      searchType: parseSavedSearchType(newTableViewPresets.searchType),
-    } as unknown as TableViewPresetDomain;
+    return newTableViewPresets as unknown as TableViewPresetDomain;
   }
 
   /**
@@ -133,16 +124,12 @@ export class TableViewService {
           columnOrder: input.columnOrder,
           columnVisibility: input.columnVisibility,
           searchQuery: input.searchQuery,
-          searchType: input.searchType,
           orderBy: input.orderBy ?? undefined,
           updatedBy,
         },
       });
 
-      return {
-        ...updatedTableViewPresets,
-        searchType: parseSavedSearchType(updatedTableViewPresets.searchType),
-      } as unknown as TableViewPresetDomain;
+      return updatedTableViewPresets as unknown as TableViewPresetDomain;
     } catch (error) {
       return throwTableViewPresetConflictIfDuplicateName(error);
     }
@@ -184,10 +171,7 @@ export class TableViewService {
         },
       });
 
-      return {
-        ...updatedTableViewPresets,
-        searchType: parseSavedSearchType(updatedTableViewPresets.searchType),
-      } as unknown as TableViewPresetDomain;
+      return updatedTableViewPresets as unknown as TableViewPresetDomain;
     } catch (error) {
       return throwTableViewPresetConflictIfDuplicateName(error);
     }
@@ -237,7 +221,6 @@ export class TableViewService {
         columnOrder: true,
         columnVisibility: true,
         searchQuery: true,
-        searchType: true,
         orderBy: true,
       },
     });
@@ -256,17 +239,13 @@ export class TableViewService {
         columnOrder: preset.state.columnOrder,
         columnVisibility: preset.state.columnVisibility,
         searchQuery: preset.state.searchQuery ?? null,
-        searchType: preset.state.searchType ?? null,
         orderBy: preset.state.orderBy,
       }),
     );
 
     const presets = TableViewPresetsNamesCreatorListSchema.parse([
       ...systemPresets,
-      ...records.map((record) => ({
-        ...record,
-        searchType: parseSavedSearchType(record.searchType),
-      })),
+      ...records,
     ]);
 
     if (tableName === TableViewPresetTableName.ObservationsEvents) {
@@ -333,7 +312,6 @@ export class TableViewService {
         columnOrder: systemPreset.state.columnOrder,
         columnVisibility: systemPreset.state.columnVisibility,
         searchQuery: systemPreset.state.searchQuery ?? null,
-        searchType: systemPreset.state.searchType ?? null,
         orderBy: systemPreset.state.orderBy,
       };
     }
@@ -351,10 +329,7 @@ export class TableViewService {
       );
     }
 
-    return {
-      ...tableViewPresets,
-      searchType: parseSavedSearchType(tableViewPresets.searchType),
-    } as unknown as TableViewPresetDomain;
+    return tableViewPresets as unknown as TableViewPresetDomain;
   }
 
   /**

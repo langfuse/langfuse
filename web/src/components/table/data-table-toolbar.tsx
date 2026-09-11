@@ -122,7 +122,6 @@ interface DataTableToolbarProps<TData, TValue> {
    * toolbar's own search field is hidden (e.g. search-bar mode) so the live
    * query — not the toolbar's stale local mirror — is captured. */
   currentSearchQuery?: string;
-  currentSearchType?: TracingSearchType[];
   actionButtons?: React.ReactNode;
   filterState?: FilterState;
   setFilterState?:
@@ -231,7 +230,6 @@ export function DataTableToolbar<TData, TValue>({
   filterColumnDefinition,
   searchConfig,
   currentSearchQuery,
-  currentSearchType,
   actionButtons,
   filterState,
   setFilterState,
@@ -338,7 +336,6 @@ export function DataTableToolbar<TData, TValue>({
               columnOrder,
               columnVisibility,
               searchQuery: currentSearchQuery ?? searchString,
-              searchType: currentSearchType ?? searchConfig?.searchType,
             }}
             systemFilterPresets={viewConfig.systemFilterPresets}
           />

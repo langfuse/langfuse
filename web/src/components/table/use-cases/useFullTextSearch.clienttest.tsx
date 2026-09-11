@@ -43,7 +43,7 @@ describe.each(["URL", "peek"])("useFullTextSearch %s scope policy", (owner) => {
     h.scope = ["id", "input"];
   });
 
-  it("restores saved scopes using the disabled full-text policy", () => {
+  it("normalizes scope changes using the disabled full-text policy", () => {
     const { result } = setup(owner, false);
     act(() => result.current.setSearchType(["id", "output"]));
 
@@ -86,7 +86,7 @@ describe.each(["URL", "peek"])("useFullTextSearch %s scope policy", (owner) => {
   });
 });
 
-it("applies a peek saved view's filters, sorting, scope, and query in one event", () => {
+it("composes peek filter, sorting, and search updates in one event", () => {
   const { result } = setup("peek");
   act(() => {
     result.current.peek?.setTableState((state) => ({

@@ -1272,7 +1272,6 @@ function TracesTableInternal({
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibility,
       setSearchQuery: setSearchQuery,
-      setSearchType,
     },
     validationContext: {
       columns,
@@ -1438,7 +1437,6 @@ function TracesTableInternal({
                 projectId,
                 controllers: viewControllers,
               }}
-              currentSearchType={searchType}
               currentSearchQuery={searchQuery ?? ""}
               columnsWithCustomSelect={["traceName", "traceTags"]}
               actionButtons={[

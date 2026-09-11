@@ -283,7 +283,7 @@ function Harness({ projectId = PROJECT_ID }: { projectId?: string }) {
       searchBar.resetDraft({
         filters: queryFilter.projectFiltersForSearchBar(viewState.filters),
         searchQuery: viewState.searchQuery ?? null,
-        searchType: viewState.searchType ?? ["id", "content"],
+        searchType: ["id", "content"],
       }),
   });
   viewControllersRef.current = {

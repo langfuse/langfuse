@@ -41,7 +41,6 @@ import {
   type FilterState,
   type TableViewPresetTableName,
   type TableViewPresetState,
-  type TracingSearchType,
   buildCurrentPageSavedViewPermalink,
   tableViewPresetPermalinkUsesCurrentPath,
 } from "@langfuse/shared";
@@ -159,7 +158,6 @@ interface TableViewPresetsDrawerContentProps {
     columnOrder: ColumnOrderState;
     columnVisibility: VisibilityState;
     searchQuery: string;
-    searchType?: TracingSearchType[];
   };
   /** Page-specific system filter presets (e.g. "Last Generation in Trace") */
   systemFilterPresets?: SystemFilterPreset[];
@@ -434,7 +432,6 @@ function TableViewPresetsDrawerContentBody({
       columnOrder: currentState.columnOrder,
       columnVisibility: currentState.columnVisibility,
       searchQuery: currentState.searchQuery,
-      searchType: currentState.searchType,
     });
 
     setIsCreateDialogOpen(false);
@@ -484,7 +481,6 @@ function TableViewPresetsDrawerContentBody({
       columnOrder,
       columnVisibility,
       searchQuery: currentState.searchQuery,
-      searchType: currentState.searchType,
     });
   };
 

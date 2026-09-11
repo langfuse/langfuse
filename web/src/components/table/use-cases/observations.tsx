@@ -1205,7 +1205,6 @@ export default function ObservationsTable({
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
       setSearchQuery: setSearchQuery,
-      setSearchType,
     },
     validationContext: {
       columns,
@@ -1376,7 +1375,6 @@ export default function ObservationsTable({
                 projectId,
                 controllers: viewControllers,
               }}
-              currentSearchType={searchType}
               currentSearchQuery={searchQuery ?? ""}
               columnsWithCustomSelect={[
                 "model",
