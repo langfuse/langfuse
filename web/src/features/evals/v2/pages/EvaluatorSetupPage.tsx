@@ -63,7 +63,10 @@ import {
   getJudgePromptAnalyticsProperties,
   type EvaluatorCreationSource,
 } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
-import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import {
+  useInAppAiAgent,
+  useIsInAppAgentLauncherVisible,
+} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { createInAppAgentConversationId } from "@/src/features/in-app-agent/ids";
 import { evaluatorAssistantTestResultStore } from "@/src/features/evals/v2/store/evaluatorAssistantTestResultStore";
 import { getEvaluatorAssistantSampleObservation } from "@/src/features/evals/v2/fns/getEvaluatorAssistantSampleObservation";
@@ -73,6 +76,40 @@ import { useEvaluatorSamplePageContext } from "@/src/features/evals/v2/hooks/use
 import { useEvaluatorAssistantTestResultSync } from "@/src/features/evals/v2/hooks/useEvaluatorAssistantTestResultSync";
 import { useEvaluatorAssistantTestUpdateSignal } from "@/src/features/evals/v2/store/evaluatorAssistantUpdateSignalStore";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
+import { EvaluatorAssistantScratchView } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAssistantScratchView/EvaluatorAssistantScratchView";
+import { EvaluatorAssistantHeaderAction } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAssistantHeaderAction/EvaluatorAssistantHeaderAction";
+import { EvaluatorAssistantEditDialog } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/EvaluatorAssistantEditDialog";
+
+const EVALUATOR_EDITOR_MODE_STORAGE_KEY =
+  "langfuse:code-evaluator-editor-mode:v1";
+
+type EvaluatorEditorMode = "assistant" | "code";
+
+export function getEvaluatorSetupHeaderState({
+  isEditing,
+  isScratchCreation,
+  isAssistantAvailable,
+  showAssistantScratch,
+}: {
+  isEditing: boolean;
+  isScratchCreation: boolean;
+  isAssistantAvailable: boolean;
+  showAssistantScratch: boolean;
+}) {
+  const assistantAction =
+    !isAssistantAvailable || showAssistantScratch
+      ? "none"
+      : isEditing
+        ? "edit"
+        : isScratchCreation
+          ? "create"
+          : "none";
+
+  return {
+    title: "Configure evaluator",
+    assistantAction,
+  } as const;
+}
 
 type InitialEvaluator = {
   id: string;
@@ -199,6 +236,12 @@ export function EvaluatorSetupPage(
     selectedConversationId,
     submit: submitToAssistant,
   } = useInAppAiAgent();
+  const isAssistantLauncherVisible = useIsInAppAgentLauncherVisible();
+  const [preferredScratchMode, setPreferredScratchMode] =
+    useLocalStorage<EvaluatorEditorMode>(
+      EVALUATOR_EDITOR_MODE_STORAGE_KEY,
+      "assistant",
+    );
   const [filterExperience] = useLocalStorage<EvaluatorFilterExperience>(
     EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY,
     "query",
@@ -265,6 +308,12 @@ export function EvaluatorSetupPage(
       sourceCodeLanguage: state.sourceCodeLanguage,
     })),
   );
+  const isScratchCreation =
+    props.mode === "create" && props.creationSource.type === "scratch";
+  const showAssistantScratch =
+    isScratchCreation &&
+    isAssistantLauncherVisible &&
+    preferredScratchMode === "assistant";
   const codeValidation = useCodeEvalSourceValidation({
     enabled: codeDraft.type === "CODE",
     sourceCode: codeDraft.sourceCode,
@@ -307,6 +356,8 @@ export function EvaluatorSetupPage(
   const [historyOpen, setHistoryOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [assistantEditDialogOpen, setAssistantEditDialogOpen] = useState(false);
+  const assistantEditTriggerRef = useRef<HTMLButtonElement>(null);
   const [versionConflictOpen, setVersionConflictOpen] = useState(false);
   const [savedEvaluator, setSavedEvaluator] = useState<{
     id: string;
@@ -850,19 +901,6 @@ export function EvaluatorSetupPage(
       codeValidationResult={
         codeValidation.isPending ? null : codeValidation.validationResult
       }
-      codeEvaluatorAssistantContext={
-        initialEvaluator
-          ? "edit"
-          : props.mode === "create" && props.creationSource.type === "scratch"
-            ? "scratch"
-            : null
-      }
-      onCodeEvaluatorAssistantSubmit={(request) =>
-        submitEvaluatorAssistantRequest(request, "CODE")
-      }
-      onJudgeEvaluatorAssistantSubmit={(request) =>
-        submitEvaluatorAssistantRequest(request, "LLM_AS_JUDGE")
-      }
       onStepOpenChange={setStepOpen}
       nameAIAssistance={
         !nameAIAssistanceAvailable
@@ -918,14 +956,56 @@ export function EvaluatorSetupPage(
       }
     />
   );
+  const isSaving =
+    saveInFlight ||
+    create.isPending ||
+    update.isPending ||
+    suggestName.isPending ||
+    suggestDescription.isPending;
+  const headerState = getEvaluatorSetupHeaderState({
+    isEditing: Boolean(initialEvaluator),
+    isScratchCreation,
+    isAssistantAvailable: isAssistantLauncherVisible,
+    showAssistantScratch,
+  });
+  const assistantHeaderAction =
+    headerState.assistantAction === "create" ? (
+      <EvaluatorAssistantHeaderAction
+        mode="create"
+        onClick={() => {
+          if (codeDraft.type === "CODE") {
+            capture("evaluators:code_editor_mode_switch", {
+              context: "scratch",
+              mode: "assistant",
+            });
+          }
+          setPreferredScratchMode("assistant");
+        }}
+      />
+    ) : headerState.assistantAction === "edit" ? (
+      <EvaluatorAssistantHeaderAction
+        mode="edit"
+        triggerRef={assistantEditTriggerRef}
+        onClick={() => {
+          if (codeDraft.type === "CODE") {
+            capture("evaluators:code_editor_mode_switch", {
+              context: "edit",
+              mode: "assistant",
+            });
+          }
+          setAssistantEditDialogOpen(true);
+        }}
+      />
+    ) : null;
 
   return (
     <Page
       headerProps={{
-        title: initialEvaluator ? "Configure evaluator" : "New evaluator",
+        title: headerState.title,
         breadcrumb: [
           { name: "Evaluators", href: `/project/${projectId}/evals` },
         ],
+        actionButtonsLeft: assistantHeaderAction,
         actionButtonsRight:
           initialEvaluator && persistedEvaluatorUi ? (
             <div className="flex gap-2">
@@ -973,81 +1053,114 @@ export function EvaluatorSetupPage(
       }}
     >
       <div className="flex min-h-0 flex-1 flex-col">
-        <TableHeaderControls
-          timeRange={timeRange}
-          setTimeRange={setTimeRange}
-        />
-        {persistedEvaluatorUi?.blockedAt ? (
-          <div className="mx-3 mt-3">
-            <EvaluatorBlockedBanner
-              projectId={projectId}
-              blockedAt={persistedEvaluatorUi.blockedAt}
-              blockReason={persistedEvaluatorUi.blockReason}
-              blockMessage={persistedEvaluatorUi.blockMessage}
-              canReactivate={canReactivate}
-              reactivationPending={reactivate.isPending}
-              onReactivate={() => {
-                capture("evaluators:reactivate", {
-                  blockReason:
-                    persistedEvaluatorUi.blockReason ??
-                    "EVAL_MODEL_CONFIG_INVALID",
-                });
-                reactivate.mutate({
-                  projectId,
-                  evaluatorId,
-                });
-              }}
-            />
-          </div>
-        ) : null}
-        {isMobile ? (
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <div>{evaluatorEditor}</div>
-            <div className="border-t [&>aside]:h-auto">
-              {evaluatorTestPanel}
-            </div>
-          </div>
-        ) : (
-          <ResizableSplitLayout
-            className="h-auto min-h-0 flex-1"
-            primaryContent={evaluatorEditor}
-            secondaryContent={evaluatorTestPanel}
-            open={testPanelOpen}
-            defaultPrimarySize={60}
-            defaultSecondarySize={40}
-            minPrimarySize={30}
-            minSecondarySize="360px"
-            collapsedSecondarySize="48px"
-            onOpenChange={
-              evaluatorSetupStore.getState().actions.setTestPanelOpen
+        {showAssistantScratch ? (
+          <EvaluatorAssistantScratchView
+            evaluatorType={codeDraft.type}
+            onSubmit={(request) =>
+              submitEvaluatorAssistantRequest(request, codeDraft.type)
             }
-            persistId="evaluator-test-panel"
+            onConfigureManually={() => {
+              if (codeDraft.type === "CODE") {
+                capture("evaluators:code_editor_mode_switch", {
+                  context: "scratch",
+                  mode: "code",
+                });
+              }
+              setPreferredScratchMode("code");
+            }}
           />
-        )}
-        <EvaluatorSetupFooter
-          store={evaluatorSetupStore}
-          initialSnapshot={initialSnapshot.current}
-          isEditing={Boolean(initialEvaluator)}
-          isSaving={
-            saveInFlight ||
-            create.isPending ||
-            update.isPending ||
-            suggestName.isPending ||
-            suggestDescription.isPending
-          }
-          nameAIAssistanceAvailable={nameAIAssistanceAvailable}
-          codeValidation={
-            codeDraft.type === "CODE"
-              ? {
-                  isValid: codeValidation.isValid,
-                  isPending: codeValidation.isPending,
+        ) : (
+          <>
+            <TableHeaderControls
+              timeRange={timeRange}
+              setTimeRange={setTimeRange}
+            />
+            {persistedEvaluatorUi?.blockedAt ? (
+              <div className="mx-3 mt-3">
+                <EvaluatorBlockedBanner
+                  projectId={projectId}
+                  blockedAt={persistedEvaluatorUi.blockedAt}
+                  blockReason={persistedEvaluatorUi.blockReason}
+                  blockMessage={persistedEvaluatorUi.blockMessage}
+                  canReactivate={canReactivate}
+                  reactivationPending={reactivate.isPending}
+                  onReactivate={() => {
+                    capture("evaluators:reactivate", {
+                      blockReason:
+                        persistedEvaluatorUi.blockReason ??
+                        "EVAL_MODEL_CONFIG_INVALID",
+                    });
+                    reactivate.mutate({
+                      projectId,
+                      evaluatorId,
+                    });
+                  }}
+                />
+              </div>
+            ) : null}
+            {isMobile ? (
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <div>{evaluatorEditor}</div>
+                <div className="border-t [&>aside]:h-auto">
+                  {evaluatorTestPanel}
+                </div>
+              </div>
+            ) : (
+              <ResizableSplitLayout
+                className="h-auto min-h-0 flex-1"
+                primaryContent={evaluatorEditor}
+                secondaryContent={evaluatorTestPanel}
+                open={testPanelOpen}
+                defaultPrimarySize={60}
+                defaultSecondarySize={40}
+                minPrimarySize={30}
+                minSecondarySize="360px"
+                collapsedSecondarySize="48px"
+                onOpenChange={
+                  evaluatorSetupStore.getState().actions.setTestPanelOpen
                 }
-              : null
-          }
-          onClose={requestClose}
-          onSave={save}
-        />
+                persistId="evaluator-test-panel"
+              />
+            )}
+            <EvaluatorSetupFooter
+              store={evaluatorSetupStore}
+              initialSnapshot={initialSnapshot.current}
+              isEditing={Boolean(initialEvaluator)}
+              isSaving={isSaving}
+              nameAIAssistanceAvailable={nameAIAssistanceAvailable}
+              codeValidation={
+                codeDraft.type === "CODE"
+                  ? {
+                      isValid: codeValidation.isValid,
+                      isPending: codeValidation.isPending,
+                    }
+                  : null
+              }
+              onClose={requestClose}
+              onSave={save}
+            />
+          </>
+        )}
       </div>
+      {initialEvaluator && isAssistantLauncherVisible ? (
+        <EvaluatorAssistantEditDialog
+          open={assistantEditDialogOpen}
+          evaluatorType={codeDraft.type === "CODE" ? "code" : "judge"}
+          returnFocusRef={assistantEditTriggerRef}
+          onOpenChange={(open) => {
+            if (!open && codeDraft.type === "CODE") {
+              capture("evaluators:code_editor_mode_switch", {
+                context: "edit",
+                mode: "code",
+              });
+            }
+            setAssistantEditDialogOpen(open);
+          }}
+          onAssistantSubmit={(request) =>
+            submitEvaluatorAssistantRequest(request, codeDraft.type)
+          }
+        />
+      ) : null}
       {initialEvaluator ? (
         <EvaluatorVersionHistorySheet
           open={historyOpen}

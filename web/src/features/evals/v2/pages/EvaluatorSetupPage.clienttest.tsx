@@ -3,11 +3,55 @@ import { describe, expect, it, vi } from "vitest";
 import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import {
   applyEvaluatorSuggestion,
+  getEvaluatorSetupHeaderState,
   getEvaluatorVersionDefinition,
   navigateToEvaluatorDetail,
   restoreEvaluatorVersion,
   shouldOfferRuleAttachment,
 } from "./EvaluatorSetupPage";
+
+describe("getEvaluatorSetupHeaderState", () => {
+  it.each([
+    {
+      name: "create AI entry",
+      input: {
+        isEditing: false,
+        isScratchCreation: true,
+        isAssistantAvailable: true,
+        showAssistantScratch: true,
+      },
+      assistantAction: "none",
+    },
+    {
+      name: "create manual setup",
+      input: {
+        isEditing: false,
+        isScratchCreation: true,
+        isAssistantAvailable: true,
+        showAssistantScratch: false,
+      },
+      assistantAction: "create",
+    },
+    {
+      name: "existing evaluator",
+      input: {
+        isEditing: true,
+        isScratchCreation: false,
+        isAssistantAvailable: true,
+        showAssistantScratch: false,
+      },
+      assistantAction: "edit",
+    },
+  ] as const)(
+    "uses the Configure evaluator title in $name mode",
+    ({ input, assistantAction }) => {
+      expect(getEvaluatorSetupHeaderState(input)).toEqual({
+        title: "Configure evaluator",
+        assistantAction,
+      });
+    },
+  );
+});
 
 describe("navigateToEvaluatorDetail", () => {
   it("warms evaluator data and the route before replacing the page", async () => {
