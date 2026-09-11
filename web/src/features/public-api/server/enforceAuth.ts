@@ -44,7 +44,7 @@ export async function enforceAuth(
     return enforceAdminAuth(context, params);
   }
   if (principal.kind !== "apiKey") {
-    return internalserver(
+    return internalServerError(
       `unexpected principal on the public-API seam: ${principal.kind}`,
     );
   }
@@ -60,20 +60,16 @@ async function enforceAdminAuth(
 ): Promise<EnforceAuthResult> {
   const project = getProjectId(context, params.req);
   if (!project.success) return project;
+
   const org = await lookupProjectOrgId(project.projectId);
   if (!org.success) return org;
+
   const decision = authorize(context, params.action, {
     projectId: project.projectId,
   });
   if (!decision.success) return decision;
-  return {
-    success: true,
-    scope: toApiAccessScope(context.principal, {
-      orgId: org.orgId,
-      projectId: project.projectId,
-    }),
-    ctx: context,
-  };
+
+  return access(context, org.orgId, project.projectId);
 }
 
 /** enforceOrgAuth resolves, authorizes, and scopes an organization-scoped api-key request. */
@@ -84,13 +80,11 @@ function enforceOrgAuth(
 ): EnforceAuthResult {
   const org = getOrgId(context, params.req);
   if (!org.success) return org;
+
   const decision = authorize(context, params.action, { orgId: org.orgId });
-  if (!decision.success) return { success: false, error: decision.error };
-  return {
-    success: true,
-    scope: toApiAccessScope(principal, { orgId: org.orgId, projectId: null }),
-    ctx: context,
-  };
+  if (!decision.success) return decision;
+
+  return access(context, principal.boundResource.orgId);
 }
 
 /** enforceProjectAuth resolves, authorizes, and scopes a project-scoped api-key request against its bound org; an organization key naming a project outside its org is told the project does not exist, as the route handlers do. */
@@ -101,24 +95,17 @@ function enforceProjectAuth(
 ): EnforceAuthResult {
   const project = getProjectId(context, params.req);
   if (!project.success) return project;
-  if (
-    !principal.boundResource.projectId &&
-    !ownsProject(principal, project.projectId)
-  ) {
-    return notfound("Project not found or you don't have access to it");
+
+  if (!ownsProject(principal, project.projectId)) {
+    return notFoundError("Project not found or you don't have access to it");
   }
+
   const decision = authorize(context, params.action, {
     projectId: project.projectId,
   });
-  if (!decision.success) return { success: false, error: decision.error };
-  return {
-    success: true,
-    scope: toApiAccessScope(principal, {
-      orgId: principal.boundResource.orgId,
-      projectId: project.projectId,
-    }),
-    ctx: context,
-  };
+  if (!decision.success) return decision;
+
+  return access(context, principal.boundResource.orgId, project.projectId);
 }
 
 /** getOrgId resolves the target org from the header, falling back to the key's bound org; whether the key may act on it is the policy's call. */
@@ -128,8 +115,9 @@ function getOrgId(
 ): ResolvedOrg | ErrorResult {
   const orgId = first([getHeaderOrgId(req), getBoundOrgId(context)]);
   if (!orgId) {
-    return forbidden(`Missing '${orgIdHeader}' header`);
+    return forbiddenError(`Missing '${orgIdHeader}' header`);
   }
+
   return { success: true, orgId };
 }
 
@@ -143,11 +131,12 @@ function getProjectId(
     getUrlProjectId(req),
     getHeaderProjectId(req),
   ];
+
   const projectId = first(requested);
   if (!equal(requested) || !projectId) {
-    // bare 403 so a probe can't learn which project the key can reach
-    return forbidden();
+    return forbiddenError();
   }
+
   return { success: true, projectId };
 }
 
@@ -160,7 +149,7 @@ async function lookupProjectOrgId(
     select: { orgId: true },
   });
   if (!project) {
-    return notfound("Project not found");
+    return notFoundError("Project not found");
   }
   return { success: true, orgId: project.orgId };
 }
@@ -218,19 +207,37 @@ function first(os: (string | undefined)[]): string | undefined {
   return os.find((o) => o !== undefined);
 }
 
-/** forbidden is a 403 ErrorResult carrying an optional message. */
-function forbidden(message?: string): ErrorResultOf<ForbiddenError> {
+/** forbiddenError is a 403 ErrorResult carrying an optional message. */
+function forbiddenError(message?: string): ErrorResultOf<ForbiddenError> {
   return { success: false, error: new ForbiddenError(message) };
 }
 
-/** notfound is a 404 ErrorResult carrying an optional message. */
-function notfound(message?: string): ErrorResultOf<LangfuseNotFoundError> {
+/** notFoundError is a 404 ErrorResult carrying an optional message. */
+function notFoundError(message?: string): ErrorResultOf<LangfuseNotFoundError> {
   return { success: false, error: new LangfuseNotFoundError(message) };
 }
 
-/** internalserver is a 500 ErrorResult carrying an optional message. */
-function internalserver(message?: string): ErrorResultOf<InternalServerError> {
+/** internalServerError is a 500 ErrorResult carrying an optional message. */
+function internalServerError(
+  message?: string,
+): ErrorResultOf<InternalServerError> {
   return { success: false, error: new InternalServerError(message) };
+}
+
+/** access is returned when the enforceAuth grants access */
+function access(
+  context: AuthorizationContext,
+  orgId: string,
+  projectId?: string,
+): AccessResult {
+  return {
+    success: true,
+    scope: toApiAccessScope(context.principal, {
+      orgId: orgId,
+      projectId: projectId ?? null,
+    }),
+    ctx: context,
+  };
 }
 
 /** EnforceAuthParams is the request, the checked action, and the request's key-kind opt-ins. */
