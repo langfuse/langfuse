@@ -7,6 +7,7 @@ import {
   protectedOrganizationProcedure,
   protectedOrganizationProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
+import { getProductBaseUrl } from "@/src/utils/base-url";
 import {
   GatewayConnectionStatus,
   GatewayIngestionMode,
@@ -16,6 +17,7 @@ import { redis } from "@langfuse/shared/src/server";
 
 import { GatewayApiKeyService } from "./apiKey/gatewayApiKeyService";
 import { requireGatewayEnabledForOrganization } from "./availability";
+import { getGatewayBaseUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/getGatewayBaseUrl";
 import { GatewayConfigService } from "./config/gatewayConfigService";
 import {
   GatewayMetadataSchema,
@@ -43,7 +45,12 @@ export const aiGatewayRouter = createTRPCRouter({
     .input(organizationInput)
     .query(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      return new GatewayConfigService(ctx.prisma).getConfig(input.orgId);
+      return {
+        config: await new GatewayConfigService(ctx.prisma).getConfig(
+          input.orgId,
+        ),
+        gatewayBaseUrl: getGatewayBaseUrl(getProductBaseUrl()),
+      };
     }),
 
   updateConfig: protectedOrganizationProcedure

@@ -1,27 +1,25 @@
 # Search Bar
 
-Grammar-based query bar shared by the observations (v4 events) table,
-evaluation-rule observation filters, sessions, experiments, and scores tables. On the events table it does NOT replace
-the facet sidebar — it is an ADDITIONAL keyboard-driven editor that coexists
-with the sidebar and stays in sync with it. The facet sidebar's `FilterState`
-(+ the table's full-text search) remains the single source of truth; the bar
-reads from and writes to it. Only the legacy toolbar search field is replaced
-(full-text search goes inline in the bar). Generally available on the v4 events
-tables (no opt-in). Based on the `langfuse-search-bar` prototype.
+Grammar-based query editor for tables with a facet sidebar, including legacy
+and embedded read paths. The sidebar's `FilterState` and the host's search
+state remain canonical; both editors update the same state.
 
 ## Enablement
 
-- **Generally available on the v4 events tables** — every user gets the bar; it
-  is no longer a per-user Feature Preview opt-in. `hooks/useSearchBarEnabled.ts`
-  now returns `true` for everyone, so the bar renders wherever the v4 events
-  table does.
-- `EventsTable` activates the bar when the table is a full-page surface
-  (`!hideControls && !externalFilterState && !peekContext && !userId && !sessionId`).
-  The **v4 beta** gate is implicit: `EventsTable` only mounts on the v4
-  Observations/Traces tables, so call sites still read as
-  `isV4 && useSearchBarEnabled()`.
-- The search bar is not a Feature Preview and has no user or organization
-  toggle.
+- Each sidebar host supplies a registry derived from its exposed facets. Settings
+  lists and other tables without a sidebar retain their existing controls.
+- `EventsTable` enables the bar when its controls are visible and filters are
+  internally owned. Embedded tables exclude fields locked by their parent.
+- `TableSearchBar` wraps the shared store, commit hook, and row for other hosts.
+  Pass the host's existing search query and scope without changing their meaning.
+  Tables without a backend text-search lane use a registry default field or
+  disable free text. Organization catalogs omit `projectId`, which disables
+  project recent searches and AI filtering.
+- Key the wrapper by the saved-view `filterEditorResetKey` and sidebar
+  `draftResetKey`. Applying a view or clearing filters resets unfinished drafts;
+  deselecting a view after a user edit preserves them.
+- There is no search-bar feature toggle. A registry enables AI only when its
+  backend has a matching prompt and the organization enables AI features.
 
 ## Query language
 
@@ -406,11 +404,9 @@ derived from the same `eventsEvalFilterColumns` used by backend validation, and
 the v4 sessions table passes `SESSIONS_FIELD_REGISTRY`
 (`features/filters/config/sessionsSearchRegistry.ts`).
 
-**Pass the registry to BOTH halves.** `registry` is an optional prop defaulting
-to `EVENTS_FIELD_REGISTRY` on `useEventsSearchBar` AND on `EventsSearchBarRow`.
-Give it to the hook only and the view still _works_: commits validate against
-the right fields while the autocomplete offers the events list. Nothing throws —
-so a new view must check the field dropdown, not just that Enter applies.
+**Use `TableSearchBar` for table hosts.** It passes one registry to the hook and
+row. A specialized host that uses `useEventsSearchBar` and `EventsSearchBarRow`
+directly must pass the same registry to both, so autocomplete and commits agree.
 
 **Recipe to add the bar to a view:**
 

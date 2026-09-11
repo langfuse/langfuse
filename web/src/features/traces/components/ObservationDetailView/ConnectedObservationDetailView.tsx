@@ -39,7 +39,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
+import {
+  CommentDrawerController,
+  getCommentDrawerInitialStateFromUrl,
+} from "@/src/features/comments/CommentDrawerController";
+import { useRouter } from "next/router";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
@@ -77,6 +81,7 @@ export function ConnectedObservationDetailView({
   projectId,
   traceId,
 }: ConnectedObservationDetailViewProps) {
+  const router = useRouter();
   // Tab and view state from URL (via SelectionContext)
   const {
     selectedTab: globalSelectedTab,
@@ -294,9 +299,7 @@ export function ConnectedObservationDetailView({
   return (
     <CommentDrawerController
       projectId={projectId}
-      objectId={observation.id}
-      objectType="OBSERVATION"
-      objectStartTime={observation.startTime}
+      initialState={() => getCommentDrawerInitialStateFromUrl(router.query)}
       count={comments.get(observation.id)}
     >
       {({ disabled, openDrawer }) => (
@@ -311,7 +314,13 @@ export function ConnectedObservationDetailView({
             commentCount={comments.get(observation.id)}
             commentDrawerControl={{
               disabled,
-              openDrawer: () => openDrawer({ type: "comments" }),
+              openDrawer: () =>
+                openDrawer({
+                  type: "comments",
+                  objectId: observation.id,
+                  objectType: "OBSERVATION",
+                  objectStartTime: observation.startTime,
+                }),
             }}
             subtreeMetrics={subtreeMetrics}
             treeNodeTotalCost={treeNode?.totalCost}
@@ -490,7 +499,13 @@ export function ConnectedObservationDetailView({
                     setJsonFieldExpansion("metadata", expanded),
                   enableInlineComments: true,
                   onAddInlineComment: (selection) =>
-                    openDrawer({ type: "inline-comment", selection }),
+                    openDrawer({
+                      type: "inline-comment",
+                      selection,
+                      objectId: observation.id,
+                      objectType: "OBSERVATION",
+                      objectStartTime: observation.startTime,
+                    }),
                   commentedPathsByField,
                   showMetadata: true,
                   observationId: observation.id,

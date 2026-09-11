@@ -138,8 +138,6 @@ export const SessionAnnotationProcessor: React.FC<
           </div>
           <CommentDrawerController
             projectId={projectId}
-            objectId={item.objectId}
-            objectType="SESSION"
             count={getNumberFromMap(sessionCommentCounts.data, item.objectId)}
           >
             {({ disabled, openDrawer }) => (
@@ -147,7 +145,13 @@ export const SessionAnnotationProcessor: React.FC<
                 type="button"
                 variant="outline"
                 disabled={disabled}
-                onClick={() => openDrawer({ type: "comments" })}
+                onClick={() =>
+                  openDrawer({
+                    type: "comments",
+                    objectId: item.objectId,
+                    objectType: "SESSION",
+                  })
+                }
                 className="gap-1"
               >
                 {disabled ? (

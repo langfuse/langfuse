@@ -953,17 +953,19 @@ function TableViewPresetsDrawerContentBody({
           <Separator />
 
           <div className="p-2">
-            <Button
-              onClick={() => {
-                setIsCreateDialogOpen(true);
-                capture("saved_views:create_form_open", { tableName });
-              }}
-              variant="ghost"
-              className="w-full justify-start px-1"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Create Custom View
-            </Button>
+            <DrawerClose asChild>
+              <Button
+                onClick={() => {
+                  setIsCreateDialogOpen(true);
+                  capture("saved_views:create_form_open", { tableName });
+                }}
+                variant="ghost"
+                className="w-full justify-start px-1"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Create Custom View
+              </Button>
+            </DrawerClose>
           </div>
         </div>
       </DrawerContent>
