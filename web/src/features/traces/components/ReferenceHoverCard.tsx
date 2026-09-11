@@ -192,7 +192,8 @@ export function SessionHoverCard({
             : [undefined, undefined];
         })();
     rows.push({ label: "Traces", value: numberFormatter(count, 0) });
-    if (count > 1 && times[0] && times[1]) {
+    // Always shown: a one-trace session reads as 0s, which is the fact.
+    if (times[0] && times[1]) {
       rows.push({
         label: "Duration",
         value: formatIntervalSeconds(
