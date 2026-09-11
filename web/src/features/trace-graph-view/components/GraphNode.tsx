@@ -29,6 +29,12 @@ const TYPE_BORDER_CLASS: Record<string, string> = {
 };
 const DEFAULT_BORDER_CLASS = "border-muted-blue";
 
+/**
+ * How far a search miss drops — the same value the timeline dims its rows by,
+ * so the two views answer one query with one visual language.
+ */
+export const SEARCH_DIM_OPACITY = "opacity-30";
+
 const isStartNode = (id: string) =>
   id === LANGFUSE_START_NODE_NAME || id === LANGGRAPH_START_NODE_NAME;
 const isEndNode = (id: string) =>
@@ -47,6 +53,13 @@ export type GraphNodeProps = {
   selected?: boolean;
   /** "Playing" at the timeline playhead — glows to stand out during playback. */
   active?: boolean;
+  /**
+   * None of this node's observations answer the active search. It fades rather
+   * than disappearing: the shape of the run is the reason to look at a graph,
+   * and a hit means little without the nodes it sits between. Still clickable
+   * and still keyboard-focusable — searching does not make the graph read-only.
+   */
+  dimmed?: boolean;
   /** Hide the text label (when zoomed out) — keeps the box, shows only the icon. */
   compact?: boolean;
   onSelect?: (id: string) => void;
@@ -64,6 +77,7 @@ function GraphNodeComponent({
   counter,
   selected,
   active,
+  dimmed,
   compact,
   onSelect,
   onHover,
@@ -87,6 +101,10 @@ function GraphNodeComponent({
       (active
         ? "ring-primary-accent ring-2 ring-offset-1"
         : "ring-ring ring-2 ring-offset-1"),
+    // A search miss. Last, so it fades whatever the node ended up wearing —
+    // and it is the misses that dim rather than the hits that recolour,
+    // because border hue here means observation type and nothing else.
+    dimmed && SEARCH_DIM_OPACITY,
   );
 
   // Real-HTML accessibility (the win over the old canvas renderer): selectable

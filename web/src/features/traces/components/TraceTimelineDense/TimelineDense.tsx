@@ -77,6 +77,7 @@ import {
   type LayoutNode,
   type PositionedNode,
 } from "../../fns/timeline/layout";
+import { collapsedForSearch } from "../../fns/timeline/searchMatches";
 import { createTextMeasurer } from "../../fns/timeline/textMeasurer";
 import { resolveBarTones } from "../../fns/timeline/barContrast";
 import { traceSpaceOf, type Box } from "../../fns/timeline/viewTransform";
@@ -166,6 +167,14 @@ const GUTTER_NAME_MIN = 48;
  * left edge instead left the elbow pointing at nothing in particular.
  */
 const GUTTER_RAIL = GUTTER_ICON / 2;
+/** Stable empty set, so an absent `collapsed` prop does not break a memo. */
+const EMPTY_COLLAPSED: ReadonlySet<string> = new Set<string>();
+/**
+ * How far a row that missed the search drops. Low enough that the hits read as
+ * the only thing lit, high enough that a miss is still a bar you can aim at —
+ * the rows stay clickable and hoverable while a query is live.
+ */
+const SEARCH_DIM_OPACITY = "opacity-30";
 const TOOLBAR_HEIGHT = 22;
 const AXIS_HEIGHT = 16;
 const READOUT_HEIGHT = 18;
@@ -282,6 +291,33 @@ export type TimelineDenseProps = {
   /** The view-options duration toggle; the tree honours the same one. */
   showDuration?: boolean;
   /**
+   * An active search, or absent when there is none. The chart answers a query
+   * by staying a chart: matching bars keep their hue and their label, the rest
+   * drop to `SEARCH_DIM_OPACITY` — dimming the misses rather than recolouring
+   * the hits, because hue here means observation type and nothing else.
+   *
+   * Dimmed rows keep their click and hover targets: a bar you can still see is
+   * a bar you can still open, and searching should not make the trace read-only.
+   */
+  search?: {
+    /**
+     * The raw query string. Identity for "reveal the first hit ONCE per query":
+     * retyping what is already in the box must not re-pan the chart.
+     */
+    query: string;
+    /**
+     * Matching OBSERVATION ids. A hit inside a collapsed subtree has no bar, so
+     * the chart opens the rows above it for as long as the query is live (see
+     * `collapsedForSearch`) — which is why the caller hands over ids rather than
+     * rows: it does not know what this view has collapsed.
+     */
+    matchedIds: ReadonlySet<string>;
+    /** The quiet toolbar readout — "3 matches" / "No matches". Supplied, so the
+     * count is the wiring layer's to define (it counts matching observations
+     * over the whole trace, which is every bar this chart lights). */
+    label: string;
+  };
+  /**
    * The trace playhead, handed in rather than read from context: this renderer
    * takes data and nothing implicit, which is what lets Storybook mount it at
    * every size. Absent means there is no playback surface here.
@@ -338,6 +374,7 @@ export function TimelineDense({
   playhead,
   metricsOf,
   showDuration = true,
+  search,
 }: TimelineDenseProps) {
   const [viewport, setViewport] = useState<Viewport | null>(null);
   const [pointerPos, setPointerPos] = useState<{
@@ -361,9 +398,26 @@ export function TimelineDense({
     setMarquee(next);
   };
 
+  /**
+   * The collapse state the rows are actually built with: the user's, plus the
+   * paths to the search's hits opened, because a match with no row is a match
+   * the count promises and the chart cannot show. Identical to `collapsed` when
+   * there is no query or nothing is hidden.
+   */
+  const effectiveCollapsed = useMemo(
+    () =>
+      search
+        ? collapsedForSearch({
+            roots,
+            collapsed: collapsed ?? EMPTY_COLLAPSED,
+            matchedIds: search.matchedIds,
+          })
+        : collapsed,
+    [search, roots, collapsed],
+  );
   const prepared = useMemo(
-    () => prepareTimeline(roots, collapsed),
-    [roots, collapsed],
+    () => prepareTimeline(roots, effectiveCollapsed),
+    [roots, effectiveCollapsed],
   );
   // Measured in the font the labels ACTUALLY render in, read off a probe span
   // that carries their own size — `10px ui-sans-serif` is a guess, and the
@@ -769,6 +823,45 @@ export function TimelineDense({
       });
       if (!viewportsEqual(revealed, current)) {
         // A flight in progress was aimed at the old selection.
+        cancelTween();
+        viewportRef.current = revealed;
+        setViewport(revealed);
+      }
+    }
+  }
+
+  // A new query reveals its first hit, for exactly the reason a new selection
+  // reveals its row: on a trace this dense the first match is usually outside
+  // the window, and a highlight you cannot see is not a highlight. Same pan,
+  // never a zoom — "show me the matches" is not a request to change how far in
+  // you are looking.
+  //
+  // Keyed on the QUERY, not on the hit's id: retyping what is already in the box
+  // must not re-pan, and two different queries that happen to land on the same
+  // row should each be revealed. Ordered after the selection reveal and built on
+  // `viewportRef.current` rather than `current`, so when a click and a keystroke
+  // land in the same render the newer intent wins instead of the two fighting.
+  const revealedQueryRef = useRef<string | null>(null);
+  const searchKey = search?.query ?? null;
+  if (searchKey !== revealedQueryRef.current) {
+    const index = searchKey
+      ? prepared.rows.findIndex((row) => search?.matchedIds.has(row.node.id))
+      : -1;
+    const row = index >= 0 ? prepared.rows[index] : undefined;
+    // Same lesson as the selection reveal: with no rows yet there is nothing to
+    // reveal and nothing to conclude, so leave the query un-handled and let the
+    // next render with rows retry. With rows, "no hit" is an answer.
+    if (!searchKey || prepared.rows.length > 0)
+      revealedQueryRef.current = searchKey;
+    if (row) {
+      const base = viewportRef.current;
+      const offsets = spanOffsetsOf(row.node, prepared.originMs);
+      const revealed = revealViewport(base, limits, {
+        rowIndex: index,
+        startMs: compression.toCompressedMs(offsets.startMs),
+        endMs: compression.toCompressedMs(offsets.endMs),
+      });
+      if (!viewportsEqual(revealed, base)) {
         cancelTween();
         viewportRef.current = revealed;
         setViewport(revealed);
@@ -1395,6 +1488,17 @@ export function TimelineDense({
             <Scan className="h-3 w-3" />
           </ToolbarButton>
         )}
+        {/* What the dimming means, said in words. Without it "nothing lit up"
+            and "one hit, off to the left" look the same. */}
+        {search ? (
+          <span
+            className="text-muted-foreground truncate text-xs"
+            title={`${search.label} for “${search.query}”`}
+            data-testid="timeline-dense-search-count"
+          >
+            {search.label}
+          </span>
+        ) : null}
         {/* Where you are, when you are somewhere — and nothing at all when the
             whole trace is in view. */}
         {!offerShowLabels && !fitted ? (
@@ -1530,6 +1634,10 @@ export function TimelineDense({
             const isFocused = node.index === focusIndex;
             const isSelected = node.id === selectedId;
             const isActive = activeIds?.has(node.id) ?? false;
+            // A miss under a live query. Not "hidden": the row keeps its place
+            // on the clock, its click target and its hover, so the matches read
+            // in the context of everything they sit between.
+            const isDimmed = search != null && !search.matchedIds.has(node.id);
             const typeColor = TYPE_COLOR[node.type] ?? FALLBACK_COLOR;
             // One place decides the bar's colour, so the label can ask about the
             // exact class the bar got rather than guessing at it.
@@ -1563,10 +1671,19 @@ export function TimelineDense({
                   rowHeight={rowHeight}
                   barHeight={barHeight}
                   showName={namesVisible}
+                  dimmed={isDimmed}
                 />
 
+                {/* Dimming sits on the lane, so the bar, the caret and the
+                    label all fade together — a full-strength duration beside a
+                    ghost bar reads as two rows. The row's own wash is outside
+                    it, so the selected row stays findable while a query is
+                    live. */}
                 <div
-                  className="absolute inset-y-0 overflow-hidden"
+                  className={cn(
+                    "absolute inset-y-0 overflow-hidden",
+                    isDimmed && SEARCH_DIM_OPACITY,
+                  )}
                   style={{ left: `${railWidth}px`, width: `${laneWidth}px` }}
                 >
                   {/* A span outside the time window is clamped to the lane edge
@@ -1713,6 +1830,7 @@ export function TimelineDense({
                     rowHeight={rowHeight}
                     barHeight={barHeight}
                     showName
+                    dimmed={search != null && !search.matchedIds.has(node.id)}
                   />
                 </div>
               );
@@ -1833,12 +1951,19 @@ function GutterContent({
   rowHeight,
   barHeight,
   showName,
+  dimmed = false,
 }: {
   node: PositionedNode;
   width: number;
   rowHeight: number;
   barHeight: number;
   showName: boolean;
+  /**
+   * This row missed the active search. The name and the type square fade with
+   * the bar beside them — a full-strength name next to a ghost bar is the row
+   * shouting and whispering at once.
+   */
+  dimmed?: boolean;
 }) {
   // Nothing to show, so nothing to build: at bird's-eye density the rail has no
   // width, and a box of invisible squares is one DOM node per row of the trace.
@@ -1919,9 +2044,16 @@ function GutterContent({
           style={{ left: `${railX}px` }}
         />
       ) : null}
+      {/* The connector rails above deliberately do NOT dim: each row draws only
+          its own slice of a shared vertical spine, so per-row opacity would
+          turn one continuous line into a dashed one wherever the matches fall.
+          The row's IDENTITY — its icon and its name — is what fades. */}
       {showName ? (
         <div
-          className="absolute flex items-center gap-1 overflow-hidden"
+          className={cn(
+            "absolute flex items-center gap-1 overflow-hidden",
+            dimmed && SEARCH_DIM_OPACITY,
+          )}
           style={{
             left: `${indent}px`,
             right: "2px",
@@ -1942,7 +2074,11 @@ function GutterContent({
         </div>
       ) : (
         <div
-          className={cn("absolute rounded-[1px]", typeColor)}
+          className={cn(
+            "absolute rounded-[1px]",
+            typeColor,
+            dimmed && SEARCH_DIM_OPACITY,
+          )}
           data-testid="timeline-dense-type-square"
           style={{
             left: `${indent}px`,
