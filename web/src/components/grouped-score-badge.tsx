@@ -1,24 +1,31 @@
-import { useState } from "react";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { cn } from "@/src/utils/tailwind";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
 import { type LastUserScore, type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { scoreLevelFromScore } from "@/src/components/score-tag";
-import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
+import {
+  ScoreBadge,
+  scoreDotColor,
+} from "@/src/components/ScoreBadge/ScoreBadge";
+import { MessageCircleMoreIcon } from "lucide-react";
+
+type AnyScore = WithStringifiedMetadata<ScoreDomain> | LastUserScore;
 
 /**
  * Bucket scores by name, the way the badges group them. Exported so a caller that
  * has to RESERVE room for these badges buckets them identically — two copies of
  * the grouping rule are two chances to price a chip that never renders.
  */
-const groupScoresByName = <
-  T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
->(
+const groupScoresByName = <T extends AnyScore>(
   scores: T[],
 ): Record<string, T[]> =>
   scores.reduce<Record<string, T[]>>((groups, score) => {
@@ -28,9 +35,7 @@ const groupScoresByName = <
     return groups;
   }, {});
 
-const partitionScores = <
-  T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
->(
+const partitionScores = <T extends AnyScore>(
   scores: Record<string, T[]>,
   maxVisible?: number,
 ) => {
@@ -44,26 +49,93 @@ const partitionScores = <
   return { visibleScores, hiddenScores };
 };
 
-export const GroupedScoreBadges = <
-  T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
->({
+const formatScoreValue = (score: AnyScore) =>
+  score.stringValue ?? score.value?.toFixed(2) ?? "";
+
+const SOURCE_LABEL: Record<string, string> = {
+  API: "API",
+  EVAL: "Eval",
+  ANNOTATION: "Annotation",
+};
+
+/**
+ * The full list behind "+N": one row per score, grouped under its name, with
+ * value, source and comment. Where the chips cap out, this is how the rest is
+ * read without leaving the row or opening a tab.
+ */
+const ScoreListPopoverContent = <T extends AnyScore>({
+  groups,
+}: {
+  groups: Array<[string, T[]]>;
+}) => {
+  const total = groups.reduce((sum, [, scores]) => sum + scores.length, 0);
+
+  return (
+    <div className="flex flex-col gap-2 text-xs">
+      <div className="font-bold">
+        {total} {total === 1 ? "score" : "scores"}
+      </div>
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-1">
+        {groups.map(([name, scores]) =>
+          scores.map((score, index) => (
+            <div
+              key={`${name}-${index}`}
+              className="col-span-full grid grid-cols-subgrid items-center"
+            >
+              <span
+                aria-hidden
+                className="size-1.5 rounded-full"
+                style={{
+                  backgroundColor:
+                    index === 0 ? scoreDotColor(name) : "transparent",
+                }}
+              />
+              <span
+                className={
+                  index === 0
+                    ? "min-w-0 truncate"
+                    : "min-w-0 truncate opacity-0"
+                }
+                title={name}
+              >
+                {name}
+              </span>
+              <span className="flex items-center gap-1 text-right tabular-nums">
+                {formatScoreValue(score)}
+                {score.comment ? (
+                  <HoverCard openDelay={100}>
+                    <HoverCardTrigger
+                      aria-label={`View comment for ${name}: ${formatScoreValue(score)}`}
+                      className="inline-flex"
+                    >
+                      <MessageCircleMoreIcon className="size-3" />
+                    </HoverCardTrigger>
+                    <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
+                      <p className="whitespace-pre-wrap">{score.comment}</p>
+                    </HoverCardContent>
+                  </HoverCard>
+                ) : null}
+              </span>
+              <span className="text-muted-foreground">
+                {SOURCE_LABEL[score.source] ?? score.source}
+              </span>
+            </div>
+          )),
+        )}
+      </div>
+    </div>
+  );
+};
+
+export const GroupedScoreBadges = <T extends AnyScore>({
   scores,
   maxVisible,
   compact,
   hideLevels = false,
-  expandable = true,
 }: {
   scores: T[];
   maxVisible?: number;
   compact?: boolean;
-  /**
-   * Whether "+N" expands the hidden chips IN PLACE. A caller that has measured a
-   * box for exactly `maxVisible` chips has to say no: expanding is unbounded by
-   * construction, so inside a clipping box it does not reveal the hidden scores,
-   * it cuts the visible ones. The hover preview stays either way, which is the
-   * part that actually shows them.
-   */
-  expandable?: boolean;
   /** Suppress the level tag even on mixed rows — for dense surfaces (tree
       rows) where the level lives in the detail panel instead. */
   hideLevels?: boolean;
@@ -79,23 +151,11 @@ export const GroupedScoreBadges = <
     !hideLevels &&
     new Set(scores.map((score) => scoreLevelFromScore(score))).size > 1;
 
-  // "+N" expands IN PLACE on click (hover still previews the hidden chips);
-  // the trailing "−" collapses back to the capped view.
-  const [expanded, setExpanded] = useState(false);
-  const overflows =
-    maxVisible !== undefined && Object.keys(groupedScores).length > maxVisible;
-
   const { visibleScores, hiddenScores } = partitionScores(
     groupedScores,
-    expanded && expandable ? undefined : maxVisible,
+    maxVisible,
   );
-
-  // Padding comes from the chip size variant, not from here: the shell and an
-  // `asChild` className both setting padding resolves by stylesheet order.
-  const overflowButtonClassName = cn(
-    expandable ? "cursor-pointer" : "cursor-default",
-    "font-bold",
-  );
+  const allScores = [...visibleScores, ...hiddenScores];
 
   return (
     <>
@@ -109,8 +169,11 @@ export const GroupedScoreBadges = <
         />
       ))}
       {Boolean(hiddenScores.length) && (
-        <HoverCard>
-          <HoverCardTrigger asChild>
+        // "+N" opens the FULL list on click, not just the hidden part: the
+        // reader wants everything in one place, and a hover would fight the
+        // chips' own comment cards and the row hover card around it.
+        <Popover>
+          <PopoverTrigger asChild>
             <BadgeShell
               asChild
               color="outline"
@@ -118,55 +181,24 @@ export const GroupedScoreBadges = <
             >
               <button
                 type="button"
-                className={overflowButtonClassName}
-                // aria-label, not title: a native tooltip would stack on top of
-                // the hover-card preview.
-                aria-label={`Show ${hiddenScores.length} more score${hiddenScores.length === 1 ? "" : "s"}`}
-                // Chips render inside clickable rows (tree nodes, table rows) —
-                // expanding must not also select/navigate the row. Still swallowed
-                // when expansion is off, or the row would react to a click aimed at
-                // the preview.
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (expandable) setExpanded(true);
-                }}
+                className="cursor-pointer font-bold"
+                aria-label={`Show all ${scores.length} scores`}
+                // Chips render inside clickable rows (tree nodes, table rows):
+                // opening the list must not also select the row.
+                onClick={(event) => event.stopPropagation()}
               >
                 +{hiddenScores.length}
               </button>
             </BadgeShell>
-          </HoverCardTrigger>
-          {/* w-max overrides the fixed w-64 base so the card adapts to its
-              chips; the cap makes long selections wrap instead of clipping. */}
-          <HoverCardContent className="max-h-[300px] w-max max-w-[min(420px,90vw)] overflow-y-auto p-2">
-            <div className="flex flex-wrap gap-1">
-              {hiddenScores.map(([name, scores]) => (
-                <ScoreBadge
-                  key={name}
-                  name={name}
-                  scores={scores}
-                  compact={compact}
-                  showLevels={showLevels}
-                />
-              ))}
-            </div>
-          </HoverCardContent>
-        </HoverCard>
-      )}
-      {expanded && overflows && (
-        <BadgeShell asChild color="outline" size={compact ? "chipSm" : "chip"}>
-          <button
-            type="button"
-            className={overflowButtonClassName}
-            title="Show fewer scores"
-            aria-label="Show fewer scores"
-            onClick={(event) => {
-              event.stopPropagation();
-              setExpanded(false);
-            }}
+          </PopoverTrigger>
+          <PopoverContent
+            align="start"
+            className="max-h-[60dvh] w-max max-w-[min(480px,90vw)] overflow-y-auto p-3"
+            onClick={(event) => event.stopPropagation()}
           >
-            −
-          </button>
-        </BadgeShell>
+            <ScoreListPopoverContent groups={allScores} />
+          </PopoverContent>
+        </Popover>
       )}
     </>
   );

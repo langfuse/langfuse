@@ -56,6 +56,7 @@ import {
 } from "@/src/components/ui/popover";
 import { cn } from "@/src/utils/tailwind";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 
 export interface TraceDetailViewHeaderProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -72,6 +73,9 @@ export interface TraceDetailViewHeaderProps {
     openDrawer: () => void;
   };
 }
+
+/** Chips shown before "+N". p50 of scored traces carries 3 scores, p90 13. */
+const MAX_HEADER_SCORE_GROUPS = 3;
 
 export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   trace,
@@ -494,6 +498,16 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
               <VersionBadge version={trace.version} />
             </CollapsibleBadgeRow>
           </>
+        )}
+        {/* Trace-level scores as chips, three names inline, "+N" opens the
+            full list. Same cap as the observation header and tree rows. */}
+        {traceScores.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1">
+            <GroupedScoreBadges
+              scores={traceScores}
+              maxVisible={MAX_HEADER_SCORE_GROUPS}
+            />
+          </div>
         )}
       </div>
     </div>

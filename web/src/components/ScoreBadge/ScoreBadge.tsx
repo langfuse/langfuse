@@ -42,7 +42,7 @@ const DOT_PALETTE_SLOTS = [1, 2, 4, 5, 6, 7, 8] as const;
 
 /** Dot colour is a stable function of the score name (djb2 hash). Names can
  * share a colour; the name next to the dot is what disambiguates. */
-const scoreDotColor = (name: string) => {
+export const scoreDotColor = (name: string) => {
   let hash = 5381;
   for (let index = 0; index < name.length; index++) {
     hash = ((hash * 33) ^ name.charCodeAt(index)) >>> 0;

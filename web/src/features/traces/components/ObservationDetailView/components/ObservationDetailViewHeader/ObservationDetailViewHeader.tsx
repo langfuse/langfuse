@@ -94,6 +94,7 @@ import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
 import { resolveEvaluatorIdMetadata } from "@/src/features/traces/fns/resolveEvaluatorIdMetadata";
 import { api } from "@/src/utils/api";
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -117,6 +118,9 @@ export interface ObservationDetailViewHeaderProps {
   subtreeMetrics?: AggregatedTraceMetrics | null;
   treeNodeTotalCost?: Decimal;
 }
+
+/** Chips shown before "+N". p50 of scored observations carries 2 scores, p90 4. */
+const MAX_HEADER_SCORE_GROUPS = 3;
 
 export const ObservationDetailViewHeader = memo(
   function ObservationDetailViewHeader({
@@ -776,6 +780,16 @@ export const ObservationDetailViewHeader = memo(
                 />
               )}
             </CollapsibleBadgeRow>
+          )}
+          {/* Scores as chips, capped like the tree rows: three names inline,
+              "+N" opens the full list. The Scores tab keeps the table. */}
+          {observationScores.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1">
+              <GroupedScoreBadges
+                scores={observationScores}
+                maxVisible={MAX_HEADER_SCORE_GROUPS}
+              />
+            </div>
           )}
         </div>
       </div>
