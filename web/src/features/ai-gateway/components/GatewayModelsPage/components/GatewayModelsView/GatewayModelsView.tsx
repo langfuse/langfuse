@@ -1,4 +1,3 @@
-import { type FilterState, type ColumnDefinition } from "@langfuse/shared";
 import { useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 
@@ -15,63 +14,16 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import { gatewayModelsFilterConfig } from "@/src/features/ai-gateway/constants/modelsFilterConfig";
+import { GATEWAY_MODELS_FIELD_REGISTRY } from "@/src/features/ai-gateway/constants/modelsSearchRegistry";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import {
+  filterGatewayModels,
+  type GatewayModelRow,
+} from "./filterGatewayModels";
 
-const TABLE_NAME = "gateway-models";
-
-export type GatewayModelRow = {
-  id: string;
-  availableVia: Array<{
-    connectionId: string;
-    connectionName: string;
-    provider: GatewayProvider;
-  }>;
-  apiFormats: string[];
-};
-
-const filterColumns: ColumnDefinition[] = [
-  {
-    name: "Provider credentials",
-    id: "connection",
-    type: "arrayOptions",
-    internal: "connection",
-    options: [],
-  },
-  {
-    name: "Provider",
-    id: "provider",
-    type: "arrayOptions",
-    internal: "provider",
-    options: Object.entries(providerLabels).map(([value, displayValue]) => ({
-      value,
-      displayValue,
-    })),
-  },
-  {
-    name: "API format",
-    id: "apiFormat",
-    type: "arrayOptions",
-    internal: "apiFormat",
-    options: [],
-  },
-];
-
-const filterConfig: FilterConfig = {
-  tableName: TABLE_NAME,
-  columnDefinitions: filterColumns,
-  defaultExpanded: ["connection", "provider", "apiFormat"],
-  facets: [
-    {
-      type: "categorical",
-      column: "connection",
-      label: "Provider credentials",
-    },
-    { type: "categorical", column: "provider", label: "Provider" },
-    { type: "categorical", column: "apiFormat", label: "API format" },
-  ],
-};
+const TABLE_NAME = gatewayModelsFilterConfig.tableName;
 
 const columns: LangfuseColumnDef<GatewayModelRow, unknown>[] = [
   {
@@ -172,9 +124,13 @@ export function GatewayModelsView({
     }),
     [models],
   );
-  const queryFilter = useSidebarFilterState(filterConfig, filterOptions, {
-    stateLocation: "url",
-  });
+  const queryFilter = useSidebarFilterState(
+    gatewayModelsFilterConfig,
+    filterOptions,
+    {
+      stateLocation: "url",
+    },
+  );
   const filteredModels = useMemo(
     () => filterGatewayModels(models, searchQuery, queryFilter.filterState),
     [models, queryFilter.filterState, searchQuery],
@@ -223,16 +179,23 @@ export function GatewayModelsView({
 
       <DataTableControlsProvider tableName={TABLE_NAME}>
         <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-md border">
+          <TableSearchBar
+            key={queryFilter.draftResetKey}
+            tableName={TABLE_NAME}
+            registry={GATEWAY_MODELS_FIELD_REGISTRY}
+            filterState={queryFilter.searchBarFilterState}
+            setFilterState={queryFilter.setFilterState}
+            observed={toObservedOptions(filterOptions, isLoading)}
+            isV4={false}
+            search={{
+              query: searchQuery,
+              setQuery: (query) => setSearchQuery(query ?? ""),
+            }}
+          />
           <DataTableToolbar
             tableName={TABLE_NAME}
             columns={columns}
             filterState={queryFilter.filterState}
-            searchConfig={{
-              metadataSearchFields: ["Model"],
-              currentQuery: searchQuery,
-              tableAllowsFullTextSearch: false,
-              updateQuery: setSearchQuery,
-            }}
           />
           <div className="min-h-0 flex-1 overflow-hidden">
             <ResizableFilterLayout>
@@ -283,61 +246,6 @@ function uniqueSorted(values: string[]) {
   return [...new Set(values)].toSorted((left, right) =>
     left.localeCompare(right),
   );
-}
-
-function getModelFilterValues(model: GatewayModelRow, column: string) {
-  switch (column) {
-    case "connection":
-      return model.availableVia.map((connection) => connection.connectionId);
-    case "provider":
-      return model.availableVia.map((connection) => connection.provider);
-    case "apiFormat":
-      return model.apiFormats;
-    default:
-      return [];
-  }
-}
-
-function filterGatewayModels(
-  models: GatewayModelRow[],
-  searchQuery: string,
-  filters: FilterState,
-) {
-  const normalizedSearch = searchQuery.trim().toLowerCase();
-
-  return models.filter((model) => {
-    if (
-      normalizedSearch.length > 0 &&
-      !model.id.toLowerCase().includes(normalizedSearch)
-    ) {
-      return false;
-    }
-
-    return filters.every((filter) => {
-      const values = getModelFilterValues(model, filter.column);
-
-      if (filter.type === "string") {
-        const needle = filter.value.toLowerCase();
-        const contains = values.some((value) =>
-          value.toLowerCase().includes(needle),
-        );
-        return filter.operator === "does not contain" ? !contains : contains;
-      }
-
-      if (filter.type !== "arrayOptions" && filter.type !== "stringOptions") {
-        return true;
-      }
-
-      const selected = filter.value;
-      if (filter.operator === "none of") {
-        return selected.every((value) => !values.includes(value));
-      }
-      if (filter.operator === "all of") {
-        return selected.every((value) => values.includes(value));
-      }
-      return selected.some((value) => values.includes(value));
-    });
-  });
 }
 
 function getEmptyMessage({

@@ -69,6 +69,8 @@ interface UseTableStateProps {
   currentExpandedFilters?: string[];
   disabled?: boolean;
   allowBackendSystemPresets?: boolean;
+  /** Called after an application even when the validated state is unchanged. */
+  onViewApplied?: (state: TableViewPresetState) => void;
 }
 
 const isViewApplicableToTable = (
@@ -110,6 +112,7 @@ export function useTableViewManager({
   currentExpandedFilters,
   disabled = false,
   allowBackendSystemPresets = false,
+  onViewApplied,
 }: UseTableStateProps) {
   const router = useRouter();
   const isRouterReady = router.isReady;
@@ -174,9 +177,14 @@ export function useTableViewManager({
   );
 
   const handleUserStateChange = useCallback(
-    (previousValue: unknown, nextValue: unknown) => {
+    (
+      previousValue: unknown,
+      nextValue: unknown,
+      options?: { force?: boolean },
+    ) => {
       const viewId = selectedViewIdRef.current;
-      if (!viewId || isEqual(previousValue, nextValue)) return;
+      if (!viewId || (!options?.force && isEqual(previousValue, nextValue)))
+        return;
       const columnsApplied = storedViewIdRef.current === viewId;
       handleSetViewId(null, { updateType: "replaceIn" });
       setViewUpdateTarget({ viewId, columnsApplied });
@@ -200,12 +208,14 @@ export function useTableViewManager({
   const setOrderByRef = useRef(setOrderBy);
   const setSearchQueryRef = useRef(setSearchQuery);
   const setExpandedFiltersRef = useRef(setExpandedFilters);
+  const onViewAppliedRef = useRef(onViewApplied);
 
   // Update refs immediately on every render
   setFiltersRef.current = setFilters;
   setOrderByRef.current = setOrderBy;
   setSearchQueryRef.current = setSearchQuery;
   setExpandedFiltersRef.current = setExpandedFilters;
+  onViewAppliedRef.current = onViewApplied;
 
   // Extract primitive for effect dep (rerender-dependencies: avoid object deps)
   const defaultViewId = resolvedDefault?.viewId;
@@ -407,6 +417,12 @@ export function useTableViewManager({
 
       // Applying a view discards drafts; leaving a view while editing preserves them.
       setFilterEditorResetKey((key) => key + 1);
+      onViewAppliedRef.current?.({
+        ...viewData,
+        filters: validFilters,
+        orderBy: validOrderBy,
+        searchQuery: viewData.searchQuery || null,
+      });
 
       // Unlock as soon as the view is applied. Earlier versions kept the table
       // locked until a useEffect observer saw the filter change propagate to

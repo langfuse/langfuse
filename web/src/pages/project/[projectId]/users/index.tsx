@@ -19,7 +19,10 @@ import { createLinkTableColumn } from "@/src/components/design-system/table/colu
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { getUsersFilterConfig } from "@/src/features/filters/config/users-config";
-import { USERS_FIELD_REGISTRY } from "@/src/features/filters/config/usersSearchRegistry";
+import {
+  USERS_FIELD_REGISTRY,
+  LEGACY_USERS_FIELD_REGISTRY,
+} from "@/src/features/filters/config/usersSearchRegistry";
 import {
   useSidebarFilterPresentation,
   useSidebarFilterStateCore,
@@ -31,16 +34,18 @@ import { sortOptionValues } from "@/src/features/filters";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
-import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
-import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
-import { DEFAULT_SEARCH_TYPE } from "@/src/features/search-bar/lib/commit";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput } from "@/src/utils/types";
 import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+  TableViewPresetTableName,
   type FilterState,
   type TimeFilter,
 } from "@langfuse/shared";
@@ -188,16 +193,20 @@ const UsersTable = ({
     [dateRange],
   );
 
+  const { viewControllersRef, onExplicitFilterStateChange } =
+    useTableViewFilterChange();
+
   const filterStateOptions: UseSidebarFilterStateOptions = useMemo(
     () => ({
       stateLocation: "urlAndSessionStorage",
+      onExplicitFilterStateChange,
       sessionFilterContextId: buildSidebarFilterSessionContextId(projectId),
       // Environment is a sidebar facet here, like every other filter — the page
       // no longer keeps its own environment selection beside the filter state.
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
       isV4,
     }),
-    [isV4, projectId],
+    [isV4, projectId, onExplicitFilterStateChange],
   );
 
   // Split core/presentation so the v4 facet scan can refine its counts against
@@ -337,10 +346,6 @@ const UsersTable = ({
     withDefault(StringParam, null),
   );
 
-  // The grammar bar is v4-only: it writes the events facet grammar, which the
-  // trace-backed v3 query cannot answer. v3 keeps the toolbar's search field.
-  const searchBarEnabled = isV4;
-
   const queryFilterRef = useRef(queryFilter);
   queryFilterRef.current = queryFilter;
 
@@ -350,33 +355,10 @@ const UsersTable = ({
     [],
   );
 
-  const observedOptions = useMemo(
-    () => toObservedOptions(v4FacetOptions, isV4FacetOptionsPending),
-    [v4FacetOptions, isV4FacetOptionsPending],
+  const observedOptions = toObservedOptions(
+    isV4 ? v4FacetOptions : v3FacetOptions,
+    isSidebarFilterLoading,
   );
-
-  // Both users queries take a `searchQuery` but no search type — free text
-  // always lowers to `user_id ILIKE`. The bar reports the default lane; there
-  // is nothing on this page for a write to it to change.
-  const setSearchTypeNoop = useCallback(() => {}, []);
-
-  const {
-    store: searchBarStore,
-    commit: searchBarCommit,
-    applyFilters: searchBarApplyFilters,
-  } = useEventsSearchBar({
-    projectId,
-    tableName: usersFilterConfig.tableName,
-    enabled: searchBarEnabled,
-    filterState: queryFilter.searchBarFilterState,
-    searchQuery,
-    searchType: DEFAULT_SEARCH_TYPE,
-    observed: observedOptions,
-    setFilterState: setFiltersWrapper,
-    setSearchQuery,
-    setSearchType: setSearchTypeNoop,
-    registry: USERS_FIELD_REGISTRY,
-  });
 
   const filterState = queryFilter.effectiveFilterState.concat(dateRangeFilter);
 
@@ -555,6 +537,55 @@ const UsersTable = ({
     }),
   ];
 
+  const [columnVisibility, setColumnVisibility] = useColumnVisibility(
+    "users",
+    columns,
+  );
+  const [columnOrder, setColumnOrder] = useColumnOrder<RowData>(
+    "users",
+    columns,
+  );
+  const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
+    tableName: TableViewPresetTableName.Users,
+    projectId,
+    stateUpdaters: {
+      setFilters: (filters) =>
+        queryFilterRef.current.setFilterState(filters, {
+          origin: "saved_view",
+        }),
+      setExpandedFilters: queryFilter.onExpandedChange,
+      setSearchQuery,
+      setColumnOrder,
+      setColumnVisibility,
+    },
+    currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
+    validationContext: {
+      columns,
+      filterColumnDefinition: usersFilterConfig.columnDefinitions,
+      expandableFilterColumns: usersFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
+    },
+  });
+  viewControllersRef.current = viewControllers;
+  const handleSearchChange = (query: string | null) => {
+    viewControllers.handleUserStateChange(searchQuery ?? "", query ?? "");
+    setSearchQuery(query);
+    setPaginationState({ pageIndex: 0 });
+  };
+  const handleColumnOrderChange: typeof setColumnOrder = (update) => {
+    const next = typeof update === "function" ? update(columnOrder) : update;
+    viewControllers.handleUserStateChange(columnOrder, next);
+    setColumnOrder(next);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibility = (update) => {
+    const next =
+      typeof update === "function" ? update(columnVisibility) : update;
+    viewControllers.handleUserStateChange(columnVisibility, next);
+    setColumnVisibility(next);
+  };
+
   return (
     <DataTableControlsProvider tableName={usersFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
@@ -567,54 +598,51 @@ const UsersTable = ({
         {/* In bar mode the composer and the toolbar stick together as one band
             so the toolbar cannot scroll under the composer and render
             half-clipped. */}
-        <div
-          className={cn(
-            searchBarEnabled && "bg-background sticky top-0 z-30 pb-1.5",
-          )}
-        >
-          {searchBarEnabled && (
-            <EventsSearchBarRow
-              projectId={projectId}
-              tableName={usersFilterConfig.tableName}
-              store={searchBarStore}
-              commit={searchBarCommit}
-              observed={observedOptions}
-              erroredColumns={erroredColumns}
-              onApplyFilters={searchBarApplyFilters}
-              onRequestColumns={requestColumns}
-              registry={USERS_FIELD_REGISTRY}
-            />
-          )}
+        <div className="bg-background sticky top-0 z-30 pb-1.5">
+          <TableSearchBar
+            key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+            isV4={isV4}
+            filterState={queryFilter.searchBarFilterState}
+            setFilterState={setFiltersWrapper}
+            search={{ query: searchQuery, setQuery: handleSearchChange }}
+            projectId={projectId}
+            tableName={usersFilterConfig.tableName}
+            observed={observedOptions}
+            erroredColumns={erroredColumns}
+            onRequestColumns={requestColumns}
+            registry={isV4 ? USERS_FIELD_REGISTRY : LEGACY_USERS_FIELD_REGISTRY}
+          />
           <DataTableToolbar
             tableName={usersFilterConfig.tableName}
             isV4={isV4}
-            rowClassName={searchBarEnabled ? "my-1" : undefined}
+            rowClassName="my-1"
             filterState={queryFilter.explicitFilterState}
             columns={columns}
             timeRange={showControlsInPageHeader ? undefined : timeRange}
             setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-            searchConfig={
-              searchBarEnabled
-                ? undefined
-                : {
-                    metadataSearchFields: ["User ID"],
-                    updateQuery: setSearchQuery,
-                    currentQuery: searchQuery ?? undefined,
-                    tableAllowsFullTextSearch: false,
-                    setSearchType: undefined,
-                    searchType: undefined,
-                  }
-            }
+            currentSearchQuery={searchQuery ?? ""}
+            columnVisibility={columnVisibility}
+            setColumnVisibility={handleColumnVisibilityChange}
+            columnOrder={columnOrder}
+            setColumnOrder={handleColumnOrderChange}
+            viewConfig={{
+              tableName: TableViewPresetTableName.Users,
+              projectId,
+              controllers: viewControllers,
+            }}
           />
         </div>
         <ResizableFilterLayout>
-          <DataTableControls queryFilter={queryFilter} />
+          <DataTableControls
+            key={viewControllers.filterEditorResetKey}
+            queryFilter={queryFilter}
+          />
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
               tableName="users"
               columns={columns}
               data={
-                users.isLoading
+                users.isLoading || isViewLoading
                   ? { isLoading: true, isError: false }
                   : users.isError
                     ? {
@@ -656,6 +684,10 @@ const UsersTable = ({
                 onChange: setPaginationState,
                 state: paginationState,
               }}
+              columnVisibility={columnVisibility}
+              onColumnVisibilityChange={handleColumnVisibilityChange}
+              columnOrder={columnOrder}
+              onColumnOrderChange={handleColumnOrderChange}
               cellPadding="comfortable"
             />
           </div>
