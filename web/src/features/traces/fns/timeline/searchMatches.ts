@@ -38,19 +38,27 @@ export function collapsedForSearch({
   // tree, not the rendered rows — the hits that need a row are exactly the ones
   // no row exists for.
   const hiding = new Set<string>();
-  const visit = (node: LayoutNode, collapsedAncestors: readonly string[]) => {
+  // Explicit stack, not recursion: traces can nest thousands of levels deep
+  // and the timeline must not blow the call stack on a keystroke.
+  const stack: Array<{
+    node: LayoutNode;
+    collapsedAncestors: readonly string[];
+  }> = roots.map((node) => ({ node, collapsedAncestors: [] }));
+  while (stack.length > 0) {
+    const { node, collapsedAncestors } = stack.pop()!;
     // The whole chain opens: an inner collapsed row is no use while an outer one
     // still hides it.
     if (collapsedAncestors.length > 0 && matchedIds.has(node.id)) {
       for (const id of collapsedAncestors) hiding.add(id);
     }
-    if (node.children.length === 0) return;
+    if (node.children.length === 0) continue;
     const below = collapsed.has(node.id)
       ? [...collapsedAncestors, node.id]
       : collapsedAncestors;
-    for (const child of node.children) visit(child, below);
-  };
-  for (const root of roots) visit(root, []);
+    for (const child of node.children) {
+      stack.push({ node: child, collapsedAncestors: below });
+    }
+  }
 
   if (hiding.size === 0) return collapsed;
   return new Set([...collapsed].filter((id) => !hiding.has(id)));
