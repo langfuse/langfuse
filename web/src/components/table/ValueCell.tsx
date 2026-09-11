@@ -608,7 +608,7 @@ export const ValueCell = memo(
     const { content, needsTruncation } = getDisplayValue();
 
     return (
-      <div className={`${MONO_TEXT_CLASSES} group relative max-w-full`}>
+      <div className={`${MONO_TEXT_CLASSES} group relative min-h-5 max-w-full`}>
         <span className="cursor-text">{content}</span>
         {needsTruncation && !row.original.hasChildren && (
           <div
