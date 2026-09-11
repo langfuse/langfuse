@@ -166,6 +166,9 @@ remote MCP can report itself connected before any token exists — so prove acce
 with a real read rather than trusting an indicator, and use a token in an
 `Authorization` header there instead of the interactive flow. Do not commit that
 header: an unset variable is passed through literally and fails with no fallback.
+**Never print or echo the secret value** (`LINEAR_API_KEY` / `LINEAR_TOKEN` /
+`LINEAR_API_TOKEN`) while debugging or reporting the read — say only whether
+access worked.
 
 ## When there is no Linear connection: say so, loudly
 
