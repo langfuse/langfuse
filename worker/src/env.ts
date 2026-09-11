@@ -106,6 +106,46 @@ const EnvSchema = z.object({
   LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_TRACE_BATCH_SAMPLING_RATE: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(1),
+  LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_TRACE_BATCH_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2),
+  LANGFUSE_TRACE_BATCH_MAX_SIZE: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(1_000)
+    .default(60),
+  LANGFUSE_TRACE_BATCH_IDLE_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(600_000),
+  LANGFUSE_TRACE_BATCH_PENDING_TTL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(7_200_000),
+  LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(30_000),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),

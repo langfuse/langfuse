@@ -15,6 +15,23 @@
 
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
+- Trace-read micro-batching: `src/features/traces/traceBatching.ts` tracks
+  successful direct-v4 writer submissions and dispatches ready traces across projects
+  to `trace-batch`; `src/queues/traceBatchQueue.ts` reads their event payloads.
+  The cross-project experiment collects the entire due cohort at a fixed cutoff,
+  sorts the due ID list by project ID in worker memory, and packs batches
+  capped by `LANGFUSE_TRACE_BATCH_MAX_SIZE` (default 60). Upgrade every consumer
+  before enabling cross-project dispatch; consumers also accept legacy jobs.
+  One Redis range read collects all due IDs; state hydration and expiry cleanup
+  are bounded. The complete run has no trace-count/time cutoff. Worker memory
+  and the ID response size scale with the due backlog; no scratch disk is used.
+  Intake, dispatcher, and consumer have independent disabled-by-default flags.
+  `LANGFUSE_TRACE_BATCH_SAMPLING_RATE` is a 0–1 admission rate (default 1),
+  using evaluator sampling by trace ID before Redis; queued work is not resampled.
+  Stop intake first and keep dispatcher/consumer running to drain pending work.
+  Pending entries are pruned atomically from due/state during ingestion and
+  dispatch after `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS` past readiness (default
+  two hours). This is opportunistic retention, not native Redis key expiry.
 - Feature processors: `src/features/*`
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`

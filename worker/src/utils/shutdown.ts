@@ -24,6 +24,7 @@ import {
   queueMetricsRunner,
   monitorRunners,
   inAppAgentDlqRetryRunner,
+  traceBatchDispatcher,
 } from "../app";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
@@ -49,6 +50,9 @@ const runDrainAndClose = async () => {
 
   server?.close();
   logger.info("Server has been closed.");
+
+  // Finish any in-flight enqueue before draining consumers and closing Redis.
+  await traceBatchDispatcher?.drain();
 
   // Stop batch project cleaners
   for (const cleaner of batchProjectCleaners) {
