@@ -84,7 +84,7 @@ export const BreakdownTooltip = ({
           <div className="flex min-w-0 flex-col gap-4">
             <div className="flex flex-col gap-1">
               <span className="font-bold">
-                {isCost ? "Cost breakdown" : "Usage breakdown"}
+                {isCost ? "Cost breakdown" : "Token breakdown"}
               </span>
 
               {isCost && resolvedCostSource === "provided" ? (

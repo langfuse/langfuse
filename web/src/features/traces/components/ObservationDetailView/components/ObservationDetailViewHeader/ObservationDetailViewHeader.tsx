@@ -53,7 +53,6 @@ import {
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
 import { CostUsageBadge } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
-import { resolveObservationCostSource } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/costSource";
 import {
   type WithStringifiedMetadata,
   type MetadataDomainClient,
@@ -233,29 +232,6 @@ export const ObservationDetailViewHeader = memo(
       ? subtreeMetrics.usageDetails
       : isGenerationLike(observation.type)
         ? observation.usageDetails
-        : undefined;
-    const showsOwnObservationCost = !subtreeMetrics;
-    const hasProvidedCostDetails =
-      Object.keys(observation.providedCostDetails).length > 0;
-    const costSource = resolveObservationCostSource({
-      hasSubtreeMetrics: Boolean(subtreeMetrics),
-      hasProvidedCostDetails,
-    });
-    const priceSource =
-      isGenerationLike(observation.type) &&
-      observation.internalModelId &&
-      observation.model &&
-      observation.usagePricingTierId &&
-      observation.usagePricingTierName &&
-      !hasProvidedCostDetails &&
-      showsOwnObservationCost
-        ? {
-            projectId,
-            modelId: observation.internalModelId,
-            modelName: observation.model,
-            pricingTierId: observation.usagePricingTierId,
-            pricingTierName: observation.usagePricingTierName,
-          }
         : undefined;
 
     return (
@@ -776,8 +752,6 @@ export const ObservationDetailViewHeader = memo(
                 outputUsage={displayedOutputUsage}
                 totalUsage={displayedTotalUsage}
                 usageDetails={displayedUsageDetails}
-                costSource={costSource}
-                priceSource={priceSource}
               />
               {evaluatorId &&
                 isEvaluatorExecution &&

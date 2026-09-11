@@ -15,25 +15,20 @@
  */
 
 import { useState } from "react";
-import Link from "next/link";
-import { Coins, ExternalLink, InfoIcon } from "lucide-react";
+import { Coins, InfoIcon } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import {
-  BreakdownTooltip,
-  type CostSource,
-  type PriceSource,
-} from "@/src/features/traces/components/BreakdownTooltip";
+import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import { usdFormatter, numberFormatter } from "@/src/utils/numbers";
 
 // Matches the metrics-tier scale in ObservationMetadataBadgesSimple.tsx —
 // uniform muted mono text, no borders/boxes.
 const METRIC_TEXT_CLASS =
-  "text-muted-foreground inline-flex shrink-0 items-center gap-1 text-[11px] whitespace-nowrap";
+  "text-muted-foreground inline-flex shrink-0 items-center gap-1 text-xs whitespace-nowrap";
 
 // Values that own a hover breakdown get a faint underline at rest so
 // they read as "more here" next to plain metrics (latency) that have nothing.
@@ -104,16 +99,12 @@ function CostUsageTable({
   totalUsage,
   totalCost,
   costDetails,
-  priceSource,
-  costSource,
 }: {
   inputUsage: number;
   outputUsage: number;
   totalUsage: number;
   totalCost: number;
   costDetails: Record<string, number>;
-  priceSource?: PriceSource;
-  costSource?: CostSource;
 }) {
   const inputCost = sumMatchingKeys(costDetails, (key) =>
     key.includes("input"),
@@ -134,41 +125,9 @@ function CostUsageTable({
     // embedding-only call has no output) — omit it rather than show zeros.
   ].filter((row) => row.tokens > 0 || row.cost > 0);
 
-  // Cost provenance, same three cases BreakdownTooltip states: ingested as
-  // given, calculated against a known pricing tier (linked), or calculated
-  // without a tier we can point at.
-  const resolvedCostSource =
-    costSource ?? (priceSource ? "calculated" : undefined);
-
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <span className="font-bold">Cost & usage breakdown</span>
-      {resolvedCostSource === "provided" ? (
-        <span className="text-muted-foreground text-xs italic">
-          Provided at ingestion
-        </span>
-      ) : null}
-      {resolvedCostSource === "calculated" && priceSource ? (
-        <Link
-          href={`/project/${encodeURIComponent(priceSource.projectId)}/settings/models/${encodeURIComponent(priceSource.modelId)}?pricingTier=${encodeURIComponent(priceSource.pricingTierId)}`}
-          className="text-muted-foreground flex min-w-0 flex-row gap-1 text-xs italic underline-offset-4 hover:underline"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <span
-            className="min-w-0 truncate"
-            title={`Calculated · ${priceSource.pricingTierName} Tier Pricing`}
-          >
-            Calculated · {priceSource.pricingTierName} Tier Pricing
-          </span>
-          <ExternalLink className="h-3 w-3 shrink-0" />
-        </Link>
-      ) : null}
-      {resolvedCostSource === "calculated" && !priceSource ? (
-        <span className="text-muted-foreground text-xs italic">
-          Calculated from model pricing
-        </span>
-      ) : null}
+      <span className="font-bold">Token breakdown</span>
       <table className="mt-1 w-full text-xs">
         <thead>
           <tr className="text-muted-foreground">
@@ -220,8 +179,6 @@ export function CostUsageBadge({
   outputUsage,
   totalUsage,
   usageDetails,
-  priceSource,
-  costSource,
 }: {
   totalCost: number | null | undefined;
   costDetails: Record<string, number> | null | undefined;
@@ -229,8 +186,6 @@ export function CostUsageBadge({
   outputUsage: number;
   totalUsage: number;
   usageDetails: Record<string, number> | null | undefined;
-  priceSource?: PriceSource;
-  costSource?: CostSource;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const hasCost = totalCost != null && !!costDetails;
@@ -297,8 +252,6 @@ export function CostUsageBadge({
                 totalUsage={totalUsage}
                 totalCost={totalCost}
                 costDetails={costDetails}
-                priceSource={priceSource}
-                costSource={costSource}
               />
             </TooltipContent>
           </Tooltip>
