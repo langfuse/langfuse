@@ -99,6 +99,7 @@ const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
   <ModernSessionHeaderPill
     variant="link"
     href={`/project/${projectId}/users/${encodeURIComponent(user)}`}
+    maskFromSessionReplay
   >
     user{" "}
     <span
