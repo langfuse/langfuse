@@ -19,23 +19,43 @@
  */
 
 import { type TreeNode } from "../types/treeNode";
+import { useEffect, useRef, useState } from "react";
+import { Layer } from "@/src/components/ui/layer";
+import {
+  tooltipPlacement,
+  tooltipStyle,
+} from "@/src/features/traces/fns/timeline/tooltipPlacement";
+import {
+  NODE_HOVER_CARD_SURFACE_CLASS,
+  NodeHoverCardContent,
+} from "@/src/features/traces/components/NodeHoverCard";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
+import { usdFormatter } from "@/src/utils/numbers";
 import { getSubtreeDurationOverflowMs } from "@/src/features/traces/fns/getSubtreeDurationOverflowMs";
 import { heatMapTextColor } from "@/src/features/traces/fns/heatMapTextColor";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
 import type Decimal from "decimal.js";
 
 // How many distinct score groups to show inline on a tree/search row before
 // collapsing the rest into a "+N" pill. Keeps dense-score rows compact; the
 // full set is always on the node's Scores tab. (The timeline caps at 3.)
-const MAX_INLINE_SCORE_GROUPS = 3;
+const MAX_INLINE_SCORE_GROUPS = 2;
+
+/** Rest on a row this long before its hover card opens. Sweeping the pointer
+ * up and down the tree shows nothing; pausing on a row shows the card. */
+const HOVER_CARD_OPEN_DELAY_MS = 350;
+/** After a card closes, the next row opens instantly for this long, so moving
+ * row to row with a card open reads as one continuous hover (tooltip warm state). */
+const HOVER_CARD_WARM_MS = 300;
+/** Shared across rows on purpose: warmth belongs to the pointer, not to a row. */
+let hoverCardWarmUntil = 0;
 
 interface SpanContentProps {
   node: TreeNode;
@@ -56,7 +76,20 @@ export function SpanContent({
   onHover,
   className,
 }: SpanContentProps) {
-  const { mergedScores, traceLevelScoreOwnerIds } = useTraceData();
+  const { mergedScores, nodeMap } = useTraceData();
+  const { setSelectedTab } = useSelection();
+  // The heat map compares a row against the trace total. It says nothing on
+  // the trace wrapper, on root observations, or on an only child (a lone
+  // wrapper span is ~100% of its parent by construction), so those rows are
+  // never tinted.
+  const parentNode = node.parentObservationId
+    ? nodeMap.get(node.parentObservationId)
+    : undefined;
+  const isRootRow =
+    node.type === "TRACE" ||
+    !parentNode ||
+    parentNode.type === "TRACE" ||
+    parentNode.children.length === 1;
   const {
     showDuration,
     showCostTokens,
@@ -90,149 +123,211 @@ export function SpanContent({
   const shouldRenderSubtreeDuration =
     shouldRenderDuration && subtreeWallClockOverflowMs != null;
 
-  const shouldRenderCostTokens =
-    showCostTokens &&
-    Boolean(
-      node.inputUsage || node.outputUsage || node.totalUsage || totalCost,
-    );
+  // Rows carry only duration and cost; token counts live in the detail panel.
+  const shouldRenderCost = showCostTokens && Boolean(totalCost);
 
-  const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCostTokens;
+  // Generations carry their model inline: it is the one attribute that varies
+  // per LLM call, so the row is where a mixed-model trace becomes visible.
+  const shouldRenderModel = node.type === "GENERATION" && Boolean(node.model);
 
-  const nodeScores = selectNodeScores(
-    mergedScores,
-    node.id,
-    traceLevelScoreOwnerIds,
-  );
+  const shouldRenderAnyMetrics =
+    shouldRenderDuration || shouldRenderCost || shouldRenderModel;
+
+  const nodeScores = selectNodeScores(mergedScores, node.id);
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
 
+  const [hovered, setHovered] = useState<{
+    clientX: number;
+    clientY: number;
+  } | null>(null);
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastPointer = useRef<{ clientX: number; clientY: number } | null>(null);
+  const clearOpenTimer = () => {
+    if (openTimer.current) clearTimeout(openTimer.current);
+    openTimer.current = null;
+  };
+  useEffect(() => clearOpenTimer, []);
+  const closeHoverCard = () => {
+    clearOpenTimer();
+    setHovered((current) => {
+      if (current) hoverCardWarmUntil = Date.now() + HOVER_CARD_WARM_MS;
+      return null;
+    });
+  };
+
   return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onSelect?.();
-      }}
-      onMouseEnter={onHover}
-      // No row-level title: it would pop a native tooltip from ANYWHERE in the
-      // row — stacking on the score chips' own titles and the ScoreTag level
-      // tooltip. The truncating name span below carries its own title.
-      className={cn(
-        "peer relative flex min-w-0 flex-1 items-center rounded-md py-0.5 pr-2 pl-1 text-left",
-        className,
-      )}
-    >
-      <div className="flex min-w-0 flex-col">
-        {/* Name and badges row */}
-        <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          <span className="shrink truncate text-xs" title={nodeDisplayName}>
-            {nodeDisplayName}
-          </span>
-
-          <div className="flex items-center gap-x-2">
-            {/* Comment count */}
-            {showComments &&
-              commentCount !== undefined &&
-              commentCount !== 0 && <CommentCountIcon count={commentCount} />}
-
-            {/* Level badge */}
-            {node.type !== "TRACE" &&
-              node.level &&
-              node.level !== "DEFAULT" && (
-                <ObservationLevelBadge level={node.level} size="sm" />
-              )}
-          </div>
-        </div>
-
-        {/* Metrics row */}
-        {shouldRenderAnyMetrics && (
-          <div className="flex flex-wrap gap-x-2">
-            {/* Duration (own span) */}
-            {shouldRenderDuration && (duration || node.latency) ? (
-              <span
-                title={
-                  node.type === "TRACE"
-                    ? "Total trace duration"
-                    : "Own span duration"
-                }
-                className={cn(
-                  "text-foreground-tertiary text-xs",
-                  parentTotalDuration &&
-                    colorCodeMetrics &&
-                    heatMapTextColor({
-                      max: parentTotalDuration,
-                      value:
-                        duration || (node.latency ? node.latency * 1000 : 0),
-                    }),
-                )}
-              >
-                {formatIntervalSeconds(
-                  (duration || (node.latency ? node.latency * 1000 : 0)) / 1000,
-                )}
-              </span>
-            ) : null}
-
-            {/* Subtree wall-clock duration — async descendants outlive the parent span */}
-            {shouldRenderSubtreeDuration ? (
-              <span
-                title="Subtree wall-clock duration (first start → last end)"
-                className="text-foreground-tertiary text-xs"
-              >
-                {"∑ "}
-                {formatIntervalSeconds(subtreeWallClockOverflowMs / 1000)}
-              </span>
-            ) : null}
-
-            {/* Token counts */}
-            {shouldRenderCostTokens &&
-            (node.inputUsage || node.outputUsage || node.totalUsage) ? (
-              <span className="text-foreground-tertiary text-xs">
-                {formatTokenCounts(
-                  node.inputUsage,
-                  node.outputUsage,
-                  node.totalUsage,
-                )}
-              </span>
-            ) : null}
-
-            {/* Cost */}
-            {shouldRenderCostTokens && totalCost ? (
-              <span
-                title={
-                  node.children.length > 0 || node.type === "TRACE"
-                    ? "Aggregated cost of all child observations"
-                    : undefined
-                }
-                className={cn(
-                  "text-foreground-tertiary text-xs",
-                  parentTotalCost &&
-                    colorCodeMetrics &&
-                    heatMapTextColor({
-                      max: parentTotalCost,
-                      value: totalCost,
-                    }),
-                )}
-              >
-                {node.children.length > 0 || node.type === "TRACE" ? "∑ " : ""}
-                {usdFormatter(totalCost.toNumber())}
-              </span>
-            ) : null}
-          </div>
+    <>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect?.();
+        }}
+        onMouseEnter={onHover}
+        // Hover card follows the pointer, like the timeline's: it appears
+        // where you are looking, not at a fixed edge of a variable-width row.
+        onPointerMove={(event) => {
+          if (event.pointerType !== "mouse") return;
+          const point = { clientX: event.clientX, clientY: event.clientY };
+          lastPointer.current = point;
+          if (hovered || Date.now() < hoverCardWarmUntil) {
+            clearOpenTimer();
+            setHovered(point);
+            return;
+          }
+          if (openTimer.current) return;
+          openTimer.current = setTimeout(() => {
+            openTimer.current = null;
+            if (lastPointer.current) setHovered(lastPointer.current);
+          }, HOVER_CARD_OPEN_DELAY_MS);
+        }}
+        onPointerLeave={closeHoverCard}
+        onPointerDown={closeHoverCard}
+        // No row-level title: it would pop a native tooltip from ANYWHERE in the
+        // row — stacking on the score chips' own titles and the ScoreTag level
+        // tooltip. The truncating name span below carries its own title.
+        className={cn(
+          "peer relative flex min-w-0 flex-1 items-center rounded-md py-[3px] pr-2 pl-1 text-left",
+          className,
         )}
+      >
+        <div className="flex min-w-0 flex-col">
+          {/* Name and badges row */}
+          <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+            <span
+              // Medium weight approved for the tree name: bold read too heavy
+              // at 12px, regular gave no hierarchy over the metrics line.
+              // No native title: the full name lives in the row hover card.
+              // eslint-disable-next-line @repo/no-raw-font-weight
+              className="shrink overflow-hidden text-xs font-medium text-ellipsis whitespace-nowrap"
+            >
+              {nodeDisplayName}
+            </span>
 
-        {/* Scores row. Cap the inline badges and roll the rest into a "+N"
+            <div className="flex items-center gap-x-2">
+              {/* Comment count */}
+              {showComments &&
+                commentCount !== undefined &&
+                commentCount !== 0 && <CommentCountIcon count={commentCount} />}
+
+              {/* Level badge */}
+              {node.type !== "TRACE" &&
+                node.level &&
+                node.level !== "DEFAULT" && (
+                  <ObservationLevelBadge level={node.level} size="sm" />
+                )}
+            </div>
+          </div>
+
+          {/* Metrics row */}
+          {shouldRenderAnyMetrics && (
+            <div className="flex flex-wrap gap-x-2">
+              {/* Duration (own span) */}
+              {shouldRenderDuration && (duration || node.latency) ? (
+                <span
+                  className={cn(
+                    "text-foreground-tertiary text-xs",
+                    parentTotalDuration &&
+                      colorCodeMetrics &&
+                      !isRootRow &&
+                      heatMapTextColor({
+                        max: parentTotalDuration,
+                        value:
+                          duration || (node.latency ? node.latency * 1000 : 0),
+                      }),
+                  )}
+                >
+                  {formatIntervalSeconds(
+                    (duration || (node.latency ? node.latency * 1000 : 0)) /
+                      1000,
+                  )}
+                </span>
+              ) : null}
+
+              {/* Subtree wall-clock duration — async descendants outlive the parent span */}
+              {shouldRenderSubtreeDuration ? (
+                <span className="text-foreground-tertiary text-xs">
+                  {"∑ "}
+                  {formatIntervalSeconds(subtreeWallClockOverflowMs / 1000)}
+                </span>
+              ) : null}
+
+              {/* Cost */}
+              {shouldRenderCost && totalCost ? (
+                <span
+                  className={cn(
+                    "text-foreground-tertiary text-xs",
+                    parentTotalCost &&
+                      colorCodeMetrics &&
+                      !isRootRow &&
+                      heatMapTextColor({
+                        max: parentTotalCost,
+                        value: totalCost,
+                      }),
+                  )}
+                >
+                  {usdFormatter(totalCost.toNumber())}
+                </span>
+              ) : null}
+
+              {/* Model (generations only) */}
+              {shouldRenderModel ? (
+                <span
+                  // No native title: the model is in the row hover card.
+                  className="text-foreground-tertiary max-w-40 overflow-hidden text-xs text-ellipsis whitespace-nowrap"
+                >
+                  {node.model}
+                </span>
+              ) : null}
+            </div>
+          )}
+
+          {/* Scores row. Cap the inline badges and roll the rest into a "+N"
             pill (hover to see them) so a node with many scores stays a compact
             one/two-line row instead of a tall wrapping grid. */}
-        {showScores && nodeScores.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            <GroupedScoreBadges
-              compact
-              scores={nodeScores}
-              maxVisible={MAX_INLINE_SCORE_GROUPS}
-            />
+          {showScores && nodeScores.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              <GroupedScoreBadges
+                compact
+                hideLevels
+                overflowPreview={false}
+                onOverflowClick={() => {
+                  onSelect?.();
+                  setSelectedTab("scores");
+                }}
+                scores={nodeScores}
+                maxVisible={MAX_INLINE_SCORE_GROUPS}
+              />
+            </div>
+          )}
+        </div>
+      </button>
+      {hovered ? (
+        <Layer name="tooltip">
+          <div
+            className={cn(
+              NODE_HOVER_CARD_SURFACE_CLASS,
+              "pointer-events-none fixed",
+            )}
+            style={{
+              ...tooltipStyle(
+                tooltipPlacement({
+                  clientX: hovered.clientX,
+                  clientY: hovered.clientY,
+                  viewportWidth: window.innerWidth,
+                  viewportHeight: window.innerHeight,
+                }),
+              ),
+              // The helper's 10px suits the dense timeline readout; the card
+              // reads at the tree's own text-xs.
+              fontSize: undefined,
+            }}
+          >
+            <NodeHoverCardContent node={node} />
           </div>
-        )}
-      </div>
-    </button>
+        </Layer>
+      ) : null}
+    </>
   );
 }

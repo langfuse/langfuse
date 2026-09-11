@@ -24,6 +24,10 @@ export interface IOPreviewJSONSimpleProps {
   isLoading?: boolean;
   isParsing?: boolean;
   hideIfNull?: boolean;
+  // Fixed-key attributes, rendered between Output and Metadata
+  attributes?: Record<string, unknown>;
+  attributesAnchorTime?: Date | null;
+  modelParameters?: Record<string, unknown> | null;
   media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
@@ -68,6 +72,9 @@ export function IOPreviewJSONSimple({
   isLoading = false,
   isParsing = false,
   hideIfNull = false,
+  attributes,
+  attributesAnchorTime,
+  modelParameters,
   hideOutput = false,
   hideInput = false,
   media,
@@ -132,7 +139,7 @@ export function IOPreviewJSONSimple({
   const downloadName = observationId ?? traceId;
 
   return (
-    <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+    <div className="[&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
       {status ? (
         <StatusMessageSection status={status} currentView="json" />
       ) : null}
@@ -147,7 +154,9 @@ export function IOPreviewJSONSimple({
           />
         ) : (
           <PrettyJsonView
+            hideHeader
             title="Input"
+            hoverControls
             json={input}
             parsedJson={effectiveInput}
             isLoading={isLoading}
@@ -174,7 +183,9 @@ export function IOPreviewJSONSimple({
           />
         ) : (
           <PrettyJsonView
+            hideHeader
             title="Output"
+            hoverControls
             json={output}
             parsedJson={effectiveOutput}
             isLoading={isLoading}
@@ -205,6 +216,42 @@ export function IOPreviewJSONSimple({
           environment={environment}
         />
       )}
+      {attributes && Object.keys(attributes).length > 0 ? (
+        <div className="[&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
+          <PrettyJsonView
+            hideHeader
+            title="Attributes"
+            json={attributes}
+            currentView="json"
+            metadataActions={{
+              projectId,
+              filterTarget: observationId ? "observations" : "traces",
+              attributes: { anchorTime: attributesAnchorTime },
+              analyticsTable: "attributes",
+            }}
+            hoverControls
+          />
+        </div>
+      ) : null}
+      {/* The LLM call's own parameters. Copy only: nothing here maps to a
+          table column, unlike the attributes above. */}
+      {modelParameters ? (
+        <div className="[&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
+          <PrettyJsonView
+            hideHeader
+            title="Model parameters"
+            json={modelParameters}
+            currentView="json"
+            metadataActions={{
+              projectId,
+              filterTarget: observationId ? "observations" : "traces",
+              copyOnly: true,
+              analyticsTable: "model_parameters",
+            }}
+            hoverControls
+          />
+        </div>
+      ) : null}
       {showMetadata &&
         (metadataTooLarge ? (
           <LargeJsonFieldFallback
@@ -216,7 +263,9 @@ export function IOPreviewJSONSimple({
           />
         ) : (
           <PrettyJsonView
+            hideHeader
             title="Metadata"
+            hoverControls
             json={metadata}
             parsedJson={effectiveMetadata}
             isLoading={isLoading}

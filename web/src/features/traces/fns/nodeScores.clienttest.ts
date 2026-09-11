@@ -61,14 +61,12 @@ describe("traceLevelScoreOwnerIds", () => {
 });
 
 describe("selectNodeScores", () => {
-  const ownerIds = traceLevelScoreOwnerIds(roots({ id: "root", type: "SPAN" }));
-
-  it("adds trace-level scores to the owner once and leaves other nodes alone", () => {
-    expect(selectNodeScores(scores, "root", ownerIds).map((s) => s.id)).toEqual(
-      ["trace-level", "root-level"],
-    );
-    expect(
-      selectNodeScores(scores, "child", ownerIds).map((s) => s.id),
-    ).toEqual(["child-level"]);
+  it("returns a node's own scores only; trace-level ones belong to the strip", () => {
+    expect(selectNodeScores(scores, "root").map((s) => s.id)).toEqual([
+      "root-level",
+    ]);
+    expect(selectNodeScores(scores, "child").map((s) => s.id)).toEqual([
+      "child-level",
+    ]);
   });
 });

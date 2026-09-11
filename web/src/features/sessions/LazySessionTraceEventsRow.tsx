@@ -22,6 +22,8 @@ type LazySessionTraceEventsRowProps = {
   surface?: TraceEventsSurface;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
+  isFocused?: boolean;
+  focusedObservationId?: string | null;
 };
 
 const LazySessionTraceEventsRowInner = (
@@ -55,6 +57,8 @@ const LazySessionTraceEventsRowInner = (
       ref={setRowRef}
       className={isModern ? undefined : "pb-3"}
       data-session-row-index={index}
+      // Read by useScrollToFocusedSessionTrace's pin loop.
+      data-session-focused-trace={props.isFocused ? "true" : undefined}
     >
       {shouldLoad ? (
         <TraceEventsRow {...rowProps} showCorrections={showCorrections} />

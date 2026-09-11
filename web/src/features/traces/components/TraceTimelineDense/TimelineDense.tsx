@@ -49,7 +49,6 @@
  */
 
 import {
-  type CSSProperties,
   useCallback,
   useMemo,
   useRef,
@@ -58,14 +57,15 @@ import {
   type ReactNode,
 } from "react";
 import { useTheme } from "next-themes";
-import { Scan, Minus, Plus, UnfoldVertical } from "lucide-react";
+import { Scan, Minus, Plus } from "lucide-react";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import {
   tooltipPlacement,
-  type TooltipPlacement,
+  tooltipStyle,
 } from "../../fns/timeline/tooltipPlacement";
 import { Layer } from "@/src/components/ui/layer";
 import { TimelineRowMetrics, type RowMetrics } from "./TimelineRowMetrics";
+import { NODE_HOVER_CARD_SURFACE_CLASS } from "@/src/features/traces/components/NodeHoverCard";
 import { cn } from "@/src/utils/tailwind";
 import { type Density, type PointerModality } from "../../fns/timeline/density";
 import {
@@ -84,8 +84,6 @@ import { traceSpaceOf, type Box } from "../../fns/timeline/viewTransform";
 import {
   HUMAN_ROW_HEIGHT,
   anchorTimeToRows,
-  canExpandRowsToReadable,
-  expandRowsToReadable,
   interpolateViewport,
   rowCountBounds,
   viewportsEqual,
@@ -106,19 +104,10 @@ import {
 } from "../../fns/timeline/viewport";
 
 /** Reuses ItemBadge's type→hue mapping, so a colour means what it already means. */
-const TYPE_COLOR: Record<string, string> = {
-  TRACE: "bg-dark-green",
-  GENERATION: "bg-muted-magenta",
-  EVENT: "bg-muted-green",
-  SPAN: "bg-muted-blue",
-  AGENT: "bg-purple-600",
-  TOOL: "bg-orange-600",
-  CHAIN: "bg-pink-600",
-  RETRIEVER: "bg-teal-600",
-  EMBEDDING: "bg-amber-600",
-  GUARDRAIL: "bg-red-600",
-};
-const FALLBACK_COLOR = "bg-muted-gray";
+import {
+  OBSERVATION_TYPE_COLOR as TYPE_COLOR,
+  OBSERVATION_TYPE_FALLBACK_COLOR as FALLBACK_COLOR,
+} from "@/src/features/traces/fns/observationTypeColors";
 /** Neutral mode's bar, when colour is not carrying type. */
 const NEUTRAL_COLOR = "bg-muted-foreground/60";
 /**
@@ -288,6 +277,11 @@ export type TimelineDenseProps = {
    * renderer keeps deciding only what FITS.
    */
   metricsOf?: (nodeId: string) => RowMetrics;
+  /**
+   * Replaces the hover tooltip body with app-level content (the shared node
+   * hover card). The renderer keeps placing it; the app decides what it says.
+   */
+  hoverContent?: (nodeId: string) => React.ReactNode;
   /** The view-options duration toggle; the tree honours the same one. */
   showDuration?: boolean;
   /**
@@ -373,6 +367,7 @@ export function TimelineDense({
   activeIds,
   playhead,
   metricsOf,
+  hoverContent,
   showDuration = true,
   search,
 }: TimelineDenseProps) {
@@ -562,14 +557,6 @@ export function TimelineDense({
       : 0;
   const presentation = presentationForRowHeight(rowHeight);
   const fitted = isViewportFitted(current, limits);
-  const canShowLabels = canExpandRowsToReadable(current, limits);
-  const labelsShowing = committedOpen || (labelsPinned && peekWidth > 0);
-  // Replace Fit only while the whole clock is still on screen AND names are
-  // missing. Rows can be too short, or the pane too narrow to volunteer a
-  // gutter — both are the same ask. A time-zoomed hairline keeps Fit.
-  const clockFits = current.time.duration >= limits.traceSpace.duration - 0.5;
-  const offerShowLabels =
-    clockFits && !labelsShowing && (canShowLabels || canShowNames);
   const fitSpent = fitted && !labelsPinned;
   const barHeight = Math.max(Math.min(rowHeight - 1, MAX_BAR_HEIGHT), 1);
 
@@ -934,19 +921,6 @@ export function TimelineDense({
     },
     [cancelTween],
   );
-
-  const showLabels = () => {
-    const { limits: live, extentOf } = layoutRef.current;
-    setLabelsPinned(true);
-    setOverride(null);
-    flyTo(
-      anchorTimeToRows(
-        expandRowsToReadable(viewportRef.current, live),
-        live,
-        extentOf,
-      ),
-    );
-  };
 
   const scheduleGesture = useCallback(() => {
     // Any gesture on the chart hands the space back: an expanded gutter is for
@@ -1457,37 +1431,24 @@ export function TimelineDense({
         </ToolbarButton>
         <ToolbarButton
           label="Zoom in"
-          onClick={() =>
-            offerShowLabels
-              ? showLabels()
-              : zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)
-          }
+          onClick={() => zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)}
         >
           <Plus className="h-3 w-3" />
         </ToolbarButton>
-        {offerShowLabels ? (
-          <ToolbarButton label="Show labels" onClick={showLabels}>
-            <UnfoldVertical className="h-3 w-3" />
-            <span className="pr-0.5" style={{ fontSize: "10px" }}>
-              Show labels
-            </span>
-          </ToolbarButton>
-        ) : (
-          <ToolbarButton
-            label={fitSpent ? "Whole trace already fits" : "Fit whole trace"}
-            onClick={() => {
-              setLabelsPinned(false);
-              setOverride(null);
-              flyTo(fitViewport(limits));
-            }}
-            disabled={fitSpent}
-          >
-            {/* A viewfinder, not the diagonal arrows this used to wear: those
-                read as "fullscreen", so a control that was merely spent looked
-                broken. */}
-            <Scan className="h-3 w-3" />
-          </ToolbarButton>
-        )}
+        <ToolbarButton
+          label={fitSpent ? "Whole trace already fits" : "Fit whole trace"}
+          onClick={() => {
+            setLabelsPinned(false);
+            setOverride(null);
+            flyTo(fitViewport(limits));
+          }}
+          disabled={fitSpent}
+        >
+          {/* A viewfinder, not the diagonal arrows this used to wear: those
+              read as "fullscreen", so a control that was merely spent looked
+              broken. */}
+          <Scan className="h-3 w-3" />
+        </ToolbarButton>
         {/* What the dimming means, said in words. Without it "nothing lit up"
             and "one hit, off to the left" look the same. */}
         {search ? (
@@ -1501,7 +1462,7 @@ export function TimelineDense({
         ) : null}
         {/* Where you are, when you are somewhere — and nothing at all when the
             whole trace is in view. */}
-        {!offerShowLabels && !fitted ? (
+        {!fitted ? (
           <span
             className="text-muted-foreground truncate"
             style={{ fontSize: "10px" }}
@@ -1852,52 +1813,68 @@ export function TimelineDense({
         {focused && pointerPos && !dragging ? (
           <Layer name="tooltip">
             <div
-              className="border-border bg-background text-foreground pointer-events-none fixed flex flex-col gap-0.5 rounded border px-1.5 py-1 shadow-md"
-              style={tooltipStyle(
-                tooltipPlacement({
-                  clientX: pointerPos.clientX,
-                  clientY: pointerPos.clientY,
-                  viewportWidth: window.innerWidth,
-                  viewportHeight: window.innerHeight,
-                }),
+              className={cn(
+                hoverContent
+                  ? NODE_HOVER_CARD_SURFACE_CLASS
+                  : "border-border bg-background text-foreground flex flex-col gap-0.5 rounded border px-1.5 py-1 shadow-md",
+                "pointer-events-none fixed",
               )}
+              style={{
+                ...tooltipStyle(
+                  tooltipPlacement({
+                    clientX: pointerPos.clientX,
+                    clientY: pointerPos.clientY,
+                    viewportWidth: window.innerWidth,
+                    viewportHeight: window.innerHeight,
+                  }),
+                ),
+                // App-level hover card keeps its own text size; the built-in
+                // readout stays at the helper's dense 10px.
+                ...(hoverContent ? { fontSize: undefined } : {}),
+              }}
               data-testid="timeline-dense-tooltip"
             >
-              {/* Two rows, like a tree row: identity, then the metrics. One row
+              {hoverContent ? (
+                hoverContent(focused.id)
+              ) : (
+                <>
+                  {/* Two rows, like a tree row: identity, then the metrics. One row
                   made the NAME the only flexible item, so adding cost and tokens
                   truncated it away — and the name is the thing you hovered for. */}
-              <span className="flex items-center gap-1">
-                <span
-                  className={cn(
-                    "h-2 w-2 shrink-0 rounded-[1px]",
-                    TYPE_COLOR[focused.type] ?? FALLBACK_COLOR,
-                  )}
-                />
-                <span className="truncate" title={focused.name}>
-                  {focused.name}
-                </span>
-                {/* What the colour means, next to the colour. */}
-                {focused.type ? (
-                  <span className="text-muted-foreground shrink-0">
-                    {typeLabel(focused.type)}
+                  <span className="flex items-center gap-1">
+                    <span
+                      className={cn(
+                        "h-2 w-2 shrink-0 rounded-[1px]",
+                        TYPE_COLOR[focused.type] ?? FALLBACK_COLOR,
+                      )}
+                    />
+                    <span className="truncate" title={focused.name}>
+                      {focused.name}
+                    </span>
+                    {/* What the colour means, next to the colour. */}
+                    {focused.type ? (
+                      <span className="text-muted-foreground shrink-0">
+                        {typeLabel(focused.type)}
+                      </span>
+                    ) : null}
                   </span>
-                ) : null}
-              </span>
-              {/* Duration and cost. NOT the start offset: the bar's own position
+                  {/* Duration and cost. NOT the start offset: the bar's own position
                   on the axis is what says when a span began, and saying it again
                   in words was one more number to read past — `@0ms` on a root
                   meaning nothing, and two unlabelled durations side by side
                   reading as one number repeated. */}
-              <span className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                <span>
-                  {focused.durationMs == null
-                    ? "—"
-                    : formatDurationMs(focused.durationMs)}
-                </span>
-                {metricsOf?.(focused.id)?.costText ? (
-                  <span>{metricsOf(focused.id).costText}</span>
-                ) : null}
-              </span>
+                  <span className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                    <span>
+                      {focused.durationMs == null
+                        ? "—"
+                        : formatDurationMs(focused.durationMs)}
+                    </span>
+                    {metricsOf?.(focused.id)?.costText ? (
+                      <span>{metricsOf(focused.id).costText}</span>
+                    ) : null}
+                  </span>
+                </>
+              )}
             </div>
           </Layer>
         ) : null}
@@ -1934,16 +1911,6 @@ export function TimelineDense({
  * its name, indented by depth. Shared by the in-flow rail and the peek overlay so
  * the two cannot drift apart.
  */
-/** The placement as inline style. Split out so the geometry stays pure. */
-function tooltipStyle(placement: TooltipPlacement): CSSProperties {
-  return {
-    left: `${Math.round(placement.left)}px`,
-    top: `${Math.round(placement.top)}px`,
-    transform: placement.transform,
-    maxWidth: `${Math.round(placement.maxWidth)}px`,
-    fontSize: "10px",
-  };
-}
 
 function GutterContent({
   node,

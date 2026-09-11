@@ -27,6 +27,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import {
   TabsBar,
   TabsBarContent,
@@ -48,7 +49,10 @@ import ScoresTable from "@/src/components/table/use-cases/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
-import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import {
+  type DetailTab,
+  useSelection,
+} from "@/src/features/traces/contexts/SelectionContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
@@ -71,6 +75,11 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
+import { ObservationAttributesTab } from "./ObservationAttributesTab";
+import {
+  buildModelParameters,
+  buildObservationAttributes,
+} from "@/src/features/traces/components/ObservationAttributesList";
 
 export interface ConnectedObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -119,6 +128,15 @@ export function ConnectedObservationDetailView({
   const showLogViewTab =
     isV4Enabled && observations.length > 0 && !isAnnotationMode;
   const showScoresTab = !isAnnotationMode;
+  const attributes = buildObservationAttributes({
+    model: observation.model,
+    environment: observation.environment,
+    release: observation.release,
+    version: observation.version,
+    sessionId: observation.sessionId,
+    userId: observation.userId,
+  });
+  const modelParameters = buildModelParameters(observation.modelParameters);
 
   // Hide entire tabs bar when only Preview tab remains (cleaner annotation mode UI)
   const showTabsBar = showLogViewTab || showScoresTab;
@@ -163,6 +181,7 @@ export function ConnectedObservationDetailView({
   // "log" tab only available in v4 mode when there are observations
   const selectedTab = useMemo(() => {
     if (globalSelectedTab === "scores") return "scores" as const;
+    if (globalSelectedTab === "attributes") return "attributes" as const;
     if (globalSelectedTab === "log" && showLogViewTab) return "log" as const;
     return "preview" as const;
   }, [globalSelectedTab, showLogViewTab]);
@@ -178,7 +197,7 @@ export function ConnectedObservationDetailView({
     });
   }, [projectId, traceId, utils]);
 
-  const setSelectedTab = (tab: "preview" | "log" | "scores") => {
+  const setSelectedTab = (tab: "preview" | "attributes" | "log" | "scores") => {
     if (tab === "scores") {
       refreshTraceScores();
     }
@@ -250,6 +269,12 @@ export function ConnectedObservationDetailView({
     () => scores.filter((s) => s.observationId === observation.id),
     [scores, observation.id],
   );
+  // Zero is not a count worth a badge: the tab label alone says "Scores".
+  const scoresTabCount =
+    observationScores.length +
+    (ownsTraceLevelScores
+      ? scores.filter((score) => !score.observationId).length
+      : 0);
   const observationCorrections = useMemo(
     () => corrections.filter((c) => c.observationId === observation.id),
     [corrections, observation.id],
@@ -359,16 +384,28 @@ export function ConnectedObservationDetailView({
           <TabsBar
             value={selectedTab}
             className="flex min-h-0 flex-1 flex-col overflow-hidden"
-            onValueChange={(value) =>
-              setSelectedTab(value as "preview" | "log" | "scores")
-            }
+            onValueChange={(value) => setSelectedTab(value as DetailTab)}
           >
             {showTabsBar && (
               <TooltipProvider>
                 <TabsBarList>
                   <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
+                  {/* The same three tables Preview shows under Output, for
+                      observations where that is a long scroll away. */}
+                  <TabsBarTrigger value="attributes">Attributes</TabsBarTrigger>
                   {showScoresTab ? (
-                    <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+                    <TabsBarTrigger value="scores" className="gap-1">
+                      Scores
+                      {/* Match the tab's table: observation scores, plus the
+                          trace-level ones when this node stands in for the
+                          trace. */}
+                      {scoresTabCount > 0 && (
+                        <ActionButtonCountBadge
+                          count={scoresTabCount}
+                          variant="muted"
+                        />
+                      )}
+                    </TabsBarTrigger>
                   ) : null}
                   {showLogViewTab ? (
                     <TabsBarTrigger value="log">
@@ -477,7 +514,6 @@ export function ConnectedObservationDetailView({
             >
               <ObservationPreview
                 currentView={currentView}
-                tags={isRoot ? observation.traceTags : undefined}
                 previewKey={observation.id}
                 onPrettyViewAvailabilityChange={setIsPrettyViewAvailable}
                 previewProps={{
@@ -538,11 +574,28 @@ export function ConnectedObservationDetailView({
                     }),
                   commentedPathsByField,
                   showMetadata: true,
+                  attributes,
+                  attributesAnchorTime: observation.startTime,
+                  modelParameters,
                   observationId: observation.id,
                   projectId,
                   traceId,
                   environment: observation.environment,
                 }}
+              />
+            </TabsBarContent>
+
+            <TabsBarContent
+              value="attributes"
+              className="mt-0 flex max-h-full min-h-0 w-full flex-1"
+            >
+              <ObservationAttributesTab
+                attributes={attributes}
+                attributesAnchorTime={observation.startTime}
+                modelParameters={modelParameters}
+                metadata={observationWithIOCompat.data?.metadata ?? undefined}
+                projectId={projectId}
+                currentView={selectedViewTab}
               />
             </TabsBarContent>
 

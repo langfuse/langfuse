@@ -1859,13 +1859,14 @@ export const FitIsDisabledWhenItWouldDoNothing = meta.story({
 });
 
 /**
- * A long trace fits as 1px rows — the whole clock, no names. The spent fit
- * control used to sit there disabled, so there was no obvious way to get the
- * labels back without also shrinking the duration. "Show labels" grows only
- * the rows; Fit then takes you back to the overview.
+ * A long trace fits as 1px rows — the whole clock, no names. There is no
+ * dedicated "show labels" affordance any more: Zoom in is the one way to grow
+ * the rows, and it keeps working step by step until a row is tall enough to
+ * hold a name. Fit is never swapped away for another control — it always
+ * takes you back to the overview.
  */
-export const ShowLabelsKeepsTheWholeClock = meta.story({
-  name: "(Test) Show Labels Keeps The Whole Clock",
+export const ZoomInReachesLabelledRows = meta.story({
+  name: "(Test) Zoom In Reaches Labelled Rows",
   args: {
     roots: manySpans(150),
     box: DESKTOP,
@@ -1883,10 +1884,6 @@ export const ShowLabelsKeepsTheWholeClock = meta.story({
       canvasElement.querySelector<HTMLElement>(
         '[data-testid="timeline-dense-readout"]',
       )?.textContent ?? "";
-    const toolbar = () =>
-      canvasElement.querySelector<HTMLElement>(
-        '[data-testid="timeline-dense-toolbar"]',
-      );
     const labels = () =>
       canvasElement.querySelectorAll('[data-testid="timeline-dense-metrics"]')
         .length;
@@ -1895,27 +1892,21 @@ export const ShowLabelsKeepsTheWholeClock = meta.story({
     await expect(readout()).toContain("4.0px rows");
     await expect(labels()).toBe(0);
 
-    const show = canvasElement.querySelector<HTMLButtonElement>(
-      'button[aria-label="Show labels"]',
+    const zoomIn = canvasElement.querySelector<HTMLButtonElement>(
+      'button[aria-label="Zoom in"]',
     );
-    if (!show) throw new Error("no show-labels button");
-    await expect(show.disabled).toBe(false);
-    await expect(show.innerText.toLowerCase()).toContain("show labels");
-    const caption = [...(toolbar()?.querySelectorAll("span") ?? [])].find(
-      (el) => el.textContent?.trim().toLowerCase() === "show labels",
-    );
-    if (!caption) throw new Error("Show labels text is not on the button");
-    await expect(show.contains(caption)).toBe(true);
-    await userEvent.click(caption);
+    if (!zoomIn) throw new Error("no zoom-in button");
+    for (let click = 0; click < 6; click++) {
+      await userEvent.click(zoomIn);
+    }
 
-    await waitFor(() => expect(readout()).toContain("26.0px rows (labelled)"));
+    await waitFor(() => expect(labels()).toBeGreaterThan(0));
     await expect(readout()).toContain("zoomed");
-    await expect(labels()).toBeGreaterThan(0);
 
     const fit = canvasElement.querySelector<HTMLButtonElement>(
       'button[aria-label="Fit whole trace"]',
     );
-    if (!fit) throw new Error("no fit button after expanding");
+    if (!fit) throw new Error("no fit button after zooming in");
     await expect(fit.disabled).toBe(false);
     await userEvent.click(fit);
 
@@ -1926,8 +1917,9 @@ export const ShowLabelsKeepsTheWholeClock = meta.story({
 });
 
 /**
- * A box that only slices time must not hide Fit behind Show labels. Growing
- * the rows would keep that narrow clock; Fit is the way back to the overview.
+ * A box that only slices time still leaves Fit in the toolbar — it is never
+ * swapped away for another control. Growing the rows would keep that narrow
+ * clock; Fit is the way back to the overview.
  */
 export const FitStaysAfterATimeOnlyBox = meta.story({
   name: "(Test) Fit Stays After A Time Only Box",
@@ -1954,10 +1946,18 @@ export const FitStaysAfterATimeOnlyBox = meta.story({
       canvasElement.querySelector<HTMLElement>(
         '[data-testid="timeline-dense-readout"]',
       )?.textContent ?? "";
+    // Matches either label: spent ("Whole trace already fits", at rest) or
+    // live ("Fit whole trace", once the drag has zoomed away from it) — Fit
+    // is the same button either way, never swapped out for another control.
+    const fitButton = () =>
+      canvasElement.querySelector<HTMLButtonElement>(
+        'button[aria-label*="fits"], button[aria-label="Fit whole trace"]',
+      );
 
-    await expect(
-      canvasElement.querySelector('button[aria-label="Show labels"]'),
-    ).not.toBeNull();
+    // At rest the whole trace already fits, so Fit is present but spent.
+    const atRest = fitButton();
+    if (!atRest) throw new Error("no fit button at rest");
+    await expect(atRest.disabled).toBe(true);
 
     const rect = surface.getBoundingClientRect();
     const drag = (type: string, x: number, y: number) =>
@@ -1979,76 +1979,22 @@ export const FitStaysAfterATimeOnlyBox = meta.story({
     await waitFor(() => expect(readout()).toContain("zoomed"));
     await expect(readout()).toMatch(/[1-4]\.\dpx rows/);
 
-    await expect(
-      canvasElement.querySelector('button[aria-label="Show labels"]'),
-    ).toBeNull();
-    const fit = canvasElement.querySelector<HTMLButtonElement>(
-      'button[aria-label="Fit whole trace"]',
-    );
+    const fit = fitButton();
     if (!fit) throw new Error("Fit disappeared after a time-only box");
     await expect(fit.disabled).toBe(false);
   },
 });
 
 /**
- * A short trace on a narrow pane already has readable rows, but auto will not
- * spend the lane on names. Show labels is still the ask: take the gutter,
- * even if the bars get thinner.
- */
-export const ShowLabelsOpensTheGutterOnANarrowPane = meta.story({
-  name: "(Test) Show Labels Opens The Gutter On A Narrow Pane",
-  args: {
-    roots: manySpans(12),
-    box: PHONE,
-    gutter: "auto",
-    pointer: "fine",
-    barColor: "type",
-    compress: false,
-    showReadout: true,
-    selectedId: null,
-    onSelect: fn(),
-    onHover: fn(),
-  },
-  play: async ({ canvasElement }) => {
-    const names = () =>
-      canvasElement.querySelectorAll(
-        '[data-testid="timeline-dense-peek"] span[title], [data-testid="timeline-dense-content"] > div span[title]',
-      ).length;
-    const barLeft = () => {
-      const bar = canvasElement.querySelector<HTMLElement>(
-        '[data-testid="timeline-dense-bar"]',
-      );
-      return bar?.getBoundingClientRect().left ?? 0;
-    };
-
-    await expect(names()).toBe(0);
-    const show = canvasElement.querySelector<HTMLButtonElement>(
-      'button[aria-label="Show labels"]',
-    );
-    if (!show) throw new Error("no show-labels button on a squeezed pane");
-    await expect(show.innerText.toLowerCase()).toContain("show labels");
-    const caption = [...show.querySelectorAll("span")].find(
-      (el) => el.textContent?.trim().toLowerCase() === "show labels",
-    );
-    if (!caption) throw new Error("Show labels text is not on the button");
-    const leftBefore = barLeft();
-
-    await userEvent.click(caption);
-    await waitFor(() => expect(names()).toBeGreaterThan(0));
-    await expect(barLeft()).toBeGreaterThan(leftBefore + 40);
-  },
-});
-
-/**
- * A pane too narrow to ever commit the gutter still offers Show labels, but
- * names float as a peek overlay. A second rail tap must be able to dismiss
- * that peek: committedOpen never becomes true, so the toggle has to look at
- * the held-open pin, not the committed lane.
+ * A pane too narrow to ever commit the gutter still lets a coarse-pointer rail
+ * tap peek at the names. A second tap must be able to dismiss that peek:
+ * committedOpen never becomes true here, so the toggle has to look at the
+ * held-open pin, not the committed lane.
  */
 const TOO_NARROW_TO_COMMIT = { width: 220, height: 400 };
 
-export const ShowLabelsPeekTogglesOffOnATooNarrowPane = meta.story({
-  name: "(Test) Show Labels Peek Toggles Off On A Too Narrow Pane",
+export const RailTapPeekTogglesOffOnATooNarrowPane = meta.story({
+  name: "(Test) Rail Tap Peek Toggles Off On A Too Narrow Pane",
   args: {
     roots: manySpans(12),
     box: TOO_NARROW_TO_COMMIT,
@@ -2088,13 +2034,9 @@ export const ShowLabelsPeekTogglesOffOnATooNarrowPane = meta.story({
       touch(surface, "pointerup", 1, rect.left + 2, rect.top + 80);
     };
 
-    const show = canvasElement.querySelector<HTMLButtonElement>(
-      'button[aria-label="Show labels"]',
-    );
-    if (!show) throw new Error("no show-labels button on a peek-only pane");
     const leftBefore = barLeft();
 
-    await userEvent.click(show);
+    tapRail();
     await waitFor(() => expect(peekNames()).toBeGreaterThan(0));
     await expect(gutterNames()).toBe(0);
     await expect(Math.abs(barLeft() - leftBefore)).toBeLessThan(20);
@@ -2110,12 +2052,12 @@ export const ShowLabelsPeekTogglesOffOnATooNarrowPane = meta.story({
 });
 
 /**
- * After a coarse rail tap collapses a committed gutter, Show labels must
- * clear that leftover override and take the lane again. A stale
- * override==="collapsed" used to leave names as a peek overlay.
+ * A coarse-pointer rail tap commits the gutter open, a second tap collapses
+ * it, and a third recommits it — the same toggle, driven purely by the tap
+ * gesture now that there is no separate button to ask for labels.
  */
-export const ShowLabelsRecommitsAfterARailCollapse = meta.story({
-  name: "(Test) Show Labels Recommits After A Rail Collapse",
+export const RailTapRecommitsAfterARailCollapse = meta.story({
+  name: "(Test) Rail Tap Recommits After A Rail Collapse",
   args: {
     roots: manySpans(12),
     box: PHONE,
@@ -2154,18 +2096,11 @@ export const ShowLabelsRecommitsAfterARailCollapse = meta.story({
       touch(surface, "pointerdown", 1, rect.left + 2, rect.top + 80);
       touch(surface, "pointerup", 1, rect.left + 2, rect.top + 80);
     };
-    const clickShowLabels = async () => {
-      const show = canvasElement.querySelector<HTMLButtonElement>(
-        'button[aria-label="Show labels"]',
-      );
-      if (!show) throw new Error("no show-labels button");
-      await userEvent.click(show);
-    };
 
     const leftClosed = barLeft();
     await expect(gutterNames()).toBe(0);
 
-    await clickShowLabels();
+    tapRail();
     await waitFor(() => expect(gutterNames()).toBeGreaterThan(0));
     await expect(peekNames()).toBe(0);
     await expect(barLeft()).toBeGreaterThan(leftClosed + 40);
@@ -2174,7 +2109,7 @@ export const ShowLabelsRecommitsAfterARailCollapse = meta.story({
     await waitFor(() => expect(gutterNames()).toBe(0));
     await expect(peekNames()).toBe(0);
 
-    await clickShowLabels();
+    tapRail();
     await waitFor(() => expect(gutterNames()).toBeGreaterThan(0));
     await expect(peekNames()).toBe(0);
     await expect(barLeft()).toBeGreaterThan(leftClosed + 40);
@@ -2182,12 +2117,12 @@ export const ShowLabelsRecommitsAfterARailCollapse = meta.story({
 });
 
 /**
- * Panning a hairline overview is not a time zoom. Show labels must stay, or
- * Fit would snap the window back to the top of the tree instead of naming
- * the rows you just scrolled to.
+ * Panning a hairline overview is not a time zoom: the rows scroll but the
+ * whole clock stays on screen. Fit must stay in the toolbar (never hidden or
+ * disabled away) so there is always a way back to row zero.
  */
-export const ShowLabelsSurvivesAVerticalPan = meta.story({
-  name: "(Test) Show Labels Survives A Vertical Pan",
+export const FitReturnsToTopAfterAVerticalPan = meta.story({
+  name: "(Test) Fit Returns To Top After A Vertical Pan",
   args: {
     roots: manySpans(800),
     box: DESKTOP,
@@ -2209,13 +2144,15 @@ export const ShowLabelsSurvivesAVerticalPan = meta.story({
       canvasElement.querySelector<HTMLElement>(
         '[data-testid="timeline-dense-readout"]',
       )?.textContent ?? "";
-    const show = () =>
+    const rows = () =>
+      canvasElement.querySelector<HTMLElement>('[data-testid="dense-rows"]')
+        ?.textContent ?? "";
+    const fitButton = () =>
       canvasElement.querySelector<HTMLButtonElement>(
-        'button[aria-label="Show labels"]',
+        'button[aria-label="Fit whole trace"]',
       );
 
     await expect(readout()).toContain("fitted");
-    await expect(show()).not.toBeNull();
 
     const rect = surface.getBoundingClientRect();
     surface.dispatchEvent(
@@ -2228,16 +2165,18 @@ export const ShowLabelsSurvivesAVerticalPan = meta.story({
       }),
     );
     await waitFor(() => expect(readout()).toContain("zoomed"));
+    // Only the row window moved — the rows are still hairline and the whole
+    // clock is still on screen.
     await expect(readout()).toMatch(/1\.0px rows/);
-    await expect(show()).not.toBeNull();
-    await expect(
-      canvasElement.querySelector('button[aria-label="Fit whole trace"]'),
-    ).toBeNull();
+    await waitFor(() => expect(rows()).not.toContain("rows 0.0"));
 
-    if (!show()) throw new Error("Show labels vanished after a vertical pan");
-    await userEvent.click(show()!);
-    await waitFor(() => expect(readout()).toContain("26.0px rows (labelled)"));
-    await expect(readout()).toContain("zoomed");
+    const fit = fitButton();
+    if (!fit) throw new Error("Fit disappeared after a vertical pan");
+    await expect(fit.disabled).toBe(false);
+    await userEvent.click(fit);
+
+    await waitFor(() => expect(readout()).toContain("fitted"));
+    await expect(rows()).toContain("rows 0.0");
   },
 });
 

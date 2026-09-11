@@ -18,8 +18,6 @@ import remarkGfm from "remark-gfm";
 import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { useTheme } from "next-themes";
 import { ImageOff, Info } from "lucide-react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { MentionBadge } from "@/src/features/comments/components/MentionBadge";
 import {
   OpenAIUrlImageUrl,
@@ -490,6 +488,7 @@ export function MarkdownView({
   controlButtons,
   afterHeader,
   isSystemPrompt,
+  hoverControls = false,
 }: {
   /** The UNPARSED content shape — see `canRenderContentAsMarkdown`. Media
       reference strings must still be strings when they reach the part guards. */
@@ -506,11 +505,11 @@ export function MarkdownView({
       (`role === "system"`) — the title can be a message `name` instead of the
       role. Falls back to matching the title for callers without role data. */
   isSystemPrompt?: boolean;
+  /** Header controls (copy, ...) reveal on section hover instead of always. */
+  hoverControls?: boolean;
 }) {
-  const capture = usePostHogClientCapture();
   const { forcedTheme, resolvedTheme } = useTheme();
   const theme = forcedTheme ?? resolvedTheme;
-  const { setIsMarkdownEnabled } = useMarkdownContext();
 
   const markdownContent =
     typeof markdown === "string" ? markdown : parseOpenAIContentParts(markdown);
@@ -541,13 +540,6 @@ export function MarkdownView({
     copyTextToClipboard(markdownContent);
   };
 
-  const handleOnValueChange = () => {
-    setIsMarkdownEnabled(false);
-    capture("trace_detail:io_pretty_format_toggle_group", {
-      renderMarkdown: false,
-    });
-  };
-
   const inlineMediaReferenceStrings =
     typeof markdown === "string"
       ? getStandaloneMediaReferenceStrings(markdown)
@@ -569,14 +561,17 @@ export function MarkdownView({
   ) : null;
 
   return (
-    <div className="overflow-hidden" key={theme}>
+    <div
+      className={cn("overflow-hidden", hoverControls && "group/iosection")}
+      key={theme}
+    >
       {title ? (
         <>
           <MarkdownJsonViewHeader
             title={title}
             titleIcon={titleIcon}
-            handleOnValueChange={handleOnValueChange}
             handleOnCopy={handleOnCopy}
+            hoverRevealControls={hoverControls}
             controlButtons={controlButtons}
             collapseControl={
               shouldBeCollapsible

@@ -1,7 +1,7 @@
 import { memo, type JSX, useState } from "react";
 import { useRouter } from "next/router";
 import { type Row } from "@tanstack/react-table";
-import { urlRegex } from "@langfuse/shared";
+import { type FilterState, urlRegex } from "@langfuse/shared";
 import {
   SMALL_ARRAY_THRESHOLD,
   SMALL_OBJECT_THRESHOLD,
@@ -19,10 +19,16 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { cn } from "@/src/utils/tailwind";
 import {
+  buildEventsTablePathForColumnFilter,
   buildEventsTablePathForMetadataFilter,
   type MetadataFilterOperator,
 } from "@/src/features/events/lib/eventsTablePaths";
+import {
+  attributeColumnFilter,
+  attributeGrammar,
+} from "@/src/features/traces/components/ObservationAttributesList";
 import { Copy, Check, EllipsisVertical, Filter, FilterX } from "lucide-react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 /**
  * Enables the per-row actions menu in a metadata JSON view: copy value/
@@ -33,7 +39,22 @@ import { Copy, Check, EllipsisVertical, Filter, FilterX } from "lucide-react";
 export type MetadataFilterActions = {
   projectId: string;
   filterTarget: "observations" | "traces";
+  /**
+   * Attribute mode: rows are fixed-key attributes (model, environment, ...)
+   * rather than metadata, so the filter shortcuts target their table columns
+   * and read in search-bar grammar. `anchorTime` keeps the target table's
+   * window covering the source row.
+   */
+  attributes?: { anchorTime?: Date | null };
+  /** Which detail-panel table this is, for the `attribute_table_action`
+      event. Absent on IO tables, which stay untracked. */
+  analyticsTable?: "attributes" | "model_parameters" | "metadata";
+  /** Plain copy control only, no filter menu (model parameters have no
+      column to filter on). */
+  copyOnly?: boolean;
 };
+
+export type AttributeTableAction = "copy" | "include_filter" | "exclude_filter";
 
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
 const MAX_CELL_DISPLAY_CHARS = 2000;
@@ -223,6 +244,98 @@ function resolveKeyPath(row: Row<JsonTableRow>): string {
   return keys.join(".");
 }
 
+/** Attribute rows: copy, then include / exclude via the attribute's own column. */
+function AttributeActionsMenuContent({
+  row,
+  metadataActions,
+  onAction,
+}: {
+  row: Row<JsonTableRow>;
+  metadataActions: MetadataFilterActions;
+  onAction?: (action: AttributeTableAction) => void;
+}) {
+  const router = useRouter();
+  const { key, value, hasChildren } = row.original;
+  const valueText = String(value);
+  const filter =
+    hasChildren || key == null
+      ? null
+      : attributeColumnFilter(key, valueText, metadataActions.filterTarget);
+  const includeText = filter ? attributeGrammar(key ?? "", valueText) : null;
+  const excludeClause = filter?.exclude;
+  const navigate = (
+    clause: FilterState[number],
+    target: "observations" | "traces",
+  ) =>
+    router.push(
+      buildEventsTablePathForColumnFilter({
+        currentPath: router.asPath,
+        projectId: metadataActions.projectId,
+        target,
+        filter: clause,
+        coverTime: metadataActions.attributes?.anchorTime ?? undefined,
+      }),
+    );
+
+  return (
+    <>
+      <DropdownMenuItem
+        className="text-xs"
+        onSelect={() => {
+          onAction?.("copy");
+          copyTextToClipboard(getCopyValue(value));
+        }}
+      >
+        <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
+        {hasChildren ? "Copy structure" : "Copy value"}
+      </DropdownMenuItem>
+      {filter && includeText ? (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="text-xs"
+            onSelect={() => {
+              onAction?.("include_filter");
+              navigate(filter.include, filter.target);
+            }}
+          >
+            <Filter className="mr-2 h-3.5 w-3.5 shrink-0" />
+            <span className="flex min-w-0 flex-col">
+              <span>Include in filter</span>
+              <span
+                className="text-muted-foreground truncate font-mono"
+                title={includeText}
+              >
+                {includeText}
+              </span>
+            </span>
+          </DropdownMenuItem>
+          {excludeClause ? (
+            <DropdownMenuItem
+              className="text-xs"
+              onSelect={() => {
+                onAction?.("exclude_filter");
+                navigate(excludeClause, filter.target);
+              }}
+            >
+              <FilterX className="mr-2 h-3.5 w-3.5 shrink-0" />
+              <span className="flex min-w-0 flex-col">
+                <span>Exclude from filter</span>
+                <span
+                  className="text-muted-foreground truncate font-mono"
+                  title={`-${includeText}`}
+                >
+                  -{includeText}
+                </span>
+              </span>
+            </DropdownMenuItem>
+          ) : null}
+        </>
+      ) : null}
+    </>
+  );
+}
+
 /**
  * The per-row overflow menu shown in metadata views. Containers offer "Copy
  * structure"; scalar leaves offer "Copy value" plus filter shortcuts. Rendered
@@ -232,12 +345,24 @@ function resolveKeyPath(row: Row<JsonTableRow>): string {
 function ValueCellActionsMenuContent({
   row,
   metadataActions,
+  onAction,
 }: {
   row: Row<JsonTableRow>;
   metadataActions: MetadataFilterActions;
+  onAction?: (action: AttributeTableAction) => void;
 }) {
   const router = useRouter();
   const { value, type, hasChildren, level } = row.original;
+
+  if (metadataActions.attributes) {
+    return (
+      <AttributeActionsMenuContent
+        row={row}
+        metadataActions={metadataActions}
+        onAction={onAction}
+      />
+    );
+  }
 
   const filterValue = String(value);
   // A nested value is matched as a substring of its JSON-ENCODED top-level
@@ -273,12 +398,17 @@ function ValueCellActionsMenuContent({
   const displayValue = type === "string" ? `"${filterValue}"` : filterValue;
 
   const handleCopyData = () => {
+    onAction?.("copy");
     copyTextToClipboard(getCopyValue(value));
   };
   const handleCopyPath = () => {
+    onAction?.("copy");
     copyTextToClipboard(resolveKeyPath(row));
   };
   const navigateWithFilter = (operator: MetadataFilterOperator) => {
+    onAction?.(
+      operator === includeOperator ? "include_filter" : "exclude_filter",
+    );
     router.push(
       buildEventsTablePathForMetadataFilter({
         currentPath: router.asPath,
@@ -361,9 +491,19 @@ export const ValueCell = memo(
     const cellId = `${row.id}-value`;
     const isCellExpanded = expandedCells.has(cellId);
     const [showCopySuccess, setShowCopySuccess] = useState(false);
+    const capture = usePostHogClientCapture();
+    const analyticsTable = metadataActions?.analyticsTable;
+    const trackAction = (action: AttributeTableAction) => {
+      if (!analyticsTable) return;
+      capture("trace_detail:attribute_table_action", {
+        table: analyticsTable,
+        action,
+      });
+    };
 
     const handleCopy = async (e: React.MouseEvent) => {
       e.stopPropagation();
+      trackAction("copy");
       const copyValue = getCopyValue(value);
 
       try {
@@ -506,7 +646,7 @@ export const ValueCell = memo(
     const { content, needsTruncation } = getDisplayValue();
 
     return (
-      <div className={`${MONO_TEXT_CLASSES} group relative max-w-full`}>
+      <div className={`${MONO_TEXT_CLASSES} group relative min-h-5 max-w-full`}>
         <span className="cursor-text">{content}</span>
         {needsTruncation && !row.original.hasChildren && (
           <div
@@ -524,7 +664,7 @@ export const ValueCell = memo(
 
         {/* Hover affordance: a one-click copy by default, or an actions menu
             (copy + filter shortcuts) in metadata views. */}
-        {metadataActions ? (
+        {metadataActions && !metadataActions.copyOnly ? (
           <DropdownMenuController
             align="end"
             maxWidth="320px"
@@ -532,6 +672,7 @@ export const ValueCell = memo(
               <ValueCellActionsMenuContent
                 row={row}
                 metadataActions={metadataActions}
+                onAction={trackAction}
               />
             )}
           >
@@ -543,7 +684,7 @@ export const ValueCell = memo(
                   aria-label="Value actions"
                   title="Actions"
                   className={cn(
-                    "bg-background/80 hover:bg-background absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 border p-0 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100",
+                    "hover:text-foreground absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 p-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:bg-transparent",
                     isOpen && "opacity-100",
                   )}
                   onClick={(event) => event.stopPropagation()}
@@ -557,7 +698,7 @@ export const ValueCell = memo(
           <Button
             variant="ghost"
             size="icon"
-            className="bg-background/80 hover:bg-background absolute top-0 right-0 h-5 w-5 border p-0.5 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100"
+            className="hover:text-foreground absolute top-1/2 right-0 h-5 w-5 -translate-y-1/2 p-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:bg-transparent"
             onClick={handleCopy}
             title="Copy value"
             aria-label="Copy cell value"

@@ -5,6 +5,10 @@ import { type FilterState } from "@langfuse/shared";
 import { LazySessionTraceEventsRow } from "@/src/features/sessions/LazySessionTraceEventsRow";
 import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
+import {
+  type SessionFocusTarget,
+  useScrollToFocusedSessionTrace,
+} from "@/src/features/sessions/sessionFocusTarget";
 import { computeIdleGapSeconds } from "@/src/features/sessions/sessionIdleGap";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { useDebounce } from "@/src/hooks/useDebounce";
@@ -36,6 +40,7 @@ type ConnectedModernSessionBodyLegacyProps = {
   viewLabel: string | null;
   showInlineToolCalls: boolean;
   showSystemPrompt: boolean;
+  focusTarget?: SessionFocusTarget | null;
   sidebarFilterControls: ModernSessionSidebarFilterControls;
   onFilterObservationByName: (
     name: string,
@@ -56,6 +61,7 @@ export function ConnectedModernSessionBodyLegacy({
   viewLabel,
   showInlineToolCalls,
   showSystemPrompt,
+  focusTarget = null,
   sidebarFilterControls,
   onFilterObservationByName,
 }: ConnectedModernSessionBodyLegacyProps) {
@@ -392,6 +398,20 @@ export function ConnectedModernSessionBodyLegacy({
     observationScrollCleanupRef.current = cleanup;
   };
 
+  // Trace -> session link context (`?focusTraceId=`): land the feed on the
+  // trace / observation the user came from. The sidebar's active turn then
+  // follows from the scroll spy like any other scroll position.
+  const traceIds = React.useMemo(
+    () => traces.map((trace) => trace.id),
+    [traces],
+  );
+  useScrollToFocusedSessionTrace({
+    enabled: tracesState.type === "loaded",
+    focusTarget,
+    traceIds,
+    virtualizer,
+  });
+
   return (
     <div className="bg-background relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden lg:grid-cols-[clamp(200px,24vw,296px)_minmax(0,1fr)] lg:grid-rows-1">
       {tracesState.type === "loading" ? (
@@ -457,6 +477,12 @@ export function ConnectedModernSessionBodyLegacy({
                     surface="modern"
                     contentMode={showInlineToolCalls ? "all" : "conversation"}
                     showSystemPrompt={showSystemPrompt}
+                    isFocused={trace.id === focusTarget?.traceId}
+                    focusedObservationId={
+                      trace.id === focusTarget?.traceId
+                        ? focusTarget.observationId
+                        : null
+                    }
                   />
                 </SessionVirtualizedRow>
               );

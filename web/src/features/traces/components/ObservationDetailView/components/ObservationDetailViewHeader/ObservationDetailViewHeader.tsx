@@ -30,28 +30,30 @@ import {
 } from "@/src/features/scores";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
-import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
+import {
+  JumpToPlaygroundDropdownMenuController,
+  useJumpToPlayground,
+} from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
+import { JumpToPlaygroundMenu } from "@/src/features/playground/page/components/JumpToPlaygroundMenu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,
+  METRIC_TEXT_CLASS,
+  StartTimeBadge,
   TimeToFirstTokenBadge,
-  EnvironmentBadge,
-  ReleaseBadge,
-  VersionBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
-import {
-  SessionBadge,
-  UserIdBadge,
-} from "@/src/features/traces/components/TraceMetadataBadges";
 import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
-import {
-  CostBadge,
-  UsageBadge,
-} from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
-import { resolveObservationCostSource } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/costSource";
-import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
-import { ModelParametersBadges } from "@/src/features/traces/components/ObservationDetailView/components/ModelParametersBadges";
+import { CostUsageBadge } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import {
   type WithStringifiedMetadata,
   type MetadataDomainClient,
@@ -66,6 +68,7 @@ import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import {
   ChevronDown,
+  Database,
   EllipsisVertical,
   ListPlus,
   LockIcon,
@@ -92,7 +95,6 @@ import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
 import { resolveEvaluatorIdMetadata } from "@/src/features/traces/fns/resolveEvaluatorIdMetadata";
 import { api } from "@/src/utils/api";
-import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -159,6 +161,30 @@ export const ObservationDetailViewHeader = memo(
     const datasetCount = existingDatasetItems.length;
     const hasExistingDatasetItems = datasetCount > 0;
 
+    // Playground availability for the combined "Add to" menu. Only
+    // generation-like observations offer the Playground entry — matching
+    // that, gate the hook's internal API key query off for the rest so a
+    // span/event doesn't fetch LLM API keys it will never use. The hook
+    // itself must still run unconditionally (rules of hooks); without IO it
+    // resolves to unavailable.
+    const showPlaygroundEntry = Boolean(
+      observationWithIO && isGenerationLike(observationWithIO.type),
+    );
+    const playground = useJumpToPlayground(
+      {
+        source: "generation",
+        generation: observationWithIO ?? {
+          ...observation,
+          traceId: observation.traceId ?? null,
+          input: null,
+          output: null,
+          metadata: null,
+        },
+        analyticsEventName: "trace_detail:test_in_playground_button_click",
+      },
+      { enabled: showPlaygroundEntry },
+    );
+
     // Format cost and usage values
     const totalCost = observation.totalCost;
     const totalUsage = observation.totalUsage;
@@ -181,48 +207,43 @@ export const ObservationDetailViewHeader = memo(
       },
     );
 
-    const preparedDate = buildLocalIsoDatePresentation({
-      date: observation.startTime,
-      accuracy: "millisecond",
-    });
     const displayedTotalCost = subtreeMetrics
       ? (treeNodeTotalCost?.toNumber() ?? subtreeMetrics.totalCost)
       : totalCost;
     const displayedCostDetails =
       subtreeMetrics?.costDetails ?? observation.costDetails;
-    const showsOwnObservationCost = !subtreeMetrics;
-    const hasProvidedCostDetails =
-      Object.keys(observation.providedCostDetails).length > 0;
-    const costSource = resolveObservationCostSource({
-      hasSubtreeMetrics: Boolean(subtreeMetrics),
-      hasProvidedCostDetails,
-    });
-    const priceSource =
-      isGenerationLike(observation.type) &&
-      observation.internalModelId &&
-      observation.model &&
-      observation.usagePricingTierId &&
-      observation.usagePricingTierName &&
-      !hasProvidedCostDetails &&
-      showsOwnObservationCost
-        ? {
-            projectId,
-            modelId: observation.internalModelId,
-            modelName: observation.model,
-            pricingTierId: observation.usagePricingTierId,
-            pricingTierName: observation.usagePricingTierName,
-          }
+    // Usage only exists for generation-like observations — mirror that gate
+    // here so a span/event's stray zero fields never masquerade as usage.
+    const displayedInputUsage = subtreeMetrics
+      ? subtreeMetrics.inputUsage
+      : isGenerationLike(observation.type)
+        ? inputUsage
+        : 0;
+    const displayedOutputUsage = subtreeMetrics
+      ? subtreeMetrics.outputUsage
+      : isGenerationLike(observation.type)
+        ? outputUsage
+        : 0;
+    const displayedTotalUsage = subtreeMetrics
+      ? subtreeMetrics.totalUsage
+      : isGenerationLike(observation.type)
+        ? totalUsage
+        : 0;
+    const displayedUsageDetails = subtreeMetrics
+      ? subtreeMetrics.usageDetails
+      : isGenerationLike(observation.type)
+        ? observation.usageDetails
         : undefined;
 
     return (
-      <div className="@container shrink-0 space-y-2 border-b p-2">
+      <div className="@container shrink-0 space-y-2 p-3">
         {/* Title row with actions */}
-        <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
-          <div className="flex w-full min-w-0 flex-row items-center gap-1">
-            <ItemBadge type={observation.type as ObservationType} isSmall />
+        <div className="flex w-full flex-wrap items-start justify-between gap-2">
+          <div className="flex min-w-0 flex-auto flex-row items-center gap-1">
+            <ItemBadge type={observation.type as ObservationType} />
             <span
               className={cn(
-                "mb-0 min-w-0 truncate font-bold",
+                "mb-0 min-w-0 truncate text-base font-bold",
                 isMobile && "flex-1",
               )}
               title={observation.name || observation.id}
@@ -496,7 +517,7 @@ export const ObservationDetailViewHeader = memo(
                     ) : (
                       <MessageSquare className="h-4 w-4" />
                     )}
-                    <span className="text-sm">Add comment</span>
+                    <span className="text-sm">Comment</span>
                     {!commentDrawerControl.disabled && commentCount ? (
                       <ActionButtonCountBadge count={commentCount} />
                     ) : null}
@@ -507,7 +528,7 @@ export const ObservationDetailViewHeader = memo(
           </div>
           {/* Action buttons (desktop inline cluster) */}
           {!isMobile && (
-            <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
+            <div className="flex flex-wrap content-start items-start gap-0.5">
               {observationWithIO && (
                 <NewDatasetItemFromExistingObjectDialogController
                   projectId={projectId}
@@ -529,46 +550,76 @@ export const ObservationDetailViewHeader = memo(
                       }
                     >
                       {({ Anchor, openDropdown }) => (
-                        <Anchor>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            disabled={!hasDatasetAccess}
-                            onClick={() => {
-                              if (hasExistingDatasetItems) {
-                                openDropdown();
-                                return;
-                              }
-
-                              captureNewDatasetItemFormOpen();
-                              openDialog({
-                                traceId,
-                                observationId: observation.id,
-                                input: observationWithIO.input,
-                                output: observationWithIO.output,
-                                metadata: observationWithIO.metadata,
-                              });
-                            }}
-                          >
-                            {!hasExistingDatasetItems && hasDatasetAccess ? (
-                              <PlusIcon
-                                className="mr-1.5 -ml-0.5 h-3.5 w-3.5"
-                                aria-hidden="true"
-                              />
-                            ) : null}
-                            {hasExistingDatasetItems
-                              ? `In ${datasetCount} dataset(s)`
-                              : "Add to datasets"}
-                            {hasExistingDatasetItems ? (
-                              <ChevronDown className="ml-2 h-3 w-3" />
-                            ) : !hasDatasetAccess ? (
-                              <LockIcon
-                                className="ml-1.5 h-3 w-3"
-                                aria-hidden="true"
-                              />
-                            ) : null}
-                          </Button>
-                        </Anchor>
+                        // One "Add to" menu for the send-this-somewhere verbs
+                        // (dataset, playground). Anchor must wrap only the
+                        // real DOM trigger, not this whole DropdownMenu: the
+                        // menu root is a context provider with no DOM node of
+                        // its own, so anchoring it left the existing-items
+                        // menu anchorless whenever the observation already
+                        // had dataset items.
+                        <DropdownMenu>
+                          <Anchor>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="secondary" size="sm">
+                                <PlusIcon
+                                  className="mr-1.5 -ml-0.5 h-3.5 w-3.5"
+                                  aria-hidden="true"
+                                />
+                                Add to
+                              </Button>
+                            </DropdownMenuTrigger>
+                          </Anchor>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              disabled={!hasDatasetAccess}
+                              onSelect={() => {
+                                if (hasExistingDatasetItems) {
+                                  openDropdown();
+                                  return;
+                                }
+                                captureNewDatasetItemFormOpen();
+                                openDialog({
+                                  traceId,
+                                  observationId: observation.id,
+                                  input: observationWithIO.input,
+                                  output: observationWithIO.output,
+                                  metadata: observationWithIO.metadata,
+                                });
+                              }}
+                            >
+                              <Database className="mr-2 h-4 w-4" />
+                              {hasExistingDatasetItems
+                                ? `Dataset — in ${datasetCount}`
+                                : "Dataset"}
+                              {!hasDatasetAccess && (
+                                <LockIcon className="ml-auto h-3 w-3" />
+                              )}
+                            </DropdownMenuItem>
+                            {showPlaygroundEntry && (
+                              <DropdownMenuSub>
+                                <DropdownMenuSubTrigger
+                                  disabled={!playground.isAvailable}
+                                  title={playground.tooltipMessage}
+                                >
+                                  <Terminal className="mr-2 h-4 w-4" />
+                                  Playground
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent>
+                                  <JumpToPlaygroundMenu
+                                    source="generation"
+                                    includeOutput={playground.includeOutput}
+                                    onIncludeOutputChange={
+                                      playground.setIncludeOutput
+                                    }
+                                    onPlaygroundAction={
+                                      playground.handlePlaygroundAction
+                                    }
+                                  />
+                                </DropdownMenuSubContent>
+                              </DropdownMenuSub>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </ExistingDatasetItemsDropdownMenuController>
                   )}
@@ -653,9 +704,9 @@ export const ObservationDetailViewHeader = memo(
                         variant="secondary"
                         size="sm"
                         disabled={disabled !== undefined}
-                        className="rounded-l-none rounded-r-md border-l-2"
+                        className="rounded-l-none rounded-r-md border-l px-1.5"
                       >
-                        <span className="relative mr-1 text-xs">
+                        <span className="relative text-xs">
                           <ChevronDown className="h-3 w-3" />
                           {totalCount > 0 && (
                             <AnnotationQueueItemCountBadge
@@ -669,35 +720,6 @@ export const ObservationDetailViewHeader = memo(
                   </AnnotationQueueItemDropdownMenuController>
                 </div>
               )}
-              {observationWithIO &&
-                isGenerationLike(observationWithIO.type) && (
-                  <JumpToPlaygroundDropdownMenuController
-                    source="generation"
-                    generation={observationWithIO}
-                    analyticsEventName="trace_detail:test_in_playground_button_click"
-                  >
-                    {({ Trigger, disabled, title }) => (
-                      <Trigger asChild>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          disabled={disabled}
-                          title={title}
-                          className={cn(
-                            "flex items-center gap-1",
-                            disabled
-                              ? "cursor-not-allowed opacity-50"
-                              : "cursor-pointer",
-                          )}
-                        >
-                          <Terminal className="h-3.5 w-3.5" />
-                          <span className="hidden md:inline">Playground</span>
-                          <ChevronDown className="h-3 w-3" />
-                        </Button>
-                      </Trigger>
-                    )}
-                  </JumpToPlaygroundDropdownMenuController>
-                )}
               <Button
                 type="button"
                 variant="secondary"
@@ -711,7 +733,7 @@ export const ObservationDetailViewHeader = memo(
                 ) : (
                   <>
                     <MessageSquare className="h-3.5 w-3.5" />
-                    <span>Add comment</span>
+                    <span>Comment</span>
                     {!!commentCount ? (
                       <ActionButtonCountBadge count={commentCount} />
                     ) : null}
@@ -722,36 +744,35 @@ export const ObservationDetailViewHeader = memo(
           )}
         </div>
 
-        {/* Metadata badges */}
-
         <div className="flex flex-col gap-2">
-          {/* Timestamp */}
-          {preparedDate ? (
-            <div className="flex flex-wrap items-center gap-1 text-sm">
-              <span title={preparedDate.title}>{preparedDate.display}</span>
-            </div>
-          ) : null}
-
-          {/* Other badges */}
+          {/* Metrics row: measured numbers plus specialty badges (level,
+              evaluator, prompt) that stay next to them. Session/user render
+              once in the TraceSummaryStrip — in v4 every observation carries
+              the trace's values. */}
           {!isAnnotationMode && (
             <CollapsibleBadgeRow>
+              <StartTimeBadge startTime={observation.startTime} />
               <LatencyBadge latencySeconds={latencySeconds} />
               <TimeToFirstTokenBadge
                 timeToFirstToken={observation.timeToFirstToken}
               />
-              <SessionBadge
-                sessionId={observation.sessionId ?? null}
-                projectId={projectId}
+              <CostUsageBadge
+                totalCost={displayedTotalCost}
+                costDetails={displayedCostDetails}
+                inputUsage={displayedInputUsage}
+                outputUsage={displayedOutputUsage}
+                totalUsage={displayedTotalUsage}
+                usageDetails={displayedUsageDetails}
               />
-              <UserIdBadge
-                userId={observation.userId ?? null}
-                projectId={projectId}
-              />
+              {/* Model as quiet text, like the tree row: the attributes table
+                  below has it too, but that can be a scroll away. */}
+              {observation.model ? (
+                <span title="Model" className={METRIC_TEXT_CLASS}>
+                  {observation.model}
+                </span>
+              ) : null}
               {evaluatorId &&
-                (observation.environment ===
-                  LangfuseInternalTraceEnvironment.LLMJudge ||
-                  observation.environment ===
-                    LangfuseInternalTraceEnvironment.CodeEval) &&
+                isEvaluatorExecution &&
                 !evaluatorId.startsWith("managed:") && (
                   <EvaluatorBadge
                     evaluatorId={evaluatorId}
@@ -759,47 +780,6 @@ export const ObservationDetailViewHeader = memo(
                     projectId={projectId}
                   />
                 )}
-              <EnvironmentBadge environment={observation.environment} />
-              <ReleaseBadge release={observation.release} />
-              {displayedTotalCost != null && displayedCostDetails && (
-                <CostBadge
-                  totalCost={displayedTotalCost}
-                  costDetails={displayedCostDetails}
-                  costSource={costSource}
-                  priceSource={priceSource}
-                />
-              )}
-              {subtreeMetrics
-                ? subtreeMetrics.hasGenerationLike &&
-                  subtreeMetrics.usageDetails && (
-                    <UsageBadge
-                      inputUsage={subtreeMetrics.inputUsage}
-                      outputUsage={subtreeMetrics.outputUsage}
-                      totalUsage={subtreeMetrics.totalUsage}
-                      usageDetails={subtreeMetrics.usageDetails}
-                    />
-                  )
-                : isGenerationLike(observation.type) &&
-                  observation.usageDetails && (
-                    <UsageBadge
-                      inputUsage={inputUsage}
-                      outputUsage={outputUsage}
-                      totalUsage={totalUsage}
-                      usageDetails={observation.usageDetails}
-                    />
-                  )}
-              <VersionBadge version={observation.version} />
-              {observation.model && (
-                <ModelBadge
-                  model={observation.model}
-                  internalModelId={observation.internalModelId}
-                  projectId={projectId}
-                  usageDetails={observation.usageDetails}
-                />
-              )}
-              <ModelParametersBadges
-                modelParameters={observation.modelParameters}
-              />
               {observation.level !== "DEFAULT" && (
                 <ObservationLevelBadge
                   level={observation.level}

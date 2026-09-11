@@ -572,7 +572,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       >
         <Button
           onClick={() => zoomBy(ZOOM_STEP)}
-          variant="outline"
+          variant="ghost"
           size="icon"
           className="bg-background/80 h-7 w-7 backdrop-blur"
           title="Zoom in"
@@ -581,7 +581,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
         </Button>
         <Button
           onClick={() => zoomBy(1 / ZOOM_STEP)}
-          variant="outline"
+          variant="ghost"
           size="icon"
           className="bg-background/80 h-7 w-7 backdrop-blur"
           title="Zoom out"
@@ -590,7 +590,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
         </Button>
         <Button
           onClick={handleFit}
-          variant="outline"
+          variant="ghost"
           size="icon"
           className="bg-background/80 h-7 w-7 backdrop-blur"
           title="Fit to view"

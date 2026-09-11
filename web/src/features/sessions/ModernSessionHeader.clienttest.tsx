@@ -3,12 +3,20 @@ import { type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ModernSessionHeader } from "@/src/features/sessions/ModernSessionHeader";
-import { sessionHeaderVisibilityStorageKey } from "@/src/features/sessions/sessionHeaderVisibility";
+import {
+  modernSessionHeaderScore,
+  type ModernSessionHeaderScore,
+} from "@/src/features/sessions/__fixtures__/modernSessionHeaderScore";
 
 const capture = vi.hoisted(() => vi.fn());
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => capture,
+}));
+
+// ScoreBadge reads the project id off the router for its execution-trace link.
+vi.mock("next/router", () => ({
+  useRouter: () => ({ query: { projectId: "project-1" } }),
 }));
 
 vi.mock("@/src/components/SingleLineOverflowList", () => ({
@@ -45,18 +53,28 @@ vi.mock("@/src/components/SingleLineOverflowList", () => ({
   ),
 }));
 
+const scores: ModernSessionHeaderScore[] = [
+  modernSessionHeaderScore({
+    id: "score-helpfulness",
+    name: "Helpfulness",
+    value: 0.86,
+  }),
+];
+
 const defaultProps = {
   projectId: "project-1",
   countTraces: 3,
+  minTimestamp: new Date("2026-01-01T00:00:00.000Z"),
+  maxTimestamp: new Date("2026-01-01T00:00:01.200Z"),
   traces: {
     state: "loaded" as const,
-    data: [{ latencyMs: null, observationCount: 7 }],
+    data: [{ latencyMs: 1_200, observationCount: 7 }],
   },
-  tokensIn: 0,
-  tokensOut: 0,
-  totalTokens: 0,
+  tokensIn: 120,
+  tokensOut: 40,
+  totalTokens: 160,
   totalCost: 0.12,
-  environment: null,
+  environment: "production",
   users: [],
   metadataJsonPaths: {
     paths: [],
@@ -65,134 +83,120 @@ const defaultProps = {
     onSave: vi.fn(),
     onRemove: vi.fn(),
   },
-  scores: [],
+  scores,
 };
 
 describe("ModernSessionHeader", () => {
   afterEach(() => {
     capture.mockClear();
-    localStorage.clear();
   });
 
-  it("hides and reveals a detail while persisting the preference", () => {
+  it("renders every session detail as quiet text, links and score chips", () => {
     render(<ModernSessionHeader {...defaultProps} />);
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Hide trace and span counts in session header",
-      }),
+    // Metrics: counts and session duration as plain text, no pill box.
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("traces")).toBeInTheDocument();
+    expect(screen.getByText("7")).toBeInTheDocument();
+    expect(screen.getByText("spans")).toBeInTheDocument();
+    // Latency is the median alone; p95 is no longer shown.
+    expect(screen.getByTitle("Session duration")).toHaveTextContent("1.20s");
+    expect(screen.queryByText(/p95/)).not.toBeInTheDocument();
+    // Cost and usage share one element.
+    expect(screen.getByTitle("Cost")).toBeInTheDocument();
+    expect(screen.getByText("160")).toBeInTheDocument();
+    // Attributes: env as key:value text.
+    expect(screen.getByText("env")).toBeInTheDocument();
+    expect(screen.getByText("production")).toBeInTheDocument();
+    // Scores: chips, name and value kept.
+    expect(screen.getByText("Helpfulness:")).toBeInTheDocument();
+    expect(screen.getByText("0.86")).toBeInTheDocument();
+  });
+
+  it("keeps no pill box on metrics, attributes or users", () => {
+    const { container } = render(
+      <ModernSessionHeader
+        {...defaultProps}
+        users={["user-1@example.com"]}
+        metadataJsonPaths={{
+          ...defaultProps.metadataJsonPaths,
+          paths: ["$.cloud_region"],
+          source: {
+            state: "ready" as const,
+            metadata: { cloud_region: "EU" },
+            metadataTruncated: false,
+          },
+        }}
+      />,
     );
 
     expect(
-      screen.queryByRole("button", {
-        name: "Hide trace and span counts in session header",
-      }),
+      container.querySelectorAll('[data-session-header-pill="true"]'),
+    ).toHaveLength(0);
+    expect(
+      screen.getByRole("link", { name: /^User user-1@example\.com/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("cloud_region")).toBeInTheDocument();
+    expect(screen.getByText("EU")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^Hide /i }),
     ).not.toBeInTheDocument();
     expect(
-      localStorage.getItem(sessionHeaderVisibilityStorageKey("project-1")),
-    ).toBe(JSON.stringify(["traces"]));
-    expect(capture).toHaveBeenCalledWith(
-      "session_detail:header_detail_visibility_changed",
-      {
-        action: "hide",
-        detailType: "traces",
-        storedHiddenDetailCount: 1,
-        isV4: true,
-      },
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Show 1 hidden session details",
-      }),
-    );
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Show trace and span counts in session header",
-      }),
-    );
-
-    expect(
-      screen.getByRole("button", {
-        name: "Hide trace and span counts in session header",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      localStorage.getItem(sessionHeaderVisibilityStorageKey("project-1")),
-    ).toBe(JSON.stringify([]));
-    expect(capture).toHaveBeenCalledTimes(2);
-    expect(capture).toHaveBeenLastCalledWith(
-      "session_detail:header_detail_visibility_changed",
-      {
-        action: "show",
-        detailType: "traces",
-        storedHiddenDetailCount: 0,
-        isV4: true,
-      },
-    );
-  });
-
-  it("restores hidden details from project-scoped local storage", () => {
-    localStorage.setItem(
-      sessionHeaderVisibilityStorageKey("project-1"),
-      JSON.stringify(["traces"]),
-    );
-    render(<ModernSessionHeader {...defaultProps} />);
-
-    expect(
-      screen.queryByRole("button", {
-        name: "Hide trace and span counts in session header",
-      }),
+      screen.queryByRole("button", { name: /^Show .+ in session header$/i }),
     ).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Show 1 hidden session details",
-      }),
-    );
-    expect(
-      screen.getByRole("button", {
-        name: "Show trace and span counts in session header",
-      }),
-    ).toBeInTheDocument();
   });
 
-  it("does not persist customer identifiers in dynamic detail keys", () => {
-    const userId = "customer@example.com";
-    render(<ModernSessionHeader {...defaultProps} users={[userId]} />);
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Hide user 1 in session header",
-      }),
+  it("masks user ids from session recordings", () => {
+    const { container } = render(
+      <ModernSessionHeader {...defaultProps} users={["user-1@example.com"]} />,
     );
 
-    const storedValue = localStorage.getItem(
-      sessionHeaderVisibilityStorageKey("project-1"),
+    expect(container.querySelector('a[href*="/users/"]')?.className).toContain(
+      "ph-no-capture",
     );
-    expect(storedValue).not.toContain(userId);
-    expect(JSON.parse(storedValue ?? "[]")).toHaveLength(1);
   });
 
-  it("preserves preferences for details that are temporarily unavailable", () => {
-    const storageKey = sessionHeaderVisibilityStorageKey("project-1");
-    localStorage.setItem(storageKey, JSON.stringify(["latency"]));
+  it("keeps the metadata JSONPath remove control and captures the change", () => {
+    const onRemove = vi.fn();
     render(
-      <ModernSessionHeader {...defaultProps} traces={{ state: "loading" }} />,
+      <ModernSessionHeader
+        {...defaultProps}
+        metadataJsonPaths={{
+          ...defaultProps.metadataJsonPaths,
+          paths: ["$.cloud_region"],
+          source: {
+            state: "ready" as const,
+            metadata: { cloud_region: "EU" },
+            metadataTruncated: false,
+          },
+          onRemove,
+        }}
+      />,
     );
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Hide trace and span counts in session header",
+        name: "Remove metadata JSONPath $.cloud_region",
       }),
     );
 
-    expect(JSON.parse(localStorage.getItem(storageKey) ?? "[]")).toEqual([
-      "latency",
-      "traces",
-    ]);
+    expect(onRemove).toHaveBeenCalledWith("$.cloud_region");
+    expect(capture).toHaveBeenCalledWith(
+      "session_detail:metadata_jsonpath_config_changed",
+      expect.objectContaining({ action: "remove" }),
+    );
   });
 
-  it("lets overflow-only users participate in visibility preferences", () => {
+  it("does not capture a header detail visibility event", () => {
+    render(<ModernSessionHeader {...defaultProps} />);
+
+    expect(capture).not.toHaveBeenCalledWith(
+      "session_detail:header_detail_visibility_changed",
+      expect.anything(),
+    );
+  });
+
+  it("keeps overflow users reachable through the overflow popover", () => {
     const users = [
       "user-1@example.com",
       "user-2@example.com",
@@ -203,22 +207,12 @@ describe("ModernSessionHeader", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Show 1 hidden session details",
+        name: "Show 1 more session details",
       }),
     );
-    const hideOverflowUser = screen.getByRole("button", {
-      name: "Hide user 4 in session header",
-    });
-    hideOverflowUser.focus();
-    fireEvent.click(hideOverflowUser);
 
-    const showOverflowUser = screen.getByRole("button", {
-      name: "Show user 4 in session header",
-    });
-    expect(showOverflowUser).toBeInTheDocument();
-    expect(showOverflowUser).toHaveFocus();
     expect(
-      localStorage.getItem(sessionHeaderVisibilityStorageKey("project-1")),
-    ).not.toContain(users[3]);
+      screen.getByRole("link", { name: /^User user-4@example\.com/ }),
+    ).toBeInTheDocument();
   });
 });

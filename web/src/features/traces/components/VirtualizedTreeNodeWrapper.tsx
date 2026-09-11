@@ -16,7 +16,7 @@
 
 import { type ReactNode } from "react";
 import { Button } from "@/src/components/ui/button";
-import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
+import { ItemIcon, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 
@@ -116,33 +116,31 @@ export function VirtualizedTreeNodeWrapper({
               <div
                 className={cn(
                   "bg-border-contrast absolute top-0 left-3 w-px",
-                  isLastSibling ? "h-3" : "bottom-3",
+                  isLastSibling ? "h-4" : "bottom-0",
                 )}
               />
               {/* Vertical bar connecting downwards if not last sibling */}
               {!isLastSibling && (
-                <div className="bg-border-contrast absolute top-3 bottom-0 left-3 w-px" />
+                <div className="bg-border-contrast absolute top-4 bottom-0 left-3 w-px" />
               )}
               {/* Horizontal bar connecting to icon */}
-              <div className="bg-border-contrast absolute top-3 left-3 h-px w-2" />
+              <div className="bg-border-contrast absolute top-4 left-3 h-px w-2" />
             </>
           </div>
         )}
 
         {/* 3. Icon + child connector: fixed width container */}
-        <div className="relative flex w-6 shrink-0 flex-col py-1.5">
+        <div className="relative flex w-6 shrink-0 flex-col py-2">
           <div className="relative z-10 flex h-4 items-center justify-center">
-            <ItemBadge type={nodeType} isSmall className="size-3!" />
+            <ItemIcon type={nodeType} className="size-3" />
           </div>
           {/* Vertical bar downwards if there are expanded children (skipped
               when children render capped at this same indent — the spine
-              would point at nothing) */}
+              would point at nothing). Starts BELOW the icon (24px = py-2 +
+              h-4): the icon renders without a masking background now, so the
+              spine must not run behind it. */}
           {hasChildren && !isCollapsed && !childrenAreCapped && (
-            <div className="bg-border-contrast absolute top-3 bottom-0 left-1/2 w-px" />
-          )}
-          {/* Root node downward connector */}
-          {depth === 0 && hasChildren && !isCollapsed && !childrenAreCapped && (
-            <div className="bg-border-contrast absolute top-3 bottom-0 left-1/2 w-px" />
+            <div className="bg-border-contrast absolute top-6 bottom-0 left-1/2 w-px" />
           )}
         </div>
 

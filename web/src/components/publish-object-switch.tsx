@@ -236,9 +236,11 @@ const Base = (props: {
                   id="publish-trace"
                   variant="ghost"
                   size={props.label ? "sm" : props.size}
+                  // Menu row: same box and icon size as the peek menu's
+                  // Delete and Expand rows, so the three line up.
                   className={
                     props.label
-                      ? "w-full justify-start gap-2 font-normal"
+                      ? "h-auto w-full justify-start gap-2 rounded-sm py-1.5 pr-2 pl-1.5 font-normal"
                       : undefined
                   }
                   loading={props.isLoading}
@@ -246,13 +248,15 @@ const Base = (props: {
                 >
                   {props.isPublic ? (
                     <Globe
-                      className="h-4 w-4"
+                      className={props.label ? "h-4 w-4" : "h-3.5 w-3.5"}
                       fill="#b3d9ff"
                       stroke="#4d94ff"
                       strokeWidth={2}
                     />
                   ) : (
-                    <Share2 className="h-4 w-4" />
+                    <Share2
+                      className={props.label ? "h-4 w-4" : "h-3.5 w-3.5"}
+                    />
                   )}
                   {props.label ? (
                     <span className="text-sm">{props.label}</span>

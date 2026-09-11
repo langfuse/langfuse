@@ -423,6 +423,7 @@ function JsonPrettyTable({
   showObservationTypeBadge = false,
   metadataActions,
   toneClasses,
+  hideHeader = false,
 }: {
   data: JsonTableRow[];
   expandAllRef?: React.RefObject<(() => void) | null>;
@@ -441,6 +442,8 @@ function JsonPrettyTable({
   showObservationTypeBadge?: boolean;
   metadataActions?: MetadataFilterActions;
   toneClasses?: (typeof PRETTY_JSON_VIEW_TONE_CLASSES)[PrettyJsonViewTone];
+  /** Drop the Path / Value header row; the section title already says what the table is. */
+  hideHeader?: boolean;
 }) {
   const headerRef = useRef<HTMLTableRowElement>(null);
   const topLevelRowRef = useRef<HTMLTableRowElement>(null);
@@ -689,7 +692,7 @@ function JsonPrettyTable({
   return (
     <div className={cn("w-full", !noBorder && "rounded-sm border")}>
       <Table>
-        <TableHeader>
+        <TableHeader className={hideHeader ? "hidden" : undefined}>
           {table.getHeaderGroups().map((headerGroup, index) => (
             <TableRow
               key={headerGroup.id}
@@ -750,6 +753,8 @@ export function PrettyJsonView(props: {
   parsedJson?: unknown; // Pre-parsed data (optional, from useParsedObservation hook)
   title?: string;
   titleIcon?: React.ReactNode;
+  /** Hide the Path / Value header row of the table view. */
+  hideHeader?: boolean;
   className?: string;
   isLoading?: boolean;
   isParsing?: boolean;
@@ -770,6 +775,9 @@ export function PrettyJsonView(props: {
   inset?: boolean;
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
+  /** Titled sections (Input/Output/Metadata): header controls (copy,
+      expand-all) reveal on section hover instead of rendering always. */
+  hoverControls?: boolean;
   /** When set, rows show an actions menu with copy + add-to-filter shortcuts
       (metadata views only). */
   metadataActions?: MetadataFilterActions;
@@ -1340,6 +1348,7 @@ export function PrettyJsonView(props: {
                   showObservationTypeBadge={props.showObservationTypeBadge}
                   metadataActions={props.metadataActions}
                   toneClasses={toneClasses}
+                  hideHeader={props.hideHeader}
                 />
               )}
             </div>
@@ -1408,10 +1417,46 @@ export function PrettyJsonView(props: {
     </>
   );
 
+  const expandCollapseButton = (
+    <>
+      {shouldUseTableView && (
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={() => expandAllRef.current?.()}
+          className="hover:bg-border -mr-2"
+          title={allRowsExpanded ? "Collapse all rows" : "Expand all rows"}
+        >
+          {allRowsExpanded ? (
+            <FoldVertical className="h-3 w-3" />
+          ) : (
+            <UnfoldVertical className="h-3 w-3" />
+          )}
+        </Button>
+      )}
+      {!shouldUseTableView && !isMarkdownMode && !largeStringValue && (
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={handleJsonToggleCollapse}
+          className="hover:bg-border -mr-2"
+          title={jsonIsCollapsed ? "Expand all" : "Collapse all"}
+        >
+          {jsonIsCollapsed ? (
+            <UnfoldVertical className="h-3 w-3" />
+          ) : (
+            <FoldVertical className="h-3 w-3" />
+          )}
+        </Button>
+      )}
+    </>
+  );
+
   return (
     <div
       className={cn(
         "flex max-h-full min-h-0 flex-col",
+        props.hoverControls && "group/iosection",
         props.inset && "[&_.io-message-content]:px-2",
         props.className,
         props.scrollable ? "overflow-hidden" : "",
@@ -1421,8 +1466,6 @@ export function PrettyJsonView(props: {
         <MarkdownJsonViewHeader
           title={props.title}
           titleIcon={props.titleIcon}
-          canEnableMarkdown={false}
-          handleOnValueChange={() => {}} // No-op, parent handles state
           handleOnCopy={handleOnCopy}
           collapseControl={
             shouldCollapseSystemPrompt &&
@@ -1435,62 +1478,34 @@ export function PrettyJsonView(props: {
               : undefined
           }
           inset={props.inset}
+          hoverRevealControls={props.hoverControls}
           controlButtons={
             <>
-              {shouldUseTableView && (
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => expandAllRef.current?.()}
-                  className="hover:bg-border -mr-2"
-                  title={
-                    allRowsExpanded ? "Collapse all rows" : "Expand all rows"
-                  }
-                >
-                  {allRowsExpanded ? (
-                    <FoldVertical className="h-3 w-3" />
-                  ) : (
-                    <UnfoldVertical className="h-3 w-3" />
-                  )}
-                </Button>
-              )}
-              {!shouldUseTableView && !isMarkdownMode && !largeStringValue && (
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={handleJsonToggleCollapse}
-                  className="hover:bg-border -mr-2"
-                  title={jsonIsCollapsed ? "Expand all" : "Collapse all"}
-                >
-                  {jsonIsCollapsed ? (
-                    <UnfoldVertical className="h-3 w-3" />
-                  ) : (
-                    <FoldVertical className="h-3 w-3" />
-                  )}
-                </Button>
-              )}
+              {expandCollapseButton}
               {props.controlButtons}
             </>
           }
         />
       ) : null}
-      {props.afterHeader}
-      {props.scrollable ? (
-        <div
-          className={cn(
-            "flex h-full min-h-0 overflow-hidden",
-            isMarkdownMode ? getBackgroundColorClass() : "rounded-sm border",
-          )}
-        >
-          <div className="max-h-full min-h-0 w-full overflow-y-auto">
-            {body}
+      <div>
+        {props.afterHeader}
+        {props.scrollable ? (
+          <div
+            className={cn(
+              "flex h-full min-h-0 overflow-hidden",
+              isMarkdownMode ? getBackgroundColorClass() : "rounded-sm border",
+            )}
+          >
+            <div className="max-h-full min-h-0 w-full overflow-y-auto">
+              {body}
+            </div>
           </div>
-        </div>
-      ) : isMarkdownMode ? (
-        <div className={getBackgroundColorClass()}>{body}</div>
-      ) : (
-        body
-      )}
+        ) : isMarkdownMode ? (
+          <div className={getBackgroundColorClass()}>{body}</div>
+        ) : (
+          body
+        )}
+      </div>
     </div>
   );
 }

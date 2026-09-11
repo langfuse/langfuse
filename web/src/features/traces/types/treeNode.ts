@@ -45,6 +45,8 @@ export type TreeNode = {
   subtreeWallClockDurationMs?: number;
   // Observation-specific properties (when type !== 'TRACE')
   parentObservationId?: string | null;
+  /** Provided model name; only meaningful on GENERATION nodes */
+  model?: string | null;
   traceId?: string;
   // Temporal and structural properties
   /** Milliseconds from trace start to this node's start time */

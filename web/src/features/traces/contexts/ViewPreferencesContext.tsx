@@ -43,8 +43,6 @@ interface ViewPreferencesContextValue {
   setColorCodeMetrics: (value: boolean) => void;
   showComments: boolean;
   setShowComments: (value: boolean) => void;
-  showGraph: boolean;
-  setShowGraph: (value: boolean) => void;
   /** Graph panel build mode (aggregated vs expanded "as it ran") */
   graphViewMode: GraphViewMode;
   setGraphViewMode: (value: GraphViewMode) => void;
@@ -110,12 +108,15 @@ export function ViewPreferencesProvider({
     "scoresOnObservationTree",
     true,
   );
+  // Off by default: the red/orange heat map made rows read as errors. The
+  // toggle stays in View Options for users who want hotspot coloring back.
+  // Key rotated (-v2) so the new default applies to users whose browsers
+  // stored the old always-on value.
   const [colorCodeMetrics, setColorCodeMetrics] = useLocalStorage(
-    "colorCodeMetricsOnObservationTree",
-    true,
+    "colorCodeMetricsOnObservationTree-v2",
+    false,
   );
   const [showComments, setShowComments] = useLocalStorage("showComments", true);
-  const [showGraph, setShowGraph] = useLocalStorage("showGraph", true);
   const [storedGraphViewMode, setGraphViewMode] =
     useLocalStorage<GraphViewMode>("graphViewMode", "aggregated");
   // Sanitize persisted values: the mode enum may evolve and a stale
@@ -166,8 +167,6 @@ export function ViewPreferencesProvider({
       setColorCodeMetrics,
       showComments,
       setShowComments,
-      showGraph,
-      setShowGraph,
       graphViewMode,
       setGraphViewMode,
       minObservationLevel,
@@ -197,8 +196,6 @@ export function ViewPreferencesProvider({
       setColorCodeMetrics,
       showComments,
       setShowComments,
-      showGraph,
-      setShowGraph,
       graphViewMode,
       setGraphViewMode,
       minObservationLevel,

@@ -48,6 +48,11 @@ type TraceGraphViewProps = {
    */
   onObservationSelect?: () => void;
   /**
+   * Playback transport rendered beside the mode switch. A slot (not an import)
+   * so this feature module stays free of trace-view context dependencies.
+   */
+  transport?: React.ReactNode;
+  /**
    * The active search, or absent when there is none. Handed in as OBSERVATION
    * ids because what counts as a match is the trace panel's one rule
    * (`matchesSearchQuery`) and this module stays free of the trace-view
@@ -67,6 +72,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   viewMode = "aggregated",
   onViewModeChange,
   onObservationSelect,
+  transport,
   search,
 }) => {
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
@@ -366,13 +372,14 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
           }
         />
       )}
-      {(onViewModeChange || search) && (
+      {(onViewModeChange || transport || search) && (
         // Overlaid sibling of the canvas (top-left, opposite the zoom stack)
         // so canvas clicks/gestures underneath are untouched.
         <div className="absolute top-2 left-2 z-10 flex items-center gap-2">
           {onViewModeChange && (
             <GraphViewModeSwitch value={viewMode} onChange={onViewModeChange} />
           )}
+          {transport}
           {/* What the dimming means, said in words and in the same place the
               timeline says it. Without it, "nothing matched" and "the matches
               are off-canvas" look identical. Carries the switch's own
