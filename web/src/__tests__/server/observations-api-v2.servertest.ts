@@ -1158,12 +1158,11 @@ describe("/api/public/v2/observations API Endpoint", () => {
         expect.arrayContaining([tokenMatchId, punctuationMatchId]),
       );
 
-      // A both-ends start_time window is a valid companion without traceId.
+      // A start_time lower bound alone is a valid companion (no end timestamp
+      // required) without traceId.
       const ioWindowResponse = await getObservations(
         `/api/public/v2/observations?fields=basic,io&fromStartTime=${encodeURIComponent(
           new Date(timestamp.getTime() - 1000).toISOString(),
-        )}&toStartTime=${encodeURIComponent(
-          new Date(timestamp.getTime() + 60000).toISOString(),
         )}&filter=${encodeURIComponent(ioFilterParam)}`,
       );
       expect(ioWindowResponse.status).toBe(200);

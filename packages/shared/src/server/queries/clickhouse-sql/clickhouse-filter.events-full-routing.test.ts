@@ -357,12 +357,12 @@ describe("inputOutputContentFilterMissingCompanion", () => {
     ).toBe(true);
   });
 
-  it("rejects a lower-bound-only start_time window", () => {
+  it("accepts a start_time lower bound alone (no end timestamp required)", () => {
     expect(
       inputOutputContentFilterMissingCompanion(
         new FilterList([ioFilter("matches"), startTime(">=", T0)]),
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("rejects an upper-bound-only start_time window", () => {
@@ -373,7 +373,7 @@ describe("inputOutputContentFilterMissingCompanion", () => {
     ).toBe(true);
   });
 
-  it("accepts a both-ends start_time window of any span", () => {
+  it("accepts a both-ends start_time window", () => {
     expect(
       inputOutputContentFilterMissingCompanion(
         new FilterList([

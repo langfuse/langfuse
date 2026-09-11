@@ -858,7 +858,7 @@ export const filtersRequireEventsFull = (filters: FilterList): boolean =>
 // gates that funnel into this path — the public-API indexed-operator check
 // (which blesses an exact `=` on input/output, index-accelerated via the text
 // token index) and the MCP expensive-access check (which blesses an id-list, a
-// traceId, or any both-ends start_time window) — so a request those gates admit
+// traceId, or a both-ends start_time window) — so a request those gates admit
 // is never contradicted here.
 
 // Equality (`=`) or IN (`any of`) on these columns hits a bloom_filter skipping
@@ -892,34 +892,26 @@ const isSelectiveIdCompanion = (filter: Filter): boolean =>
 const isMetadataEqualityFilter = (filter: Filter): boolean =>
   filter.operator === "=" && isFtsMetadataField(filter.field);
 
-// True when start_time is bounded on both ends (any span). Bounding is the
-// nudge; we intentionally do not cap the span, both because we cannot know a
-// safe span at build time and to stay consistent with the upstream MCP gate,
-// which accepts any both-ends window.
-const hasBothEndsStartTimeWindow = (filters: FilterList): boolean => {
-  let hasLower = false;
-  let hasUpper = false;
-  filters.forEach((filter) => {
-    if (
-      !(filter instanceof DateTimeFilter) ||
-      bareFtsField(filter.field) !== "start_time"
-    ) {
-      return;
-    }
-    if (filter.operator === ">" || filter.operator === ">=") {
-      hasLower = true;
-    } else if (filter.operator === "<" || filter.operator === "<=") {
-      hasUpper = true;
-    }
-  });
-  return hasLower && hasUpper;
-};
+// True when start_time carries a lower bound (`>=`/`>`). We require only the
+// lower bound, not a matching upper bound: forcing an end timestamp pushes
+// callers to synthesize a `now` value they do not actually want, and a lower
+// bound already prunes granules below it. We do not cap the span because we
+// cannot know a safe span at build time. On plans with a data-access retention
+// floor the endpoint injects this lower bound, so their scans are inherently
+// retention-bounded; unlimited plans must supply their own.
+const hasStartTimeLowerBound = (filters: FilterList): boolean =>
+  filters.some(
+    (filter) =>
+      filter instanceof DateTimeFilter &&
+      bareFtsField(filter.field) === "start_time" &&
+      (filter.operator === ">" || filter.operator === ">="),
+  );
 
 /**
  * True when the filter list contains an input/output substring scan but no
  * companion filter the events_full indexes can prune on (an exact `=` on
  * input/output, an equality/IN on an indexed id column, a metadata equality, or
- * a both-ends start_time window). The caller decides how to react.
+ * a start_time lower bound). The caller decides how to react.
  */
 export const inputOutputContentFilterMissingCompanion = (
   filters: FilterList,
@@ -933,6 +925,6 @@ export const inputOutputContentFilterMissingCompanion = (
         isIoEqualityCompanion(filter) ||
         isSelectiveIdCompanion(filter) ||
         isMetadataEqualityFilter(filter),
-    ) || hasBothEndsStartTimeWindow(filters);
+    ) || hasStartTimeLowerBound(filters);
   return !hasCompanion;
 };

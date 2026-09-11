@@ -1424,7 +1424,7 @@ const IO_CONTENT_FILTER_COMPANION_ERROR =
   "with`) must be combined with at least one of: an equality or `any of` " +
   "filter on trace_id, span_id (id), user_id, or session_id; a metadata " +
   "equality (`=`) filter; an exact `=` match on input/output; or a start_time " +
-  "window bounded on both ends. These columns are the largest on the events " +
+  "lower bound (fromStartTime). These columns are the largest on the events " +
   "table and have no index that reliably prunes a substring scan, so an " +
   "unpaired content filter reads the full table and times out.";
 
