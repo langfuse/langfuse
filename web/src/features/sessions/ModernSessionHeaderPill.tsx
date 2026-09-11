@@ -14,9 +14,6 @@ type ModernSessionHeaderPillProps = {
   | {
       variant: "link";
       href: ComponentPropsWithoutRef<typeof Link>["href"];
-      /** Set for pills that render customer data (session/user/trace ids)
-          as visible text, so PostHog session recordings mask it. */
-      maskFromSessionReplay?: boolean;
     }
   | ({
       variant: "button";
@@ -52,7 +49,7 @@ export function ModernSessionHeaderPill(props: ModernSessionHeaderPillProps) {
       <Link
         href={props.href}
         data-session-header-pill="true"
-        className={`${PILL_CLASS_NAME} hover:border-link hover:text-link group max-w-[280px] min-w-0 gap-1.5 ${props.maskFromSessionReplay ? "ph-no-capture" : ""}`}
+        className={`${PILL_CLASS_NAME} hover:border-link hover:text-link group max-w-[280px] min-w-0 gap-1.5`}
       >
         {props.children}
       </Link>
