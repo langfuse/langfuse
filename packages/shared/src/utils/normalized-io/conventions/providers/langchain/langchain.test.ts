@@ -4,6 +4,7 @@ import { normalizeSpanIO } from "../../../parser";
 import {
   langchainBatchedMessagesFixture,
   langchainDictToolMessageFixture,
+  langchainMultiBatchMessagesFixture,
   langchainSerializedEnvelopeFixture,
   langgraphProductionShapeFixture,
 } from "./fixtures";
@@ -11,6 +12,7 @@ import {
 describe("LangChain normalized I/O", () => {
   it.each([
     langchainBatchedMessagesFixture,
+    langchainMultiBatchMessagesFixture,
     langchainDictToolMessageFixture,
     langchainSerializedEnvelopeFixture,
     langgraphProductionShapeFixture,

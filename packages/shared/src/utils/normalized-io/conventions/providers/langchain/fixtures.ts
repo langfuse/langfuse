@@ -217,6 +217,55 @@ export const langchainBatchedMessagesFixture = {
 } satisfies NormalizedIOFixture;
 
 /**
+ * Multiple batches (`[[convA], [convB]]`) hardly occur in practice —
+ * LangChain fans each prompt into its own run/span — but if one appears, the
+ * flat transcript has no batch boundary, so conversations concatenate in
+ * order. Locked as best-effort: visible beats the pre-flatten drop.
+ */
+export const langchainMultiBatchMessagesFixture = {
+  name: "flattens multiple LangChain batches into one transcript",
+  spanIO: {
+    input: {
+      messages: [
+        [
+          {
+            lc: 1,
+            type: "constructor",
+            id: ["langchain", "schema", "messages", "HumanMessage"],
+            kwargs: { content: "Question A", type: "human" },
+          },
+        ],
+        [
+          {
+            lc: 1,
+            type: "constructor",
+            id: ["langchain", "schema", "messages", "HumanMessage"],
+            kwargs: { content: "Question B", type: "human" },
+          },
+        ],
+      ],
+    },
+    output: undefined,
+    metadata: undefined,
+  },
+  expected: {
+    messages: [
+      {
+        role: "user",
+        parts: [{ type: "text", text: "Question A" }],
+        source: "input",
+      },
+      {
+        role: "user",
+        parts: [{ type: "text", text: "Question B" }],
+        source: "input",
+      },
+    ],
+    toolDefinitions: [],
+  },
+} satisfies NormalizedIOFixture;
+
+/**
  * LangChain dict serialization (`.dict()` / LangSmith-style): messages carry
  * `type: "tool"` instead of a `role` key. A ToolMessage dict with a
  * tool_call_id must become a tool-result part — not a text part titled by
