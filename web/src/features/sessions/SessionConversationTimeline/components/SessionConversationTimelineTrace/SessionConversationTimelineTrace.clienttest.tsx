@@ -37,6 +37,7 @@ const observations = prepareSessionTimelineObservations([
   observation("parent", null, "AGENT", new Date(0)),
   observation("child", "parent", "AGENT", new Date(1)),
   observation("grandchild", "child", "TOOL", new Date(2)),
+  observation("second-grandchild", "child", "TOOL", new Date(3)),
 ]);
 
 const trace = {
@@ -45,7 +46,7 @@ const trace = {
   timestamp: new Date(0),
   environment: "production",
   userId: null,
-  observationCount: 3,
+  observationCount: 4,
   latencyMs: 1,
   scores: [],
 } satisfies TraceProps["trace"];
@@ -75,7 +76,7 @@ describe("SessionConversationTimelineTrace", () => {
 
     expect(screen.getByText("grandchild")).toBeInTheDocument();
     const parentToggle = screen.getByRole("button", {
-      name: "Hide tools: grandchild",
+      name: "Hide tools: grandchild and second-grandchild",
     });
     fireEvent.click(parentToggle);
     expect(screen.queryByText("grandchild")).not.toBeInTheDocument();
@@ -88,5 +89,28 @@ describe("SessionConversationTimelineTrace", () => {
     );
 
     expect(screen.getByText("grandchild")).toBeInTheDocument();
+  });
+
+  it("always shows a single nested tool without a collapse control", () => {
+    const loneToolObservations = prepareSessionTimelineObservations([
+      observation("parent", null, "AGENT", new Date(0)),
+      observation("tool", "parent", "TOOL", new Date(1)),
+    ]);
+
+    render(
+      <SessionConversationTimelineTrace
+        trace={{ ...trace, observationCount: 2 }}
+        turnNumber={1}
+        state={{ type: "loaded", observations: loneToolObservations }}
+        onOpenTrace={vi.fn()}
+        onOpenObservation={vi.fn()}
+        scrollTarget={null}
+      />,
+    );
+
+    expect(screen.getByText("tool")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /tools: tool/i }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -323,13 +323,9 @@ export function prepareSessionTimelineObservations<
       ancestorObservationIds,
       nestedObservationCounts: contextualPrepared.nestedObservationCounts,
     });
-    const ownInputMessages =
-      prepared.parsed?.type === "loaded"
-        ? prepared.parsed.messages.filter(
-            (message) => message.source === "input",
-          )
-        : messages.filter((message) => message.source === "input");
-    const descendantContext = ancestorMessages.concat(ownInputMessages);
+    const ownMessages =
+      prepared.parsed?.type === "loaded" ? prepared.parsed.messages : messages;
+    const descendantContext = ancestorMessages.concat(ownMessages);
     const descendantObservationIds = ancestorObservationIds.concat(
       prepared.observation.id,
     );
