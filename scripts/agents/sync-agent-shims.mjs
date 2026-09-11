@@ -7,6 +7,7 @@ import {
   readlinkSync,
   rmSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
@@ -22,6 +23,15 @@ const checkMode = process.argv.includes("--check");
 // with it every CI job that installs); the lint job opts in via
 // `pnpm run agents:check`.
 const checkPaths = process.argv.includes("--check-paths");
+
+function removeGeneratedPath(path) {
+  // Unlink dangling symlinks directly; recursive removal may leave them behind.
+  if (lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink()) {
+    unlinkSync(path);
+  } else {
+    rmSync(path, { force: true, recursive: true });
+  }
+}
 
 const sortObject = (value) =>
   Object.fromEntries(
@@ -544,7 +554,7 @@ for (const output of symlinkOutputs) {
     }
   }
 
-  rmSync(output.path, { force: true, recursive: true });
+  removeGeneratedPath(output.path);
   symlinkSync(
     relative(dirname(output.path), output.target),
     output.path,
@@ -562,7 +572,7 @@ for (const staleShim of findStaleClaudeShims(repoRoot)) {
     continue;
   }
 
-  rmSync(staleShim, { force: true });
+  removeGeneratedPath(staleShim);
   console.log(`Removed stale CLAUDE.md shim ${staleShim}`);
 }
 
@@ -585,7 +595,7 @@ for (const directory of managedDirectoryEntries) {
 
   for (const child of unexpectedChildren) {
     const childPath = resolve(directory.path, child);
-    rmSync(childPath, { force: true, recursive: true });
+    removeGeneratedPath(childPath);
     console.log(`Removed stale generated shim ${childPath}`);
   }
 }
