@@ -85,7 +85,7 @@ export function GatewayApiKeysView({
       <p className="text-muted-foreground text-sm">
         These organization keys authenticate requests to the AI Gateway only.
       </p>
-      <div className="flex max-h-[60dvh] flex-col overflow-hidden rounded-md border">
+      <div className="flex max-h-[60dvh] flex-col overflow-hidden rounded-md border [&>:first-child>:first-child]:border-t-0">
         <DataTable
           tableName="gatewayApiKeys"
           columns={columns}

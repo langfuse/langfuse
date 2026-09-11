@@ -95,22 +95,25 @@ the proposed ticket so the human can judge the overlap.
 
 ## Write-Back
 
-Appending a cause section to a ticket that already exists is a description edit,
-which agents do autonomously. A monitor with no ticket needs a parentless one,
-which is the single write that asks first — see
-[`linear-agent-writes`](../linear-agent-writes/SKILL.md) for the policy this
-follows, and read it before your first write.
+Appending a cause section to a ticket that already exists is a description edit;
+creating a monitor with no ticket is a parentless create. Both need a yes —
+see [`linear-agent-writes`](../linear-agent-writes/SKILL.md) and read it before
+your first write.
 
-- **Append: do it.** Insert the new `---`-separated dated block after the
-  existing cause sections, above the `Your cause is not listed?` trailer; leave
-  everything else untouched. Mark the block as agent-written in its own text and
-  label the ticket `AI edited`. Never reflow or rewrite the human-written prose
-  around it.
+- **Append: show it, then do it.** Prepare the new `---`-separated dated block
+  (insert after the existing cause sections, above the `Your cause is not
+  listed?` trailer; leave everything else untouched). Mark the block as
+  agent-written in its own text. Put it in the go-ahead table; once approved,
+  append it and label the ticket `AI edited`. Never reflow or rewrite the
+  human-written prose around it.
 - **Create: show it, then file it.** Prepare the issue — title
   `[ENV] <Monitor title>`, the `incident-alert` label, description = alert header,
   the first dated cause section, and the `Your cause is not listed?` trailer —
   show it for a go-ahead, and once you have one, create it yourself and label it
-  `AI created`. One go-ahead covers the whole run's proposed tickets.
+  `AI created`.
+
+**One go-ahead covers the whole run** — appends and creates together. Asking
+per row is worse than the pasting this replaced.
 
 Report what you did either way:
 
