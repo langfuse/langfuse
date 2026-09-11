@@ -10,7 +10,7 @@ import { type SessionObservation } from "@/src/features/sessions/SessionConversa
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 
-const BATCH_IO_SIZE = 500;
+const BATCH_IO_SIZE = 50;
 
 type EventObservation = RouterOutputs["events"]["all"]["observations"][number];
 type SessionBatchIOQueryResult = {
@@ -109,7 +109,6 @@ export function ConnectedSessionConversationTimeline({
             minStartTime: new Date(Math.min(...timestamps)),
             maxStartTime: new Date(Math.max(...timestamps)),
             truncated: false,
-            ioCharLimit: 10_000,
           },
           {
             ...sendAsPostOption,

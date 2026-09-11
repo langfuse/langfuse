@@ -15,6 +15,7 @@ import {
   useQueryParam,
 } from "use-query-params";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import { useKeyedSessionStorageState } from "@/src/features/filters/hooks/useKeyedSessionStorageState";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import isEqual from "lodash/isEqual";
@@ -114,12 +115,19 @@ export function useTableViewManager({
   const isRouterReady = router.isReady;
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [filterEditorResetKey, setFilterEditorResetKey] = useState(0);
   const capture = usePostHogClientCapture();
 
   const [storedViewId, setStoredViewId] = useSessionStorage<string | null>(
     `${tableName}-${projectId}-viewId`,
     null,
   );
+  const [viewUpdateTarget, setViewUpdateTarget] = useKeyedSessionStorageState<{
+    viewId: string;
+    columnsApplied: boolean;
+  } | null>(`${tableName}-${projectId}-viewUpdateTarget`, null);
+  const storedViewIdRef = useRef(storedViewId);
+  storedViewIdRef.current = storedViewId;
   const [selectedViewIdParam, setSelectedViewId] = useQueryParam(
     "viewId",
     StringParam,
@@ -148,6 +156,9 @@ export function useTableViewManager({
   // the write (LFE-10715).
   const handleSetViewId = useCallback(
     (viewId: string | null, options?: { updateType?: UrlUpdateType }) => {
+      selectedViewIdRef.current = viewId;
+      storedViewIdRef.current = viewId;
+      setViewUpdateTarget(null);
       setStoredViewId(viewId);
       setSelectedViewId(viewId, options?.updateType);
 
@@ -159,7 +170,18 @@ export function useTableViewManager({
         setIsLoading(false);
       }
     },
-    [setStoredViewId, setSelectedViewId],
+    [setStoredViewId, setSelectedViewId, setViewUpdateTarget],
+  );
+
+  const handleUserStateChange = useCallback(
+    (previousValue: unknown, nextValue: unknown) => {
+      const viewId = selectedViewIdRef.current;
+      if (!viewId || isEqual(previousValue, nextValue)) return;
+      const columnsApplied = storedViewIdRef.current === viewId;
+      handleSetViewId(null, { updateType: "replaceIn" });
+      setViewUpdateTarget({ viewId, columnsApplied });
+    },
+    [handleSetViewId, setViewUpdateTarget],
   );
 
   // Extract updater functions and store in refs to avoid stale closures
@@ -210,17 +232,17 @@ export function useTableViewManager({
       !!selectedViewId &&
       (!isSystemPresetId(selectedViewId) || allowBackendSystemPresets);
 
-    // Explicit table state in the URL (`filter`/`search`/`searchType`/
-    // `orderBy`) is authoritative, even when a `viewId` is present. The viewId
-    // is a provenance reference — which saved view a link came from — but the
-    // URL's filters/sort/search are what is actually applied (the URL is the
-    // source of truth). We do NOT fetch or apply the saved view here: applying
-    // it would overwrite the URL's filters, and writing its column layout would
-    // silently mutate the visitor's own per-table localStorage on a
-    // non-deliberate link open. The viewId stays in the URL so the drawer still
-    // shows the originating view. Preserves deep-link precedence (#13865) and
-    // makes shared links carry in-view edits (LFE-10486).
+    // Explicit URL filters, sorting and search are authoritative. Opening a
+    // link must not apply the stored view over them or overwrite the visitor's
+    // column layout. An incoming viewId remains selected until a user edit.
     if (hasExplicitTableStateInUrl(router.query)) {
+      setIsInitialized(true);
+      setIsLoading(false);
+      return;
+    }
+
+    // An edited working view stays deselected on reload, including empty filters.
+    if (!selectedViewId && viewUpdateTarget) {
       setIsInitialized(true);
       setIsLoading(false);
       return;
@@ -269,6 +291,7 @@ export function useTableViewManager({
     selectedViewId,
     router.query,
     storedViewId,
+    viewUpdateTarget,
     isDefaultLoading,
     defaultViewId,
     allowBackendSystemPresets,
@@ -381,6 +404,9 @@ export function useTableViewManager({
         Object.keys(viewData.columnVisibility).length > 0
       )
         setColumnVisibility(viewData.columnVisibility);
+
+      // Applying a view discards drafts; leaving a view while editing preserves them.
+      setFilterEditorResetKey((key) => key + 1);
 
       // Unlock as soon as the view is applied. Earlier versions kept the table
       // locked until a useEffect observer saw the filter change propagate to
@@ -580,6 +606,9 @@ export function useTableViewManager({
       isLoading: false,
       applyViewState: () => {},
       handleSetViewId: () => {},
+      handleUserStateChange: () => {},
+      filterEditorResetKey: 0,
+      viewUpdateTarget: null,
       selectedViewId: null,
       appliedViewId: null,
       defaultViewScope: null,
@@ -590,6 +619,9 @@ export function useTableViewManager({
     isLoading,
     applyViewState,
     handleSetViewId,
+    handleUserStateChange,
+    filterEditorResetKey,
+    viewUpdateTarget,
     selectedViewId,
     // The view whose state is reflected in the live table — i.e. whose column
     // layout is in localStorage. We reuse `storedViewId` (session-persisted,

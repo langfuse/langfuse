@@ -1,15 +1,25 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
+import { eventsTableCols, type FilterState } from "@langfuse/shared";
+import { useStore } from "zustand";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   CategoricalFacet,
   DataTableControls,
   type QueryFilter,
 } from "./data-table-controls";
-import type {
-  CategoricalUIFilter,
-  UIFilter,
+import {
+  useSidebarFilterState,
+  type CategoricalUIFilter,
+  type UIFilter,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
+import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+
+vi.mock("use-query-params", async () => ({
+  ...(await vi.importActual("use-query-params")),
+  useQueryParam: () => [null, () => {}] as const,
+}));
 
 // Spy on the posthog client so capture calls (event name + payload) can be
 // asserted at the wrapper seam.
@@ -31,6 +41,180 @@ beforeAll(() => {
     },
   );
   Element.prototype.scrollIntoView = vi.fn();
+});
+
+describe("delayed sidebar edits and search-bar commits", () => {
+  const config: FilterConfig = {
+    tableName: "observations-events",
+    columnDefinitions: eventsTableCols,
+    defaultExpanded: ["statusMessage", "latency"],
+    facets: [
+      { type: "string", column: "statusMessage", label: "Status Message" },
+      {
+        type: "numeric",
+        column: "latency",
+        label: "Latency",
+        min: 0,
+        max: 100,
+      },
+      { type: "categorical", column: "traceName", label: "Trace Name" },
+    ],
+  };
+
+  function Harness() {
+    const queryFilter = useSidebarFilterState(
+      config,
+      {},
+      { stateLocation: "memory" },
+    );
+    const bar = useEventsSearchBar({
+      projectId: "filter-test-project",
+      tableName: config.tableName,
+      enabled: true,
+      filterState: queryFilter.searchBarFilterState,
+      setFilterState: queryFilter.setFilterState,
+      searchQuery: null,
+      searchType: ["id", "content"],
+      setSearchQuery: () => {},
+      setSearchType: () => {},
+      observed: undefined,
+    });
+    const draft = useStore(bar.store, (state) => state.draft);
+
+    return (
+      <>
+        <DataTableControls queryFilter={queryFilter} />
+        <button
+          onClick={() => {
+            bar.store.getState().actions.setDraft("-traceName:*turn*");
+            bar.commit();
+          }}
+        >
+          Commit trace filter
+        </button>
+        <button onClick={queryFilter.clearAll}>Reset filters</button>
+        <pre data-testid="applied-filters">
+          {JSON.stringify(queryFilter.filterState)}
+        </pre>
+        <pre data-testid="bar-draft">{draft}</pre>
+      </>
+    );
+  }
+
+  it.each([
+    ["string", "string-statusMessage", "timeout", "statusMessage"],
+    ["numeric", "min-latency", "10", "latency"],
+  ])(
+    "preserves the committed trace filter when a delayed %s edit lands",
+    (_, inputId, value, column) => {
+      vi.useFakeTimers();
+      sessionStorage.clear();
+      const { container, unmount } = render(<Harness />, {
+        wrapper: TooltipProvider,
+      });
+      const appliedFilters = (): FilterState =>
+        JSON.parse(screen.getByTestId("applied-filters").textContent ?? "[]");
+      try {
+        fireEvent.change(container.querySelector(`#${inputId}`)!, {
+          target: { value },
+        });
+        fireEvent.click(
+          screen.getByRole("button", { name: "Commit trace filter" }),
+        );
+
+        const traceFilter = {
+          column: "traceName",
+          type: "string",
+          operator: "does not contain",
+          value: "turn",
+        };
+        expect(appliedFilters()).toEqual([traceFilter]);
+        expect(screen.getByTestId("bar-draft")).toHaveTextContent(
+          "-traceName:*turn*",
+        );
+
+        act(() => vi.advanceTimersByTime(500));
+
+        expect.soft(appliedFilters()).toContainEqual(traceFilter);
+        expect(appliedFilters()).toEqual(
+          expect.arrayContaining([expect.objectContaining({ column })]),
+        );
+        expect
+          .soft(screen.getByTestId("bar-draft"))
+          .toHaveTextContent("-traceName:*turn*");
+
+        fireEvent.change(container.querySelector(`#${inputId}`)!, {
+          target: { value: value === "10" ? "20" : "retry" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Reset filters" }));
+        expect(appliedFilters()).toEqual([]);
+        act(() => vi.advanceTimersByTime(500));
+        expect(appliedFilters()).toEqual([]);
+
+        fireEvent.click(
+          screen.getByRole("button", { name: "Commit trace filter" }),
+        );
+        fireEvent.change(container.querySelector(`#${inputId}`)!, {
+          target: { value },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Reset filters" }));
+        act(() => vi.advanceTimersByTime(500));
+        expect(appliedFilters()).toEqual([]);
+        expect(
+          container.querySelector<HTMLInputElement>(`#${inputId}`)?.value,
+        ).toBe("");
+      } finally {
+        unmount();
+        vi.useRealTimers();
+      }
+    },
+  );
+});
+
+describe("DataTableControls numeric conditions", () => {
+  it("renders strict bounds as removable chips instead of a slider", () => {
+    const queryFilter: QueryFilter = {
+      filters: [
+        {
+          type: "numeric",
+          column: "latency",
+          label: "Latency",
+          loading: false,
+          expanded: true,
+          isActive: true,
+          isDisabled: false,
+          onReset: () => {},
+          value: null,
+          conditions: [
+            { column: "latency", type: "number", operator: ">", value: 10 },
+            { column: "latency", type: "number", operator: "<", value: 80 },
+          ],
+          min: 0,
+          max: 100,
+          onChange: () => {},
+          onRemoveCondition: () => {},
+        },
+      ],
+      expanded: ["latency"],
+      onExpandedChange: () => {},
+      clearAll: () => {},
+      draftResetKey: 0,
+      isFiltered: true,
+      setFilterState: () => {},
+    };
+
+    render(<DataTableControls queryFilter={queryFilter} />, {
+      wrapper: TooltipProvider,
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Remove Latency > 10" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Remove Latency < 80" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Min.")).not.toBeInTheDocument();
+  });
 });
 
 describe("CategoricalFacet", () => {
@@ -453,6 +637,7 @@ describe("DataTableControls facet ordering", () => {
     expanded: [],
     onExpandedChange: () => {},
     clearAll: () => {},
+    draftResetKey: 0,
     isFiltered: filters.some((f) => f.isActive),
     setFilterState: () => {},
   });
@@ -861,6 +1046,7 @@ describe("DataTableControls blocked facets (LFE-11040)", () => {
     expanded,
     onExpandedChange: () => {},
     clearAll: () => {},
+    draftResetKey: 0,
     isFiltered: filters.some((f) => f.isActive),
     setFilterState: () => {},
   });
@@ -972,6 +1158,7 @@ describe("DataTableControls facet catalog", () => {
     expanded: [],
     onExpandedChange: () => {},
     clearAll: () => {},
+    draftResetKey: 0,
     isFiltered: filters.some((f) => f.isActive),
     setFilterState: () => {},
   });
@@ -1064,6 +1251,7 @@ describe("DataTableControls facet-name search", () => {
     expanded: [],
     onExpandedChange: () => {},
     clearAll: () => {},
+    draftResetKey: 0,
     isFiltered: filters.some((f) => f.isActive),
     setFilterState: () => {},
   });
