@@ -217,7 +217,9 @@ maybeEventsTable("FTS filter rewrites", () => {
       }).apply();
 
       if (operator === "=") {
-        expect(rewritten.query).toContain("has(e.metadata_values,");
+        // Equality prefilters with the text index; no non-indexed array scan.
+        expect(rewritten.query).toContain("hasAllTokens(e.metadata_values,");
+        expect(rewritten.query).not.toMatch(/has\(e\.metadata_values,/);
       } else if (NGRAM_METADATA_OPERATORS.has(operator)) {
         expect(rewritten.query).toContain(
           "like(arrayStringConcat(e.metadata_values),",
