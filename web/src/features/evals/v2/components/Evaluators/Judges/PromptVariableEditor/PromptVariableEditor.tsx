@@ -45,6 +45,12 @@ const readOnlySurfaceTheme = EditorView.theme({
   },
 });
 
+const editableSurfaceTheme = EditorView.theme({
+  "&.cm-editor, &.cm-editor .cm-gutters": {
+    backgroundColor: "hsl(var(--card))",
+  },
+});
+
 /** Mapping health of a variable against the selected sample data. */
 export type VariableMappingStatus = {
   status: "valid" | "invalid";
@@ -230,7 +236,7 @@ export function PromptVariableEditor({
       ),
       variableTheme,
       Prec.highest(promptFontTheme),
-      ...(readOnly ? [Prec.highest(readOnlySurfaceTheme)] : []),
+      Prec.highest(readOnly ? readOnlySurfaceTheme : editableSurfaceTheme),
     ];
   }, [statusKey, mappingsKey, readOnly, validateVariableMappings]);
 
@@ -258,8 +264,10 @@ export function PromptVariableEditor({
               "bg-secondary text-secondary-foreground rounded-t-md",
             collapsed && surfaceVariant === "standalone" && "rounded-b-md",
             !collapsed && "border-b-transparent",
+            isNested && "rounded-none border-x-0 border-t-0",
             isNested &&
-              "bg-muted/50 text-card-foreground rounded-none border-x-0 border-t-0",
+              toolbarVariant === "message" &&
+              "bg-header text-header-foreground",
             isLastNested && "border-b-0",
             onToolbarClick && "cursor-pointer",
             toolbarVariant === "group" &&
@@ -328,6 +336,7 @@ export function PromptVariableEditor({
               extensions={extensions}
               className={cn(
                 hasToolbar && "rounded-t-none",
+                !readOnly && "bg-card",
                 "text-sm",
                 isNested && "rounded-none border-x-0",
                 isLastNested && "border-b-0",

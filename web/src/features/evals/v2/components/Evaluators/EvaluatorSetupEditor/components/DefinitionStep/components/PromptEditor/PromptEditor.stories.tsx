@@ -93,7 +93,7 @@ export const MultipleMessages = meta.story({
       throw new Error("Prompt surfaces not found");
     }
     await expect(outerGroup).toHaveClass("bg-secondary");
-    await expect(toolbar).toHaveClass("bg-muted/50");
+    await expect(toolbar).toHaveClass("bg-header", "text-header-foreground");
     await expect(toolbar).not.toHaveClass("bg-secondary");
     const surfaceColors = () =>
       [outerGroup, toolbar, editor].map(
@@ -559,7 +559,7 @@ export const SingleMessage = meta.story({
     }
     await expect(outerGroup).toHaveClass("bg-secondary");
     await expect(toolbar).toHaveClass("bg-secondary");
-    await expect(toolbar).not.toHaveClass("bg-muted/50");
+    await expect(toolbar).not.toHaveClass("bg-header");
     const surfaceColors = () =>
       [toolbar, editor].map(
         (surface) => getComputedStyle(surface).backgroundColor,
