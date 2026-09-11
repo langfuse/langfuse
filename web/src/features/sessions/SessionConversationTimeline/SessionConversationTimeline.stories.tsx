@@ -1695,15 +1695,32 @@ Active filter: level is ERROR
       ],
     });
     const generationOutput = JSON.stringify(
-      action.tools.length > 0
+      actionIndex === inAppAgentActions.length - 1
         ? {
-            tool_calls: action.tools.map((tool, toolIndex) => ({
-              args: tool.input,
-              toolCallId: `error-analysis-call-${actionIndex + 1}-${toolIndex + 1}`,
-              toolName: tool.name,
-            })),
+            role: "assistant",
+            content: [
+              {
+                taxonomy: {
+                  primaryIssue: "tool-timeout",
+                  affectedWorkflow: "booking-assistant",
+                  recommendedFix: "Add bounded retries with backoff",
+                },
+                tracking: {
+                  metric: "tool_error_rate",
+                  owner: "agent-platform",
+                },
+              },
+            ],
           }
-        : { text: action.summary },
+        : action.tools.length > 0
+          ? {
+              tool_calls: action.tools.map((tool, toolIndex) => ({
+                args: tool.input,
+                toolCallId: `error-analysis-call-${actionIndex + 1}-${toolIndex + 1}`,
+                toolName: tool.name,
+              })),
+            }
+          : { text: action.summary },
     );
 
     return [
