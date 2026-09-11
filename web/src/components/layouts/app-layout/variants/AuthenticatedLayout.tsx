@@ -21,7 +21,6 @@ import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
 import { SidebarPresenceProvider } from "@/src/components/nav/sidebar-presence";
 import { Toaster } from "@/src/components/ui/sonner";
 import { Layer } from "@/src/components/ui/layer";
-import { TopBannerProvider } from "@/src/features/top-banner";
 import {
   VersionUpdateBanner,
   useVersionUpdatePrompt,
@@ -53,6 +52,11 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useSession } from "next-auth/react";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import {
+  PaymentBannerView,
+  usePaymentBanner,
+} from "@/src/features/payment-banner";
+import { useTopBannerHeight } from "@/src/features/top-banner";
 
 const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
 
@@ -60,16 +64,6 @@ const CommandMenu = dynamic(
   () =>
     import("@/src/features/command-k-menu/CommandMenu").then((mod) => ({
       default: mod.CommandMenu,
-    })),
-  {
-    ssr: false,
-  },
-);
-
-const PaymentBanner = dynamic(
-  () =>
-    import("@/src/features/payment-banner").then((mod) => ({
-      default: mod.PaymentBanner,
     })),
   {
     ssr: false,
@@ -131,6 +125,8 @@ export function AuthenticatedLayout({
   useProjectCookie(router);
   const uiCustomization = useUiCustomization();
   const versionUpdatePrompt = useVersionUpdatePrompt();
+  const paymentBanner = usePaymentBanner();
+  const topBannerRef = useTopBannerHeight();
   // Account-level entry: use the raw flag (same as account settings tabs), not
   // project-scoped force-v3 suppression.
   const showV4Migration = useV4UpgradeUiFlag();
@@ -257,70 +253,79 @@ export function AuthenticatedLayout({
         <link rel="apple-touch-icon" href={metadata.appleTouchIconPath} />
       </Head>
 
-      <TopBannerProvider>
-        <SidebarPresenceProvider>
-          <SidebarProvider>
-            <div className="flex h-dvh w-full flex-col">
-              <PaymentBanner />
+      <SidebarPresenceProvider>
+        <SidebarProvider>
+          <div className="flex h-dvh w-full flex-col">
+            <div
+              ref={topBannerRef}
+              className="fixed top-0 z-51 flex w-full flex-col"
+            >
+              {paymentBanner && (
+                <PaymentBannerView
+                  organizationName={paymentBanner.organizationName}
+                  billingSettingsHref={paymentBanner.billingSettingsHref}
+                  severity={paymentBanner.severity}
+                />
+              )}
               {env.NEXT_PUBLIC_PREVIEW_PR_URL && (
                 <PreviewDeploymentBanner
                   prUrl={env.NEXT_PUBLIC_PREVIEW_PR_URL}
                 />
               )}
-              {versionUpdatePrompt.isVisible && (
-                <VersionUpdateBanner
-                  onReload={versionUpdatePrompt.reload}
-                  onDismiss={versionUpdatePrompt.dismiss}
-                />
-              )}
-              <div className="pt-banner-offset flex min-h-0 flex-1">
-                <ConnectedAppSidebar
-                  navItems={navigation.mainNavigation}
-                  secondaryNavItems={navigation.secondaryNavigation}
-                  user={sidebarUser}
-                  userMenuItems={userMenuItems}
-                  isLangfuseCloud={isLangfuseCloud}
-                  routerProjectId={
-                    typeof router.query.projectId === "string"
-                      ? router.query.projectId
-                      : undefined
-                  }
-                />
-                {/* `min-w-0`, not a `100vw`-derived width: viewport units ignore
+            </div>
+            {versionUpdatePrompt.isVisible && (
+              <VersionUpdateBanner
+                onReload={versionUpdatePrompt.reload}
+                onDismiss={versionUpdatePrompt.dismiss}
+              />
+            )}
+            <div className="pt-banner-offset flex min-h-0 flex-1">
+              <ConnectedAppSidebar
+                navItems={navigation.mainNavigation}
+                secondaryNavItems={navigation.secondaryNavigation}
+                user={sidebarUser}
+                userMenuItems={userMenuItems}
+                isLangfuseCloud={isLangfuseCloud}
+                routerProjectId={
+                  typeof router.query.projectId === "string"
+                    ? router.query.projectId
+                    : undefined
+                }
+              />
+              {/* `min-w-0`, not a `100vw`-derived width: viewport units ignore
                     scrollbars, and a definite width also floors `min-width:
                     auto`, so on a wide page the inset stayed pinned 15px past
                     the space beside the sidebar once a space-taking vertical
                     scrollbar showed — spawning a horizontal one. Flex already
                     sizes the inset to that space. */}
-                <SidebarInset className="h-screen-with-banner max-w-full min-w-0">
-                  <AppContentWithRightDrawer>
-                    {children}
-                  </AppContentWithRightDrawer>
-                  {/* Toasts render in the `toast` overlay layer — the last layer
+              <SidebarInset className="h-screen-with-banner max-w-full min-w-0">
+                <AppContentWithRightDrawer>
+                  {children}
+                </AppContentWithRightDrawer>
+                {/* Toasts render in the `toast` overlay layer — the last layer
                       in LAYER_ORDER — so they paint above every overlay (incl. a
                       non-modal peek) by DOM order alone, no z-index. Sonner's
                       Toaster is position:fixed, so nesting it in the fixed
                       full-screen layer container is positionally identical. */}
-                  <Layer name="toast">
-                    <Toaster visibleToasts={1} />
-                  </Layer>
-                  <CommandMenu mainNavigation={navigation.navigation} />
-                  {/* Assistant window host lives here (not in PageHeader with
+                <Layer name="toast">
+                  <Toaster visibleToasts={1} />
+                </Layer>
+                <CommandMenu mainNavigation={navigation.navigation} />
+                {/* Assistant window host lives here (not in PageHeader with
                       its launcher button) so the open window and its geometry
                       survive route changes. */}
-                  <InAppAgentWindowHost />
-                </SidebarInset>
-              </div>
-              {hasFeaturePreviews ? (
-                <ControlledFeaturePreviewModal
-                  open={featurePreviewOpen}
-                  onOpenChange={setFeaturePreviewOpen}
-                />
-              ) : null}
+                <InAppAgentWindowHost />
+              </SidebarInset>
             </div>
-          </SidebarProvider>
-        </SidebarPresenceProvider>
-      </TopBannerProvider>
+            {hasFeaturePreviews ? (
+              <ControlledFeaturePreviewModal
+                open={featurePreviewOpen}
+                onOpenChange={setFeaturePreviewOpen}
+              />
+            ) : null}
+          </div>
+        </SidebarProvider>
+      </SidebarPresenceProvider>
     </>
   );
 }
