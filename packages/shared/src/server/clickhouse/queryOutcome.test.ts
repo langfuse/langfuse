@@ -80,6 +80,16 @@ describe("ClickHouse query outcome metric", () => {
       ],
       ["SELECT * FROM traces WHERE id = {id:String}", "traces"],
       ["SELECT * FROM scores WHERE project_id = {p:String}", "scores"],
+      // Worker ingestion checks dataset-run membership per trace; the physical
+      // table is dataset_run_items_rmt but the label drops the engine suffix.
+      [
+        "SELECT dri.dataset_item_id FROM dataset_run_items_rmt dri WHERE project_id = {p:String}",
+        "dataset_run_items",
+      ],
+      [
+        "SELECT * FROM blob_storage_file_log FINAL WHERE project_id = {p:String}",
+        "blob_storage_file_log",
+      ],
     ])("labels %s as %s", (query, expected) => {
       expect(clickHouseQueryTableLabel(query)).toBe(expected);
     });

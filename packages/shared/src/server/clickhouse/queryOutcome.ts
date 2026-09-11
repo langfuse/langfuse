@@ -95,6 +95,8 @@ export type ClickHouseQueryTable =
   | "traces"
   | "observations"
   | "scores"
+  | "dataset_run_items"
+  | "blob_storage_file_log"
   | "other";
 
 /**
@@ -113,6 +115,8 @@ const TABLE_LABEL_PATTERNS: ReadonlyArray<[ClickHouseQueryTable, RegExp]> = [
   ["observations", /\bfrom\s+(?:\w+\.)?observations\b/i],
   ["traces", /\bfrom\s+(?:\w+\.)?traces\b/i],
   ["scores", /\bfrom\s+(?:\w+\.)?scores\b/i],
+  ["dataset_run_items", /\bfrom\s+(?:\w+\.)?dataset_run_items_rmt\b/i],
+  ["blob_storage_file_log", /\bfrom\s+(?:\w+\.)?blob_storage_file_log\b/i],
 ];
 
 const OTHER_TABLE_LABEL = "other" as const;
