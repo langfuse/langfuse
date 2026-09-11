@@ -74,7 +74,7 @@ describe("CostUsageBadge", () => {
       />,
     );
 
-    expect(screen.getByText("∑ 10,200")).toBeInTheDocument();
+    expect(screen.getByText("10,200")).toBeInTheDocument();
     expect(screen.queryByText(/9,618/)).not.toBeInTheDocument();
     expect(screen.queryByText(/→/)).not.toBeInTheDocument();
   });
@@ -93,7 +93,7 @@ describe("CostUsageBadge", () => {
 
     expect(screen.getByText("$0.016079")).toBeInTheDocument();
     // Tokens sit beside cost at rest; the input/output split stays on hover.
-    expect(screen.getByText("∑ 10,200")).toBeInTheDocument();
+    expect(screen.getByText("10,200")).toBeInTheDocument();
     expect(screen.queryByText(/9,618/)).not.toBeInTheDocument();
   });
 
