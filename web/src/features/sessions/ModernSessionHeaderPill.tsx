@@ -2,7 +2,7 @@ import Link from "next/link";
 import { type ComponentPropsWithoutRef, type ReactNode, type Ref } from "react";
 
 const PILL_CLASS_NAME =
-  "text-muted-foreground inline-flex h-[22px] shrink-0 items-center rounded-sm border px-2 py-0 text-[11px] leading-none whitespace-nowrap";
+  "text-muted-foreground inline-flex h-[22px] shrink-0 items-center rounded-sm border px-2 py-0 text-xs leading-none whitespace-nowrap";
 
 type ModernSessionHeaderPillProps = {
   children: ReactNode;

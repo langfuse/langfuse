@@ -14,7 +14,7 @@ import Link from "next/link";
 // Same scale as the metrics tier; link affordance (hover color + underline)
 // is the only thing that sets a reference apart from a plain metric.
 const REFERENCE_LINK_CLASS =
-  "text-muted-foreground hover:text-link inline-flex min-w-0 max-w-[280px] shrink-0 items-center gap-1 text-[11px] whitespace-nowrap hover:underline";
+  "text-muted-foreground hover:text-link inline-flex min-w-0 max-w-[280px] shrink-0 items-center gap-1 text-xs whitespace-nowrap hover:underline";
 
 type ReferenceLinkProps = Omit<
   ComponentPropsWithoutRef<typeof Link>,
