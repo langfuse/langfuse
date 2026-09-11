@@ -23,6 +23,9 @@ original view available for updating without marking it active, including the
 column-provenance guard for shared links. It also preserves the edited working
 view across reloads instead of reapplying a default.
 
+Saved views persist filters and `searchQuery`. Search scope stays in the host's
+URL or local table state; applying a view leaves that scope unchanged.
+
 ## Robustness to Table Changes
 
 The table view presets system is designed to gracefully handle changes to table structure:

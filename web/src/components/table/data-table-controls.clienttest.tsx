@@ -709,6 +709,22 @@ describe("DataTableControls facet ordering", () => {
     expect(labelOrder("Alpha", "Beta")).toBe(true);
   });
 
+  it("clears drafts and view selection even when no filters are applied", () => {
+    const clearAll = vi.fn();
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={{ ...queryFilter([]), clearAll }} />
+      </TooltipProvider>,
+    );
+    fireEvent.keyDown(screen.getByRole("button", { name: "Filter options" }), {
+      key: "Enter",
+    });
+    const clear = screen.getByRole("menuitem", { name: "Clear all filters" });
+    expect(clear).not.toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(clear);
+    expect(clearAll).toHaveBeenCalledOnce();
+  });
+
   it("restores catalog order on Clear all, even with an in-list interaction outstanding", () => {
     const { rerender } = render(
       <TooltipProvider>
