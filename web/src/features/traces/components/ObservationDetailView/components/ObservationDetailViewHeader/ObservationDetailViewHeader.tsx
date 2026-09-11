@@ -787,6 +787,7 @@ export const ObservationDetailViewHeader = memo(
             <div className="flex flex-wrap items-center gap-1">
               <GroupedScoreBadges
                 scores={observationScores}
+                compact
                 maxVisible={MAX_HEADER_SCORE_GROUPS}
               />
             </div>

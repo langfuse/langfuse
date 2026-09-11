@@ -505,6 +505,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
           <div className="flex flex-wrap items-center gap-1">
             <GroupedScoreBadges
               scores={traceScores}
+              compact
               maxVisible={MAX_HEADER_SCORE_GROUPS}
             />
           </div>
