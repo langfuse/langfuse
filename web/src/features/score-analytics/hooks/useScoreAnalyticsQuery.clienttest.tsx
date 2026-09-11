@@ -37,9 +37,14 @@ function ScoreAnalyticsProbe({
   });
 
   return (
-    <div data-testid="distribution">
-      {JSON.stringify(result.data?.distribution ?? null)}
-    </div>
+    <>
+      <div data-testid="distribution">
+        {JSON.stringify(result.data?.distribution ?? null)}
+      </div>
+      <div data-testid="time-series">
+        {JSON.stringify(result.data?.timeSeries.categorical.score1 ?? null)}
+      </div>
+    </>
   );
 }
 
@@ -108,6 +113,13 @@ describe("useScoreAnalyticsQuery", () => {
     expect(JSON.stringify(distribution.score1)).toBe(
       '[{"binIndex":0,"count":0},{"binIndex":1,"count":1}]',
     );
+
+    const timeSeries = JSON.parse(
+      screen.getByTestId("time-series").textContent ?? "null",
+    );
+    expect(
+      timeSeries.map((item: { category: string }) => item.category),
+    ).toEqual(["True"]);
   });
 
   it("keeps score2 boolean distribution aligned when comparing the same score twice", () => {
