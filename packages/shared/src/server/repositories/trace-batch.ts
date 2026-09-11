@@ -60,7 +60,7 @@ export async function* getTraceBatchEventStream(props: {
     // Equality filters add this primary-key hash condition automatically; IN
     // needs it explicitly. The exact IDs above also exclude hash collisions.
     .whereRaw(
-      `xxHash32(e.trace_id) IN (${bounds.map((_, index) => `xxHash32({traceId${index}: String})`).join(", ")})`,
+      "xxHash32(e.trace_id) IN (SELECT arrayJoin(arrayMap(id -> xxHash32(id), {traceIds: Array(String)})))",
     )
     // This shared time range enables partition/granule pruning before the
     // individual trace-window checks below.
@@ -70,20 +70,18 @@ export async function* getTraceBatchEventStream(props: {
         batchMinStart: Math.min(...bounds.map((trace) => trace.minStart)),
         batchMaxStart: Math.max(...bounds.map((trace) => trace.maxStart)),
       },
+    )
+    // Dispatcher snapshots contain unique trace IDs. transform builds a lookup
+    // for their individual bounds, so a wider batch window cannot widen a trace.
+    // Array parameters keep the HTTP field count and SQL size constant instead
+    // of sending three parameters and an OR branch per trace.
+    .whereRaw(
+      "e.start_time >= fromUnixTimestamp64Milli(transform(e.trace_id, {traceIds: Array(String)}, {minStarts: Array(Int64)}, toInt64(0))) AND e.start_time <= fromUnixTimestamp64Milli(transform(e.trace_id, {traceIds: Array(String)}, {maxStarts: Array(Int64)}, toInt64(0)))",
+      {
+        minStarts: bounds.map((trace) => trace.minStart),
+        maxStarts: bounds.map((trace) => trace.maxStart),
+      },
     );
-
-  // Keep each trace's bounds even when another trace expands the batch window.
-  const tracePredicates: string[] = [];
-  const traceParams: Record<string, string | number> = {};
-  bounds.forEach((trace, index) => {
-    tracePredicates.push(
-      `(e.trace_id = {traceId${index}: String} AND e.start_time >= fromUnixTimestamp64Milli({minStart${index}: Int64}) AND e.start_time <= fromUnixTimestamp64Milli({maxStart${index}: Int64}))`,
-    );
-    traceParams[`traceId${index}`] = trace.traceId;
-    traceParams[`minStart${index}`] = trace.minStart;
-    traceParams[`maxStart${index}`] = trace.maxStart;
-  });
-  builder.whereRaw(`(${tracePredicates.join(" OR ")})`, traceParams);
 
   const { query, params } = builder.buildWithParams();
   yield* queryClickhouseStream<TraceBatchEventRow>({

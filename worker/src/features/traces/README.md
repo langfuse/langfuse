@@ -164,6 +164,57 @@ and cross-project batching are separate experiments.
 
 ## Local checks
 
+### Query shape and production comparison
+
+The repository uses the same `EventsQueryBuilder`, full-I/O selection and
+streaming client as the event blob-export reader. The batch-I/O API also reads
+`events_full` by project, trace IDs and time bounds. The experiment adds an
+explicit trace-hash filter and an individual time window for each trace.
+These are comparable existing code paths, not a production capacity guarantee.
+
+The emitted query has this shape (the builder also selects span identity,
+timestamps, type, name and tool fields):
+
+```sql
+SELECT input, output,
+       mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
+FROM events_full AS e
+WHERE e.project_id = {projectId: String}
+  AND e.trace_id IN ({traceIds: Array(String)})
+  AND xxHash32(e.trace_id) IN (
+    SELECT arrayJoin(arrayMap(id -> xxHash32(id), {traceIds: Array(String)}))
+  )
+  AND e.start_time >= fromUnixTimestamp64Milli({batchMinStart: Int64})
+  AND e.start_time <= fromUnixTimestamp64Milli({batchMaxStart: Int64})
+  AND e.start_time >= fromUnixTimestamp64Milli(
+    transform(e.trace_id, {traceIds: Array(String)}, {minStarts: Array(Int64)}, toInt64(0)))
+  AND e.start_time <= fromUnixTimestamp64Milli(
+    transform(e.trace_id, {traceIds: Array(String)}, {maxStarts: Array(Int64)}, toInt64(0)))
+SETTINGS max_threads = 2, max_execution_time = 30, timeout_overflow_mode = 'throw'
+```
+
+There are six parameters, independent of batch size. The three arrays grow
+with the batch, but the request does not add a parameter or SQL branch per trace.
+`transform` maps each unique trace ID to its bounds. The hash subquery reads only
+the supplied array, not another table, and is compatible with ClickHouse 25.12.
+Global bounds retain primary-key pruning; individual bounds preserve coverage
+when traces have different windows. No `FINAL`, aggregation or sorting is added.
+
+Inspect `system.query_log` using the consumer's query ID to see the executed
+SQL, `read_rows`, `read_bytes`, `result_rows`, `memory_usage`, duration and CPU
+profile events. For planned pruning, use `EXPLAIN indexes = 1` with
+`use_query_condition_cache = 0, use_skip_indexes_on_data_read = 0`; measure real
+execution separately with the normal service settings. Verify PREWHERE filters
+before wide payload reads. See the [ClickHouse EXPLAIN documentation](https://clickhouse.com/docs/sql-reference/statements/explain).
+
+Local and preview checks establish correctness, compatibility and query shape.
+Production capacity still depends on payload sizes, part/granule density,
+time-window spread, cache/storage behavior and the concurrent consumer fleet.
+Compare equal trace cohorts across batch sizes and measure bytes/CPU per trace,
+not just query latency or query count.
+
+### Integration tests
+
 With the standard local Redis and ClickHouse services and shared package built:
 
 ```sh
