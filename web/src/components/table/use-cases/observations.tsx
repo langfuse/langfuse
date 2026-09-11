@@ -92,7 +92,6 @@ import {
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { SearchScopeSelect } from "@/src/components/table/SearchScopeSelect";
-import { hasFullTextSearchType } from "@/src/components/table/utils/searchUtils";
 import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
 import { observationsFieldRegistry } from "@/src/features/filters/config/tracingSearchRegistry";
 import { useRouter } from "next/router";
@@ -258,8 +257,6 @@ export default function ObservationsTable({
       utils.projects.environmentFilterOptions.invalidate(),
     ]);
   }, [utils]);
-  const { searchQuery, searchType, setSearchQuery, setSearchType } =
-    useFullTextSearch();
   const legacyTracingSearchConfig = api.public.tracingSearchConfig.useQuery(
     { projectId },
     {
@@ -271,6 +268,10 @@ export default function ObservationsTable({
   );
   const legacyTracingIoSearchEnabled =
     legacyTracingSearchConfig.data?.legacyTracingIoSearchEnabled ?? true;
+  const { searchQuery, searchType, setSearchQuery, setSearchType } =
+    useFullTextSearch({
+      tableAllowsFullTextSearch: legacyTracingIoSearchEnabled,
+    });
 
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
@@ -1220,9 +1221,6 @@ export default function ObservationsTable({
   viewControllersRef.current = viewControllers;
 
   const handleSearchQueryChange = (nextQuery: string | null) => {
-    if (!legacyTracingIoSearchEnabled && hasFullTextSearchType(searchType)) {
-      handleSearchTypeChange(["id"]);
-    }
     viewControllers.handleUserStateChange(searchQuery ?? "", nextQuery ?? "");
     setSearchQuery(nextQuery);
   };
