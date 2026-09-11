@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   type JobConfiguration,
   JobConfigState,
+  coerceLegacyEmptyMetadataFilters,
   singleFilter,
 } from "@langfuse/shared";
 
@@ -29,7 +30,9 @@ const evaluatorTargetsDataset = ({
 }: Pick<JobConfiguration, "filter"> & {
   datasetId: string;
 }) => {
-  const parsedFilter = z.array(singleFilter).safeParse(filter);
+  const parsedFilter = z
+    .array(singleFilter)
+    .safeParse(coerceLegacyEmptyMetadataFilters(filter));
 
   if (!parsedFilter.success) {
     return false;

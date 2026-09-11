@@ -32,6 +32,7 @@ import {
   EvalTargetObject,
   EvalTargetObjectSchema,
   getCodeEvalVariableMapping,
+  coerceLegacyEmptyMetadataFilters,
 } from "@langfuse/shared";
 import { z } from "zod";
 import { useEffect, useMemo, useState, memo, Suspense, lazy } from "react";
@@ -454,7 +455,11 @@ export const InnerEvaluatorForm = (props: {
         props.existingEvaluator?.scoreName ?? `${props.evalTemplate.name}`,
       target: defaultTarget,
       filter: props.existingEvaluator?.filter
-        ? z.array(singleFilter).parse(props.existingEvaluator.filter)
+        ? z
+            .array(singleFilter)
+            .parse(
+              coerceLegacyEmptyMetadataFilters(props.existingEvaluator.filter),
+            )
         : defaultTarget === EvalTargetObject.TRACE
           ? // For new trace evaluators, exclude internal environments by default
             DEFAULT_TRACE_FILTER

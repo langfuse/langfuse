@@ -1,6 +1,10 @@
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { useMemo } from "react";
-import { isEvalRuleExecutable, singleFilter } from "@langfuse/shared";
+import {
+  coerceLegacyEmptyMetadataFilters,
+  isEvalRuleExecutable,
+  singleFilter,
+} from "@langfuse/shared";
 import { getEvalTemplateFamilyKey } from "@/src/features/evals/utils/eval-template-family";
 import { z } from "zod";
 
@@ -24,7 +28,9 @@ export const getExistingEvaluators = (
   > = {};
 
   for (const jobConfig of jobConfigs ?? []) {
-    const parsedFilter = z.array(singleFilter).safeParse(jobConfig.filter);
+    const parsedFilter = z
+      .array(singleFilter)
+      .safeParse(coerceLegacyEmptyMetadataFilters(jobConfig.filter));
     if (!parsedFilter.success) continue;
     const matchesDataset =
       parsedFilter.data.length === 0 ||

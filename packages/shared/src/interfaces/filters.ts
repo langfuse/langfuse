@@ -112,6 +112,29 @@ export const stringObjectFilterBase = z.object({
 export const stringObjectFilter = guardStringObjectValue(
   stringObjectFilterBase,
 );
+
+// Metadata `contains ""` / `starts with ""` / `ends with ""` was the historical
+// way to express key presence before `is set` / `is not set` existed. The value
+// guard now rejects it, so rewrite persisted filter state (eval configs, saved
+// views) to the equivalent `is set` when reading it back, keeping legacy filters
+// working instead of throwing on parse.
+export const coerceLegacyEmptyMetadataFilters = (filters: unknown): unknown => {
+  if (!Array.isArray(filters)) return filters;
+  return filters.map((filter) => {
+    if (
+      filter &&
+      typeof filter === "object" &&
+      (filter as { type?: unknown }).type === "stringObject" &&
+      (filter as { value?: unknown }).value === "" &&
+      EMPTY_VALUE_REJECTED_STRING_OBJECT_OPERATORS.has(
+        (filter as { operator?: unknown }).operator as string,
+      )
+    ) {
+      return { ...(filter as object), operator: "is set" };
+    }
+    return filter;
+  });
+};
 export const numberObjectFilter = z.object({
   type: z.literal("numberObject"),
   column: z.string(),
