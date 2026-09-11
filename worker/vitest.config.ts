@@ -1,12 +1,20 @@
 import { config } from "dotenv";
 import { defineConfig } from "vitest/config";
 import { VitestCiReporter } from "../scripts/vitest/ci-reporter";
+import {
+  createSharedPackageVcsProvider,
+  FORCE_FULL_RUN_TRIGGER,
+} from "../scripts/vitest/shared-package-vcs-provider";
 
 // Load ../.env so direct Vitest runs and package scripts use the same worker env.
 config({ path: "../.env" });
 
 export default defineConfig({
   test: {
+    forceRerunTriggers: [FORCE_FULL_RUN_TRIGGER],
+    experimental: {
+      vcsProvider: createSharedPackageVcsProvider(),
+    },
     reporters: process.env.CI
       ? ["default", new VitestCiReporter()]
       : ["default"],
