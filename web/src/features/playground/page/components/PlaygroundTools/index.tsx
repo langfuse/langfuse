@@ -7,7 +7,6 @@ import { PlusIcon, PencilIcon, MinusCircle, WrenchIcon } from "lucide-react";
 import { type LlmTool } from "@prisma/client";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { CreateOrEditLLMToolDialog } from "@/src/features/playground/page/components/CreateOrEditLLMToolDialog";
 import {
   Command,
   CommandEmpty,
@@ -20,8 +19,16 @@ import {
 
 import { type PlaygroundTool } from "@/src/features/playground/page/types";
 
+type PlaygroundToolsPopoverProps = {
+  onCreateTool?: () => void;
+  onEditTool?: (tool: LlmTool) => void;
+};
+
 // Popover content component for use in CollapsibleSection action buttons
-export const PlaygroundToolsPopover = () => {
+export const PlaygroundToolsPopover: React.FC<PlaygroundToolsPopoverProps> = ({
+  onCreateTool,
+  onEditTool,
+}) => {
   const { setTools } = usePlaygroundContext();
   const projectId = useProjectIdFromURL();
 
@@ -68,13 +75,6 @@ export const PlaygroundToolsPopover = () => {
     });
   };
 
-  const handleRemoveTool = (toolId: string) => {
-    setTools(
-      (prev: PlaygroundTool[]) =>
-        prev.filter((t) => !(t.id === toolId)) as PlaygroundTool[],
-    );
-  };
-
   return (
     <Command className="flex flex-col">
       <CommandInput
@@ -105,43 +105,53 @@ export const PlaygroundToolsPopover = () => {
                   </div>
                 </div>
               </div>
-              <CreateOrEditLLMToolDialog
-                projectId={projectId as string}
-                onSave={handleSelectTool}
-                onDelete={() => handleRemoveTool(tool.id)}
-                existingLlmTool={tool}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="ml-2 h-7 w-7 shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditTool?.(tool);
+                }}
               >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="ml-2 h-7 w-7 shrink-0"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <PencilIcon className="h-3.5 w-3.5" />
-                </Button>
-              </CreateOrEditLLMToolDialog>
+                <PencilIcon className="h-3.5 w-3.5" />
+              </Button>
             </CommandItem>
           ))}
         </CommandGroup>
         <CommandSeparator />
       </CommandList>
       <div className="mt-auto p-1">
-        <CreateOrEditLLMToolDialog
-          projectId={projectId as string}
-          onSave={handleSelectTool}
+        <Button
+          variant="outline"
+          size="default"
+          className="w-full"
+          onClick={() => onCreateTool?.()}
         >
-          <Button variant="outline" size="default" className="w-full">
-            <PlusIcon className="mr-2 h-4 w-4" />
-            Create new tool
-          </Button>
-        </CreateOrEditLLMToolDialog>
+          <PlusIcon className="mr-2 h-4 w-4" />
+          Create new tool
+        </Button>
       </div>
     </Command>
   );
 };
 
+type PlaygroundToolsProps = {
+  onEditTool?: (
+    tool: PlaygroundTool,
+    existingLlmTool?: LlmTool,
+    defaultValues?: {
+      name: string;
+      description: string;
+      parameters: string;
+    },
+  ) => void;
+};
+
 // Main component for embedding in CollapsibleSection content
-export const PlaygroundTools = () => {
+export const PlaygroundTools: React.FC<PlaygroundToolsProps> = ({
+  onEditTool,
+}) => {
   const { tools, setTools } = usePlaygroundContext();
   const projectId = useProjectIdFromURL();
 
@@ -188,39 +198,6 @@ export const PlaygroundTools = () => {
     });
   }, [savedTools, tools, setTools]);
 
-  const handleSelectTool = (selectedLLMTool: LlmTool) => {
-    setTools((prev: PlaygroundTool[]) => {
-      let existingToolIndex = -1;
-      existingToolIndex = prev.findIndex((t) => t.id === selectedLLMTool.id);
-
-      if (existingToolIndex === -1) {
-        const unsavedToolIndexWithSameName = prev.findIndex(
-          (t) => t.name === selectedLLMTool.name,
-        );
-
-        if (unsavedToolIndexWithSameName !== -1) {
-          existingToolIndex = unsavedToolIndexWithSameName;
-        }
-      }
-
-      const newTool: PlaygroundTool = {
-        id: selectedLLMTool.id,
-        name: selectedLLMTool.name,
-        description: selectedLLMTool.description,
-        parameters: selectedLLMTool.parameters as Record<string, unknown>,
-        existingLlmTool: selectedLLMTool,
-      };
-
-      if (existingToolIndex !== -1) {
-        const newTools = [...prev];
-        newTools[existingToolIndex] = newTool;
-        return newTools;
-      }
-
-      return [...prev, newTool];
-    });
-  };
-
   const handleRemoveTool = (toolId: string) => {
     setTools(
       (prev: PlaygroundTool[]) =>
@@ -236,24 +213,28 @@ export const PlaygroundTools = () => {
         </div>
       ) : (
         <div className="space-y-1">
-          {tools.map((tool) => (
-            <CreateOrEditLLMToolDialog
-              key={tool.id}
-              projectId={projectId as string}
-              onSave={handleSelectTool}
-              onDelete={() => handleRemoveTool(tool.id)}
-              existingLlmTool={tool.existingLlmTool}
-              defaultValues={
-                !isToolSaved(tool)
-                  ? {
-                      name: tool.name,
-                      description: tool.description,
-                      parameters: JSON.stringify(tool.parameters, null, 2),
-                    }
-                  : undefined
-              }
-            >
-              <div className="bg-background hover:bg-accent/50 relative cursor-pointer rounded-md border p-2 pr-10 transition-colors duration-200">
+          {tools.map((tool) => {
+            const isSaved = isToolSaved(tool);
+            const matchingSavedTool = savedTools.find(
+              (s) => s.id === tool.id || s.name === tool.name,
+            );
+            const existingLlmTool = tool.existingLlmTool ?? matchingSavedTool;
+            const defaultValues = !isSaved
+              ? {
+                  name: tool.name,
+                  description: tool.description,
+                  parameters: JSON.stringify(tool.parameters, null, 2),
+                }
+              : undefined;
+
+            return (
+              <div
+                key={tool.id}
+                className="bg-background hover:bg-accent/50 relative cursor-pointer rounded-md border p-2 pr-10 transition-colors duration-200"
+                onClick={() =>
+                  onEditTool?.(tool, existingLlmTool, defaultValues)
+                }
+              >
                 <Button
                   variant="ghost"
                   size="sm"
@@ -276,7 +257,7 @@ export const PlaygroundTools = () => {
                     >
                       {tool.name}
                     </h3>
-                    {!isToolSaved(tool) ? (
+                    {!isSaved ? (
                       <span className="bg-muted text-muted-foreground mt-1 inline-flex rounded px-1 py-0.5 text-xs">
                         Unsaved
                       </span>
@@ -290,8 +271,8 @@ export const PlaygroundTools = () => {
                   </p>
                 </div>
               </div>
-            </CreateOrEditLLMToolDialog>
-          ))}
+            );
+          })}
         </div>
       )}
     </ScrollArea>
