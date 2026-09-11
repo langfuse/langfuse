@@ -124,12 +124,12 @@ export class TokenCountWorkerManager {
     params: { model: Model; text: unknown },
     timeoutMs = 30000,
   ): Promise<number | undefined> {
-    // A SIGTERM teardown terminates the pool while ingestion may still call
-    // in. Drop the count (undefined = usage unknown, which the caller commits
-    // as absent rather than as a zero) instead of posting to a terminating or
-    // already-gone worker, which threw and was logged per observation as a
-    // tokenization failure — the spike seen on rollouts.
+    // Once the pool is terminating, drop the count instead of posting to a
+    // terminating or already-gone worker. undefined means usage unknown, which
+    // the caller commits as absent rather than as a zero; count the drop so it
+    // stays observable.
     if (this.isShuttingDown) {
+      recordIncrement("langfuse.tokenisation.skipped_on_shutdown", 1);
       return undefined;
     }
 
@@ -169,10 +169,8 @@ export class TokenCountWorkerManager {
 
     // In-flight requests can no longer get a response from the terminating
     // workers. Resolve them with undefined (usage unknown) rather than
-    // rejecting: dropping counts during shutdown is expected, not an error,
-    // and a rejection is logged per request by the caller as a tokenization
-    // failure. Emit one summary metric instead so the drops stay observable
-    // without the per-request log spam that spiked on rollouts.
+    // rejecting, and count the drop so it stays observable without the caller
+    // logging each one as a tokenization failure.
     const droppedOnShutdown = this.pool.pendingRequests.size;
     if (droppedOnShutdown > 0) {
       recordIncrement(

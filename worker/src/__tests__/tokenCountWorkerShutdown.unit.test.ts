@@ -60,15 +60,20 @@ describe("TokenCountWorkerManager shutdown guard", () => {
     await expect(manager.tokenCount({ model, text: "hi" })).resolves.toBe(7);
   });
 
-  it("drops the count instead of throwing once the pool is terminated", async () => {
+  it("drops the count and records the metric for calls made after terminate", async () => {
     const manager = new TokenCountWorkerManager(2);
     await manager.terminate();
+    recordIncrement.mockClear();
 
     const postsBefore = totalPostMessages();
     await expect(
       manager.tokenCount({ model, text: "hi" }),
     ).resolves.toBeUndefined();
     expect(totalPostMessages()).toBe(postsBefore);
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.tokenisation.skipped_on_shutdown",
+      1,
+    );
   });
 
   it("resolves in-flight requests as undefined and records one summary metric on terminate", async () => {
