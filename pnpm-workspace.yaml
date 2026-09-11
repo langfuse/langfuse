@@ -132,6 +132,10 @@ patchedDependencies:
   # "Could not find data for Group with id ...". Guard both (skip detached
   # elements / unmounted groups). Still unfixed upstream as of 4.12.2.
   react-resizable-panels@4.8.0: patches/react-resizable-panels@4.8.0.patch
+  # CartesianGrid nice-tick generation throws DecimalError (LN10 precision
+  # / division by zero) on extreme Y domains and white-screens the page.
+  # Remove once upstream getNiceTickValues / getDigitCount guards Decimal.
+  recharts@3.8.0: patches/recharts@3.8.0.patch
 publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"

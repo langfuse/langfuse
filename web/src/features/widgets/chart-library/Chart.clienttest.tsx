@@ -74,3 +74,22 @@ describe("Chart dispatcher — empty-state guard (LFE-14333)", () => {
     expect(screen.getByText("No data")).toBeInTheDocument();
   });
 });
+
+describe("Chart dispatcher — recharts nice-tick domain crash", () => {
+  // jsdom never measures a real plot box, so CartesianGrid may skip the
+  // selector that throws in production. Call the same function the grid uses.
+  it("getNiceTickValues does not throw on a zero-to-denormal Y domain", async () => {
+    const { getNiceTickValues } = await import("recharts");
+    expect(() =>
+      getNiceTickValues([0, Number.MIN_VALUE], 5, true, "adaptive"),
+    ).not.toThrow();
+  });
+
+  it("getNiceTickValues still returns rounded ticks for a normal domain", async () => {
+    const { getNiceTickValues } = await import("recharts");
+    const ticks = getNiceTickValues([0, 1], 5, true, "adaptive");
+    expect(ticks.length).toBeGreaterThanOrEqual(2);
+    expect(ticks[0]).toBeLessThanOrEqual(0);
+    expect(ticks[ticks.length - 1]).toBeGreaterThanOrEqual(1);
+  });
+});

@@ -1,0 +1,307 @@
+diff --git a/es6/util/scale/getNiceTickValues.js b/es6/util/scale/getNiceTickValues.js
+index 2f3ef715d74acafc2f121daee34fc3caaf0f6dac..fd9fd206dc8d2411c4f59199bf47a5b7a47aeea6 100644
+--- a/es6/util/scale/getNiceTickValues.js
++++ b/es6/util/scale/getNiceTickValues.js
+@@ -192,32 +192,51 @@ var _calculateStep = function calculateStep(min, max, tickCount, allowDecimals)
+  * @param niceTicksMode The algorithm to use for calculating nice ticks.
+  * @return array of ticks
+  */
++var fallbackNumberTicks = function fallbackNumberTicks(min, max) {
++  if (!Number.isFinite(min) && !Number.isFinite(max)) {
++    return [0, 1];
++  }
++  if (!Number.isFinite(min)) {
++    return [max];
++  }
++  if (!Number.isFinite(max)) {
++    return [min];
++  }
++  if (min === max) {
++    return [min];
++  }
++  return min > max ? [max, min] : [min, max];
++};
+ export { _calculateStep as calculateStep };
+ export var getNiceTickValues = function getNiceTickValues(_ref2) {
+   var [min, max] = _ref2;
+   var tickCount = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 6;
+   var allowDecimals = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : true;
+   var niceTicksMode = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : 'auto';
+-  // More than two ticks should be return
+-  var count = Math.max(tickCount, 2);
+-  var [cormin, cormax] = getValidInterval([min, max]);
+-  if (cormin === -Infinity || cormax === Infinity) {
+-    var _values = cormax === Infinity ? [cormin, ...Array(tickCount - 1).fill(Infinity)] : [...Array(tickCount - 1).fill(-Infinity), cormax];
+-    return min > max ? _values.reverse() : _values;
+-  }
+-  if (cormin === cormax) {
+-    return getTickOfSingleValue(cormin, tickCount, allowDecimals);
+-  }
+-  var stepFn = niceTicksMode === 'snap125' ? getSnap125Step : getAdaptiveStep;
++  try {
++    // More than two ticks should be return
++    var count = Math.max(tickCount, 2);
++    var [cormin, cormax] = getValidInterval([min, max]);
++    if (cormin === -Infinity || cormax === Infinity) {
++      var _values = cormax === Infinity ? [cormin, ...Array(tickCount - 1).fill(Infinity)] : [...Array(tickCount - 1).fill(-Infinity), cormax];
++      return min > max ? _values.reverse() : _values;
++    }
++    if (cormin === cormax) {
++      return getTickOfSingleValue(cormin, tickCount, allowDecimals);
++    }
++    var stepFn = niceTicksMode === 'snap125' ? getSnap125Step : getAdaptiveStep;
+ 
+-  // Get the step between two ticks
+-  var {
+-    step,
+-    tickMin,
+-    tickMax
+-  } = _calculateStep(cormin, cormax, count, allowDecimals, 0, stepFn);
+-  var values = rangeStep(tickMin, tickMax.add(new Decimal(0.1).mul(step)), step);
+-  return min > max ? values.reverse() : values;
++    // Get the step between two ticks
++    var {
++      step,
++      tickMin,
++      tickMax
++    } = _calculateStep(cormin, cormax, count, allowDecimals, 0, stepFn);
++    var values = rangeStep(tickMin, tickMax.add(new Decimal(0.1).mul(step)), step);
++    return min > max ? values.reverse() : values;
++  } catch (e) {
++    return fallbackNumberTicks(min, max);
++  }
+ };
+ 
+ /**
+@@ -234,26 +253,30 @@ export var getTickValuesFixedDomain = function getTickValuesFixedDomain(_ref3, t
+   var [min, max] = _ref3;
+   var allowDecimals = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : true;
+   var niceTicksMode = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : 'auto';
+-  // More than two ticks should be return
+-  var [cormin, cormax] = getValidInterval([min, max]);
+-  if (cormin === -Infinity || cormax === Infinity) {
+-    return [min, max];
+-  }
+-  if (cormin === cormax) {
+-    return [cormin];
+-  }
+-  var stepFn = niceTicksMode === 'snap125' ? getSnap125Step : getAdaptiveStep;
+-  var count = Math.max(tickCount, 2);
+-  var step = stepFn(new Decimal(cormax).sub(cormin).div(count - 1), allowDecimals, 0);
+-  var values = [...rangeStep(new Decimal(cormin), new Decimal(cormax), step), cormax];
+-  if (allowDecimals === false) {
+-    /*
+-     * allowDecimals is false means that we want to have integer ticks.
+-     * The step is guaranteed to be an integer in the code above which is great start
+-     * but when the first step is not an integer, it will start stepping from a decimal value anyway.
+-     * So we need to round all the values to integers after the fact.
+-     */
+-    values = values.map(value => Math.round(value));
++  try {
++    // More than two ticks should be return
++    var [cormin, cormax] = getValidInterval([min, max]);
++    if (cormin === -Infinity || cormax === Infinity) {
++      return [min, max];
++    }
++    if (cormin === cormax) {
++      return [cormin];
++    }
++    var stepFn = niceTicksMode === 'snap125' ? getSnap125Step : getAdaptiveStep;
++    var count = Math.max(tickCount, 2);
++    var step = stepFn(new Decimal(cormax).sub(cormin).div(count - 1), allowDecimals, 0);
++    var values = [...rangeStep(new Decimal(cormin), new Decimal(cormax), step), cormax];
++    if (allowDecimals === false) {
++      /*
++       * allowDecimals is false means that we want to have integer ticks.
++       * The step is guaranteed to be an integer in the code above which is great start
++       * but when the first step is not an integer, it will start stepping from a decimal value anyway.
++       * So we need to round all the values to integers after the fact.
++       */
++      values = values.map(value => Math.round(value));
++    }
++    return min > max ? values.reverse() : values;
++  } catch (e) {
++    return fallbackNumberTicks(min, max);
+   }
+-  return min > max ? values.reverse() : values;
+ };
+\ No newline at end of file
+diff --git a/es6/util/scale/util/arithmetic.js b/es6/util/scale/util/arithmetic.js
+index f4fde8b8bd58f0ca8e7d08ab01fb77fcb02aaf56..ef2a39218ddaa3499f3d1b5f7071abb3693fdc17 100644
+--- a/es6/util/scale/util/arithmetic.js
++++ b/es6/util/scale/util/arithmetic.js
+@@ -15,13 +15,15 @@ import Decimal from 'decimal.js-light';
+  * @return {Integer}      Digit count
+  */
+ function getDigitCount(value) {
+-  var result;
+-  if (value === 0) {
+-    result = 1;
+-  } else {
+-    result = Math.floor(new Decimal(value).abs().log(10).toNumber()) + 1;
++  if (value === 0 || !Number.isFinite(value)) {
++    return 1;
++  }
++  try {
++    return Math.floor(new Decimal(value).abs().log(10).toNumber()) + 1;
++  } catch (e) {
++    var n = Math.log10(Math.abs(value));
++    return Number.isFinite(n) ? Math.floor(n) + 1 : 1;
+   }
+-  return result;
+ }
+ 
+ /**
+diff --git a/lib/util/scale/getNiceTickValues.js b/lib/util/scale/getNiceTickValues.js
+index 076b4074b49f94c8d8319e800d89547116972ae9..b2f64e39df3f3dfd436e298291fb79d0acd48808 100644
+--- a/lib/util/scale/getNiceTickValues.js
++++ b/lib/util/scale/getNiceTickValues.js
+@@ -204,31 +204,50 @@ var _calculateStep = exports.calculateStep = function calculateStep(min, max, ti
+  * @param niceTicksMode The algorithm to use for calculating nice ticks.
+  * @return array of ticks
+  */
++var fallbackNumberTicks = function fallbackNumberTicks(min, max) {
++  if (!Number.isFinite(min) && !Number.isFinite(max)) {
++    return [0, 1];
++  }
++  if (!Number.isFinite(min)) {
++    return [max];
++  }
++  if (!Number.isFinite(max)) {
++    return [min];
++  }
++  if (min === max) {
++    return [min];
++  }
++  return min > max ? [max, min] : [min, max];
++};
+ var getNiceTickValues = exports.getNiceTickValues = function getNiceTickValues(_ref2) {
+   var [min, max] = _ref2;
+   var tickCount = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 6;
+   var allowDecimals = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : true;
+   var niceTicksMode = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : 'auto';
+-  // More than two ticks should be return
+-  var count = Math.max(tickCount, 2);
+-  var [cormin, cormax] = getValidInterval([min, max]);
+-  if (cormin === -Infinity || cormax === Infinity) {
+-    var _values = cormax === Infinity ? [cormin, ...Array(tickCount - 1).fill(Infinity)] : [...Array(tickCount - 1).fill(-Infinity), cormax];
+-    return min > max ? _values.reverse() : _values;
+-  }
+-  if (cormin === cormax) {
+-    return getTickOfSingleValue(cormin, tickCount, allowDecimals);
+-  }
+-  var stepFn = niceTicksMode === 'snap125' ? getSnap125Step : getAdaptiveStep;
++  try {
++    // More than two ticks should be return
++    var count = Math.max(tickCount, 2);
++    var [cormin, cormax] = getValidInterval([min, max]);
++    if (cormin === -Infinity || cormax === Infinity) {
++      var _values = cormax === Infinity ? [cormin, ...Array(tickCount - 1).fill(Infinity)] : [...Array(tickCount - 1).fill(-Infinity), cormax];
++      return min > max ? _values.reverse() : _values;
++    }
++    if (cormin === cormax) {
++      return getTickOfSingleValue(cormin, tickCount, allowDecimals);
++    }
++    var stepFn = niceTicksMode === 'snap125' ? getSnap125Step : getAdaptiveStep;
+ 
+-  // Get the step between two ticks
+-  var {
+-    step,
+-    tickMin,
+-    tickMax
+-  } = _calculateStep(cormin, cormax, count, allowDecimals, 0, stepFn);
+-  var values = (0, _arithmetic.rangeStep)(tickMin, tickMax.add(new _decimal.default(0.1).mul(step)), step);
+-  return min > max ? values.reverse() : values;
++    // Get the step between two ticks
++    var {
++      step,
++      tickMin,
++      tickMax
++    } = _calculateStep(cormin, cormax, count, allowDecimals, 0, stepFn);
++    var values = (0, _arithmetic.rangeStep)(tickMin, tickMax.add(new _decimal.default(0.1).mul(step)), step);
++    return min > max ? values.reverse() : values;
++  } catch (e) {
++    return fallbackNumberTicks(min, max);
++  }
+ };
+ 
+ /**
+@@ -245,26 +264,30 @@ var getTickValuesFixedDomain = exports.getTickValuesFixedDomain = function getTi
+   var [min, max] = _ref3;
+   var allowDecimals = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : true;
+   var niceTicksMode = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : 'auto';
+-  // More than two ticks should be return
+-  var [cormin, cormax] = getValidInterval([min, max]);
+-  if (cormin === -Infinity || cormax === Infinity) {
+-    return [min, max];
+-  }
+-  if (cormin === cormax) {
+-    return [cormin];
+-  }
+-  var stepFn = niceTicksMode === 'snap125' ? getSnap125Step : getAdaptiveStep;
+-  var count = Math.max(tickCount, 2);
+-  var step = stepFn(new _decimal.default(cormax).sub(cormin).div(count - 1), allowDecimals, 0);
+-  var values = [...(0, _arithmetic.rangeStep)(new _decimal.default(cormin), new _decimal.default(cormax), step), cormax];
+-  if (allowDecimals === false) {
+-    /*
+-     * allowDecimals is false means that we want to have integer ticks.
+-     * The step is guaranteed to be an integer in the code above which is great start
+-     * but when the first step is not an integer, it will start stepping from a decimal value anyway.
+-     * So we need to round all the values to integers after the fact.
+-     */
+-    values = values.map(value => Math.round(value));
++  try {
++    // More than two ticks should be return
++    var [cormin, cormax] = getValidInterval([min, max]);
++    if (cormin === -Infinity || cormax === Infinity) {
++      return [min, max];
++    }
++    if (cormin === cormax) {
++      return [cormin];
++    }
++    var stepFn = niceTicksMode === 'snap125' ? getSnap125Step : getAdaptiveStep;
++    var count = Math.max(tickCount, 2);
++    var step = stepFn(new _decimal.default(cormax).sub(cormin).div(count - 1), allowDecimals, 0);
++    var values = [...(0, _arithmetic.rangeStep)(new _decimal.default(cormin), new _decimal.default(cormax), step), cormax];
++    if (allowDecimals === false) {
++      /*
++       * allowDecimals is false means that we want to have integer ticks.
++       * The step is guaranteed to be an integer in the code above which is great start
++       * but when the first step is not an integer, it will start stepping from a decimal value anyway.
++       * So we need to round all the values to integers after the fact.
++       */
++      values = values.map(value => Math.round(value));
++    }
++    return min > max ? values.reverse() : values;
++  } catch (e) {
++    return fallbackNumberTicks(min, max);
+   }
+-  return min > max ? values.reverse() : values;
+ };
+\ No newline at end of file
+diff --git a/lib/util/scale/util/arithmetic.js b/lib/util/scale/util/arithmetic.js
+index 7747980208827fd4b6a53926d3634b0526954f92..1f983ce8b2013935800746d5fc17efbc73290749 100644
+--- a/lib/util/scale/util/arithmetic.js
++++ b/lib/util/scale/util/arithmetic.js
+@@ -23,13 +23,15 @@ function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e
+  * @return {Integer}      Digit count
+  */
+ function getDigitCount(value) {
+-  var result;
+-  if (value === 0) {
+-    result = 1;
+-  } else {
+-    result = Math.floor(new _decimal.default(value).abs().log(10).toNumber()) + 1;
++  if (value === 0 || !Number.isFinite(value)) {
++    return 1;
++  }
++  try {
++    return Math.floor(new _decimal.default(value).abs().log(10).toNumber()) + 1;
++  } catch (e) {
++    var n = Math.log10(Math.abs(value));
++    return Number.isFinite(n) ? Math.floor(n) + 1 : 1;
+   }
+-  return result;
+ }
+ 
+ /**
