@@ -2149,7 +2149,7 @@ export const getEventsFilterOptionsForColumns = async (params: {
     limit: params.topN ?? EVENTS_FILTER_OPTION_TOP_N,
   });
 
-/** Exact GROUP BY / LIMIT per column in one ClickHouse round-trip (UNION ALL). */
+/** Exact per-column facets in one events_core scan: sumMap/countIf aggregate state fanned out with arrayJoin (no GROUP BY / UNION ALL). */
 export const getEventsExactFilterOptionsForColumns = async (params: {
   projectId: string;
   filter: FilterState;

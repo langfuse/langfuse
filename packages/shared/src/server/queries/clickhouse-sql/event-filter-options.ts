@@ -576,9 +576,9 @@ const exactOptionAggSelectExpression = (
   return `sumMap(${valuesExpression}, arrayMap(value -> toUInt64(1), ${valuesExpression})) AS ${alias}`;
 };
 
-// Rank the exact per-column histogram, cap it at optionLimit, and fan the top
-// entries into the shared (column, value, count, sortKey, displayValue) tuple.
-// countDesc facets rank by count before capping; alpha facets rank by value.
+// countDesc ranks by (count DESC, value ASC): the value tie-breaker must be
+// applied before the optionLimit cap so the top-N stays deterministic at the
+// boundary, matching the single-column ORDER BY count() DESC, value ASC.
 const exactOptionRowsArrayExpression = (
   column: EventFilterOptionColumn,
 ): string => {
@@ -609,7 +609,7 @@ const exactOptionRowsArrayExpression = (
   const zipped = `arrayZip(tupleElement(${alias}, 1), tupleElement(${alias}, 2))`;
   const ranked =
     definition.sort === "countDesc"
-      ? `arrayReverseSort(pair -> tupleElement(pair, 2), ${zipped})`
+      ? `arraySort(pair -> tuple(-toInt64(tupleElement(pair, 2)), tupleElement(pair, 1)), ${zipped})`
       : `arraySort(pair -> tupleElement(pair, 1), ${zipped})`;
   return mapped(`arraySlice(${ranked}, 1, {optionLimit: UInt64})`);
 };
