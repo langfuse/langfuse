@@ -224,7 +224,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       header: "Total Cost (7d)",
       enableSorting: false,
       size: 120,
-      emptyValue: "–",
       formatter: (value) => usdFormatter(value, 2, 4),
       getValue: (value, { row }) => {
         if (row.original.isCostLoading) return { type: "loading" };

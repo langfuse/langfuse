@@ -17,6 +17,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 
 export type IOTableCellVariant = "default" | "input" | "output";
 type IOTableCellSize = "default" | "compact";
@@ -152,12 +153,11 @@ export const IOTableCell = memo(function IOTableCell({
   // nobody reaches for the wheel on content they read as truncated.
   let content: ReactNode;
   if (!stringifiedJson) {
-    // Nothing to show — the row carries no payload, the payload is empty, or
-    // the query that fetches it has not landed. Handing that to the JSON
-    // viewer renders the word `null` (or a bare pair of quotes), which a
-    // reader takes for a value; the cell keeps its chrome and stays empty.
-    // A payload that is only PARTLY empty is untouched: a `null` nested in a
-    // document is real content and renders as `null`.
+    // The payload arrived and is empty. Handing that to the JSON viewer renders
+    // the word `null` (or a bare pair of quotes), which a reader takes for a
+    // value, and a blank cell says nothing at all — so it gets the shared
+    // empty treatment. A payload that is only PARTLY empty is untouched: a
+    // `null` nested in a document is content and still renders as `null`.
     content = (
       <div
         className={cn(
@@ -165,7 +165,9 @@ export const IOTableCell = memo(function IOTableCell({
           paddingClassName,
           variantClassName,
         )}
-      />
+      >
+        <EmptyValue />
+      </div>
     );
   } else if (singleLine) {
     content = (

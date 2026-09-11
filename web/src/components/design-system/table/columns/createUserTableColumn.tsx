@@ -2,6 +2,7 @@
 import { type CellContext, type RowData } from "@tanstack/react-table";
 
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
+import { EMPTY_VALUE_PLACEHOLDER } from "@/src/components/design-system/table/constants";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   createTableColumn,
@@ -27,7 +28,11 @@ export function createUserTableColumn<
   ...options
 }: TableColumnOptions<TData, TValue> &
   UserTableColumnPresentation & {
-    emptyValue: string;
+    /**
+     * A word for a user whose identity is unknown, e.g. "Unknown". Defaults to
+     * the shared empty placeholder.
+     */
+    emptyValue?: string;
     /**
      * Return undefined when the row has no associated user. Return a user with
      * an empty object when a user exists but their identity is unknown.
@@ -61,7 +66,8 @@ export function createUserTableColumn<
       if (cell.type === "loading") return loadingCell;
 
       const { name, email, image, id } = cell.user;
-      const label = name ?? email ?? id ?? emptyValue;
+      const label =
+        name ?? email ?? id ?? emptyValue ?? EMPTY_VALUE_PLACEHOLDER;
       if (variant === "text") {
         return (
           <span className="block truncate" title={label}>
