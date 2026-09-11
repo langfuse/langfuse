@@ -113,6 +113,7 @@ export class GatewayResolveService {
           project_id: context.ingestionProjectId,
           key_id: context.apiKeyId,
           key_metadata: context.keyMetadata,
+          provider_connection_id: context.connection.id,
         },
         ingestion_mode: context.ingestionMode.toLowerCase() as "usage" | "full",
         ingestion: this.createIngestionResponse({

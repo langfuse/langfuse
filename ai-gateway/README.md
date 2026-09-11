@@ -1,8 +1,8 @@
 # AI Gateway service foundation
 
 A standalone Rust HTTP process with health probes, bounded shutdown, structured
-logs and a container. Inference, Web resolution and customer telemetry are not
-implemented yet; inference paths return 404. No Web, database or provider
+logs and a container, with a tested Web resolution client library. Inference and
+customer telemetry are not implemented yet; inference paths return 404. No Web, database or provider
 credentials are needed to build, start or test this package.
 
 ## Run locally
@@ -109,6 +109,45 @@ probes, missing inference routes and a clean SIGTERM exit, then removes it.
 
 ## Tests and module boundaries
 
+### Web resolution client
+
+`resolution::Resolver` resolves a gateway key through an operator-configured Web
+base URL. It is a library boundary; the binary does not initialize it yet. The
+caller supplies the existing `LANGFUSE_AI_GATEWAY_SERVICE_KEY` and a trusted Web
+base URL to `ResolverConfig::new`. HTTPS is required except on loopback for local
+development. URLs cannot contain credentials, a query or fragment. Include the
+Web deployment's `NEXT_PUBLIC_BASE_PATH`, if set: both `https://host/app` and
+`https://host/app/` resolve through `/app/api/internal/ai-gateway/v1/resolve`.
+
+```rust,no_run
+use ai_gateway::resolution::{ApiFormat, ResolveError, Resolver, ResolverConfig};
+
+async fn example(web_base_url: &str, service_key: &str, gateway_key: &str)
+    -> Result<(), ResolveError>
+{
+    let resolver = Resolver::new(ResolverConfig::new(web_base_url, service_key)?)?;
+    let execution = resolver.resolve(gateway_key, ApiFormat::OpenAiResponses).await?;
+    assert_eq!(execution.connection().base_url(), "https://api.openai.com/v1");
+    Ok(())
+}
+```
+
+Each call sends `POST <base path>/api/internal/ai-gateway/v1/resolve` with
+`Authorization: Bearer <gateway key>`, the Web v1 HMAC header, and exactly
+`{"apiFormat":"openai.responses"}`. The client neither receives nor parses an
+inference request body. Reuse the resolver across requests: its connection pool is
+shared, while credentials and execution contexts stay request-local.
+
+The whole HTTP exchange has a five-second deadline and a 256 KiB response limit,
+including chunked responses. Redirects, automatic retries, ambient proxy settings
+and transparent decompression are disabled. Errors expose fixed categories;
+upstream error bodies and transport details are discarded. Successful responses
+must match the strict v1 schema, the official OpenAI Responses connection, and an
+unexpired project ingestion grant. Ingestion tokens remain opaque. Resolution
+caching, provider execution and telemetry are separate slices.
+
+### Verification
+
 From the repository root:
 
 ```sh
@@ -139,6 +178,9 @@ cargo test --locked
 - `server.rs`: router, probe state and bounded graceful shutdown. A listener and
   shutdown future are injected, so tests do not depend on fixed ports or signals.
 - `main.rs`: configuration, logging, signal registration and process exit.
+- `resolution/mod.rs`: trusted base URL configuration and bounded Web HTTP client.
+- `resolution/contracts.rs`: strict Web response validation and immutable execution context.
+- `resolution/signing.rs`: Web v1 HMAC; a literal shared fixture pins byte compatibility.
 - `tests/support`: local ephemeral-port HTTP servers with injected Axum routers.
   `fake_dependency_records_requests_and_returns_scripted_response` demonstrates
   configurable status/body/headers and request recording. Specialized provider

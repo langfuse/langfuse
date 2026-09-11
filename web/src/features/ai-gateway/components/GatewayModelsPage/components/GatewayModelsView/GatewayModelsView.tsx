@@ -1,4 +1,3 @@
-import { type FilterState, type ColumnDefinition } from "@langfuse/shared";
 import { useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 
@@ -14,59 +13,29 @@ import {
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import { useSidebarFilterState } from "@/src/features/filters";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import { gatewayModelsFilterConfig } from "@/src/features/ai-gateway/constants/modelsFilterConfig";
+import { GATEWAY_MODELS_FIELD_REGISTRY } from "@/src/features/ai-gateway/constants/modelsSearchRegistry";
+import {
+  TableSearchBar,
+  toObservedOptions,
+  withFieldOptions,
+} from "@/src/features/search-bar";
+import {
+  filterGatewayModels,
+  type GatewayModelRow,
+} from "./filterGatewayModels";
+import { getGatewayModelConnectionSearchOptions } from "./fns/getGatewayModelConnectionSearchOptions";
 
-const TABLE_NAME = "gateway-models";
-
-export type GatewayModelRow = {
-  id: string;
-  availableVia: Array<{
-    connectionName: string;
-    provider: GatewayProvider;
-  }>;
-  apiFormats: string[];
-};
-
-const filterColumns: ColumnDefinition[] = [
-  {
-    name: "Provider",
-    id: "provider",
-    type: "arrayOptions",
-    internal: "provider",
-    options: Object.entries(providerLabels).map(([value, displayValue]) => ({
-      value,
-      displayValue,
-    })),
-  },
-  {
-    name: "API format",
-    id: "apiFormat",
-    type: "arrayOptions",
-    internal: "apiFormat",
-    options: [],
-  },
-];
-
-const filterConfig: FilterConfig = {
-  tableName: TABLE_NAME,
-  columnDefinitions: filterColumns,
-  defaultExpanded: ["provider", "apiFormat"],
-  facets: [
-    { type: "categorical", column: "provider", label: "Provider" },
-    { type: "categorical", column: "apiFormat", label: "API format" },
-  ],
-};
+const TABLE_NAME = gatewayModelsFilterConfig.tableName;
 
 const columns: LangfuseColumnDef<GatewayModelRow, unknown>[] = [
   {
     accessorKey: "id",
     id: "id",
     header: "Model",
-    size: 300,
-    isFlexWidth: true,
+    size: 200,
     cell: ({ row }) => (
       <span className="block truncate font-mono" title={row.original.id}>
         {row.original.id}
@@ -136,6 +105,20 @@ export function GatewayModelsView({
   const [searchQuery, setSearchQuery] = useState("");
   const filterOptions = useMemo(
     () => ({
+      connection: [
+        ...new Map(
+          models
+            .flatMap((model) => model.availableVia)
+            .map((connection) => [connection.connectionId, connection]),
+        ).values(),
+      ]
+        .toSorted((left, right) =>
+          left.connectionName.localeCompare(right.connectionName),
+        )
+        .map((connection) => ({
+          value: connection.connectionId,
+          displayValue: connection.connectionName,
+        })),
       provider: uniqueSorted(
         models.flatMap((model) =>
           model.availableVia.map((connection) => connection.provider),
@@ -145,9 +128,50 @@ export function GatewayModelsView({
     }),
     [models],
   );
-  const queryFilter = useSidebarFilterState(filterConfig, filterOptions, {
-    stateLocation: "memory",
-  });
+  const queryFilter = useSidebarFilterState(
+    gatewayModelsFilterConfig,
+    filterOptions,
+    {
+      stateLocation: "url",
+    },
+  );
+  const retainedConnectionIds = useMemo(
+    () =>
+      queryFilter.filterState.flatMap((filter) =>
+        filter.column === "connection" && filter.type === "arrayOptions"
+          ? filter.value
+          : [],
+      ),
+    [queryFilter.filterState],
+  );
+  const connectionSearchOptions = useMemo(
+    () =>
+      getGatewayModelConnectionSearchOptions(
+        filterOptions.connection,
+        retainedConnectionIds,
+      ),
+    [filterOptions.connection, retainedConnectionIds],
+  );
+  const searchRegistry = useMemo(
+    () =>
+      withFieldOptions(
+        GATEWAY_MODELS_FIELD_REGISTRY,
+        "connection",
+        connectionSearchOptions.registryOptions,
+      ),
+    [connectionSearchOptions.registryOptions],
+  );
+  const observedOptions = useMemo(
+    () =>
+      toObservedOptions(
+        {
+          ...filterOptions,
+          connection: connectionSearchOptions.observedValues,
+        },
+        isLoading,
+      ),
+    [connectionSearchOptions.observedValues, filterOptions, isLoading],
+  );
   const filteredModels = useMemo(
     () => filterGatewayModels(models, searchQuery, queryFilter.filterState),
     [models, queryFilter.filterState, searchQuery],
@@ -196,16 +220,40 @@ export function GatewayModelsView({
 
       <DataTableControlsProvider tableName={TABLE_NAME}>
         <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-md border">
+          <TableSearchBar
+            key={queryFilter.draftResetKey}
+            tableName={TABLE_NAME}
+            registry={searchRegistry}
+            filterState={queryFilter.searchBarFilterState}
+            setFilterState={(filters) =>
+              queryFilter.setFilterState(
+                filters.map((filter) =>
+                  filter.column === "connection" &&
+                  filter.type === "arrayOptions"
+                    ? {
+                        ...filter,
+                        value: filter.value.map(
+                          (value) =>
+                            connectionSearchOptions.connectionIdByDisplayValue.get(
+                              value,
+                            ) ?? value,
+                        ),
+                      }
+                    : filter,
+                ),
+              )
+            }
+            observed={observedOptions}
+            isV4={false}
+            search={{
+              query: searchQuery,
+              setQuery: (query) => setSearchQuery(query ?? ""),
+            }}
+          />
           <DataTableToolbar
             tableName={TABLE_NAME}
             columns={columns}
             filterState={queryFilter.filterState}
-            searchConfig={{
-              metadataSearchFields: ["Model"],
-              currentQuery: searchQuery,
-              tableAllowsFullTextSearch: false,
-              updateQuery: setSearchQuery,
-            }}
           />
           <div className="min-h-0 flex-1 overflow-hidden">
             <ResizableFilterLayout>
@@ -256,59 +304,6 @@ function uniqueSorted(values: string[]) {
   return [...new Set(values)].toSorted((left, right) =>
     left.localeCompare(right),
   );
-}
-
-function getModelFilterValues(model: GatewayModelRow, column: string) {
-  switch (column) {
-    case "provider":
-      return model.availableVia.map((connection) => connection.provider);
-    case "apiFormat":
-      return model.apiFormats;
-    default:
-      return [];
-  }
-}
-
-function filterGatewayModels(
-  models: GatewayModelRow[],
-  searchQuery: string,
-  filters: FilterState,
-) {
-  const normalizedSearch = searchQuery.trim().toLowerCase();
-
-  return models.filter((model) => {
-    if (
-      normalizedSearch.length > 0 &&
-      !model.id.toLowerCase().includes(normalizedSearch)
-    ) {
-      return false;
-    }
-
-    return filters.every((filter) => {
-      const values = getModelFilterValues(model, filter.column);
-
-      if (filter.type === "string") {
-        const needle = filter.value.toLowerCase();
-        const contains = values.some((value) =>
-          value.toLowerCase().includes(needle),
-        );
-        return filter.operator === "does not contain" ? !contains : contains;
-      }
-
-      if (filter.type !== "arrayOptions" && filter.type !== "stringOptions") {
-        return true;
-      }
-
-      const selected = filter.value;
-      if (filter.operator === "none of") {
-        return selected.every((value) => !values.includes(value));
-      }
-      if (filter.operator === "all of") {
-        return selected.every((value) => values.includes(value));
-      }
-      return selected.some((value) => values.includes(value));
-    });
-  });
 }
 
 function getEmptyMessage({

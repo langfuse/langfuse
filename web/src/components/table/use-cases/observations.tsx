@@ -90,6 +90,9 @@ import {
   useDetailPageLists,
 } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import { observationsFieldRegistry } from "@/src/features/filters/config/tracingSearchRegistry";
 import { useRouter } from "next/router";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
@@ -253,8 +256,6 @@ export default function ObservationsTable({
       utils.projects.environmentFilterOptions.invalidate(),
     ]);
   }, [utils]);
-  const { searchQuery, searchType, setSearchQuery, setSearchType } =
-    useFullTextSearch();
   const legacyTracingSearchConfig = api.public.tracingSearchConfig.useQuery(
     { projectId },
     {
@@ -266,6 +267,10 @@ export default function ObservationsTable({
   );
   const legacyTracingIoSearchEnabled =
     legacyTracingSearchConfig.data?.legacyTracingIoSearchEnabled ?? true;
+  const { searchQuery, searchType, setSearchQuery, setSearchType } =
+    useFullTextSearch({
+      tableAllowsFullTextSearch: legacyTracingIoSearchEnabled,
+    });
 
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
@@ -502,10 +507,15 @@ export default function ObservationsTable({
   const isSidebarFilterLoading =
     filterOptions.isPending || environmentFilterOptions.isPending;
 
+  const { viewControllersRef, onExplicitFilterStateChange } =
+    useTableViewFilterChange();
+
   const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
       loading: isSidebarFilterLoading,
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+      onExplicitFilterStateChange,
+      isV4: false,
     };
 
     if (peekContext) {
@@ -534,6 +544,7 @@ export default function ObservationsTable({
   }, [
     hideControls,
     isSidebarFilterLoading,
+    onExplicitFilterStateChange,
     peekContext,
     projectId,
     promptName,
@@ -553,13 +564,22 @@ export default function ObservationsTable({
     facetOptions,
     queryFilterOptions,
   );
+  const searchRegistry = observationsFieldRegistry(
+    observationsFilterConfig,
+    legacyTracingIoSearchEnabled,
+  );
+  const observedOptions = toObservedOptions(
+    facetOptions,
+    isSidebarFilterLoading,
+  );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
   queryFilterRef.current = queryFilter;
 
-  const setFiltersWrapper = useCallback(
-    (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
+  const setSavedViewFilters = useCallback(
+    (filters: FilterState) =>
+      queryFilterRef.current?.setFilterState(filters, { origin: "saved_view" }),
     [],
   );
 
@@ -1182,7 +1202,7 @@ export default function ObservationsTable({
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
-      setFilters: setFiltersWrapper,
+      setFilters: setSavedViewFilters,
       setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
@@ -1199,6 +1219,38 @@ export default function ObservationsTable({
     currentExpandedFilters: queryFilter.expanded,
     disabled: hideControls,
   });
+  viewControllersRef.current = viewControllers;
+
+  const handleSearchQueryChange = (nextQuery: string | null) => {
+    viewControllers.handleUserStateChange(searchQuery ?? "", nextQuery ?? "");
+    setSearchQuery(nextQuery);
+  };
+  const handleSearchTypeChange = (nextType: TracingSearchType[]) => {
+    if (searchQuery?.trim()) {
+      viewControllers.handleUserStateChange(
+        [...searchType].sort(),
+        [...nextType].sort(),
+      );
+    }
+    setSearchType(nextType);
+  };
+  const handleOrderByChange: typeof setOrderByState = (nextOrderBy) => {
+    viewControllers.handleUserStateChange(orderByState, nextOrderBy);
+    setOrderByState(nextOrderBy);
+  };
+  const handleColumnOrderChange: typeof setColumnOrder = (updater) => {
+    const next = typeof updater === "function" ? updater(columnOrder) : updater;
+    viewControllers.handleUserStateChange(columnOrder, next);
+    setColumnOrder(next);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibilityState = (
+    updater,
+  ) => {
+    const next =
+      typeof updater === "function" ? updater(columnVisibility) : updater;
+    viewControllers.handleUserStateChange(columnVisibility, next);
+    setColumnVisibilityState(next);
+  };
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
     if (hideControls) return undefined;
@@ -1284,54 +1336,68 @@ export default function ObservationsTable({
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         {!hideControls && (
-          <ObservationsDataTableToolbar
-            columns={columns}
-            filterState={queryFilter.explicitFilterState}
-            searchConfig={{
-              metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
-              updateQuery: setSearchQuery,
-              currentQuery: searchQuery ?? undefined,
-              tableAllowsFullTextSearch: legacyTracingIoSearchEnabled,
-              searchType,
-              setSearchType,
-            }}
-            viewConfig={{
-              tableName: TableViewPresetTableName.Observations,
-              projectId,
-              controllers: viewControllers,
-            }}
-            columnsWithCustomSelect={[
-              "model",
-              "name",
-              "traceName",
-              "promptName",
-            ]}
-            columnVisibility={columnVisibility}
-            setColumnVisibility={setColumnVisibilityState}
-            columnOrder={columnOrder}
-            setColumnOrder={setColumnOrder}
-            orderByState={orderByState}
-            rowHeight={rowHeight}
-            setRowHeight={setRowHeight}
-            timeRange={showControlsInPageHeader ? undefined : timeRange}
-            setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-            refreshConfig={showControlsInPageHeader ? undefined : refreshConfig}
-            projectId={projectId}
-            backendFilterState={backendFilterState}
-            searchQuery={searchQuery}
-            searchType={searchType}
-            tableActions={tableActions}
-            totalCount={totalCount}
-            paginationState={paginationState}
-          />
+          <div className="shrink-0 pb-1.5">
+            <TableSearchBar
+              key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+              projectId={projectId}
+              tableName={observationsFilterConfig.tableName}
+              registry={searchRegistry}
+              filterState={queryFilter.searchBarFilterState}
+              setFilterState={queryFilter.setFilterState}
+              observed={observedOptions}
+              isV4={false}
+              search={{
+                query: searchQuery,
+                type: searchType,
+                setQuery: handleSearchQueryChange,
+                setType: handleSearchTypeChange,
+              }}
+            />
+            <ObservationsDataTableToolbar
+              rowClassName="my-1"
+              isV4={false}
+              columns={columns}
+              filterState={queryFilter.explicitFilterState}
+              viewConfig={{
+                tableName: TableViewPresetTableName.Observations,
+                projectId,
+                controllers: viewControllers,
+              }}
+              currentSearchQuery={searchQuery ?? ""}
+              columnsWithCustomSelect={[
+                "model",
+                "name",
+                "traceName",
+                "promptName",
+              ]}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={handleColumnVisibilityChange}
+              columnOrder={columnOrder}
+              setColumnOrder={handleColumnOrderChange}
+              orderByState={orderByState}
+              rowHeight={rowHeight}
+              setRowHeight={setRowHeight}
+              timeRange={showControlsInPageHeader ? undefined : timeRange}
+              setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+              refreshConfig={
+                showControlsInPageHeader ? undefined : refreshConfig
+              }
+              projectId={projectId}
+              backendFilterState={backendFilterState}
+              searchQuery={searchQuery}
+              searchType={searchType}
+              tableActions={tableActions}
+              totalCount={totalCount}
+              paginationState={paginationState}
+            />
+          </div>
         )}
 
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
           {!hideControls && (
             <DataTableControls
-              // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
-              key={viewControllers.selectedViewId ?? "no-view"}
+              key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
               queryFilter={queryFilter}
             />
           )}
@@ -1366,12 +1432,12 @@ export default function ObservationsTable({
                       state: paginationState,
                     }
               }
-              setOrderBy={setOrderByState}
+              setOrderBy={handleOrderByChange}
               orderBy={orderByState}
               columnOrder={columnOrder}
-              onColumnOrderChange={setColumnOrder}
+              onColumnOrderChange={handleColumnOrderChange}
               columnVisibility={columnVisibility}
-              onColumnVisibilityChange={setColumnVisibilityState}
+              onColumnVisibilityChange={handleColumnVisibilityChange}
               rowHeight={rowHeight}
               onRowClick={(row, event) => {
                 // Handle Command/Ctrl+click to open observation in new tab

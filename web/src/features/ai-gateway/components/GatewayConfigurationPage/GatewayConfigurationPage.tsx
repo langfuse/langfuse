@@ -70,11 +70,12 @@ export function GatewayConfigurationPage({
     );
   }
 
-  const config = configQuery.data;
+  const { config, gatewayBaseUrl } = configQuery.data;
   return (
     <GatewayConfigurationView
       key={`${config?.updatedAt?.toISOString() ?? "new"}:${config?.defaultIngestionProjectId ?? "none"}:${config?.ingestionMode ?? "USAGE"}`}
       projects={projects}
+      gatewayBaseUrl={gatewayBaseUrl}
       initialProjectId={config?.defaultIngestionProjectId ?? null}
       initialIngestionMode={config?.ingestionMode ?? "USAGE"}
       isSaving={createProject.isPending || updateConfig.isPending}
