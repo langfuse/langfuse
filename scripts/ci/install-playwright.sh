@@ -4,8 +4,6 @@ set -euo pipefail
 
 sudo tee /etc/apt/apt.conf.d/80-playwright-network-retries > /dev/null <<'EOF'
 Acquire::Retries "3";
-Acquire::http::Timeout "15";
-Acquire::https::Timeout "15";
 EOF
 
 pnpm --filter=web exec playwright install --with-deps --only-shell chromium
