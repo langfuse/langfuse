@@ -56,7 +56,14 @@ export const BreakdownTooltip = ({
 
   const formatValue = (value: number) =>
     isCost ? usdFormatter(value, 2, 12) : value ? value.toLocaleString() : "0";
-  const otherEntries = Object.entries(aggregatedDetails)
+  const entries = Object.entries(aggregatedDetails);
+  const inputEntries = sortEntriesByValue(
+    entries.filter(([key]) => key.includes("input")),
+  );
+  const outputEntries = sortEntriesByValue(
+    entries.filter(([key]) => key.includes("output")),
+  );
+  const otherEntries = entries
     .filter(
       ([key]) =>
         !key.includes("input") && !key.includes("output") && key !== "total",
@@ -67,19 +74,7 @@ export const BreakdownTooltip = ({
 
     return acc + value;
   }, 0);
-  const contributionEntries = [
-    ...sortEntriesByValue(
-      Object.entries(aggregatedDetails).filter(([key]) =>
-        key.includes("input"),
-      ),
-    ),
-    ...sortEntriesByValue(
-      Object.entries(aggregatedDetails).filter(([key]) =>
-        key.includes("output"),
-      ),
-    ),
-    ...otherEntries,
-  ];
+  const contributionEntries = inputEntries.concat(outputEntries, otherEntries);
   const waterfallSegments = createWaterfallSegments(contributionEntries);
 
   const resolvedCostSource =
@@ -94,7 +89,7 @@ export const BreakdownTooltip = ({
         >
           {children}
         </TooltipTrigger>
-        <TooltipContent className="w-[32rem] max-w-[calc(100vw-2rem)] p-4">
+        <TooltipContent className="w-[30rem] max-w-[calc(100vw-2rem)] p-4">
           <div className="flex min-w-0 flex-col gap-4">
             <div className="flex flex-col gap-1">
               <span className="font-bold">
@@ -148,8 +143,7 @@ export const BreakdownTooltip = ({
             {/* Input Section */}
             <Section
               title={isCost ? "Input cost" : "Input usage"}
-              details={aggregatedDetails}
-              filterFn={(key) => key.includes("input")}
+              entries={inputEntries}
               formatValue={formatValue}
               waterfallSegments={waterfallSegments}
             />
@@ -157,8 +151,7 @@ export const BreakdownTooltip = ({
             {/* Output Section */}
             <Section
               title={isCost ? "Output cost" : "Output usage"}
-              details={aggregatedDetails}
-              filterFn={(key) => key.includes("output")}
+              entries={outputEntries}
               formatValue={formatValue}
               waterfallSegments={waterfallSegments}
             />
@@ -201,7 +194,7 @@ const breakdownRowVariants = cva("min-w-0 items-center gap-3 text-xs", {
     layout: {
       default: "flex",
       waterfall:
-        "grid grid-cols-[minmax(0,1fr)_8rem_auto] max-sm:grid-cols-[minmax(0,1fr)_6rem_auto]",
+        "grid grid-cols-[minmax(0,1fr)_7rem_7rem] max-sm:grid-cols-[minmax(0,1fr)_6rem_6rem]",
     },
     variant: {
       item: "text-muted-foreground",
@@ -267,24 +260,18 @@ function BreakdownRow({
 
 interface SectionProps {
   title: string;
-  details: Details;
-  filterFn: (key: string) => boolean;
+  entries: [string, number | undefined][];
   formatValue: (value: number) => string;
   waterfallSegments: Map<string, WaterfallSegment>;
 }
 
 const Section = ({
   title,
-  details,
-  filterFn,
+  entries,
   formatValue,
   waterfallSegments,
 }: SectionProps) => {
-  const filteredEntries = sortEntriesByValue(
-    Object.entries(details).filter(([key]) => filterFn(key)),
-  );
-
-  const sectionTotal = filteredEntries.reduce(
+  const sectionTotal = entries.reduce(
     (sum, [_, value]) =>
       new Decimal(sum).plus(new Decimal(value ?? 0)).toNumber(),
     0,
@@ -297,7 +284,7 @@ const Section = ({
         value={formatValue(sectionTotal)}
         variant="section"
       />
-      {filteredEntries.map(([key, value]) => (
+      {entries.map(([key, value]) => (
         <BreakdownRow
           key={key}
           label={key}
@@ -317,22 +304,22 @@ function sortEntriesByValue(entries: [string, number | undefined][]) {
 function createWaterfallSegments(
   entries: [string, number | undefined][],
 ): Map<string, WaterfallSegment> {
-  const totalMagnitude = entries.reduce(
-    (sum, [, value]) => sum + Math.abs(value ?? 0),
+  const total = entries.reduce(
+    (sum, [, value]) => sum + Math.max(value ?? 0, 0),
     0,
   );
 
-  if (totalMagnitude === 0) return new Map();
+  if (total === 0) return new Map();
 
-  let cumulativeMagnitude = 0;
+  let cumulative = 0;
   return new Map(
     entries.map(([key, value]) => {
-      const magnitude = Math.abs(value ?? 0);
+      const contribution = Math.max(value ?? 0, 0);
       const segment = {
-        left: (cumulativeMagnitude / totalMagnitude) * 100,
-        width: (magnitude / totalMagnitude) * 100,
+        left: (cumulative / total) * 100,
+        width: (contribution / total) * 100,
       };
-      cumulativeMagnitude += magnitude;
+      cumulative += contribution;
       return [key, segment];
     }),
   );
