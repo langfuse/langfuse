@@ -1009,6 +1009,31 @@ describe("InMemoryFilterService", () => {
       expect(presence("toString", "is not set")).toBe(true);
     });
 
+    test("declines to match empty substring values (agrees with the rejected DB path)", () => {
+      const emptySubstring = (
+        operator: "contains" | "starts with" | "ends with",
+      ) =>
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "metadata",
+              type: "stringObject",
+              key: "userId",
+              operator,
+              value: "",
+            },
+          ],
+          fieldMapper,
+        );
+
+      // `userId` is present, so `contains ""` would otherwise match; the DB
+      // path rejects the same filter, so in memory it must not match either.
+      expect(emptySubstring("contains")).toBe(false);
+      expect(emptySubstring("starts with")).toBe(false);
+      expect(emptySubstring("ends with")).toBe(false);
+    });
+
     test("evaluates numberObject filters correctly", () => {
       expect(
         InMemoryFilterService.evaluateFilter(
