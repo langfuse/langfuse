@@ -67,6 +67,7 @@ import {
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   BreakdownTooltip,
   calculateAggregatedUsage,
@@ -1529,6 +1530,10 @@ function ObservationsDataTableToolbar({
   totalCount,
   ...toolbarProps
 }: ObservationsDataTableToolbarProps) {
+  const hasBatchExportAccess = useHasProjectAccess({
+    projectId,
+    scope: "batchExports:create",
+  });
   const selectedObservationIds = useObservationsTableStore(
     (state) => state.selectedPageRowIds,
   );
@@ -1544,17 +1549,19 @@ function ObservationsDataTableToolbar({
       {...toolbarProps}
       orderByState={orderByState}
       actionButtons={[
-        <BatchExportTableButton
-          {...{
-            projectId,
-            filterState: backendFilterState,
-            orderByState,
-            searchQuery,
-            searchType,
-          }}
-          tableName={BatchExportTableName.Observations}
-          key="batchExport"
-        />,
+        hasBatchExportAccess ? (
+          <BatchExportTableButton
+            {...{
+              projectId,
+              filterState: backendFilterState,
+              orderByState,
+              searchQuery,
+              searchType,
+            }}
+            tableName={BatchExportTableName.Observations}
+            key="batchExport"
+          />
+        ) : null,
         selectedObservationIds.length > 0 || selectAll ? (
           <TableActionMenu
             key="observations-multi-select-actions"
