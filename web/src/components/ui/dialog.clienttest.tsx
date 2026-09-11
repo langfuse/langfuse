@@ -91,4 +91,22 @@ describe("DialogController", () => {
     expect(onDismiss).not.toHaveBeenCalled();
     expect(screen.getByText("Vetoed dialog")).toBeInTheDocument();
   });
+
+  it("opens from initialState without reacting to later changes", () => {
+    const renderController = (initialState: string | undefined) => (
+      <DialogController<string>
+        initialState={() => initialState}
+        closeOnInteractionOutside={false}
+        size="default"
+        renderContent={({ state }) => <DialogTitle>{state}</DialogTitle>}
+      >
+        {() => null}
+      </DialogController>
+    );
+    const { rerender } = render(renderController("first"));
+
+    expect(screen.getByText("first")).toBeInTheDocument();
+    rerender(renderController("second"));
+    expect(screen.queryByText("second")).not.toBeInTheDocument();
+  });
 });
