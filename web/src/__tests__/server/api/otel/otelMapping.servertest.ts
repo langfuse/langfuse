@@ -3045,6 +3045,49 @@ describe("OTel Resource Span Mapping", () => {
       expect(langfuseEvents[1].body.name).toBe("right name");
     });
 
+    it("should prefer LiteLLM's dispatched provider model over the router alias", async () => {
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            scope: { name: "litellm" },
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "chat" },
+                  },
+                  {
+                    key: "gen_ai.request.model",
+                    value: { stringValue: "router" },
+                  },
+                  {
+                    key: "gen_ai.response.model",
+                    value: { stringValue: "router" },
+                  },
+                  {
+                    key: "litellm.provider.model",
+                    value: { stringValue: "openai/gpt-4o-mini" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const observationEvent = langfuseEvents.find(
+        (event) => event.type !== "trace-create",
+      );
+
+      expect(observationEvent?.body.model).toBe("openai/gpt-4o-mini");
+    });
+
     it.each([
       [
         "should cast input_tokens from string to number",
