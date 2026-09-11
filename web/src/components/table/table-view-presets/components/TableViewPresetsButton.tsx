@@ -25,7 +25,7 @@ export function TableViewPresetsButton({
   count,
   ...props
 }: TableViewPresetsButtonProps) {
-  const label = selectedView ? `My Views: ${selectedView.name}` : "My Views";
+  const label = selectedView?.name ?? "My Views";
   const title = selectedView?.defaultLabel
     ? `${label} (${selectedView.defaultLabel})`
     : label;
