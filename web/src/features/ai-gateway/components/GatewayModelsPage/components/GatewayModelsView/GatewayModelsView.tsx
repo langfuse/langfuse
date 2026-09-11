@@ -44,7 +44,7 @@ const columns: LangfuseColumnDef<GatewayModelRow, unknown>[] = [
     header: "Model",
     size: 200,
     cell: ({ row }) => (
-      <span className="block truncate" title={row.original.id}>
+      <span className="block truncate font-mono" title={row.original.id}>
         {row.original.id}
       </span>
     ),
