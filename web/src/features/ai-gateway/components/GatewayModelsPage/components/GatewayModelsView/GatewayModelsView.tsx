@@ -13,11 +13,15 @@ import {
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { useSidebarFilterState } from "@/src/features/filters";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import { gatewayModelsFilterConfig } from "@/src/features/ai-gateway/constants/modelsFilterConfig";
 import { GATEWAY_MODELS_FIELD_REGISTRY } from "@/src/features/ai-gateway/constants/modelsSearchRegistry";
-import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import {
+  TableSearchBar,
+  toObservedOptions,
+  withFieldOptions,
+} from "@/src/features/search-bar";
 import {
   filterGatewayModels,
   type GatewayModelRow,
@@ -124,6 +128,38 @@ export function GatewayModelsView({
     }),
     [models],
   );
+  const searchRegistry = useMemo(
+    () =>
+      withFieldOptions(
+        GATEWAY_MODELS_FIELD_REGISTRY,
+        "connection",
+        filterOptions.connection,
+      ),
+    [filterOptions.connection],
+  );
+  const connectionIdByName = useMemo(
+    () =>
+      new Map(
+        filterOptions.connection.map(({ value, displayValue }) => [
+          displayValue,
+          value,
+        ]),
+      ),
+    [filterOptions.connection],
+  );
+  const observedOptions = useMemo(
+    () =>
+      toObservedOptions(
+        {
+          ...filterOptions,
+          connection: filterOptions.connection.map(
+            ({ displayValue }) => displayValue,
+          ),
+        },
+        isLoading,
+      ),
+    [filterOptions, isLoading],
+  );
   const queryFilter = useSidebarFilterState(
     gatewayModelsFilterConfig,
     filterOptions,
@@ -182,10 +218,24 @@ export function GatewayModelsView({
           <TableSearchBar
             key={queryFilter.draftResetKey}
             tableName={TABLE_NAME}
-            registry={GATEWAY_MODELS_FIELD_REGISTRY}
+            registry={searchRegistry}
             filterState={queryFilter.searchBarFilterState}
-            setFilterState={queryFilter.setFilterState}
-            observed={toObservedOptions(filterOptions, isLoading)}
+            setFilterState={(filters) =>
+              queryFilter.setFilterState(
+                filters.map((filter) =>
+                  filter.column === "connection" &&
+                  filter.type === "arrayOptions"
+                    ? {
+                        ...filter,
+                        value: filter.value.map(
+                          (value) => connectionIdByName.get(value) ?? value,
+                        ),
+                      }
+                    : filter,
+                ),
+              )
+            }
+            observed={observedOptions}
             isV4={false}
             search={{
               query: searchQuery,
