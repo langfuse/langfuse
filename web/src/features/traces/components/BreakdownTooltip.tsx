@@ -67,6 +67,20 @@ export const BreakdownTooltip = ({
 
     return acc + value;
   }, 0);
+  const contributionEntries = [
+    ...sortEntriesByValue(
+      Object.entries(aggregatedDetails).filter(([key]) =>
+        key.includes("input"),
+      ),
+    ),
+    ...sortEntriesByValue(
+      Object.entries(aggregatedDetails).filter(([key]) =>
+        key.includes("output"),
+      ),
+    ),
+    ...otherEntries,
+  ];
+  const waterfallSegments = createWaterfallSegments(contributionEntries);
 
   const resolvedCostSource =
     costSource ?? (isCost && priceSource ? "calculated" : undefined);
@@ -80,7 +94,7 @@ export const BreakdownTooltip = ({
         >
           {children}
         </TooltipTrigger>
-        <TooltipContent className="w-max max-w-80 min-w-52 p-4">
+        <TooltipContent className="w-[36rem] max-w-[calc(100vw-2rem)] p-4">
           <div className="flex min-w-0 flex-col gap-4">
             <div className="flex flex-col gap-1">
               <span className="font-bold">
@@ -137,6 +151,7 @@ export const BreakdownTooltip = ({
               details={aggregatedDetails}
               filterFn={(key) => key.includes("input")}
               formatValue={formatValue}
+              waterfallSegments={waterfallSegments}
             />
 
             {/* Output Section */}
@@ -145,6 +160,7 @@ export const BreakdownTooltip = ({
               details={aggregatedDetails}
               filterFn={(key) => key.includes("output")}
               formatValue={formatValue}
+              waterfallSegments={waterfallSegments}
             />
 
             {/* Other Section */}
@@ -161,6 +177,7 @@ export const BreakdownTooltip = ({
                     label={key}
                     value={formatValue(value ?? 0)}
                     variant="item"
+                    waterfallSegment={waterfallSegments.get(key)}
                   />
                 ))}
               </div>
@@ -179,8 +196,13 @@ export const BreakdownTooltip = ({
   );
 };
 
-const breakdownRowVariants = cva("flex min-w-0 items-center gap-3 text-xs", {
+const breakdownRowVariants = cva("min-w-0 items-center gap-3 text-xs", {
   variants: {
+    layout: {
+      default: "flex",
+      waterfall:
+        "grid grid-cols-[minmax(0,1fr)_10rem_auto] max-sm:grid-cols-[minmax(0,1fr)_6rem_auto]",
+    },
     variant: {
       item: "text-muted-foreground",
       section: "border-b pb-1 font-bold",
@@ -188,26 +210,53 @@ const breakdownRowVariants = cva("flex min-w-0 items-center gap-3 text-xs", {
     },
   },
   defaultVariants: {
+    layout: "default",
     variant: "item",
   },
 });
+
+interface WaterfallSegment {
+  left: number;
+  width: number;
+}
 
 function BreakdownRow({
   label,
   value,
   variant,
+  waterfallSegment,
 }: {
   label: string;
   value: string;
   variant: NonNullable<VariantProps<typeof breakdownRowVariants>["variant"]>;
+  waterfallSegment?: WaterfallSegment;
 }) {
   return (
-    <div className={breakdownRowVariants({ variant })}>
+    <div
+      className={breakdownRowVariants({
+        layout: waterfallSegment ? "waterfall" : "default",
+        variant,
+      })}
+    >
       <span className="min-w-0 flex-1 truncate" title={label}>
         {label}
       </span>
+      {waterfallSegment ? (
+        <span
+          className="bg-muted relative h-2 overflow-hidden rounded-sm"
+          aria-hidden="true"
+        >
+          <span
+            className="bg-primary/60 absolute h-full rounded-sm"
+            style={{
+              left: `${waterfallSegment.left}%`,
+              width: `${waterfallSegment.width}%`,
+            }}
+          />
+        </span>
+      ) : null}
       <span
-        className="max-w-[50%] min-w-0 truncate text-right font-mono tabular-nums"
+        className="min-w-0 truncate text-right font-mono tabular-nums"
         title={value}
       >
         {value}
@@ -221,12 +270,19 @@ interface SectionProps {
   details: Details;
   filterFn: (key: string) => boolean;
   formatValue: (value: number) => string;
+  waterfallSegments: Map<string, WaterfallSegment>;
 }
 
-const Section = ({ title, details, filterFn, formatValue }: SectionProps) => {
-  const filteredEntries = Object.entries(details)
-    .filter(([key]) => filterFn(key))
-    .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
+const Section = ({
+  title,
+  details,
+  filterFn,
+  formatValue,
+  waterfallSegments,
+}: SectionProps) => {
+  const filteredEntries = sortEntriesByValue(
+    Object.entries(details).filter(([key]) => filterFn(key)),
+  );
 
   const sectionTotal = filteredEntries.reduce(
     (sum, [_, value]) =>
@@ -247,8 +303,37 @@ const Section = ({ title, details, filterFn, formatValue }: SectionProps) => {
           label={key}
           value={formatValue(value ?? 0)}
           variant="item"
+          waterfallSegment={waterfallSegments.get(key)}
         />
       ))}
     </div>
   );
 };
+
+function sortEntriesByValue(entries: [string, number | undefined][]) {
+  return entries.toSorted(([, a], [, b]) => (b ?? 0) - (a ?? 0));
+}
+
+function createWaterfallSegments(
+  entries: [string, number | undefined][],
+): Map<string, WaterfallSegment> {
+  const totalMagnitude = entries.reduce(
+    (sum, [, value]) => sum + Math.abs(value ?? 0),
+    0,
+  );
+
+  if (totalMagnitude === 0) return new Map();
+
+  let cumulativeMagnitude = 0;
+  return new Map(
+    entries.map(([key, value]) => {
+      const magnitude = Math.abs(value ?? 0);
+      const segment = {
+        left: (cumulativeMagnitude / totalMagnitude) * 100,
+        width: (magnitude / totalMagnitude) * 100,
+      };
+      cumulativeMagnitude += magnitude;
+      return [key, segment];
+    }),
+  );
+}
