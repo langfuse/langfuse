@@ -35,19 +35,20 @@ const hasMetadata = (
 /**
  * `--chart-1` … `--chart-8` from globals.css — the dashboard categorical
  * palette, reused so a score's dot cannot contradict the colour the same score
- * carries in a chart. Both themes define all eight.
+ * carries in a chart. Both themes define all eight. `--chart-3` is a neutral
+ * grey that reads as "disabled" next to the others, so dots skip it.
  */
-const CHART_PALETTE_SIZE = 8;
+const DOT_PALETTE_SLOTS = [1, 2, 4, 5, 6, 7, 8] as const;
 
 /**
  * Dot colour is a pure function of the score NAME, so one score keeps one
  * colour across every row, panel and trace it appears in — the dot is an
  * identity cue, not a value or a status. Names collide onto the same colour by
- * construction (eight slots); the name next to the dot is what disambiguates.
+ * construction (seven slots); the name next to the dot is what disambiguates.
  */
 const scoreDotColor = (name: string) => {
-  // FNV-1a, then fold the high bits down. The slot is `hash % 8`, so only the
-  // low three bits decide it — without the fold the result depends on little
+  // FNV-1a, then fold the high bits down. The slot is a small modulus, so only
+  // the low bits decide it — without the fold the result depends on little
   // more than the last character, and names that rhyme land on one colour.
   let hash = 0x811c9dc5;
   for (let index = 0; index < name.length; index++) {
@@ -58,8 +59,8 @@ const scoreDotColor = (name: string) => {
   hash = Math.imul(hash, 0x21f0aaad);
   hash ^= hash >>> 15;
 
-  const slot = (hash >>> 0) % CHART_PALETTE_SIZE;
-  return `hsl(var(--chart-${slot + 1}))`;
+  const slot = DOT_PALETTE_SLOTS[(hash >>> 0) % DOT_PALETTE_SLOTS.length];
+  return `hsl(var(--chart-${slot}))`;
 };
 
 const ExecutionTraceLink = ({
