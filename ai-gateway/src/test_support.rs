@@ -73,7 +73,8 @@ pub(crate) fn resolution_response(provider_token: &str) -> Response<Body> {
             "auth": {"type": "Bearer", "token": provider_token}
         },
         "attribution": {
-            "organization_id": "org-1", "project_id": "project-1", "key_id": "key-1", "key_metadata": {}
+            "organization_id": "org-1", "project_id": "project-1", "key_id": "key-1", "key_metadata": {},
+            "provider_connection_id": "provider-connection-1"
         },
         "ingestion_mode": "usage",
         "ingestion": {"access_token": "private-ingestion-token", "token_type": "Bearer", "expires_at": expires_at}
