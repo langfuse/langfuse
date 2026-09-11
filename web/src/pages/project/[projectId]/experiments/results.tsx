@@ -179,7 +179,7 @@ export default function ExperimentResults() {
             key={ioRenderMode}
             projectId={projectId}
             ioRenderMode={ioRenderMode}
-            settingsSections={
+            toolbarSettings={
               <ExperimentFormatSetting
                 ioRenderMode={ioRenderMode}
                 onIoRenderModeChange={setIoRenderMode}

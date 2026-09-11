@@ -10,7 +10,7 @@ import {
   type ColumnOrderState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { ChevronDown, ChevronRight, Component, Menu, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Component, Menu } from "lucide-react";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import DocPopup from "@/src/components/layouts/doc-popup";
@@ -33,14 +33,7 @@ import {
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { cn } from "@/src/utils/tailwind";
 import { isString } from "@/src/utils/types";
-import {
-  DrawerTrigger,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  Drawer,
-  DrawerClose,
-} from "@/src/components/ui/drawer";
+import { PopoverController } from "@/src/components/ui/popover";
 import {
   Collapsible,
   CollapsibleContent,
@@ -64,19 +57,20 @@ export type ColumnGroupTogglePayload = {
   totalCount: number;
 };
 
-interface DataTableColumnVisibilityFilterProps<TData, TValue> {
+interface ColumnVisibilityProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
   columnVisibility: VisibilityState;
   setColumnVisibility: Dispatch<SetStateAction<VisibilityState>>;
   columnOrder?: ColumnOrderState;
   setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
-  triggerSize?: ComponentProps<typeof Button>["size"];
-  /** Defaults to "Columns"; overridden where the surrounding surface already
-   *  says "Columns" (the merged table-settings popover). */
-  triggerLabel?: string;
   tableName?: string;
   isV4?: boolean;
   onColumnGroupToggle?: (payload: ColumnGroupTogglePayload) => void;
+  triggerSize?: ComponentProps<typeof Button>["size"];
+  additionalColumnSettings?: {
+    content: React.ReactNode;
+    onRestoreDefaults: () => void;
+  };
 }
 
 /**
@@ -146,7 +140,7 @@ function ColumnVisibilityListItem<TData, TValue>({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex w-full items-center justify-between rounded-md p-2",
+        "flex w-full items-center justify-between gap-2 rounded-md p-2",
         isDragging ? "opacity-80" : "opacity-100",
         "hover:bg-muted/50 group transition-colors",
       )}
@@ -158,7 +152,7 @@ function ColumnVisibilityListItem<TData, TValue>({
         zIndex: isDragging ? 1 : undefined,
       }}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2">
         <Checkbox
           id={checkboxId}
           checked={isChecked || isLocked}
@@ -170,7 +164,7 @@ function ColumnVisibilityListItem<TData, TValue>({
         <label
           htmlFor={checkboxId}
           className={cn(
-            "text-sm capitalize",
+            "min-w-0 text-sm break-words capitalize",
             isLocked ? "opacity-50" : "cursor-pointer",
           )}
           title={
@@ -198,7 +192,7 @@ function ColumnVisibilityListItem<TData, TValue>({
           variant="ghost"
           size="xs"
           title="Drag and drop to reorder columns"
-          className="invisible group-hover:visible"
+          className="invisible shrink-0 group-focus-within:visible group-hover:visible"
         >
           <Menu className="h-3 w-3" />
         </Button>
@@ -247,15 +241,17 @@ function GroupVisibilityHeader<TData, TValue>({
             zIndex: isDragging ? 1 : undefined,
           }}
         >
-          <div className="flex items-center gap-2">
-            <Component className="h-4 w-4 opacity-50" />
-            <span className="text-sm font-bold">{getColumnLabel(column)}</span>
-            <span className="text-muted-foreground text-xs">
+          <div className="flex min-w-0 items-center gap-2">
+            <Component className="h-4 w-4 shrink-0 opacity-50" />
+            <span className="min-w-0 text-sm font-bold">
+              {getColumnLabel(column)}
+            </span>
+            <span className="text-muted-foreground shrink-0 text-xs whitespace-nowrap">
               ({groupVisibleCount}/{groupTotalCount})
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1">
             {attributes && listeners && (
               <Button
                 {...attributes}
@@ -263,7 +259,7 @@ function GroupVisibilityHeader<TData, TValue>({
                 variant="ghost"
                 size="xs"
                 title="Drag and drop to reorder columns"
-                className="opacity-0 transition-opacity group-hover:opacity-100"
+                className="opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
               >
                 <Menu className="h-3 w-3" />
               </Button>
@@ -327,11 +323,11 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   columnOrder,
   setColumnOrder,
   triggerSize,
-  triggerLabel = "Columns",
+  additionalColumnSettings,
   tableName = "unknown",
   isV4 = false,
   onColumnGroupToggle,
-}: DataTableColumnVisibilityFilterProps<TData, TValue>) {
+}: ColumnVisibilityProps<TData, TValue>) {
   const capture = usePostHogClientCapture();
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(
     {},
@@ -342,6 +338,9 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
       defaultColumnOrder: columns.map((col) => col.accessorKey),
       defaultColumnVisibility: columns.reduce((acc, col) => {
         acc[col.accessorKey] = !col.defaultHidden;
+        col.columns?.forEach((subCol) => {
+          acc[subCol.accessorKey] = !subCol.defaultHidden;
+        });
         return acc;
       }, {} as VisibilityState),
     };
@@ -424,48 +423,32 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   }
 
   return (
-    <DndContext
-      collisionDetection={closestCenter}
-      modifiers={[restrictToVerticalAxis]}
-      onDragEnd={isColumnOrderingEnabled ? handleDragEnd : undefined}
-      sensors={sensors}
-    >
-      <Drawer modal={false}>
-        <DrawerTrigger asChild>
-          <Button
-            variant="outline"
-            size={triggerSize}
-            title="Show/hide columns"
-          >
-            <span>{triggerLabel}</span>
-            <div className="bg-input ml-1 rounded-sm px-1 text-xs">{`${count}/${total}`}</div>
-          </Button>
-        </DrawerTrigger>
-        <DrawerContent portalLayer="popover" overlayClassName="bg-primary/10">
+    <PopoverController
+      align="end"
+      contentClassName="max-h-[min(70vh,var(--radix-popover-content-available-height))] w-90 max-w-[calc(100vw-1rem)] overflow-y-auto p-2"
+      disabled={false}
+      modal={false}
+      renderContent={() => (
+        <DndContext
+          collisionDetection={closestCenter}
+          modifiers={[restrictToVerticalAxis]}
+          onDragEnd={isColumnOrderingEnabled ? handleDragEnd : undefined}
+          sensors={sensors}
+        >
           <div className="mx-auto w-full overflow-y-auto md:max-h-full">
-            <div className="sticky top-0 z-10">
-              <DrawerHeader className="bg-modal flex flex-row items-center justify-between rounded-sm px-3 py-2">
-                <DrawerTitle>Column Visibility</DrawerTitle>
-                <div className="flex flex-row gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      if (setColumnOrder) {
-                        setColumnOrder(defaultColumnOrder);
-                      }
-                      setColumnVisibility(defaultColumnVisibility);
-                    }}
-                  >
-                    Restore Defaults
-                  </Button>
-                  <DrawerClose asChild>
-                    <Button variant="outline" size="icon">
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </DrawerClose>
-                </div>
-              </DrawerHeader>
-              <Separator />
+            <div className="flex items-center justify-between gap-2 px-1">
+              <p className="text-muted-foreground text-xs">Columns</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setColumnOrder?.(defaultColumnOrder);
+                  setColumnVisibility(defaultColumnVisibility);
+                  additionalColumnSettings?.onRestoreDefaults();
+                }}
+              >
+                Restore Defaults
+              </Button>
             </div>
             <div>
               <div
@@ -566,9 +549,28 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                 </div>
               </SortableContext>
             </div>
+            {additionalColumnSettings && (
+              <>
+                <Separator />
+                {additionalColumnSettings.content}
+              </>
+            )}
           </div>
-        </DrawerContent>
-      </Drawer>
-    </DndContext>
+        </DndContext>
+      )}
+    >
+      {({ Trigger }) => (
+        <Trigger asChild>
+          <Button
+            variant="outline"
+            size={triggerSize}
+            title="Show/hide columns"
+          >
+            <span>Columns</span>
+            <div className="bg-input ml-1 rounded-sm px-1 text-xs">{`${count}/${total}`}</div>
+          </Button>
+        </Trigger>
+      )}
+    </PopoverController>
   );
 }

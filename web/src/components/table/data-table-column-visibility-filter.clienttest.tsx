@@ -55,6 +55,7 @@ const groupedColumns: LangfuseColumnDef<{ id: string }>[] = [
         accessorKey: "traceItemScores-helpfulness",
         header: "helpfulness",
         enableHiding: true,
+        defaultHidden: true,
       },
     ],
   },
@@ -149,6 +150,7 @@ describe("DataTableColumnVisibilityFilter", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /columns/i }));
 
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
     const inputCheckbox = screen.getByRole("checkbox", { name: "Input" });
     expect(inputCheckbox).toBeChecked();
 
@@ -208,5 +210,22 @@ describe("DataTableColumnVisibilityFilter", () => {
     expect(JSON.stringify(h.onColumnGroupToggle.mock.calls[0][0])).not.toMatch(
       /helpfulness|accuracy/,
     );
+  });
+
+  it("restores grouped defaults and keeps the group expanded after reopening", () => {
+    render(<GroupedColumnVisibilityHarness />);
+
+    fireEvent.click(screen.getByRole("button", { name: /columns/i }));
+    fireEvent.click(screen.getByText("Trace Item Scores"));
+    fireEvent.click(screen.getByRole("button", { name: "Restore Defaults" }));
+
+    expect(screen.getByRole("checkbox", { name: "accuracy" })).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "helpfulness" }),
+    ).not.toBeChecked();
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: /columns/i }));
+    expect(screen.getByRole("checkbox", { name: "accuracy" })).toBeChecked();
   });
 });

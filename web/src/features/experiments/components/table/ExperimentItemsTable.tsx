@@ -524,7 +524,7 @@ export default function ExperimentItemsTable({
   projectId,
   ioRenderMode,
   hideControls = false,
-  settingsSections,
+  toolbarSettings,
 }: ExperimentItemsTableProps) {
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
@@ -2076,12 +2076,7 @@ export default function ExperimentItemsTable({
             orderByState={orderByState}
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
-            // One "Table settings" button for the controls that shape this
-            // table, as on the experiments list — where two buttons plus a
-            // third control in the page header was the inconsistency between
-            // the two surfaces of the same feature.
-            mergeSettingsIntoPopover
-            settingsSections={settingsSections}
+            toolbarSettings={toolbarSettings}
             multiSelect={{
               selectAll,
               setSelectAll,
