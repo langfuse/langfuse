@@ -222,6 +222,7 @@ export function ConnectedObservationDetailView({
     (enabled: boolean) => {
       capture("trace_detail:json_beta_toggle", {
         enabled,
+        target: "observation",
         ...analyticsDimensions,
       });
       setJsonBetaEnabled(enabled);

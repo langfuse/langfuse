@@ -127,6 +127,7 @@ export function TraceDetailView({
     (enabled: boolean) => {
       capture("trace_detail:json_beta_toggle", {
         enabled,
+        target: "trace",
         ...analyticsDimensions,
       });
       setJsonBetaEnabled(enabled);
