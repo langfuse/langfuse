@@ -261,13 +261,14 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
     expect(enforce).toMatchObject({ success: false, error: { httpCode: 403 } });
   });
 
-  it("an organization key naming a project it owns on a project route 403s in both modes", async () => {
+  it("an organization key naming a project it owns on a project route 403s in legacy and authorizes its own project in enforce", async () => {
     const { legacy, enforce } = await projectResultUnderModes(
       orgAuth,
       projectId,
     );
     expect(legacy).toMatchObject({ success: false, error: { httpCode: 403 } });
-    expect(enforce).toMatchObject({ success: false, error: { httpCode: 403 } });
+    expect(scopeOf(enforce).projectId).toBe(projectId);
+    expect(scopeOf(enforce).orgId).toBe(orgId);
   });
 
   it("an organization key naming no project 403s in both modes", async () => {
