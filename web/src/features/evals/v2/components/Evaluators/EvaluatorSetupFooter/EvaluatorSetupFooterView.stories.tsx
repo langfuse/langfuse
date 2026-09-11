@@ -32,6 +32,11 @@ export const Editing = meta.story({
     disabledReason: null,
     onClose: fn(),
     onSave: fn(),
+    editWithAI: {
+      triggerRef: { current: null },
+      disabled: false,
+      onClick: fn(),
+    },
   },
 });
 

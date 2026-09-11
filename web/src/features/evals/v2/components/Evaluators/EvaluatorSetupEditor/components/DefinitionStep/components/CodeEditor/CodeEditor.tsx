@@ -3,10 +3,6 @@ import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
 import { CodeEvalTemplateFormBody } from "@/src/features/evals/components/code-eval-template-form-body";
-import {
-  CodeEvaluatorAssistantExperience,
-  type CodeEvaluatorAssistantContext,
-} from "./CodeEvaluatorAssistantExperience";
 import { buildCodeEvalContextSnippet } from "@/src/features/evals/v2/fns/evaluatorTesting/buildCodeEvalContextSnippet";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
@@ -19,15 +15,11 @@ export function CodeEditor({
   evaluatorId,
   store,
   validationResult,
-  assistantContext,
-  onAssistantSubmit,
 }: {
   projectId: string;
   evaluatorId: string;
   store: EvaluatorSetupStore;
   validationResult: CodeEvalValidationResult | null;
-  assistantContext: CodeEvaluatorAssistantContext | null;
-  onAssistantSubmit: (request: string) => Promise<boolean>;
 }) {
   const codeUpdateId = useEvaluatorAssistantCodeUpdateSignal(
     projectId,
@@ -54,23 +46,15 @@ export function CodeEditor({
   );
 
   return (
-    <CodeEvaluatorAssistantExperience
-      context={assistantContext}
-      onAssistantSubmit={onAssistantSubmit}
-    >
-      {(assistantAction) => (
-        <InAppAgentUpdateHighlight updateId={codeUpdateId}>
-          <CodeEvalTemplateFormBody
-            sourceCode={state.sourceCode}
-            sourceCodeLanguage={state.sourceCodeLanguage}
-            onSourceCodeChange={state.setSourceCode}
-            editable
-            validationResult={validationResult}
-            ctxSample={ctxSample}
-            headerAction={assistantAction}
-          />
-        </InAppAgentUpdateHighlight>
-      )}
-    </CodeEvaluatorAssistantExperience>
+    <InAppAgentUpdateHighlight updateId={codeUpdateId}>
+      <CodeEvalTemplateFormBody
+        sourceCode={state.sourceCode}
+        sourceCodeLanguage={state.sourceCodeLanguage}
+        onSourceCodeChange={state.setSourceCode}
+        editable
+        validationResult={validationResult}
+        ctxSample={ctxSample}
+      />
+    </InAppAgentUpdateHighlight>
   );
 }
