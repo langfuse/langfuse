@@ -41,6 +41,18 @@ service:
       path-parameters:
         id: string
       response: commons.Model
+    update:
+      method: PATCH
+      docs: |
+        Partially update a model definition. Only the mutable fields are accepted:
+        `matchPattern`, `tokenizerId`, `tokenizerConfig`, `startDate`, `unit`.
+        `modelName` and pricing are not patchable; use `PUT /models/{id}` (upsert)
+        or `DELETE` + `POST /models` for those.
+      path: /models/{id}
+      path-parameters:
+        id: string
+      request: UpdateModelRequest
+      response: commons.Model
     delete:
       method: DELETE
       docs: Delete a model. Cannot delete models managed by Langfuse. You can create your own definition with the same modelName to override the definition though.
@@ -103,6 +115,23 @@ types:
           If omitted, you must provide flat prices instead (inputPrice/outputPrice/totalPrice),
           which will automatically create a single default tier named "Standard".
         type: optional<nullable<list<commons.PricingTierInput>>>
+      tokenizerId:
+        docs: Optional. Tokenizer to be applied to observations which match to this model. See docs for more details.
+        type: optional<nullable<ModelTokenizerId>>
+      tokenizerConfig:
+        docs: Optional. Configuration for the selected tokenizer. Needs to be JSON. See docs for more details.
+        type: optional<nullable<unknown>>
+  UpdateModelRequest:
+    properties:
+      matchPattern:
+        docs: "Regex pattern which matches this model definition to generation.model. Useful in case of fine-tuned models. If you want to exact match, use `(?i)^modelname$`"
+        type: optional<string>
+      startDate:
+        docs: Apply only to generations which are newer than this ISO date.
+        type: optional<nullable<datetime>>
+      unit:
+        docs: Unit used by this model.
+        type: optional<commons.ModelUsageUnit>
       tokenizerId:
         docs: Optional. Tokenizer to be applied to observations which match to this model. See docs for more details.
         type: optional<nullable<ModelTokenizerId>>
