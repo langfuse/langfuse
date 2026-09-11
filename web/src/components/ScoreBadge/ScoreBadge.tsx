@@ -40,26 +40,14 @@ const hasMetadata = (
  */
 const DOT_PALETTE_SLOTS = [1, 2, 4, 5, 6, 7, 8] as const;
 
-/**
- * Dot colour is a pure function of the score NAME, so one score keeps one
- * colour across every row, panel and trace it appears in — the dot is an
- * identity cue, not a value or a status. Names collide onto the same colour by
- * construction (seven slots); the name next to the dot is what disambiguates.
- */
+/** Dot colour is a stable function of the score name (djb2 hash). Names can
+ * share a colour; the name next to the dot is what disambiguates. */
 const scoreDotColor = (name: string) => {
-  // FNV-1a, then fold the high bits down. The slot is a small modulus, so only
-  // the low bits decide it — without the fold the result depends on little
-  // more than the last character, and names that rhyme land on one colour.
-  let hash = 0x811c9dc5;
+  let hash = 5381;
   for (let index = 0; index < name.length; index++) {
-    hash ^= name.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193);
+    hash = ((hash * 33) ^ name.charCodeAt(index)) >>> 0;
   }
-  hash ^= hash >>> 16;
-  hash = Math.imul(hash, 0x21f0aaad);
-  hash ^= hash >>> 15;
-
-  const slot = DOT_PALETTE_SLOTS[(hash >>> 0) % DOT_PALETTE_SLOTS.length];
+  const slot = DOT_PALETTE_SLOTS[hash % DOT_PALETTE_SLOTS.length];
   return `hsl(var(--chart-${slot}))`;
 };
 
