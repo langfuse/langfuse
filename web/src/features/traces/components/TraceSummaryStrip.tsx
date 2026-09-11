@@ -40,7 +40,7 @@ const MAX_VISIBLE_TRACE_SCORE_GROUPS = 2;
 export function TraceSummaryStrip() {
   const { trace, observations, mergedScores, traceLevelScoreOwnerIds } =
     useTraceData();
-  const { setSelectedNodeId, setSelectedTab } = useSelection();
+  const { selectedNodeId, setSelectedNodeId, setSelectedTab } = useSelection();
   const [showAllTags, setShowAllTags] = useState(false);
 
   // Trace-level scores render here, once, next to the trace's other facts.
@@ -76,6 +76,10 @@ export function TraceSummaryStrip() {
           <SessionBadge
             sessionId={trace.sessionId}
             projectId={trace.projectId}
+            // The session page opens on this trace (and observation), so the
+            // jump keeps the context the reader is in.
+            traceId={trace.id}
+            observationId={selectedNodeId}
           />
         ) : null}
         <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
