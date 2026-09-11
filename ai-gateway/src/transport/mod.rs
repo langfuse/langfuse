@@ -188,12 +188,6 @@ impl<T> Stream for Relay<T> {
         if this.done {
             return Poll::Ready(None);
         }
-        if this.failed.load(Ordering::Acquire) {
-            this.done = true;
-            this.receiver.close();
-            this.lease.release();
-            return Poll::Ready(Some(Err(RelayError::Transport)));
-        }
         match this.receiver.poll_recv(cx) {
             Poll::Ready(None) => {
                 this.done = true;
@@ -251,6 +245,25 @@ mod tests {
         tokio::time::timeout(Duration::from_secs(1), released.notified())
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn queued_bytes_are_delivered_before_an_upstream_error() {
+        let released = Arc::new(Notify::new());
+        let bytes = Bytes::from_static(b"event: response.output_text.delta\ndata: hello\n\n");
+        let body = relay_stream(
+            stream::iter([Ok(bytes.clone()), Err(RelayError::Transport)]),
+            Instant::now() + Duration::from_secs(1),
+            Owner(released.clone()),
+        );
+        // Wait until the pump has published its failure with the successful chunk queued.
+        tokio::time::timeout(Duration::from_secs(1), released.notified())
+            .await
+            .unwrap();
+        let mut downstream = body.into_data_stream();
+        assert_eq!(downstream.next().await.unwrap().unwrap(), bytes);
+        assert!(downstream.next().await.unwrap().is_err());
+        assert!(downstream.next().await.is_none());
     }
 
     #[tokio::test]
