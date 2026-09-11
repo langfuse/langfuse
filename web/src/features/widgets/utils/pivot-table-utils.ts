@@ -507,14 +507,48 @@ function applyAggregation(values: number[], aggregationType: string): number {
       return Math.max(...values);
 
     case "percentile":
-      // For percentiles in subtotals/totals, we'll use the average of the percentile values
-      // This is a reasonable approximation since we can't recalculate the true percentile
+      // Percentiles cannot be recalculated exactly from per-group percentiles;
+      // this unweighted mean is only the fallback used when no count/weight
+      // metric is available (see calculateSubtotals for the weighted path).
       return values.reduce((sum, val) => sum + val, 0) / values.length;
 
     default:
       // Default to sum
       return values.reduce((sum, val) => sum + val, 0);
   }
+}
+
+/**
+ * Identifies the metric to use as the per-row weight (row cardinality) when
+ * aggregating averages across groups. Averaging pre-aggregated per-row averages
+ * without weighting by each row's count yields an "average of averages", which
+ * only equals the true overall average when every group has the same size.
+ * Returns the count metric field, or null if the rows carry no count.
+ */
+function findWeightMetric(metrics: string[]): string | null {
+  return (
+    metrics.find((m) => detectAggregationType(m) === "count") ??
+    metrics.find((m) => m.toLowerCase().startsWith("count")) ??
+    null
+  );
+}
+
+/**
+ * Weighted mean of (value, weight) pairs, or null when the total weight is 0
+ * (so callers can fall back to an unweighted aggregation).
+ */
+function weightedMean(
+  pairs: Array<{ value: number; weight: number }>,
+): number | null {
+  let weightedSum = 0;
+  let totalWeight = 0;
+  for (const { value, weight } of pairs) {
+    if (weight > 0) {
+      weightedSum += value * weight;
+      totalWeight += weight;
+    }
+  }
+  return totalWeight > 0 ? weightedSum / totalWeight : null;
 }
 
 /**
@@ -530,16 +564,41 @@ export function calculateSubtotals(
   metrics: string[],
 ): Record<string, number> {
   const subtotals: Record<string, number> = {};
+  const weightMetric = findWeightMetric(metrics);
 
   for (const metric of metrics) {
-    // Extract all values for this metric using the utility function
-    const values = data
-      .map((row) => extractMetricValues(row, [metric])[metric])
-      .filter(isNotNullOrUndefined);
-
-    // Detect aggregation type and apply correct function
     const aggregationType = detectAggregationType(metric);
-    const result = applyAggregation(values, aggregationType);
+
+    let result: number;
+    if (
+      (aggregationType === "avg" || aggregationType === "percentile") &&
+      weightMetric &&
+      weightMetric !== metric
+    ) {
+      // Weight each row's value by its count so the group aggregate equals the
+      // true overall average (rather than an average of averages). Missing
+      // fields coerce to 0 via extractMetricValues, as elsewhere in this file;
+      // a row with no count carries weight 0 and drops out of the weighted mean.
+      const pairs = data.map((row) => {
+        const extracted = extractMetricValues(row, [metric, weightMetric]);
+        return { value: extracted[metric], weight: extracted[weightMetric] };
+      });
+
+      const weighted = weightedMean(pairs);
+      result =
+        weighted ??
+        // No usable weights (e.g. no count column populated) → best-effort
+        // unweighted aggregation, matching prior behavior.
+        applyAggregation(
+          pairs.map((p) => p.value),
+          aggregationType,
+        );
+    } else {
+      const values = data
+        .map((row) => extractMetricValues(row, [metric])[metric])
+        .filter(isNotNullOrUndefined);
+      result = applyAggregation(values, aggregationType);
+    }
 
     // Round to 10 decimal places to avoid floating-point precision issues
     subtotals[metric] = Math.round(result * 1e10) / 1e10;
