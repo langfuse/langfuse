@@ -217,7 +217,7 @@ export function IOPreviewJSONSimple({
         />
       )}
       {attributes && Object.keys(attributes).length > 0 ? (
-        <div className="mt-2 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
+        <div className="[&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
           <PrettyJsonView
             hideHeader
             title="Attributes"
@@ -235,7 +235,7 @@ export function IOPreviewJSONSimple({
       {/* The LLM call's own parameters. Copy only: nothing here maps to a
           table column, unlike the attributes above. */}
       {modelParameters ? (
-        <div className="mt-2 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
+        <div className="[&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
           <PrettyJsonView
             hideHeader
             title="Model parameters"

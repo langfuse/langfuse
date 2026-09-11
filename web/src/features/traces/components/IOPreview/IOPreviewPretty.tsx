@@ -382,7 +382,7 @@ export function IOPreviewPretty({
 
       {/* Metadata Section */}
       {showData && attributes && Object.keys(attributes).length > 0 ? (
-        <div className="mt-2 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
+        <div className="mt-4 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
           <PrettyJsonView
             hideHeader
             title="Attributes"
@@ -399,7 +399,7 @@ export function IOPreviewPretty({
       {/* The LLM call's own parameters. Copy only: nothing here maps to a
           table column, unlike the attributes above. */}
       {showData && modelParameters ? (
-        <div className="mt-2 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
+        <div className="mt-4 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
           <PrettyJsonView
             hideHeader
             title="Model parameters"
