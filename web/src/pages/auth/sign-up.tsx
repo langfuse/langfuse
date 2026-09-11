@@ -11,7 +11,6 @@ import { Input } from "@/src/components/ui/input";
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signIn } from "next-auth/react";
-import Head from "next/head";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -458,18 +457,10 @@ function SignupPageShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <Head>
-        <title>Sign up | Langfuse</title>
-        <meta
-          name="description"
-          content="Create an account, no credit card required."
-          key="desc"
-        />
-      </Head>
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <div className="mx-auto w-fit">
-            <LangfuseIcon />
+            <LangfuseIcon alt="" />
           </div>
           <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
             Create new account
