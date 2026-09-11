@@ -35,7 +35,32 @@ import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarSt
 import type { SearchCommit } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import type { QueryPresetSection } from "@/src/features/search-bar/lib/completions";
 
-export function EventsSearchBarRow({
+type EventsSearchBarRowProps = Omit<
+  React.ComponentProps<typeof EventsSearchBarRowContent>,
+  "aiFeaturesEnabled"
+>;
+
+export function EventsSearchBarRow(props: EventsSearchBarRowProps) {
+  const registry = props.registry ?? EVENTS_FIELD_REGISTRY;
+  return props.projectId && registry.aiFilterPrompt ? (
+    <ProjectSearchBarRow {...props} />
+  ) : (
+    <EventsSearchBarRowContent {...props} aiFeaturesEnabled={false} />
+  );
+}
+
+function ProjectSearchBarRow(props: EventsSearchBarRowProps) {
+  const { organization } = useQueryProject();
+  return (
+    <EventsSearchBarRowContent
+      {...props}
+      aiFeaturesEnabled={Boolean(organization?.aiFeaturesEnabled)}
+    />
+  );
+}
+
+function EventsSearchBarRowContent({
+  aiFeaturesEnabled,
   projectId,
   tableName,
   isV4 = true,
@@ -54,6 +79,7 @@ export function EventsSearchBarRow({
   className,
   registry = EVENTS_FIELD_REGISTRY,
 }: {
+  aiFeaturesEnabled: boolean;
   projectId?: string;
   /** Table this bar filters — threaded to AI-prompt analytics (LFE-10781). */
   tableName: string;
@@ -100,7 +126,6 @@ export function EventsSearchBarRow({
   registry?: FieldRegistry;
 }) {
   const [aiOpen, setAiOpen] = React.useState(false);
-  const { organization } = useQueryProject();
   // Mirror the legacy wand gate: org-level AI features. The server
   // enforces it too, so this only governs whether the affordance is offered.
   // Org entitlement AND a prompt written for this view — see
@@ -118,7 +143,7 @@ export function EventsSearchBarRow({
       ? registry.id
       : undefined;
   const aiAvailable =
-    Boolean(projectId && aiRegistryId && organization?.aiFeaturesEnabled) &&
+    Boolean(projectId && aiRegistryId && aiFeaturesEnabled) &&
     registry.aiFilterPrompt;
 
   const activateAi = React.useCallback(() => {
