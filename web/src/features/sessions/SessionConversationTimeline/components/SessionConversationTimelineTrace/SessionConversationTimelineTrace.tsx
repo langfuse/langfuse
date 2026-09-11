@@ -2,9 +2,12 @@ import { useState } from "react";
 import {
   ChevronDown,
   ChevronsUpDown,
+  CircleAlert,
   FileWarning,
+  Info,
   MessageSquareOff,
   MoreHorizontal,
+  TriangleAlert,
 } from "lucide-react";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import {
@@ -32,6 +35,7 @@ import {
 import { type RouterOutputs } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
+import { getLevelColors } from "@/src/components/level-colors";
 
 type EventObservation = RouterOutputs["events"]["all"]["observations"][number];
 type EventObservationIO = RouterOutputs["events"]["batchIO"][number];
@@ -64,6 +68,41 @@ export type PreparedSessionConversationTimelineTraceState =
 export type SessionObservationActions = {
   onFilterByName: (name: string, operator: "any of" | "none of") => void;
 };
+
+function SessionTimelineStatusIndicator({
+  observation,
+}: {
+  observation: SessionObservation;
+}) {
+  const Icon =
+    observation.level === "ERROR"
+      ? CircleAlert
+      : observation.level === "WARNING"
+        ? TriangleAlert
+        : Info;
+  const colors = getLevelColors(observation.level);
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={cn(
+            "flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
+            colors.bg,
+            colors.text,
+          )}
+          role="img"
+          aria-label={`${observation.level}: ${observation.statusMessage}`}
+        >
+          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-sm whitespace-pre-wrap">
+        {observation.statusMessage}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 const toPreviewText = (value: unknown) =>
   typeof value === "string"
@@ -286,6 +325,9 @@ function SessionTimelineToolRow({
           />
         </button>
         <span className="ml-auto flex shrink-0 items-center gap-2">
+          {observation?.statusMessage && observation.level !== "DEFAULT" ? (
+            <SessionTimelineStatusIndicator observation={observation} />
+          ) : null}
           {latency !== null ? (
             <span className="text-muted-foreground font-mono text-[11px]">
               {formatIntervalSeconds(latency)}
@@ -430,6 +472,9 @@ function SessionTimelineConversationObservation({
             </span>
           </button>
           <span className="ml-auto flex shrink-0 items-center gap-2">
+            {observation.statusMessage && observation.level !== "DEFAULT" ? (
+              <SessionTimelineStatusIndicator observation={observation} />
+            ) : null}
             {isTruncated ? (
               <span
                 className="bg-muted text-muted-foreground shrink-0 rounded-md p-1"

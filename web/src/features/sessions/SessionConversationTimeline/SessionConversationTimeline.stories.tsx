@@ -2134,6 +2134,61 @@ export const TruncatedObservation = meta.story({
   },
 });
 
+export const ObservationIssues = meta.story({
+  name: "(Test) Renders Observation Issues",
+  args: {
+    ...loadedArgs,
+    traces: [
+      {
+        trace,
+        turnNumber: 1,
+        observations: [
+          {
+            ...observations[0]!,
+            level: "WARNING",
+            statusMessage:
+              "TimeoutError: Model response exceeded 30s\n    at generateResponse (src/agent.ts:42:11)\n    at async runTurn (src/session.ts:18:5)",
+          },
+          {
+            ...observations[1]!,
+            level: "ERROR",
+            statusMessage: JSON.stringify(
+              {
+                code: "TOOL_TIMEOUT",
+                tool: "get_order",
+                retryable: true,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const warning = canvas.getByRole("img", {
+      name: /WARNING: TimeoutError: Model response exceeded 30s/,
+    });
+    const error = canvas.getByRole("img", {
+      name: /ERROR:.*TOOL_TIMEOUT/s,
+    });
+
+    await expect(warning).toHaveClass("bg-light-yellow", "text-dark-yellow");
+    await expect(error).toHaveClass("bg-light-red", "text-dark-red");
+    await userEvent.hover(warning);
+    await expect(
+      await within(canvasElement.ownerDocument.body).findByRole("tooltip"),
+    ).toHaveTextContent("at generateResponse (src/agent.ts:42:11)");
+    await userEvent.unhover(warning);
+    await userEvent.hover(error);
+    await expect(
+      await within(canvasElement.ownerDocument.body).findByRole("tooltip"),
+    ).toHaveTextContent('"code": "TOOL_TIMEOUT"');
+  },
+});
+
 export const UseObservationFilters = meta.story({
   name: "(Test) Uses Observation Filters",
   args: {
