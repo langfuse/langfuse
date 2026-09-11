@@ -144,14 +144,30 @@ export const IOTableCell = memo(function IOTableCell({
     stringifiedJson && stringifiedJson.length > IO_TABLE_CHAR_LIMIT;
   const singleLineText = stringifiedJson
     ? decodeUnicodeEscapesOnly(stringifiedJson, true)
-    : stringifiedJson;
+    : "";
 
   // The multi-line branches scroll inside the cell, so their scrollport is
   // marked `scrollbar-visible`: a region that scrolls without ever painting a
   // scrollbar is indistinguishable from one whose content was cut off, and
   // nobody reaches for the wheel on content they read as truncated.
   let content: ReactNode;
-  if (singleLine) {
+  if (!stringifiedJson) {
+    // Nothing to show — the row carries no payload, the payload is empty, or
+    // the query that fetches it has not landed. Handing that to the JSON
+    // viewer renders the word `null` (or a bare pair of quotes), which a
+    // reader takes for a value; the cell keeps its chrome and stays empty.
+    // A payload that is only PARTLY empty is untouched: a `null` nested in a
+    // document is real content and renders as `null`.
+    content = (
+      <div
+        className={cn(
+          "h-full w-full self-stretch rounded-sm",
+          paddingClassName,
+          variantClassName,
+        )}
+      />
+    );
+  } else if (singleLine) {
     content = (
       <div
         className={cn(
@@ -175,12 +191,7 @@ export const IOTableCell = memo(function IOTableCell({
                 )
         }
       >
-        {singleLineText
-          ? renderStringWithMediaReferences(
-              singleLineText,
-              renderMediaReference,
-            )
-          : null}
+        {renderStringWithMediaReferences(singleLineText, renderMediaReference)}
       </div>
     );
   } else if (shouldTruncate) {
@@ -211,11 +222,7 @@ export const IOTableCell = memo(function IOTableCell({
   } else {
     content = (
       <JSONView
-        json={
-          stringifiedJson
-            ? decodeUnicodeEscapesOnly(stringifiedJson, true)
-            : data
-        }
+        json={decodeUnicodeEscapesOnly(stringifiedJson, true)}
         className={cn(
           "h-full w-full self-stretch overflow-hidden rounded-sm",
           variantClassName,
