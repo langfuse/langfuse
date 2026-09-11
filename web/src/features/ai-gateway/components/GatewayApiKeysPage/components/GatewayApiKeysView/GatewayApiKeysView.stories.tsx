@@ -39,7 +39,7 @@ const manyApiKeys = Array.from({ length: 30 }, (_, index) => ({
 })) satisfies ComponentProps<typeof GatewayApiKeysView>["apiKeys"];
 
 const actions = {
-  createAction: <Button onClick={onCreate}>Create gateway key</Button>,
+  createAction: <Button onClick={onCreate}>Create key</Button>,
   renderRevokeAction: (apiKeyId: string) => (
     <Button variant="ghost" onClick={() => onRevoke(apiKeyId)}>
       Revoke

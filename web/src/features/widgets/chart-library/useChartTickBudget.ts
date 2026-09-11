@@ -39,11 +39,12 @@ export function useChartTickBudget() {
       ? Math.max(2, Math.floor((size.width - AXIS_GUTTER_PX) / APPROX_LABEL_PX))
       : 6;
 
+  // Recharts needs at least three ticks when an axis crosses zero.
   const maxYTicks =
     size.height > 0
       ? Math.min(
           DEFAULT_Y_TICK_COUNT,
-          Math.max(2, Math.floor(size.height / APPROX_Y_LABEL_PX)),
+          Math.max(3, Math.floor(size.height / APPROX_Y_LABEL_PX)),
         )
       : DEFAULT_Y_TICK_COUNT;
 
