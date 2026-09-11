@@ -10,6 +10,23 @@ import { env } from "../../env";
 import { resolveMediaStorageEndpoints } from "../s3";
 import { StorageServiceFactory } from "./StorageService";
 
+// Capture the options handed to lib-storage's Upload so the non-buffered
+// fallback's part size can be asserted without real network I/O.
+const s3UploadCtorOptions = vi.hoisted(
+  () => [] as Array<{ partSize?: number }>,
+);
+
+vi.mock("@aws-sdk/lib-storage", () => ({
+  Upload: class {
+    constructor(options: { partSize?: number }) {
+      s3UploadCtorOptions.push(options);
+    }
+    done() {
+      return Promise.resolve(undefined);
+    }
+  },
+}));
+
 describe("S3StorageService region normalization", () => {
   it("trims a persisted region before configuring the AWS client", async () => {
     const service = StorageServiceFactory.getInstance({
@@ -527,5 +544,46 @@ describe("S3StorageService DeleteObjects checksum", () => {
       .digest("base64");
     expect(findHeader(request, "content-md5")).toBe(expectedMd5);
     expect(findHeader(request, "x-amz-checksum-crc32")).toBeUndefined();
+  });
+});
+
+describe("S3StorageService non-buffered upload part size", () => {
+  const bufferedKey = "LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED" as const;
+  const originalBuffered = env[bufferedKey];
+
+  afterEach(() => {
+    (env as Record<string, unknown>)[bufferedKey] = originalBuffered;
+    s3UploadCtorOptions.length = 0;
+  });
+
+  it("passes the configured part size so the 10k-part cap does not truncate large exports", async () => {
+    (env as Record<string, unknown>)[bufferedKey] = "false";
+
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: "http://127.0.0.1:9000",
+      region: "us-east-1",
+      forcePathStyle: true,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    await service.uploadFileBuffered({
+      fileName: "export.csv",
+      fileType: "text/csv",
+      data: Readable.from(["a,b,c\n"]),
+      partSizeBytes: 100 * 1024 * 1024, // buffered tuning; ignored on the fallback
+    });
+
+    expect(s3UploadCtorOptions).toHaveLength(1);
+    const { partSize } = s3UploadCtorOptions[0];
+    expect(partSize).toBe(env.LANGFUSE_S3_UPLOAD_PART_SIZE_BYTES);
+    // Above lib-storage's 5 MiB default, which caps a single object at ~48.83 GiB.
+    expect(partSize).toBeGreaterThan(5 * 1024 * 1024);
   });
 });

@@ -268,6 +268,16 @@ const EnvSchema = z.object({
     .min(1)
     .max(10)
     .default(3),
+  // Non-buffered multipart part size. 64 MiB x 10,000 parts caps a single
+  // object at ~625 GiB; lib-storage's 5 MiB default caps at ~48.83 GiB and
+  // silently truncates larger exports. Bounded by S3's multipart part-size
+  // limits (5 MiB min, 5 GiB max) so an out-of-range value fails at boot
+  // instead of throwing EntityTooSmall on every fallback upload.
+  LANGFUSE_S3_UPLOAD_PART_SIZE_BYTES: z.coerce
+    .number()
+    .min(5 * 1024 * 1024)
+    .max(5 * 1024 * 1024 * 1024)
+    .default(64 * 1024 * 1024),
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string(), // Langfuse requires a bucket name for S3 Event Uploads.
   LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),

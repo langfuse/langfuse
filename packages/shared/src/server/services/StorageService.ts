@@ -836,9 +836,9 @@ class S3StorageService implements StorageService {
           Body: data,
           ContentType: fileType,
         }),
-        // Use provided partSize and queueSize, or fall back to defaults
-        // Default: 5 MB part size supports files up to ~50 GB (5 MB × 10,000 parts)
-        // For large files, use partSize: 100 * 1024 * 1024 (100 MB) to support up to ~1 TB
+        // When partSize is undefined lib-storage falls back to 5 MiB, capping a
+        // single object at ~48.83 GiB (5 MiB × 10,000 parts). Callers uploading
+        // large objects must pass an explicit partSize to raise that ceiling.
         partSize: partSize,
         queueSize: queueSize,
       }).done();
@@ -860,10 +860,15 @@ class S3StorageService implements StorageService {
     stats,
   }: UploadFileBuffered): Promise<UploadPartStats | undefined> {
     if (env.LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED !== "true") {
-      // Tuning applies only on the buffered path. Forward no overrides so the
-      // fallback keeps lib-storage's defaults — forwarding the resolved 100 MiB
-      // partSize would ~20x per-upload memory (buffered is off by default).
-      await this.uploadFile({ fileName, fileType, data });
+      // Raise the multipart part size above lib-storage's 5 MiB default so the
+      // 10,000-part limit no longer caps a single object at ~48.83 GiB. Leaving
+      // queueSize at its default keeps the concurrency (and memory) bounded.
+      await this.uploadFile({
+        fileName,
+        fileType,
+        data,
+        partSize: env.LANGFUSE_S3_UPLOAD_PART_SIZE_BYTES,
+      });
       return undefined;
     }
 
