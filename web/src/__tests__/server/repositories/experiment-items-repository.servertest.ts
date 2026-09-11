@@ -1627,5 +1627,64 @@ describe("Clickhouse Experiment Items Repository Test", () => {
         ),
       ).toBe(true);
     });
+
+    it("returns a payload that is entirely JSON null as absent, and keeps a nested null", async () => {
+      // A null payload is serialized like any other document, so it is stored
+      // as the four characters `null` — text the table would render as the word
+      // `null`. A null INSIDE a document is content and must survive.
+      const experimentId = randomUUID();
+      const datasetId = randomUUID();
+      const nullItemId = randomUUID();
+      const nestedItemId = randomUUID();
+
+      const events = [
+        { itemId: nullItemId, input: "null", output: "null", expected: "null" },
+        {
+          itemId: nestedItemId,
+          input: '{"context":null}',
+          output: '{"answer":null}',
+          expected: '{"mustCite":null}',
+        },
+      ].map(({ itemId, input, output, expected }) => {
+        const traceId = randomUUID();
+        const rootSpanId = randomUUID();
+        return createExperimentEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          span_id: rootSpanId,
+          experimentId,
+          experimentName: "null-io-exp",
+          datasetId,
+          itemId,
+          experimentItemRootSpanId: rootSpanId,
+          input,
+          output,
+          experiment_item_expected_output: expected,
+          start_time: Date.now() * 1000,
+        });
+      });
+
+      await createEventsCh(events);
+
+      const result = await getExperimentItemsBatchIO({
+        projectId,
+        itemIds: [nullItemId, nestedItemId],
+        baseExperimentId: experimentId,
+        compExperimentIds: [],
+      });
+
+      expect(result[0]).toMatchObject({
+        itemId: nullItemId,
+        input: null,
+        expectedOutput: null,
+        outputs: [{ experimentId, output: null }],
+      });
+      expect(result[1]).toMatchObject({
+        itemId: nestedItemId,
+        input: '{"context":null}',
+        expectedOutput: '{"mustCite":null}',
+        outputs: [{ experimentId, output: '{"answer":null}' }],
+      });
+    });
   });
 });

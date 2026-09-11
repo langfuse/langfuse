@@ -4,6 +4,7 @@ import { env } from "../../env";
 import { type ScoreSourceType } from "../../domain";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
+import { nullIfJsonNull } from "../../utils/json";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import {
   FilterList,
@@ -1500,21 +1501,27 @@ export const getExperimentItemsBatchIO = async (props: {
     const isBaseline =
       baseExperimentId && row.experiment_id === baseExperimentId;
 
+    // A payload ingested as the JSON literal `null` comes back as the four
+    // characters `null` — it carries nothing, so it reads back as absent
+    // rather than reaching the table as text it would render as a value.
+    const input = nullIfJsonNull(row.input);
+    const expectedOutput = nullIfJsonNull(row.expected_output);
+
     // Use baseline value if available, otherwise first non-null
-    if (row.input !== null && (isBaseline || item.input === null)) {
-      item.input = row.input;
+    if (input !== null && (isBaseline || item.input === null)) {
+      item.input = input;
     }
     if (
-      row.expected_output !== null &&
+      expectedOutput !== null &&
       (isBaseline || item.expectedOutput === null)
     ) {
-      item.expectedOutput = row.expected_output;
+      item.expectedOutput = expectedOutput;
     }
 
     // Collect output from all experiments
     item.outputs.push({
       experimentId: row.experiment_id,
-      output: row.output,
+      output: nullIfJsonNull(row.output),
     });
   }
 
