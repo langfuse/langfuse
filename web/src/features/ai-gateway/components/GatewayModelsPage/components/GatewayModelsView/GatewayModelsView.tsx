@@ -3,8 +3,14 @@ import { RefreshCw } from "lucide-react";
 
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { DataTable } from "@/src/components/table/data-table";
 import {
   DataTableControls,
@@ -48,16 +54,33 @@ const columns: LangfuseColumnDef<GatewayModelRow, unknown>[] = [
     header: "Available via",
     size: 360,
     cell: ({ row }) => (
-      <div className="flex flex-wrap gap-1">
-        {row.original.availableVia.map((connection) => (
-          <Badge
-            key={`${connection.provider}:${connection.connectionName}`}
-            variant="outline-solid"
-          >
+      <SingleLineOverflowList
+        items={row.original.availableVia}
+        additionalOverflowCount={0}
+        getKey={(connection) => connection.connectionId}
+        renderItem={(connection) => (
+          <Badge variant="secondary">
             {connection.connectionName} · {providerLabels[connection.provider]}
           </Badge>
-        ))}
-      </div>
+        )}
+        renderOverflow={({ hiddenItems, overflowItemCount }) => (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex" tabIndex={0}>
+                <Badge variant="secondary">+{overflowItemCount}</Badge>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              {hiddenItems
+                .map(
+                  (connection) =>
+                    `${connection.connectionName} · ${providerLabels[connection.provider]}`,
+                )
+                .join(", ")}
+            </TooltipContent>
+          </Tooltip>
+        )}
+      />
     ),
   },
   {
@@ -66,13 +89,24 @@ const columns: LangfuseColumnDef<GatewayModelRow, unknown>[] = [
     header: "API formats",
     size: 280,
     cell: ({ row }) => (
-      <div className="flex flex-wrap gap-1">
-        {row.original.apiFormats.map((format) => (
-          <Badge key={format} variant="secondary">
-            {format}
-          </Badge>
-        ))}
-      </div>
+      <SingleLineOverflowList
+        items={row.original.apiFormats}
+        additionalOverflowCount={0}
+        getKey={(format) => format}
+        renderItem={(format) => <Badge variant="secondary">{format}</Badge>}
+        renderOverflow={({ hiddenItems, overflowItemCount }) => (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex" tabIndex={0}>
+                <Badge variant="secondary">+{overflowItemCount}</Badge>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              {hiddenItems.join(", ")}
+            </TooltipContent>
+          </Tooltip>
+        )}
+      />
     ),
   },
 ];
