@@ -7,8 +7,9 @@
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
 
+// Same wrappers Preview uses for these tables, so both tabs line up.
 const SECTION_CLASS =
-  "[&_.io-message-content]:px-3 [&_.io-message-header]:px-3";
+  "mt-4 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3";
 
 export function ObservationAttributesTab({
   attributes,
@@ -37,7 +38,7 @@ export function ObservationAttributesTab({
     !(typeof metadata === "object" && Object.keys(metadata).length === 0);
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-y-auto p-3">
+    <div className="flex min-h-0 w-full flex-1 flex-col overflow-auto pb-4">
       {hasAttributes ? (
         <div className={SECTION_CLASS}>
           <PrettyJsonView
@@ -77,7 +78,7 @@ export function ObservationAttributesTab({
         </div>
       ) : null}
       {!hasAttributes && !modelParameters && !hasMetadata ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-muted-foreground mt-4 px-3 text-sm">
           No attributes, model parameters or metadata on this observation.
         </p>
       ) : null}
