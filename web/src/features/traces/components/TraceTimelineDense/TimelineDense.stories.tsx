@@ -657,8 +657,8 @@ export const HoverPeeksTheNames = meta.story({
 });
 
 /**
- * The peek is a navigation surface, not a caption. Clicking a name used to hit
- * the overlay and do nothing — selection only lived on the bars underneath.
+ * The peek is a navigation surface, not a caption. Clicking a name selects
+ * the observation the same way clicking the bar does.
  */
 export const PeekRowClickSelects = meta.story({
   name: "(Test) Peek Row Click Selects",
