@@ -21,6 +21,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { useSidebarFilterState } from "@/src/features/filters";
+import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import { gatewayModelsFilterConfig } from "@/src/features/ai-gateway/constants/modelsFilterConfig";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { GATEWAY_MODELS_FIELD_REGISTRY } from "@/src/features/ai-gateway/constants/modelsSearchRegistry";
@@ -60,7 +61,11 @@ const columns: LangfuseColumnDef<GatewayModelRow, unknown>[] = [
         additionalOverflowCount={0}
         getKey={(connection) => connection.connectionId}
         renderItem={(connection) => (
-          <Badge variant="secondary" className="gap-1.5">
+          <Badge
+            variant="secondary"
+            className="gap-1.5"
+            aria-label={`${connection.connectionName}, ${providerLabels[connection.provider]}`}
+          >
             <GatewayProviderIcon provider={connection.provider} />
             {connection.connectionName}
           </Badge>
@@ -78,6 +83,7 @@ const columns: LangfuseColumnDef<GatewayModelRow, unknown>[] = [
                   <span
                     key={connection.connectionId}
                     className="flex items-center gap-1.5"
+                    aria-label={`${connection.connectionName}, ${providerLabels[connection.provider]}`}
                   >
                     <GatewayProviderIcon provider={connection.provider} />
                     {connection.connectionName}
