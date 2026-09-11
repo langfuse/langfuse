@@ -272,7 +272,7 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(Object.values(built.params)).toContain("quality");
   });
 
-  it("combines scores-view event facets into one exact UNION ALL query", () => {
+  it("combines scores-view event facets into one exact single-scan query", () => {
     const built = buildEventsExactFilterOptionsForColumnsQuery({
       projectId: "test-project",
       filter: [
@@ -301,19 +301,27 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(built).not.toBeNull();
     if (!built) throw new Error("expected query");
 
-    expect(built.query.match(/UNION ALL/g)).toHaveLength(2);
-    expect(built.query.match(/FROM events_core e/g)).toHaveLength(3);
-    expect(built.query.match(/GROUP BY value/g)).toHaveLength(3);
+    // One scan of events_core, one scope semi-join, no UNION ALL / GROUP BY /
+    // approx sketch: facets are exact aggregates fanned out with arrayJoin.
+    expect(built.query.match(/FROM events_core e/g)).toHaveLength(1);
+    expect(built.query).not.toContain("UNION ALL");
+    expect(built.query).not.toContain("GROUP BY value");
     expect(built.query).not.toContain("approx_top_k");
-    expect(built.query).toContain("'traceTags' AS column");
-    expect(built.query).toContain("'traceName' AS column");
-    expect(built.query).toContain("'userId' AS column");
+    expect(built.query.match(/FROM scores WHERE/g)).toHaveLength(1);
+    expect(built.query).toContain("sumMapIf(");
+    expect(built.query).toContain("sumMap(");
+    expect(built.query).toContain("arrayJoin(arrayConcat(");
+    expect(built.query).toContain("tuple('traceTags'");
+    expect(built.query).toContain("tuple('traceName'");
+    expect(built.query).toContain("tuple('userId'");
+    expect(built.query).not.toContain("FINAL");
+    expect(built.query).not.toMatch(/\bJOIN\b/i);
     expect(built.query).toContain(
       "e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE project_id = {projectId: String} AND timestamp >= {scoredTracesFromTime: DateTime64(3, 'UTC')} AND timestamp <= {scoredTracesToTime: DateTime64(3, 'UTC')})",
     );
     expect(built.params).toMatchObject({
       projectId: "test-project",
-      limit: 1000,
+      optionLimit: 1000,
       scoredTracesFromTime: "2026-01-01 00:00:00.000",
       scoredTracesToTime: "2026-01-01 00:30:00.000",
     });

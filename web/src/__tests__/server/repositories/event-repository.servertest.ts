@@ -14,6 +14,7 @@ import {
   getLatestSdkVersionInfoFromEvents,
   getTracesIdentifierForSessionFromEvents,
   getEventsFilterOptionsForColumns,
+  getEventsExactFilterOptionsForColumns,
   getEventsFilterOptionValuesPage,
   getLatestEvaluatorRunCost,
   getRecentEvaluatorExecutionTraces,
@@ -1937,6 +1938,140 @@ describe("Clickhouse Events Repository Test", () => {
         expect(
           Number(findFilterOption(rows, "calledToolNames", "search")?.count),
         ).toBe(2);
+      });
+    });
+
+    it("returns exact scores-view event facets scoped to scored traces", async () => {
+      const uniqueProjectId = randomUUID();
+      const scoredTraceA = randomUUID();
+      const scoredTraceB = randomUUID();
+      const unscoredTrace = randomUUID();
+      const now = Date.now();
+      const nowMicro = now * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: scoredTraceA,
+          type: "SPAN",
+          trace_name: "exact-trace-a",
+          user_id: "user-a",
+          tags: ["alpha", "beta"],
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: scoredTraceA,
+          type: "SPAN",
+          trace_name: "exact-trace-a",
+          user_id: "user-a",
+          tags: ["alpha", "beta"],
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: scoredTraceB,
+          type: "SPAN",
+          trace_name: "exact-trace-b",
+          user_id: "user-b",
+          tags: ["beta"],
+          start_time: nowMicro + 2_000,
+          event_ts: nowMicro + 2_000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: unscoredTrace,
+          type: "SPAN",
+          trace_name: "exact-trace-c",
+          user_id: "user-c",
+          tags: ["gamma"],
+          start_time: nowMicro + 3_000,
+          event_ts: nowMicro + 3_000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: scoredTraceA,
+          observation_id: null,
+          name: "quality",
+          data_type: "NUMERIC",
+          value: 1,
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: scoredTraceB,
+          observation_id: null,
+          name: "quality",
+          data_type: "NUMERIC",
+          value: 1,
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      const scope = {
+        type: "scoredTraces" as const,
+        fromTime: {
+          operator: ">=" as const,
+          value: new Date(now - 60_000),
+        },
+        toTime: {
+          operator: "<=" as const,
+          value: new Date(now + 60_000),
+        },
+      };
+
+      await waitForExpect(async () => {
+        const rows = await getEventsExactFilterOptionsForColumns({
+          projectId: uniqueProjectId,
+          filter: [],
+          columns: ["traceTags", "traceName", "userId"],
+          scope,
+        });
+
+        // Exact per-value counts, scoped to the two scored traces only.
+        expect(
+          Number(findFilterOption(rows, "traceName", "exact-trace-a")?.count),
+        ).toBe(2);
+        expect(
+          Number(findFilterOption(rows, "traceName", "exact-trace-b")?.count),
+        ).toBe(1);
+        expect(Number(findFilterOption(rows, "userId", "user-a")?.count)).toBe(
+          2,
+        );
+        expect(Number(findFilterOption(rows, "userId", "user-b")?.count)).toBe(
+          1,
+        );
+
+        // The unscored trace is outside the scope and must not appear.
+        expect(
+          findFilterOption(rows, "traceName", "exact-trace-c"),
+        ).toBeUndefined();
+        expect(findFilterOption(rows, "userId", "user-c")).toBeUndefined();
+
+        // Tags: exact distinct set, alphabetical, no gamma.
+        expect(
+          rows
+            .filter((row) => row.column === "traceTags")
+            .map((row) => row.value),
+        ).toEqual(["alpha", "beta"]);
       });
     });
 
