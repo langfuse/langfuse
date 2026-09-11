@@ -270,6 +270,41 @@ describe("prepareSessionTimelineObservations", () => {
     ]);
   });
 
+  it("preserves nested output that only matches ancestor input", () => {
+    const repeatedAssistantMessage = {
+      role: "assistant",
+      content: "Shared message",
+    };
+    const prepared = prepareSessionTimelineObservations([
+      observation(
+        "parent",
+        [repeatedAssistantMessage],
+        "Parent answer",
+        "SPAN",
+      ),
+      observation(
+        "generation",
+        "Child question",
+        repeatedAssistantMessage,
+        "GENERATION",
+        new Date(1),
+        "trace-1",
+        "parent",
+      ),
+    ]);
+
+    expect(prepared[1]?.processedMessages.messages).toMatchObject([
+      {
+        source: "input",
+        parts: [{ type: "text", text: "Child question" }],
+      },
+      {
+        source: "output",
+        parts: [{ type: "text", text: "Shared message" }],
+      },
+    ]);
+  });
+
   it("deduplicates large inherited input throughout a deeply nested trace", () => {
     const inheritedText = "large inherited input ".repeat(600);
     const inheritedInput = [{ role: "user", content: inheritedText }];
