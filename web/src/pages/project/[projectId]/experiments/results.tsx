@@ -44,6 +44,7 @@ export default function ExperimentResults() {
     itemVisibility,
     setItemVisibility,
     allExperimentIds,
+    colorExperimentIds,
   } = useExperimentResultsState();
   const [ioRenderMode, setIoRenderMode] = useIoRenderModeLocalStorage(
     "experiment-items",
@@ -139,6 +140,7 @@ export default function ExperimentResults() {
             baselineId={baselineId}
             baselineName={experiment?.name}
             comparisonIds={comparisonIds}
+            colorExperimentIds={colorExperimentIds}
             selectedExperimentCount={allExperimentIds.length}
             onBaselineChange={setBaseline}
             onBaselineClear={clearBaseline}
