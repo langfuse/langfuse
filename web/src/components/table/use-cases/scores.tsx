@@ -61,7 +61,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import React, { useState, useRef, useCallback, useMemo } from "react";
 import type { TableAction } from "@/src/features/table/types";
-import type { RowSelectionState } from "@tanstack/react-table";
+import type { RowSelectionState, VisibilityState } from "@tanstack/react-table";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
@@ -123,6 +123,13 @@ export type ScoresTableProps = {
    */
   includeTraceLevelScores?: boolean;
   hiddenColumns?: ScoresTableHiddenColumn[];
+  /**
+   * Show the Metadata column without the reader opening the column picker.
+   * For the trace view's Scores tab, where an evaluator's per-metric details
+   * (judge, sample size) live in metadata and the table is the only place
+   * they are readable. Existing stored visibility is migrated once.
+   */
+  metadataVisibleByDefault?: boolean;
   localStorageSuffix?: string;
   disableUrlPersistence?: boolean;
   /**
@@ -159,6 +166,7 @@ export default function ScoresTable({
   observationId,
   includeTraceLevelScores = false,
   hiddenColumns = [],
+  metadataVisibleByDefault = false,
   localStorageSuffix = "",
   disableUrlPersistence = false,
   showControlsInPageHeader = false,
@@ -727,7 +735,7 @@ export default function ScoresTable({
         );
       },
       enableHiding: true,
-      defaultHidden: true,
+      defaultHidden: !metadataVisibleByDefault,
     },
     createLinkTableColumn<ScoresTableRow>({
       accessorKey: "traceName",
@@ -959,10 +967,29 @@ export default function ScoresTable({
     (c) => !!c.id && !hiddenColumnSet.has(c.id),
   );
 
+  // A returning reader has `metadata: false` stored from the previous
+  // default; the one-time migration reveals it for them too.
+  const columnVisibilityMigrations = useMemo(
+    () =>
+      metadataVisibleByDefault
+        ? [
+            {
+              versionKey: `scoresColumnVisibility${localStorageSuffix}-metadataVisible-v1`,
+              apply: (visibility: VisibilityState) =>
+                visibility.metadata === true
+                  ? visibility
+                  : { ...visibility, metadata: true },
+            },
+          ]
+        : [],
+    [metadataVisibleByDefault, localStorageSuffix],
+  );
+
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<ScoresTableRow>(
       "scoresColumnVisibility" + localStorageSuffix,
       columns,
+      columnVisibilityMigrations,
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<ScoresTableRow>(

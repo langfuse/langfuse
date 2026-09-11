@@ -27,10 +27,19 @@ function formatScoreValue(score: Omit<HoverListScore, "name">): string {
  */
 export function ScoreHoverList({
   scores,
+  formatName = (name) => name,
 }: {
   scores: ReadonlyArray<HoverListScore>;
+  /** What to print for a score name. An evaluator group's chip already
+      shows the shared prefix, so its card lists the metric behind it. */
+  formatName?: (name: string) => string;
 }) {
-  const scoreNames = Array.from(new Set(scores.map((s) => s.name))).sort();
+  const scoreNames = Array.from(new Set(scores.map((s) => s.name))).sort(
+    (a, b) => {
+      const [left, right] = [formatName(a), formatName(b)];
+      return left < right ? -1 : left > right ? 1 : 0;
+    },
+  );
   const visibleScoreNames = scoreNames.slice(0, MAX_HOVER_SCORES);
   const hiddenScoreCount = scoreNames.length - visibleScoreNames.length;
   // Every value per name, comma separated, the way the chip shows them: two
@@ -48,10 +57,11 @@ export function ScoreHoverList({
       <div className="col-span-full font-bold">Scores</div>
       {visibleScoreNames.map((name) => {
         const value = (valuesByName.get(name) ?? []).join(", ");
+        const label = formatName(name);
         return (
           <div key={name} className="col-span-full grid grid-cols-subgrid">
-            <dt className="text-muted-foreground truncate" title={name}>
-              {name}
+            <dt className="text-muted-foreground truncate" title={label}>
+              {label}
             </dt>
             <dd className="truncate text-right tabular-nums" title={value}>
               {value}

@@ -610,6 +610,9 @@ export function ConnectedObservationDetailView({
                     traceId={traceId}
                     observationId={observation.id}
                     includeTraceLevelScores={ownsTraceLevelScores}
+                    // An evaluator's per-metric details (judge, sample size)
+                    // live in metadata; this table is where they are read.
+                    metadataVisibleByDefault
                     hiddenColumns={[
                       "traceId",
                       "observationId",

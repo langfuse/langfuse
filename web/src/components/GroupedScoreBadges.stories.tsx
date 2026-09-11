@@ -1,5 +1,5 @@
 import { type LastUserScore } from "@langfuse/shared";
-import { expect } from "storybook/test";
+import { expect, fn } from "storybook/test";
 
 import preview from "../../.storybook/preview";
 import { GroupedScoreBadges } from "./grouped-score-badge";
@@ -87,6 +87,46 @@ export const DetailsInsideBadge = meta.story({
       value?.parentElement?.querySelector(
         '[aria-label="View metadata for quality: 0.81"]',
       ),
+    ).not.toBeNull();
+  },
+});
+
+// One evaluator emitting several metrics under a shared `Evaluator.metric`
+// name: the chips show it as ONE chip (prefix plus metric count), and that
+// chip counts once toward `maxVisible`.
+const evaluatorScores = ["toxicity", "pii", "hate", "violence"].map(
+  (metric, index) => ({
+    ...scores[0],
+    id: `moderation-${metric}`,
+    name: `OutputModerationPrecision.${metric}`,
+    value: 0.2 * (index + 1),
+  }),
+) satisfies LastUserScore[];
+
+export const EvaluatorGroup = meta.story({
+  name: "(Test) Evaluator Group",
+  args: {
+    scores: [...evaluatorScores, ...scores],
+    maxVisible: 2,
+    onOverflowClick: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    // The four metrics are one chip labelled with the prefix and a count...
+    const group = canvasElement.querySelector(
+      '[title="OutputModerationPrecision"]',
+    );
+    await expect(group).not.toBeNull();
+    await expect(group?.parentElement?.textContent).toContain("· 4");
+    await expect(
+      canvasElement.querySelector('[title="OutputModerationPrecision.pii"]'),
+    ).toBeNull();
+    // ...and count as one toward the cap: helpfulness shows, quality rolls
+    // into "+1".
+    await expect(
+      canvasElement.querySelector('[title="helpfulness"]'),
+    ).not.toBeNull();
+    await expect(
+      canvasElement.querySelector('[aria-label="Open scores, 1 more score"]'),
     ).not.toBeNull();
   },
 });
