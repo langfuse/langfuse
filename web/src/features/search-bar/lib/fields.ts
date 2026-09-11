@@ -57,6 +57,8 @@ export type FieldDef = {
    * `exactOption`; only set this on `textSearch` fields that should suggest.
    */
   suggestObservedValues?: boolean;
+  /** Preserve exact selections in the owning categorical facet's filter shape. */
+  exactMatchUsesOptions?: boolean;
   /** Canonical FilterState column emitted for this display-oriented field. */
   filterColumn?: string;
   /** Display/query value → canonical FilterState value for labeled options. */
@@ -74,6 +76,7 @@ export type FieldRegistry = {
     | "evaluatorSamples"
     | "ruleSamples"
     | "sessions"
+    | "scores"
     | "experiments"
     | "users";
   fields: readonly FieldDef[];
@@ -137,7 +140,10 @@ export type AIContextField = {
 };
 
 export type FieldOverlay = Partial<
-  Omit<FieldDef, "id" | "kind" | "syncMode" | "label" | "description">
+  Omit<
+    FieldDef,
+    "id" | "kind" | "label" | "description" | "exactMatchUsesOptions"
+  >
 > & {
   label?: string;
   description?: string;
@@ -193,7 +199,8 @@ export function fieldRegistryFromColumns(
         id: column.id,
         aliases: fieldOverlay?.aliases ?? column.aliases ?? [],
         kind,
-        syncMode,
+        syncMode: fieldOverlay?.syncMode ?? syncMode,
+        exactMatchUsesOptions: column.type === "stringOptions",
         label: fieldOverlay?.label ?? column.name,
         description: fieldOverlay?.description ?? column.name,
         nullable: column.nullable,

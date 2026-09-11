@@ -16,6 +16,9 @@ import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters";
 import { usersEventsFilterConfig } from "@/src/features/filters/config/users-config";
 import { USERS_FIELD_REGISTRY } from "@/src/features/filters/config/usersSearchRegistry";
 import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
+import { SCORES_FIELD_REGISTRY } from "@/src/features/scores/constants/scoresSearchRegistry";
+import { getScoreFilterConfig } from "@/src/features/filters/config/scores-config";
+import type { FilterState } from "@langfuse/shared";
 import { validateQuery } from "./validate";
 import { DEFAULT_SEARCH_TYPE, planCommit } from "./commit";
 import { filterStateToQueryText } from "./filter-state-to-query";
@@ -29,6 +32,202 @@ import {
   runSearchBarInvariants,
   type RegistryUnderTest,
 } from "./searchBarInvariants";
+
+describe("search bar invariants — Scores registry", () => {
+  it("searches within a score name", () => {
+    const result = planCommit("Rouge Score", undefined, SCORES_FIELD_REGISTRY);
+    expect(result).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "name",
+          type: "string",
+          operator: "contains",
+          value: "Rouge Score",
+        },
+      ],
+    });
+  });
+
+  it("round-trips exact names, repeated ranges, values, metadata, and tag filters", () => {
+    const sidebarFilters: FilterState[] = [
+      [
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["Rouge Score"],
+        },
+      ],
+      [
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["Rouge Score", "confidence"],
+        },
+      ],
+      [
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["Rouge Score"],
+        },
+      ],
+      [
+        { column: "value", type: "number", operator: ">=", value: 0.2 },
+        { column: "value", type: "number", operator: "<", value: 0.8 },
+      ],
+      [
+        {
+          column: "booleanValue",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["true"],
+        },
+      ],
+      [
+        {
+          column: "stringValue",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["true", "needs review"],
+        },
+      ],
+      [
+        {
+          column: "metadata",
+          type: "stringObject",
+          key: "review team",
+          operator: "=",
+          value: "quality",
+        },
+      ],
+      [
+        {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "all of",
+          value: ["billing", "urgent"],
+        },
+      ],
+      [
+        {
+          column: "evaluatorId",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["legacy-evaluator"],
+        },
+      ],
+    ];
+    const view: RegistryUnderTest = {
+      name: "scores",
+      registry: SCORES_FIELD_REGISTRY,
+      extraKeys: ["metadata.region", 'metadata."review team"', "has:userId"],
+      scoreContexts: [],
+      fieldValues: ["x", "true", "false", "0.5", "Rouge Score", "or", "a,b"],
+      freeTextValues: [],
+      sidebarFilters,
+    };
+    expect(runSearchBarInvariants(view)).toEqual([]);
+
+    const exactName = filterStateToQueryText(
+      sidebarFilters[0],
+      {},
+      SCORES_FIELD_REGISTRY,
+    );
+    expect(
+      planCommit(exactName.text, undefined, SCORES_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["Rouge Score"],
+        },
+      ],
+    });
+
+    for (const filters of sidebarFilters.slice(1, -1)) {
+      const projection = filterStateToQueryText(
+        filters,
+        {},
+        SCORES_FIELD_REGISTRY,
+      );
+      expect(projection.skippedFilters).toEqual([]);
+      expect(
+        planCommit(projection.text, undefined, SCORES_FIELD_REGISTRY),
+      ).toMatchObject({
+        status: "committed",
+        filters,
+      });
+    }
+  });
+
+  it("keeps boolean score values distinct from categorical text", () => {
+    expect(
+      planCommit(
+        "booleanValue:true stringValue:true",
+        undefined,
+        SCORES_FIELD_REGISTRY,
+      ),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "booleanValue",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["true"],
+        },
+        {
+          column: "stringValue",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["true"],
+        },
+      ],
+    });
+  });
+
+  it("offers only fields owned by the sidebar and rejects aggregate-score namespaces", () => {
+    const facets = new Set(
+      getScoreFilterConfig().facets.map((facet) => facet.column),
+    );
+    for (const field of SCORES_FIELD_REGISTRY.fields) {
+      expect(facets.has(field.id), field.id).toBe(true);
+    }
+    for (const query of [
+      "scores.accuracy:>0.5",
+      "traceScores.grade:A",
+      "latency:>2",
+      "evaluatorId:abc",
+    ]) {
+      expect(
+        planCommit(query, undefined, SCORES_FIELD_REGISTRY).status,
+        query,
+      ).toBe("invalid");
+    }
+    const completion = planInputCompletions(
+      {
+        input: "name:",
+        caret: 5,
+        observed: { name: [{ value: "Rouge Score" }] },
+        recents: [],
+        currentQueryText: "",
+      },
+      SCORES_FIELD_REGISTRY,
+    );
+    const options =
+      completion?.sections.flatMap((section) => section.options) ?? [];
+    expect(options.some((option) => option.label.includes("Rouge Score"))).toBe(
+      true,
+    );
+  });
+});
 
 // Per-view wiring of the property harness. A second filterable view adopts the
 // bar by adding its own block here with its registry — the harness is unchanged.

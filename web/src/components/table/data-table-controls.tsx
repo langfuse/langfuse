@@ -83,6 +83,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import type {
   UIFilter,
+  NumericUIFilter,
   KeyScoreLevels,
   KeyValueFilterEntry,
   NumericKeyValueFilterEntry,
@@ -562,7 +563,7 @@ export function DataTableControls({
     if (filter.type === "numeric") {
       return (
         <NumericFacet
-          key={filter.column}
+          key={`${filter.column}:${filter.value === null ? "conditions" : "range"}`}
           filterKey={filter.column}
           label={filter.label}
           tooltip={filter.tooltip}
@@ -573,6 +574,8 @@ export function DataTableControls({
           min={filter.min}
           max={filter.max}
           value={filter.value}
+          conditions={filter.conditions}
+          onRemoveCondition={filter.onRemoveCondition}
           onChange={filter.onChange}
           unit={filter.unit}
           isActive={filter.isActive}
@@ -1311,7 +1314,9 @@ interface CategoricalFacetProps extends BaseFacetProps {
 interface NumericFacetProps extends BaseFacetProps {
   min: number;
   max: number;
-  value: [number, number];
+  value: [number, number] | null;
+  conditions: NumericUIFilter["conditions"];
+  onRemoveCondition: (index: number) => void;
   onChange: (value: [number, number]) => void;
   unit?: string;
 }
@@ -2060,6 +2065,8 @@ function NumericFacet({
   min,
   max,
   value,
+  conditions,
+  onRemoveCondition,
   onChange,
   unit,
   isActive,
@@ -2067,20 +2074,23 @@ function NumericFacet({
   disabledReason,
   onReset,
 }: NumericFacetProps) {
-  const [localValue, setLocalValue] = useState<[number, number]>(value);
+  const [localValue, setLocalValue] = useState<[number, number]>(
+    value ?? [min, max],
+  );
   // Adopt external value changes (reset, URL navigation) during render — the
   // "adjust state when a prop changes" pattern — rather than via a mirror
   // effect. `lastValue` tracks the last adopted prop so pending local edits
   // (which lead the prop while the debounce runs) survive unrelated renders.
-  const [lastValue, setLastValue] = useState<[number, number]>(value);
-  if (lastValue[0] !== value[0] || lastValue[1] !== value[1]) {
+  const [lastValue, setLastValue] = useState(value);
+  if (lastValue?.[0] !== value?.[0] || lastValue?.[1] !== value?.[1]) {
     setLastValue(value);
-    setLocalValue(value);
+    setLocalValue(value ?? [min, max]);
   }
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
-  const [appliedMin, appliedMax] = value;
+  const appliedMin = value?.[0];
+  const appliedMax = value?.[1];
 
   // An external reset or replacement cancels the pending draft.
   useEffect(() => {
@@ -2155,6 +2165,29 @@ function NumericFacet({
       <div className="px-4 py-2">
         {loading ? (
           <div className="text-muted-foreground text-sm">Loading...</div>
+        ) : value === null ? (
+          <div className="ph-no-capture flex flex-col gap-1">
+            {conditions.map((condition, index) => (
+              <div
+                key={index}
+                className="border-border/40 bg-muted/30 flex items-center gap-2 rounded border px-2 py-1 text-xs"
+              >
+                <span className="min-w-0 flex-1">
+                  {condition.operator} {condition.value}
+                  {unit ? ` ${unit}` : ""}
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label={`Remove ${label} ${condition.operator} ${condition.value}`}
+                  onClick={() => onRemoveCondition(index)}
+                  className="text-muted-foreground hover:text-foreground h-5 w-5 shrink-0 p-0"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="grid gap-4">
             <div className="flex items-center gap-4">
