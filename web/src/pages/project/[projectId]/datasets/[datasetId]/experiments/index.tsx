@@ -37,7 +37,10 @@ import { TemplateSelector } from "@/src/features/evals/components/template-selec
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
+import {
+  EvaluatorForm,
+  useEvaluatorFormTemplate,
+} from "@/src/features/evals/components/evaluator-form";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
 import { ExperimentsTable } from "@/src/features/experiments/components/table";
@@ -181,6 +184,11 @@ function DatasetExperimentsView({
     evaluatorsData: evaluators.data,
     evalTemplatesData: evalTemplates.data,
     refetchEvaluators: evaluators.refetch,
+  });
+  const evalTemplate = useEvaluatorFormTemplate({
+    evalTemplates: evalTemplates.data?.templates ?? [],
+    evalTemplate: selectedEvaluatorData?.evaluator.evalTemplate,
+    templateId: selectedEvaluatorData?.templateId,
   });
   // Callback for preprocessing evaluator form values
   // For experiment evaluators, we only run on new data (not historic)
@@ -398,7 +406,7 @@ function DatasetExperimentsView({
         setScoreOptions={setScoreOptions}
       />
       {/* Dialog for configuring evaluators */}
-      {selectedEvaluatorData && (
+      {selectedEvaluatorData && evalTemplate && (
         <Dialog
           open={showEvaluatorForm}
           onOpenChange={(open) => {
@@ -417,8 +425,7 @@ function DatasetExperimentsView({
             <EvaluatorForm
               useDialog={true}
               projectId={projectId}
-              evalTemplates={evalTemplates.data?.templates ?? []}
-              templateId={selectedEvaluatorData.templateId}
+              evalTemplate={evalTemplate}
               existingEvaluator={selectedEvaluatorData.evaluator}
               mode={selectedEvaluatorData.evaluator.id ? "edit" : "create"}
               hideTargetSection={!selectedEvaluatorData.evaluator.id}
