@@ -28,8 +28,14 @@ export const BillingSettings = () => {
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
   const isCloudBillingEntitled = useHasEntitlement("cloud-billing");
   const isSpendAlertEntitled = useHasEntitlement("cloud-spend-alerts");
-  const { organization, billingProvider, hasActiveSubscription } =
-    useBillingInformation();
+  const {
+    organization,
+    billingProvider,
+    hasActiveSubscription,
+    planLabel,
+    cancellation,
+    scheduledPlanSwitch,
+  } = useBillingInformation();
   const showBillingDiscount = Boolean(
     organization?.cloudConfig?.stripe?.activeSubscriptionId &&
     billingProvider !== "clickhouse",
@@ -59,7 +65,19 @@ export const BillingSettings = () => {
 
   return (
     <div>
-      <BillingScheduleNotification />
+      {cancellation ? (
+        <BillingScheduleNotification
+          type="cancellation"
+          planLabel={planLabel}
+          cancellation={cancellation}
+        />
+      ) : scheduledPlanSwitch ? (
+        <BillingScheduleNotification
+          type="scheduled-plan-switch"
+          planLabel={planLabel}
+          scheduledPlanSwitch={scheduledPlanSwitch}
+        />
+      ) : null}
 
       <Header title="Usage & Billing" />
       <div className="space-y-6">
