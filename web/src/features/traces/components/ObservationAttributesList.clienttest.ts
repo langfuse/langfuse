@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   attributeColumnFilter,
   attributeGrammar,
+  buildModelParameters,
   buildObservationAttributes,
 } from "./ObservationAttributesList";
 
@@ -16,29 +17,25 @@ describe("buildObservationAttributes", () => {
       version: "v7",
       sessionId: "s42",
       userId: null,
-      modelParameters: { temperature: 0.2 },
     });
     expect(Object.keys(attributes)).toEqual([
       "model",
       "environment",
       "version",
       "session_id",
-      "temperature",
     ]);
     expect(attributes.session_id).toBe("s42");
   });
+});
 
-  it("does not let model parameters overwrite session or user", () => {
-    const attributes = buildObservationAttributes({
-      model: null,
-      environment: null,
-      release: null,
-      version: null,
-      sessionId: "s42",
-      userId: "u1",
-      modelParameters: { session_id: "bogus", user_id: "bogus" },
-    });
-    expect(attributes).toEqual({ session_id: "s42", user_id: "u1" });
+describe("buildModelParameters", () => {
+  it("keeps the call's parameters as their own table and drops empty ones", () => {
+    expect(
+      buildModelParameters({ temperature: 0.2, top_p: null, tools: ["a"] }),
+    ).toEqual({ temperature: 0.2, tools: ["a"] });
+    expect(buildModelParameters({})).toBeNull();
+    expect(buildModelParameters(null)).toBeNull();
+    expect(buildModelParameters("gpt-4" as unknown as null)).toBeNull();
   });
 });
 

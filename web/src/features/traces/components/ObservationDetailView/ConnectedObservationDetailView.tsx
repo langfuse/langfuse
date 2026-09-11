@@ -72,7 +72,10 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
-import { buildObservationAttributes } from "@/src/features/traces/components/ObservationAttributesList";
+import {
+  buildModelParameters,
+  buildObservationAttributes,
+} from "@/src/features/traces/components/ObservationAttributesList";
 
 export interface ConnectedObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -128,8 +131,8 @@ export function ConnectedObservationDetailView({
     version: observation.version,
     sessionId: observation.sessionId,
     userId: observation.userId,
-    modelParameters: observation.modelParameters,
   });
+  const modelParameters = buildModelParameters(observation.modelParameters);
 
   // Hide entire tabs bar when only Preview tab remains (cleaner annotation mode UI)
   const showTabsBar = showLogViewTab || showScoresTab;
@@ -567,6 +570,7 @@ export function ConnectedObservationDetailView({
                   showMetadata: true,
                   attributes,
                   attributesAnchorTime: observation.startTime,
+                  modelParameters,
                   observationId: observation.id,
                   projectId,
                   traceId,

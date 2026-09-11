@@ -114,6 +114,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   // Fixed-key attributes, rendered between Output and Metadata
   attributes?: Record<string, unknown>;
   attributesAnchorTime?: Date | null;
+  modelParameters?: Record<string, unknown> | null;
   observationId?: string;
   projectId: string;
   traceId: string;
@@ -166,6 +167,7 @@ export function IOPreviewPretty({
   showMetadata = false,
   attributes,
   attributesAnchorTime,
+  modelParameters,
   observationId,
   projectId,
   traceId,
@@ -390,6 +392,19 @@ export function IOPreviewPretty({
               ...metadataActions,
               attributes: { anchorTime: attributesAnchorTime },
             }}
+            hoverControls
+          />
+        </div>
+      ) : null}
+      {/* The LLM call's own parameters. Copy only: nothing here maps to a
+          table column, unlike the attributes above. */}
+      {showData && modelParameters ? (
+        <div className="mt-2 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
+          <PrettyJsonView
+            hideHeader
+            title="Model parameters"
+            json={modelParameters}
+            currentView="pretty"
             hoverControls
           />
         </div>

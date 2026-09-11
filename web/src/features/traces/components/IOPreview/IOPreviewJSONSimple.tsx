@@ -27,6 +27,7 @@ export interface IOPreviewJSONSimpleProps {
   // Fixed-key attributes, rendered between Output and Metadata
   attributes?: Record<string, unknown>;
   attributesAnchorTime?: Date | null;
+  modelParameters?: Record<string, unknown> | null;
   media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
@@ -73,6 +74,7 @@ export function IOPreviewJSONSimple({
   hideIfNull = false,
   attributes,
   attributesAnchorTime,
+  modelParameters,
   hideOutput = false,
   hideInput = false,
   media,
@@ -226,6 +228,19 @@ export function IOPreviewJSONSimple({
               filterTarget: observationId ? "observations" : "traces",
               attributes: { anchorTime: attributesAnchorTime },
             }}
+            hoverControls
+          />
+        </div>
+      ) : null}
+      {/* The LLM call's own parameters. Copy only: nothing here maps to a
+          table column, unlike the attributes above. */}
+      {modelParameters ? (
+        <div className="mt-2 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
+          <PrettyJsonView
+            hideHeader
+            title="Model parameters"
+            json={modelParameters}
+            currentView="json"
             hoverControls
           />
         </div>

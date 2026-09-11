@@ -47,6 +47,7 @@ import {
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,
+  METRIC_TEXT_CLASS,
   StartTimeBadge,
   TimeToFirstTokenBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
@@ -754,6 +755,13 @@ export const ObservationDetailViewHeader = memo(
                 totalUsage={displayedTotalUsage}
                 usageDetails={displayedUsageDetails}
               />
+              {/* Model as quiet text, like the tree row: the attributes table
+                  below has it too, but that can be a scroll away. */}
+              {observation.model ? (
+                <span title="Model" className={METRIC_TEXT_CLASS}>
+                  {observation.model}
+                </span>
+              ) : null}
               {evaluatorId &&
                 isEvaluatorExecution &&
                 !evaluatorId.startsWith("managed:") && (

@@ -1,8 +1,10 @@
 /**
  * Observation attributes: the fixed-key facts Langfuse knows (model,
- * environment, release, version, session, user, model parameters). Rendered
- * with the same PrettyJsonView table as metadata; this module supplies the
- * object to render and the column-filter mapping its value menu uses.
+ * environment, release, version, session, user). Rendered with the same
+ * PrettyJsonView table as metadata; this module supplies the object to render
+ * and the column-filter mapping its value menu uses. Model parameters are a
+ * table of their own (`buildModelParameters`): they come from the LLM call,
+ * not from Langfuse, and have no column to filter on.
  */
 
 import { type FilterState, type JsonNested } from "@langfuse/shared";
@@ -16,7 +18,6 @@ export function buildObservationAttributes({
   version,
   sessionId,
   userId,
-  modelParameters,
 }: {
   model: string | null;
   environment: string | null;
@@ -25,7 +26,6 @@ export function buildObservationAttributes({
   /** Trace-level; v4 events carry them on every observation. */
   sessionId?: string | null;
   userId?: string | null;
-  modelParameters: JsonNested | null | undefined;
 }): Record<string, unknown> {
   const attributes: Record<string, unknown> = {};
   if (model) attributes.model = model;
@@ -35,19 +35,24 @@ export function buildObservationAttributes({
   // SDK spelling (`session_id`, `user_id`); both are search-bar aliases.
   if (sessionId) attributes.session_id = sessionId;
   if (userId) attributes.user_id = userId;
-  if (
-    modelParameters &&
-    typeof modelParameters === "object" &&
-    !Array.isArray(modelParameters)
-  ) {
-    for (const [key, value] of Object.entries(modelParameters)) {
-      // Fixed attributes win: a parameter that happens to be called `model`
-      // or `version` must not replace the observation's own value.
-      if (value === null || value === undefined || key in attributes) continue;
-      attributes[key] = value;
-    }
-  }
   return attributes;
+}
+
+/** The LLM call's own parameters (temperature, tools, reasoning …), as sent by
+ * the SDK. Null when there are none, so the table does not render empty. */
+export function buildModelParameters(
+  modelParameters: JsonNested | null | undefined,
+): Record<string, unknown> | null {
+  if (
+    !modelParameters ||
+    typeof modelParameters !== "object" ||
+    Array.isArray(modelParameters)
+  )
+    return null;
+  const entries = Object.entries(modelParameters).filter(
+    ([, value]) => value !== null && value !== undefined,
+  );
+  return entries.length > 0 ? Object.fromEntries(entries) : null;
 }
 
 export type AttributeColumnFilter = {
