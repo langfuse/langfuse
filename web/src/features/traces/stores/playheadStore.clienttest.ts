@@ -204,13 +204,11 @@ describe("createPlayheadStore actions", () => {
 
   it("changes presentation duration without accumulating activation padding", () => {
     const store = seededStore();
-    store
-      .getState()
-      .actions.syncTrace({
-        traceDuration: 10,
-        nodeWindows: [{ id: "short", startSec: 1, endSec: 1 }],
-        hard: true,
-      });
+    store.getState().actions.syncTrace({
+      traceDuration: 10,
+      nodeWindows: [{ id: "short", startSec: 1, endSec: 1 }],
+      hard: true,
+    });
     store.getState().actions.seekToSec(5);
     store.getState().actions.setPlaybackDuration(100);
     expect(store.getState().playheadSec).toBe(5);
@@ -224,21 +222,17 @@ describe("createPlayheadStore actions", () => {
   it("preserves presentation duration across refetch but resets it for another trace", () => {
     const store = seededStore();
     store.getState().actions.setPlaybackDuration(120);
-    store
-      .getState()
-      .actions.syncTrace({
-        traceDuration: 20,
-        nodeWindows: windows,
-        hard: false,
-      });
+    store.getState().actions.syncTrace({
+      traceDuration: 20,
+      nodeWindows: windows,
+      hard: false,
+    });
     expect(store.getState().playbackDuration).toBe(120);
-    store
-      .getState()
-      .actions.syncTrace({
-        traceDuration: 20,
-        nodeWindows: windows,
-        hard: true,
-      });
+    store.getState().actions.syncTrace({
+      traceDuration: 20,
+      nodeWindows: windows,
+      hard: true,
+    });
     expect(store.getState().playbackDuration).toBeNull();
   });
 });
