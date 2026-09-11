@@ -17,6 +17,7 @@ import {
   ChartConfigSchema,
   DimensionSchema,
   MetricSchema,
+  coerceLegacyEmptyMetadataFilters,
   singleFilter,
   type FilterState,
 } from "@langfuse/shared";
@@ -47,7 +48,10 @@ const widgetImportBaseSchema = z
     view: views,
     dimensions: z.array(DimensionSchema),
     metrics: z.array(widgetMetricSchema),
-    filters: z.array(singleFilter),
+    filters: z.preprocess(
+      coerceLegacyEmptyMetadataFilters,
+      z.array(singleFilter),
+    ),
     chartType: dashboardWidgetChartTypeSchema,
     chartConfig: ChartConfigSchema,
     minVersion: z.number().int().optional(),

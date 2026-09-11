@@ -4,15 +4,16 @@ import {
   booleanFilter,
   eventsTableSingleFilter,
   eventsTableStringFilter,
-  eventsTableStringObjectFilter,
+  eventsTableStringObjectFilterBase,
   eventsTableCols,
   filterOperators,
   FTS_MATCH_OPERATOR,
+  guardStringObjectValue,
   numberFilter,
   ObservationLevelDomain,
   ObservationTypeDomain,
   stringFilter,
-  stringObjectFilter,
+  stringObjectFilterBase,
   stringOptionsFilter,
   timeFilter,
   type ColumnDefinition,
@@ -127,16 +128,18 @@ const OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE = {
       column: z.literal(column),
     }),
   stringObject: (column: string, requireType = false) => {
-    const filterSchema = OBSERVATION_MCP_FTS_COLUMNS.has(column)
-      ? eventsTableStringObjectFilter
-      : stringObjectFilter;
+    const filterSchemaBase = OBSERVATION_MCP_FTS_COLUMNS.has(column)
+      ? eventsTableStringObjectFilterBase
+      : stringObjectFilterBase;
 
-    return filterSchema.omit({ type: true, column: true }).extend({
-      type: requireType
-        ? z.literal("stringObject")
-        : z.literal("stringObject").optional(),
-      column: z.literal(column),
-    });
+    return guardStringObjectValue(
+      filterSchemaBase.omit({ type: true, column: true }).extend({
+        type: requireType
+          ? z.literal("stringObject")
+          : z.literal("stringObject").optional(),
+        column: z.literal(column),
+      }),
+    );
   },
   boolean: (column: string, requireType = false) =>
     booleanFilter.omit({ type: true, column: true }).extend({

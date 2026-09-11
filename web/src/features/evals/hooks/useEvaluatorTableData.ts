@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   type EvaluatorBlockReason,
   type FilterState,
+  coerceLegacyEmptyMetadataFilters,
   singleFilter,
   type OrderByState,
 } from "@langfuse/shared";
@@ -122,7 +123,9 @@ export const useEvaluatorTableData = ({
           blockReason: jobConfig.blockReason,
           scoreName: jobConfig.scoreName,
           target: jobConfig.targetObject,
-          filter: z.array(singleFilter).parse(jobConfig.filter),
+          filter: z
+            .array(singleFilter)
+            .parse(coerceLegacyEmptyMetadataFilters(jobConfig.filter)),
           result: generateJobExecutionCounts(executionCounts),
           isCostLoading: !costs.data,
           isResultLoading:

@@ -21,6 +21,8 @@ export const filterOperators = {
     "does not contain",
     "starts with",
     "ends with",
+    "is set",
+    "is not set",
   ],
   numberObject: ["=", ">", "<", ">=", "<="],
   booleanObject: ["=", "<>"],
@@ -74,13 +76,65 @@ export const arrayOptionsFilter = z
         "Value array must not be empty unless operator is 'all of' or 'none of' (which represent waiting for selection)",
     },
   );
-export const stringObjectFilter = z.object({
+// Substring operators with an empty value skip the ngram prefilter and degrade
+// to a full-scan key-existence check over the whole time window; reject them so
+// callers use the `is set` / `is not set` presence operators instead. Applied as
+// a wrapper (not a fixed schema) because Zod v4 forbids `.omit()` on a refined
+// object, and some callers reshape the base before the guard can apply.
+const EMPTY_VALUE_REJECTED_STRING_OBJECT_OPERATORS = new Set<string>([
+  "contains",
+  "starts with",
+  "ends with",
+]);
+export const guardStringObjectValue = <T extends z.ZodObject<any>>(schema: T) =>
+  schema.superRefine((data, ctx) => {
+    const { operator, value } = data as { operator: string; value: string };
+    if (
+      EMPTY_VALUE_REJECTED_STRING_OBJECT_OPERATORS.has(operator) &&
+      value.length === 0
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Empty value is not allowed for 'contains', 'starts with', or 'ends with'. Use 'is set' / 'is not set' to filter on key presence.",
+        path: ["value"],
+      });
+    }
+  });
+
+export const stringObjectFilterBase = z.object({
   type: z.literal("stringObject"),
   column: z.string(),
   key: z.string(), // eg metadata --> "environment"
   operator: z.enum(filterOperators.stringObject),
   value: z.string(),
 });
+export const stringObjectFilter = guardStringObjectValue(
+  stringObjectFilterBase,
+);
+
+// Metadata `contains ""` / `starts with ""` / `ends with ""` was the historical
+// way to express key presence before `is set` / `is not set` existed. The value
+// guard now rejects it, so rewrite persisted filter state (eval configs, saved
+// views) to the equivalent `is set` when reading it back, keeping legacy filters
+// working instead of throwing on parse.
+export const coerceLegacyEmptyMetadataFilters = (filters: unknown): unknown => {
+  if (!Array.isArray(filters)) return filters;
+  return filters.map((filter) => {
+    if (
+      filter &&
+      typeof filter === "object" &&
+      (filter as { type?: unknown }).type === "stringObject" &&
+      (filter as { value?: unknown }).value === "" &&
+      EMPTY_VALUE_REJECTED_STRING_OBJECT_OPERATORS.has(
+        (filter as { operator?: unknown }).operator as string,
+      )
+    ) {
+      return { ...(filter as object), operator: "is set" };
+    }
+    return filter;
+  });
+};
 export const numberObjectFilter = z.object({
   type: z.literal("numberObject"),
   column: z.string(),
@@ -161,9 +215,12 @@ export const eventsTableStringFilter = stringFilter.extend({
   operator: eventsTableStringOperator,
 });
 
-export const eventsTableStringObjectFilter = stringObjectFilter.extend({
+export const eventsTableStringObjectFilterBase = stringObjectFilterBase.extend({
   operator: eventsTableStringObjectOperator,
 });
+export const eventsTableStringObjectFilter = guardStringObjectValue(
+  eventsTableStringObjectFilterBase,
+);
 
 export const eventsTableSingleFilter = z.discriminatedUnion("type", [
   timeFilter,

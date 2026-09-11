@@ -2272,6 +2272,8 @@ describe("MCP Read Tools", () => {
                   "does not contain",
                   "starts with",
                   "ends with",
+                  "is set",
+                  "is not set",
                 ],
                 requiresKey: true,
               },
