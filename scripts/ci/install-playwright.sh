@@ -6,7 +6,9 @@ readonly APT_MIRRORS_FILE="${PLAYWRIGHT_APT_MIRRORS_FILE:-/etc/apt/blacksmith-ub
 readonly APT_SOURCES_FILE="${PLAYWRIGHT_APT_SOURCES_FILE:-/etc/apt/sources.list.d/ubuntu.sources}"
 readonly APT_CONFIG_FILE="${PLAYWRIGHT_APT_CONFIG_FILE:-/etc/apt/apt.conf.d/80-playwright-network-retries}"
 readonly FALLBACK_MIRRORS=(
-  "https://azure.archive.ubuntu.com/ubuntu/"
+  "https://azure.archive.ubuntu.com/ubuntu/"$'\tpriority:0'
+  "https://mirror.pilotfiber.com/ubuntu/"$'\tpriority:1'
+  "https://mirror.tzulo.com/ubuntu/"$'\tpriority:1'
 )
 
 sudo tee "${APT_CONFIG_FILE}" > /dev/null <<'EOF'
@@ -14,9 +16,8 @@ Acquire::Retries "3";
 EOF
 
 if [[ -f "${APT_MIRRORS_FILE}" && -f "${APT_SOURCES_FILE}" ]]; then
-  # Prefer the Azure-hosted archive while Canonical's primary endpoints are degraded.
-  for mirror in "${FALLBACK_MIRRORS[@]}"; do
-    mirror_entry="${mirror}"$'\tpriority:0'
+  # Prefer the Azure-hosted archive, then fall back to independent mirrors.
+  for mirror_entry in "${FALLBACK_MIRRORS[@]}"; do
     if ! grep -Fqx "${mirror_entry}" "${APT_MIRRORS_FILE}"; then
       printf '%s\n' "${mirror_entry}" | sudo tee -a "${APT_MIRRORS_FILE}" > /dev/null
     fi
