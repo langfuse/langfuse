@@ -482,6 +482,7 @@ type BaseUseSidebarFilterStateOptions = {
     previousFilters: FilterState;
     nextFilters: FilterState;
     origin: "user" | "saved_view" | "system";
+    action?: "clear";
   }) => void;
   /**
    * Precise per-facet loading set (lazy filter-options): exactly the columns
@@ -833,6 +834,7 @@ export function useSidebarFilterStateCore(
       options?: {
         updateType?: UrlUpdateType;
         origin?: "user" | "saved_view" | "system";
+        action?: "clear";
       },
     ) => {
       const explicitFilters = stripOmittedColumns(
@@ -846,6 +848,7 @@ export function useSidebarFilterStateCore(
         previousFilters: explicitFilterState,
         nextFilters: explicitFilters,
         origin: options?.origin ?? "user",
+        action: options?.action,
       });
 
       if (stateLocationType === "peekContext" && setPeekTableState) {
@@ -1133,7 +1136,7 @@ export function useSidebarFilterPresentation(
   const clearAll = () => {
     const clearedCount = explicitFilterState.length;
     setDraftResetKey((key) => key + 1);
-    setFilterState([]);
+    setFilterState([], { action: "clear" });
     if (clearedCount > 0) {
       capture("filters:cleared", {
         surface: "sidebar",
