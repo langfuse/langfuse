@@ -20,7 +20,7 @@ type TraceBatchEventRow = {
 const TRACE_QUERY_BUFFER_MS = 2 * 60_000;
 
 /**
- * Read full payloads for a project batch without retaining them in memory.
+ * Stream full events_full payloads into the worker without retaining a whole batch.
  * Rows reflect the events table's current merge state, as in other event reads;
  * this read-only experiment does not deduplicate versions or enrich model data.
  */
@@ -50,14 +50,20 @@ export async function* getTraceBatchEventStream(props: {
       "e.type",
       "e.name",
     )
+    // Load full input/output (false = no truncation) and every metadata key.
     .selectIO(false)
     .selectMetadataExpanded()
     .selectFieldSet("tools")
+    // Read events_full rather than the smaller, truncated events_core table.
     .forceFullTable()
     .whereRaw("e.trace_id IN ({traceIds: Array(String)})", { traceIds })
+    // Equality filters add this primary-key hash condition automatically; IN
+    // needs it explicitly. The exact IDs above also exclude hash collisions.
     .whereRaw(
       `xxHash32(e.trace_id) IN (${bounds.map((_, index) => `xxHash32({traceId${index}: String})`).join(", ")})`,
     )
+    // This shared time range enables partition/granule pruning before the
+    // individual trace-window checks below.
     .whereRaw(
       "e.start_time >= fromUnixTimestamp64Milli({batchMinStart: Int64}) AND e.start_time <= fromUnixTimestamp64Milli({batchMaxStart: Int64})",
       {
@@ -85,6 +91,7 @@ export async function* getTraceBatchEventStream(props: {
     params,
     tags: { projectId: props.projectId },
     preferredClickhouseService: "EventsReadOnly",
+    // Bound background-read CPU/time; timeouts fail instead of returning partial results.
     clickhouseSettings: {
       max_threads: 2,
       max_execution_time: 30,
