@@ -224,10 +224,6 @@ every time.
 
 **Org defaults** for agent behaviour — including this propose-then-write gate —
 live in `.agents/skills/**` (and the maintainer handbook that points at them).
-Edit the skill when the team wants a different default.
-
-**Personal overrides** (tone, focus areas, “always / never do X for me”) belong
-in `.langfuse/me.md`, which is local and not shared. If a preference
-should apply to every maintainer’s agent, promote it into a skill instead of
-leaving it only in one person’s file. A richer commit-able preferences surface
-in-repo is a separate, larger change; until then, skills are the shared source.
+Edit the skill when the team wants a different default. Ask the person for
+one-off personal preferences; do not maintain a local identity or preferences
+file for them.

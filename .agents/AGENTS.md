@@ -3,16 +3,7 @@
 Langfuse is an open source LLM engineering platform for developing, monitoring,
 evaluating, and debugging AI applications.
 
-## Who You Are Working For
-
-Read the workspace identity file `.langfuse/me.md` (gitignored) when it exists.
-Do not read or write `~/.config/langfuse/me.md` — that path is outside the
-project, and workspace-scoped harnesses prompt on it. If the workspace file is
-missing: on Cursor Cloud use the run owner (`cursor-cloud` `run-info`) plus the
-team roster — not Cloud `gh` permissions (read-only integration, often
-`push: false` for maintainers); on desktop use `gh api user` then
-`.permissions.push`. Ask once for anything those cannot tell you, and write it
-to `.langfuse/me.md`.
+## Scope
 
 **Outside contributor** → code and `CONTRIBUTING.md` only (build, checks, PRs).
 No tracker, handbook, or working-week context.
@@ -24,9 +15,6 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
 
 ## How To Work
 
-- Know who you are working for before you assume what they may do
-  (`.langfuse/me.md`, else Cloud run owner / desktop `gh` — see above).
-  Never guess it silently.
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
 - Delegate exploratory or noisy work — broad code search, multi-file
@@ -160,12 +148,9 @@ langfuse/
 
 ### Cursor Cloud specific instructions
 
-- Identity: `cursor-cloud` `run-info` (`owningUserName`, `owningUserEmail`),
-  then the roster. Repo postinstall and Cloud start normally recover the
-  workspace identity file in `.langfuse/` from `LINEAR_API_KEY` first (and
-  a machine-level copy under `~/.config/langfuse` when the harness allows
-  it). Read the workspace file. Ignore `git config`
-  (`cursoragent@cursor.com`) and Cloud `gh` `.permissions.push`.
+- Ignore `git config` (`cursoragent@cursor.com`) and Cloud `gh`
+  `.permissions.push` — Cloud's GitHub token is a read-only integration and
+  often reports `push: false` for maintainers.
 - Linear: MCP if already authorized; else a real read with `LINEAR_API_KEY`
   (or `LINEAR_TOKEN` / `LINEAR_API_TOKEN`). Interactive `mcp_auth` does not
   work in Cloud. If neither works, tell them to add **`LINEAR_API_KEY`** as a

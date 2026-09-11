@@ -18,11 +18,10 @@ description: |
 change daily, and a plausible answer assembled from memory is worse than no
 answer because nobody can tell it is stale.
 
-Who the person is comes from `.langfuse/me.md` in this checkout (see
-`AGENTS.md`). Do not Read `~/.config/langfuse/me.md`. If the workspace file
-is not there, use the Cloud run owner plus roster, or desktop `gh`. Do not
-guess, and do not answer this question for an outside contributor, who owns
-none of it.
+For whose plate to query: use Linear's authenticated viewer
+(`member: "me"`), or ask once. Do not invent or maintain a personal identity
+file. Do not answer this question for an outside contributor, who owns none
+of it.
 
 If Linear MCP is `needsAuth` and no `LINEAR_API_KEY` (or `LINEAR_TOKEN` /
 `LINEAR_API_TOKEN`) is set, **stop**. Tell them to add `LINEAR_API_KEY` as a
@@ -62,8 +61,7 @@ list_projects(member: "me", state: "started",
 ```
 
 A local list of someone's projects is stale within a week — this repo has been
-burned by exactly that. `me.md` holds only the durable half: name, role, and the
-focus they described in their own words.
+burned by exactly that. Re-query the tracker; do not cache ownership locally.
 
 ## What ranking actually means here
 
