@@ -13,14 +13,22 @@ import {
   RULE_SAMPLE_FIELD_REGISTRY,
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters";
+import { sessionsFieldRegistry } from "@/src/features/filters/config/sessionsSearchRegistry";
+import { getSessionFilterConfig } from "@/src/features/filters/config/sessions-config";
 import { usersEventsFilterConfig } from "@/src/features/filters/config/users-config";
 import {
   USERS_FIELD_REGISTRY,
   LEGACY_USERS_FIELD_REGISTRY,
 } from "@/src/features/filters/config/usersSearchRegistry";
 import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
-import { SCORES_FIELD_REGISTRY } from "@/src/features/scores/constants/scoresSearchRegistry";
-import { getScoreFilterConfig } from "@/src/features/filters/config/scores-config";
+import {
+  SCORES_FIELD_REGISTRY,
+  scoresFieldRegistry,
+} from "@/src/features/scores/constants/scoresSearchRegistry";
+import {
+  getScoreFilterConfig,
+  type ScoresTableHiddenColumn,
+} from "@/src/features/filters/config/scores-config";
 import type { FilterState } from "@langfuse/shared";
 import { validateQuery } from "./validate";
 import { DEFAULT_SEARCH_TYPE, planCommit } from "./commit";
@@ -37,6 +45,77 @@ import {
 } from "./searchBarInvariants";
 
 describe("search bar invariants — Scores registry", () => {
+  it("preserves parent-owned filters as skipped and rejects conflicting scoped fields", () => {
+    const hiddenColumns: ScoresTableHiddenColumn[] = [
+      "traceId",
+      "observationId",
+      "traceName",
+      "userId",
+      "traceTags",
+      "jobConfigurationId",
+    ];
+    const registry = scoresFieldRegistry(getScoreFilterConfig(hiddenColumns));
+    const parentFilters: FilterState = [
+      { column: "traceId", type: "string", operator: "=", value: "trace" },
+      {
+        column: "observationId",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["", "observation"],
+      },
+      {
+        column: "traceName",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["parent"],
+      },
+      {
+        column: "userId",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["user"],
+      },
+      {
+        column: "tags",
+        type: "arrayOptions",
+        operator: "all of",
+        value: ["parent"],
+      },
+    ];
+    const visibleFilter: FilterState = [
+      {
+        column: "name",
+        type: "string",
+        operator: "contains",
+        value: "quality",
+      },
+    ];
+    expect(
+      filterStateToQueryText(
+        [...parentFilters, ...visibleFilter],
+        {},
+        registry,
+      ),
+    ).toMatchObject({ text: "name:quality", skippedFilters: parentFilters });
+    for (const query of [
+      "trace_id:other",
+      "observation_id:other",
+      "trace_name:other",
+      "user:other",
+      "traceTags:other",
+      "has:userId",
+    ]) {
+      expect(planCommit(query, undefined, registry).status, query).toBe(
+        "invalid",
+      );
+    }
+    expect(planCommit("quality", undefined, registry)).toMatchObject({
+      status: "committed",
+      filters: visibleFilter,
+    });
+    expect(registry.hasExample).toBeNull();
+  });
+
   it("searches within a score name", () => {
     const result = planCommit("Rouge Score", undefined, SCORES_FIELD_REGISTRY);
     expect(result).toMatchObject({
@@ -688,6 +767,24 @@ const sessionsView: RegistryUnderTest = {
 };
 
 describe("search bar invariants — sessions registry", () => {
+  it.each([false, true])(
+    "offers only executable examples inside a user detail table (events: %s)",
+    (fromEvents) => {
+      const registry = sessionsFieldRegistry(
+        getSessionFilterConfig(["userIds"], fromEvents),
+      );
+      const examples = [
+        ...registry.searchExamples,
+        ...(registry.hasExample ? [`has:${registry.hasExample}`] : []),
+      ];
+      for (const example of examples) {
+        expect(planCommit(example, undefined, registry).status, example).toBe(
+          "committed",
+        );
+      }
+    },
+  );
+
   it("holds all three invariants (parity, round-trip, serialize symmetry)", () => {
     const failures = runSearchBarInvariants(sessionsView);
     expect(

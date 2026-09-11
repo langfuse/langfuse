@@ -1,11 +1,14 @@
 import type { FilterState } from "@langfuse/shared";
+import { useMemo } from "react";
+import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
-import { SCORES_FIELD_REGISTRY } from "@/src/features/scores/constants/scoresSearchRegistry";
+import { scoresFieldRegistry } from "@/src/features/scores/constants/scoresSearchRegistry";
 
 export function ScoresSearchBar({
   projectId,
   isV4,
+  filterConfig,
   filterState,
   setFilterState,
   filterOptions,
@@ -13,11 +16,16 @@ export function ScoresSearchBar({
 }: {
   projectId: string;
   isV4: boolean;
+  filterConfig: FilterConfig;
   filterState: FilterState;
   setFilterState: (filters: FilterState) => void;
   filterOptions: Parameters<typeof toObservedOptions>[0];
   isLoading: boolean;
 }) {
+  const registry = useMemo(
+    () => scoresFieldRegistry(filterConfig),
+    [filterConfig],
+  );
   const observed = toObservedOptions(filterOptions, isLoading);
   return (
     <TableSearchBar
@@ -27,7 +35,7 @@ export function ScoresSearchBar({
       filterState={filterState}
       setFilterState={setFilterState}
       observed={observed}
-      registry={SCORES_FIELD_REGISTRY}
+      registry={registry}
     />
   );
 }

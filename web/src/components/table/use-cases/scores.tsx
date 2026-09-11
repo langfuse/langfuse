@@ -1119,6 +1119,7 @@ export default function ScoresTable({
             key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
             isV4={isV4}
             projectId={projectId}
+            filterConfig={scoresFilterConfig}
             filterState={queryFilter.searchBarFilterState}
             setFilterState={setFiltersWrapper}
             filterOptions={newFilterOptions}

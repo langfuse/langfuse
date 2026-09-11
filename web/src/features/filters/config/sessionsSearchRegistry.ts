@@ -93,6 +93,7 @@ const SESSION_FIELD_OVERLAY = {
 };
 
 function sessionsRegistry(config: FilterConfig, metadata: boolean) {
+  const hasUserIds = config.facets.some((facet) => facet.column === "userIds");
   return fieldRegistryFromColumns(facetColumns(config), {
     id: "sessions",
     metadata,
@@ -104,10 +105,10 @@ function sessionsRegistry(config: FilterConfig, metadata: boolean) {
     // by a wide margin, so a bare word means that rather than an error.
     allowFreeText: false,
     defaultTextField: "id",
-    hasExample: "userIds",
+    hasExample: hasUserIds ? "userIds" : undefined,
     recentSearches: true,
     searchExamples: [
-      "userIds:alice",
+      ...(hasUserIds ? ["userIds:alice"] : []),
       "tags:(billing AND urgent)",
       "duration:>30",
       "scores.helpfulness:>0.8",
