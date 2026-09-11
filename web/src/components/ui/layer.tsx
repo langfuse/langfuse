@@ -27,11 +27,13 @@ import { createPortal } from "react-dom";
  * The bands, low → high:
  * - `panel`   — docked/side surfaces like Sheet, Drawer, and the table peek.
  *   Above `#__next`, below the in-app assistant and true blocking modals.
- * - `agent`   — the in-app assistant window: a persistent, draggable/resizable
- *   panel that floats above page content and app panels but BELOW every true
- *   modal/transient overlay, so dialogs, dropdowns, popovers, tooltips and
- *   toasts (incl. ones opened from inside the window itself, e.g. its
- *   conversation-history menu) all paint above it.
+ * - `agent`   — the in-app assistant overlay: detached (draggable/resizable)
+ *   and fullscreen presentations, plus the handheld drawer. The default
+ *   docked sidebar is in-flow in the authenticated layout, not this layer.
+ *   Overlay presentations float above page content and app panels but BELOW
+ *   every true modal/transient overlay, so dialogs, dropdowns, popovers,
+ *   tooltips and toasts (incl. ones opened from inside the window itself,
+ *   e.g. its conversation-history menu) all paint above it.
  * - `modal`   — true blocking Dialog and AlertDialog surfaces.
  * - `popover` — Popover, DropdownMenu, Select, HoverCard. ABOVE `modal` so a
  *   Select/Popover/Dropdown opened *inside* a Dialog renders above it (matches

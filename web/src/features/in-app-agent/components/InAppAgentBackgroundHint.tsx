@@ -1,4 +1,4 @@
-import { BotMessageSquare, Minus } from "lucide-react";
+import { BotMessageSquare, X } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
@@ -10,10 +10,10 @@ import { InAppAgentNotice } from "@/src/features/in-app-agent/components/InAppAg
  */
 export function InAppAgentBackgroundHint({
   isExpanded,
-  onMinimize,
+  onClose,
 }: {
   isExpanded: boolean;
-  onMinimize: () => void;
+  onClose: () => void;
 }) {
   return (
     <InAppAgentNotice
@@ -26,19 +26,19 @@ export function InAppAgentBackgroundHint({
           type="button"
           variant="ghost"
           size="sm"
-          aria-label="Minimize assistant"
+          aria-label="Close assistant"
           className="-my-0.5 h-5 shrink-0 gap-1 px-1"
-          onClick={onMinimize}
+          onClick={onClose}
         >
-          <Minus className="size-3" />
+          <X className="size-3" />
           <span className="hidden md:inline-flex">
             <KeyboardShortcut variant="subtle" keys={["Mod", "I"]} />
           </span>
         </Button>
       }
     >
-      I keep running in the background. Feel free to minimize, I&apos;ll notify
-      you when I&apos;m done or need you.
+      I keep running in the background. Feel free to close, I&apos;ll notify you
+      when I&apos;m done or need you.
     </InAppAgentNotice>
   );
 }

@@ -16,6 +16,12 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
 import useSessionStorage from "@/src/components/useSessionStorage";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import {
+  IN_APP_AGENT_DOCK_STORAGE_KEY,
+  parseInAppAgentDock,
+  type InAppAgentDock,
+} from "@/src/features/in-app-agent/presentation";
 import { createInAppAgentConversationId } from "../ids";
 import {
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
@@ -70,6 +76,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentDisabledDialog";
 import {
+  occupyExclusiveRightPanel,
+  registerExclusiveRightPanel,
+} from "@/src/components/layouts/app-layout/right-drawer/exclusiveRightPanels";
+import {
   getCompletedToolCalls,
   performToolSideEffectsForCompletedToolCalls,
 } from "@/src/features/in-app-agent/components/utils/side-effects";
@@ -95,7 +105,8 @@ export type InAppAgentEntryPoint =
   | "keyboard_shortcut"
   | "dashboard_widget"
   | "v4_migration"
-  | "evaluators_empty_state";
+  | "evaluators_empty_state"
+  | "peek_header";
 
 function useBackgroundExecutionView(
   session: BackgroundExecutionSession | null,
@@ -119,6 +130,8 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   open: false,
   setOpen: () => undefined,
   openAssistant: () => false,
+  dock: "sidebar",
+  setDock: () => undefined,
   isExpanded: false,
   setIsExpanded: () => undefined,
   isRunning: false,
@@ -177,6 +190,8 @@ type InAppAiAgentContextType = {
   setOpen: Dispatch<SetStateAction<boolean>>;
   /** Returns false and opens the disabled dialog when AI features are off. */
   openAssistant: (source: InAppAgentEntryPoint) => boolean;
+  dock: InAppAgentDock;
+  setDock: Dispatch<SetStateAction<InAppAgentDock>>;
   isExpanded: boolean;
   setIsExpanded: Dispatch<SetStateAction<boolean>>;
   isRunning: boolean;
@@ -306,6 +321,20 @@ function InAppAiAgentProviderInner({
       `${FEEDBACK_STORAGE_KEY_PREFIX}:${projectId}`,
       {},
     );
+  const [storedDock, setStoredDock] = useLocalStorage<unknown>(
+    IN_APP_AGENT_DOCK_STORAGE_KEY,
+    "sidebar",
+  );
+  const dock = parseInAppAgentDock(storedDock);
+  const setDock = useCallback<Dispatch<SetStateAction<InAppAgentDock>>>(
+    (action) => {
+      setStoredDock((previous: unknown) => {
+        const current = parseInAppAgentDock(previous);
+        return parseInAppAgentDock(evaluateSetStateAction(action, current));
+      });
+    },
+    [setStoredDock],
+  );
   const [isExpanded, setIsExpanded] = useState(false);
   // Key by conversation so another conversation cannot release its submit lock.
   const [submittingConversationId, setSubmittingConversationId] = useState<
@@ -1233,6 +1262,10 @@ function InAppAiAgentProviderInner({
         releaseSubmitLock(selectedConversationId);
       }
 
+      if (nextOpen) {
+        occupyExclusiveRightPanel("assistant");
+      }
+
       if (nextOpen && selectedConversationId) {
         attachToConversation(selectedConversationId).catch(() => undefined);
       }
@@ -1247,6 +1280,14 @@ function InAppAiAgentProviderInner({
       setOpen,
     ],
   );
+  const setAgentOpenRef = useRef(setAgentOpen);
+  setAgentOpenRef.current = setAgentOpen;
+
+  useEffect(() => {
+    return registerExclusiveRightPanel("assistant", () => {
+      setAgentOpenRef.current(false);
+    });
+  }, []);
 
   const openAssistant = useCallback(
     (source: InAppAgentEntryPoint) => {
@@ -1436,6 +1477,8 @@ function InAppAiAgentProviderInner({
       open,
       setOpen: setAgentOpen,
       openAssistant,
+      dock,
+      setDock,
       isExpanded,
       setIsExpanded,
       isRunning,
@@ -1470,6 +1513,7 @@ function InAppAiAgentProviderInner({
       approveToolCall,
       attentionCount,
       alwaysAllowToolCall,
+      dock,
       isExpanded,
       conversations,
       effectiveError,
@@ -1490,6 +1534,7 @@ function InAppAiAgentProviderInner({
       effectivePendingToolApprovals,
       rejectToolCall,
       setAgentOpen,
+      setDock,
       invalidateConversations,
       selectConversation,
       selectedConversationId,
@@ -1501,8 +1546,8 @@ function InAppAiAgentProviderInner({
   return (
     <InAppAiAgentContext.Provider value={value}>
       {children}
-      {/* Rendered here, not from the window host, which unmounts when the
-          assistant is closed — exactly when a notification matters most. */}
+      {/* Rendered here, not from the assistant window, which unmounts when
+          closed — exactly when a notification matters most. */}
       <InAppAgentActivityNotifications
         notifications={activityNotifications}
         onDelivered={markDelivered}

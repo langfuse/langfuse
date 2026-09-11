@@ -17,6 +17,7 @@ import {
   selectWidgetWidth,
 } from "@/src/components/table/peek/store/peekPanelStore";
 import { beginPeekResize } from "@/src/components/table/peek/actions/resizePeekPanel";
+import { APP_RIGHT_RAIL_WIDTH_VAR } from "@/src/components/layouts/app-layout/right-drawer/rightRailWidth";
 
 // A burst of keyboard nudges is one resize action — trailing-debounce it into
 // a single onResized notification.
@@ -54,6 +55,17 @@ function readSidebarOffsetPx(): number {
   // Guard against the off-canvas mobile sidebar (rendered in a Sheet): only a
   // left-docked, on-screen sidebar contributes an offset.
   return rect.left < 100 && rect.width > 0 ? Math.round(rect.right) : 0;
+}
+
+/** Width of a docked right rail, published on `:root` by RightRail. */
+function readRightRailOffsetPx(): number {
+  if (typeof document === "undefined") return 0;
+  const n = parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue(
+      APP_RIGHT_RAIL_WIDTH_VAR,
+    ),
+  );
+  return Number.isFinite(n) ? Math.round(n) : 0;
 }
 
 /**
@@ -126,12 +138,16 @@ export function usePeekPanelState({
     [onExpandedChange],
   );
 
-  // While expanded the panel width is `calc(100vw - sidebarOffset)` so the
-  // sidebar stays visible. The peek portals into the `modal` layer, outside the
-  // sidebar's CSS-var scope, so the offset is measured from the DOM. Seeded
-  // synchronously on mount (lazy initializer, SSR-safe via the guard in
-  // readSidebarOffsetPx) so the first expanded paint already uses the real
-  // offset rather than calc(100vw - 0px) = full width for one frame.
+  // While expanded the panel width is
+  // `calc(100vw - sidebarOffset - rightRail)` so the left nav and a docked
+  // right rail (assistant / support / v4) stay visible. The peek portals into
+  // the `panel` overlay layer, outside those CSS-var scopes, so the left
+  // offset is measured from the DOM and the right rail is a `:root` variable
+  // published by RightRail. Seeded synchronously on mount (lazy initializer,
+  // SSR-safe via the guard in readSidebarOffsetPx) so the first expanded paint
+  // already uses the real left offset rather than calc(100vw - 0px) = full
+  // width for one frame. The right-rail var updates live in CSS without a
+  // re-render.
   const [sidebarOffset, setSidebarOffset] = useState(() =>
     readSidebarOffsetPx(),
   );
@@ -155,13 +171,15 @@ export function usePeekPanelState({
     };
   }, []);
 
-  // Both expanded and widget widths are capped at the sidebar edge
-  // (`viewport − sidebar`). Capping the widget too means dragging to the max
-  // lands on the exact same width as expanded — no snap-back jump — and the
-  // panel never paints over the sidebar even if a stored fraction is large.
-  const maxWidth = `calc(100vw - ${sidebarOffset}px)`;
+  // Both expanded and widget widths are capped at the remaining pane
+  // (`viewport − left sidebar − right rail`). Capping the widget too means
+  // dragging to the max lands on the exact same width as expanded — no
+  // snap-back jump — and the panel never paints over either rail even if a
+  // stored fraction is large.
+  const maxWidth = `calc(100vw - ${sidebarOffset}px - var(${APP_RIGHT_RAIL_WIDTH_VAR}, 0px))`;
   const panelStyle: CSSProperties = {
     width: effectiveExpanded ? maxWidth : `min(${widgetWidth}, ${maxWidth})`,
+    right: `var(${APP_RIGHT_RAIL_WIDTH_VAR}, 0px)`,
   };
 
   // End an in-flight drag (drop listeners, restore body styles, clear drag
@@ -184,14 +202,19 @@ export function usePeekPanelState({
   const onPointerDown = useCallback(
     (event: ReactPointerEvent) => {
       cancelKeyboardResizeNotify();
-      // The drag flips to expanded at the sidebar edge (viewport − sidebar),
-      // clamped to the widget bounds, so it can't overshoot onto the sidebar.
+      // The drag flips to expanded at the remaining pane's left edge
+      // (viewport − left sidebar − right rail), clamped to the widget bounds,
+      // so it can't overshoot onto either rail.
       const vw = typeof window === "undefined" ? 0 : window.innerWidth;
+      const rightRailOffset = readRightRailOffsetPx();
       const expandAtFraction =
         vw > 0
           ? Math.min(
               PEEK_EXPAND_ENTER_FRACTION,
-              Math.max(PEEK_MIN_WIDTH_FRACTION, (vw - sidebarOffset) / vw),
+              Math.max(
+                PEEK_MIN_WIDTH_FRACTION,
+                (vw - sidebarOffset - rightRailOffset) / vw,
+              ),
             )
           : PEEK_EXPAND_ENTER_FRACTION;
       dragTeardownRef.current = beginPeekResize(

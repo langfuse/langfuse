@@ -41,6 +41,8 @@ type PeekHeaderProps = {
   expand?: { isExpanded: boolean; onToggle: () => void };
   /** Open the standalone detail page in a new browser tab. Optional. */
   openInNewTab?: () => void;
+  /** Extra pinned controls before expand/close (e.g. the assistant launcher). */
+  extraPinned?: React.ReactNode;
   onClose: () => void;
 };
 
@@ -117,6 +119,7 @@ export function PeekHeader({
   actionsMenu,
   expand,
   openInNewTab,
+  extraPinned,
   onClose,
 }: PeekHeaderProps) {
   const [headerRef, headerSize] = useElementSize<HTMLDivElement>();
@@ -290,6 +293,7 @@ export function PeekHeader({
                 />
               </div>
             )}
+            {extraPinned}
             {expand && (
               <HeaderIconButton
                 label={expand.isExpanded ? "Collapse" : "Expand"}

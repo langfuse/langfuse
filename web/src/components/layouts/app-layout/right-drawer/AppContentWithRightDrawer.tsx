@@ -5,6 +5,7 @@ import { useMediaQuery } from "react-responsive";
 import dynamic from "next/dynamic";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
+import { RightRail } from "@/src/components/layouts/app-layout/right-drawer/RightRail";
 
 const DynamicMobileRightDrawer = dynamic(
   () =>
@@ -50,7 +51,9 @@ function RightDrawerLoadingFallback() {
  * App-shell content wrapper that attaches the support right drawer.
  *
  * Desktop keeps a stable split wrapper so routed page content does not remount
- * when a right drawer opens or closes. Mobile uses a bottom drawer.
+ * when a right drawer opens or closes. The support and v4 rails match the
+ * assistant split: same default share, same 24rem floor. Mobile uses a bottom
+ * drawer.
  */
 export function AppContentWithRightDrawer({ children }: PropsWithChildren) {
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
@@ -70,14 +73,15 @@ export function AppContentWithRightDrawer({ children }: PropsWithChildren) {
   return (
     <ResizableSplitLayout
       primaryContent={children}
-      secondaryContent={rightDrawerContent}
+      secondaryContent={
+        rightDrawerContent ? <RightRail>{rightDrawerContent}</RightRail> : null
+      }
       open={supportOpen || migrationOpen}
-      defaultPrimarySize={supportOpen ? 70 : 60}
-      // The migration panel carries denser content than the support drawer,
-      // so it opens wider by default.
-      defaultSecondarySize={supportOpen ? 30 : 40}
-      minPrimarySize={30}
-      maxSecondarySize={60}
+      defaultPrimarySize={70}
+      defaultSecondarySize={30}
+      minPrimarySize={40}
+      maxSecondarySize={50}
+      minSecondarySize="24rem"
       keepSecondaryMounted={false}
     />
   );

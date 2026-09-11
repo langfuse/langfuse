@@ -11,6 +11,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
+import { APP_SHELL_CHROME_ROW_CLASS } from "@/src/components/layouts/app-shell-chrome";
 import { IntroSection } from "@/src/features/support-chat/IntroSection";
 import { SuccessSection } from "@/src/features/support-chat/SuccessSection";
 import { ConnectedSupportFormSection } from "@/src/features/support-chat/ConnectedSupportFormSection";
@@ -49,50 +50,54 @@ const SupportDrawerContent = ({
         className,
       ])}
     >
-      <div className="bg-background">
-        <div className="flex min-h-11 w-full items-center justify-between gap-1 px-4 py-1">
+      <header
+        className={cn(
+          APP_SHELL_CHROME_ROW_CLASS,
+          "bg-background shrink-0 justify-between gap-2 px-3",
+        )}
+      >
+        {currentMode === "intro" ? (
+          <p className="min-w-0 truncate text-sm font-bold" title="Support">
+            Support
+          </p>
+        ) : (
           <Breadcrumb>
-            <BreadcrumbList>
-              {currentMode === "intro" ? (
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Support</BreadcrumbPage>
-                </BreadcrumbItem>
-              ) : (
-                <>
-                  <BreadcrumbItem>
-                    <BreadcrumbLink asChild>
-                      <button
-                        type="button"
-                        onClick={() => setCurrentMode("intro")}
-                        className="text-foreground"
-                      >
-                        Support
-                      </button>
-                    </BreadcrumbLink>
-                  </BreadcrumbItem>
-                  <BreadcrumbSeparator>
-                    <Slash />
-                  </BreadcrumbSeparator>
-                  <BreadcrumbItem>
-                    <BreadcrumbPage>Email Engineer</BreadcrumbPage>
-                  </BreadcrumbItem>
-                </>
-              )}
+            <BreadcrumbList className="flex-nowrap">
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentMode("intro")}
+                    className="text-foreground text-sm font-bold"
+                  >
+                    Support
+                  </button>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator>
+                <Slash />
+              </BreadcrumbSeparator>
+              <BreadcrumbItem>
+                <BreadcrumbPage className="text-sm font-bold">
+                  Email Engineer
+                </BreadcrumbPage>
+              </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
-          {showCloseButton && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={close}
-              aria-label="Close"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      </div>
-      <div className="flex-1 overflow-y-auto border-t">
+        )}
+        {showCloseButton && (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="shrink-0"
+            onClick={close}
+            aria-label="Close support"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+      </header>
+      <div className="flex-1 overflow-y-auto">
         <div className="px-2 py-1">
           <div className="bg-background h-full">
             <div className="p-2">

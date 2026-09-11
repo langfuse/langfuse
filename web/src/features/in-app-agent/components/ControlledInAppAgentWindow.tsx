@@ -20,12 +20,15 @@ import {
   getSettledActivityOutcome,
   isCancellableBackgroundRun,
 } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
+import type { InAppAgentDock } from "@/src/features/in-app-agent/presentation";
 import {
   InAppAgentRunStatus,
   isUnsettledInAppAgentRunStatus,
 } from "@langfuse/shared/in-app-agent";
 
 type ControlledInAppAgentWindowBaseProps = {
+  canChangeDock?: boolean;
+  dock?: InAppAgentDock;
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
   onDeleteConversation: (conversation: InAppAgentWindowConversation) => void;
@@ -51,6 +54,7 @@ export function ControlledInAppAgentWindow(
   const {
     activityByConversationId,
     conversations,
+    dock,
     error,
     hasMoreConversations,
     isLoadingMoreConversations,
@@ -69,6 +73,7 @@ export function ControlledInAppAgentWindow(
     selectConversation,
     selectedConversationId,
     selectedConversationTitle,
+    setDock,
     submit,
     submitFeedback,
   } = useInAppAiAgent();
@@ -177,6 +182,8 @@ export function ControlledInAppAgentWindow(
       isAwaitingApproval={isAwaitingApproval}
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
+      dock={props.dock ?? dock}
+      onDockChange={props.canChangeDock === false ? undefined : setDock}
       isConversationInteractionDisabled={isConversationInteractionDisabled}
       isSelectedConversationHydrating={isSelectedConversationHydrating}
       messages={drawerMessages}

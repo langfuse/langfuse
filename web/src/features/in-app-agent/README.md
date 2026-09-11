@@ -137,9 +137,10 @@ background state mirror.
 
 ## Consumers And Stability Boundaries
 
-`InAppAgentWindowHost` and the drawer shell mount the provider-backed controlled
-window. Presentational components must remain context-free and consume explicit
-props.
+`InAppAgentWindowHost` wraps page content and docks the assistant in a right
+split by default. Detached and fullscreen presentations still render through
+the `agent` overlay layer; the handheld drawer is unchanged. Presentational
+components must remain context-free and consume explicit props.
 
 Streaming publications and background session snapshots are high-frequency.
 Keep their subscription boundary narrow, derive status/notice values during
