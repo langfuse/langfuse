@@ -71,16 +71,20 @@ export const ScoreBadge = <
   const levels = showLevels
     ? Array.from(new Set(scores.map((score) => scoreLevelFromScore(score))))
     : [];
-  const commented = scores.filter((score) => Boolean(score.comment));
+  // Compact chips carry no per-score icons, so one card on the whole chip
+  // shows everything a score has to say: comment, metadata, execution trace.
+  const detailed = scores.filter(
+    (score) => Boolean(score.comment) || hasMetadata(score),
+  );
 
   return (
     <span className="inline-flex max-w-full min-w-0 cursor-default items-center gap-1">
       {levels.map((level) => (
         <ScoreTag key={level} level={level} />
       ))}
-      {compact && commented.length > 0 ? (
-        // Dense rows have no room for the comment icon: the whole chip is the
-        // trigger and the card lists every commented score in the group.
+      {compact && detailed.length > 0 ? (
+        // Dense rows have no room for per-score icons: the whole chip is the
+        // trigger and the card lists every score with a comment or metadata.
         <HoverCard openDelay={100}>
           <HoverCardTrigger asChild>
             <BadgeShell color="neutral" size={compact ? "sm" : "default"}>
@@ -162,16 +166,24 @@ export const ScoreBadge = <
             </BadgeShell>
           </HoverCardTrigger>
           <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
-            {commented.map((score, index) => (
+            {detailed.map((score, index) => (
               <div key={index} className={index > 0 ? "mt-2" : undefined}>
-                <p className="whitespace-pre-wrap">
-                  {commented.length > 1 ? (
-                    <span className="text-muted-foreground">
-                      {score.stringValue ?? score.value?.toFixed(2) ?? ""}:{" "}
-                    </span>
-                  ) : null}
-                  {score.comment}
-                </p>
+                {detailed.length > 1 || !score.comment ? (
+                  <p className="text-muted-foreground">
+                    {score.stringValue ?? score.value?.toFixed(2) ?? ""}
+                  </p>
+                ) : null}
+                {score.comment ? (
+                  <p className="whitespace-pre-wrap">{score.comment}</p>
+                ) : null}
+                {hasMetadata(score) ? (
+                  <div className="mt-2">
+                    <JSONView
+                      codeClassName="rounded-md!"
+                      json={score.metadata}
+                    />
+                  </div>
+                ) : null}
                 {"executionTraceId" in score &&
                   score.executionTraceId &&
                   projectId && (
