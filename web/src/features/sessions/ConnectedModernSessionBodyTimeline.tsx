@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { type FilterState } from "@langfuse/shared";
 
 import {
@@ -326,6 +326,12 @@ export function ConnectedModernSessionBodyTimeline({
       return next;
     });
   };
+  const autoLoadMoreObservations = useEffectEvent(loadMoreObservations);
+
+  useEffect(() => {
+    if (!hasMoreObservations || isLoadingMoreObservations) return;
+    autoLoadMoreObservations();
+  }, [hasMoreObservations, isLoadingMoreObservations]);
 
   const handleVisibleTraceIdsChange = (nextTraceIds: string[]) => {
     const highestVisibleTraceIndex = nextTraceIds.reduce(
