@@ -2064,7 +2064,7 @@ export const RenderLoadedConversation = meta.story({
     await expect(
       within(
         generation?.closest("[data-session-observation-depth]") as HTMLElement,
-      ).queryByRole("button", { name: "Show 1 tool" }),
+      ).queryByRole("button", { name: /^Show .*tool/ }),
     ).not.toBeInTheDocument();
     await expect(
       canvas.queryByRole("button", { name: "get_order" }),
@@ -2303,7 +2303,7 @@ export const ExpandRolledUpTool = meta.story({
       ?.closest("[data-session-observation-depth]");
     await userEvent.click(
       within(generation as HTMLElement).getByRole("button", {
-        name: "Show 1 tool",
+        name: "Show tools: get_order",
       }),
     );
     const expandButton = canvas.getByRole("button", {
@@ -2422,6 +2422,9 @@ export const ExpandNestedObservations = meta.story({
     const rootToggle = canvas.getByRole("button", {
       name: "Show 2 generations and 5 tools",
     });
+    await expect(
+      canvas.getByText("2 generations and 5 tools"),
+    ).toBeInTheDocument();
     const rootStart = rootToggle.closest("[data-session-observation-depth]");
     await expect(
       rootStart?.querySelector('[data-session-observation-rail-depth="0"]'),
@@ -2468,7 +2471,9 @@ export const ExpandNestedObservations = meta.story({
       '[data-session-observation-id="generation-1"] button svg',
     );
     await expect(nestedObservationIcon).not.toBeNull();
-    const nestedToggle = canvas.getByRole("button", { name: "Show 3 tools" });
+    const nestedToggle = canvas.getByRole("button", {
+      name: "Show tools: tool-1, tool-2, and tool-3",
+    });
     const initialNestedToggleTop = nestedToggle.getBoundingClientRect().top;
 
     // Nested observations expand independently from their ancestors.
@@ -2524,7 +2529,9 @@ export const ExpandNestedObservations = meta.story({
     );
     await expect(canvas.queryByText("tool-1")).not.toBeInTheDocument();
     await expect(
-      canvas.getByRole("button", { name: "Show 3 tools" }),
+      canvas.getByRole("button", {
+        name: "Show tools: tool-1, tool-2, and tool-3",
+      }),
     ).toBeInTheDocument();
   },
 });
@@ -2575,7 +2582,11 @@ export const ToolObservationDataOnly = meta.story({
   }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Show 1 tool" }));
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "Show tools: get_subscription_details",
+      }),
+    );
     await expect(
       canvas.getAllByRole("button", { name: "get_subscription_details" }),
     ).toHaveLength(1);
@@ -2600,7 +2611,11 @@ export const GenerationToolDataOnly = meta.story({
   }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Show 1 tool" }));
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "Show tools: get_subscription_details",
+      }),
+    );
     await expect(
       canvas.getAllByRole("button", { name: "get_subscription_details" }),
     ).toHaveLength(1);
@@ -2634,7 +2649,11 @@ export const DeduplicateMatchingToolData = meta.story({
   }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Show 1 tool" }));
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "Show tools: get_subscription_details",
+      }),
+    );
     await expect(
       canvas.getAllByRole("button", { name: "get_subscription_details" }),
     ).toHaveLength(1);
@@ -2673,7 +2692,11 @@ export const KeepDifferentToolData = meta.story({
   }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Show 2 tools" }));
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "Show tools: search_documentation and get_customer_profile",
+      }),
+    );
     await expect(
       canvas.getAllByRole("button", { name: "search_documentation" }),
     ).toHaveLength(1);

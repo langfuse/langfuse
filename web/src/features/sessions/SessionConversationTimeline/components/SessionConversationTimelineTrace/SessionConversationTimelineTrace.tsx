@@ -123,9 +123,31 @@ function SessionTimelineRailEnd() {
 
 const NESTED_OBSERVATION_TYPE_ORDER = ["GENERATION", "TOOL"];
 
-const formatNestedObservationCounts = (
-  counts: Readonly<Record<string, number>>,
-) => {
+function getNestedObservationSummary(
+  observations: readonly PreparedSessionTimelineItem<SessionObservation>[],
+) {
+  const seenObservationIds = new Set<string>();
+  const toolNames = new Set<string>();
+  const counts: Record<string, number> = {};
+
+  for (const item of observations) {
+    if (item.type === "tool") {
+      counts.TOOL = (counts.TOOL ?? 0) + 1;
+      toolNames.add(item.toolCall.toolName);
+      continue;
+    }
+
+    const observationKey = `${item.observation.traceId ?? ""}:${item.observation.id}`;
+    if (seenObservationIds.has(observationKey)) continue;
+
+    seenObservationIds.add(observationKey);
+    const type = item.observation.type ?? "EVENT";
+    counts[type] = (counts[type] ?? 0) + 1;
+    if (type === "TOOL" && item.observation.name) {
+      toolNames.add(item.observation.name);
+    }
+  }
+
   const labels = Object.entries(counts)
     .filter(([, count]) => count > 0)
     .sort(([left], [right]) => {
@@ -136,15 +158,27 @@ const formatNestedObservationCounts = (
       if (rightIndex !== -1) return 1;
       return left.localeCompare(right);
     })
-    .map(
-      ([type, count]) =>
-        `${count} ${type.toLowerCase()}${count === 1 ? "" : "s"}`,
-    );
+    .map(([type, count]) => {
+      if (type !== "TOOL") {
+        return `${count} ${type.toLowerCase()}${count === 1 ? "" : "s"}`;
+      }
+
+      const names = count <= 3 ? Array.from(toolNames) : [];
+      const namesSummary =
+        names.length < 2
+          ? (names[0] ?? "")
+          : names.length === 2
+            ? `${names[0]} and ${names[1]}`
+            : `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`;
+      if (names.length === count) return `tools: ${namesSummary}`;
+
+      return `${count} tool${count === 1 ? "" : "s"}${namesSummary ? ` using ${namesSummary}` : ""}`;
+    });
 
   if (labels.length < 2) return labels[0] ?? "nested observations";
   if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
   return `${labels.slice(0, -1).join(", ")}, and ${labels.at(-1)}`;
-};
+}
 
 function TruncatedObservation({
   observation,
@@ -627,6 +661,13 @@ function LoadedSessionConversationTimeline({
             );
           const hasNestedObservations =
             Object.keys(nestedObservationCounts).length > 0;
+          const nestedObservationSummary = hasNestedObservations
+            ? getNestedObservationSummary(
+                observations.filter(({ ancestorObservationIds }) =>
+                  ancestorObservationIds.includes(observation.id),
+                ),
+              )
+            : "";
           const isCollapsed = collapsedObservationIds.has(observation.id);
           const itemId = item.type === "tool" ? item.id : observation.id;
           const isToolExpanded = expandedToolObservationIds.has(itemId);
@@ -715,46 +756,35 @@ function LoadedSessionConversationTimeline({
               ) : null}
               {phase === "start" && hasNestedObservations ? (
                 <div className="relative h-7">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        className="bg-background text-muted-foreground hover:text-foreground absolute top-5 z-[1] -translate-x-1/2 -translate-y-1/2 rounded-full"
-                        style={{ left: "7.5px" }}
-                        aria-expanded={!isCollapsed}
-                        aria-label={`${isCollapsed ? "Show" : "Hide"} ${formatNestedObservationCounts(nestedObservationCounts)}`}
-                        onClick={() =>
-                          setCollapseState((current) => {
-                            const observationIds = new Set(
-                              current.observationIds,
-                            );
-                            if (isCollapsed) {
-                              observationIds.delete(observation.id);
-                            } else observationIds.add(observation.id);
-                            return { ...current, observationIds };
-                          })
-                        }
-                      >
-                        {isCollapsed ? (
-                          <ChevronsUpDown
-                            className="h-3 w-3"
-                            aria-hidden="true"
-                          />
-                        ) : (
-                          <ChevronsDownUp
-                            className="h-3 w-3"
-                            aria-hidden="true"
-                          />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      {isCollapsed ? "Show" : "Hide"}{" "}
-                      {formatNestedObservationCounts(nestedObservationCounts)}
-                    </TooltipContent>
-                  </Tooltip>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    className="bg-background text-muted-foreground hover:text-foreground absolute top-5 z-[1] -translate-x-1/2 -translate-y-1/2 rounded-full"
+                    style={{ left: "7.5px" }}
+                    aria-expanded={!isCollapsed}
+                    aria-label={`${isCollapsed ? "Show" : "Hide"} ${nestedObservationSummary}`}
+                    onClick={() =>
+                      setCollapseState((current) => {
+                        const observationIds = new Set(current.observationIds);
+                        if (isCollapsed) {
+                          observationIds.delete(observation.id);
+                        } else observationIds.add(observation.id);
+                        return { ...current, observationIds };
+                      })
+                    }
+                  >
+                    {isCollapsed ? (
+                      <ChevronsUpDown className="h-3 w-3" aria-hidden="true" />
+                    ) : (
+                      <ChevronsDownUp className="h-3 w-3" aria-hidden="true" />
+                    )}
+                  </Button>
+                  {isCollapsed ? (
+                    <span className="text-muted-foreground absolute top-5 left-5 -translate-y-1/2 text-xs">
+                      {nestedObservationSummary}
+                    </span>
+                  ) : null}
                 </div>
               ) : null}
             </div>
