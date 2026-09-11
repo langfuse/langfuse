@@ -1,11 +1,12 @@
 import { type IncomingHttpHeaders } from "http";
 
 import {
-  type BaseError,
+  ForbiddenError,
   type InternalServerError,
   UnauthorizedError,
 } from "@langfuse/shared";
 
+import { env } from "@/src/env.mjs";
 import { ContextResolver } from "@/src/features/auth/policy/contextResolver";
 import {
   parseAuthorizationHeader,
@@ -32,7 +33,7 @@ export class Authenticator {
   async authenticate(params: ApiKeyAuthParams): Promise<ApiKeyAuthResults> {
     const credential = parseAuthorizationHeader(params.headers.authorization);
     if (credential.kind === "malformed") {
-      return errorResult(new UnauthorizedError(invalidCredentials));
+      return unauthorized(invalidCredentials);
     }
 
     let authResult = await this.cache.get(credential);
@@ -72,30 +73,37 @@ export const authenticator = new Authenticator();
 function enforceRouteSettings(
   principal: Principal,
   params: ApiKeyAuthParams,
-): ErrorResult<UnauthorizedError> | null {
-  if (principal.kind === "admin" && !params.isAdminApiKeyAuthAllowed) {
-    return errorResult(
-      new UnauthorizedError("Admin API key auth is not allowed here"),
-    );
+): ErrorResult<UnauthorizedError | ForbiddenError> | null {
+  if (principal.kind === "admin") {
+    if (!params.isAdminApiKeyAuthAllowed) {
+      return unauthorized("Admin API key auth is not allowed here");
+    }
+    if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+      return forbidden("Admin API key auth is not available on Langfuse Cloud");
+    }
   }
   if (
     principal.kind === "apiKey" &&
     principal.isInAppAgentKey &&
     !params.allowInAppAgentKey
   ) {
-    return errorResult(
-      new UnauthorizedError(
-        "Access denied - in-app agent keys are not allowed for this endpoint",
-      ),
+    return unauthorized(
+      "Access denied - in-app agent keys are not allowed for this endpoint",
     );
   }
   return null;
 }
 
-/** errorResult wraps a BaseError subclass into a typed ErrorResult. */
-const errorResult = <E extends BaseError>(e: E): ErrorResult<E> => ({
+/** unauthorized is a 401 ErrorResult carrying an optional message. */
+const unauthorized = (message?: string): ErrorResult<UnauthorizedError> => ({
   success: false,
-  error: e,
+  error: new UnauthorizedError(message),
+});
+
+/** forbidden is a 403 ErrorResult carrying an optional message. */
+const forbidden = (message?: string): ErrorResult<ForbiddenError> => ({
+  success: false,
+  error: new ForbiddenError(message),
 });
 
 /** ApiKeyAuthParams is the request headers plus the route's key-kind opt-ins. */
@@ -108,7 +116,7 @@ export type ApiKeyAuthParams = {
 /** ApiKeyAuthResults is the pipeline's outcome: the resolved context, or a typed failure. */
 export type ApiKeyAuthResults =
   | Authenticated
-  | ErrorResult<UnauthorizedError | InternalServerError>;
+  | ErrorResult<UnauthorizedError | ForbiddenError | InternalServerError>;
 
 /** Authenticated is the pipeline's success outcome: the resolved authorization context. */
 export type Authenticated = Success & { context: AuthorizationContext };
