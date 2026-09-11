@@ -15,10 +15,7 @@ export { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSea
 export { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBarEnabled";
 export { astToFilterState } from "@/src/features/search-bar/lib/adapter";
 export { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
-export {
-  DEFAULT_SEARCH_TYPE,
-  planCommit,
-} from "@/src/features/search-bar/lib/commit";
+export { planCommit } from "@/src/features/search-bar/lib/commit";
 export type { QueryPresetSection } from "@/src/features/search-bar/lib/completions";
 export {
   EVENTS_FIELD_REGISTRY,

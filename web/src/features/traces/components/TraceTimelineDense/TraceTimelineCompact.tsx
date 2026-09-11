@@ -16,6 +16,7 @@ import { type RowMetrics } from "./TimelineRowMetrics";
 import { usdFormatter } from "@/src/utils/numbers";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { useTraceSearchMatches } from "@/src/features/traces/hooks/useTraceSearchMatches";
 import {
   useActiveObservationIds,
   usePlayhead,
@@ -52,6 +53,15 @@ export function TraceTimelineCompact() {
     }),
     [showPlayhead, getPlayheadSec, subscribePosition, seekToSec],
   );
+
+  /**
+   * The search box, answered in place. The renderer takes the SET of ids that
+   * keep their colour and nothing about searching — it dims the rest, reveals
+   * the first hit and states the count, which is all a chart can do with a
+   * query. The Graph reads the same hook, so the two cannot state different
+   * counts for one query.
+   */
+  const search = useTraceSearchMatches();
 
   const [pointerModality] = useState(detectPointerModality);
   const [box, setBox] = useState<{ width: number; height: number } | null>(
@@ -125,6 +135,7 @@ export function TraceTimelineCompact() {
           playhead={playhead}
           metricsOf={metricsOf}
           showDuration={showDuration}
+          search={search}
         />
       ) : null}
     </div>

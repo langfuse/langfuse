@@ -247,7 +247,7 @@ const formatScoreAggregateValue = (
 ): string => {
   if (!aggregate) return "nothing";
   return aggregate.type === "NUMERIC"
-    ? aggregate.average.toFixed(4)
+    ? aggregate.average.toFixed(2)
     : (aggregate.values[0] ?? "nothing");
 };
 
@@ -524,7 +524,7 @@ export default function ExperimentItemsTable({
   projectId,
   ioRenderMode,
   hideControls = false,
-  settingsSections,
+  toolbarSettings,
 }: ExperimentItemsTableProps) {
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
@@ -539,6 +539,7 @@ export default function ExperimentItemsTable({
     hasBaseline,
     comparisonIds,
     allExperimentIds,
+    colorExperimentIds,
     layout,
     diffMode,
     itemVisibility,
@@ -844,11 +845,6 @@ export default function ExperimentItemsTable({
       setSelectedRows,
       setSelectAll,
     },
-  );
-
-  const colorExperimentIds = useMemo(
-    () => (hasBaseline ? allExperimentIds : []),
-    [hasBaseline, allExperimentIds],
   );
 
   // A score column that is empty for every item in view is noise, so only keep
@@ -2080,12 +2076,7 @@ export default function ExperimentItemsTable({
             orderByState={orderByState}
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
-            // One "Table settings" button for the controls that shape this
-            // table, as on the experiments list — where two buttons plus a
-            // third control in the page header was the inconsistency between
-            // the two surfaces of the same feature.
-            mergeSettingsIntoPopover
-            settingsSections={settingsSections}
+            toolbarSettings={toolbarSettings}
             multiSelect={{
               selectAll,
               setSelectAll,
@@ -2160,6 +2151,7 @@ export default function ExperimentItemsTable({
                   rows={unfilteredRows}
                   scoreRows={matrixScoreRows}
                   experiments={matrixExperiments}
+                  colorExperimentIds={colorExperimentIds}
                   isLoading={items.status === "loading" || isViewLoading}
                   pagination={pagination}
                 />

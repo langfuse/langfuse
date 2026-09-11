@@ -30,6 +30,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ArrowDown, ArrowUp, GripVertical, Route } from "lucide-react";
+import Link from "next/link";
 import { SiAnthropic, SiOpenai } from "react-icons/si";
 
 import Header from "@/src/components/layouts/header";
@@ -39,6 +40,8 @@ import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { TableRow } from "@/src/components/ui/table";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import { getProviderReorder } from "@/src/features/ai-gateway/fns/providerReorder/getProviderReorder";
+import { reorderProviderIds } from "@/src/features/ai-gateway/fns/providerReorder/reorderProviderIds";
 import type {
   GatewayConnection,
   GatewayProvider,
@@ -46,24 +49,6 @@ import type {
 import { cn } from "@/src/utils/tailwind";
 
 const TABLE_NAME = "gateway-provider-credentials";
-
-export function reorderProviderIds(
-  ids: string[],
-  sourceId: string,
-  targetId: string,
-) {
-  const sourceIndex = ids.indexOf(sourceId);
-  const targetIndex = ids.indexOf(targetId);
-  if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
-    return ids;
-  }
-
-  const nextIds = [...ids];
-  const [movedId] = nextIds.splice(sourceIndex, 1);
-  if (!movedId) return ids;
-  nextIds.splice(targetIndex, 0, movedId);
-  return nextIds;
-}
 
 type SortableHandleContextValue = Pick<
   ReturnType<typeof useSortable>,
@@ -78,6 +63,7 @@ type GatewayConnectionRow = GatewayConnection;
 type GatewayProvidersViewProps = {
   connections: GatewayConnectionRow[];
   modelCounts: Record<string, number | "loading">;
+  getModelsUrl: (connection: GatewayConnectionRow) => string;
   createAction: ReactNode;
   renderCredentialActions: (
     connection: GatewayConnectionRow,
@@ -100,6 +86,7 @@ export function GatewayProvidersView(props: GatewayProvidersViewProps) {
 function SortableGatewayProvidersView({
   connections,
   modelCounts,
+  getModelsUrl,
   createAction,
   renderCredentialActions,
   hasMore,
@@ -241,7 +228,12 @@ function SortableGatewayProvidersView({
         id: "models",
         header: "Models",
         size: 180,
-        cell: ({ row }) => <ModelCount value={modelCounts[row.original.id]} />,
+        cell: ({ row }) => (
+          <ModelCount
+            value={modelCounts[row.original.id]}
+            href={getModelsUrl(row.original)}
+          />
+        ),
       },
       {
         accessorKey: "actions",
@@ -259,6 +251,7 @@ function SortableGatewayProvidersView({
     ],
     [
       canReorder,
+      getModelsUrl,
       modelCounts,
       moveConnection,
       orderedConnections,
@@ -333,23 +326,6 @@ function SortableGatewayProvidersView({
       </DndContext>
     </div>
   );
-}
-
-export function getProviderReorder(
-  event: Pick<DragEndEvent, "active" | "over">,
-  canReorder: boolean,
-) {
-  if (
-    !canReorder ||
-    !event.over ||
-    event.active.id === event.over.id ||
-    typeof event.active.id !== "string" ||
-    typeof event.over.id !== "string"
-  ) {
-    return null;
-  }
-
-  return { sourceId: event.active.id, targetId: event.over.id };
 }
 
 function SortableProviderRow({
@@ -460,13 +436,19 @@ function ProviderPriorityCell({
   );
 }
 
-function ModelCount({ value }: { value: number | "loading" | undefined }) {
+function ModelCount({
+  value,
+  href,
+}: {
+  value: number | "loading" | undefined;
+  href: string;
+}) {
   if (value === "loading") return <>Loading…</>;
   if (value === undefined) return <>—</>;
   return (
-    <>
+    <Link className="text-primary hover:underline" href={href}>
       {value} {value === 1 ? "model" : "models"} available
-    </>
+    </Link>
   );
 }
 

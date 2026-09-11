@@ -21,13 +21,37 @@ const meta = preview.meta({
 const models = [
   {
     id: "gpt-5-mini",
-    availableVia: [{ connectionName: "Primary", provider: "OPENAI" }],
-    apiFormats: ["OpenAI Responses", "OpenAI Chat Completions"],
+    availableVia: [
+      {
+        connectionId: "connection-primary",
+        connectionName: "Primary",
+        provider: "OPENAI",
+      },
+      {
+        connectionId: "connection-fallback",
+        connectionName: "Fallback",
+        provider: "OPENAI",
+      },
+      {
+        connectionId: "connection-secondary",
+        connectionName: "Secondary production",
+        provider: "OPENAI",
+      },
+    ],
+    apiFormats: [
+      "OpenAI Responses",
+      "OpenAI Chat Completions",
+      "Anthropic Messages",
+    ],
   },
   {
     id: "claude-sonnet-4-5",
     availableVia: [
-      { connectionName: "Anthropic production", provider: "ANTHROPIC" },
+      {
+        connectionId: "connection-anthropic-production",
+        connectionName: "Anthropic production",
+        provider: "ANTHROPIC",
+      },
     ],
     apiFormats: ["Anthropic Messages"],
   },
@@ -41,6 +65,7 @@ const manyModels = Array.from({ length: 60 }, (_, index) => {
     id: `gateway-model-${String(index + 1).padStart(3, "0")}`,
     availableVia: [
       {
+        connectionId: `connection-${(index % 6) + 1}`,
         connectionName: `Credential ${(index % 6) + 1}`,
         provider,
       },
