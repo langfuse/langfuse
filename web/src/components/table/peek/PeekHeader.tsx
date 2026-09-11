@@ -164,10 +164,6 @@ export function PeekHeader({
       headerWidth: width,
       minTitle: MIN_TITLE_PX,
       badgeLabelWidth: widthsRef.current.badgeLabel ?? BADGE_LABEL_FALLBACK_PX,
-      // The badge always renders `showLabel hideIcon` below — it never
-      // actually shrinks to icon-only — so the planner must see the same
-      // width for both inputs, or it credits the title with space the badge
-      // never gives up.
       badgeIconWidth: widthsRef.current.badgeLabel ?? BADGE_LABEL_FALLBACK_PX,
       navFullWidth: hasNav
         ? (widthsRef.current.navFull ?? NAV_FULL_FALLBACK_PX)
@@ -176,8 +172,6 @@ export function PeekHeader({
         ? (widthsRef.current.navCompact ?? NAV_COMPACT_FALLBACK_PX)
         : 0,
       otherPinnedWidth: widthsRef.current.otherPinned ?? 0,
-      // The "…" trigger sits inside the pinned cluster now (always shown), so
-      // it is already counted in otherPinnedWidth.
       moreWidth: 0,
     });
     setPlan((prev) => (samePlan(prev, next) ? prev : next));
