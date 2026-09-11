@@ -1695,15 +1695,32 @@ Active filter: level is ERROR
       ],
     });
     const generationOutput = JSON.stringify(
-      action.tools.length > 0
+      actionIndex === inAppAgentActions.length - 1
         ? {
-            tool_calls: action.tools.map((tool, toolIndex) => ({
-              args: tool.input,
-              toolCallId: `error-analysis-call-${actionIndex + 1}-${toolIndex + 1}`,
-              toolName: tool.name,
-            })),
+            role: "assistant",
+            content: [
+              {
+                taxonomy: {
+                  primaryIssue: "tool-timeout",
+                  affectedWorkflow: "booking-assistant",
+                  recommendedFix: "Add bounded retries with backoff",
+                },
+                tracking: {
+                  metric: "tool_error_rate",
+                  owner: "agent-platform",
+                },
+              },
+            ],
           }
-        : { text: action.summary },
+        : action.tools.length > 0
+          ? {
+              tool_calls: action.tools.map((tool, toolIndex) => ({
+                args: tool.input,
+                toolCallId: `error-analysis-call-${actionIndex + 1}-${toolIndex + 1}`,
+                toolName: tool.name,
+              })),
+            }
+          : { text: action.summary },
     );
 
     return [
@@ -2067,7 +2084,7 @@ export const RenderLoadedConversation = meta.story({
     await expect(
       within(
         generation?.closest("[data-session-observation-depth]") as HTMLElement,
-      ).queryByRole("button", { name: "Show 1 tool" }),
+      ).queryByRole("button", { name: /^Show .*tool/ }),
     ).not.toBeInTheDocument();
     await expect(
       canvas.queryByRole("button", { name: "get_order" }),
@@ -2134,6 +2151,61 @@ export const TruncatedObservation = meta.story({
       canvas.queryByRole("button", { name: "Open in trace view" }),
     ).not.toBeInTheDocument();
     await expect(canvasElement.querySelector("pre")).toBeNull();
+  },
+});
+
+export const ObservationIssues = meta.story({
+  name: "(Test) Renders Observation Issues",
+  args: {
+    ...loadedArgs,
+    traces: [
+      {
+        trace,
+        turnNumber: 1,
+        observations: [
+          {
+            ...observations[0]!,
+            level: "WARNING",
+            statusMessage:
+              "TimeoutError: Model response exceeded 30s\n    at generateResponse (src/agent.ts:42:11)\n    at async runTurn (src/session.ts:18:5)",
+          },
+          {
+            ...observations[1]!,
+            level: "ERROR",
+            statusMessage: JSON.stringify(
+              {
+                code: "TOOL_TIMEOUT",
+                tool: "get_order",
+                retryable: true,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const warning = canvas.getByRole("img", {
+      name: /WARNING: TimeoutError: Model response exceeded 30s/,
+    });
+    const error = canvas.getByRole("img", {
+      name: /ERROR:.*TOOL_TIMEOUT/s,
+    });
+
+    await expect(warning).toHaveClass("bg-light-yellow", "text-dark-yellow");
+    await expect(error).toHaveClass("bg-light-red", "text-dark-red");
+    await userEvent.hover(warning);
+    await expect(
+      await within(canvasElement.ownerDocument.body).findByRole("tooltip"),
+    ).toHaveTextContent("at generateResponse (src/agent.ts:42:11)");
+    await userEvent.unhover(warning);
+    await userEvent.hover(error);
+    await expect(
+      await within(canvasElement.ownerDocument.body).findByRole("tooltip"),
+    ).toHaveTextContent('"code": "TOOL_TIMEOUT"');
   },
 });
 
@@ -2281,6 +2353,11 @@ export const ExpandToolObservation = meta.story({
     await expect(toolPreviews).toHaveLength(2);
     await expect(toolPreviews[0]).toHaveTextContent('{"orderId":"LF-20481"}');
     await expect(toolPreviews[1]).toHaveTextContent('"status":"processing"');
+    await expect(
+      expandButton
+        .closest("[data-session-observation-depth]")
+        ?.querySelector("[data-session-observation-rail-end]"),
+    ).not.toBeInTheDocument();
 
     await userEvent.click(
       canvas.getByRole("button", { name: "Collapse Get order" }),
@@ -2309,7 +2386,7 @@ export const ExpandRolledUpTool = meta.story({
       ?.closest("[data-session-observation-depth]");
     await userEvent.click(
       within(generation as HTMLElement).getByRole("button", {
-        name: "Show 1 tool",
+        name: "Show tools: get_order",
       }),
     );
     const expandButton = canvas.getByRole("button", {
@@ -2328,13 +2405,10 @@ export const ExpandRolledUpTool = meta.story({
       "data-session-observation-depth",
       "1",
     );
-    await expect(toolRow).toHaveStyle({ paddingLeft: "24px" });
+    await expect(toolRow).not.toHaveAttribute("style");
     await expect(
       toolRow?.querySelector('[data-session-observation-rail-depth="0"]'),
-    ).toBeInTheDocument();
-    await expect(
-      toolRow?.querySelector('[data-session-observation-rail-depth="1"]'),
-    ).not.toBeInTheDocument();
+    ).toHaveClass("left-[7px]");
     await expect(toolIcon).not.toBeNull();
     await userEvent.hover(unavailableActionsIcon);
     await expect(
@@ -2345,10 +2419,38 @@ export const ExpandRolledUpTool = meta.story({
     await userEvent.click(expandButton);
 
     await expect(
-      toolRow?.querySelector('[data-session-observation-rail-depth="1"]'),
-    ).toBeInTheDocument();
+      toolRow?.querySelectorAll("[data-session-observation-rail-depth]"),
+    ).toHaveLength(1);
     await expect(
       toolRow?.querySelector("[data-session-observation-rail-end]"),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const ExpandFinalToolObservation = meta.story({
+  name: "(Test) Ends Rail After Final Expanded Tool",
+  args: {
+    ...loadedArgs,
+    traces: [
+      {
+        trace: { ...trace, observationCount: 1 },
+        turnNumber: 1,
+        observations: [observations[1]!],
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const expandButton = canvas.getByRole("button", {
+      name: "Expand Get order",
+    });
+
+    await userEvent.click(expandButton);
+
+    await expect(
+      expandButton
+        .closest("[data-session-observation-depth]")
+        ?.querySelector("[data-session-observation-rail-end]"),
     ).toBeInTheDocument();
   },
 });
@@ -2431,6 +2533,9 @@ export const ExpandNestedObservations = meta.story({
     const rootToggle = canvas.getByRole("button", {
       name: "Show 2 generations and 5 tools",
     });
+    await expect(
+      canvas.getByText("2 generations and 5 tools"),
+    ).toBeInTheDocument();
     const rootStart = rootToggle.closest("[data-session-observation-depth]");
     await expect(
       rootStart?.querySelector('[data-session-observation-rail-depth="0"]'),
@@ -2444,22 +2549,30 @@ export const ExpandNestedObservations = meta.story({
     await expect(
       rootToggle.querySelector(".lucide-chevrons-up-down"),
     ).not.toBeNull();
+    await userEvent.hover(rootToggle);
+    await expect(
+      rootStart?.querySelector('[data-session-observation-rail-depth="0"]'),
+    ).toHaveClass("bg-border");
+    await userEvent.unhover(rootToggle);
     const initialRootToggleTop = rootToggle.getBoundingClientRect().top;
 
     // Expanding a parent reveals its direct children, but nested groups remain collapsed.
     await userEvent.click(rootToggle);
 
-    // Expanding the rail must not move the toggle the user just clicked.
+    // Message content leaves room to move the collapse control up one row.
     await expect(rootToggle.getBoundingClientRect().top).toBe(
-      initialRootToggleTop,
+      initialRootToggleTop - 28,
     );
     await expect(canvas.getByText("generation-1")).toBeInTheDocument();
     await expect(canvas.getByText("generation-2")).toBeInTheDocument();
     await expect(canvas.queryByText("tool-1")).not.toBeInTheDocument();
     await expect(rootToggle.parentElement).toHaveClass("h-0");
     await expect(
-      rootToggle.querySelector(".lucide-chevrons-down-up"),
+      rootToggle.querySelector(".lucide-chevron-down"),
     ).not.toBeNull();
+    await expect(
+      rootStart?.querySelector('[data-session-observation-rail-depth="0"]'),
+    ).toHaveClass("bg-border");
     const nestedGeneration = canvasElement
       .querySelector('[data-session-observation-id="generation-1"]')
       ?.closest("[data-session-observation-depth]");
@@ -2467,31 +2580,44 @@ export const ExpandNestedObservations = meta.story({
       "data-session-observation-depth",
       "1",
     );
-    await expect(nestedGeneration).toHaveStyle({ paddingLeft: "24px" });
+    await expect(nestedGeneration).not.toHaveAttribute("style");
     await expect(
       nestedGeneration?.querySelectorAll(
         "[data-session-observation-rail-depth]",
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     const nestedObservationIcon = nestedGeneration?.querySelector(
       '[data-session-observation-id="generation-1"] button svg',
     );
     await expect(nestedObservationIcon).not.toBeNull();
-    const rootToggleRect = rootToggle.getBoundingClientRect();
-    const nestedObservationIconRect = (
-      nestedObservationIcon as SVGElement
-    ).getBoundingClientRect();
-    // The rail toggle stays vertically centered with the child observation icon beside it.
-    await expect(rootToggleRect.top + rootToggleRect.height / 2).toBe(
-      nestedObservationIconRect.top + nestedObservationIconRect.height / 2,
-    );
-    const nestedToggle = canvas.getByRole("button", { name: "Show 3 tools" });
+    rootToggle.blur();
+    await userEvent.hover(rootToggle);
+    await expect(
+      rootToggle.parentElement?.querySelector(
+        "[data-session-collapse-rail-highlight]",
+      ),
+    ).toBeInTheDocument();
+    await expect(
+      rootStart?.querySelector('[data-session-observation-rail-depth="0"]'),
+    ).toHaveClass("bg-border");
+    await expect(
+      nestedGeneration?.querySelector("[data-session-observation-rail-depth]"),
+    ).toHaveClass("bg-primary/60");
+    await expect(
+      closingRailEnd
+        ?.closest("[data-session-observation-depth]")
+        ?.querySelector("[data-session-observation-rail-depth]"),
+    ).toHaveClass("bg-border");
+    await userEvent.unhover(rootToggle);
+    const nestedToggle = canvas.getByRole("button", {
+      name: "Show tools: tool-1, tool-2, and tool-3",
+    });
     const initialNestedToggleTop = nestedToggle.getBoundingClientRect().top;
 
     // Nested observations expand independently from their ancestors.
     await userEvent.click(nestedToggle);
 
-    // Expanding a nested rail must keep its toggle anchored too.
+    // A message-less observation retains its control row to avoid its icon.
     await expect(nestedToggle.getBoundingClientRect().top).toBe(
       initialNestedToggleTop,
     );
@@ -2503,30 +2629,40 @@ export const ExpandNestedObservations = meta.story({
       "data-session-observation-depth",
       "2",
     );
-    await expect(nestedTool).toHaveStyle({ paddingLeft: "48px" });
+    await expect(nestedTool).not.toHaveAttribute("style");
     await expect(
       nestedTool?.querySelectorAll("[data-session-observation-rail-depth]"),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     await expect(
-      nestedTool?.querySelector('[data-session-observation-rail-depth="2"]'),
-    ).not.toBeInTheDocument();
+      nestedTool?.querySelector("[data-session-observation-rail-depth]"),
+    ).toHaveClass("left-[7px]");
+
+    nestedToggle.blur();
+    await userEvent.hover(nestedToggle);
+    await expect(
+      nestedTool?.querySelector("[data-session-observation-rail-depth]"),
+    ).toHaveClass("bg-primary/60");
+    await userEvent.unhover(nestedToggle);
+    await expect(
+      nestedTool?.querySelector("[data-session-observation-rail-depth]"),
+    ).toHaveClass("bg-border");
 
     await userEvent.click(
       canvas.getByRole("button", { name: "Expand tool-1" }),
     );
     await expect(
-      nestedTool?.querySelector('[data-session-observation-rail-depth="2"]'),
-    ).toHaveClass("top-[22px]");
+      nestedTool?.querySelectorAll("[data-session-observation-rail-depth]"),
+    ).toHaveLength(1);
     await expect(
       nestedTool?.querySelector("[data-session-observation-rail-end]"),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
 
     await userEvent.click(
       canvas.getByRole("button", { name: "Collapse tool-1" }),
     );
     await expect(
-      nestedTool?.querySelector('[data-session-observation-rail-depth="2"]'),
-    ).not.toBeInTheDocument();
+      nestedTool?.querySelectorAll("[data-session-observation-rail-depth]"),
+    ).toHaveLength(1);
     await expect(
       nestedTool?.querySelector("[data-session-observation-rail-end]"),
     ).not.toBeInTheDocument();
@@ -2535,13 +2671,15 @@ export const ExpandNestedObservations = meta.story({
 
     await userEvent.click(nestedToggle);
 
-    // Collapsing the nested rail must not move the toggle either.
+    // Collapsing returns the expand control to its summary row.
     await expect(nestedToggle.getBoundingClientRect().top).toBe(
       initialNestedToggleTop,
     );
     await expect(canvas.queryByText("tool-1")).not.toBeInTheDocument();
     await expect(
-      canvas.getByRole("button", { name: "Show 3 tools" }),
+      canvas.getByRole("button", {
+        name: "Show tools: tool-1, tool-2, and tool-3",
+      }),
     ).toBeInTheDocument();
   },
 });
@@ -2592,7 +2730,11 @@ export const ToolObservationDataOnly = meta.story({
   }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Show 1 tool" }));
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "Show tools: get_subscription_details",
+      }),
+    );
     await expect(
       canvas.getAllByRole("button", { name: "get_subscription_details" }),
     ).toHaveLength(1);
@@ -2617,7 +2759,11 @@ export const GenerationToolDataOnly = meta.story({
   }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Show 1 tool" }));
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "Show tools: get_subscription_details",
+      }),
+    );
     await expect(
       canvas.getAllByRole("button", { name: "get_subscription_details" }),
     ).toHaveLength(1);
@@ -2651,7 +2797,11 @@ export const DeduplicateMatchingToolData = meta.story({
   }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Show 1 tool" }));
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "Show tools: get_subscription_details",
+      }),
+    );
     await expect(
       canvas.getAllByRole("button", { name: "get_subscription_details" }),
     ).toHaveLength(1);
@@ -2690,7 +2840,11 @@ export const KeepDifferentToolData = meta.story({
   }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Show 2 tools" }));
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "Show tools: search_documentation and get_customer_profile",
+      }),
+    );
     await expect(
       canvas.getAllByRole("button", { name: "search_documentation" }),
     ).toHaveLength(1);

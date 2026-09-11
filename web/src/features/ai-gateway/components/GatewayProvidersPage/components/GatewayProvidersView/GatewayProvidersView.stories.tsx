@@ -59,6 +59,8 @@ const manyModelCounts = Object.fromEntries(
 );
 
 const actions = {
+  getModelsUrl: (connection) =>
+    `/organization/org-1/settings/ai-gateway-models?connection=${connection.id}`,
   createAction: <Button onClick={onCreate}>Add credential</Button>,
   renderCredentialActions: (connection) => (
     <Button
@@ -76,6 +78,7 @@ const actions = {
   onReorder,
 } satisfies Pick<
   ComponentProps<typeof GatewayProvidersView>,
+  | "getModelsUrl"
   | "createAction"
   | "renderCredentialActions"
   | "hasMore"

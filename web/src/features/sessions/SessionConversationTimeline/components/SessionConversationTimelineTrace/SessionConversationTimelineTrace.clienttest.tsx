@@ -75,7 +75,7 @@ describe("SessionConversationTimelineTrace", () => {
 
     expect(screen.getByText("grandchild")).toBeInTheDocument();
     const parentToggle = screen.getByRole("button", {
-      name: "Hide 1 tool",
+      name: "Hide tools: grandchild",
     });
     fireEvent.click(parentToggle);
     expect(screen.queryByText("grandchild")).not.toBeInTheDocument();
