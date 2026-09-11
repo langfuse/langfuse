@@ -414,7 +414,6 @@ fn web_configuration_rejects_unsafe_or_ambiguous_urls() {
         "not a URL",
         "http://web.example",
         "https://user:password@web.example",
-        "https://web.example/prefix",
         "https://web.example?query=true",
         "https://web.example#fragment",
     ] {

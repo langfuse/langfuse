@@ -112,25 +112,27 @@ probes, missing inference routes and a clean SIGTERM exit, then removes it.
 ### Web resolution client
 
 `resolution::Resolver` resolves a gateway key through an operator-configured Web
-origin. It is a library boundary; the binary does not initialize it yet. The
+base URL. It is a library boundary; the binary does not initialize it yet. The
 caller supplies the existing `LANGFUSE_AI_GATEWAY_SERVICE_KEY` and a trusted Web
-origin to `ResolverConfig::new`. HTTPS is required except on loopback for local
-development. Origins cannot contain credentials, a path prefix, query or fragment.
+base URL to `ResolverConfig::new`. HTTPS is required except on loopback for local
+development. URLs cannot contain credentials, a query or fragment. Include the
+Web deployment's `NEXT_PUBLIC_BASE_PATH`, if set: both `https://host/app` and
+`https://host/app/` resolve through `/app/api/internal/ai-gateway/v1/resolve`.
 
 ```rust,no_run
 use ai_gateway::resolution::{ApiFormat, ResolveError, Resolver, ResolverConfig};
 
-async fn example(web_origin: &str, service_key: &str, gateway_key: &str)
+async fn example(web_base_url: &str, service_key: &str, gateway_key: &str)
     -> Result<(), ResolveError>
 {
-    let resolver = Resolver::new(ResolverConfig::new(web_origin, service_key)?)?;
+    let resolver = Resolver::new(ResolverConfig::new(web_base_url, service_key)?)?;
     let execution = resolver.resolve(gateway_key, ApiFormat::OpenAiResponses).await?;
     assert_eq!(execution.connection().base_url(), "https://api.openai.com/v1");
     Ok(())
 }
 ```
 
-Each call sends `POST /api/internal/ai-gateway/v1/resolve` with
+Each call sends `POST <base path>/api/internal/ai-gateway/v1/resolve` with
 `Authorization: Bearer <gateway key>`, the Web v1 HMAC header, and exactly
 `{"apiFormat":"openai.responses"}`. The client neither receives nor parses an
 inference request body. Reuse the resolver across requests: its connection pool is
@@ -176,7 +178,7 @@ cargo test --locked
 - `server.rs`: router, probe state and bounded graceful shutdown. A listener and
   shutdown future are injected, so tests do not depend on fixed ports or signals.
 - `main.rs`: configuration, logging, signal registration and process exit.
-- `resolution/mod.rs`: trusted-origin configuration and bounded Web HTTP client.
+- `resolution/mod.rs`: trusted base URL configuration and bounded Web HTTP client.
 - `resolution/contracts.rs`: strict Web response validation and immutable execution context.
 - `resolution/signing.rs`: Web v1 HMAC; a literal shared fixture pins byte compatibility.
 - `tests/support`: local ephemeral-port HTTP servers with injected Axum routers.
