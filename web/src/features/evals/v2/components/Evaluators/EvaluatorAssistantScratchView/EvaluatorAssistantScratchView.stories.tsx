@@ -32,6 +32,26 @@ export const Compact = meta.story({
   },
 });
 
+export const Loading = meta.story({
+  args: {
+    evaluatorType: "CODE",
+    onSubmit: fn(() => new Promise<boolean>(() => undefined)),
+    onConfigureManually: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(
+      canvas.getByRole("textbox", {
+        name: "Describe the evaluator you want",
+      }),
+      "Score answer helpfulness",
+    );
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Create evaluator" }),
+    );
+  },
+});
+
 export const ExampleSelection = meta.story({
   name: "(Test) Selects Example Without Submitting",
   args: {

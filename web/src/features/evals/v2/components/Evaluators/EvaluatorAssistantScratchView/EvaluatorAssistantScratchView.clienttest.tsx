@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 import { EvaluatorAssistantScratchView } from "./EvaluatorAssistantScratchView";
 
 describe("EvaluatorAssistantScratchView", () => {
-  it("groups examples below the composer and only populates the request", () => {
+  it("keeps the icon submit accessible and examples below the composer", async () => {
     const onSubmit = vi.fn();
 
     render(
@@ -31,9 +31,14 @@ describe("EvaluatorAssistantScratchView", () => {
       name: "Describe the evaluator you want",
     });
 
-    expect(
-      within(composer).getByRole("button", { name: "Create evaluator" }),
-    ).toBeInTheDocument();
+    const createButton = within(composer).getByRole("button", {
+      name: "Create evaluator",
+    });
+    expect(createButton).toBeDisabled();
+    fireEvent.focus(createButton.parentElement!);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Create evaluator",
+    );
     expect(
       composer.compareDocumentPosition(examples) &
         Node.DOCUMENT_POSITION_FOLLOWING,

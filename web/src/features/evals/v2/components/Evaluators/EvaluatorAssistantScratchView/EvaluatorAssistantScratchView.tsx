@@ -8,6 +8,11 @@ import { SendHorizontal, Sparkles } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { Textarea } from "@/src/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 
 const EXAMPLE_PROMPTS = [
   "Fail when the answer contradicts the retrieved context",
@@ -74,7 +79,7 @@ export function EvaluatorAssistantScratchView({
         <div
           role="group"
           aria-label="Evaluator request composer"
-          className="border-input bg-background focus-within:ring-ring @container/composer overflow-hidden rounded-md border shadow-xs focus-within:ring-1"
+          className="border-input bg-background focus-within:ring-ring relative rounded-md border shadow-xs focus-within:ring-1"
         >
           <Textarea
             aria-label="Describe the evaluator you want"
@@ -87,23 +92,28 @@ export function EvaluatorAssistantScratchView({
             disabled={isSubmitting}
             onChange={(event) => setRequest(event.target.value)}
             onKeyDown={handleKeyDown}
-            className="ph-no-capture min-h-32 resize-y rounded-none border-0 text-base shadow-none focus-visible:ring-0"
+            className="ph-no-capture min-h-32 resize-y rounded-none border-0 pr-12 pb-12 text-base shadow-none focus-visible:ring-0"
           />
-          <div className="border-border flex justify-end border-t border-dashed p-2">
-            <Button
-              type="submit"
-              size="sm"
-              aria-label="Create evaluator"
-              disabled={!request.trim() || isSubmitting}
-              loading={isSubmitting}
-              className="shrink-0 gap-1.5"
-            >
-              <span className="@max-[360px]/composer:sr-only">
-                Create evaluator
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                className="absolute right-2 bottom-2 inline-flex rounded-full"
+                tabIndex={!request.trim() || isSubmitting ? 0 : undefined}
+              >
+                <Button
+                  type="submit"
+                  size="icon"
+                  aria-label="Create evaluator"
+                  disabled={!request.trim() || isSubmitting}
+                  loading={isSubmitting}
+                  className="size-8 shrink-0 rounded-full p-0"
+                >
+                  <SendHorizontal className="size-3.5" aria-hidden="true" />
+                </Button>
               </span>
-              <SendHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-            </Button>
-          </div>
+            </TooltipTrigger>
+            <TooltipContent>Create evaluator</TooltipContent>
+          </Tooltip>
         </div>
 
         <section
