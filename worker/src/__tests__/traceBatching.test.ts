@@ -1,5 +1,5 @@
-import { randomUUID } from "node:crypto";
-import { Queue } from "bullmq";
+import { randomBytes, randomUUID } from "node:crypto";
+import { Queue, QueueEvents, Worker } from "bullmq";
 import {
   afterAll,
   afterEach,
@@ -12,6 +12,8 @@ import {
 import {
   createNewRedisInstance,
   getQueuePrefix,
+  getS3EventStorageClient,
+  QueueJobs,
   QueueName,
   recordDistribution,
   recordIncrement,
@@ -25,6 +27,9 @@ import {
   trackTraceBatchActivity,
   TraceBatchDispatcher,
 } from "../features/traces/traceBatching";
+import { otelIngestionQueueProcessorBuilder } from "../queues/otelIngestionQueue";
+import { traceBatchQueueProcessor } from "../queues/traceBatchQueue";
+import { ClickhouseWriter } from "../services/ClickhouseWriter";
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const original =
@@ -36,8 +41,16 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     }),
     recordDistribution: vi.fn(),
     recordIncrement: vi.fn(),
+    getS3EventStorageClient: vi.fn(),
   };
 });
+
+vi.mock("../features/evaluation/observationEval", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../features/evaluation/observationEval")
+  >()),
+  fetchObservationEvalRules: vi.fn().mockResolvedValue([]),
+}));
 
 describe("trace micro-batch scheduling with Redis", () => {
   const dueKey = "{trace-batch}:due";
@@ -90,6 +103,189 @@ describe("trace micro-batch scheduling with Redis", () => {
     await client().del(dueKey, stateKey, "{trace-batch}:dispatcher");
   });
   afterAll(() => client().disconnect());
+
+  it("ingests through BullMQ, postpones readiness on new activity, and consumes full ClickHouse payloads once due", async () => {
+    const original = {
+      LANGFUSE_TRACE_BATCH_IDLE_MS: env.LANGFUSE_TRACE_BATCH_IDLE_MS,
+      LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+      LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED:
+        env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED,
+      LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED:
+        env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED,
+    };
+    env.LANGFUSE_TRACE_BATCH_IDLE_MS = 4_000;
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+    env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
+    env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED = "false";
+
+    const ingestionName = `trace-batch-ingestion-test-${randomUUID()}`;
+    const ingestionQueue = new Queue<
+      TQueueJobTypes[QueueName.OtelIngestionQueue]
+    >(ingestionName, { connection, prefix: getQueuePrefix(ingestionName) });
+    const ingestionEvents = new QueueEvents(ingestionName, {
+      connection,
+      prefix: ingestionQueue.opts.prefix,
+    });
+    const ingestionWorker = new Worker(
+      ingestionName,
+      otelIngestionQueueProcessorBuilder(false),
+      { connection, prefix: ingestionQueue.opts.prefix },
+    );
+    const batchEvents = new QueueEvents(queue.name, {
+      connection,
+      prefix: queue.opts.prefix,
+    });
+    const batchWorker = new Worker(queue.name, traceBatchQueueProcessor, {
+      connection,
+      prefix: queue.opts.prefix,
+    });
+    const writer = ClickhouseWriter.getInstance();
+
+    try {
+      await Promise.all([
+        ingestionWorker.waitUntilReady(),
+        ingestionEvents.waitUntilReady(),
+        batchWorker.waitUntilReady(),
+        batchEvents.waitUntilReady(),
+      ]);
+      const projectId = randomUUID();
+      const traceId = randomUUID().replaceAll("-", "");
+      const otherTraceId = randomUUID().replaceAll("-", "");
+      const input = JSON.stringify({ message: "input".repeat(1_000) });
+      const output = JSON.stringify({ message: "output".repeat(1_000) });
+      const metadata = JSON.stringify({ context: "metadata".repeat(1_000) });
+      const nano = BigInt(Date.now()) * 1_000_000n;
+      const timestamp = {
+        low: Number(nano & 0xffffffffn),
+        high: Number(nano >> 32n),
+        unsigned: true,
+      };
+      async function ingest(traceIds: string[]) {
+        // S3 transport and unrelated evaluator configuration are stubbed;
+        // OTLP conversion, writer, Redis scripts and both queue workers are real.
+        vi.mocked(getS3EventStorageClient).mockReturnValue({
+          download: vi.fn().mockResolvedValue(
+            JSON.stringify([
+              {
+                resource: { attributes: [] },
+                scopeSpans: [
+                  {
+                    scope: { name: "langfuse-sdk", version: "4.0.0" },
+                    spans: traceIds.map((id) => ({
+                      traceId: Buffer.from(id, "hex").toJSON(),
+                      spanId: randomBytes(8).toJSON(),
+                      name: "trace-batch-integration",
+                      kind: 1,
+                      startTimeUnixNano: timestamp,
+                      endTimeUnixNano: timestamp,
+                      attributes: Object.entries({
+                        "langfuse.observation.type": "span",
+                        "langfuse.observation.input": input,
+                        "langfuse.observation.output": output,
+                        "langfuse.observation.metadata": metadata,
+                      }).map(([key, value]) => ({
+                        key,
+                        value: { stringValue: value },
+                      })),
+                    })),
+                  },
+                ],
+              },
+            ]),
+          ),
+        } as unknown as ReturnType<typeof getS3EventStorageClient>);
+        const job = await ingestionQueue.add(QueueJobs.OtelIngestionJob, {
+          id: randomUUID(),
+          timestamp: new Date(),
+          name: QueueJobs.OtelIngestionJob,
+          payload: {
+            data: { fileKey: "trace-batch-integration.json" },
+            authCheck: {
+              validKey: true,
+              scope: { projectId, orgId: randomUUID(), accessLevel: "project" },
+            },
+            ingestionVersion: "4",
+          },
+        });
+        await job.waitUntilFinished(ingestionEvents, 10_000);
+      }
+      async function waitUntilRedisTime(deadline: number) {
+        await expect
+          .poll(
+            async () => {
+              const [seconds, microseconds] = await client().time();
+              return (
+                Number(seconds) * 1_000 +
+                Math.floor(Number(microseconds) / 1_000)
+              );
+            },
+            { interval: 25, timeout: 10_000 },
+          )
+          .toBeGreaterThanOrEqual(deadline);
+      }
+
+      await ingest([traceId]);
+      expect(await client().hlen(stateKey)).toBe(1);
+      const firstDue = Number(
+        await client().zscore(dueKey, member(projectId, traceId)),
+      );
+      await waitUntilRedisTime(firstDue - 2_000);
+      // Leave ample time to check the old deadline even on a busy CI worker.
+      env.LANGFUSE_TRACE_BATCH_IDLE_MS = 10_000;
+      await ingest([traceId, otherTraceId]);
+      const renewedDue = Number(
+        await client().zscore(dueKey, member(projectId, traceId)),
+      );
+      expect(renewedDue).toBeGreaterThan(firstDue);
+      expect(await client().hlen(stateKey)).toBe(2);
+
+      const dispatcher = runner();
+      await waitUntilRedisTime(firstDue);
+      await dispatcher.processBatch();
+      expect(await queue.getJobCounts("wait", "active", "completed")).toEqual({
+        wait: 0,
+        active: 0,
+        completed: 0,
+      });
+
+      await writer.flushAll(true);
+      env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
+      await waitUntilRedisTime(renewedDue);
+      await dispatcher.processBatch();
+      const [batch] = await queue.getJobs(["wait", "active", "completed"]);
+      expect(
+        batch.data.payload.traces.map((trace) => trace.traceId).sort(),
+      ).toEqual([traceId, otherTraceId].sort());
+      const result = await batch.waitUntilFinished(batchEvents, 10_000);
+      expect(result).toMatchObject({ observationCount: 3, traceCount: 2 });
+      // All three observations must carry their untruncated I/O and metadata.
+      expect(result.ioMetadataBytes).toBeGreaterThanOrEqual(
+        3 * (Buffer.byteLength(input) + Buffer.byteLength(output) + 8_000),
+      );
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.trace_batch.size",
+        2,
+      );
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.trace_batch.io_metadata_bytes",
+        result.ioMetadataBytes,
+      );
+      expect(await client().zcard(dueKey)).toBe(0);
+      expect(await client().hlen(stateKey)).toBe(0);
+      await dispatcher.processBatch();
+      expect(await queue.getCompletedCount()).toBe(1);
+    } finally {
+      try {
+        await Promise.all([ingestionWorker.close(), batchWorker.close()]);
+        await Promise.all([ingestionEvents.close(), batchEvents.close()]);
+        await ingestionQueue.obliterate({ force: true });
+        await ingestionQueue.close();
+        await writer.shutdown();
+      } finally {
+        Object.assign(env, original);
+      }
+    }
+  }, 30_000);
 
   it("preserves min/max across concurrent out-of-order arrivals, resets readiness, and separates tenants", async () => {
     await Promise.all(
