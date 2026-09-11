@@ -34,7 +34,7 @@ const orgIdHeader = "x-langfuse-organization-id";
 /** projectIdHeader selects the target project for keys without a bound project. */
 const projectIdHeader = "x-langfuse-project-id";
 
-/** enforceAuth authenticates the request, then routes it to the admin, organization, or project flow its principal and action select. */
+/** enforceAuth authenticates the request, then routes it to the admin, organization, or project flow its principal and action select; an action-less call resolves the project target and scope without an authorization gate. */
 export async function enforceAuth(
   params: EnforceAuthParams,
 ): Promise<EnforceAuthResult> {
@@ -323,7 +323,7 @@ function invariantBreak(message: string): ErrorResult {
   return { success: false, error: new InternalServerError(message) };
 }
 
-/** EnforceAuthParams is the request, the optional connection action, the access levels the route admits, and its key-kind opt-ins; omit the action to resolve context without a connection-level check. */
+/** EnforceAuthParams is the request, the checked action, the access levels the route admits, and its key-kind opt-ins; an omitted action authenticates and resolves the target without an authorization gate, leaving per-item authorization to the caller. */
 export type EnforceAuthParams = {
   req: NextApiRequest;
   action?: Action;

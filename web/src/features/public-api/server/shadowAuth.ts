@@ -55,7 +55,7 @@ async function legacyWithShadow(
 ): Promise<ShadowAuthResult> {
   const legacyAuth = await runLegacyAuth(params);
   const newAuth = await runNewAuth(params);
-  shadowAuthDiff(newAuth, legacyAuth, params.action ?? "none");
+  shadowAuthDiff(newAuth, legacyAuth, params.action ?? "authenticate");
   return legacyResult(legacyAuth);
 }
 
