@@ -74,11 +74,22 @@ export function requireAzureSharedKeyCredential(params: {
   accessKeyId: string | undefined;
   secretAccessKey: string | undefined;
 }): AzureCredentialConfig {
-  const { accessKeyId, secretAccessKey } = params;
+  return sharedKeyConfig(
+    params,
+    `Azure Blob Storage account name and account key must both be configured`,
+  );
+}
+
+function sharedKeyConfig(
+  credentials: {
+    accessKeyId: string | undefined;
+    secretAccessKey: string | undefined;
+  },
+  missingCredentialsMessage: string,
+): AzureCredentialConfig {
+  const { accessKeyId, secretAccessKey } = credentials;
   if (!accessKeyId || !secretAccessKey) {
-    throw new Error(
-      `Azure Blob Storage account name and account key must both be configured`,
-    );
+    throw new Error(missingCredentialsMessage);
   }
 
   return {
@@ -98,19 +109,11 @@ export function resolveAzureCredentialConfig(
   const { credentialMode } = settings;
 
   switch (credentialMode) {
-    case "shared-key": {
-      const { accessKeyId, secretAccessKey } = bucketCredentials;
-      if (!accessKeyId || !secretAccessKey) {
-        throw new Error(
-          `Shared key authentication requires LANGFUSE_S3_*_ACCESS_KEY_ID and LANGFUSE_S3_*_SECRET_ACCESS_KEY. Set LANGFUSE_AZURE_BLOB_CREDENTIAL to authenticate with an Azure AD identity instead`,
-        );
-      }
-      return {
-        mode: "shared-key",
-        accountName: accessKeyId,
-        accountKey: secretAccessKey,
-      };
-    }
+    case "shared-key":
+      return sharedKeyConfig(
+        bucketCredentials,
+        `Shared key authentication requires LANGFUSE_S3_*_ACCESS_KEY_ID and LANGFUSE_S3_*_SECRET_ACCESS_KEY. Set LANGFUSE_AZURE_BLOB_CREDENTIAL to authenticate with an Azure AD identity instead`,
+      );
 
     case "workload-identity":
       // Nothing is required: WorkloadIdentityCredential reads the AZURE_*

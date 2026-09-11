@@ -681,6 +681,37 @@ describe("AzureBlobStorageService with a token credential", () => {
     expect(longestExpiry).toBeGreaterThan(Date.now() + sixDays * 1000);
   });
 
+  it("keeps the longer-lived key when fetches resolve out of order", async () => {
+    const service = makeService();
+    const { getUserDelegationKey } = stubAzureCalls(service);
+    const sixDays = 6 * 24 * 60 * 60;
+    const sixDaysOut = Date.now() + sixDays * 1000;
+
+    // Real fetches settle out of order; make the shorter-lived one resolve last
+    // so it would overwrite the longer-lived key already cached.
+    getUserDelegationKey.mockImplementation(((
+      _startsOn: Date,
+      expiresOn: Date,
+    ) =>
+      expiresOn.getTime() > sixDaysOut
+        ? Promise.resolve(userDelegationKey)
+        : new Promise((resolve) =>
+            setTimeout(() => resolve(userDelegationKey), 10),
+          )) as never);
+
+    await Promise.all([
+      service.getSignedUrl("events/project-1/short.json", 600),
+      service.getSignedUrl("events/project-1/long.json", sixDays),
+    ]);
+
+    const cached = (
+      service as unknown as {
+        userDelegationKey?: { expiresOn: Date };
+      }
+    ).userDelegationKey;
+    expect(cached?.expiresOn.getTime()).toBeGreaterThan(sixDaysOut);
+  });
+
   it("reuses the delegation key across signing calls", async () => {
     const service = makeService();
     const { getUserDelegationKey } = stubAzureCalls(service);

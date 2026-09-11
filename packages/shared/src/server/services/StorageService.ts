@@ -531,7 +531,12 @@ class AzureBlobStorageService implements StorageService {
     const promise = this.blobServiceClient
       .getUserDelegationKey(startsOn, expiresOn)
       .then((key) => {
-        this.userDelegationKey = { key, expiresOn };
+        // Fetches can resolve out of order, so a shorter-lived key must not
+        // replace a longer-lived one already cached.
+        const cachedExpiry = this.userDelegationKey?.expiresOn.getTime() ?? 0;
+        if (expiresOn.getTime() > cachedExpiry) {
+          this.userDelegationKey = { key, expiresOn };
+        }
         return key;
       })
       .finally(() => {
