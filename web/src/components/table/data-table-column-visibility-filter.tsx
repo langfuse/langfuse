@@ -34,6 +34,7 @@ import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { cn } from "@/src/utils/tailwind";
 import { isString } from "@/src/utils/types";
 import { PopoverController } from "@/src/components/ui/popover";
+import { ColumnVisibilityHeader } from "@/src/components/table/ColumnVisibilityHeader";
 import {
   Collapsible,
   CollapsibleContent,
@@ -140,7 +141,7 @@ function ColumnVisibilityListItem<TData, TValue>({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex w-full items-center justify-between gap-2 rounded-md p-2",
+        "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5",
         isDragging ? "opacity-80" : "opacity-100",
         "hover:bg-muted/50 group transition-colors",
       )}
@@ -425,7 +426,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   return (
     <PopoverController
       align="end"
-      contentClassName="max-h-[min(70vh,var(--radix-popover-content-available-height))] w-90 max-w-[calc(100vw-1rem)] overflow-y-auto p-2"
+      contentClassName="max-h-[min(70vh,var(--radix-popover-content-available-height))] w-90 max-w-[calc(100vw-1rem)] overflow-y-auto p-0"
       disabled={false}
       modal={false}
       renderContent={() => (
@@ -435,51 +436,35 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
           onDragEnd={isColumnOrderingEnabled ? handleDragEnd : undefined}
           sensors={sensors}
         >
-          <div className="mx-auto w-full overflow-y-auto md:max-h-full">
-            <div className="flex items-center justify-between gap-2 px-1">
-              <p className="text-muted-foreground text-xs">Columns</p>
+          <div className="w-full">
+            <ColumnVisibilityHeader
+              onRestoreDefaults={() => {
+                setColumnOrder?.(defaultColumnOrder);
+                setColumnVisibility(defaultColumnVisibility);
+                additionalColumnSettings?.onRestoreDefaults();
+              }}
+            />
+            <div className="p-1">
               <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setColumnOrder?.(defaultColumnOrder);
-                  setColumnVisibility(defaultColumnVisibility);
-                  additionalColumnSettings?.onRestoreDefaults();
-                }}
-              >
-                Restore Defaults
-              </Button>
-            </div>
-            <div>
-              <div
-                className="hover:bg-muted/50 my-1 flex w-full cursor-pointer items-center justify-between rounded-md p-2"
+                variant="ghost"
+                className="w-full justify-between px-2"
                 onClick={() => toggleAllColumns(count, total)}
               >
-                <div className="flex items-center gap-2">
-                  <Button
-                    id="toggle-all-columns"
-                    variant="ghost"
-                    size="sm"
-                    className="hover:bg-transparent!"
-                    onClick={() => toggleAllColumns(count, total)}
-                  >
-                    <span className="text-sm font-bold">
-                      {count === total
-                        ? "Deselect All Columns"
-                        : "Select All Columns"}
-                    </span>
-                    <div className="bg-input ml-1 rounded-sm px-1 text-xs">{`${count}/${total}`}</div>
-                  </Button>
-                </div>
-              </div>
+                <span>
+                  {count === total
+                    ? "Deselect All Columns"
+                    : "Select All Columns"}
+                </span>
+                <span className="text-muted-foreground text-xs">{`${count}/${total}`}</span>
+              </Button>
             </div>
             <Separator />
-            <div data-vaul-no-drag className="px-3 py-2">
+            <div className="p-1">
               <SortableContext
                 items={columnIdsOrder}
                 strategy={verticalListSortingStrategy}
               >
-                <div className="space-y-2">
+                <div className="space-y-0.5">
                   {columnIdsOrder.map((columnId) => {
                     const column = columns.find(
                       (col) => col.accessorKey === columnId,
