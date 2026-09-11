@@ -218,13 +218,14 @@ export const ObservationDetailViewHeader = memo(
       <div className="@container shrink-0 space-y-2 border-b p-2">
         {/* Title row with actions */}
         <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
-          <div className="flex w-full flex-row items-center gap-1">
+          <div className="flex w-full min-w-0 flex-row items-center gap-1">
             <ItemBadge type={observation.type as ObservationType} isSmall />
             <span
               className={cn(
-                "mb-0 line-clamp-2 min-w-0 font-bold break-all md:break-normal md:wrap-break-word",
+                "mb-0 min-w-0 truncate font-bold",
                 isMobile && "flex-1",
               )}
+              title={observation.name || observation.id}
             >
               {observation.name || observation.id}
             </span>
