@@ -53,7 +53,9 @@ export function buildObservationAttributes({
 export type AttributeColumnFilter = {
   target: AttributeTarget;
   include: FilterState[number];
-  exclude: FilterState[number];
+  /** Absent when the column has no exact negation (string columns only offer
+      "does not contain", which would also hide "1.2.3" for "1.2"). */
+  exclude?: FilterState[number];
 };
 
 /**
@@ -88,12 +90,6 @@ export function attributeColumnFilter(
       column,
       type: "string" as const,
       operator: "=" as const,
-      value,
-    },
-    exclude: {
-      column,
-      type: "string" as const,
-      operator: "does not contain" as const,
       value,
     },
   });

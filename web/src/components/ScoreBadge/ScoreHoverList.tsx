@@ -20,8 +20,8 @@ function formatScoreValue(score: Omit<HoverListScore, "name">): string {
 }
 
 /**
- * Score section of the node hover card: one line per score NAME,
- * alphabetical, the grouping and order the chips use, so a card never
+ * Score section of the node hover card: one line per score NAME with all its
+ * values, alphabetical, the grouping and order the chips use, so a card never
  * contradicts the row it explains. Reused by the chips' own "+N" hover so
  * every surface reads scores the same way.
  */
@@ -33,10 +33,13 @@ export function ScoreHoverList({
   const scoreNames = Array.from(new Set(scores.map((s) => s.name))).sort();
   const visibleScoreNames = scoreNames.slice(0, MAX_HOVER_SCORES);
   const hiddenScoreCount = scoreNames.length - visibleScoreNames.length;
-  const firstScoreByName = new Map<string, HoverListScore>();
+  // Every value per name, comma separated, the way the chip shows them: two
+  // annotators scoring "helpfulness" are two values, not one arbitrary pick.
+  const valuesByName = new Map<string, string[]>();
   for (const score of scores) {
-    if (!firstScoreByName.has(score.name))
-      firstScoreByName.set(score.name, score);
+    const list = valuesByName.get(score.name) ?? [];
+    list.push(formatScoreValue(score));
+    valuesByName.set(score.name, list);
   }
 
   return (
@@ -44,8 +47,7 @@ export function ScoreHoverList({
       {/* Score names are arbitrary strings, so the section says what they are. */}
       <div className="col-span-full font-bold">Scores</div>
       {visibleScoreNames.map((name) => {
-        const score = firstScoreByName.get(name);
-        const value = score ? formatScoreValue(score) : "";
+        const value = (valuesByName.get(name) ?? []).join(", ");
         return (
           <div key={name} className="col-span-full grid grid-cols-subgrid">
             <dt className="text-muted-foreground truncate" title={name}>

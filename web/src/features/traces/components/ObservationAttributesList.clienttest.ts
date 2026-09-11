@@ -67,6 +67,17 @@ describe("attributeColumnFilter", () => {
     }
   });
 
+  it("offers no exclude for string columns, which cannot negate exactly", () => {
+    const filter = attributeColumnFilter("version", "1.2", "traces");
+    expect(filter?.include).toEqual({
+      column: "version",
+      type: "string",
+      operator: "=",
+      value: "1.2",
+    });
+    expect(filter?.exclude).toBeUndefined();
+  });
+
   it("reads as search-bar grammar", () => {
     expect(attributeGrammar("session_id", "s42")).toBe("session_id:s42");
     expect(attributeGrammar("user_id", "maya chen")).toBe(

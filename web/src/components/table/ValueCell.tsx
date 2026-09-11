@@ -251,6 +251,7 @@ function AttributeActionsMenuContent({
       ? null
       : attributeColumnFilter(key, valueText, metadataActions.filterTarget);
   const includeText = filter ? attributeGrammar(key ?? "", valueText) : null;
+  const excludeClause = filter?.exclude;
   const navigate = (
     clause: FilterState[number],
     target: "observations" | "traces",
@@ -292,21 +293,23 @@ function AttributeActionsMenuContent({
               </span>
             </span>
           </DropdownMenuItem>
-          <DropdownMenuItem
-            className="text-xs"
-            onSelect={() => navigate(filter.exclude, filter.target)}
-          >
-            <FilterX className="mr-2 h-3.5 w-3.5 shrink-0" />
-            <span className="flex min-w-0 flex-col">
-              <span>Exclude from filter</span>
-              <span
-                className="text-muted-foreground truncate font-mono"
-                title={`-${includeText}`}
-              >
-                -{includeText}
+          {excludeClause ? (
+            <DropdownMenuItem
+              className="text-xs"
+              onSelect={() => navigate(excludeClause, filter.target)}
+            >
+              <FilterX className="mr-2 h-3.5 w-3.5 shrink-0" />
+              <span className="flex min-w-0 flex-col">
+                <span>Exclude from filter</span>
+                <span
+                  className="text-muted-foreground truncate font-mono"
+                  title={`-${includeText}`}
+                >
+                  -{includeText}
+                </span>
               </span>
-            </span>
-          </DropdownMenuItem>
+            </DropdownMenuItem>
+          ) : null}
         </>
       ) : null}
     </>
