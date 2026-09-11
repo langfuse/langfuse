@@ -84,7 +84,16 @@ export function CostUsageBadge({
   usageDetails: Record<string, number> | null | undefined;
 }) {
   const hasCost = totalCost != null && !!costDetails;
-  const usage = usageDetails ?? {};
+  // Aggregates (session header, summary strip) carry totals but no per-key
+  // map. Synthesize input/output/total so the shared breakdown has rows.
+  const usage =
+    usageDetails && Object.keys(usageDetails).length > 0
+      ? usageDetails
+      : {
+          ...(inputUsage > 0 ? { input: inputUsage } : {}),
+          ...(outputUsage > 0 ? { output: outputUsage } : {}),
+          total: getCompactUsageTotal({ inputUsage, outputUsage, totalUsage }),
+        };
   const total = getCompactUsageTotal({ inputUsage, outputUsage, totalUsage });
   const hasUsage = hasRenderableUsage({
     inputUsage,
