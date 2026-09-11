@@ -6,8 +6,8 @@ readonly APT_MIRRORS_FILE="${PLAYWRIGHT_APT_MIRRORS_FILE:-/etc/apt/blacksmith-ub
 readonly APT_SOURCES_FILE="${PLAYWRIGHT_APT_SOURCES_FILE:-/etc/apt/sources.list.d/ubuntu.sources}"
 readonly APT_CONFIG_FILE="${PLAYWRIGHT_APT_CONFIG_FILE:-/etc/apt/apt.conf.d/80-playwright-network-retries}"
 readonly COMMUNITY_MIRRORS=(
-  "https://mirror.us.leaseweb.net/ubuntu/"
-  "https://atl.mirrors.clouvider.net/ubuntu/"
+  "https://mirror.pilotfiber.com/ubuntu/"
+  "https://mirror.tzulo.com/ubuntu/"
 )
 
 sudo tee "${APT_CONFIG_FILE}" > /dev/null <<'EOF'
