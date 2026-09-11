@@ -508,14 +508,10 @@ jobs:
         # apt-get (pulled in by --with-deps) occasionally stalls against a
         # slow/unresponsive mirror and can ride the job's timeout-minutes
         # instead of failing fast (observed: a 10-minute hang cancelled by
-        # the job timeout). Blacksmith's HTTP Ubuntu mirrors can also become
-        # unreachable while HTTPS sources remain available. Prefer HTTPS,
-        # then bound each attempt and retry instead of trusting the job-level
+        # the job timeout). A normal install takes well under a minute, so
+        # bound each attempt and retry instead of trusting the job-level
         # timeout as the only guard.
         run: |
-          sudo sed -i 's|http://|https://|g' \
-            /etc/apt/blacksmith-ubuntu-mirrors.txt \
-            /etc/apt/sources.list.d/ubuntu.sources
           attempt=1
           until timeout 120 pnpm --filter=web exec playwright install --with-deps --only-shell chromium; do
             if [ "$attempt" -ge 3 ]; then
@@ -1183,9 +1179,6 @@ jobs:
           (set +e; docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
       - name: Install playwright in background
         run: |
-          sudo sed -i 's|http://|https://|g' \
-            /etc/apt/blacksmith-ubuntu-mirrors.txt \
-            /etc/apt/sources.list.d/ubuntu.sources
           (set +e; pnpm --filter=web exec playwright install --with-deps --only-shell chromium > /tmp/playwright-install.log 2>&1; echo $? > /tmp/playwright-install.exit) &
       - name: Build
         run: pnpm run build --filter=!ai-gateway
