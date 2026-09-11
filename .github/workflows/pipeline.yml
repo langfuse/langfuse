@@ -1183,6 +1183,9 @@ jobs:
           (set +e; docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
       - name: Install playwright in background
         run: |
+          sudo sed -i 's|http://|https://|g' \
+            /etc/apt/blacksmith-ubuntu-mirrors.txt \
+            /etc/apt/sources.list.d/ubuntu.sources
           (set +e; pnpm --filter=web exec playwright install --with-deps --only-shell chromium > /tmp/playwright-install.log 2>&1; echo $? > /tmp/playwright-install.exit) &
       - name: Build
         run: pnpm run build --filter=!ai-gateway
