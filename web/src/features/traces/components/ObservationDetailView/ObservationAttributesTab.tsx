@@ -7,9 +7,10 @@
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
 
-// Same wrappers Preview uses for these tables, so both tabs line up.
+// Same wrappers Preview uses for these tables, so both tabs line up: one
+// `space-y-4` stack, no top margin on the first section.
 const SECTION_CLASS =
-  "mt-4 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3";
+  "[&_.io-message-content]:px-3 [&_.io-message-header]:px-3";
 
 export function ObservationAttributesTab({
   attributes,
@@ -39,49 +40,51 @@ export function ObservationAttributesTab({
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col overflow-auto pb-4">
-      {hasAttributes ? (
-        <div className={SECTION_CLASS}>
-          <PrettyJsonView
-            hideHeader
-            title="Attributes"
-            json={attributes}
-            currentView={currentView}
-            metadataActions={{
-              ...metadataActions,
-              attributes: { anchorTime: attributesAnchorTime },
-            }}
-            hoverControls
-          />
-        </div>
-      ) : null}
-      {modelParameters ? (
-        <div className={SECTION_CLASS}>
-          <PrettyJsonView
-            hideHeader
-            title="Model parameters"
-            json={modelParameters}
-            currentView={currentView}
-            hoverControls
-          />
-        </div>
-      ) : null}
-      {hasMetadata ? (
-        <div className={SECTION_CLASS}>
-          <PrettyJsonView
-            hideHeader
-            title="Metadata"
-            json={metadata}
-            currentView={currentView}
-            metadataActions={metadataActions}
-            hoverControls
-          />
-        </div>
-      ) : null}
-      {!hasAttributes && !modelParameters && !hasMetadata ? (
-        <p className="text-muted-foreground mt-4 px-3 text-sm">
-          No attributes, model parameters or metadata on this observation.
-        </p>
-      ) : null}
+      <div className="space-y-4">
+        {hasAttributes ? (
+          <div className={SECTION_CLASS}>
+            <PrettyJsonView
+              hideHeader
+              title="Attributes"
+              json={attributes}
+              currentView={currentView}
+              metadataActions={{
+                ...metadataActions,
+                attributes: { anchorTime: attributesAnchorTime },
+              }}
+              hoverControls
+            />
+          </div>
+        ) : null}
+        {modelParameters ? (
+          <div className={SECTION_CLASS}>
+            <PrettyJsonView
+              hideHeader
+              title="Model parameters"
+              json={modelParameters}
+              currentView={currentView}
+              hoverControls
+            />
+          </div>
+        ) : null}
+        {hasMetadata ? (
+          <div className={SECTION_CLASS}>
+            <PrettyJsonView
+              hideHeader
+              title="Metadata"
+              json={metadata}
+              currentView={currentView}
+              metadataActions={metadataActions}
+              hoverControls
+            />
+          </div>
+        ) : null}
+        {!hasAttributes && !modelParameters && !hasMetadata ? (
+          <p className="text-muted-foreground px-3 text-sm">
+            No attributes, model parameters or metadata on this observation.
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }
