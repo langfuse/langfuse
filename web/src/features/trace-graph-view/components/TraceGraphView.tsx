@@ -24,6 +24,7 @@ import {
   transformLanggraphToGeneralized,
 } from "../buildGraphCanvasData";
 import { buildExpandedGraph } from "../buildExpandedGraph";
+import { matchedGraphNodeNames } from "../matchedGraphNodeNames";
 
 type TraceGraphViewProps = {
   agentGraphData: AgentGraphDataResponse[];
@@ -42,6 +43,18 @@ type TraceGraphViewProps = {
    * system start/end nodes or background deselects.
    */
   onObservationSelect?: () => void;
+  /**
+   * The active search, or absent when there is none. Handed in as OBSERVATION
+   * ids because what counts as a match is the trace panel's one rule
+   * (`matchesSearchQuery`) and this module stays free of the trace-view
+   * contexts; projecting those ids onto graph nodes is the graph's own job and
+   * depends on the view mode, so it happens here.
+   */
+  search?: {
+    matchedObservationIds: ReadonlySet<string>;
+    /** Quiet readout — the same "N matches" / "No matches" the timeline shows. */
+    label: string;
+  };
 };
 
 export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
@@ -50,6 +63,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   viewMode = "aggregated",
   onViewModeChange,
   onObservationSelect,
+  search,
 }) => {
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
@@ -150,6 +164,17 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
     }
     return names;
   }, [activeObservationIds, observationToNodeName]);
+
+  // A node stands for every call of its step, so it keeps its colour when ANY
+  // observation behind it matched. `null` means no query and nothing dims; an
+  // empty set means a query that hit nothing, and the whole graph fades.
+  const matchedNodeNames = useMemo(() => {
+    if (!search) return null;
+    return matchedGraphNodeNames(
+      nodeToObservationsMap,
+      search.matchedObservationIds,
+    );
+  }, [search, nodeToObservationsMap]);
 
   // Reset indices when graph data changes (new trace loaded)
   useEffect(() => {
@@ -335,6 +360,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
           nodeToObservationsMap={nodeToObservationsMap}
           currentObservationIndices={currentObservationIndices}
           activeNodeNames={activeNodeNames}
+          matchedNodeNames={matchedNodeNames}
           // Expanded runs are long chains — left→right reads like a
           // timeline and fits the wide graph panel far better than top-down.
           layoutDirection={isExpanded ? "RIGHT" : "DOWN"}
@@ -348,11 +374,26 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
           }
         />
       )}
-      {onViewModeChange && (
+      {(onViewModeChange || search) && (
         // Overlaid sibling of the canvas (top-left, opposite the zoom stack)
         // so canvas clicks/gestures underneath are untouched.
-        <div className="absolute top-2 left-2 z-10">
-          <GraphViewModeSwitch value={viewMode} onChange={onViewModeChange} />
+        <div className="absolute top-2 left-2 z-10 flex items-center gap-2">
+          {onViewModeChange && (
+            <GraphViewModeSwitch value={viewMode} onChange={onViewModeChange} />
+          )}
+          {/* What the dimming means, said in words and in the same place the
+              timeline says it. Without it, "nothing matched" and "the matches
+              are off-canvas" look identical. Carries the switch's own
+              background so it stays legible over nodes and edges. */}
+          {search && (
+            <span
+              className="bg-background/80 text-muted-foreground truncate rounded-md border px-2 py-1 text-xs backdrop-blur"
+              title={search.label}
+              data-testid="graph-search-count"
+            >
+              {search.label}
+            </span>
+          )}
         </div>
       )}
     </div>
