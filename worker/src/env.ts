@@ -125,6 +125,12 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(2),
+  LANGFUSE_TRACE_BATCH_MAX_SIZE: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(1_000)
+    .default(80),
   LANGFUSE_TRACE_BATCH_IDLE_MS: z.coerce
     .number()
     .int()

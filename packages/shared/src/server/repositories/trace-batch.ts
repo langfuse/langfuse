@@ -1,7 +1,11 @@
-import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
-import { queryClickhouseStream } from "./clickhouse";
+import {
+  EventsQueryBuilder,
+  NoProjectId,
+} from "../queries/clickhouse-sql/event-query-builder";
+import { queryClickhouseStream, TupleParam } from "./clickhouse";
 
 type TraceBatchEventRow = {
+  project_id: string;
   trace_id: string;
   span_id: string;
   parent_span_id: string | null;
@@ -25,8 +29,8 @@ const TRACE_QUERY_BUFFER_MS = 2 * 60_000;
  * this read-only experiment does not deduplicate versions or enrich model data.
  */
 export async function* getTraceBatchEventStream(props: {
-  projectId: string;
   traces: ReadonlyArray<{
+    projectId: string;
     traceId: string;
     minStart: number;
     maxStart: number;
@@ -34,9 +38,11 @@ export async function* getTraceBatchEventStream(props: {
 }): AsyncGenerator<TraceBatchEventRow> {
   if (props.traces.length === 0) return;
 
-  const traceIds = props.traces.map((trace) => trace.traceId);
-  const builder = new EventsQueryBuilder({ projectId: props.projectId })
+  const projectIds = [...new Set(props.traces.map((trace) => trace.projectId))];
+  const traceIds = [...new Set(props.traces.map((trace) => trace.traceId))];
+  const builder = new EventsQueryBuilder({ projectId: NoProjectId })
     .selectRaw(
+      "e.project_id",
       "e.trace_id",
       "e.span_id",
       "e.parent_span_id",
@@ -51,7 +57,19 @@ export async function* getTraceBatchEventStream(props: {
     .selectFieldSet("tools")
     // Read events_full rather than the smaller, truncated events_core table.
     .forceFullTable()
+    // Separate filters retain project-prefix and trace-index pruning.
+    .whereRaw("e.project_id IN ({projectIds: Array(String)})", { projectIds })
     .whereRaw("e.trace_id IN ({traceIds: Array(String)})", { traceIds })
+    // Independent IN lists also match crossed pairs. Only these exact tenant/
+    // trace pairs may return payloads, even when projects share trace IDs.
+    .whereRaw(
+      "(e.project_id, e.trace_id) IN {tracePairs: Array(Tuple(String, String))}",
+      {
+        tracePairs: props.traces.map(
+          ({ projectId, traceId }) => new TupleParam([projectId, traceId]),
+        ),
+      },
+    )
     // Equality filters add this primary-key hash condition automatically; IN
     // needs it explicitly. The exact IDs above also exclude hash collisions.
     .whereRaw(
@@ -76,7 +94,9 @@ export async function* getTraceBatchEventStream(props: {
   yield* queryClickhouseStream<TraceBatchEventRow>({
     query,
     params,
-    tags: { projectId: props.projectId },
+    tags: {
+      projectId: projectIds.length === 1 ? projectIds[0] : "MULTI_PROJECT",
+    },
     preferredClickhouseService: "EventsReadOnly",
     // Bound background-read CPU/time; timeouts fail instead of returning partial results.
     clickhouseSettings: {

@@ -22,15 +22,19 @@ afterEach(() => {
 });
 
 describe("trace batch queue", () => {
-  it("consumes queued work with producers disabled and safely repeats reads without retaining payloads", async () => {
+  it("counts project/trace pairs with producers disabled and safely repeats reads without retaining payloads", async () => {
     const ingestionEnabled = env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED;
     const dispatcherEnabled = env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED;
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
     env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED = "false";
     try {
       const payload = {
-        projectId: "project",
-        traces: ["trace-a", "trace-b", "trace-missing"].map((traceId) => ({
+        traces: [
+          ["project", "trace-a"],
+          ["other", "trace-a"],
+          ["project", "trace-missing"],
+        ].map(([projectId, traceId]) => ({
+          projectId,
           traceId,
           minStart: 1_000,
           maxStart: 2_000,
@@ -48,10 +52,11 @@ describe("trace batch queue", () => {
       let yieldedRows = 0;
       vi.mocked(getTraceBatchEventStream).mockImplementation(
         async function* () {
-          for (const traceId of ["trace-a", "trace-a", "trace-b"]) {
+          for (const projectId of ["project", "project", "other"]) {
             yieldedRows++;
             yield {
-              trace_id: traceId,
+              project_id: projectId,
+              trace_id: "trace-a",
               span_id: `span-${yieldedRows}`,
               parent_span_id: null,
               start_time: "2026-09-11 00:00:00.000000",
@@ -89,5 +94,49 @@ describe("trace batch queue", () => {
       env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = ingestionEnabled;
       env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED = dispatcherEnabled;
     }
+  });
+
+  it("normalizes persisted single-project jobs before reading their traces", async () => {
+    const trace = {
+      traceId: "trace",
+      minStart: 1_000,
+      maxStart: 2_000,
+      revision: "revision",
+    };
+    const job = {
+      data: {
+        id: "legacy-batch",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date().toISOString(),
+        payload: { projectId: "project", traces: [trace] },
+      },
+    } as unknown as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      yield {
+        project_id: "project",
+        trace_id: "trace",
+        span_id: "span",
+        parent_span_id: null,
+        start_time: "2026-09-11 00:00:00.000000",
+        event_ts: "2026-09-11 00:00:00.000000",
+        type: "GENERATION",
+        name: "generation",
+        input: "hello",
+        output: "world",
+        metadata: {},
+        tool_definitions: {},
+        tool_calls: [],
+        tool_call_names: [],
+      };
+    });
+
+    await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual({
+      observationCount: 1,
+      traceCount: 1,
+      ioMetadataBytes: 10,
+    });
+    expect(getTraceBatchEventStream).toHaveBeenCalledWith({
+      traces: [{ ...trace, projectId: "project" }],
+    });
   });
 });

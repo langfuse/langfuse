@@ -16,9 +16,10 @@ and a unique revision. Redis server time determines ten minutes of inactivity;
 observation start time determines the query bounds.
 
 One lease-owning dispatcher snapshots at most 1,000 due members and their state
-atomically and enqueues one batch per project containing all of that project's
-traces in the snapshot. There is no additional per-project batch-size cap;
-projects spanning multiple snapshots can produce multiple batches.
+atomically and packs them across projects in readiness order into batches of at
+most `LANGFUSE_TRACE_BATCH_MAX_SIZE` traces (default 80). Each trace carries its
+project ID. Partial tails dispatch immediately; the cap is not a minimum fill
+target, and a snapshot boundary can produce a partial batch.
 It acknowledges only after enqueue succeeds, atomically removing state and due
 membership when the revision still matches. New arrivals remain scheduled.
 Each run stops at 10 seconds or 10,000 traces, checking the budget between jobs;
@@ -27,8 +28,8 @@ an in-flight Redis/queue operation can exceed that elapsed-time budget. A
 in-flight dispatch to finish and stops before another batch.
 
 The consumer makes one streamed query per batch with exact project/trace
-filters, explicit trace-hash pruning, and each trace's min/max start time plus a
-two-minute buffer. No observation-count cap silently truncates a trace. Queries
+pair filters, explicit trace-hash pruning, and one shared min/max start-time
+window plus a two-minute buffer. No observation-count cap silently truncates a trace. Queries
 use at most two execution threads and a 30-second execution limit; failures
 throw and follow the queue's three-attempt retry policy. Only counts and logical
 I/O/metadata bytes are retained in job results.
@@ -45,6 +46,7 @@ enabled intake tracks every eligible trace unless a lower rate is configured.
 | `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`  | Turn ready state into queue jobs                   |
 | `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`  | Consume existing `trace-batch` jobs                |
 | `LANGFUSE_TRACE_BATCH_CONCURRENCY`            | `2`      | Concurrent reads **per enabled worker process**    |
+| `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `80`     | Cross-project trace cap per job (1–1,000)          |
 | `LANGFUSE_TRACE_BATCH_IDLE_MS`                | `600000` | Inactivity before a trace becomes due              |
 | `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`   | `30000`  | Delay between dispatcher runs                      |
 
@@ -52,7 +54,15 @@ Deploy with flags off. Start consumers on a small, known number of worker
 processes, enable the dispatcher, then enable intake on direct-v4 ingestion
 workers. Multiple dispatcher processes may be enabled; only the lease owner
 dispatches. Consumer concurrency multiplies across the fleet; this is not a
-global ClickHouse concurrency limit. Bounded Redis snapshots do not cap payload bytes.
+global ClickHouse concurrency limit. Trace-count caps do not cap payload bytes.
+
+When upgrading from single-project jobs, disable the dispatcher before the
+deployment and upgrade **every enabled consumer** before resuming dispatch.
+Consumers accept persisted single-project jobs and normalize their project ID
+onto each trace. Older consumers cannot read cross-project jobs. Before rolling
+back consumers, stop cross-project dispatch and drain waiting/active jobs;
+handle retained failed cross-project jobs with the newer consumer as well.
+The Redis readiness layout, intake flag and sampling cohort are unchanged.
 
 For a normal stop, disable **intake** first and keep dispatcher and consumers
 running until Redis pending/ready counts and the queue's waiting/active counts
@@ -77,7 +87,7 @@ for an already pending trace if it leaves the sample. Exclude rollout transition
 windows from results; a clean comparison can stop intake and drain before
 changing the rate and resuming. Sampling makes batches smaller, so sample rates
 do not translate directly into query-count reductions or the unsampled batch
-distribution: a nonempty project batch still issues one query.
+distribution: a nonempty batch still issues one query.
 
 ## Datadog
 
@@ -109,6 +119,11 @@ by **traces**, not by batches. No project or trace IDs are attached to metrics.
 
 Also inspect these metrics under `langfuse.trace_batch`:
 
+- `project_count`: distribution of distinct projects per dispatched batch.
+  Enable percentile aggregations to distinguish mixed-project jobs from jobs
+  filled by one hot project. Query-log attribution is `MULTI_PROJECT` when a
+  read spans projects; row coverage counts exact project/trace pairs.
+
 | Metric                                                          | Meaning                                                                                               |
 | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `ingestion_trace_count`                                         | Distinct eligible traces per ingestion job, distribution                                              |
@@ -138,8 +153,9 @@ producer hosts to spot mixed rollout settings.
 Measure the natural project batch distribution with a fixed dispatch interval
 and consumer fleet size. Compare the distribution and singleton trace percentage with
 CPU/bytes per found trace, queue delay, missing rows and ingestion latency. If
-singletons dominate, try a longer dispatch interval. Additional batch splitting
-and cross-project batching are separate experiments.
+singletons dominate even across projects, try a longer dispatch interval.
+Start with a cap of 80 and compare 60/80 using equal admitted trace cohorts;
+the cap is an experiment setting, not an established production optimum.
 
 ## Semantics and limits
 
@@ -169,7 +185,7 @@ and cross-project batching are separate experiments.
 The repository uses the same `EventsQueryBuilder`, full-I/O selection and
 streaming client as the event blob-export reader. The batch-I/O API also reads
 `events_full` by project, trace IDs and time bounds. The experiment adds an
-explicit trace-hash filter and uses one shared time window for the batch.
+explicit trace-hash filter and uses one shared time window across projects.
 These are comparable existing code paths, not a production capacity guarantee.
 
 The emitted query has this shape (the builder also selects span identity,
@@ -179,8 +195,9 @@ timestamps, type, name and tool fields):
 SELECT input, output,
        mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
 FROM events_full AS e
-WHERE e.project_id = {projectId: String}
+WHERE e.project_id IN ({projectIds: Array(String)})
   AND e.trace_id IN ({traceIds: Array(String)})
+  AND (e.project_id, e.trace_id) IN {tracePairs: Array(Tuple(String, String))}
   AND xxHash32(e.trace_id) IN (
     SELECT arrayJoin(arrayMap(id -> xxHash32(id), {traceIds: Array(String)}))
   )
@@ -189,8 +206,11 @@ WHERE e.project_id = {projectId: String}
 SETTINGS max_threads = 2, max_execution_time = 30, timeout_overflow_mode = 'throw'
 ```
 
-There are four parameters, independent of batch size. The trace-ID array grows
+There are five parameters, independent of batch size. The ID arrays grow
 with the batch, but the request does not add a parameter or SQL branch per trace.
+The exact tuple filter prevents independent project/trace lists from matching
+unrequested crossed pairs. The reader also returns `project_id`, so identical
+trace IDs in different projects remain distinct when counting coverage.
 The hash subquery reads only
 the supplied array, not another table, and is compatible with ClickHouse 25.12.
 Global bounds retain primary-key pruning and include a two-minute buffer at
@@ -221,10 +241,11 @@ pnpm --filter worker run test traceBatching.test.ts traceBatchQueue.test.ts
 pnpm --filter web run test event-repository.servertest.ts -t 'streams complete trace batches'
 ```
 
-The Redis tests cover bounds/readiness, per-project grouping and metrics,
+The Redis tests cover bounds/readiness, bounded cross-project packing and metrics,
 producer-off draining, enqueue failure, concurrent updates including state
 recreation, exclusive dispatch, and shutdown. The ClickHouse test reads more
-than 20,000 rows and checks full payloads, tenant isolation, exact trace IDs,
+than 20,000 rows and checks full payloads, exact project/trace pairs (including
+forbidden crossed pairs and the same trace ID requested in two projects),
 and shared batch time bounds, including observations beyond an individual
 trace's tracked window.
 The connected integration test uses actual ingestion and batch BullMQ workers,

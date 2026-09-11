@@ -64,10 +64,12 @@ const findFilterOption = (
 ) => rows.find((row) => row.column === column && row.value === value);
 
 describe("Clickhouse Events Repository Test", () => {
-  it("streams complete trace batches with full payloads, tenant isolation and shared batch time bounds", async () => {
+  it("streams complete trace batches with full payloads, exact tenant/trace pairs and shared batch time bounds", async () => {
     const batchProjectId = randomUUID();
+    const otherProjectId = randomUUID();
     const firstTraceId = randomUUID();
     const secondTraceId = randomUUID();
+    const otherTraceId = randomUUID();
     const start = Date.now();
     const buffer = 2 * 60_000;
     const input = JSON.stringify({ message: "input".repeat(100) });
@@ -100,6 +102,28 @@ describe("Clickhouse Events Repository Test", () => {
       first,
       second,
       insideBatchWindow,
+      createEvent({
+        project_id: otherProjectId,
+        trace_id: otherTraceId,
+        start_time: new Date(start),
+      }),
+      // The same trace ID in two projects represents two different traces.
+      createEvent({
+        project_id: otherProjectId,
+        trace_id: firstTraceId,
+        start_time: new Date(start),
+      }),
+      // These crossed pairs match both independent IN lists, but are unrequested.
+      createEvent({
+        project_id: batchProjectId,
+        trace_id: otherTraceId,
+        start_time: new Date(start),
+      }),
+      createEvent({
+        project_id: otherProjectId,
+        trace_id: secondTraceId,
+        start_time: new Date(start),
+      }),
       createEvent({
         project_id: randomUUID(),
         trace_id: firstTraceId,
@@ -145,20 +169,37 @@ describe("Clickhouse Events Repository Test", () => {
     let rowCount = 0;
     let fullPayloadSeen = false;
     let insideBatchWindowSeen = false;
-    const foundTraceIds = new Set<string>();
+    const foundTraces = new Set<string>();
     for await (const event of getTraceBatchEventStream({
-      projectId: batchProjectId,
       traces: [
-        { traceId: firstTraceId, minStart: start, maxStart: start },
         {
+          projectId: batchProjectId,
+          traceId: firstTraceId,
+          minStart: start,
+          maxStart: start,
+        },
+        {
+          projectId: batchProjectId,
           traceId: secondTraceId,
           minStart: start + 600_000,
           maxStart: start + 600_000,
         },
-        // A full dispatcher snapshot can belong to one project. Missing IDs
-        // exercise the HTTP parameter limit and query size without adding
-        // unrelated fixture rows.
-        ...Array.from({ length: 998 }, () => ({
+        {
+          projectId: otherProjectId,
+          traceId: otherTraceId,
+          minStart: start,
+          maxStart: start,
+        },
+        {
+          projectId: otherProjectId,
+          traceId: firstTraceId,
+          minStart: start,
+          maxStart: start,
+        },
+        // Exercise the maximum configurable batch size. Missing IDs stress
+        // HTTP parameters and query size without unrelated fixture rows.
+        ...Array.from({ length: 996 }, () => ({
+          projectId: batchProjectId,
           traceId: randomUUID(),
           minStart: start,
           maxStart: start,
@@ -166,7 +207,7 @@ describe("Clickhouse Events Repository Test", () => {
       ],
     })) {
       rowCount++;
-      foundTraceIds.add(event.trace_id);
+      foundTraces.add(JSON.stringify([event.project_id, event.trace_id]));
       if (event.span_id === insideBatchWindow.span_id) {
         insideBatchWindowSeen = true;
       }
@@ -184,8 +225,15 @@ describe("Clickhouse Events Repository Test", () => {
     }
     expect(fullPayloadSeen).toBe(true);
     expect(insideBatchWindowSeen).toBe(true);
-    expect(foundTraceIds).toEqual(new Set([firstTraceId, secondTraceId]));
-    expect(rowCount).toBe(extraRowCount + 3);
+    expect(foundTraces).toEqual(
+      new Set([
+        JSON.stringify([batchProjectId, firstTraceId]),
+        JSON.stringify([batchProjectId, secondTraceId]),
+        JSON.stringify([otherProjectId, otherTraceId]),
+        JSON.stringify([otherProjectId, firstTraceId]),
+      ]),
+    );
+    expect(rowCount).toBe(extraRowCount + 5);
   }, 60_000);
 
   it("should kill redis connection", () => {

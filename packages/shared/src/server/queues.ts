@@ -486,23 +486,33 @@ export enum QueueJobs {
   V4LegacyApiUsageJob = "v4-legacy-api-usage-job",
 }
 
+export const TraceBatchTraceSchema = z.object({
+  projectId: z.string(),
+  traceId: z.string(),
+  minStart: z.number(),
+  maxStart: z.number(),
+  revision: z.string(),
+});
+
 export const TraceBatchEventSchema = z.object({
   timestamp: z.coerce.date(),
   id: z.string(),
   name: z.literal(QueueJobs.TraceBatch),
-  payload: z.object({
-    projectId: z.string(),
-    traces: z
-      .array(
-        z.object({
-          traceId: z.string(),
-          minStart: z.number(),
-          maxStart: z.number(),
-          revision: z.string(),
-        }),
-      )
-      .min(1),
-  }),
+  payload: z.union([
+    z.object({ traces: z.array(TraceBatchTraceSchema).min(1) }).strict(),
+    // Persisted single-project jobs must remain readable while consumers drain.
+    z
+      .object({
+        projectId: z.string(),
+        traces: z
+          .array(TraceBatchTraceSchema.omit({ projectId: true }).strict())
+          .min(1),
+      })
+      .strict()
+      .transform(({ projectId, traces }) => ({
+        traces: traces.map((trace) => ({ ...trace, projectId })),
+      })),
+  ]),
 });
 
 export type TQueueJobTypes = {

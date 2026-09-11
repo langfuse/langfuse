@@ -58,6 +58,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   const stateKey = "{trace-batch}:state";
   const originalEnabled = env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED;
   const originalSamplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
+  const originalMaxSize = env.LANGFUSE_TRACE_BATCH_MAX_SIZE;
   let queue: Queue<TQueueJobTypes[QueueName.TraceBatch]>;
   let connection: NonNullable<ReturnType<typeof createNewRedisInstance>>;
   const runners: TraceBatchDispatcher[] = [];
@@ -84,6 +85,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   beforeEach(async () => {
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 1;
+    env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 80;
     await client().del(dueKey, stateKey, "{trace-batch}:dispatcher");
     const redisConnection = createNewRedisInstance();
     if (!redisConnection) throw new Error("Redis is required for this test");
@@ -101,6 +103,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     vi.clearAllMocks();
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = originalEnabled;
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = originalSamplingRate;
+    env.LANGFUSE_TRACE_BATCH_MAX_SIZE = originalMaxSize;
     await queue.obliterate({ force: true });
     await queue.close();
     connection.disconnect();
@@ -259,9 +262,9 @@ describe("trace micro-batch scheduling with Redis", () => {
       // Sampling only gates readiness; excluded observations are still ingested.
       let excludedObservations = 0;
       for await (const observation of getTraceBatchEventStream({
-        projectId,
         traces: [
           {
+            projectId,
             traceId: excludedTraceId,
             minStart: Number(nano / 1_000_000n),
             maxStart: Number(nano / 1_000_000n),
@@ -378,15 +381,22 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(await queue.getWaitingCount()).toBe(0);
   });
 
-  it("dispatches project batches and singletons at 100%, records their distribution, and drains with intake off", async () => {
+  it("dispatches bounded cross-project batches at 100%, records their distribution, and drains with intake off", async () => {
     const traces = Array.from({ length: 201 }, (_, index) => `trace-${index}`);
     await trackTraceBatchActivity(
       "project",
       traces.map((traceId) => event(traceId)),
     );
     await trackTraceBatchActivity("other", [event("trace-0")]);
-    await makeDue("project", ...traces);
+    await client().zadd(
+      dueKey,
+      ...traces.flatMap((traceId, index) => [
+        index + 1,
+        member("project", traceId),
+      ]),
+    );
     await makeDue("other", "trace-0");
+    const add = vi.spyOn(queue, "add");
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
     await trackTraceBatchActivity("disabled", [event("ignored")]);
     await runner().processBatch();
@@ -394,13 +404,31 @@ describe("trace micro-batch scheduling with Redis", () => {
     for (const job of jobs) TraceBatchEventSchema.parse(job.data);
     expect(
       jobs.map((job) => job.data.payload.traces.length).sort((a, b) => a - b),
-    ).toEqual([1, 201]);
+    ).toEqual([42, 80, 80]);
     expect(
       jobs
-        .filter((job) => job.data.payload.projectId === "project")
-        .flatMap((job) => job.data.payload.traces.map((trace) => trace.traceId))
+        .flatMap((job) =>
+          job.data.payload.traces.map((trace) =>
+            member(trace.projectId, trace.traceId),
+          ),
+        )
         .sort(),
-    ).toEqual(traces.sort());
+    ).toEqual(
+      [
+        ...traces.map((traceId) => member("project", traceId)),
+        member("other", "trace-0"),
+      ].sort(),
+    );
+    expect(
+      add.mock.calls.flatMap(([, job]) =>
+        job.payload.traces.map((trace) =>
+          member(trace.projectId, trace.traceId),
+        ),
+      ),
+    ).toEqual([
+      member("other", "trace-0"),
+      ...traces.map((traceId) => member("project", traceId)),
+    ]);
     expect(await client().zcard(dueKey)).toBe(0);
     expect(await client().hlen(stateKey)).toBe(0);
     expect(
@@ -409,12 +437,18 @@ describe("trace micro-batch scheduling with Redis", () => {
         .mock.calls.filter(([name]) => name === "langfuse.trace_batch.size")
         .map(([, value]) => value)
         .sort((a, b) => Number(a) - Number(b)),
-    ).toEqual([1, 201]);
-    expect(recordIncrement).toHaveBeenCalledWith(
-      "langfuse.trace_batch.dispatched_traces",
-      1,
-      { batch_kind: "singleton" },
-    );
+    ).toEqual([42, 80, 80]);
+    expect(
+      vi
+        .mocked(recordDistribution)
+        .mock.calls.filter(
+          ([name]) => name === "langfuse.trace_batch.project_count",
+        )
+        .map(([, value]) => value)
+        .sort((a, b) => Number(a) - Number(b)),
+    ).toEqual([1, 1, 2]);
+    await runner().processBatch();
+    expect(await queue.getWaitingCount()).toBe(3);
   });
 
   it("keeps due state on enqueue failure and retries it on the next dispatch", async () => {
@@ -464,6 +498,8 @@ describe("trace micro-batch scheduling with Redis", () => {
   it("reuses a queued batch when its acknowledgement fails", async () => {
     await trackTraceBatchActivity("project", [event("trace")]);
     await makeDue("project", "trace");
+    await trackTraceBatchActivity("other", [event("trace")]);
+    await makeDue("other", "trace");
     const add = queue.add.bind(queue);
     vi.spyOn(queue, "add").mockImplementationOnce(async (...args) => {
       const job = await add(...args);
@@ -476,13 +512,20 @@ describe("trace micro-batch scheduling with Redis", () => {
     const dispatcher = runner();
     await dispatcher.processBatch();
     expect(await queue.getWaitingCount()).toBe(1);
-    expect(await client().hlen(stateKey)).toBe(1);
+    expect(await client().hlen(stateKey)).toBe(2);
     await dispatcher.processBatch();
     expect(await queue.getWaitingCount()).toBe(1);
     expect(await client().hlen(stateKey)).toBe(0);
+    const [job] = await queue.getJobs(["wait"]);
+    expect(
+      job.data.payload.traces
+        .map((trace) => member(trace.projectId, trace.traceId))
+        .sort(),
+    ).toEqual([member("other", "trace"), member("project", "trace")]);
   });
 
   it("allows only one dispatcher and waits for its in-flight enqueue before shutdown", async () => {
+    env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 1;
     const traces = ["trace"];
     await trackTraceBatchActivity(
       "project",

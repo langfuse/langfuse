@@ -24,7 +24,8 @@
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
 - Trace-read micro-batches: `TraceBatchEventSchema` in `src/server/queues.ts`
-  carries one project and bounded trace IDs with start-time bounds and revisions;
+  carries project/trace pairs with start-time bounds and revisions, and normalizes
+  persisted single-project jobs. `TraceBatchTraceSchema` validates each pair;
   `TraceBatchQueue` in `src/server/redis/traceBatch.ts` is available through the
   server barrel. Its getter creates no recurring jobs.
 - Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.

@@ -6,7 +6,7 @@ import {
   recordDistribution,
   recordGauge,
   recordIncrement,
-  TraceBatchEventSchema,
+  TraceBatchTraceSchema,
   TraceBatchQueue,
   type QueueName,
   type TQueueJobTypes,
@@ -220,34 +220,33 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       );
       if (snapshot.length === 4) return;
 
-      const projects = new Map<
-        string,
-        {
-          member: string;
-          due: number;
-          trace: TQueueJobTypes[QueueName.TraceBatch]["payload"]["traces"][number];
-        }[]
-      >();
+      const entries: {
+        member: string;
+        due: number;
+        trace: TQueueJobTypes[QueueName.TraceBatch]["payload"]["traces"][number];
+      }[] = [];
       for (let i = 4; i < snapshot.length; i += 3) {
         const member = String(snapshot[i]);
         const [projectId, traceId] = JSON.parse(member) as [string, string];
-        const trace =
-          TraceBatchEventSchema.shape.payload.shape.traces.element.parse({
-            ...JSON.parse(String(snapshot[i + 1])),
-            traceId,
-          });
-        const group = projects.get(projectId) ?? [];
-        group.push({ member, due: Number(snapshot[i + 2]), trace });
-        projects.set(projectId, group);
+        const trace = TraceBatchTraceSchema.parse({
+          ...JSON.parse(String(snapshot[i + 1])),
+          projectId,
+          traceId,
+        });
+        entries.push({ member, due: Number(snapshot[i + 2]), trace });
       }
 
-      for (const [projectId, batch] of projects) {
+      // Keep readiness order across projects; dispatch partial tails without
+      // waiting for more traces. Redis snapshots still bound each drain chunk.
+      const batchSize = env.LANGFUSE_TRACE_BATCH_MAX_SIZE;
+      for (let offset = 0; offset < entries.length; offset += batchSize) {
         if (this.stopping || Date.now() - started >= RUN_BUDGET_MS) return;
         await this.extendLockOnProgress(true);
         if (this.stopping) return;
+        const batch = entries.slice(offset, offset + batchSize);
         const traces = batch.map(({ trace }) => trace);
         const id = createHash("sha256")
-          .update(JSON.stringify([projectId, traces]))
+          .update(JSON.stringify(traces))
           .digest("hex");
         // Stable IDs reduce duplicate delivery if enqueue succeeds but ACK fails.
         // Reads remain retry-safe even if regrouping produces a different job ID.
@@ -257,12 +256,16 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
             id,
             timestamp: new Date(),
             name: QueueJobs.TraceBatch,
-            payload: { projectId, traces },
+            payload: { traces },
           },
           { jobId: id },
         );
 
         recordDistribution("langfuse.trace_batch.size", batch.length);
+        recordDistribution(
+          "langfuse.trace_batch.project_count",
+          new Set(traces.map((trace) => trace.projectId)).size,
+        );
         recordIncrement(
           "langfuse.trace_batch.dispatched_traces",
           batch.length,
