@@ -647,6 +647,52 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         }),
       );
     });
+
+    // A user toggle (or concurrent disable) landing mid-run leaves the row
+    // disabled by the time the terminal catch records the failure. Still fail
+    // loud (UnrecoverableError, lastError recorded) but suppress the
+    // informational alert, mirroring the generic terminal path's stillEnabled
+    // gate: "will retry at the next scheduled export" is false once it is off.
+    it("suppresses the failure notification when the integration was disabled mid-run", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      await createIntegration(projectId);
+      mockDispatchProjectNotification.mockClear();
+
+      const getInstanceSpy = vi
+        .spyOn(StorageServiceFactory, "getInstance")
+        .mockReturnValue({
+          uploadFileBuffered: vi.fn().mockImplementation(async () => {
+            await prisma.blobStorageIntegration.updateMany({
+              where: { projectId },
+              data: { enabled: false },
+            });
+            throw partLimitError();
+          }),
+        } as unknown as StorageService);
+
+      try {
+        await expect(
+          handleBlobStorageIntegrationProjectJob({
+            data: { payload: { projectId } },
+            attemptsMade: 0,
+            opts: { attempts: 5 },
+          } as Job),
+        ).rejects.toBeInstanceOf(UnrecoverableError);
+        await settleBackgroundTasks();
+      } finally {
+        getInstanceSpy.mockRestore();
+      }
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      // Still terminal: the failure is recorded and the run does not retry.
+      expect(row.lastError).toBe(BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE);
+      expect(row.enabled).toBe(false);
+      // No alert: the integration is off, so the informational variant would be
+      // misleading.
+      expect(mockDispatchProjectNotification).not.toHaveBeenCalled();
+    });
   });
 
   // LFE-14894: an integration deleted mid-run makes the job obsolete — it must

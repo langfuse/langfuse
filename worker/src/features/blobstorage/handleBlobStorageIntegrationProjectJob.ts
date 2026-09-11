@@ -1579,20 +1579,26 @@ export const handleBlobStorageIntegrationProjectJob = async (
       // Missing-row-safe: a delete mid-run makes the job obsolete. lastSyncAt /
       // nextSyncAt are left untouched so the window is not advanced past a
       // failed export. enabled is left untouched: a too-large window is not a
-      // customer-config fault, so this never auto-disables.
-      const { count } = await prisma.blobStorageIntegration.updateMany({
-        where: { projectId },
-        data: {
-          lastError: BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE,
-          lastErrorAt: new Date(),
-          runStartedAt: null,
-        },
-      });
-      if (count === 0) {
-        logger.info(
-          `[BLOB INTEGRATION] Blob storage integration for project ${projectId} was deleted before the part-limit failure could be recorded; dropping obsolete job`,
-        );
-        return;
+      // customer-config fault, so this never auto-disables. update (not
+      // updateMany) so the notification can read the post-write enabled state.
+      let integration;
+      try {
+        integration = await prisma.blobStorageIntegration.update({
+          where: { projectId },
+          data: {
+            lastError: BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE,
+            lastErrorAt: new Date(),
+            runStartedAt: null,
+          },
+        });
+      } catch (persistError) {
+        if (isRecordNotFoundError(persistError)) {
+          logger.info(
+            `[BLOB INTEGRATION] Blob storage integration for project ${projectId} was deleted before the part-limit failure could be recorded; dropping obsolete job`,
+          );
+          return;
+        }
+        throw persistError;
       }
 
       if (!watermarkAdvanced) {
@@ -1612,7 +1618,13 @@ export const handleBlobStorageIntegrationProjectJob = async (
       // too-large window and re-enters here. The cooldown caps this to one alert
       // per cooldown window instead of one per run. (The disable notification
       // bypasses the cooldown because it is a one-shot terminal event.)
-      await notifyBlobStorageExportFailed(projectId, { disabled: false });
+      //
+      // Gated on the post-write enabled state, mirroring the generic terminal
+      // path's stillEnabled check: a user who disabled the integration mid-run
+      // must not get an "export failed" alert for a run they already turned off.
+      if (integration.enabled) {
+        await notifyBlobStorageExportFailed(projectId, { disabled: false });
+      }
 
       logger.error(
         `[BLOB INTEGRATION] Blob storage export for project ${projectId} exceeded the multipart part-count limit; failing terminally without retry: ${errorChainText(error)}`,
