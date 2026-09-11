@@ -1241,7 +1241,9 @@ export function SearchComposer({
           : null;
   const explainTargetId = explainTarget?.id ?? null;
   const explanation =
-    explainTarget === null ? null : explainSegment(explainTarget, registry);
+    explainTarget === null
+      ? null
+      : explainSegment(explainTarget, registry, draft);
   const explainDeactivatedReason =
     explainTarget === null
       ? null
@@ -1250,7 +1252,9 @@ export function SearchComposer({
   // description regardless of the popover — including the "not applied" note,
   // which the visible tooltip also carries.
   const caretExplanation =
-    caretSegment === null ? null : explainSegment(caretSegment, registry);
+    caretSegment === null
+      ? null
+      : explainSegment(caretSegment, registry, draft);
   const caretDeactivatedReason =
     caretSegment === null
       ? null
