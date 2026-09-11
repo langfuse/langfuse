@@ -1,7 +1,6 @@
 import { type NextApiRequest } from "next";
 
 import {
-  type BaseError,
   ForbiddenError,
   InternalServerError,
   LangfuseNotFoundError,
@@ -45,7 +44,7 @@ export async function enforceAuth(
     return enforceAdminAuth(context, params);
   }
   if (principal.kind !== "apiKey") {
-    return invariantBreak(
+    return internalserver(
       `unexpected principal on the public-API seam: ${principal.kind}`,
     );
   }
@@ -106,11 +105,7 @@ function enforceProjectAuth(
     !principal.boundResource.projectId &&
     !ownsProject(principal, project.projectId)
   ) {
-    return errorResult(
-      new LangfuseNotFoundError(
-        "Project not found or you don't have access to it",
-      ),
-    );
+    return notfound("Project not found or you don't have access to it");
   }
   const decision = authorize(context, params.action, {
     projectId: project.projectId,
@@ -133,7 +128,7 @@ function getOrgId(
 ): ResolvedOrg | ErrorResult {
   const orgId = first([getHeaderOrgId(req), getBoundOrgId(context)]);
   if (!orgId) {
-    return errorResult(new ForbiddenError(`Missing '${orgIdHeader}' header`));
+    return forbidden(`Missing '${orgIdHeader}' header`);
   }
   return { success: true, orgId };
 }
@@ -151,7 +146,7 @@ function getProjectId(
   const projectId = first(requested);
   if (!equal(requested) || !projectId) {
     // bare 403 so a probe can't learn which project the key can reach
-    return errorResult(new ForbiddenError());
+    return forbidden();
   }
   return { success: true, projectId };
 }
@@ -165,7 +160,7 @@ async function lookupProjectOrgId(
     select: { orgId: true },
   });
   if (!project) {
-    return errorResult(new LangfuseNotFoundError("Project not found"));
+    return notfound("Project not found");
   }
   return { success: true, orgId: project.orgId };
 }
@@ -223,13 +218,18 @@ function first(os: (string | undefined)[]): string | undefined {
   return os.find((o) => o !== undefined);
 }
 
-/** errorResult wraps a BaseError subclass into a typed ErrorResult. */
-function errorResult<E extends BaseError>(e: E): ErrorResultOf<E> {
-  return { success: false, error: e };
+/** forbidden is a 403 ErrorResult carrying an optional message. */
+function forbidden(message?: string): ErrorResultOf<ForbiddenError> {
+  return { success: false, error: new ForbiddenError(message) };
 }
 
-/** invariantBreak is a 500 for a state that should be unreachable. */
-function invariantBreak(message: string): ErrorResult {
+/** notfound is a 404 ErrorResult carrying an optional message. */
+function notfound(message?: string): ErrorResultOf<LangfuseNotFoundError> {
+  return { success: false, error: new LangfuseNotFoundError(message) };
+}
+
+/** internalserver is a 500 ErrorResult carrying an optional message. */
+function internalserver(message?: string): ErrorResultOf<InternalServerError> {
   return { success: false, error: new InternalServerError(message) };
 }
 
