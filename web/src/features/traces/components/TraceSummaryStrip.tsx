@@ -33,9 +33,8 @@ import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 // not turn the one-line strip into a wall of chips.
 const MAX_VISIBLE_TAGS = 3;
 
-// Score names shown before "+N", same cap as tree rows. p50 of scored traces
-// carries 3 scores, p90 13.
-const MAX_VISIBLE_TRACE_SCORE_GROUPS = 3;
+// Score names shown before "+N", same cap as tree rows.
+const MAX_VISIBLE_TRACE_SCORE_GROUPS = 2;
 
 export function TraceSummaryStrip() {
   const { trace, observations, mergedScores } = useTraceData();

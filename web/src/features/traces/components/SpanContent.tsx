@@ -45,7 +45,7 @@ import type Decimal from "decimal.js";
 // How many distinct score groups to show inline on a tree/search row before
 // collapsing the rest into a "+N" pill. Keeps dense-score rows compact; the
 // full set is always on the node's Scores tab. (The timeline caps at 3.)
-const MAX_INLINE_SCORE_GROUPS = 3;
+const MAX_INLINE_SCORE_GROUPS = 2;
 
 /** Rest on a row this long before its hover card opens. Sweeping the pointer
  * up and down the tree shows nothing; pausing on a row shows the card. */

@@ -5,7 +5,6 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { cn } from "@/src/utils/tailwind";
 import { type LastUserScore, type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { scoreLevelFromScore } from "@/src/components/score-tag";
@@ -97,12 +96,11 @@ export const GroupedScoreBadges = <
     expanded && expandable ? undefined : maxVisible,
   );
 
-  // Same colour and weight as the chips it stands in for.
-  const overflowButtonClassName = cn(
-    expandable ? "cursor-pointer" : "cursor-default",
-    compact ? "px-0.5 py-0 leading-tight" : "px-1",
-    "text-xs font-normal",
-  );
+  // No padding or type overrides: the shell's size variant is what the chips
+  // next to it use, so "+N" gets exactly their box.
+  const overflowButtonClassName = expandable
+    ? "cursor-pointer"
+    : "cursor-default";
   // The shell colours its own text; a colour on the asChild element competes
   // with it by stylesheet order, so the number is coloured on an inner span.
   const overflowLabel = (
@@ -121,7 +119,7 @@ export const GroupedScoreBadges = <
         />
       ))}
       {Boolean(hiddenScores.length) && !overflowPreview && (
-        <BadgeShell color="neutral" size={compact ? "sm" : "default"}>
+        <BadgeShell asChild color="neutral" size={compact ? "sm" : "default"}>
           <span
             className={overflowButtonClassName}
             aria-label={`${hiddenScores.length} more score${hiddenScores.length === 1 ? "" : "s"}`}
@@ -131,7 +129,7 @@ export const GroupedScoreBadges = <
         </BadgeShell>
       )}
       {Boolean(hiddenScores.length) && overflowPreview && (
-        <HoverCard>
+        <HoverCard openDelay={100}>
           <HoverCardTrigger asChild>
             <BadgeShell
               asChild
