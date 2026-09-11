@@ -7,8 +7,21 @@ readonly INSTALL_TIMEOUT_SECONDS=120
 readonly MAX_FALLBACK_ATTEMPTS=3
 
 install_playwright() {
-  timeout "${INSTALL_TIMEOUT_SECONDS}" \
+  timeout --kill-after=10s "${INSTALL_TIMEOUT_SECONDS}" \
     pnpm --filter=web exec playwright install --with-deps --only-shell chromium
+}
+
+release_apt_locks() {
+  local lock
+  for lock in \
+    /var/lib/apt/lists/lock \
+    /var/cache/apt/archives/lock \
+    /var/lib/dpkg/lock-frontend \
+    /var/lib/dpkg/lock; do
+    sudo fuser --kill "${lock}" > /dev/null 2>&1 || true
+  done
+
+  sudo dpkg --configure -a
 }
 
 if install_playwright; then
@@ -16,6 +29,7 @@ if install_playwright; then
 fi
 
 echo "Playwright install via Blacksmith's Ubuntu mirror list failed; falling back to official Ubuntu HTTPS sources." >&2
+release_apt_locks
 
 if [[ ! -f "${APT_SOURCES_FILE}" ]]; then
   echo "Ubuntu apt sources file not found at ${APT_SOURCES_FILE}." >&2
