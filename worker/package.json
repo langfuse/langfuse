@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "4.32.0",
+  "version": "4.35.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -60,7 +60,7 @@
     "ai-sdk-openai-v4": "npm:@ai-sdk/openai@3.0.99",
     "bullmq": "^5.76.3",
     "cors": "^2.8.5",
-    "csv-parse": "^5.6.0",
+    "csv-parse": "^7.0.2",
     "dd-trace": "5.109.0",
     "decimal.js": "^10.4.3",
     "dockerode": "^4.0.9",
@@ -86,12 +86,12 @@
     "@types/express": "^5.0.6",
     "@types/lodash": "^4.17.24",
     "@types/node": "^24.3.0",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.11",
     "eslint": "catalog:",
     "msw": "^2.6.5",
     "tsx": "^4.20.5",
     "typescript": "catalog:",
-    "vitest": "^4.1.10",
+    "vitest": "^4.1.11",
     "wait-for-expect": "^3.0.2"
   }
 }

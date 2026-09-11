@@ -2,6 +2,7 @@ packages:
   # include packages in subfolders (e.g. apps/ and packages/)
   - "web"
   - "worker"
+  - "ai-gateway"
   - "packages/**"
   - "ee"
 catalog:
@@ -110,11 +111,15 @@ overrides:
   # evaluation needs exports (validatorSymbol) that only exist in its own
   # provider-utils 2.x line — exempt it from the blanket 4.0.33 lift above.
   "@ai-sdk/ui-utils>@ai-sdk/provider-utils": 2.2.8
+  # addon-vitest accepts any @vitest/browser ^3 || ^4 as an optional peer, so
+  # pnpm keeps the already-resolved 4.1.10 copy, which pulls in a vulnerable
+  # @vitest/mocker 4.1.10 (CVE-2026-84373). Pin it to the fixed patch.
+  "@storybook/addon-vitest>@vitest/browser": 4.1.11
   # next-auth 4.24.x caps its optional nodemailer peer at ^7 but contains no
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
   # Remove once next-auth allows nodemailer ^9.
-  "next-auth>nodemailer": "^9.0.3"
+  "next-auth>nodemailer": "^9.1.1"
 patchedDependencies:
   # focusFirst crashes on null item refs (items unmounting while entry focus
   # runs), e.g. opening a row-actions dropdown while a table re-renders.

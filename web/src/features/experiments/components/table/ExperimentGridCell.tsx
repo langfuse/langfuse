@@ -80,6 +80,8 @@ type ExperimentGridCellProps = {
   columnVisibility?: VisibilityState;
   markerClassName?: string;
   showScoreLevelLabels: boolean;
+  /** Clicking this experiment's cell selects it in peek navigation instead of the row's default (baseline) target. */
+  onExperimentClick?: (event: React.MouseEvent) => void;
 };
 
 /**
@@ -300,8 +302,14 @@ const ScoreItem = ({
       <div className="flex max-w-[50%] min-w-0 items-center gap-1">
         {showScoreLevelLabel && <ScoreTag level={level} />}
         <HoverCard>
-          <HoverCardTrigger className="min-w-0 cursor-default">
-            <span className="text-muted-foreground block truncate" title={name}>
+          {/* `asChild` keeps this a <span>. Without it Radix renders its
+              default <a>, which `shouldIgnoreRowClickTarget` excludes — the
+              score name would be a dead zone in a cell that opens on click. */}
+          <HoverCardTrigger asChild>
+            <span
+              className="text-muted-foreground block min-w-0 truncate"
+              title={name}
+            >
               {name}
             </span>
           </HoverCardTrigger>
@@ -696,6 +704,7 @@ export const ExperimentGridCell = ({
   columnVisibility = {},
   markerClassName,
   showScoreLevelLabels,
+  onExperimentClick,
 }: ExperimentGridCellProps) => {
   const scoreDiffs = useMemo(
     () =>
@@ -864,7 +873,13 @@ export const ExperimentGridCell = ({
   // `scrollbar-visible` is what says so — under the platform's overlay
   // scrollbars a cell with more to show reads as one that was cut off.
   return (
-    <div className="scrollbar-visible flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-auto">
+    <div
+      className={cn(
+        "scrollbar-visible flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-auto",
+        onExperimentClick && "cursor-pointer",
+      )}
+      onClick={onExperimentClick}
+    >
       {sectionsToRender.map((section, index) => {
         const { row, content } = section;
         const isFirst = index === 0;
