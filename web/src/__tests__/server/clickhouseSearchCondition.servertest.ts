@@ -429,15 +429,23 @@ describe("clickhouseSearchCondition", () => {
     expect(ftsSearch.query).not.toContain("hasAllTokens");
   });
 
-  it("rewrites events-table id-lane search to lower() LIKE", () => {
+  it("rewrites events-table id-lane search: ngram columns to lower() LIKE, id columns to equality", () => {
     const search = clickhouseSearchCondition({
       query: "alpha",
       searchType: ["id"],
       tablePrefix: "e",
-      searchColumns: ["span_id", "name", "trace_name", "user_id"],
+      searchColumns: [
+        "span_id",
+        "name",
+        "trace_name",
+        "user_id",
+        "session_id",
+        "trace_id",
+      ],
       useEventsTablePath: true,
     });
 
+    // Human-readable columns prune via the lower() ngram indexes.
     expect(search.query).toContain(
       "lower(e.name) LIKE lower({searchString: String})",
     );
@@ -445,13 +453,24 @@ describe("clickhouseSearchCondition", () => {
       "lower(e.trace_name) LIKE lower({searchString: String})",
     );
     expect(search.query).toContain(
-      "lower(e.span_id) LIKE lower({searchString: String})",
-    );
-    expect(search.query).toContain(
       "lower(e.user_id) LIKE lower({searchString: String})",
     );
+    expect(search.query).toContain(
+      "lower(e.session_id) LIKE lower({searchString: String})",
+    );
+
+    // UUID-shaped id columns match by equality against their bloom_filter/PK.
+    expect(search.query).toContain("e.span_id = {searchStringExact: String}");
+    expect(search.query).toContain("e.trace_id = {searchStringExact: String}");
+    expect(search.query).not.toContain("lower(e.span_id)");
+    expect(search.query).not.toContain("lower(e.trace_id)");
     expect(search.query).not.toContain("e.name ILIKE");
     expect(search.query).not.toContain("e.span_id ILIKE");
+
+    // Equality param is unwrapped (no leading-wildcard %).
+    const params = search.params as Record<string, string>;
+    expect(params.searchStringExact).toBe("alpha");
+    expect(params.searchString).toBe("%alpha%");
   });
 
   it("keeps ILIKE name search off the events table path", () => {
