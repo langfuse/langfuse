@@ -173,6 +173,8 @@ export interface QueryFilter {
   expanded: string[];
   onExpandedChange: (value: string[]) => void;
   clearAll: () => void;
+  /** Explicit Clear all discards facet drafts even when applied values are unchanged. */
+  draftResetKey: number;
   isFiltered: boolean;
   setFilterState: (filters: FilterState) => void;
   /** v3-vs-v4 analytics dimension of the surface (see useSidebarFilterState). */
@@ -770,7 +772,7 @@ export function DataTableControls({
             }
             nodes.push(
               <div
-                key={filter.column}
+                key={`${filter.column}:${queryFilter.draftResetKey}`}
                 hidden={!visibleColumns.has(filter.column)}
               >
                 {renderFacet(filter)}
@@ -2076,15 +2078,18 @@ function NumericFacet({
     setLocalValue(value);
   }
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const [appliedMin, appliedMax] = value;
 
-  // Cleanup timeout on unmount
+  // An external reset or replacement cancels the pending draft.
   useEffect(() => {
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, []);
+  }, [appliedMin, appliedMax]);
 
   const updateWithDebounce = (newValue: [number, number]) => {
     setLocalValue(newValue);
@@ -2096,7 +2101,7 @@ function NumericFacet({
 
     // Set new timeout
     timeoutRef.current = setTimeout(() => {
-      onChange(newValue);
+      onChangeRef.current(newValue);
     }, 120);
   };
 
@@ -2241,15 +2246,17 @@ function StringFacet({
     setLocalValue(value);
   }
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
-  // Cleanup timeout on unmount
+  // An external reset or replacement cancels the pending draft.
   useEffect(() => {
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, []);
+  }, [value]);
 
   const updateWithDebounce = (newValue: string) => {
     setLocalValue(newValue);
@@ -2261,7 +2268,7 @@ function StringFacet({
 
     // Set new timeout
     timeoutRef.current = setTimeout(() => {
-      onChange(newValue);
+      onChangeRef.current(newValue);
     }, 500);
   };
 

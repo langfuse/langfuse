@@ -528,6 +528,11 @@ real consumer and validate it against that view's backend filter contract.
 - **`SearchComposer` (~1.3k LOC) has no unit tests** — the contenteditable
   controller is browser-reviewed only. Extracting the selection/`beforeinput`
   machinery into a hook (below) is the prerequisite to testing it.
+- **Client integration coverage** in `web/src/components/table/data-table-controls.clienttest.tsx`
+  exercises real sidebar inputs, filter state, and bar commits: delayed string
+  and numeric edits preserve newly committed bar filters, and clearing a facet
+  cancels its pending edit. This does not cover the table's network request or
+  rendered result rows.
 - **No e2e** for bar↔sidebar sync or the embedded-vs-full-page mount matrix
   (the bar leaking onto user/session detail was a review find, not caught by a
   test).

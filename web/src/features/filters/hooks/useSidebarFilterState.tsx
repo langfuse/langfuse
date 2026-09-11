@@ -1038,6 +1038,7 @@ export function useSidebarFilterPresentation(
   presentationOptions: SidebarFilterPresentationOptions = {},
 ) {
   const { loading, loadingColumns } = presentationOptions;
+  const [draftResetKey, setDraftResetKey] = useState(0);
   const isV4Surface = presentationOptions.isV4 ?? false;
   const capture = usePostHogClientCapture();
   const {
@@ -1138,6 +1139,7 @@ export function useSidebarFilterPresentation(
 
   const clearAll = () => {
     const clearedCount = explicitFilterState.length;
+    setDraftResetKey((key) => key + 1);
     setFilterState([]);
     if (clearedCount > 0) {
       capture("filters:cleared", {
@@ -2028,6 +2030,7 @@ export function useSidebarFilterPresentation(
     updateFilterOnly,
     updateOperator,
     clearAll,
+    draftResetKey,
     isFiltered: explicitFilterState.length > 0,
     filters,
     expanded: expandedState,
