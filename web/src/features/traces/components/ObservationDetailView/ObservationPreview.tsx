@@ -22,7 +22,8 @@ export function ObservationPreview({
 
   return (
     <div
-      className={`flex min-h-0 w-full flex-1 flex-col ${
+      // Same 8px the Attributes tab keeps between the tab bar and its first table.
+      className={`flex min-h-0 w-full flex-1 flex-col pt-2 ${
         currentView === "json-beta" && isJSONBetaVirtualized
           ? "overflow-hidden"
           : "overflow-auto pb-4"
