@@ -101,6 +101,20 @@ export function GatewayModelsView({
   const [searchQuery, setSearchQuery] = useState("");
   const filterOptions = useMemo(
     () => ({
+      connection: [
+        ...new Map(
+          models
+            .flatMap((model) => model.availableVia)
+            .map((connection) => [connection.connectionId, connection]),
+        ).values(),
+      ]
+        .toSorted((left, right) =>
+          left.connectionName.localeCompare(right.connectionName),
+        )
+        .map((connection) => ({
+          value: connection.connectionId,
+          displayValue: connection.connectionName,
+        })),
       provider: uniqueSorted(
         models.flatMap((model) =>
           model.availableVia.map((connection) => connection.provider),
@@ -114,7 +128,7 @@ export function GatewayModelsView({
     gatewayModelsFilterConfig,
     filterOptions,
     {
-      stateLocation: "memory",
+      stateLocation: "url",
     },
   );
   const filteredModels = useMemo(
