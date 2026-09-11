@@ -1,9 +1,6 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { prisma } from "@langfuse/shared/src/db";
-import { redis } from "@langfuse/shared/src/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   CreateBlobStorageIntegrationRequest,
   toInternalExportSource,
@@ -13,12 +10,11 @@ import {
 import {
   type ObservationFieldGroupFull,
   LangfuseNotFoundError,
-  UnauthorizedError,
-  ForbiddenError,
 } from "@langfuse/shared";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { authorizeBlobStorageRequest } from "@/src/pages/api/public/integrations/blob-storage/authorizeBlobStorageRequest";
 
 export default withMiddlewares({
   GET: handleGetBlobStorageIntegrations,
@@ -29,40 +25,11 @@ async function handleGetBlobStorageIntegrations(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  // CHECK AUTH
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-  if (!authCheck.validKey) {
-    throw new UnauthorizedError(authCheck.error ?? "Unauthorized");
-  }
-
-  // Check if using an organization API key
-  if (
-    authCheck.scope.accessLevel !== "organization" ||
-    !authCheck.scope.orgId
-  ) {
-    throw new ForbiddenError(
-      "Organization-scoped API key required for this operation.",
-    );
-  }
-
-  // Check scheduled-blob-exports entitlement
-  if (
-    !hasEntitlementBasedOnPlan({
-      plan: authCheck.scope.plan,
-      entitlement: "scheduled-blob-exports",
-    })
-  ) {
-    throw new ForbiddenError(
-      "scheduled-blob-exports entitlement required for this feature.",
-    );
-  }
+  const scope = await authorizeBlobStorageRequest(req);
 
   // Get all projects for the organization
   const projects = await prisma.project.findMany({
-    where: { orgId: authCheck.scope.orgId },
+    where: { orgId: scope.orgId },
     select: { id: true },
   });
 
@@ -112,36 +79,7 @@ async function handleUpsertBlobStorageIntegration(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  // CHECK AUTH
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-  if (!authCheck.validKey) {
-    throw new UnauthorizedError(authCheck.error ?? "Unauthorized");
-  }
-
-  // Check if using an organization API key
-  if (
-    authCheck.scope.accessLevel !== "organization" ||
-    !authCheck.scope.orgId
-  ) {
-    throw new ForbiddenError(
-      "Organization-scoped API key required for this operation.",
-    );
-  }
-
-  // Check scheduled-blob-exports entitlement
-  if (
-    !hasEntitlementBasedOnPlan({
-      plan: authCheck.scope.plan,
-      entitlement: "scheduled-blob-exports",
-    })
-  ) {
-    throw new ForbiddenError(
-      "scheduled-blob-exports entitlement required for this feature.",
-    );
-  }
+  const scope = await authorizeBlobStorageRequest(req);
 
   // Validate request body
   const validatedData = CreateBlobStorageIntegrationRequest.parse(req.body);
@@ -151,7 +89,7 @@ async function handleUpsertBlobStorageIntegration(
     where: { id: validatedData.projectId },
     select: { id: true, orgId: true, createdAt: true },
   });
-  if (!project || project.orgId !== authCheck.scope.orgId) {
+  if (!project || project.orgId !== scope.orgId) {
     throw new LangfuseNotFoundError("Project not found");
   }
 
@@ -187,8 +125,8 @@ async function handleUpsertBlobStorageIntegration(
     action: "update",
     resourceType: "blobStorageIntegration",
     resourceId: validatedData.projectId,
-    apiKeyId: authCheck.scope.apiKeyId,
-    orgId: authCheck.scope.orgId,
+    apiKeyId: scope.apiKeyId,
+    orgId: scope.orgId,
   });
 
   const integration = await upsertBlobStorageIntegration({

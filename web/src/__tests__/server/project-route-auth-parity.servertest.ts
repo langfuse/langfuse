@@ -12,18 +12,18 @@ import {
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 
-// Pins the project-route authorization seam to legacy: sweeps every project
-// public-API route across migration modes and key kinds, recording each cell's
-// status. Shadow/enforce must equal legacy (cross-mode); a main-captured
-// snapshot pins legacy across the refactor (cross-branch). Value is status only.
+// Pins the public-API authorization seam to legacy: sweeps every route across
+// migration modes and key kinds, recording each cell's status. Shadow and
+// enforce must equal legacy (cross-mode); a main-captured snapshot pins legacy
+// across the refactor (cross-branch). Value is status only.
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 type Route = { route: string; methods: HttpMethod[] };
 
-// Project routes under test, grouped by domain. `route` is the path under
+// Routes under test, grouped by domain. `route` is the path under
 // pages/api/public/ (import path + completeness key); `methods` are its real
-// supported methods.
+// supported methods. Project routes dispatch through createAuthedProjectAPIRoute.
 const projectRoutes: Route[] = [
   { route: "traces/index", methods: ["GET", "POST", "DELETE"] },
   { route: "traces/[traceId]", methods: ["GET", "DELETE"] },
@@ -110,8 +110,33 @@ const projectRoutes: Route[] = [
   },
 ];
 
-// Non-project public files, subtracted from the filesystem walk before the
-// completeness guard compares it to the table.
+// Org and misc routes call shadowAuth directly from the handler body.
+const orgRoutes: Route[] = [
+  { route: "organizations/apiKeys/index", methods: ["GET"] },
+  {
+    route: "organizations/memberships/index",
+    methods: ["GET", "PUT", "DELETE"],
+  },
+  { route: "organizations/projects/index", methods: ["GET"] },
+  { route: "projects/index", methods: ["GET", "POST"] },
+  { route: "projects/[projectId]/index", methods: ["PUT", "DELETE"] },
+  { route: "projects/[projectId]/apiKeys/index", methods: ["GET", "POST"] },
+  { route: "projects/[projectId]/apiKeys/[apiKeyId]", methods: ["DELETE"] },
+  {
+    route: "projects/[projectId]/memberships/index",
+    methods: ["GET", "PUT", "DELETE"],
+  },
+  { route: "scim/ResourceTypes", methods: ["GET"] },
+  { route: "scim/Schemas", methods: ["GET"] },
+  { route: "scim/ServiceProviderConfig", methods: ["GET"] },
+  { route: "scim/Users/index", methods: ["GET", "POST"] },
+  { route: "scim/Users/[id]", methods: ["GET", "PUT", "PATCH", "DELETE"] },
+  { route: "integrations/blob-storage/index", methods: ["GET", "PUT"] },
+  { route: "integrations/blob-storage/[id]", methods: ["GET", "DELETE"] },
+];
+
+// Public files outside both tables, subtracted from the filesystem walk before
+// the completeness guard compares it to the tables.
 const denylistPrefixes = [
   "health", // liveness probe
   "ready", // readiness probe
@@ -120,10 +145,7 @@ const denylistPrefixes = [
   "v2/prompts", // prompt list/name handlers, own auth path
   "mcp", // MCP server, own auth path
   "otel", // ingestion handlers read the raw request stream, not drivable via node-mocks-http
-  "integrations", // blob-storage integration, own auth path
-  "organizations", // organization-scoped, not project seam
-  "projects", // organization-scoped, not project seam
-  "scim", // SCIM, own auth path
+  "integrations/blob-storage/authorizeBlobStorageRequest", // helper, not a route
   "slack", // Slack OAuth, own auth path
 ];
 
@@ -161,6 +183,7 @@ function queryForRoute(route: string): Record<string, string> {
 /** getHeaders derives a key kind's header sets: org/project/agent send basic + bearer, admin sends its single triple. */
 function getHeaders(
   apiKeyKind: ApiKeyKind,
+  route: string,
 ): { headerKind: string; headers: Record<string, string> }[] {
   if (apiKeyKind === "admin") {
     return [
@@ -176,9 +199,10 @@ function getHeaders(
   }
   const { publicKey, secretKey } = keys[apiKeyKind];
   // An org key has no bound project, so a realistic org request names its target
-  // via header; project/agent keys resolve their project from the key itself.
+  // via header unless the URL already does; project/agent keys resolve their
+  // project from the key itself.
   const target =
-    apiKeyKind === "org"
+    apiKeyKind === "org" && !route.includes("[projectId]")
       ? { "x-langfuse-project-id": fixtureProjectId }
       : undefined;
   return [
@@ -222,12 +246,12 @@ async function callRoute(
 type Cell = { key: string; run: () => Promise<number> };
 
 /** matrixCells lists every route × method × key kind × header kind cell in source order. */
-function matrixCells(): Cell[] {
+function matrixCells(routes: Route[]): Cell[] {
   const cells: Cell[] = [];
-  for (const { route, methods } of projectRoutes) {
+  for (const { route, methods } of routes) {
     for (const method of methods) {
       for (const apiKeyKind of apiKeyKinds) {
-        for (const { headerKind, headers } of getHeaders(apiKeyKind)) {
+        for (const { headerKind, headers } of getHeaders(apiKeyKind, route)) {
           cells.push({
             key: `${method} ${route} | ${apiKeyKind}/${headerKind}`,
             run: () => callRoute(route, method, headers),
@@ -242,7 +266,7 @@ function matrixCells(): Cell[] {
 /** runMatrix runs every cell in one mode with bounded concurrency, returning a flat status-by-cell map in source order. */
 async function runMatrix(mode: MigrationMode): Promise<Record<string, number>> {
   (env as any).API_AUTH_MIGRATION = mode;
-  const cells = matrixCells();
+  const cells = matrixCells([...projectRoutes, ...orgRoutes]);
   const statuses = new Array<number>(cells.length);
   let next = 0;
   const worker = async () => {
@@ -283,7 +307,7 @@ function walkRoutes(): string[] {
   return routes;
 }
 
-describe("project-route auth parity", () => {
+describe("public-route auth parity", () => {
   beforeAll(async () => {
     originalMigration = (env as any).API_AUTH_MIGRATION;
     originalAdminApiKey = (env as any).ADMIN_API_KEY;
@@ -332,13 +356,15 @@ describe("project-route auth parity", () => {
     expect(matrices.enforce).toEqual(matrices.legacy);
   });
 
-  it("covers every project route", () => {
+  it("covers every public route", () => {
     const denied = (route: string) =>
       denylistPrefixes.some(
         (prefix) => route === prefix || route.startsWith(`${prefix}/`),
       );
     const walked = new Set(walkRoutes().filter((route) => !denied(route)));
-    const tabled = new Set(projectRoutes.map((r) => r.route));
+    const tabled = new Set(
+      [...projectRoutes, ...orgRoutes].map((r) => r.route),
+    );
     expect(walked).toEqual(tabled);
   });
 });
