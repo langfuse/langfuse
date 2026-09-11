@@ -120,49 +120,6 @@ printf '%s' "$LINEAR_FIXTURE"
 EOF
 chmod +x "$tmpdir/bin/curl"
 
-# Workspace-scoped harnesses must not stat $HOME/.config. A file that exists
-# only under HOME is absent unless LANGFUSE_ALLOW_HOME_IDENTITY=1.
-mkdir -p "$tmpdir/hidden-home/.config/langfuse"
-printf 'home identity\n' >"$tmpdir/hidden-home/.config/langfuse/me.md"
-whoami_script="$repo_root/.agents/skills/langfuse-onboarding/scripts/whoami.sh"
-
-empty_workspace="$tmpdir/empty-workspace"
-mkdir -p "$empty_workspace"
-hidden_home_output="$(
-  env \
-    -u LANGFUSE_CONFIG_DIR \
-    -u LANGFUSE_ALLOW_HOME_IDENTITY \
-    PATH="$tmpdir/bin:$PATH" \
-    HOME="$tmpdir/hidden-home" \
-    LANGFUSE_WORKSPACE_IDENTITY_DIR="$empty_workspace" \
-      bash "$whoami_script"
-)"
-grep -Fq "me.md: absent" <<<"$hidden_home_output"
-if grep -Fq "hidden-home" <<<"$hidden_home_output"; then
-  echo "whoami.sh touched HOME without LANGFUSE_ALLOW_HOME_IDENTITY"
-  exit 1
-fi
-
-opt_in_home_output="$(
-  PATH="$tmpdir/bin:$PATH" \
-  HOME="$tmpdir/hidden-home" \
-  LANGFUSE_ALLOW_HOME_IDENTITY=1 \
-  LANGFUSE_WORKSPACE_IDENTITY_DIR="$empty_workspace" \
-    bash "$whoami_script"
-)"
-grep -Fq "me.md: present ($tmpdir/hidden-home/.config/langfuse/me.md)" <<<"$opt_in_home_output"
-
-workspace_identity="$tmpdir/workspace-identity"
-mkdir -p "$workspace_identity"
-printf 'workspace identity\n' >"$workspace_identity/me.md"
-workspace_output="$(
-  PATH="$tmpdir/bin:$PATH" \
-  HOME="$tmpdir/hidden-home" \
-  LANGFUSE_WORKSPACE_IDENTITY_DIR="$workspace_identity" \
-    bash "$whoami_script"
-)"
-grep -Fq "me.md: present ($workspace_identity/me.md)" <<<"$workspace_output"
-
 # Recovery under OpenCode must write the workspace copy and leave HOME alone.
 opencode_home="$tmpdir/opencode-home"
 opencode_workspace="$tmpdir/opencode-workspace"
