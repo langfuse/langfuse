@@ -19,11 +19,12 @@
   successful direct-v4 writer submissions and dispatches ready traces across projects
   to `trace-batch`; `src/queues/traceBatchQueue.ts` reads their event payloads.
   The cross-project experiment collects the entire due cohort at a fixed cutoff,
-  orders it by project ID in a temporary SQLite spool, and packs batches
+  sorts the due ID list by project ID in worker memory, and packs batches
   capped by `LANGFUSE_TRACE_BATCH_MAX_SIZE` (default 60). Upgrade every consumer
   before enabling cross-project dispatch; consumers also accept legacy jobs.
-  Redis pages are bounded; the complete run has no trace-count/time cutoff.
-  Node 24 SQLite bounds the page cache while local scratch disk scales with backlog.
+  One Redis range read collects all due IDs; state hydration and expiry cleanup
+  are bounded. The complete run has no trace-count/time cutoff. Worker memory
+  and the ID response size scale with the due backlog; no scratch disk is used.
   Intake, dispatcher, and consumer have independent disabled-by-default flags.
   `LANGFUSE_TRACE_BATCH_SAMPLING_RATE` is a 0–1 admission rate (default 1),
   using evaluator sampling by trace ID before Redis; queued work is not resampled.

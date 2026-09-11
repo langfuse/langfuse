@@ -15,35 +15,35 @@ keys in one Redis Cluster slot. There is no project index. Each member encodes
 and a unique revision. Redis server time determines ten minutes of inactivity;
 observation start time determines the query bounds.
 
-One lease-owning dispatcher fixes a cutoff using Redis server time and collects
-all nonexpired traces due by that cutoff, in atomic pages of at most 1,000.
-The cursor contains both due score and member, so equal timestamps and concurrent
-removals/reactivations cannot shift pagination past unseen traces. Each page
-captures current state; this is not one transaction over the entire run.
+One lease-owning dispatcher fixes a cutoff using Redis server time and removes
+expired entries in atomic chunks of at most 1,000. A single Redis range read
+collects the complete nonexpired due ID list. Only the IDs are retained in worker
+memory; no temporary database, files or additional Redis index are needed.
+A stable binary project-ID sort preserves Redis readiness order within each project.
 
-A temporary on-disk SQLite table orders the complete cohort by binary project ID,
-then readiness time and member within each project. It uses Node 24's built-in
-SQLite, an 8 MiB page-cache target, and no additional Redis index. Only trace
-identifiers, time bounds and revisions are stored there, not event payloads.
-The dispatcher streams this ordering into batches of at most
-`LANGFUSE_TRACE_BATCH_MAX_SIZE` traces (default 60). For A:70 and B:70, the
-jobs contain A:60, A:10+B:50, then B:20. Batches span Redis and SQLite read pages;
-only the final tail is partial unless activity invalidates selected traces.
+The dispatcher fetches state in chunks of at most 1,000, atomically checking
+that each trace is still due by the fixed cutoff and has not expired. Deleted,
+reactivated or missing-state entries are excluded. State contains the current
+bounds and revision; observations becoming ready after the cutoff wait for another run.
+It packs the resulting sequence into batches of at most
+`LANGFUSE_TRACE_BATCH_MAX_SIZE` traces (default 60). For A:70 and B:70, jobs
+contain A:60, A:10+B:50, then B:20. Batches span hydration chunks; only the final
+tail is partial unless activity invalidates selected traces.
 
-Before delivery, bounded Redis validation excludes expired, deleted or changed
-revisions. After enqueue succeeds, acknowledgement atomically removes state and
-due membership only when the revision still matches. Arrivals during enqueue
-remain scheduled. New readiness after the cutoff waits for the next run.
+After enqueue succeeds, acknowledgement atomically removes state and due membership
+only when the revision still matches. Arrivals during enqueue remain scheduled.
+The full run is not one Redis transaction: ID enumeration happens once, and current
+state is revalidated before delivery. Failures or process death leave unscheduled
+entries in Redis for retry.
 
-There is no 10-second/10,000-trace run cutoff: all eligible pages participate.
-The 60-second lease is renewed as collection and delivery progress. Only one run
-is active; a long run delays the next cohort. Shutdown stops between operations
-and removes its temporary files, preserving all unscheduled Redis entries.
-Collecting the entire cohort delays the first enqueue. Temporary disk scales
-with backlog; disk errors fail the run before unscheduled work is acknowledged.
-Normal completion/failure cleans the spool in `finally`; abrupt process death
-can leave scratch files until the container's ephemeral filesystem is removed.
-The SQLite cache target is not a cap on process RSS or filesystem page cache.
+There is no 10-second/10,000-trace run cutoff. The 60-second lease is renewed as
+collection and delivery progress. Only one run is active. The next delay subtracts
+runtime from the configured interval, so a 5-second run on a 30-second interval
+waits 25 seconds. An overrun schedules the next attempt immediately after completion,
+without overlapping runs. Shutdown preserves unscheduled entries.
+Collecting/sorting the entire cohort delays the first enqueue. Worker memory and
+the Redis response size grow with the due backlog; a large range read can delay
+other Redis clients. Monitor runtime, cohort size, backlog age and worker memory.
 
 The consumer makes one streamed query per batch with exact project/trace
 pair filters, explicit trace-hash pruning, and one shared min/max start-time
@@ -67,7 +67,7 @@ enabled intake tracks every eligible trace unless a lower rate is configured.
 | `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`      | Cross-project trace cap per job (1–1,000)                   |
 | `LANGFUSE_TRACE_BATCH_IDLE_MS`                | `600000`  | Inactivity before a trace becomes due                       |
 | `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`         | `7200000` | Retention after readiness, pruned during ingestion/dispatch |
-| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`   | `30000`   | Delay between dispatcher runs                               |
+| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`   | `30000`   | Target start interval; catches up after overruns            |
 
 Deploy with flags off. Start consumers on a small, known number of worker
 processes, enable the dispatcher, then enable intake on direct-v4 ingestion
@@ -158,7 +158,7 @@ Also inspect these metrics under `langfuse.trace_batch`:
 | `sampling_decisions`                                            | Distinct trace decisions per ingestion job, counter tagged `decision:selected` or `decision:excluded` |
 | `tracked_traces`, `tracking_errors`                             | Successful state updates and failed tracking calls, counters                                          |
 | `pending_traces`, `ready_traces`                                | Global due-set depth and eligible subset at the run cutoff, gauges                                    |
-| `snapshot_size`, `spool_bytes`                                  | Complete collected cohort size and temporary SQLite file bytes, distributions                         |
+| `snapshot_size`                                                 | Complete collected due-ID cohort size, distribution                                                   |
 | `skipped_traces`                                                | Collected entries excluded by pre-delivery validation, counter                                        |
 | `expired_traces`                                                | Pending trace entries discarded after retention, counter                                              |
 | `oldest_due_age_ms`, `due_lag_ms`                               | Oldest backlog age gauge and per-dispatch trace lag distribution                                      |
@@ -298,6 +298,7 @@ delay reset, persistence of excluded observations, and draining after sampling
 is set to zero. A fixed 1,000-trace cohort also covers 0/10/50/100% admission,
 reordered replay, nested samples and per-ingestion-job decision counts.
 
-The project-ordering regressions cover a 10,061-trace cohort spanning Redis pages
-and the former run limit, equal due scores, a reactivated cursor and deleted
-earlier members, and exclusion of traces becoming due after the run cutoff.
+The project-ordering regressions cover a 10,061-trace cohort spanning hydration
+chunks and the former run limit, equal due scores, deleted/missing state,
+reactivation after the ID read, and exclusion of arrivals after the cutoff.
+The cadence regression checks remaining delay and immediate catch-up after an overrun.

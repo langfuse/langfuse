@@ -478,7 +478,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     },
   );
 
-  it("groups the complete due cohort by sorted project across Redis pages and the former run limit", async () => {
+  it("groups the complete due cohort by sorted project across hydration chunks and the former run limit", async () => {
     const due = Date.now() - 100_000;
     const traces = Array.from({ length: 10_061 }, (_, i) => ({
       projectId: ["project-c", "project-a", "project-b"][i % 3],
@@ -520,7 +520,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(await client().hlen(stateKey)).toBe(0);
   });
 
-  it("does not skip equal-score traces when a page cursor is reactivated and earlier members disappear", async () => {
+  it("revalidates the due ID list after deletion, missing state, reactivation and new arrivals", async () => {
     const traces = Array.from(
       { length: 2_001 },
       (_, i) => `trace-${String(i).padStart(5, "0")}`,
@@ -534,15 +534,16 @@ describe("trace micro-batch scheduling with Redis", () => {
       dueKey,
       ...traces.flatMap((id) => [due, member("project", id)]),
     );
-    const evaluate = client().eval.bind(client());
+    const range = client().zrange.bind(client());
     let changed = false;
-    vi.spyOn(client(), "eval").mockImplementation(async (...args) => {
-      const result = await evaluate(...args);
-      if (!changed && String(args[0]).includes("WITHSCORES")) {
+    vi.spyOn(client(), "zrange").mockImplementation(async (...args) => {
+      const result = await range(...args);
+      if (!changed && args.includes("BYSCORE")) {
         changed = true;
-        // Both removals shift ranks; the cursor's new due time is outside this run.
+        // Change Redis after the complete ID list has been read but before hydration.
         await client().zrem(dueKey, member("project", traces[0]));
         await client().hdel(stateKey, member("project", traces[0]));
+        await client().hdel(stateKey, member("project", traces[1_000]));
         env.LANGFUSE_TRACE_BATCH_IDLE_MS = 1;
         await trackTraceBatchActivity("project", [
           event(traces[999]),
@@ -558,7 +559,10 @@ describe("trace micro-batch scheduling with Redis", () => {
       add.mock.calls.flatMap(([, job]) =>
         job.payload.traces.map((trace) => trace.traceId),
       ),
-    ).toEqual(traces.filter((_, i) => i !== 0 && i !== 999));
+    ).toEqual(traces.filter((_, i) => i !== 0 && i !== 999 && i !== 1_000));
+    expect(
+      await client().zscore(dueKey, member("project", traces[1_000])),
+    ).toBeNull();
     expect((await client().hkeys(stateKey)).sort()).toEqual(
       [
         member("project", "new-after-cutoff"),
@@ -735,6 +739,23 @@ describe("trace micro-batch scheduling with Redis", () => {
         .map((trace) => member(trace.projectId, trace.traceId))
         .sort(),
     ).toEqual([member("other", "trace"), member("project", "trace")]);
+  });
+
+  it("subtracts dispatcher runtime from the next delay and catches up after an overrun", async () => {
+    let clock = Date.now();
+    const interval = env.LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS;
+    let elapsed = Math.floor(interval / 2);
+    vi.spyOn(Date, "now").mockImplementation(() => clock);
+    const range = client().zrange.bind(client());
+    vi.spyOn(client(), "zrange").mockImplementation(async (...args) => {
+      const result = await range(...args);
+      if (args.includes("BYSCORE")) clock += elapsed;
+      return result;
+    });
+    const dispatcher = runner();
+    expect(await dispatcher.processBatch()).toBe(interval - elapsed);
+    elapsed = interval + 1_000;
+    expect(await dispatcher.processBatch()).toBe(0);
   });
 
   it("allows only one dispatcher and waits for its in-flight enqueue before shutdown", async () => {
