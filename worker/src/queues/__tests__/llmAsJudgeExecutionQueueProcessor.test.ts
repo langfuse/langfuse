@@ -225,7 +225,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       );
     });
 
-    it("records schedule-to-first-attempt latency only for the logical first attempt", async () => {
+    it("records queue latency for initial and logical retry attempts", async () => {
       const now = vi.spyOn(Date, "now").mockReturnValue(10_000);
 
       await llmAsJudgeExecutionQueueProcessor(
@@ -236,6 +236,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
         1_500,
         {
           evaluator_type: "llm_as_judge",
+          isRetry: "false",
           unit: "milliseconds",
         },
       );
@@ -248,13 +249,23 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
           timestamp: 8_000,
         }),
       );
+      expect(recordDistribution).not.toHaveBeenCalled();
+
       await llmAsJudgeExecutionQueueProcessor(
         createMockJob({
           data: { retryBaggage: { attempt: 1 } },
           timestamp: 8_000,
         }),
       );
-      expect(recordDistribution).not.toHaveBeenCalled();
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.evaluation.execution.time_to_first_attempt_ms",
+        2_000,
+        {
+          evaluator_type: "llm_as_judge",
+          isRetry: "true",
+          unit: "milliseconds",
+        },
+      );
 
       now.mockRestore();
     });

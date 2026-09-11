@@ -27,6 +27,7 @@ export const codeEvalExecutionQueueProcessorBuilder = (
       recordEvalTimeToFirstAttempt(
         EvalTemplateType.CODE,
         Math.max(0, Date.now() - job.timestamp),
+        false,
       );
     }
 

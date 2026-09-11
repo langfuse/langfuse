@@ -279,10 +279,11 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
   (queueName: string): Processor =>
   async (job: Job<TQueueJobTypes[QueueName.LLMAsJudgeExecution]>) => {
     const retryAttempt = job.data.retryBaggage?.attempt ?? 0;
-    if (job.attemptsStarted === 1 && retryAttempt === 0) {
+    if (job.attemptsStarted === 1) {
       recordEvalTimeToFirstAttempt(
         EvalTemplateType.LLM_AS_JUDGE,
         Math.max(0, Date.now() - job.timestamp),
+        retryAttempt > 0,
       );
     }
 

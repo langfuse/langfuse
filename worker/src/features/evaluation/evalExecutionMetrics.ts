@@ -37,12 +37,14 @@ const CODE_EVAL_CUSTOMER_ERROR_CODES: ReadonlySet<string> = new Set([
 export function recordEvalTimeToFirstAttempt(
   executionType: ObservationEvalExecutionType,
   durationMs: number,
+  isRetry: boolean,
 ): void {
   recordDistribution(
     "langfuse.evaluation.execution.time_to_first_attempt_ms",
     durationMs,
     {
       evaluator_type: getEvaluatorTypeTag(executionType),
+      isRetry: isRetry ? "true" : "false",
       unit: "milliseconds",
     },
   );

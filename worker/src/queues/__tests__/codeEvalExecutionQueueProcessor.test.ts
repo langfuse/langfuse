@@ -155,6 +155,7 @@ describe("codeEvalExecutionQueueProcessor", () => {
       1_500,
       {
         evaluator_type: "code_as_judge",
+        isRetry: "false",
         unit: "milliseconds",
       },
     );

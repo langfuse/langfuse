@@ -26,7 +26,7 @@ describe("evaluation execution metrics", () => {
   });
 
   it("records the bounded metric contract", () => {
-    recordEvalTimeToFirstAttempt(EvalTemplateType.LLM_AS_JUDGE, 1_234);
+    recordEvalTimeToFirstAttempt(EvalTemplateType.LLM_AS_JUDGE, 1_234, true);
     recordEvalTerminalOutcome(EvalTemplateType.CODE, "success");
 
     expect(recordDistribution).toHaveBeenCalledWith(
@@ -34,6 +34,7 @@ describe("evaluation execution metrics", () => {
       1_234,
       {
         evaluator_type: "llm_as_judge",
+        isRetry: "true",
         unit: "milliseconds",
       },
     );
