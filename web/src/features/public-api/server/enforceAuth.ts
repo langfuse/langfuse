@@ -21,8 +21,10 @@ import {
   isOrgAction,
   type Action,
   type AuthorizationContext,
+  type Decision,
   type ErrorResult as ErrorResultOf,
   type Principal,
+  type Resource,
   type Success,
 } from "@/src/features/auth/policy/types";
 
@@ -60,7 +62,7 @@ export async function enforceAuth(
       `unexpected principal on the public-API seam: ${principal.kind}`,
     );
   }
-  return isOrgAction(params.action)
+  return params.action !== undefined && isOrgAction(params.action)
     ? enforceOrgAuth(context, principal, params)
     : enforceProjectAuth(context, principal, params);
 }
@@ -70,7 +72,7 @@ async function enforceAdminAuth(
   context: AuthorizationContext,
   params: EnforceAuthParams,
 ): Promise<EnforceAuthResult> {
-  if (isOrgAction(params.action)) {
+  if (params.action !== undefined && isOrgAction(params.action)) {
     return invariantBreak(
       "admin API key cannot serve an organization-scoped action",
     );
@@ -86,7 +88,7 @@ async function enforceAdminAuth(
   if (!project.success) return project;
   const org = await lookupProjectOrgId(project.projectId);
   if (!org.success) return org;
-  const decision = authorize(context, params.action, {
+  const decision = authorizeAction(context, params.action, {
     projectId: project.projectId,
   });
   if (!decision.success) return decision;
@@ -105,7 +107,9 @@ function enforceOrgAuth(
 ): EnforceAuthResult {
   const org = getOrgId(context, params.req);
   if (!org.success) return org;
-  const decision = authorize(context, params.action, { orgId: org.orgId });
+  const decision = authorizeAction(context, params.action, {
+    orgId: org.orgId,
+  });
   if (!decision.success) return { success: false, error: decision.error };
   return {
     success: true,
@@ -132,7 +136,7 @@ function enforceProjectAuth(
       ),
     );
   }
-  const decision = authorize(context, params.action, {
+  const decision = authorizeAction(context, params.action, {
     projectId: project.projectId,
   });
   if (!decision.success) return { success: false, error: decision.error };
@@ -145,6 +149,16 @@ function enforceProjectAuth(
     ),
     ctx: context,
   };
+}
+
+/** authorizeAction authorizes against a given action, or passes when the route asserts none and authorizes each item itself. */
+function authorizeAction(
+  context: AuthorizationContext,
+  action: Action | undefined,
+  resource: Resource,
+): Decision {
+  if (action === undefined) return { success: true };
+  return authorize(context, action, resource);
 }
 
 /** getOrgId resolves the target org from the header, falling back to the key's bound org; whether the key may act on it is the policy's call. */
@@ -309,10 +323,10 @@ function invariantBreak(message: string): ErrorResult {
   return { success: false, error: new InternalServerError(message) };
 }
 
-/** EnforceAuthParams is the request, the checked action, the access levels the route admits, and its key-kind opt-ins. */
+/** EnforceAuthParams is the request, the optional connection action, the access levels the route admits, and its key-kind opt-ins; omit the action to resolve context without a connection-level check. */
 export type EnforceAuthParams = {
   req: NextApiRequest;
-  action: Action;
+  action?: Action;
   allowedAccessLevels: ApiAccessLevel[];
   allowInAppAgentKey?: boolean;
   isAdminApiKeyAuthAllowed?: boolean;

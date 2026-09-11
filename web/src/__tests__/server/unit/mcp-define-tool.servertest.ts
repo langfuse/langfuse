@@ -15,6 +15,7 @@ describe("defineTool", () => {
       defineTool({
         name: "createScore",
         description: "Create a score",
+        action: null,
         baseSchema: schema,
         inputSchema: schema,
         handler: async (input) => input,
@@ -28,6 +29,7 @@ describe("defineTool", () => {
     const [tool] = defineTool({
       name: "plainTool",
       description: "",
+      action: null,
       baseSchema: schema,
       inputSchema: schema,
       handler: async (input) => input,
@@ -46,6 +48,7 @@ describe("defineTool", () => {
     const [tool] = defineTool({
       name: "combinatorNamedFieldsTool",
       description: "",
+      action: null,
       baseSchema: schema,
       inputSchema: schema,
       handler: async (input) => input,
@@ -67,6 +70,7 @@ describe("defineTool", () => {
       defineTool({
         name: "mixedUnionTool",
         description: "",
+        action: null,
         baseSchema: schema,
         inputSchema: schema,
         handler: async (input) => input,
@@ -83,6 +87,7 @@ describe("defineTool", () => {
       defineTool({
         name: "nestedUnionTool",
         description: "",
+        action: null,
         baseSchema: schema,
         inputSchema: schema,
         handler: async (input) => input,
@@ -99,6 +104,7 @@ describe("defineTool", () => {
       defineTool({
         name: "nestedIntersectionTool",
         description: "",
+        action: null,
         baseSchema: schema,
         inputSchema: schema,
         handler: async (input) => input,
@@ -114,6 +120,7 @@ describe("defineTool", () => {
     const [tool] = defineTool({
       name: "asciiPatternTool",
       description: "",
+      action: null,
       baseSchema: schema,
       inputSchema: schema,
       handler: async (input) => input,

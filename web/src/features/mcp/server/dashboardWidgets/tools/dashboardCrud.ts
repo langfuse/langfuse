@@ -153,6 +153,7 @@ export const [listDashboardWidgetsTool, handleListDashboardWidgets] =
   defineTool({
     name: "listDashboardWidgets",
     description: "List dashboard widgets in the current project.",
+    action: "dashboards:read",
     baseSchema: GetUnstableDashboardWidgetsQuery,
     inputSchema: GetUnstableDashboardWidgetsQuery,
     readOnlyHint: true,
@@ -181,6 +182,7 @@ export const [listDashboardWidgetsTool, handleListDashboardWidgets] =
 export const [getDashboardWidgetTool, handleGetDashboardWidget] = defineTool({
   name: "getDashboardWidget",
   description: "Get a dashboard widget by ID.",
+  action: "dashboards:read",
   baseSchema: DashboardWidgetIdQuery,
   inputSchema: DashboardWidgetIdQuery,
   readOnlyHint: true,
@@ -204,6 +206,7 @@ export const [updateDashboardWidgetTool, handleUpdateDashboardWidget] =
   defineTool({
     name: "updateDashboardWidget",
     description: "Partially update a dashboard widget.",
+    action: "dashboards:CUD",
     baseSchema: dashboardWidgetPatchBaseSchema,
     inputSchema: DashboardWidgetIdQuery.extend(
       PatchUnstableDashboardWidgetBody.shape,
@@ -227,6 +230,7 @@ export const [deleteDashboardWidgetTool, handleDeleteDashboardWidget] =
     name: "deleteDashboardWidget",
     description:
       "Delete a dashboard widget. It must first be removed from every dashboard placement.",
+    action: "dashboards:CUD",
     baseSchema: DashboardWidgetIdQuery,
     inputSchema: DashboardWidgetIdQuery,
     destructiveHint: true,
@@ -248,6 +252,7 @@ export const [deleteDashboardWidgetTool, handleDeleteDashboardWidget] =
 export const [listDashboardsTool, handleListDashboards] = defineTool({
   name: "listDashboards",
   description: "List editable dashboards in the current project.",
+  action: "dashboards:read",
   baseSchema: GetUnstableDashboardsQuery,
   inputSchema: GetUnstableDashboardsQuery,
   readOnlyHint: true,
@@ -275,6 +280,7 @@ export const [listDashboardsTool, handleListDashboards] = defineTool({
 });
 export const [getDashboardTool, handleGetDashboard] = defineTool({
   name: "getDashboard",
+  action: "dashboards:read",
   description:
     "Get an editable dashboard by ID, including its current layout: " +
     "definition.widgets lists every placement with 12-column-grid " +
@@ -301,6 +307,7 @@ export const [getDashboardTool, handleGetDashboard] = defineTool({
 export const [createDashboardTool, handleCreateDashboard] = defineTool({
   name: "createDashboard",
   description: "Create an editable dashboard.",
+  action: "dashboards:CUD",
   baseSchema: dashboardCreateBaseSchema,
   inputSchema: PostUnstableDashboardBody,
   destructiveHint: true,
@@ -320,6 +327,7 @@ export const [updateDashboardTool, handleUpdateDashboard] = defineTool({
   name: "updateDashboard",
   description:
     "Partially update dashboard metadata, filters, or its complete definition.",
+  action: "dashboards:CUD",
   baseSchema: dashboardPatchBaseSchema,
   inputSchema: DashboardIdQuery.extend(
     PatchUnstableDashboardBody.shape,
@@ -341,6 +349,7 @@ export const [updateDashboardTool, handleUpdateDashboard] = defineTool({
 export const [deleteDashboardTool, handleDeleteDashboard] = defineTool({
   name: "deleteDashboard",
   description: "Delete an editable dashboard.",
+  action: "dashboards:CUD",
   baseSchema: DashboardIdQuery,
   inputSchema: DashboardIdQuery,
   destructiveHint: true,
@@ -363,6 +372,7 @@ const placementQuery = DashboardIdQuery.extend({ placementId: z.string() });
 export const [addDashboardPlacementTool, handleAddDashboardPlacement] =
   defineTool({
     name: "addDashboardPlacement",
+    action: "dashboards:CUD",
     description:
       "Add a widget or preset placement to a dashboard's 12-column grid. " +
       "Prefer omitting id and position: the server generates an id and " +
@@ -391,6 +401,7 @@ export const [addDashboardPlacementTool, handleAddDashboardPlacement] =
 export const [updateDashboardPlacementTool, handleUpdateDashboardPlacement] =
   defineTool({
     name: "updateDashboardPlacement",
+    action: "dashboards:CUD",
     description:
       "Move or resize an existing dashboard placement on the 12-column " +
       "grid. Pass any of x, y (top-left cell), width, height (in cells); " +
@@ -421,6 +432,7 @@ export const [deleteDashboardPlacementTool, handleDeleteDashboardPlacement] =
     name: "deleteDashboardPlacement",
     description:
       "Remove a placement from a dashboard without deleting the underlying widget.",
+    action: "dashboards:CUD",
     baseSchema: placementQuery,
     inputSchema: placementQuery,
     destructiveHint: true,

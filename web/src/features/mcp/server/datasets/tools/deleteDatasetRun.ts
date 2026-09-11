@@ -9,6 +9,7 @@ export const [deleteDatasetRunTool, handleDeleteDatasetRun] = defineTool({
   name: "deleteDatasetRun",
   description:
     "Delete a dataset run by dataset ID and run ID, and enqueue deletion of its run items.",
+  action: "datasets:CUD",
   baseSchema: DeleteDatasetRunMcpInput,
   inputSchema: DeleteDatasetRunMcpInput,
   handler: async (input, context) =>

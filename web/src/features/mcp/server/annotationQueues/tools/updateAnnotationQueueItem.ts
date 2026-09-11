@@ -10,6 +10,7 @@ export const [updateAnnotationQueueItemTool, handleUpdateAnnotationQueueItem] =
     name: "updateAnnotationQueueItem",
     description:
       "Update an annotation queue item's review status, such as pending or completed.",
+    action: "annotationQueues:CUD",
     baseSchema: UpdateAnnotationQueueItemToolSchema,
     inputSchema: UpdateAnnotationQueueItemToolSchema,
     handler: async (input, context) =>
