@@ -10,7 +10,7 @@ import {
 } from "tiktoken";
 
 import { z } from "zod";
-import { logger } from "@langfuse/shared/src/server";
+import { logger, recordIncrement } from "@langfuse/shared/src/server";
 
 const OpenAiTokenConfig = z.object({
   tokenizerModel: z.string().refine(isTiktokenModel, {
@@ -27,6 +27,14 @@ const OpenAiChatTokenConfig = z.object({
   tokensPerMessage: z.number(),
   tokensPerName: z.number(),
 });
+
+// An invalid tokenizer config is a static, per-model configuration problem, not
+// a per-event condition. Log once per model id so the signal survives without
+// one line per observation. tokenCount runs inside the token-count worker-thread
+// pool (each pool worker is its own module instance), so this dedup is per
+// worker-thread, not strictly per process — still a collapse from per-event to a
+// handful of lines per pod.
+const warnedInvalidTokenizerConfigModelIds = new Set<string>();
 
 export function tokenCount(p: {
   model: Model;
@@ -63,11 +71,19 @@ type ChatMessage = {
 function openAiTokenCount(p: { model: Model; text: unknown }) {
   const config = OpenAiTokenConfig.safeParse(p.model.tokenizerConfig);
   if (!config.success) {
-    logger.warn(
-      `Invalid tokenizer config for model ${p.model.id}: ${JSON.stringify(
-        p.model.tokenizerConfig,
-      )}, ${JSON.stringify(config.error)}`,
-    );
+    // Counter fires per occurrence so the ongoing rate stays visible; the log
+    // line dedupes to once per model id (the config itself is static).
+    recordIncrement("langfuse.ingestion.tokenisation.invalid_config", 1, {
+      tokenizer: "openai",
+    });
+    if (!warnedInvalidTokenizerConfigModelIds.has(p.model.id)) {
+      warnedInvalidTokenizerConfigModelIds.add(p.model.id);
+      logger.warn(
+        `Invalid tokenizer config for model ${p.model.id}: ${JSON.stringify(
+          p.model.tokenizerConfig,
+        )}, ${JSON.stringify(config.error)}`,
+      );
+    }
     return undefined;
   }
 
@@ -84,11 +100,17 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
       p.model.tokenizerConfig,
     );
     if (!parsedConfig.success) {
-      logger.error(
-        `Invalid tokenizer config for chat model ${
-          p.model.id
-        }: ${JSON.stringify(p.model.tokenizerConfig)}`,
-      );
+      recordIncrement("langfuse.ingestion.tokenisation.invalid_config", 1, {
+        tokenizer: "openai_chat",
+      });
+      if (!warnedInvalidTokenizerConfigModelIds.has(p.model.id)) {
+        warnedInvalidTokenizerConfigModelIds.add(p.model.id);
+        logger.error(
+          `Invalid tokenizer config for chat model ${
+            p.model.id
+          }: ${JSON.stringify(p.model.tokenizerConfig)}`,
+        );
+      }
       return undefined;
     }
     result = openAiChatTokenCount({
