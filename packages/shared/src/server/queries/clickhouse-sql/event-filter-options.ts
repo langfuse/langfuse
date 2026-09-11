@@ -549,50 +549,6 @@ ORDER BY column ASC, tupleElement(option, 4) ASC, tupleElement(option, 2) ASC
   };
 };
 
-/**
- * One ClickHouse round-trip of exact per-column GROUP BY / LIMIT scans.
- * Used where filter-option values must stay exact (scores-view facets),
- * instead of the approx_top_k multi-column sketch.
- */
-export const buildEventsExactFilterOptionsForColumnsQuery = (params: {
-  projectId: string;
-  filter: FilterState;
-  columns: readonly EventFilterOptionColumn[];
-  limit: number;
-  scope?: EventFilterOptionScope;
-  sampleRows?: number;
-}): { query: string; params: Record<string, unknown> } | null => {
-  const columns = uniqueEventFilterOptionColumns(params.columns);
-  if (columns.length === 0 || params.limit <= 0) {
-    return null;
-  }
-
-  const built = columns.flatMap((column) => {
-    const queryWithParams = buildEventsFilterOptionColumnQuery({
-      projectId: params.projectId,
-      filter: params.filter,
-      column,
-      limit: params.limit,
-      scope: params.scope,
-      sampleRows: params.sampleRows,
-    });
-    return queryWithParams ? [queryWithParams] : [];
-  });
-
-  if (built.length === 0) {
-    return null;
-  }
-
-  if (built.length === 1) {
-    return built[0];
-  }
-
-  return {
-    query: built.map((part) => `(${part.query})`).join("\nUNION ALL\n"),
-    params: Object.assign({}, ...built.map((part) => part.params)),
-  };
-};
-
 /** buildEventsMetadataValuesQuery builds the top-N distinct value query for one metadata key on the events table. */
 export const buildEventsMetadataValuesQuery = (params: {
   projectId: string;

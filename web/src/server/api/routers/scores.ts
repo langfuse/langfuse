@@ -45,7 +45,9 @@ import {
   getTracesGroupedByTags,
   getTracesGroupedByName,
   getTracesGroupedByUsers,
-  getEventsExactFilterOptionsForColumns,
+  getEventsGroupedByTraceName,
+  getEventsGroupedByTraceTags,
+  getEventsGroupedByUserId,
   tracesTableUiColumnDefinitions,
   upsertScore,
   logger,
@@ -424,34 +426,32 @@ export const scoresRouter = createTRPCRouter({
         toTime: upperBound,
       };
 
-      const [names, eventFacets, stringValues] = await Promise.all([
-        getScoreNames(input.projectId, timestampFilter ?? []),
-        getEventsExactFilterOptionsForColumns({
-          projectId: input.projectId,
-          filter: eventsFilter,
-          columns: ["traceTags", "traceName", "userId"],
-          scope,
-        }),
-        getScoreStringValues(input.projectId, timestampFilter ?? []),
-      ]);
+      const [names, tags, traceNames, userIds, stringValues] =
+        await Promise.all([
+          getScoreNames(input.projectId, timestampFilter ?? []),
+          getEventsGroupedByTraceTags(input.projectId, eventsFilter, {
+            scope,
+          }),
+          getEventsGroupedByTraceName(input.projectId, eventsFilter, {
+            scope,
+          }),
+          getEventsGroupedByUserId(input.projectId, eventsFilter, {
+            scope,
+          }),
+          getScoreStringValues(input.projectId, timestampFilter ?? []),
+        ]);
 
       return {
         name: names.map((i) => ({ value: i.name, count: i.count })),
-        tags: eventFacets
-          .filter((row) => row.column === "traceTags")
-          .map((row) => ({ value: row.value })),
-        traceName: eventFacets
-          .filter((row) => row.column === "traceName")
-          .map((row) => ({
-            value: row.value,
-            count: Number(row.count),
-          })),
-        userId: eventFacets
-          .filter((row) => row.column === "userId")
-          .map((row) => ({
-            value: row.value,
-            count: Number(row.count),
-          })),
+        tags: tags.map((t) => ({ value: t.tag })),
+        traceName: traceNames.map((tn) => ({
+          value: tn.traceName,
+          count: Number(tn.count),
+        })),
+        userId: userIds.map((u) => ({
+          value: u.userId,
+          count: Number(u.count),
+        })),
         stringValue: stringValues,
         booleanValue: BOOLEAN_SCORE_VALUE_OPTIONS,
       };
