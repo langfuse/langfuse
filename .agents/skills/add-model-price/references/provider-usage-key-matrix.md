@@ -51,6 +51,7 @@ Use this mature Claude set when prompt caching is supported:
 | ----------------------- | -------------------------------------------------------------------- |
 | Input                   | `input`, `input_tokens`                                              |
 | Output                  | `output`, `output_tokens`                                            |
+| Reasoning               | `output_reasoning_tokens`, `output_reasoning`, `reasoning_tokens`    |
 | Cache write             | `cache_creation_input_tokens`, `input_cache_creation`                |
 | Five-minute cache write | `input_cache_creation_5m`                                            |
 | One-hour cache write    | `input_cache_creation_1h`                                            |
@@ -60,6 +61,11 @@ The TTL-specific prices can differ, so do not treat the 5-minute and 1-hour
 keys as equal-price aliases. Verify which TTLs the model supports. Current
 `claude-sonnet-4-6`, `claude-opus-4-6`, and `claude-opus-4-8` entries are mature
 templates and include direct Anthropic plus regional Bedrock model IDs.
+
+Price the reasoning keys at the same rate as `output` in each tier, because
+Anthropic bills a thinking token as an output token. Ingestion subtracts the
+reasoning bucket from `output`, so omitting them prices that part of the answer
+at zero.
 
 ## Gemini
 
