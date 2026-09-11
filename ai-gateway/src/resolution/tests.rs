@@ -97,7 +97,8 @@ fn success(project: &str, provider_token: &str) -> Value {
             "organization_id": "org-1",
             "project_id": project,
             "key_id": "key-1",
-            "key_metadata": {"customer": "private-customer-label", "enabled": true, "number": 42}
+            "key_metadata": {"customer": "private-customer-label", "enabled": true, "number": 42},
+            "provider_connection_id": "connection-1"
         },
         "ingestion_mode": "usage",
         "ingestion": {"access_token": "private-ingestion-token", "token_type": "Bearer", "expires_at": NOW + 300}
@@ -129,6 +130,10 @@ async fn signs_the_exact_key_and_sends_only_the_api_format() {
         "private-provider-token"
     );
     assert_eq!(context.attribution().project_id(), "project-1");
+    assert_eq!(
+        context.attribution().provider_connection_id(),
+        "connection-1"
+    );
     assert_eq!(
         context.ingestion().access_token(),
         "private-ingestion-token"
@@ -342,6 +347,7 @@ async fn rejects_incompatible_or_incomplete_execution_contexts() {
         ("/connection/auth/token", json!("bad\r\nheader")),
         ("/connection/id", json!("")),
         ("/attribution/project_id", json!("")),
+        ("/attribution/provider_connection_id", json!("")),
         (
             "/attribution/key_metadata",
             json!({"nested": {"key": "value"}}),

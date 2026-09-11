@@ -79,6 +79,7 @@ pub struct Attribution {
     project_id: String,
     key_id: String,
     key_metadata: BTreeMap<String, MetadataValue>,
+    provider_connection_id: String,
 }
 
 impl Attribution {
@@ -93,6 +94,9 @@ impl Attribution {
     }
     pub fn key_metadata(&self) -> &BTreeMap<String, MetadataValue> {
         &self.key_metadata
+    }
+    pub fn provider_connection_id(&self) -> &str {
+        &self.provider_connection_id
     }
 }
 
@@ -176,6 +180,7 @@ pub(super) fn decode(
             &attribution.organization_id,
             &attribution.project_id,
             &attribution.key_id,
+            &attribution.provider_connection_id,
         ]
         .iter()
         .any(|value| value.trim().is_empty())
