@@ -1607,10 +1607,12 @@ export const handleBlobStorageIntegrationProjectJob = async (
         });
       }
 
-      // Bypass the cooldown so this terminal failure is always visible, the way
-      // the terminal disable notification does — but not the disabled variant,
-      // since the integration stays enabled.
-      await notifyBlobStorageExportFailed(projectId, { bypassCooldown: true });
+      // Cooldown-gated, not bypassed: the integration stays enabled and the
+      // watermark does not advance, so every scheduled run re-attempts the same
+      // too-large window and re-enters here. The cooldown caps this to one alert
+      // per cooldown window instead of one per run. (The disable notification
+      // bypasses the cooldown because it is a one-shot terminal event.)
+      await notifyBlobStorageExportFailed(projectId, { disabled: false });
 
       logger.error(
         `[BLOB INTEGRATION] Blob storage export for project ${projectId} exceeded the multipart part-count limit; failing terminally without retry: ${errorChainText(error)}`,
@@ -1777,9 +1779,10 @@ async function notifyBlobStorageExportFailed(
   try {
     // Called once per exhausted run. The cooldown gates across scheduled
     // runs (the scheduler re-enqueues every frequency period, and each
-    // failing run would otherwise email again). Terminal events bypass it: a
-    // cooldown claim could silently drop the one email for a failure that
-    // needs operator attention (the disable notice, or a stopped export).
+    // failing run would otherwise email again). The disable notice bypasses
+    // it: that is a one-shot terminal event and a cooldown claim could
+    // silently drop the single email saying the integration was turned off.
+    // Recurring failures stay gated so they alert once per window, not per run.
     if (!bypassCooldown) {
       const cooldownMs =
         env.LANGFUSE_BLOB_STORAGE_FAILURE_NOTIFICATION_COOLDOWN_HOURS *
