@@ -27,7 +27,6 @@ pnpm run seed -- session-variety --sessions 120 --days 14  # many sessions for t
 pnpm run seed -- many-traces --count 100000 --days 14
 pnpm run seed -- outlier-traffic --days 90   # diurnal v4 traffic w/ cost/latency/token outliers (outlier chart strip)
 pnpm run seed -- scored-traces --traces 24 --v4   # scores w/ spaces in the name
-pnpm run seed -- score-density --v4  # three traces differing only in SCORE density, sized from prod percentiles: trace-only (p90: ~13 on the trace, ~6 names), sporadic (p50: 3 on the trace + 4 obs x 2), extreme (p99: ~49 scores, ~16 names, two obs w/ 6-13); --shape <slug> for one
 pnpm run seed -- custom-models --v4  # project-level model definitions (tiered + single-tier, one price at 0) + a trace whose generations link to them, plus one unpriced model
 NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- evaluator-gallery --count 200  # project-owned evaluators via the seeded public API key
 ```
