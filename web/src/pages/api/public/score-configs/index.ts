@@ -30,9 +30,10 @@ export default withMiddlewares({
     querySchema: GetScoreConfigsQuery,
     responseSchema: GetScoreConfigsResponse,
     fn: async ({ query, auth }) => {
-      const { page, limit } = query;
+      const { page, limit, dataType } = query;
       return await listScoreConfigs({
         projectId: auth.scope.projectId,
+        dataType: dataType ?? undefined,
         page,
         limit,
       });
