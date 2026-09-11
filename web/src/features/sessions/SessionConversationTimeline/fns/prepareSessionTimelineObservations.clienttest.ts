@@ -215,6 +215,61 @@ describe("prepareSessionTimelineObservations", () => {
     ]);
   });
 
+  it("keeps duplicate nested output on the parent observation", () => {
+    const input = { role: "user", content: "Review this comment" };
+    const output = { role: "assistant", content: "PASS" };
+    const prepared = prepareSessionTimelineObservations([
+      observation("parent", input, output, "SPAN"),
+      observation(
+        "generation",
+        input,
+        output,
+        "GENERATION",
+        new Date(1),
+        "trace-1",
+        "parent",
+      ),
+    ]);
+
+    const visibleTextByObservation = prepared.map((item) => ({
+      id: item.observation.id,
+      phase: item.phase,
+      text: item.processedMessages.messages.flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === "text" ? [part.text] : [],
+        ),
+      ),
+    }));
+
+    expect(visibleTextByObservation).toEqual([
+      { id: "parent", phase: "start", text: ["Review this comment"] },
+      { id: "generation", phase: "complete", text: [] },
+      { id: "parent", phase: "end", text: ["PASS"] },
+    ]);
+  });
+
+  it("preserves unique nested output", () => {
+    const prepared = prepareSessionTimelineObservations([
+      observation("parent", "Question", "Parent answer", "SPAN"),
+      observation(
+        "generation",
+        "Question",
+        "Generation answer",
+        "GENERATION",
+        new Date(1),
+        "trace-1",
+        "parent",
+      ),
+    ]);
+
+    expect(prepared[1]?.processedMessages.messages).toMatchObject([
+      {
+        source: "output",
+        parts: [{ type: "text", text: "Generation answer" }],
+      },
+    ]);
+  });
+
   it("deduplicates large inherited input throughout a deeply nested trace", () => {
     const inheritedText = "large inherited input ".repeat(600);
     const inheritedInput = [{ role: "user", content: inheritedText }];
