@@ -179,6 +179,29 @@ describe("Annotation Queues API Endpoints", () => {
       expect(firstPageResponse.body.data.length).toBe(limit);
       expect(secondPageResponse.body.data.length).toBe(limit);
     });
+
+    it("should filter annotation queues by fromTimestamp and toTimestamp", async () => {
+      const now = new Date();
+      const from = new Date(now.getTime() - 1000 * 60 * 60).toISOString();
+      const to = new Date(now.getTime() + 1000 * 60 * 60).toISOString();
+
+      const response = await makeZodVerifiedAPICall(
+        GetAnnotationQueuesResponse,
+        "GET",
+        `/api/public/annotation-queues?fromTimestamp=${encodeURIComponent(from)}&toTimestamp=${encodeURIComponent(to)}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.length).toBeGreaterThanOrEqual(0);
+      response.body.data.forEach((queue) => {
+        expect(new Date(queue.createdAt).getTime()).toBeGreaterThanOrEqual(new Date(from).getTime());
+        expect(new Date(queue.createdAt).getTime()).toBeLessThan(new Date(to).getTime());
+      });
+    });
+  });
+
   });
 
   describe("POST /annotation-queues", () => {
