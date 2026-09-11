@@ -16,6 +16,8 @@ import { BillingPlanPeriodView } from "@/src/ee/features/billing/components/Bill
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { SpendAlertsSection } from "./SpendAlerts/SpendAlertsSection";
 import { useBillingInformation } from "./useBillingInformation";
+import { api } from "@/src/utils/api";
+import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -28,8 +30,30 @@ export const BillingSettings = () => {
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
   const isCloudBillingEntitled = useHasEntitlement("cloud-billing");
   const isSpendAlertEntitled = useHasEntitlement("cloud-spend-alerts");
-  const { organization, billingProvider, hasActiveSubscription } =
-    useBillingInformation();
+  const {
+    organization,
+    billingProvider,
+    hasActiveSubscription,
+    planLabel,
+    cancellation,
+    scheduledPlanSwitch,
+  } = useBillingInformation();
+  const usage = api.cloudBilling.getUsage.useQuery(
+    { orgId: organization?.id ?? "" },
+    {
+      enabled: Boolean(
+        organization &&
+        isCloudBillingAvailable &&
+        isCloudBillingEntitled &&
+        hasAccess,
+      ),
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
   const showBillingDiscount = Boolean(
     organization?.cloudConfig?.stripe?.activeSubscriptionId &&
     billingProvider !== "clickhouse",
@@ -59,11 +83,32 @@ export const BillingSettings = () => {
 
   return (
     <div>
-      <BillingScheduleNotification />
+      {cancellation ? (
+        <BillingScheduleNotification
+          type="cancellation"
+          planLabel={planLabel}
+          cancellation={cancellation}
+        />
+      ) : scheduledPlanSwitch ? (
+        <BillingScheduleNotification
+          type="scheduled-plan-switch"
+          planLabel={planLabel}
+          scheduledPlanSwitch={scheduledPlanSwitch}
+        />
+      ) : null}
 
       <Header title="Usage & Billing" />
       <div className="space-y-6">
-        <BillingUsageChart />
+        {usage.data !== null && (
+          <BillingUsageChart
+            usage={usage.data}
+            hobbyPlanLimit={
+              organization?.cloudConfig?.monthlyObservationLimit ??
+              MAX_EVENTS_FREE_PLAN
+            }
+            plan={organization?.plan ?? "cloud:hobby"}
+          />
+        )}
         <BillingPlanPeriodView />
         {showBillingDiscount && organization && (
           <BillingDiscountView

@@ -186,6 +186,10 @@ function TracesTableInternal({
     projectId,
     scope: "traces:delete",
   });
+  const hasBatchExportAccess = useHasProjectAccess({
+    projectId,
+    scope: "batchExports:create",
+  });
   const tracesFilterConfig = useMemo(
     () => getTraceFilterConfig(omittedFilter),
     [omittedFilter],
@@ -1460,17 +1464,19 @@ function TracesTableInternal({
                     )}
                   </AddTracesToAnnotationQueueDialogController>
                 ) : null,
-                <BatchExportTableButton
-                  {...{
-                    projectId,
-                    filterState,
-                    orderByState,
-                    searchQuery,
-                    searchType,
-                  }}
-                  tableName={BatchExportTableName.Traces}
-                  key="batchExport"
-                />,
+                hasBatchExportAccess ? (
+                  <BatchExportTableButton
+                    {...{
+                      projectId,
+                      filterState,
+                      orderByState,
+                      searchQuery,
+                      searchType,
+                    }}
+                    tableName={BatchExportTableName.Traces}
+                    key="batchExport"
+                  />
+                ) : null,
               ]}
               orderByState={orderByState}
               columnVisibility={columnVisibility}

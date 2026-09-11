@@ -6,7 +6,7 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 
 const paymentBannerVariants = cva(
-  "fixed top-0 z-51 flex w-full flex-col gap-1 px-4 py-1.5 sm:flex-row sm:items-center sm:gap-3 sm:py-1",
+  "flex w-full flex-col gap-1 px-4 py-1.5 sm:flex-row sm:items-center sm:gap-3 sm:py-1",
   {
     variants: {
       severity: {

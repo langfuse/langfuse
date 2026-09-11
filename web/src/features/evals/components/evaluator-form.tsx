@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import { type EvalTemplate, type EvalTargetObject } from "@langfuse/shared";
 import { InnerEvaluatorForm } from "@/src/features/evals/components/inner-evaluator-form";
 import { type PartialConfig } from "@/src/features/evals/types";
@@ -12,14 +11,13 @@ import {
 
 export const EvaluatorForm = (props: {
   projectId: string;
-  evalTemplates: EvalTemplate[];
+  evalTemplate: EvalTemplate;
   useDialog: boolean;
   disabled?: boolean;
   existingEvaluator?: PartialConfig & { evalTemplate: EvalTemplate };
   onFormSuccess?: () => void;
   mode?: "create" | "edit";
   shouldWrapVariables?: boolean;
-  templateId?: string;
   hideTargetSection?: boolean;
   hideTargetSelection?: boolean;
   preventRedirect?: boolean;
@@ -28,28 +26,9 @@ export const EvaluatorForm = (props: {
   hidePreviewTable?: boolean;
   defaultTarget?: EvalTargetObject;
 }) => {
-  const codeEvalCapabilities = useIsCodeEvalEnabled();
-
-  const currentTemplate =
-    props.existingEvaluator?.evalTemplate ??
-    props.evalTemplates
-      .filter((template) =>
-        shouldShowEvalTemplate(template, codeEvalCapabilities),
-      )
-      .find((t) => t.id === props.templateId);
-
   const evalCapabilities = useEvalCapabilities(props.projectId, {
-    isCodeEvalTemplate:
-      !!currentTemplate && isCodeEvalTemplate(currentTemplate),
+    isCodeEvalTemplate: isCodeEvalTemplate(props.evalTemplate),
   });
-
-  if (
-    !currentTemplate ||
-    (isCodeEvalTemplate(currentTemplate) &&
-      !shouldShowEvalTemplate(currentTemplate, codeEvalCapabilities))
-  ) {
-    return null;
-  }
 
   return (
     <>
@@ -60,9 +39,7 @@ export const EvaluatorForm = (props: {
           projectId={props.projectId}
           disabled={props.disabled}
           existingEvaluator={props.existingEvaluator}
-          evalTemplate={
-            props.existingEvaluator?.evalTemplate ?? currentTemplate
-          }
+          evalTemplate={props.evalTemplate}
           onFormSuccess={props.onFormSuccess}
           shouldWrapVariables={props.shouldWrapVariables}
           hideTargetSection={props.hideTargetSection}
@@ -80,3 +57,28 @@ export const EvaluatorForm = (props: {
     </>
   );
 };
+
+export function useEvaluatorFormTemplate({
+  evalTemplates,
+  evalTemplate,
+  templateId,
+}: {
+  evalTemplates: EvalTemplate[];
+  evalTemplate?: EvalTemplate;
+  templateId?: string;
+}) {
+  const codeEvalCapabilities = useIsCodeEvalEnabled();
+  const currentTemplate =
+    evalTemplate ??
+    evalTemplates.find((template) => template.id === templateId);
+
+  if (
+    !currentTemplate ||
+    (isCodeEvalTemplate(currentTemplate) &&
+      !shouldShowEvalTemplate(currentTemplate, codeEvalCapabilities))
+  ) {
+    return undefined;
+  }
+
+  return currentTemplate;
+}

@@ -43,6 +43,7 @@ const EMPTY_STATE_CHART_TYPES = new Set<DashboardWidgetChartType>([
   "LINE_TIME_SERIES",
   "AREA_TIME_SERIES",
   "BAR_TIME_SERIES",
+  "NUMBER",
 ]);
 
 const ChartComponent = ({
@@ -169,10 +170,10 @@ const ChartComponent = ({
     // mark.
     if (
       (EMPTY_STATE_CHART_TYPES.has(chartType) || emptyState !== undefined) &&
-      !isLoading &&
+      (chartType === "NUMBER" || !isLoading) &&
       isChartDataEmpty(data)
     ) {
-      return emptyState ?? <NoDataOrLoading isLoading={false} />;
+      return emptyState ?? <NoDataOrLoading isLoading={isLoading} />;
     }
 
     switch (chartType) {
