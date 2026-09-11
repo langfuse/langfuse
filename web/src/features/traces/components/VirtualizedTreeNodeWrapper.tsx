@@ -168,9 +168,9 @@ export function VirtualizedTreeNodeWrapper({
                 ev.stopPropagation();
                 onToggleCollapse();
               }}
-              // -my-1 keeps the 24px hit target while its layout box shrinks to
-              // the 16px first line, so the chevron centres on the name.
-              className="hover:bg-primary/10 -my-1 h-6 w-6 shrink-0"
+              // 20px button on a 20px first line: hit target equals the row, so
+              // consecutive rows never overlap.
+              className="hover:bg-primary/10 h-5 w-5 shrink-0"
             >
               <span
                 className={cn(
