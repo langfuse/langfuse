@@ -154,12 +154,21 @@ function TabsList({
         const activeTrigger = list.querySelector<HTMLElement>(
           '[role="tab"][data-state="active"]',
         );
-        if (!activeTrigger) return;
+        if (!activeTrigger) {
+          indicator.style.opacity = "0";
+          return;
+        }
 
-        const listRect = list.getBoundingClientRect();
-        const triggerRect = activeTrigger.getBoundingClientRect();
-        indicator.style.width = `${triggerRect.width}px`;
-        indicator.style.transform = `translateX(${triggerRect.left - listRect.left - list.clientLeft}px)`;
+        let triggerOffset = 0;
+        let offsetElement: HTMLElement | null = activeTrigger;
+        while (offsetElement && offsetElement !== list) {
+          triggerOffset += offsetElement.offsetLeft;
+          offsetElement = offsetElement.offsetParent as HTMLElement | null;
+        }
+        if (offsetElement !== list) return;
+
+        indicator.style.width = `${activeTrigger.offsetWidth}px`;
+        indicator.style.transform = `translateX(${triggerOffset}px)`;
         indicator.style.opacity = "1";
 
         if (indicator.dataset.ready !== "true") {
@@ -174,8 +183,31 @@ function TabsList({
       typeof ResizeObserver === "undefined"
         ? null
         : new ResizeObserver(updateIndicator);
-    const mutationObserver = new MutationObserver(updateIndicator);
+    const observedTriggers = new Set<HTMLElement>();
+    const syncObservedTriggers = () => {
+      const triggers = new Set(
+        list.querySelectorAll<HTMLElement>('[role="tab"]'),
+      );
+
+      for (const trigger of observedTriggers) {
+        if (!triggers.has(trigger)) {
+          resizeObserver?.unobserve(trigger);
+          observedTriggers.delete(trigger);
+        }
+      }
+      for (const trigger of triggers) {
+        if (!observedTriggers.has(trigger)) {
+          resizeObserver?.observe(trigger);
+          observedTriggers.add(trigger);
+        }
+      }
+    };
+    const mutationObserver = new MutationObserver(() => {
+      syncObservedTriggers();
+      updateIndicator();
+    });
     resizeObserver?.observe(list);
+    syncObservedTriggers();
     mutationObserver.observe(list, {
       attributes: true,
       attributeFilter: ["data-state"],

@@ -53,6 +53,26 @@ const fullWidthChildren = (
   </>
 );
 
+function ResizableSlidingTabs() {
+  const [expanded, setExpanded] = React.useState(false);
+
+  return (
+    <div className="[&_[role=tablist]]:w-80 [&_[role=tablist]]:justify-start">
+      <button type="button" onClick={() => setExpanded(true)}>
+        Expand active tab
+      </button>
+      <Tabs defaultValue="first">
+        <Tabs.List variant="outline" slidingIndicator>
+          <span className={expanded ? "w-40" : "w-20"}>
+            <Tabs.Trigger value="first" label="First" />
+          </span>
+          <Tabs.Trigger value="second" label="Second" />
+        </Tabs.List>
+      </Tabs>
+    </div>
+  );
+}
+
 export const Default = meta.story({
   args: {
     defaultValue: "account",
@@ -278,6 +298,69 @@ export const SlidesIndicator = meta.story({
       expect(nextRect.width).toBeGreaterThan(initialRect.width);
       expect(Math.abs(nextRect.left - tabRect.left)).toBeLessThan(0.5);
       expect(Math.abs(nextRect.width - tabRect.width)).toBeLessThan(0.5);
+    });
+  },
+});
+
+export const AlignsSlidingIndicatorInScaledContainer = meta.story({
+  name: "(Test) Aligns Sliding Indicator In Scaled Container",
+  args: {
+    defaultValue: "short",
+    children: (
+      <Tabs.List variant="outline" slidingIndicator>
+        <Tabs.Trigger value="short" label="Python" />
+        <Tabs.Trigger value="long" label="TypeScript" />
+      </Tabs.List>
+    ),
+  },
+  render: (args) => (
+    <div className="origin-top-left scale-75">
+      <Tabs {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const activeTab = canvas.getByRole("tab", { name: "Python" });
+    const indicator = canvasElement.querySelector("[data-tabs-indicator]");
+
+    await expect(indicator).toBeInTheDocument();
+    await waitFor(() => {
+      const indicatorRect = indicator!.getBoundingClientRect();
+      const tabRect = activeTab.getBoundingClientRect();
+      expect(Math.abs(indicatorRect.left - tabRect.left)).toBeLessThan(0.5);
+      expect(Math.abs(indicatorRect.width - tabRect.width)).toBeLessThan(0.5);
+    });
+  },
+});
+
+export const TracksTriggerResize = meta.story({
+  name: "(Test) Tracks Trigger Resize",
+  render: () => <ResizableSlidingTabs />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const activeTab = canvas.getByRole("tab", { name: "First" });
+    const indicator = canvasElement.querySelector("[data-tabs-indicator]");
+
+    await expect(indicator).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        Math.abs(
+          indicator!.getBoundingClientRect().width -
+            activeTab.getBoundingClientRect().width,
+        ),
+      ).toBeLessThan(0.5);
+    });
+    const initialWidth = activeTab.getBoundingClientRect().width;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Expand active tab" }),
+    );
+    await waitFor(() => {
+      const indicatorRect = indicator!.getBoundingClientRect();
+      const tabRect = activeTab.getBoundingClientRect();
+      expect(tabRect.width).toBeGreaterThan(initialWidth);
+      expect(Math.abs(indicatorRect.width - tabRect.width)).toBeLessThan(0.5);
     });
   },
 });
