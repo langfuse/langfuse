@@ -236,6 +236,15 @@ export const ObservationDetailViewHeader = memo(
               ]}
               observationType={observation.type}
               projectId={projectId}
+              observation={
+                isV4Enabled
+                  ? {
+                      id: observation.id,
+                      traceId,
+                      startTime: observation.startTime,
+                    }
+                  : undefined
+              }
               spanName={observation.name ?? ""}
               webCallout={{
                 traceId,

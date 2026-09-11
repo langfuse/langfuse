@@ -21,7 +21,11 @@ class ResizeObserverStub {
 (global as typeof globalThis & { ResizeObserver: unknown }).ResizeObserver =
   ResizeObserverStub;
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 const point = (metric: DataPoint["metric"], dimension?: string): DataPoint => ({
   time_dimension: "2026-01-01T00:00:00Z",
@@ -73,4 +77,42 @@ describe("Chart dispatcher — empty-state guard (LFE-14333)", () => {
     render(<Chart chartType="BAR_TIME_SERIES" data={[]} rowLimit={100} />);
     expect(screen.getByText("No data")).toBeInTheDocument();
   });
+});
+
+it("renders a compact bar chart whose values cross zero", () => {
+  const bounds = new DOMRect(0, 0, 500, 63);
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+    function (this: HTMLElement) {
+      return this.id === "recharts_measurement_span"
+        ? new DOMRect(0, 0, 8, 12)
+        : bounds;
+    },
+  );
+  vi.stubGlobal(
+    "ResizeObserver",
+    class implements ResizeObserver {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element) {
+        this.callback(
+          [{ target, contentRect: bounds } as ResizeObserverEntry],
+          this,
+        );
+      }
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+
+  const { container } = render(
+    <Chart
+      chartType="VERTICAL_BAR"
+      data={[point(-1, "negative"), point(1, "positive")]}
+      rowLimit={100}
+      zeroBaseline
+      hideXAxisLabels
+    />,
+  );
+
+  expect(container.querySelectorAll(".recharts-bar-rectangle")).toHaveLength(2);
+  expect(screen.getByText("0")).toBeInTheDocument();
 });

@@ -2381,14 +2381,6 @@ export const ExpandRolledUpTool = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const generation = canvasElement
-      .querySelector('[data-session-observation-id="generation-1"]')
-      ?.closest("[data-session-observation-depth]");
-    await userEvent.click(
-      within(generation as HTMLElement).getByRole("button", {
-        name: "Show tools: get_order",
-      }),
-    );
     const expandButton = canvas.getByRole("button", {
       name: "Expand get_order",
     });
@@ -2730,11 +2722,6 @@ export const ToolObservationDataOnly = meta.story({
   }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(
-      canvas.getByRole("button", {
-        name: "Show tools: get_subscription_details",
-      }),
-    );
     await expect(
       canvas.getAllByRole("button", { name: "get_subscription_details" }),
     ).toHaveLength(1);
@@ -2759,11 +2746,6 @@ export const GenerationToolDataOnly = meta.story({
   }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(
-      canvas.getByRole("button", {
-        name: "Show tools: get_subscription_details",
-      }),
-    );
     await expect(
       canvas.getAllByRole("button", { name: "get_subscription_details" }),
     ).toHaveLength(1);
@@ -2797,11 +2779,6 @@ export const DeduplicateMatchingToolData = meta.story({
   }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(
-      canvas.getByRole("button", {
-        name: "Show tools: get_subscription_details",
-      }),
-    );
     await expect(
       canvas.getAllByRole("button", { name: "get_subscription_details" }),
     ).toHaveLength(1);
