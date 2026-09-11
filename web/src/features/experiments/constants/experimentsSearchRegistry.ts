@@ -1,8 +1,8 @@
 import {
-  fieldRegistryFromColumns,
   type FieldRegistry,
-} from "@/src/features/search-bar/lib/fields";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+  fieldRegistryFromColumns,
+} from "@/src/features/search-bar";
+import type { FilterConfig } from "@/src/features/filters";
 
 import { experimentsFilterConfig } from "@/src/features/experiments/components/table/filter-config";
 
@@ -68,25 +68,57 @@ const EXPERIMENT_FIELD_OVERLAY = {
   },
 };
 
-export const EXPERIMENTS_FIELD_REGISTRY: FieldRegistry =
-  fieldRegistryFromColumns(facetColumns(experimentsFilterConfig), {
+/** Authored per view, never derived from the field ids — see the search-bar README. */
+const SEARCH_EXAMPLES = [
+  "dataset:legal-answer-quality",
+  "name:sonnet",
+  "scores.groundedness:>0.8",
+];
+
+/**
+ * Built from the config the table actually renders, not the static one: a
+ * dataset-scoped page omits the Dataset facet, and the sidebar then strips any
+ * filter on that column on write. A registry that still offered `dataset:`
+ * there would accept the token and let it be dropped without a word.
+ */
+export const experimentsFieldRegistry = (
+  config: FilterConfig = experimentsFilterConfig,
+): FieldRegistry => {
+  const overlay = {
     id: "experiments",
     metadata: true,
-    // See SCORE_COLUMN_IDS: `scores.` needs the canonical column names, which
-    // the unification change introduces.
-    scores: false,
+    // `scores.<name>` lowers onto the canonical `scores_avg` /
+    // `score_categories` / `score_booleans` columns, which is exactly what this
+    // view filters on since the score unification — so the bar can render a
+    // score filter the sidebar set, and parse one the user types. `traceScores.`
+    // stays closed: the level-agnostic columns already match at trace level, and
+    // the `trace_*` columns are no longer offered.
+    scores: true,
     traceScores: false,
     allowFreeText: false,
     // `name` is the only text column, and it is what people look a run up by.
     defaultTextField: "name",
     recentSearches: true,
-    // `dataset:` takes the dataset ID, not its name — the observed-value picker
-    // offers the ids, so the examples must not imply a name works.
-    searchExamples: [
-      "dataset:legal-answer-quality",
-      "name:sonnet",
-      'metadata."model":opus',
-    ],
     aiContextFields: AI_CONTEXT_FIELDS,
     fields: EXPERIMENT_FIELD_OVERLAY,
+  } as const;
+
+  // The examples are authored, never generated — but a scoped config drops
+  // facets, and an example naming a dropped one would advertise a field the bar
+  // rejects. Built once to resolve them (aliases and `scores.` included), then
+  // rebuilt with the examples that survive.
+  const probe = fieldRegistryFromColumns(facetColumns(config), overlay);
+
+  return fieldRegistryFromColumns(facetColumns(config), {
+    ...overlay,
+    searchExamples: SEARCH_EXAMPLES.filter((example) => {
+      const separator = example.indexOf(":");
+      if (separator === -1) return true;
+      return probe.resolveField(example.slice(0, separator)) !== null;
+    }),
   });
+};
+
+/** The unscoped registry: the server's AI-filter guard and the grammar tests. */
+export const EXPERIMENTS_FIELD_REGISTRY: FieldRegistry =
+  experimentsFieldRegistry();

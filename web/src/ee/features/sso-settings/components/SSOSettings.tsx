@@ -52,7 +52,7 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import Header from "@/src/components/layouts/header";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { VerifiedDomainsSettings } from "@/src/ee/features/verified-domains/components/VerifiedDomainsSettings";
 import { SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso/types";

@@ -3,8 +3,6 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-identity_dir="${LANGFUSE_CONFIG_DIR:-$HOME/.config/langfuse}"
-identity_file="$identity_dir/me.md"
 mode="${1:-write}"
 
 if [[ "$mode" != "write" && "$mode" != "--probe" ]]; then
@@ -12,8 +10,70 @@ if [[ "$mode" != "write" && "$mode" != "--probe" ]]; then
   exit 2
 fi
 
-if [[ -f "$identity_file" && "$mode" = "write" ]]; then
-  echo "Langfuse identity: already configured at $identity_file"
+# Home identity is machine-level. Workspace-scoped harnesses (OpenCode) prompt
+# on any $HOME path, so only touch it when the caller redirected the directory,
+# opted in, or this is a normal non-OpenCode install.
+opencode_env="${OPENCODE:-}${OPENCODE_DIR:-}${OPENCODE_BIN:-}${OPENCODE_CONFIG:-}"
+allow_home=0
+if [[ -n "${LANGFUSE_CONFIG_DIR:-}" || "${LANGFUSE_ALLOW_HOME_IDENTITY:-}" == "1" ]]; then
+  allow_home=1
+elif [[ -z "$opencode_env" ]]; then
+  allow_home=1
+fi
+
+if [[ -n "${LANGFUSE_CONFIG_DIR:-}" ]]; then
+  identity_dir="$LANGFUSE_CONFIG_DIR"
+elif [[ "$allow_home" -eq 1 ]]; then
+  identity_dir="$HOME/.config/langfuse"
+else
+  identity_dir=""
+fi
+identity_file="${identity_dir:+$identity_dir/me.md}"
+
+# Mirror into the checkout so agents can read identity without leaving the
+# project. Tests that redirect LANGFUSE_CONFIG_DIR must set
+# LANGFUSE_WORKSPACE_IDENTITY_DIR if they want this path exercised.
+workspace_identity_dir=""
+if [[ -n "${LANGFUSE_WORKSPACE_IDENTITY_DIR:-}" ]]; then
+  workspace_identity_dir="$LANGFUSE_WORKSPACE_IDENTITY_DIR"
+elif [[ -z "${LANGFUSE_CONFIG_DIR:-}" ]]; then
+  workspace_identity_dir="$repo_root/.langfuse"
+fi
+workspace_identity_file="${workspace_identity_dir:+$workspace_identity_dir/me.md}"
+
+install_identity_file() {
+  local dest_dir="$1"
+  local source="$2"
+  local dest_file="$dest_dir/me.md"
+
+  if [[ -z "$dest_dir" || ! -f "$source" ]]; then
+    return 0
+  fi
+  if [[ -f "$dest_file" ]]; then
+    return 0
+  fi
+  umask 077
+  if ! mkdir -p "$dest_dir"; then
+    echo "Langfuse identity: could not create $dest_dir; will retry later in the session if needed."
+    return 0
+  fi
+  chmod 700 "$dest_dir" || true
+  local tmp_file
+  tmp_file="$(mktemp "$dest_dir/.me.md.XXXXXX")" || return 0
+  if cp "$source" "$tmp_file" && mv -f "$tmp_file" "$dest_file"; then
+    echo "Langfuse identity: wrote $dest_file"
+  else
+    rm -f "$tmp_file"
+  fi
+}
+
+# The workspace file is what agents edit and delete. Do not refill it from
+# the home copy — that would undo "delete to be asked again". A missing
+# workspace copy falls through to Linear. If only the workspace file
+# exists, still seed a missing home copy.
+if [[ "$mode" = "write" && -n "$workspace_identity_file" && -f "$workspace_identity_file" ]]; then
+  echo "Langfuse identity: already configured at $workspace_identity_file"
+  install_identity_file "$identity_dir" "$workspace_identity_file"
   exit 0
 fi
 
@@ -82,27 +142,21 @@ PY
   exit 0
 fi
 
-umask 077
-if ! mkdir -p "$identity_dir"; then
-  echo "Langfuse identity: could not create $identity_dir; will retry later in the session if needed."
-  exit 0
-fi
-chmod 700 "$identity_dir"
-
-tmp_file="$(mktemp "$identity_dir/.me.md.XXXXXX")"
+tmp_dir="$(mktemp -d)"
+tmp_file="$tmp_dir/me.md"
 cleanup() {
-  rm -f "$tmp_file"
+  rm -rf "$tmp_dir"
 }
 trap cleanup EXIT
 
 set +e
-LINEAR_RESPONSE="$response" python3 - "$identity_file" "$tmp_file" "$repo_root" <<'PY'
+LINEAR_RESPONSE="$response" python3 - "$tmp_file" "$repo_root" <<'PY'
 import datetime
 import json
 import os
 import sys
 
-identity_file, tmp_file, repo_root = sys.argv[1:]
+tmp_file, repo_root = sys.argv[1:]
 try:
     payload = json.loads(os.environ["LINEAR_RESPONSE"])
 except json.JSONDecodeError:
@@ -143,8 +197,7 @@ content = f"""# Me, at Langfuse
 
 with open(tmp_file, "w", encoding="utf-8") as file:
     file.write(content)
-os.replace(tmp_file, identity_file)
-print(f"Langfuse identity: recovered {name} <{email}> at {identity_file}")
+print(f"Langfuse identity: recovered {name} <{email}>")
 PY
 status=$?
 set -e
@@ -153,3 +206,6 @@ if [[ "$status" -ne 0 ]]; then
   echo "Langfuse identity: recovery skipped; will retry later in the session if needed."
   exit 0
 fi
+
+install_identity_file "$identity_dir" "$tmp_file"
+install_identity_file "$workspace_identity_dir" "$tmp_file"

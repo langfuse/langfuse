@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { normalizeOrderByForTable } from "@langfuse/shared";
 import { DataTable } from "@/src/components/table/data-table";
 import {
   DataTableControlsProvider,
@@ -17,9 +18,11 @@ import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { TagPromptPopover } from "@/src/features/tag/components/TagPromptPopover";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { promptFilterConfig } from "@/src/features/filters/config/prompts-config";
+import {
+  promptFilterConfig,
+  useQueryFilterState,
+  useSidebarFilterState,
+} from "@/src/features/filters";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -83,6 +86,10 @@ export function PromptTable() {
     column: "createdAt",
     order: "DESC",
   });
+  const orderBy = normalizeOrderByForTable({
+    orderBy: orderByState,
+    expectedTimeColumn: "createdAt",
+  });
 
   const {
     paginationState,
@@ -107,7 +114,7 @@ export function PromptTable() {
       limit: paginationState.pageSize,
       projectId,
       filter: filterState,
-      orderBy: orderByState,
+      orderBy,
       pathPrefix: currentFolderPath,
       searchQuery: searchQuery || undefined,
       searchType: searchType,
@@ -375,7 +382,7 @@ export function PromptTable() {
               limit: 50,
               projectId,
               filter: filterState,
-              orderBy: orderByState,
+              orderBy,
             }}
           />
         );
@@ -476,7 +483,7 @@ export function PromptTable() {
                         })),
                       }
               }
-              orderBy={orderByState}
+              orderBy={orderBy}
               setOrderBy={setOrderByState}
               pagination={{
                 totalCount,

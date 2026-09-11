@@ -4,7 +4,7 @@ description: |
   Use Linear as the org's memory: reconstruct a feature's history before
   touching it, and leave the reasoning behind finished work in the ticket
   description so the next agent inherits it. Use when starting work on an
-  existing feature, when planning multi-PR work, and always when wrapping up —
+  existing feature, when splitting a large change, and always when wrapping up —
   "what happened to this screen before", "write the handover", "why is this
   code like this".
 ---
@@ -30,6 +30,7 @@ the way in.
 
 How to slice a big change into PRs is ordinary judgment: prefer small reviewable
 PRs, and create subtickets under an existing parent freely when that helps.
+Reconstructing history is not by itself a reason to file a stack of subtickets.
 
 ## Before you touch a feature: reconstruct its history
 

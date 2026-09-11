@@ -13,7 +13,10 @@ export const V3_SUNSET_HUMAN = "November 16, 2026";
 
 // Shared deprecation reason — references the deprecated Langfuse v3 system
 // version (not an API version). Customer-facing wording lives here — edit once.
-const V3_NOTICE = `On Langfuse Cloud, Langfuse v3 is deprecated and this endpoint will be removed on ${V3_SUNSET_HUMAN}.`;
+export const V3_DELAY_NOTICE =
+  "Data on this API is delayed by about 10 minutes. Real-time is only OpenTelemetry writes plus v2 observations and v2 metrics reads.";
+
+const V3_NOTICE = `On Langfuse Cloud, Langfuse v3 is deprecated and this endpoint will be removed on ${V3_SUNSET_HUMAN}. ${V3_DELAY_NOTICE}`;
 
 // v4 replacement endpoints, referenced by both the message and `replacement`.
 // Placeholder style matches rateLimitUpgradePaths (<from>, <to>, filters).
@@ -39,6 +42,8 @@ const DOCS = {
   metricsV2: "https://langfuse.com/docs/metrics/features/metrics-api",
   compatibility: "https://langfuse.com/docs/compatibility",
   otel: "https://langfuse.com/integrations/native/opentelemetry",
+  otelMigration:
+    "https://langfuse.com/integrations/native/opentelemetry/migration-to-v4.md",
 } as const;
 
 export const OBSERVATIONS_V1_DEPRECATION: ApiDeprecationInfo = {
@@ -93,6 +98,17 @@ export const DATASET_RUNS_DEPRECATION: ApiDeprecationInfo = {
   message: `${V3_NOTICE} In Langfuse v4, dataset runs are replaced by experiments; use ${REPLACEMENT.experiments} instead.`,
   replacement: REPLACEMENT.experiments,
   docsUrl: DOCS.compatibility,
+  sunsetAt: V3_SUNSET_DATE,
+};
+
+// Legacy batch writes of traces/observations → OTLP. This route is never
+// removed: scores (and sdk-log) stay accepted. Trace/observation events are
+// rejected only in v4-only write mode, not dual or legacy — so this family
+// does not use V3_NOTICE ("endpoint will be removed").
+export const INGESTION_DEPRECATION: ApiDeprecationInfo = {
+  message: `On Langfuse Cloud, Langfuse v3 is deprecated and v4-only write mode begins on ${V3_SUNSET_HUMAN}. ${V3_DELAY_NOTICE} This endpoint is never shut down; it continues to accept score events. Trace and observation events fail only in v4-only write mode, not in dual or legacy mode. Always prefer upgrading to the current Python and JS SDKs. If you use custom auto-instrumentation, only then write traces and observations via ${REPLACEMENT.otelTraces} (for example with curl). Retrieve the data via ${REPLACEMENT.observationsV2} and ${REPLACEMENT.metricsV2}.`,
+  replacement: REPLACEMENT.otelTraces,
+  docsUrl: DOCS.otelMigration,
   sunsetAt: V3_SUNSET_DATE,
 };
 

@@ -9,19 +9,36 @@ import { cn } from "@/src/utils/tailwind";
 type SettingsContainerProps = {
   children: React.ReactNode;
   headerProps: Omit<PageHeaderProps, "container">;
+  fullHeight?: boolean;
+  extendRight?: boolean;
 };
 
 const containerLayoutClassName =
   "lg:mx-auto lg:w-full lg:max-w-screen-lg lg:px-8 xl:max-w-screen-xl 2xl:max-w-[1400px]";
 
-const ContainerPage = ({ children, headerProps }: SettingsContainerProps) => {
+const rightExtendedContainerLayoutClassName =
+  "lg:ml-[max(0px,calc((100%_-_1024px)/2))] lg:px-8 xl:ml-[max(0px,calc((100%_-_1280px)/2))] 2xl:ml-[max(0px,calc((100%_-_1400px)/2))]";
+
+const ContainerPage = ({
+  children,
+  headerProps,
+  fullHeight = false,
+  extendRight = false,
+}: SettingsContainerProps) => {
   // Same minimal-chrome mobile shell as Page (slim top bar + page-title block),
   // so settings/container pages match the rest of the app on mobile. Desktop is
   // unchanged: the existing container PageHeader renders on `md` and up.
   const isMobile = useIsMobile();
 
   return (
-    <div className="min-h-screen-with-banner relative flex flex-1 flex-col">
+    <div
+      className={cn(
+        "relative flex flex-1 flex-col",
+        fullHeight
+          ? "h-screen-with-banner overflow-hidden"
+          : "min-h-screen-with-banner",
+      )}
+    >
       <header className="sticky top-0 z-50 w-full">
         {isMobile ? (
           <MobileTopBar
@@ -36,7 +53,9 @@ const ContainerPage = ({ children, headerProps }: SettingsContainerProps) => {
       <main
         className={cn(
           "relative flex min-h-0 flex-1 flex-col p-3",
-          containerLayoutClassName,
+          extendRight
+            ? rightExtendedContainerLayoutClassName
+            : containerLayoutClassName,
         )}
       >
         {children}

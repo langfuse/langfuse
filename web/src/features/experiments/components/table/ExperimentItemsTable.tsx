@@ -13,7 +13,7 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { useSidebarFilterState } from "@/src/features/filters";
 import {
   getExperimentItemsColumnName,
   experimentItemsFilterConfig,
@@ -39,7 +39,10 @@ import {
 import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import {
@@ -55,7 +58,6 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useExperimentItemsTableData } from "../../hooks/useExperimentItemsTableData";
 import {
   type ExperimentItemsTableRow,
@@ -68,13 +70,13 @@ import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCel
 import { Badge } from "@/src/components/ui/badge";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
-import { createScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import {
   collectPresentScoreKeys,
+  composeAggregateScoreKey,
+  createScoreColumns,
   revealScoreColumns,
   withPresentScoreKeys,
-} from "@/src/features/scores/lib/scoreColumns";
-import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+} from "@/src/features/scores";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ExperimentCompareTable } from "./ExperimentCompareTable";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
@@ -82,10 +84,12 @@ import {
   useExperimentItemsFilterOptions,
   type ScoreColumnDef,
 } from "@/src/features/experiments/hooks/useExperimentItemsFilterOptions";
-import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
+import {
+  calculateNumericDiff,
+  computeScoreDiffs,
+  DiffLabel,
+} from "@/src/features/datasets";
 import { describeRunComparison } from "@/src/features/experiments/fns/describeRunComparison";
-import { calculateNumericDiff } from "@/src/features/datasets/lib/calculateBaselineDiff";
-import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
 import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/peek-experiment-item-detail";
 import { NotRecordedMetric } from "./NotRecordedMetric";
 import {
@@ -112,6 +116,32 @@ import {
   type ScoreLevel,
 } from "@/src/features/experiments/fns/scoreComparisonFilter";
 import { resetStaleDefaultColumnOrder } from "@/src/features/experiments/fns/experimentItemsColumnOrder";
+import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
+import { resolveExperimentPeekTarget } from "@/src/features/experiments/fns/resolveExperimentPeekTarget";
+
+/**
+ * A row on its way into the peek, carrying which experiment's cell was
+ * clicked. Absent for a click on the row itself, which still opens the
+ * baseline.
+ */
+type ClickedExperimentRow = ExperimentItemsTableRow & {
+  clickedExperimentId?: string;
+};
+
+/** `usePeekNavigation`'s `openPeek`, as the cell handlers need it. */
+type PeekOpener = (itemId: string, row: ClickedExperimentRow) => void;
+
+/**
+ * Opens the peek on one experiment's cell. Passed to every per-experiment
+ * cell; `undefined` when the peek cannot open, which also removes the
+ * pointer affordance.
+ */
+type ExperimentCellClickHandler = (
+  event: React.MouseEvent,
+  row: ExperimentItemsTableRow,
+  experimentId: string,
+) => void;
+
 const renderExperimentSpecificHeader = (label: string) => (
   <span className="text-muted-foreground">{label}</span>
 );
@@ -219,12 +249,17 @@ const StackedExperimentCell = ({
   colorExperimentIds,
   renderValue,
   className,
+  row,
+  onExperimentClick,
 }: {
   experiments: ExperimentItemData[];
   allExperimentIds: string[];
   colorExperimentIds?: string[];
   renderValue: (exp: ExperimentItemData) => React.ReactNode;
   className?: string;
+  row?: ExperimentItemsTableRow;
+  /** Clicking one experiment's line opens that run, not the row's baseline. */
+  onExperimentClick?: ExperimentCellClickHandler;
 }) => {
   const experimentsById = useMemo(
     () => new Map(experiments.map((exp) => [exp.experimentId, exp])),
@@ -245,10 +280,21 @@ const StackedExperimentCell = ({
           colorExperimentIds ?? allExperimentIds,
         );
         const content = exp ? renderValue(exp) : null;
+        // Clickable because this run exists for the item — never because it
+        // rendered a value. A run with an empty value still has a trace.
+        const isClickable = Boolean(exp && row && onExperimentClick);
         return (
           <div
             key={experimentId}
-            className="flex min-h-0 items-start overflow-hidden py-0.5 pr-2 pl-1.5"
+            className={cn(
+              "flex min-h-0 items-start overflow-hidden py-0.5 pr-2 pl-1.5",
+              isClickable && "cursor-pointer",
+            )}
+            onClick={
+              isClickable
+                ? (event) => onExperimentClick?.(event, row!, experimentId)
+                : undefined
+            }
           >
             {content ? (
               <>
@@ -353,6 +399,8 @@ const StackedOutputCell = ({
   singleLine,
   isLoading,
   expectedOutput,
+  row,
+  onExperimentClick,
 }: {
   outputs: ExperimentOutputData[];
   allExperimentIds: string[];
@@ -365,6 +413,9 @@ const StackedOutputCell = ({
    * mode, and for the items that simply have no expected output.
    */
   expectedOutput?: string | null;
+  row?: ExperimentItemsTableRow;
+  /** Clicking one experiment's line opens that run, not the row's baseline. */
+  onExperimentClick?: ExperimentCellClickHandler;
 }) => {
   const outputsByExperimentId = useMemo(
     () => new Map(outputs.map((out) => [out.experimentId, out])),
@@ -404,10 +455,26 @@ const StackedOutputCell = ({
         const expectedMatch = showExpectedLine
           ? matchesExpectedOutput(out?.output, expectedOutput)
           : null;
+        // Gated on the run existing for this item, never on the output being
+        // truthy: a run that legitimately returned "" still has a trace to
+        // open, and testing the text would drop the handler and let the click
+        // fall through to the row — back to the baseline.
+        const hasRun = row?.experiments.some(
+          (exp) => exp.experimentId === experimentId,
+        );
+        const isClickable = Boolean(hasRun && row && onExperimentClick);
         return (
           <div
             key={experimentId}
-            className="flex min-h-0 items-start overflow-hidden py-0.5 pr-1 pl-1.5"
+            className={cn(
+              "flex min-h-0 items-start overflow-hidden py-0.5 pr-1 pl-1.5",
+              isClickable && "cursor-pointer",
+            )}
+            onClick={
+              isClickable
+                ? (event) => onExperimentClick?.(event, row!, experimentId)
+                : undefined
+            }
           >
             {isLoading ? (
               <div className="flex h-full min-h-0 min-w-0 items-start">
@@ -483,6 +550,35 @@ export default function ExperimentItemsTable({
     hasBaseline,
     hideControls,
   });
+
+  // `openPeek` lives on `usePeekNavigation` further down (it needs state this
+  // component only has by then), but the column builders below need a click
+  // handler at definition time. The ref bridges the two without making every
+  // memoized column depend on a callback that is a fresh literal each render.
+  const openPeekRef = useRef<PeekOpener | null>(null);
+  const openClickedExperimentPeek = useCallback(
+    (
+      event: React.MouseEvent,
+      row: ExperimentItemsTableRow,
+      experimentId: string,
+    ) => {
+      // A real control inside the cell (a link, a button) owns its own click.
+      if (shouldIgnoreRowClickTarget(event.target)) return;
+      // Otherwise the row handler would win and re-open the baseline.
+      event.stopPropagation();
+      openPeekRef.current?.(row.itemId, {
+        ...row,
+        clickedExperimentId: experimentId,
+      });
+    },
+    [],
+  );
+  // Undefined when the peek cannot open, so the cells neither act nor offer a
+  // pointer cursor — same gate on the affordance as on the action.
+  const onExperimentCellClick = canUsePeek
+    ? openClickedExperimentPeek
+    : undefined;
+
   const { experimentNames } = useExperimentNames({ projectId });
   const selectedExperimentNames = useMemo(() => {
     return experimentNames.filter((exp) =>
@@ -970,6 +1066,12 @@ export default function ExperimentItemsTable({
 
         return {
           ...scoreCol,
+          // The header holds this column's analysis, so it also sets the
+          // column's floor: the shared table's default lets a column be dragged
+          // to 20px, which is narrower than `−0.12 ↗1 ↘14` and would clip a
+          // count into a different, wrong number. 120px holds the delta and the
+          // movement counts whole.
+          minSize: 120,
           // The header carries the column's aggregate over the items in view, and
           // the movement against the comparison. Keeps the plain name for the
           // column picker.
@@ -1043,6 +1145,8 @@ export default function ExperimentItemsTable({
                 experiments={experiments}
                 allExperimentIds={allExperimentIds}
                 colorExperimentIds={colorExperimentIds}
+                row={row.original}
+                onExperimentClick={onExperimentCellClick}
                 renderValue={(exp) => {
                   const scoresData = exp[scoreField] ?? {};
                   const value = scoresData[scoreKey];
@@ -1134,6 +1238,7 @@ export default function ExperimentItemsTable({
       removeScoreComparisonFilter,
       captureScoreComparisonFilter,
       runNameOf,
+      onExperimentCellClick,
     ],
   );
 
@@ -1275,6 +1380,8 @@ export default function ExperimentItemsTable({
             outputs={outputs}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
+            row={row.original}
+            onExperimentClick={onExperimentCellClick}
             singleLine={ioSingleLine}
             isLoading={ioLoading}
             // Items with no expected output get no expected line and no
@@ -1308,6 +1415,8 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
+            row={row.original}
+            onExperimentClick={onExperimentCellClick}
             renderValue={(exp) => (
               // Wraps rather than clipping: in a 120px column a six-decimal
               // cost and its delta do not fit on one line, and half a currency
@@ -1349,6 +1458,8 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
+            row={row.original}
+            onExperimentClick={onExperimentCellClick}
             renderValue={(exp) => (
               <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
                 {exp.latencyMs != null ? (
@@ -1383,6 +1494,8 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
+            row={row.original}
+            onExperimentClick={onExperimentCellClick}
             renderValue={(exp) => <IdTableCell value={exp.observationId} />}
           />
         );
@@ -1407,6 +1520,8 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
+            row={row.original}
+            onExperimentClick={onExperimentCellClick}
             renderValue={(exp) => {
               const preparedDate = buildLocalIsoDatePresentation({
                 date: exp.startTime,
@@ -1436,6 +1551,8 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
+            row={row.original}
+            onExperimentClick={onExperimentCellClick}
             renderValue={(exp) => <span>{exp.level}</span>}
           />
         );
@@ -1456,6 +1573,8 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
+            row={row.original}
+            onExperimentClick={onExperimentCellClick}
             renderValue={(exp) => {
               const expOption = selectedExperimentNames.find(
                 (e) => e.experimentId === exp.experimentId,
@@ -1591,17 +1710,21 @@ export default function ExperimentItemsTable({
     ],
     tableName: experimentItemsFilterConfig.tableName,
     isV4: true,
-    extractParamsValuesFromRow: (row: ExperimentItemsTableRow) => {
-      // Use the explicit baseline when present. Without one, use the first
-      // selected experiment only as the primary trace for URL-compatible peek
-      // navigation; it is not treated as a baseline in comparison logic.
-      const baselineExp = baselineId
-        ? row.experiments.find((e) => e.experimentId === baselineId)
-        : row.experiments[0];
+    extractParamsValuesFromRow: (row: ClickedExperimentRow) => {
+      const targetExp = resolveExperimentPeekTarget({
+        experiments: row.experiments,
+        baselineId,
+        clickedExperimentId: row.clickedExperimentId,
+      });
       return {
-        traceId: baselineExp?.traceId || "",
-        timestamp: baselineExp?.startTime.toISOString() || "",
-        observation: baselineExp?.observationId || "",
+        traceId: targetExp?.traceId || "",
+        timestamp: targetExp?.startTime.toISOString() || "",
+        observation: targetExp?.observationId || "",
+        // Tells the peek which experiment it opened on, so its prev/next
+        // switcher starts from the clicked run rather than the baseline.
+        ...(row.clickedExperimentId
+          ? { peekExperimentId: row.clickedExperimentId }
+          : {}),
       };
     },
     expandConfig: {
@@ -1609,6 +1732,9 @@ export default function ExperimentItemsTable({
       pathParam: "traceId",
     },
   });
+
+  // Hand the per-experiment cell handlers above the live `openPeek`.
+  openPeekRef.current = peekNavigationProps.openPeek;
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.ExperimentItems,
@@ -1678,9 +1804,12 @@ export default function ExperimentItemsTable({
       setDetailPageList(
         "experiment-items",
         rows.map((item: ExperimentItemsTableRow) => {
-          const baselineExp = baselineId
-            ? item.experiments.find((e) => e.experimentId === baselineId)
-            : item.experiments[0];
+          // The list's own default target, same rule the peek uses for a row
+          // click. A cell click overrides it via `clickedExperimentId`.
+          const baselineExp = resolveExperimentPeekTarget({
+            experiments: item.experiments,
+            baselineId,
+          });
 
           // Build experiment targets map for all experiments
           const experimentTargets = Object.fromEntries(

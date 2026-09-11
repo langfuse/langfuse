@@ -62,7 +62,7 @@ agent-written in the text:
    where durable context belongs.
 3. **Create a ticket** — a subticket of an existing ticket needs no permission; a
    ticket with no parent needs the human's yes first, and then the skill files it
-   itself.
+   itself. Default the body to a short human description.
 
 An explicit ask ("write the handover", "comment on the ticket") **is** the
 go-ahead. Assigning, moving state, closing, estimating, re-prioritising,

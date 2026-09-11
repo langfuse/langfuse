@@ -12,12 +12,16 @@ import {
   EVALUATOR_FIELD_REGISTRY,
   RULE_SAMPLE_FIELD_REGISTRY,
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
-import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
+import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters";
 import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
 import { validateQuery } from "./validate";
 import { planCommit } from "./commit";
 import { filterStateToQueryText } from "./filter-state-to-query";
-import { planInputCompletions } from "./completions";
+import {
+  applyPick,
+  planInputCompletions,
+  type CompletionOption,
+} from "./completions";
 import {
   generateQueryCases,
   runSearchBarInvariants,
@@ -700,6 +704,56 @@ describe("search bar invariants — sessions registry", () => {
     // Opt-in: a view that has not asked for recents gets none, valid or not.
     expect(RULE_FIELD_REGISTRY.recentSearches).toBe(false);
   });
+
+  it("surfaces has:/-has: while typing a nullable field name", () => {
+    const planFor = (term: string) =>
+      planInputCompletions(
+        {
+          input: term,
+          caret: term.length,
+          observed: {},
+          recents: [],
+          currentQueryText: term,
+        },
+        SESSIONS_FIELD_REGISTRY,
+      );
+    const offered = (term: string) =>
+      (planFor(term)?.sections ?? [])
+        .flatMap((section) => section.options)
+        .filter((option) => option.id.startsWith("presence:"))
+        .map((option) => option.label);
+    // Typing the column name reveals both presence forms — previously reachable
+    // only by knowing the `has:` pseudo-field existed.
+    expect(offered("userId")).toEqual(["has:userIds", "-has:userIds"]);
+    // Mid-word too, so they appear while typing rather than only on a full match.
+    expect(offered("userI")).toEqual(["has:userIds", "-has:userIds"]);
+    // A negated term already carries the `-`; the sole option is the missing
+    // form (label matches what applyPick commits once the surviving dash joins
+    // the inserted `has:`). Offering `-has:` as insert would splice `--has:`.
+    expect(offered("-userIds")).toEqual(["-has:userIds"]);
+    const negatedPlan = planFor("-userIds");
+    const missing = (negatedPlan?.sections ?? [])
+      .flatMap((section) => section.options)
+      .find((option) => option.id === "presence:-has:userIds");
+    expect(missing).toBeDefined();
+    expect(
+      applyPick(
+        missing as Exclude<CompletionOption, { kind: "recent" | "preset" }>,
+        "-userIds",
+        negatedPlan!,
+      ).next,
+    ).toBe("-has:userIds ");
+    // Non-nullable and too-short terms stay quiet.
+    expect(offered("countTraces")).toEqual([]);
+    expect(offered("u")).toEqual([]);
+  });
+
+  it("pins the has: hint per view instead of deriving it from field order", () => {
+    // Derived from "first nullable field", the GA events hint silently became
+    // has:name; it is written down so reordering FIELDS cannot rewrite copy.
+    expect(EVENTS_FIELD_REGISTRY.hasExample).toBe("endTime");
+    expect(SESSIONS_FIELD_REGISTRY.hasExample).toBe("userIds");
+  });
 });
 
 const experimentsView: RegistryUnderTest = {
@@ -709,9 +763,9 @@ const experimentsView: RegistryUnderTest = {
   scoreContexts: [],
   fieldValues: ["x", "sonnet", "5", "0.8", "a b"],
   freeTextValues: ["hello", "run 12", "or", "!important"],
-  // Scores stay in the sidebar on this view, and after the score unification
-  // they sit on the SAME canonical columns the bar's `scores.` path recognizes —
-  // so the serializer has to be told they are not the bar's to render.
+  // Score filters are the bar's to render on this view, so these must derive to
+  // valid text rather than being skipped. The `trace_*` columns are not, and
+  // stay sidebar-only.
   sidebarFilters: [
     [
       {
@@ -792,20 +846,47 @@ describe("search bar invariants — experiments registry", () => {
     ).toBeNull();
   });
 
-  it("keeps score dot-paths closed until the columns are unified", () => {
-    // The adapter lowers `scores.<name>` onto the canonical scores_avg /
-    // score_categories / score_booleans columns. Experiments names its score
-    // columns obs_* / trace_*, so an open `scores.` here would emit a filter on
-    // a column this view does not have.
+  it("opens `scores.` and keeps `traceScores.` closed", () => {
+    // `scores.<name>` lowers onto the canonical scores_avg / score_categories /
+    // score_booleans columns, which is what this view filters on. Those columns
+    // already match at trace level, so a separate `traceScores.` namespace would
+    // offer a second way to say the same thing — against `trace_*` columns the
+    // sidebar no longer offers.
     expect(
       EXPERIMENTS_FIELD_REGISTRY.resolveField("scores.groundedness"),
-    ).toBeNull();
+    ).toEqual({
+      type: "scores",
+      key: "groundedness",
+      level: "observation",
+    });
     expect(EXPERIMENTS_FIELD_REGISTRY.resolveField("traceScores.x")).toBeNull();
     // Metadata is unaffected — that column exists under its canonical name.
     expect(EXPERIMENTS_FIELD_REGISTRY.resolveField("metadata.owner")).toEqual({
       type: "metadata",
       key: "owner",
     });
+  });
+
+  it("renders a score filter the sidebar set", () => {
+    // The sidebar and the bar edit ONE filter state, so a score filter added in
+    // the sidebar has to show up as a token — otherwise the bar reads as though
+    // no score filter were applied.
+    const derived = filterStateToQueryText(
+      [
+        {
+          type: "numberObject",
+          column: "scores_avg",
+          key: "citation_usable_rate",
+          operator: "=",
+          value: 4,
+        },
+      ],
+      {},
+      EXPERIMENTS_FIELD_REGISTRY,
+    );
+
+    expect(derived.text).toBe("scores.citation_usable_rate:4");
+    expect(derived.skippedFilters).toEqual([]);
   });
 
   it("rewrites a bare word onto the experiment name", () => {

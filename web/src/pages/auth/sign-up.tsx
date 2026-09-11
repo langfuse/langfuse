@@ -30,13 +30,14 @@ import { PasswordInput } from "@/src/components/design-system/PasswordInput/Pass
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
-import { captureUnknownError } from "@/src/utils/captureUnknownError";
+import { reportError } from "@/src/utils/reportError";
+import { isJsonParseSyntaxError } from "@/src/features/auth/lib/expectedAuthErrors";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
 import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
 
-// Use the same getServerSideProps function as src/pages/auth/sign-in.tsx
+// Use the same getServerSideProps function as src/features/auth/SignInPage.tsx
 export { getServerSideProps } from "@/src/pages/auth/sign-in";
 
 type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
@@ -183,7 +184,11 @@ function StandardSignupFlow({
         }
       }, 100);
     } catch (error) {
-      captureUnknownError("auth.signUp.checkSso", error);
+      reportError(error, {
+        area: "auth.signUp.checkSso",
+        expected: isJsonParseSyntaxError(error),
+        extra: { context: "auth.signUp.checkSso" },
+      });
       setFormError("Unable to check SSO configuration. Please try again.");
     } finally {
       setContinueLoading(false);

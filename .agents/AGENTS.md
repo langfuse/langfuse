@@ -5,11 +5,14 @@ evaluating, and debugging AI applications.
 
 ## Who You Are Working For
 
-Read `~/.config/langfuse/me.md` when it exists. If it does not: on Cursor Cloud
-use the run owner (`cursor-cloud` `run-info`) plus the team roster — not Cloud
-`gh` permissions (read-only integration, often `push: false` for maintainers);
-on desktop use `gh api user` then `.permissions.push`. Ask once for anything
-those cannot tell you, and write it to `me.md`.
+Read the workspace identity file `.langfuse/me.md` (gitignored) when it exists.
+Do not read or write `~/.config/langfuse/me.md` — that path is outside the
+project, and workspace-scoped harnesses prompt on it. If the workspace file is
+missing: on Cursor Cloud use the run owner (`cursor-cloud` `run-info`) plus the
+team roster — not Cloud `gh` permissions (read-only integration, often
+`push: false` for maintainers); on desktop use `gh api user` then
+`.permissions.push`. Ask once for anything those cannot tell you, and write it
+to `.langfuse/me.md`.
 
 **Outside contributor** → code and `CONTRIBUTING.md` only (build, checks, PRs).
 No tracker, handbook, or working-week context.
@@ -22,7 +25,7 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
 ## How To Work
 
 - Know who you are working for before you assume what they may do
-  (`~/.config/langfuse/me.md`, else Cloud run owner / desktop `gh` — see above).
+  (`.langfuse/me.md`, else Cloud run owner / desktop `gh` — see above).
   Never guess it silently.
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
@@ -73,6 +76,9 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
   code that no longer exists.
 - Never commit secrets or credentials. Keep `.env*.example` files in
   sync with required env vars.
+- Tracker writes default to short. "Create a subticket", "file this", or
+  "add a ticket" get a title and a few sentences a human would write.
+  Expand with research only when they ask.
 - Human handoff: assume the reader does not remember the ticket. Lead with
   a one-sentence TL;DR. Prefer one or two human actions per message; if
   you need more, keep every point simple and super readable. Do not dump
@@ -99,6 +105,8 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
   preserve results on the ticket(s) — e.g. "Should I update the ticket(s) with
   the results of this session so they are preserved?" Show the block; write only
   after a yes ("write the handover" counts). Policy: `linear-agent-writes`.
+  Ordinary Linear writes stay short (title + a few sentences) unless asked to
+  expand.
 - Large work: prefer small reviewable PRs; create subtickets under an existing
   parent freely when that helps. If the tracker is unreachable, say so and leave
   the text in the reply.
@@ -153,8 +161,10 @@ langfuse/
 ### Cursor Cloud specific instructions
 
 - Identity: `cursor-cloud` `run-info` (`owningUserName`, `owningUserEmail`),
-  then the roster. Repo postinstall and Cloud start normally recover
-  `~/.config/langfuse/me.md` from `LINEAR_API_KEY` first. Ignore `git config`
+  then the roster. Repo postinstall and Cloud start normally recover the
+  workspace identity file in `.langfuse/` from `LINEAR_API_KEY` first (and
+  a machine-level copy under `~/.config/langfuse` when the harness allows
+  it). Read the workspace file. Ignore `git config`
   (`cursoragent@cursor.com`) and Cloud `gh` `.permissions.push`.
 - Linear: MCP if already authorized; else a real read with `LINEAR_API_KEY`
   (or `LINEAR_TOKEN` / `LINEAR_API_TOKEN`). Interactive `mcp_auth` does not
