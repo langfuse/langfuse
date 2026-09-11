@@ -1628,63 +1628,67 @@ describe("Clickhouse Experiment Items Repository Test", () => {
       ).toBe(true);
     });
 
-    it("returns a payload that is entirely JSON null as absent, and keeps a nested null", async () => {
-      // A null payload is serialized like any other document, so it is stored
-      // as the four characters `null` — text the table would render as the word
-      // `null`. A null INSIDE a document is content and must survive.
-      const experimentId = randomUUID();
+    it("passes a payload of the four characters null through untouched", async () => {
+      // A native experiment writes I/O through stringifyValue, which returns a
+      // string unchanged — so an expected output that legitimately IS the
+      // string "null" is byte-identical to a serialized JSON null. Guessing
+      // would erase the real value, and the baseline fallback below would then
+      // reach for ANOTHER run's value and show that instead. So the text is
+      // passed through, and the baseline still wins.
+      const baselineExpId = randomUUID();
+      const compExpId = randomUUID();
       const datasetId = randomUUID();
-      const nullItemId = randomUUID();
-      const nestedItemId = randomUUID();
+      const itemId = randomUUID();
 
-      const events = [
-        { itemId: nullItemId, input: "null", output: "null", expected: "null" },
-        {
-          itemId: nestedItemId,
-          input: '{"context":null}',
-          output: '{"answer":null}',
-          expected: '{"mustCite":null}',
-        },
-      ].map(({ itemId, input, output, expected }) => {
-        const traceId = randomUUID();
-        const rootSpanId = randomUUID();
-        return createExperimentEvent({
+      const root1Id = randomUUID();
+      const root2Id = randomUUID();
+
+      await createEventsCh([
+        createExperimentEvent({
           project_id: projectId,
-          trace_id: traceId,
-          span_id: rootSpanId,
-          experimentId,
-          experimentName: "null-io-exp",
+          trace_id: randomUUID(),
+          span_id: root1Id,
+          experimentId: baselineExpId,
+          experimentName: "baseline-exp",
           datasetId,
           itemId,
-          experimentItemRootSpanId: rootSpanId,
-          input,
-          output,
-          experiment_item_expected_output: expected,
+          experimentItemRootSpanId: root1Id,
+          input: "null",
+          output: "null",
+          experiment_item_expected_output: "null",
           start_time: Date.now() * 1000,
-        });
-      });
-
-      await createEventsCh(events);
+        }),
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          span_id: root2Id,
+          experimentId: compExpId,
+          experimentName: "comp-exp",
+          datasetId,
+          itemId,
+          experimentItemRootSpanId: root2Id,
+          input: "a real input",
+          output: "a real output",
+          experiment_item_expected_output: "a real expected output",
+          start_time: Date.now() * 1000,
+        }),
+      ]);
 
       const result = await getExperimentItemsBatchIO({
         projectId,
-        itemIds: [nullItemId, nestedItemId],
-        baseExperimentId: experimentId,
-        compExperimentIds: [],
+        itemIds: [itemId],
+        baseExperimentId: baselineExpId,
+        compExperimentIds: [compExpId],
       });
 
       expect(result[0]).toMatchObject({
-        itemId: nullItemId,
-        input: null,
-        expectedOutput: null,
-        outputs: [{ experimentId, output: null }],
+        itemId,
+        input: "null",
+        expectedOutput: "null",
       });
-      expect(result[1]).toMatchObject({
-        itemId: nestedItemId,
-        input: '{"context":null}',
-        expectedOutput: '{"mustCite":null}',
-        outputs: [{ experimentId, output: '{"answer":null}' }],
-      });
+      expect(
+        result[0].outputs.find((o) => o.experimentId === baselineExpId)?.output,
+      ).toBe("null");
     });
   });
 });

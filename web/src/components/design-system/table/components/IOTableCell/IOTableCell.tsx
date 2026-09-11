@@ -239,7 +239,10 @@ export const IOTableCell = memo(function IOTableCell({
     );
   }
 
-  if (!enableExpandOnHover) {
+  // The expand card renders `data` itself, so an empty payload would come back
+  // as `null` on hover even though the cell body shows the empty treatment.
+  // Nothing to expand, no card.
+  if (!enableExpandOnHover || !stringifiedJson) {
     return content;
   }
 

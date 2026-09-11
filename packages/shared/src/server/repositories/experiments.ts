@@ -4,7 +4,6 @@ import { env } from "../../env";
 import { type ScoreSourceType } from "../../domain";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
-import { nullIfJsonNull } from "../../utils/json";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import {
   FilterList,
@@ -1501,27 +1500,31 @@ export const getExperimentItemsBatchIO = async (props: {
     const isBaseline =
       baseExperimentId && row.experiment_id === baseExperimentId;
 
-    // A payload ingested as the JSON literal `null` comes back as the four
-    // characters `null` — it carries nothing, so it reads back as absent
-    // rather than reaching the table as text it would render as a value.
-    const input = nullIfJsonNull(row.input);
-    const expectedOutput = nullIfJsonNull(row.expected_output);
+    // The stored text is passed through verbatim, deliberately. A payload that
+    // is the JSON literal `null` and a payload that is the four-character
+    // STRING "null" are byte-identical here: the native experiment path writes
+    // both through stringifyValue, which returns a string unchanged, while the
+    // dataset-run-item path JSON-encodes (so there a string arrives quoted).
+    // One column, two encodings, no way to tell them apart — so guessing would
+    // erase a real value, and in the fallback below it would go further and
+    // substitute a DIFFERENT run's value in its place. Absent payloads are
+    // handled where they are unambiguous, in the cell.
 
     // Use baseline value if available, otherwise first non-null
-    if (input !== null && (isBaseline || item.input === null)) {
-      item.input = input;
+    if (row.input !== null && (isBaseline || item.input === null)) {
+      item.input = row.input;
     }
     if (
-      expectedOutput !== null &&
+      row.expected_output !== null &&
       (isBaseline || item.expectedOutput === null)
     ) {
-      item.expectedOutput = expectedOutput;
+      item.expectedOutput = row.expected_output;
     }
 
     // Collect output from all experiments
     item.outputs.push({
       experimentId: row.experiment_id,
-      output: nullIfJsonNull(row.output),
+      output: row.output,
     });
   }
 

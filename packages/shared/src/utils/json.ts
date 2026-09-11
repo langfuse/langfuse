@@ -474,20 +474,6 @@ export const parseJsonPrioritised = (
 export const parseJsonIfString = (value: unknown): unknown =>
   typeof value === "string" ? parseJsonPrioritised(value) : value;
 
-/**
- * Maps a serialized payload that is the JSON literal `null` back to an absent
- * value. A null payload is serialized like any other document, so it is stored
- * and read back as the four characters `null` — text a viewer then renders as
- * the word `null`, which a reader takes for data rather than for the nothing
- * it is.
- *
- * Only a payload that is ENTIRELY nothing disappears: a `null` nested inside a
- * document (`{"context":null}`) is real content and passes through untouched.
- */
-export const nullIfJsonNull = (
-  value: string | null | undefined,
-): string | null => (value == null || value.trim() === "null" ? null : value);
-
 export function safeJsonParse(value: string): unknown {
   try {
     return JSON.parse(value);

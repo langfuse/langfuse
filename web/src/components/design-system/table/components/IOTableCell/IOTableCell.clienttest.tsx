@@ -24,13 +24,30 @@ describe("IOTableCell", () => {
     // A payload that carries no value must not read as one — `null` is what a
     // reader takes for data. It gets the em dash, plus the word behind it: a
     // dash alone reaches a screen reader as punctuation.
+    //
+    // The expand-on-hover affordance has to be gone too, not just the body:
+    // the card it opens renders the payload itself, so it would show `null`
+    // on hover. Asserted through the trigger's own class, because the card
+    // only mounts its content once a real hover has opened it.
     for (const data of [null, undefined, ""]) {
-      const { unmount } = renderCell({ data });
-      expect(screen.queryByText("null")).not.toBeInTheDocument();
+      const { container, unmount } = renderCell({
+        data,
+        enableExpandOnHover: true,
+      });
       expect(screen.getByText("—")).toBeInTheDocument();
       expect(screen.getByText("No value")).toBeInTheDocument();
+      expect(screen.queryByText("null")).not.toBeInTheDocument();
+      expect(container.querySelector(".group\\/io-cell")).toBeNull();
       unmount();
     }
+  });
+
+  it("keeps the expand affordance when there is something to expand", () => {
+    const { container } = renderCell({
+      data: { context: null },
+      enableExpandOnHover: true,
+    });
+    expect(container.querySelector(".group\\/io-cell")).not.toBeNull();
   });
 
   it("keeps a null nested inside a payload", () => {

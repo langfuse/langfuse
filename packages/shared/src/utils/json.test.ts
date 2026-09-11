@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { nullIfJsonNull, parseJsonPrioritised } from "./json";
+import { parseJsonPrioritised } from "./json";
 
 // Focused on the precision path (UNSAFE_NUMBER_PATTERN hit -> source-access
 // reviver). Complementary coverage elsewhere: basic parseJsonPrioritised
@@ -51,19 +51,5 @@ describe("parseJsonPrioritised precision path", () => {
     expect(parseJsonPrioritised('{"a": 1, "a": 9223372036854775807}')).toEqual({
       a: "9223372036854775807",
     });
-  });
-});
-
-describe("nullIfJsonNull", () => {
-  it("reads a payload that is entirely JSON null as absent", () => {
-    // A null payload is serialized like any other document, so it arrives as
-    // the four characters `null` and would otherwise render as that word.
-    expect(nullIfJsonNull("null")).toBeNull();
-    expect(nullIfJsonNull(" null\n")).toBeNull();
-  });
-
-  it("keeps a null nested inside a document", () => {
-    expect(nullIfJsonNull('{"context":null}')).toBe('{"context":null}');
-    expect(nullIfJsonNull("nullable")).toBe("nullable");
   });
 });
