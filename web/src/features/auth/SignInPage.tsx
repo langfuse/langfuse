@@ -25,7 +25,6 @@ import {
 } from "react-icons/si";
 import { TbBrandAzure, TbBrandOauth } from "react-icons/tb";
 import { signIn, useSession } from "next-auth/react";
-import Head from "next/head";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
@@ -772,25 +771,15 @@ export default function SignInPage({
   }
 
   if (previewAutoSignInEnabled && previewAutoSignInPending) {
-    return (
-      <>
-        <Head>
-          <title>Sign in | Langfuse</title>
-        </Head>
-        <Spinner message={`Signing in as ${PREVIEW_DEMO_USER_EMAIL}`} />
-      </>
-    );
+    return <Spinner message={`Signing in as ${PREVIEW_DEMO_USER_EMAIL}`} />;
   }
 
   return (
     <>
-      <Head>
-        <title>Sign in | Langfuse</title>
-      </Head>
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <div className="mx-auto w-fit">
-            <LangfuseIcon />
+            <LangfuseIcon alt="" />
           </div>
           <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
             Sign in to your account
