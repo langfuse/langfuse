@@ -26,10 +26,25 @@ const CHUNK_SIZE = 1_000;
 const RUN_BUDGET_MS = 10_000;
 const MAX_TRACES_PER_RUN = 10_000;
 
+// Retain traces for a bounded time after readiness. Reuse the due index so
+// cleanup needs neither a full hash scan nor expiry of shared Redis keys.
+const EXPIRE_PENDING_SCRIPT = `
+  local function expirePending(now, retention, limit)
+    local expired = redis.call('ZRANGE', KEYS[1], '-inf', now - retention,
+      'BYSCORE', 'LIMIT', 0, limit)
+    for _, member in ipairs(expired) do
+      redis.call('ZREM', KEYS[1], member)
+      redis.call('HDEL', KEYS[2], member)
+    end
+    return #expired
+  end
+`;
+
 const TRACK_SCRIPT = `
+  ${EXPIRE_PENDING_SCRIPT}
   local clock = redis.call('TIME')
   local now = clock[1] * 1000 + math.floor(clock[2] / 1000)
-  for i = 2, #ARGV, 4 do
+  for i = 3, #ARGV, 4 do
     local member = ARGV[i]
     local minStart = tonumber(ARGV[i + 1])
     local maxStart = tonumber(ARGV[i + 2])
@@ -44,19 +59,24 @@ const TRACK_SCRIPT = `
     }))
     redis.call('ZADD', KEYS[1], now + tonumber(ARGV[1]), member)
   end
-  return (#ARGV - 1) / 4
+  return expirePending(now, tonumber(ARGV[2]), ${CHUNK_SIZE})
 `;
 
 // Snapshot metadata with readiness: an arrival between a separate ZRANGE and
 // HMGET must not make a future revision eligible for immediate processing.
 const SNAPSHOT_SCRIPT = `
+  ${EXPIRE_PENDING_SCRIPT}
   local clock = redis.call('TIME')
   local now = clock[1] * 1000 + math.floor(clock[2] / 1000)
+  local limit = tonumber(ARGV[1])
+  local retention = tonumber(ARGV[2])
+  local expired = expirePending(now, retention, limit)
+  local cutoff = '(' .. tostring(now - retention)
   local first = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
   local result = {now, redis.call('ZCARD', KEYS[1]),
-    redis.call('ZCOUNT', KEYS[1], '-inf', now), first[2] or tostring(now)}
-  local due = redis.call('ZRANGE', KEYS[1], '-inf', now,
-    'BYSCORE', 'LIMIT', 0, ARGV[1], 'WITHSCORES')
+    redis.call('ZCOUNT', KEYS[1], cutoff, now), first[2] or tostring(now), expired}
+  local due = redis.call('ZRANGE', KEYS[1], cutoff, now,
+    'BYSCORE', 'LIMIT', 0, limit - expired, 'WITHSCORES')
   for i = 1, #due, 2 do
     local state = redis.call('HGET', KEYS[2], due[i])
     if state then
@@ -129,20 +149,24 @@ export async function trackTraceBatchActivity(
     // Bounded scripts keep ingestion from monopolizing the global Redis slot.
     for (let offset = 0; offset < entries.length; offset += CHUNK_SIZE) {
       const chunk = entries.slice(offset, offset + CHUNK_SIZE);
-      await redis.eval(
-        TRACK_SCRIPT,
-        2,
-        DUE_KEY,
-        STATE_KEY,
-        env.LANGFUSE_TRACE_BATCH_IDLE_MS,
-        ...chunk.flatMap(([traceId, state]) => [
-          JSON.stringify([projectId, traceId]),
-          state.minStart,
-          state.maxStart,
-          // Unique even after dispatch deletes and a later arrival recreates state.
-          randomUUID(),
-        ]),
+      const expired = Number(
+        await redis.eval(
+          TRACK_SCRIPT,
+          2,
+          DUE_KEY,
+          STATE_KEY,
+          env.LANGFUSE_TRACE_BATCH_IDLE_MS,
+          env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
+          ...chunk.flatMap(([traceId, state]) => [
+            JSON.stringify([projectId, traceId]),
+            state.minStart,
+            state.maxStart,
+            // Unique even after dispatch deletes and a later arrival recreates state.
+            randomUUID(),
+          ]),
+        ),
       );
+      recordIncrement("langfuse.trace_batch.expired_traces", expired);
       recordIncrement("langfuse.trace_batch.tracked_traces", chunk.length);
     }
   } catch (error) {
@@ -196,11 +220,11 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
     const queue = TraceBatchQueue.getInstance();
     if (!queue) throw new Error("Trace batch queue is unavailable");
     const started = Date.now();
-    let dispatched = 0;
+    let processed = 0;
 
     while (
       !this.stopping &&
-      dispatched < MAX_TRACES_PER_RUN &&
+      processed < MAX_TRACES_PER_RUN &&
       Date.now() - started < RUN_BUDGET_MS
     ) {
       await this.extendLockOnProgress(true);
@@ -209,23 +233,31 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         2,
         DUE_KEY,
         STATE_KEY,
-        CHUNK_SIZE,
+        Math.min(CHUNK_SIZE, MAX_TRACES_PER_RUN - processed),
+        env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
       )) as (string | number)[];
-      const [now, pending, ready, oldest] = snapshot.slice(0, 4).map(Number);
+      const [now, pending, ready, oldest, expired] = snapshot
+        .slice(0, 5)
+        .map(Number);
+      processed += expired;
+      recordIncrement("langfuse.trace_batch.expired_traces", expired);
       recordGauge("langfuse.trace_batch.pending_traces", pending);
       recordGauge("langfuse.trace_batch.ready_traces", ready);
       recordGauge(
         "langfuse.trace_batch.oldest_due_age_ms",
         Math.max(0, now - oldest),
       );
-      if (snapshot.length === 4) return;
+      if (snapshot.length === 5) {
+        if (expired === 0) return;
+        continue;
+      }
 
       const entries: {
         member: string;
         due: number;
         trace: TQueueJobTypes[QueueName.TraceBatch]["payload"]["traces"][number];
       }[] = [];
-      for (let i = 4; i < snapshot.length; i += 3) {
+      for (let i = 5; i < snapshot.length; i += 3) {
         const member = String(snapshot[i]);
         const [projectId, traceId] = JSON.parse(member) as [string, string];
         const trace = TraceBatchTraceSchema.parse({
@@ -292,7 +324,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
           "langfuse.trace_batch.reactivated_traces",
           batch.length - removed,
         );
-        dispatched += batch.length;
+        processed += batch.length;
       }
     }
   }

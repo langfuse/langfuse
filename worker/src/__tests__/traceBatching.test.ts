@@ -59,6 +59,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   const originalEnabled = env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED;
   const originalSamplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
   const originalMaxSize = env.LANGFUSE_TRACE_BATCH_MAX_SIZE;
+  const originalPendingTtl = env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS;
   let queue: Queue<TQueueJobTypes[QueueName.TraceBatch]>;
   let connection: NonNullable<ReturnType<typeof createNewRedisInstance>>;
   const runners: TraceBatchDispatcher[] = [];
@@ -79,13 +80,18 @@ describe("trace micro-batch scheduling with Redis", () => {
   };
   async function makeDue(projectId: string, ...traceIds: string[]) {
     for (const traceId of traceIds)
-      await client().zadd(dueKey, 0, member(projectId, traceId));
+      await client().zadd(
+        dueKey,
+        Date.now() - 10_000,
+        member(projectId, traceId),
+      );
   }
 
   beforeEach(async () => {
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 1;
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 60;
+    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 7_200_000;
     await client().del(dueKey, stateKey, "{trace-batch}:dispatcher");
     const redisConnection = createNewRedisInstance();
     if (!redisConnection) throw new Error("Redis is required for this test");
@@ -104,6 +110,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = originalEnabled;
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = originalSamplingRate;
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE = originalMaxSize;
+    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = originalPendingTtl;
     await queue.obliterate({ force: true });
     await queue.close();
     connection.disconnect();
@@ -400,7 +407,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       await client().zadd(
         dueKey,
         ...traces.flatMap((traceId, index) => [
-          index + 1,
+          Date.now() - 1_000 + index,
           member("project", traceId),
         ]),
       );
@@ -461,6 +468,89 @@ describe("trace micro-batch scheduling with Redis", () => {
     },
   );
 
+  it("expires bounded pending state during ingestion without dispatch and preserves refreshed traces", async () => {
+    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 60_000;
+    const expired = Array.from({ length: 1_001 }, (_, i) =>
+      event(`expired-${i}`),
+    );
+    await trackTraceBatchActivity("project", [
+      ...expired,
+      event("refreshed"),
+      event("recent"),
+    ]);
+    const cutoff = Date.now() - 70_000;
+    await client().zadd(
+      dueKey,
+      ...expired.flatMap(({ traceId }) => [cutoff, member("project", traceId)]),
+      cutoff,
+      member("project", "refreshed"),
+    );
+    await makeDue("project", "recent");
+    await trackTraceBatchActivity("project", [event("refreshed", 2_000_000)]);
+    expect(await client().zcard(dueKey)).toBe(3);
+    expect(await client().hlen(stateKey)).toBe(3);
+    expect(
+      await client().hget(stateKey, member("project", "recent")),
+    ).not.toBeNull();
+    expect(
+      Number(await client().zscore(dueKey, member("project", "refreshed"))),
+    ).toBeGreaterThan(Date.now());
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.expired_traces",
+      1_000,
+    );
+    await trackTraceBatchActivity("project", [event("refreshed", 3_000_000)]);
+    expect((await client().hkeys(stateKey)).sort()).toEqual([
+      member("project", "recent"),
+      member("project", "refreshed"),
+    ]);
+    expect(await client().zcard(dueKey)).toBe(2);
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.expired_traces",
+      1,
+    );
+    expect(await queue.getWaitingCount()).toBe(0);
+  });
+
+  it("bounds expiry work per dispatcher run and never queues an expired backlog", async () => {
+    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 60_000;
+    const expired = Array.from({ length: 10_001 }, (_, i) =>
+      event(`expired-${i}`),
+    );
+    await trackTraceBatchActivity("project", [...expired, event("ready")]);
+    await client().zadd(
+      dueKey,
+      ...expired.flatMap(({ traceId }) => [
+        Date.now() - 70_000,
+        member("project", traceId),
+      ]),
+    );
+    await makeDue("project", "ready");
+    env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
+    const dispatcher = runner();
+    await dispatcher.processBatch();
+    expect(await client().hlen(stateKey)).toBe(2);
+    expect(await client().zcard(dueKey)).toBe(2);
+    expect(await queue.getWaitingCount()).toBe(0);
+    await dispatcher.processBatch();
+    const jobs = await queue.getJobs(["wait"]);
+    expect(
+      jobs.flatMap((job) =>
+        job.data.payload.traces.map((trace) => trace.traceId),
+      ),
+    ).toEqual(["ready"]);
+    expect(await client().hlen(stateKey)).toBe(0);
+    expect(await client().zcard(dueKey)).toBe(0);
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(
+          ([name]) => name === "langfuse.trace_batch.expired_traces",
+        )
+        .reduce((sum, [, value]) => sum + value, 0),
+    ).toBe(10_001);
+  });
+
   it("keeps due state on enqueue failure and retries it on the next dispatch", async () => {
     await trackTraceBatchActivity("project", [event("trace")]);
     await makeDue("project", "trace");
@@ -476,15 +566,25 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(await client().zcard(dueKey)).toBe(0);
   });
 
-  it.each([false, true])(
+  it.each(["updated", "deleted", "expired"] as const)(
     "preserves arrivals during enqueue, including deleted/recreated state: %s",
-    async (recreate) => {
+    async (mode) => {
       await trackTraceBatchActivity("project", [event("trace")]);
       await makeDue("project", "trace");
       const add = queue.add.bind(queue);
       vi.spyOn(queue, "add").mockImplementationOnce(async (...args) => {
         const job = await add(...args);
-        if (recreate) await client().hdel(stateKey, member("project", "trace"));
+        if (mode === "deleted")
+          await client().hdel(stateKey, member("project", "trace"));
+        if (mode === "expired") {
+          await client().zadd(dueKey, 0, member("project", "trace"));
+          await trackTraceBatchActivity("other", [event("trigger")]);
+          expect(
+            await client().hget(stateKey, member("project", "trace")),
+          ).toBeNull();
+          await client().zrem(dueKey, member("other", "trigger"));
+          await client().hdel(stateKey, member("other", "trigger"));
+        }
         await trackTraceBatchActivity("project", [event("trace", 2_000_000)]);
         return job;
       });

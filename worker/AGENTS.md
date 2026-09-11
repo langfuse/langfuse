@@ -25,6 +25,9 @@
   `LANGFUSE_TRACE_BATCH_SAMPLING_RATE` is a 0–1 admission rate (default 1),
   using evaluator sampling by trace ID before Redis; queued work is not resampled.
   Stop intake first and keep dispatcher/consumer running to drain pending work.
+  Pending entries are pruned atomically from due/state during ingestion and
+  dispatch after `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS` past readiness (default
+  two hours). This is opportunistic retention, not native Redis key expiry.
 - Feature processors: `src/features/*`
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`

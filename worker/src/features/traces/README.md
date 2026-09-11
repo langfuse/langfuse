@@ -39,16 +39,17 @@ I/O/metadata bytes are retained in job results.
 All enablement flags default to `false`. Sampling defaults to `1` (100%), so
 enabled intake tracks every eligible trace unless a lower rate is configured.
 
-| Setting                                       | Default  | Purpose                                            |
-| --------------------------------------------- | -------- | -------------------------------------------------- |
-| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | `false`  | Track accepted direct-v4 event writes in Redis     |
-| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`          | `1`      | Stable trace admission fraction, 0–1 (`0.1` = 10%) |
-| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`  | Turn ready state into queue jobs                   |
-| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`  | Consume existing `trace-batch` jobs                |
-| `LANGFUSE_TRACE_BATCH_CONCURRENCY`            | `2`      | Concurrent reads **per enabled worker process**    |
-| `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`     | Cross-project trace cap per job (1–1,000)          |
-| `LANGFUSE_TRACE_BATCH_IDLE_MS`                | `600000` | Inactivity before a trace becomes due              |
-| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`   | `30000`  | Delay between dispatcher runs                      |
+| Setting                                       | Default   | Purpose                                                     |
+| --------------------------------------------- | --------- | ----------------------------------------------------------- |
+| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | `false`   | Track accepted direct-v4 event writes in Redis              |
+| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`          | `1`       | Stable trace admission fraction, 0–1 (`0.1` = 10%)          |
+| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`   | Turn ready state into queue jobs                            |
+| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`   | Consume existing `trace-batch` jobs                         |
+| `LANGFUSE_TRACE_BATCH_CONCURRENCY`            | `2`       | Concurrent reads **per enabled worker process**             |
+| `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`      | Cross-project trace cap per job (1–1,000)                   |
+| `LANGFUSE_TRACE_BATCH_IDLE_MS`                | `600000`  | Inactivity before a trace becomes due                       |
+| `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`         | `7200000` | Retention after readiness, pruned during ingestion/dispatch |
+| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`   | `30000`   | Delay between dispatcher runs                               |
 
 Deploy with flags off. Start consumers on a small, known number of worker
 processes, enable the dispatcher, then enable intake on direct-v4 ingestion
@@ -131,6 +132,7 @@ Also inspect these metrics under `langfuse.trace_batch`:
 | `sampling_decisions`                                            | Distinct trace decisions per ingestion job, counter tagged `decision:selected` or `decision:excluded` |
 | `tracked_traces`, `tracking_errors`                             | Successful state updates and failed tracking calls, counters                                          |
 | `pending_traces`, `ready_traces`                                | Global due-set depth and currently due subset, gauges                                                 |
+| `expired_traces`                                                | Pending trace entries discarded after retention, counter                                              |
 | `oldest_due_age_ms`, `due_lag_ms`                               | Oldest backlog age gauge and per-dispatch trace lag distribution                                      |
 | `reactivated_traces`                                            | Acknowledgements that preserved changed revisions, counter                                            |
 | `observation_count`, `found_trace_count`, `missing_trace_count` | Per-consumer-attempt read coverage distributions                                                      |
@@ -172,9 +174,22 @@ the cap is an experiment setting, not an established production optimum.
   bounded completed-job retention reduce duplicates, but regrouping/retries can
   repeat reads. Metrics describe dispatches/read attempts, not exactly-once
   unique trace processing. A crash can also lose metric samples.
-- Pending state has no whole-key TTL: expiring either global key could lose
-  unrelated traces. The dispatcher removes acknowledged entries. Keeping intake
-  on while dispatch is off grows the active-state backlog.
+- Pending entries are retained for `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS` after
+  their due timestamp (two hours by default, or 2h10m after last activity with
+  the default idle delay). Each admitted ingestion chunk and dispatcher snapshot
+  atomically prunes at most 1,000 expired members from both due/state. An arrival
+  moves readiness forward before ingestion cleanup, preserving active traces.
+  Existing pending entries use the same cutoff; no migration or third index is
+  needed. Expired entries are discarded without enqueueing and counted in
+  `langfuse.trace_batch.expired_traces`. Already queued jobs are unaffected.
+  The dispatcher's 10,000-trace/10-second work budget includes expiry cleanup.
+- This is opportunistic retention, not native Redis TTL or a hard memory cap.
+  Ingestion cleanup runs even with the dispatcher disabled, but with both paths
+  stopped no entries are removed until activity resumes. Cleanup can lag behind
+  a large backlog; continuously active traces keep extending readiness. No
+  whole-key expiry is used because shared keys may still contain fresh traces.
+  Keep retention consistent across workers; a lower setting can discard existing
+  pending work. Monitor expiry counts alongside pending depth and oldest due age.
 - No query cache, materialized view, SQL transcript generation, or LLM calls
   are involved in this experiment.
 
