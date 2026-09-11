@@ -2,6 +2,7 @@ import { type JobConfiguration } from "@prisma/client";
 import { z } from "zod";
 import {
   EvalTargetObject,
+  coerceLegacyEmptyMetadataFilters,
   observationVariableMappingList,
   singleFilter,
   variableMappingList,
@@ -16,7 +17,9 @@ const dedupeStrings = (values: string[]): string[] => [
 ];
 
 const getFilterDimensions = (filter: JobConfiguration["filter"]): string[] => {
-  const parsedFilter = z.array(singleFilter).safeParse(filter);
+  const parsedFilter = z
+    .array(singleFilter)
+    .safeParse(coerceLegacyEmptyMetadataFilters(filter));
   if (!parsedFilter.success) return [];
 
   return dedupeStrings(parsedFilter.data.map(({ column }) => column));

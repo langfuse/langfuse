@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { singleFilter } from "../../interfaces/filters";
+import {
+  coerceLegacyEmptyMetadataFilters,
+  singleFilter,
+} from "../../interfaces/filters";
 import type { ColumnDefinition } from "../../tableDefinitions";
 import {
   evalDatasetFormFilterCols,
@@ -69,7 +72,9 @@ export function validateEvaluatorFiltersForTarget(params: {
   filter: unknown;
 }): EvaluatorFilterValidationResult {
   const columns = getSupportedColumnsForTarget(params.targetObject);
-  const parsedFilter = parsedFilterSchema.safeParse(params.filter);
+  const parsedFilter = parsedFilterSchema.safeParse(
+    coerceLegacyEmptyMetadataFilters(params.filter),
+  );
 
   if (!parsedFilter.success) {
     return {

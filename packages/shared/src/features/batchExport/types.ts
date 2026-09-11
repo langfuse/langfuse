@@ -2,7 +2,10 @@ import z from "zod";
 
 import { BatchExport } from "@prisma/client";
 
-import { singleFilter } from "../../interfaces/filters";
+import {
+  coerceLegacyEmptyMetadataFilters,
+  singleFilter,
+} from "../../interfaces/filters";
 import { orderBy } from "../../interfaces/orderBy";
 import { BatchTableNames } from "../../interfaces/tableNames";
 import {
@@ -53,7 +56,9 @@ export const exportOptions: Record<
 export const BatchExportQuerySchema = z
   .object({
     tableName: z.enum(BatchTableNames),
-    filter: z.array(singleFilter).nullable(),
+    filter: z
+      .preprocess(coerceLegacyEmptyMetadataFilters, z.array(singleFilter))
+      .nullable(),
     searchQuery: z.string().optional(),
     searchType: z.array(TracingSearchType).optional(),
     orderBy,
