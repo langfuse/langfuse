@@ -274,7 +274,6 @@ export default function ScoresTable({
   );
   const chartActive =
     chartEnabled && chartTimeRange !== undefined && chartViewMode === "chart";
-  const searchBarEnabled = !chartActive;
 
   // Drill-in from the outlier strip writes the clicked bucket as an absolute
   // range. URL-only and deliberately NOT persisted as the project's default
@@ -1114,18 +1113,16 @@ export default function ScoresTable({
             setTimeRange={setTimeRange}
           />
         )}
-        {searchBarEnabled && (
-          <ScoresSearchBar
-            key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
-            isV4={isV4}
-            projectId={projectId}
-            filterConfig={scoresFilterConfig}
-            filterState={queryFilter.searchBarFilterState}
-            setFilterState={setFiltersWrapper}
-            filterOptions={newFilterOptions}
-            isLoading={isSidebarFilterLoading}
-          />
-        )}
+        <ScoresSearchBar
+          key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+          isV4={isV4}
+          projectId={projectId}
+          filterConfig={scoresFilterConfig}
+          filterState={queryFilter.searchBarFilterState}
+          setFilterState={setFiltersWrapper}
+          filterOptions={newFilterOptions}
+          isLoading={isSidebarFilterLoading}
+        />
         {/* Toolbar spanning full width */}
         <DataTableToolbar
           columns={columns}
