@@ -27,11 +27,11 @@ export function EvaluatorAssistantHeaderAction(
       aria-haspopup={props.mode === "edit" ? "dialog" : undefined}
       onClick={props.onClick}
     >
+      <span>or say what should change</span>
       <BotMessageSquare
         aria-hidden="true"
-        className="mr-1 inline-block h-4 w-4 align-text-bottom"
+        className="ml-1 inline-block h-4 w-4 align-text-bottom"
       />
-      <span>or say what should change</span>
     </Button>
   );
 }

@@ -45,11 +45,19 @@ export const TriggersChangeDescription = meta.story({
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(
-      canvas.getByRole("button", {
-        name: "or say what should change",
-      }),
-    );
+    const action = canvas.getByRole("button", {
+      name: "or say what should change",
+    });
+    const label = within(action).getByText("or say what should change");
+    const icon = action.querySelector("svg.lucide-bot-message-square");
+
+    await expect(icon).toHaveAttribute("aria-hidden", "true");
+    await expect(
+      label.compareDocumentPosition(icon as SVGElement) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    await userEvent.click(action);
     await expect(args.onClick).toHaveBeenCalledOnce();
   },
 });
