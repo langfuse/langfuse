@@ -1,5 +1,5 @@
 import { useState, type ComponentProps } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../../../../../../../../.storybook/preview";
 import { PromptEditorContent } from "./PromptEditor";
@@ -68,6 +68,7 @@ export const MultipleMessages = meta.story({
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await expect(canvas.queryByText("3 messages")).not.toBeInTheDocument();
     const collapseButton = canvas.getByRole("button", {
       name: "Collapse system prompt message",
     });
@@ -77,6 +78,34 @@ export const MultipleMessages = meta.story({
     const roleTag = canvas.getByText("System");
     const toolbar = collapseButton.parentElement?.parentElement;
     if (!toolbar) throw new Error("Prompt toolbar not found");
+    const outerGroup = canvas.getByRole("button", {
+      name: "Add message",
+    }).previousElementSibling;
+    const editor =
+      toolbar.parentElement?.querySelector<HTMLElement>(".cm-editor");
+    if (!(outerGroup instanceof HTMLElement) || !editor) {
+      throw new Error("Prompt surfaces not found");
+    }
+    await expect(outerGroup).toHaveClass("bg-secondary");
+    await expect(toolbar).toHaveClass("bg-header", "text-header-foreground");
+    await expect(toolbar).not.toHaveClass("bg-secondary");
+    const surfaceColors = () =>
+      [outerGroup, toolbar, editor].map(
+        (surface) => getComputedStyle(surface).backgroundColor,
+      );
+    const lightSurfaceColors = surfaceColors();
+    await expect(new Set(lightSurfaceColors).size).toBe(3);
+    const root = canvasElement.ownerDocument.documentElement;
+    root.classList.add("dark");
+    try {
+      await waitFor(() => {
+        const darkSurfaceColors = surfaceColors();
+        expect(darkSurfaceColors).not.toEqual(lightSurfaceColors);
+        expect(new Set(darkSurfaceColors).size).toBe(3);
+      });
+    } finally {
+      root.classList.remove("dark");
+    }
 
     const expandedMetrics = {
       toolbarHeight: toolbar.getBoundingClientRect().height,
@@ -142,10 +171,9 @@ export const SharedPreviewStateAndHeight = meta.story({
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const previewSwitches = canvas.getAllByRole("switch", {
+    const previewSwitch = canvas.getByRole("switch", {
       name: "Preview",
     });
-    await expect(previewSwitches).toHaveLength(2);
 
     const promptSurfaces = canvas
       .getAllByRole("button", { name: /Collapse .* prompt message/ })
@@ -158,10 +186,8 @@ export const SharedPreviewStateAndHeight = meta.story({
       canvasElement.querySelectorAll<HTMLElement>(".cm-content"),
     );
 
-    await userEvent.click(previewSwitches[1]);
-    for (const previewSwitch of previewSwitches) {
-      await expect(previewSwitch).toBeChecked();
-    }
+    await userEvent.click(previewSwitch);
+    await expect(previewSwitch).toBeChecked();
 
     const previews = Array.from(canvasElement.querySelectorAll("pre"));
     await expect(previews).toHaveLength(2);
@@ -172,10 +198,30 @@ export const SharedPreviewStateAndHeight = meta.story({
       );
     });
 
-    await userEvent.click(previewSwitches[0]);
-    for (const previewSwitch of previewSwitches) {
-      await expect(previewSwitch).not.toBeChecked();
-    }
+    await userEvent.click(previewSwitch);
+    await expect(previewSwitch).not.toBeChecked();
+  },
+});
+
+export const PreviewUnavailable = meta.story({
+  name: "(Test) Preview unavailable",
+  render: () => (
+    <PromptEditorStory
+      messages={[{ role: "user", content: "Judge {{output}}." }]}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    const previewSwitch = canvas.getByRole("switch", { name: "Preview" });
+    const previewLabel = previewSwitch.closest("label");
+    if (!previewLabel) throw new Error("Preview label not found");
+
+    await expect(previewSwitch).toBeDisabled();
+    await expect(previewLabel).toHaveAttribute("tabindex", "0");
+    await expect(previewLabel).toHaveAttribute("aria-describedby");
+    await userEvent.hover(previewLabel);
+    await expect(page.getByRole("tooltip")).not.toBeEmptyDOMElement();
   },
 });
 
@@ -319,6 +365,11 @@ export const AddMessageWhilePreviewing = meta.story({
     if (!newPromptEditor) throw new Error("New prompt editor not found");
 
     await expect(
+      canvas.getByText(
+        "Describe what the judge should evaluate. Use {{variable}} to include sample data.",
+      ),
+    ).toBeVisible();
+    await expect(
       newPromptEditor.getBoundingClientRect().height,
     ).toBeGreaterThan(0);
     await userEvent.click(newPromptEditor);
@@ -352,7 +403,7 @@ export const CompactMixedStates = meta.story({
         {
           role: "system",
           content:
-            "You are an expert topic classifier. Follow the rubric and return only the expected output.",
+            "You are an expert topic-classification evaluator for user messages. You will receive one input and must assign exactly one topic from the predefined taxonomy.",
         },
         {
           role: "user",
@@ -383,6 +434,15 @@ export const CompactMixedStates = meta.story({
       expandedButton.parentElement?.parentElement?.getBoundingClientRect()
         .height,
     ).toBe(36);
+    const collapsedSummary = canvas.getByText(
+      "You are an expert topic-classification evaluator for user messages. You will receive one input and must assign exactly one topic from the predefined taxonomy.",
+    );
+    await userEvent.hover(collapsedSummary);
+    await expect(
+      within(canvasElement.ownerDocument.body).getByRole("tooltip"),
+    ).toHaveTextContent(
+      "You are an expert topic-classification evaluator for user messages. You will receive one input and must assign exactly one topic from the predefined taxonomy.",
+    );
   },
 });
 
@@ -400,7 +460,49 @@ export const SingleMessage = meta.story({
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.queryByText("User")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("1 message")).not.toBeInTheDocument();
+    await expect(canvas.getByText("User")).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Prompt message settings" }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "Edit with AI" }),
+    ).not.toBeInTheDocument();
+    await expect(canvas.getByText("Preview")).toBeVisible();
+    await expect(canvas.getByRole("switch", { name: "Preview" })).toBeVisible();
+
+    const collapseButton = canvas.getByRole("button", {
+      name: "Collapse user prompt message",
+    });
+    const toolbar = collapseButton.parentElement?.parentElement;
+    const editor =
+      toolbar?.parentElement?.querySelector<HTMLElement>(".cm-editor");
+    const outerGroup = canvas.getByRole("button", {
+      name: "Add message",
+    }).previousElementSibling;
+    if (!toolbar || !editor || !(outerGroup instanceof HTMLElement)) {
+      throw new Error("Prompt surfaces not found");
+    }
+    await expect(outerGroup).toHaveClass("bg-secondary");
+    await expect(toolbar).toHaveClass("bg-secondary");
+    await expect(toolbar).not.toHaveClass("bg-header");
+    const surfaceColors = () =>
+      [toolbar, editor].map(
+        (surface) => getComputedStyle(surface).backgroundColor,
+      );
+    const lightSurfaceColors = surfaceColors();
+    await expect(new Set(lightSurfaceColors).size).toBe(2);
+    const root = canvasElement.ownerDocument.documentElement;
+    root.classList.add("dark");
+    try {
+      await waitFor(() => {
+        const darkSurfaceColors = surfaceColors();
+        expect(darkSurfaceColors).not.toEqual(lightSurfaceColors);
+        expect(new Set(darkSurfaceColors).size).toBe(2);
+      });
+    } finally {
+      root.classList.remove("dark");
+    }
   },
 });
 

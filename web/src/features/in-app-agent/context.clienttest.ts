@@ -1,6 +1,24 @@
 // @vitest-environment node
 
-import { getInAppAgentScreenContextDescription } from "./context";
+import {
+  getInAppAgentScreenContextDescription,
+  sanitizeInAppAgentContext,
+} from "./context";
+
+it("includes sanitized feature screen context", () => {
+  expect(
+    sanitizeInAppAgentContext(
+      [
+        {
+          description: "selected_evaluator_sample",
+          value:
+            '{"projectId":"project-1","evaluatorId":"evaluator-1","observationId":"observation-1","traceId":"trace-1","startTime":"2026-09-03T07:45:00.000Z"}',
+        },
+      ],
+      "project-1",
+    ),
+  ).toHaveLength(1);
+});
 
 describe("getInAppAgentScreenContextDescription", () => {
   it.each([

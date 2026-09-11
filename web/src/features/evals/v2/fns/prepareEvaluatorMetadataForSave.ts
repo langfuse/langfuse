@@ -3,6 +3,7 @@ export async function prepareEvaluatorMetadataForSave({
   currentDescription,
   generateName,
   generateDescription,
+  fallbackName,
   setName,
   setDescription,
 }: {
@@ -10,6 +11,7 @@ export async function prepareEvaluatorMetadataForSave({
   currentDescription: string;
   generateName: (() => Promise<string | null>) | null;
   generateDescription: (() => Promise<string | null>) | null;
+  fallbackName?: string;
   setName: (name: string) => void;
   setDescription: (description: string) => void;
 }) {
@@ -23,11 +25,11 @@ export async function prepareEvaluatorMetadataForSave({
   ]);
   const generatedName = nameSuggestion?.trim() ?? "";
   const generatedDescription = descriptionSuggestion?.trim() ?? "";
-  const name = existingName || generatedName;
+  const name = existingName || generatedName || fallbackName?.trim() || "";
   const description = existingDescription || generatedDescription;
 
   if (!name) return null;
-  if (needsName && generatedName) setName(generatedName);
+  if (needsName && name) setName(name);
   if (needsDescription && generatedDescription) {
     setDescription(generatedDescription);
   }

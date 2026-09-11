@@ -12,6 +12,7 @@ import type { CodeEvalValidationResult } from "@/src/features/evals/utils/code-e
 
 export function EvaluatorSetupEditor({
   projectId,
+  evaluatorId,
   store,
   isEditing,
   defaultModel,
@@ -26,6 +27,7 @@ export function EvaluatorSetupEditor({
   codeValidationResult,
 }: {
   projectId: string;
+  evaluatorId: string;
   store: EvaluatorSetupStore;
   isEditing: boolean;
   defaultModel: JudgeModel | null;
@@ -47,6 +49,7 @@ export function EvaluatorSetupEditor({
     <div className="overflow-y-auto p-6">
       <DefinitionStepContainer
         projectId={projectId}
+        evaluatorId={evaluatorId}
         store={store}
         isEditing={isEditing}
         defaultModel={defaultModel}

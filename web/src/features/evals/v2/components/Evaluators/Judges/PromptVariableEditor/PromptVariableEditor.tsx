@@ -45,6 +45,12 @@ const readOnlySurfaceTheme = EditorView.theme({
   },
 });
 
+const editableSurfaceTheme = EditorView.theme({
+  "&.cm-editor, &.cm-editor .cm-gutters": {
+    backgroundColor: "hsl(var(--card))",
+  },
+});
+
 /** Mapping health of a variable against the selected sample data. */
 export type VariableMappingStatus = {
   status: "valid" | "invalid";
@@ -169,6 +175,9 @@ export function PromptVariableEditor({
   toolbarActions,
   onToolbarClick,
   collapsed = false,
+  surfaceVariant = "standalone",
+  placeholder,
+  toolbarVariant = "message",
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -204,6 +213,12 @@ export function PromptVariableEditor({
   onToolbarClick?: () => void;
   /** Hides the editor/preview while preserving the prompt header. */
   collapsed?: boolean;
+  /** Lets a grouped parent own the border radius and horizontal boundary. */
+  surfaceVariant?: "standalone" | "nested" | "nested-last";
+  /** Guidance shown while the prompt editor is empty. */
+  placeholder?: string;
+  /** Aligns a merged single-message toolbar with its owning group header. */
+  toolbarVariant?: "message" | "group";
 }) {
   // Statuses and labels travel as serialized keys and are parsed back inside
   // the memo, so the memo depends on their content rather than their identity.
@@ -224,7 +239,7 @@ export function PromptVariableEditor({
       ),
       variableTheme,
       Prec.highest(promptFontTheme),
-      ...(readOnly ? [Prec.highest(readOnlySurfaceTheme)] : []),
+      Prec.highest(readOnly ? readOnlySurfaceTheme : editableSurfaceTheme),
     ];
   }, [statusKey, mappingsKey, readOnly, validateVariableMappings]);
 
@@ -235,6 +250,8 @@ export function PromptVariableEditor({
         showPreviewToggle || toolbarActionsBeforePreview || toolbarActions,
       ));
   const activePreview = previewEnabled ? preview : undefined;
+  const isNested = surfaceVariant !== "standalone";
+  const isLastNested = surfaceVariant === "nested-last";
 
   return (
     <div className="flex flex-col">
@@ -243,9 +260,19 @@ export function PromptVariableEditor({
       {hasToolbar ? (
         <div
           className={cn(
-            "bg-secondary text-secondary-foreground flex h-9 items-center justify-between gap-1 rounded-t-md border px-1.5",
-            collapsed ? "rounded-b-md" : "border-b-transparent",
+            "flex h-9 items-center justify-between gap-1 border px-1.5",
+            surfaceVariant === "standalone" &&
+              "bg-secondary text-secondary-foreground rounded-t-md",
+            collapsed && surfaceVariant === "standalone" && "rounded-b-md",
+            !collapsed && "border-b-transparent",
+            isNested && "rounded-none border-x-0 border-t-0",
+            isNested &&
+              toolbarVariant === "message" &&
+              "bg-header text-header-foreground",
+            isLastNested && "border-b-0",
             onToolbarClick && "cursor-pointer",
+            toolbarVariant === "group" &&
+              "bg-secondary text-secondary-foreground",
           )}
           onClick={(event) => {
             if (!onToolbarClick) return;
@@ -301,13 +328,20 @@ export function PromptVariableEditor({
               onChange={onChange}
               editable={!readOnly}
               mode="prompt"
+              placeholder={placeholder}
               // Keep the editor mounted while previewing so it remains the
               // stable height anchor for both surfaces.
               minHeight={48}
               maxHeight="50dvh"
               lineNumbers={false}
               extensions={extensions}
-              className={cn(hasToolbar && "rounded-t-none", "text-sm")}
+              className={cn(
+                hasToolbar && "rounded-t-none",
+                !readOnly && "bg-card",
+                "text-sm",
+                isNested && "rounded-none border-x-0",
+                isLastNested && "border-b-0",
+              )}
             />
           </div>
           {activePreview ? (
@@ -315,6 +349,8 @@ export function PromptVariableEditor({
               <p
                 className={cn(
                   "ph-no-capture bg-muted/50 text-muted-foreground absolute inset-0 overflow-y-auto rounded-b-md border px-3 py-2 text-sm leading-5",
+                  isNested && "rounded-none border-x-0",
+                  isLastNested && "border-b-0",
                   previewSurface === "muted" &&
                     "bg-muted/50 text-muted-foreground",
                 )}
@@ -325,6 +361,8 @@ export function PromptVariableEditor({
               <pre
                 className={cn(
                   "ph-no-capture bg-muted/50 text-card-foreground absolute inset-0 overflow-y-auto rounded-b-md border px-3 py-2 font-sans text-sm leading-5 whitespace-pre-wrap",
+                  isNested && "rounded-none border-x-0",
+                  isLastNested && "border-b-0",
                   previewSurface === "muted" &&
                     "bg-muted/50 text-muted-foreground",
                 )}

@@ -3,10 +3,114 @@ import { describe, expect, it, vi } from "vitest";
 import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import {
   applyEvaluatorSuggestion,
+  getEvaluatorSetupHeaderState,
   getEvaluatorVersionDefinition,
+  navigateToEvaluatorDetail,
   restoreEvaluatorVersion,
   shouldOfferRuleAttachment,
 } from "./EvaluatorSetupPage";
+
+describe("getEvaluatorSetupHeaderState", () => {
+  it.each([
+    {
+      name: "create AI entry",
+      input: {
+        isEditing: false,
+        isScratchCreation: true,
+        isAssistantAvailable: true,
+        showAssistantScratch: true,
+      },
+      assistantAction: "none",
+    },
+    {
+      name: "create manual setup",
+      input: {
+        isEditing: false,
+        isScratchCreation: true,
+        isAssistantAvailable: true,
+        showAssistantScratch: false,
+      },
+      assistantAction: "create",
+    },
+    {
+      name: "existing evaluator",
+      input: {
+        isEditing: true,
+        isScratchCreation: false,
+        isAssistantAvailable: true,
+        showAssistantScratch: false,
+      },
+      assistantAction: "edit",
+    },
+  ] as const)(
+    "uses the Configure evaluator title in $name mode",
+    ({ input, assistantAction }) => {
+      expect(getEvaluatorSetupHeaderState(input)).toEqual({
+        title: "Configure evaluator",
+        assistantAction,
+      });
+    },
+  );
+});
+
+describe("navigateToEvaluatorDetail", () => {
+  it("warms evaluator data and the route before replacing the page", async () => {
+    const callOrder: string[] = [];
+    const prefetchEvaluator = vi.fn(async () => {
+      callOrder.push("evaluator");
+    });
+    const prefetchRoute = vi.fn(async () => {
+      callOrder.push("route");
+    });
+    const replace = vi.fn(async () => {
+      callOrder.push("replace");
+      return true;
+    });
+
+    await navigateToEvaluatorDetail({
+      projectId: "project-1",
+      evaluatorId: "evaluator-1",
+      prefetchEvaluator,
+      prefetchRoute,
+      replace,
+    });
+
+    const path = "/project/project-1/evals/evaluator-1";
+    expect(prefetchEvaluator).toHaveBeenCalledOnce();
+    expect(prefetchRoute).toHaveBeenCalledWith(path);
+    expect(replace).toHaveBeenCalledWith(path);
+    expect(callOrder.at(-1)).toBe("replace");
+  });
+
+  it("waits for remaining warm-ups when one prefetch fails", async () => {
+    let finishRoutePrefetch: () => void = () => undefined;
+    const prefetchRoute = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRoutePrefetch = resolve;
+        }),
+    );
+    const replace = vi.fn(async () => true);
+    const navigation = navigateToEvaluatorDetail({
+      projectId: "project-1",
+      evaluatorId: "evaluator-1",
+      prefetchEvaluator: async () => {
+        throw new Error("prefetch failed");
+      },
+      prefetchRoute,
+      replace,
+    });
+
+    await Promise.resolve();
+    expect(replace).not.toHaveBeenCalled();
+
+    finishRoutePrefetch();
+    await navigation;
+    expect(replace).toHaveBeenCalledWith(
+      "/project/project-1/evals/evaluator-1",
+    );
+  });
+});
 
 describe("shouldOfferRuleAttachment", () => {
   it("does not offer rule attachment for a blocked evaluator", () => {

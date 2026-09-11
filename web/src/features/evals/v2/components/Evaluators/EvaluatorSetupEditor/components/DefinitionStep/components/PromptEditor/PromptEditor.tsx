@@ -1,4 +1,10 @@
-import { Fragment, useState, type CSSProperties } from "react";
+import {
+  Fragment,
+  useId,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import {
   Check,
   ChevronDown,
@@ -33,6 +39,7 @@ import { useShallow } from "zustand/react/shallow";
 
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   Tooltip,
   TooltipContent,
@@ -57,6 +64,8 @@ import {
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { InAppAgentUpdateHighlight } from "@/src/features/in-app-agent";
+import { useEvaluatorAssistantPromptUpdateSignal } from "@/src/features/evals/v2/store/evaluatorAssistantUpdateSignalStore";
 import { cn } from "@/src/utils/tailwind";
 import type { EvaluatorPromptMessage } from "@langfuse/shared";
 
@@ -66,17 +75,30 @@ const ROLES: Array<{ value: EvaluatorPromptMessage["role"]; label: string }> = [
   { value: "assistant", label: "Assistant" },
 ];
 
+const PROMPT_MESSAGE_PLACEHOLDER =
+  "Describe what the judge should evaluate. Use {{variable}} to include sample data.";
+
 type PreparedPromptEditorState = ReturnType<typeof preparePromptEditorState>;
 
 export function PromptEditor({
   projectId,
+  evaluatorId,
   store,
 }: {
   projectId: string;
+  evaluatorId: string;
   store: EvaluatorSetupStore;
 }) {
   const sampleObject = useEvaluatorSetupSample({ projectId, store });
-  return <PromptEditorContent store={store} sampleObject={sampleObject} />;
+  const promptUpdateId = useEvaluatorAssistantPromptUpdateSignal(
+    projectId,
+    evaluatorId,
+  );
+  return (
+    <InAppAgentUpdateHighlight updateId={promptUpdateId}>
+      <PromptEditorContent store={store} sampleObject={sampleObject} />
+    </InAppAgentUpdateHighlight>
+  );
 }
 
 /** Presentational prompt editor used by the connected editor and Storybook. */
@@ -107,6 +129,7 @@ export function PromptEditorContent({
     sampleObject,
   });
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
+  const previewDisabledDescriptionId = useId();
   const activeMessageIndex = activeMessageId
     ? state.promptMessageIds.indexOf(activeMessageId)
     : -1;
@@ -116,6 +139,60 @@ export function PromptEditorContent({
     useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor),
     useSensor(KeyboardSensor),
+  );
+  const isSingleMessage = state.promptMessages.length === 1;
+  const previewAction = (
+    <>
+      <Tooltip delayDuration={0}>
+        <TooltipTrigger asChild>
+          <label
+            className={cn(
+              "text-muted-foreground flex h-6 items-center gap-1.5 px-2 text-xs",
+              isSingleMessage && "@max-[340px]/prompt-group:px-1",
+              combinedPrepared.promptPreviewDisabledReason
+                ? "cursor-not-allowed opacity-60"
+                : "cursor-pointer",
+            )}
+            title={isSingleMessage ? "Preview" : undefined}
+            tabIndex={
+              combinedPrepared.promptPreviewDisabledReason ? 0 : undefined
+            }
+            aria-disabled={Boolean(
+              combinedPrepared.promptPreviewDisabledReason,
+            )}
+            aria-describedby={
+              combinedPrepared.promptPreviewDisabledReason
+                ? previewDisabledDescriptionId
+                : undefined
+            }
+          >
+            <Switch
+              size="sm"
+              checked={state.promptPreviewEnabled}
+              disabled={Boolean(combinedPrepared.promptPreviewDisabledReason)}
+              onCheckedChange={state.actions.setPromptPreviewEnabled}
+            />
+            <span
+              className={cn(
+                isSingleMessage && "@max-[340px]/prompt-group:sr-only",
+              )}
+            >
+              Preview
+            </span>
+          </label>
+        </TooltipTrigger>
+        {combinedPrepared.promptPreviewDisabledReason ? (
+          <TooltipContent>
+            {combinedPrepared.promptPreviewDisabledReason}
+          </TooltipContent>
+        ) : null}
+      </Tooltip>
+      {combinedPrepared.promptPreviewDisabledReason ? (
+        <span id={previewDisabledDescriptionId} className="sr-only">
+          {combinedPrepared.promptPreviewDisabledReason}
+        </span>
+      ) : null}
+    </>
   );
 
   const handleDragStart = ({ active }: DragStartEvent) => {
@@ -140,46 +217,63 @@ export function PromptEditorContent({
       onDragCancel={() => setActiveMessageId(null)}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex flex-col gap-2">
-        <SortableContext
-          items={state.promptMessageIds}
-          strategy={verticalListSortingStrategy}
-        >
-          {state.promptMessages.map((message, index) => (
-            <SortablePromptMessage
-              key={state.promptMessageIds[index]}
-              id={state.promptMessageIds[index]}
-              index={index}
-              messageCount={state.promptMessages.length}
-              message={message}
-              combinedPrepared={combinedPrepared}
-              prepared={preparePromptEditorState({
-                prompt: message.content,
-                variableFields: state.variableFields,
-                promptPreviewEnabled: state.promptPreviewEnabled,
-                sampleObject,
-              })}
-              previewEnabled={state.promptPreviewEnabled}
-              onPreviewEnabledChange={state.actions.setPromptPreviewEnabled}
-              onChange={(next) => state.actions.setPromptMessage(index, next)}
-              onRemove={() => state.actions.removePromptMessage(index)}
-            />
-          ))}
-        </SortableContext>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="text-foreground hover:text-foreground h-6 w-full justify-start gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
-          onClick={() => {
-            state.actions.setPromptPreviewEnabled(false);
-            state.actions.addPromptMessage();
-          }}
-        >
-          <Plus className="h-3.5 w-3.5 shrink-0" />
-          Add message
-        </Button>
+      <div
+        className={cn(
+          "bg-secondary text-secondary-foreground @container/prompt-group rounded-md border",
+          isSingleMessage && "overflow-hidden",
+        )}
+      >
+        {!isSingleMessage ? (
+          <div className="flex min-h-9 flex-wrap items-center justify-end gap-2 rounded-t-md border-b px-2">
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              {previewAction}
+            </div>
+          </div>
+        ) : null}
+        <div className="flex flex-col">
+          <SortableContext
+            items={state.promptMessageIds}
+            strategy={verticalListSortingStrategy}
+          >
+            {state.promptMessages.map((message, index) => (
+              <SortablePromptMessage
+                key={state.promptMessageIds[index]}
+                id={state.promptMessageIds[index]}
+                index={index}
+                messageCount={state.promptMessages.length}
+                message={message}
+                combinedPrepared={combinedPrepared}
+                prepared={preparePromptEditorState({
+                  prompt: message.content,
+                  variableFields: state.variableFields,
+                  promptPreviewEnabled: state.promptPreviewEnabled,
+                  sampleObject,
+                })}
+                previewEnabled={state.promptPreviewEnabled}
+                onChange={(next) => state.actions.setPromptMessage(index, next)}
+                onRemove={() => state.actions.removePromptMessage(index)}
+                toolbarActionsBeforeMenu={
+                  isSingleMessage ? previewAction : null
+                }
+                toolbarVariant={isSingleMessage ? "group" : "message"}
+              />
+            ))}
+          </SortableContext>
+        </div>
       </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="text-foreground hover:text-foreground mt-2 h-6 w-full justify-start gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
+        onClick={() => {
+          state.actions.setPromptPreviewEnabled(false);
+          state.actions.addPromptMessage();
+        }}
+      >
+        <Plus className="h-3.5 w-3.5 shrink-0" />
+        Add message
+      </Button>
       <DragOverlay dropAnimation={null}>
         {activeMessage ? (
           <div
@@ -211,9 +305,10 @@ function SortablePromptMessage({
   combinedPrepared,
   prepared,
   previewEnabled,
-  onPreviewEnabledChange,
   onChange,
   onRemove,
+  toolbarActionsBeforeMenu,
+  toolbarVariant,
 }: {
   id: string;
   index: number;
@@ -222,9 +317,10 @@ function SortablePromptMessage({
   combinedPrepared: PreparedPromptEditorState;
   prepared: PreparedPromptEditorState;
   previewEnabled: boolean;
-  onPreviewEnabledChange: (enabled: boolean) => void;
   onChange: (message: EvaluatorPromptMessage) => void;
   onRemove: () => void;
+  toolbarActionsBeforeMenu?: ReactNode;
+  toolbarVariant: "message" | "group";
 }) {
   const [expanded, setExpanded] = useState(true);
   const { copy } = useCopyToClipboard();
@@ -294,13 +390,13 @@ function SortablePromptMessage({
         onChange={(content) => onChange({ ...message, content })}
         variableStatus={combinedPrepared.promptVariableStatus}
         variableMappings={combinedPrepared.promptVariableMappings}
-        showPreviewToggle
         previewEnabled={previewEnabled}
-        onPreviewEnabledChange={onPreviewEnabledChange}
-        previewDisabledReason={combinedPrepared.promptPreviewDisabledReason}
         preview={prepared.promptPreview}
         renderPreviewText={renderMediaAwareText}
         collapsed={!expanded}
+        surfaceVariant={index === messageCount - 1 ? "nested-last" : "nested"}
+        placeholder={PROMPT_MESSAGE_PLACEHOLDER}
+        toolbarVariant={toolbarVariant}
         toolbarStart={
           <>
             <Button
@@ -320,88 +416,99 @@ function SortablePromptMessage({
                 )}
               />
             </Button>
-            {messageCount > 1 || message.role !== "user" || warningReason ? (
-              warningReason ? (
-                <Tooltip delayDuration={0}>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex" tabIndex={0}>
-                      {roleBadge}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>{warningReason}</TooltipContent>
-                </Tooltip>
-              ) : (
-                roleBadge
-              )
-            ) : null}
+            {warningReason ? (
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex" tabIndex={0}>
+                    {roleBadge}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{warningReason}</TooltipContent>
+              </Tooltip>
+            ) : (
+              roleBadge
+            )}
             {!expanded ? (
-              <span
-                className="text-muted-foreground min-w-0 flex-1 truncate px-1 text-xs leading-none"
-                title={message.content || "Empty message"}
-              >
-                {message.content || "Empty message"}
-              </span>
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <span
+                    className="text-muted-foreground min-w-0 flex-1 cursor-help truncate px-1 text-xs leading-none"
+                    tabIndex={0}
+                    title={message.content || "Empty message"}
+                  >
+                    {message.content || "Empty message"}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="ph-no-capture max-w-sm break-words whitespace-pre-wrap">
+                  {message.content || "Empty message"}
+                </TooltipContent>
+              </Tooltip>
             ) : null}
           </>
         }
         onToolbarClick={() => setExpanded((current) => !current)}
         toolbarActions={
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                aria-label="Prompt message settings"
-                title="Prompt message settings"
-              >
-                <MoreVertical className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuLabel className="text-muted-foreground px-2 py-1 text-[10px] font-bold tracking-wider uppercase">
-                Role
-              </DropdownMenuLabel>
-              {ROLES.map((role) => {
-                const disabledReason =
-                  index > 0 && role.value === "system"
-                    ? INVALID_SYSTEM_PROMPT_MESSAGE_ERROR
-                    : null;
-                return (
-                  <DropdownMenuItem
-                    key={role.value}
-                    disabled={Boolean(disabledReason)}
-                    allowPointerEventsWhenDisabled={Boolean(disabledReason)}
-                    title={disabledReason ?? undefined}
-                    onSelect={() => onChange({ ...message, role: role.value })}
-                  >
-                    <span className="flex-1">{role.label}</span>
-                    {message.role === role.value ? (
-                      <Check className="h-3.5 w-3.5" />
-                    ) : null}
-                  </DropdownMenuItem>
-                );
-              })}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={() => {
-                  copy(message.content).catch(() => undefined);
-                }}
-              >
-                <Copy className="mr-2 h-3.5 w-3.5" />
-                Copy prompt
-              </DropdownMenuItem>
-              {messageCount > 1 ? (
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onSelect={onRemove}
+          <>
+            {toolbarActionsBeforeMenu}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Prompt message settings"
+                  title="Prompt message settings"
                 >
-                  <Trash2 className="mr-2 h-3.5 w-3.5" />
-                  Delete message
+                  <MoreVertical className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuLabel className="text-muted-foreground px-2 py-1 text-[10px] font-bold tracking-wider uppercase">
+                  Role
+                </DropdownMenuLabel>
+                {ROLES.map((role) => {
+                  const disabledReason =
+                    index > 0 && role.value === "system"
+                      ? INVALID_SYSTEM_PROMPT_MESSAGE_ERROR
+                      : null;
+                  return (
+                    <DropdownMenuItem
+                      key={role.value}
+                      disabled={Boolean(disabledReason)}
+                      allowPointerEventsWhenDisabled={Boolean(disabledReason)}
+                      title={disabledReason ?? undefined}
+                      onSelect={() =>
+                        onChange({ ...message, role: role.value })
+                      }
+                    >
+                      <span className="flex-1">{role.label}</span>
+                      {message.role === role.value ? (
+                        <Check className="h-3.5 w-3.5" />
+                      ) : null}
+                    </DropdownMenuItem>
+                  );
+                })}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => {
+                    copy(message.content).catch(() => undefined);
+                  }}
+                >
+                  <Copy className="mr-2 h-3.5 w-3.5" />
+                  Copy prompt
                 </DropdownMenuItem>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                {messageCount > 1 ? (
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onSelect={onRemove}
+                  >
+                    <Trash2 className="mr-2 h-3.5 w-3.5" />
+                    Delete message
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
         }
       />
     </div>
