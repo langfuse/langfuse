@@ -74,6 +74,7 @@ packageExtensionsChecksum: sha256-WsueXkDwaA1Mur66bfJz2RLd0+lO1INOq2n8H30Pf8M=
 
 patchedDependencies:
   '@radix-ui/react-roving-focus@1.1.11': fb2bc2e96ad2c31dcb5860e509374a512fa08b1fade5805e3ae2dc72dcd68a0b
+  '@radix-ui/react-select@2.2.6': c82ebbf31f9b961dce52b75bdeb703852ddf4a1ecea0b96b284218f0c1c07f23
   next-auth@4.24.15: 298683aaa31566643f1899990a065b342ad777d8613f50a25ddc44dd46fb5b4d
   react-resizable-panels@4.8.0: 4b892c72909f6878974d9b325e85a5e369e3e676cef3d3eb563f822660218c60
 
@@ -638,7 +639,7 @@ importers:
         version: 1.2.10(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@radix-ui/react-select':
         specifier: ^2.2.6
-        version: 2.2.6(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 2.2.6(patch_hash=c82ebbf31f9b961dce52b75bdeb703852ddf4a1ecea0b96b284218f0c1c07f23)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@radix-ui/react-separator':
         specifier: ^1.1.8
         version: 1.1.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -15483,7 +15484,7 @@ snapshots:
       '@types/react': 19.2.14
       '@types/react-dom': 19.2.3(@types/react@19.2.14)
 
-  '@radix-ui/react-select@2.2.6(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+  '@radix-ui/react-select@2.2.6(patch_hash=c82ebbf31f9b961dce52b75bdeb703852ddf4a1ecea0b96b284218f0c1c07f23)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
       '@radix-ui/number': 1.1.1
       '@radix-ui/primitive': 1.1.3
