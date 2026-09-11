@@ -31,6 +31,10 @@ export function LlmApiKeyList(props: { projectId: string }) {
     projectId: props.projectId,
     scope: "llmApiKeys:delete",
   });
+  const hasUpdateAccess = useHasProjectAccess({
+    projectId: props.projectId,
+    scope: "llmApiKeys:update",
+  });
 
   const apiKeys = api.llmApiKey.all.useQuery(
     {
@@ -130,18 +134,20 @@ export function LlmApiKeyList(props: { projectId: string }) {
                       className="flex justify-end space-x-2"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <UpdateLLMApiKeyDialog
-                        apiKey={apiKey}
-                        projectId={props.projectId}
-                        open={editingKeyId === apiKey.id}
-                        onOpenChange={(open: boolean) => {
-                          if (open) {
-                            setEditingKeyId(apiKey.id);
-                          } else {
-                            setEditingKeyId(null);
-                          }
-                        }}
-                      />
+                      {hasUpdateAccess && (
+                        <UpdateLLMApiKeyDialog
+                          apiKey={apiKey}
+                          projectId={props.projectId}
+                          open={editingKeyId === apiKey.id}
+                          onOpenChange={(open: boolean) => {
+                            if (open) {
+                              setEditingKeyId(apiKey.id);
+                            } else {
+                              setEditingKeyId(null);
+                            }
+                          }}
+                        />
+                      )}
                       {hasDeleteAccess && (
                         <DeleteApiKeyButton
                           projectId={props.projectId}
