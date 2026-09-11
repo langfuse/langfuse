@@ -241,6 +241,7 @@ export function ConnectedModernSessionBodyTimeline({
   }
 
   const sidebarTraces: ModernSessionSidebarTrace[] = [];
+  const incompleteTimelineTraceIds = new Set<string>();
   for (const [index, trace] of traces.entries()) {
     const chunkIndex = Math.floor(index / SIDEBAR_TRACE_CHUNK_SIZE);
     const chunkKey = `browse:${filterMeasurementKey}:${chunkIndex}`;
@@ -267,6 +268,7 @@ export function ConnectedModernSessionBodyTimeline({
     const mayHaveMoreObservations = Boolean(
       lastRelevantQuery?.isPending || lastRelevantQuery?.data?.hasMore,
     );
+    if (mayHaveMoreObservations) incompleteTimelineTraceIds.add(trace.id);
     const observations =
       isPending && !hasLoadedObservations
         ? undefined
@@ -373,7 +375,8 @@ export function ConnectedModernSessionBodyTimeline({
       const observations =
         sidebarTrace?.observations === null
           ? null
-          : sidebarTrace?.observations === undefined
+          : sidebarTrace?.observations === undefined ||
+              incompleteTimelineTraceIds.has(trace.id)
             ? undefined
             : (timelineObservationsByTraceId.get(trace.id) ?? []);
 
