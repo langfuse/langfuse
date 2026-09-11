@@ -2,12 +2,10 @@ import { createElement } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { getProviderReorder } from "@/src/features/ai-gateway/fns/providerReorder/getProviderReorder";
+import { reorderProviderIds } from "@/src/features/ai-gateway/fns/providerReorder/reorderProviderIds";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
-import {
-  GatewayProvidersView,
-  getProviderReorder,
-  reorderProviderIds,
-} from "./GatewayProvidersView";
+import { GatewayProvidersView } from "./GatewayProvidersView";
 
 const connection = (
   id: string,
@@ -42,6 +40,7 @@ describe("provider credential reordering", () => {
     const gamma = connection("gamma", "Gamma", 2);
     const props = {
       modelCounts: {},
+      getModelsUrl: (item: GatewayConnection) => `/models/${item.id}`,
       createAction: null,
       renderCredentialActions: () => null,
       hasMore: false,

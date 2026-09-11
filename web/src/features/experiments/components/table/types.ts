@@ -187,6 +187,12 @@ export type ExperimentItemsTableProps = {
   hideControls?: boolean;
   /** Available experiments for filter targeting (baseline + comparisons) */
   availableExperiments?: ExperimentOption[];
+  /**
+   * Extra sections for the toolbar's "Table settings" popover. The page owns
+   * the settings that are not the table's own state (the cell format), so it
+   * renders them and this table only places them.
+   */
+  settingsSections?: ReactNode;
 };
 
 /**
