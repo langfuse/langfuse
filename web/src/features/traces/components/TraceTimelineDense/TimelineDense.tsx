@@ -77,7 +77,7 @@ import {
   type LayoutNode,
   type PositionedNode,
 } from "../../fns/timeline/layout";
-import { litRowIds } from "../../fns/timeline/searchMatches";
+import { collapsedForSearch } from "../../fns/timeline/searchMatches";
 import { createTextMeasurer } from "../../fns/timeline/textMeasurer";
 import { resolveBarTones } from "../../fns/timeline/barContrast";
 import { traceSpaceOf, type Box } from "../../fns/timeline/viewTransform";
@@ -167,6 +167,8 @@ const GUTTER_NAME_MIN = 48;
  * left edge instead left the elbow pointing at nothing in particular.
  */
 const GUTTER_RAIL = GUTTER_ICON / 2;
+/** Stable empty set, so an absent `collapsed` prop does not break a memo. */
+const EMPTY_COLLAPSED: ReadonlySet<string> = new Set<string>();
 /**
  * How far a row that missed the search drops. Low enough that the hits read as
  * the only thing lit, high enough that a miss is still a bar you can aim at —
@@ -304,15 +306,15 @@ export type TimelineDenseProps = {
      */
     query: string;
     /**
-     * Matching OBSERVATION ids. Which ROWS light up is derived from them here:
-     * a collapsed row hides its subtree and therefore stands in for the hits
-     * inside it (see `litRowIds`), so the caller must not pre-resolve this to
-     * rows — it does not know what this view has collapsed.
+     * Matching OBSERVATION ids. A hit inside a collapsed subtree has no bar, so
+     * the chart opens the rows above it for as long as the query is live (see
+     * `collapsedForSearch`) — which is why the caller hands over ids rather than
+     * rows: it does not know what this view has collapsed.
      */
     matchedIds: ReadonlySet<string>;
     /** The quiet toolbar readout — "3 matches" / "No matches". Supplied, so the
-     * count is the wiring layer's to define (it counts the whole trace, not the
-     * rows on screen). */
+     * count is the wiring layer's to define (it counts matching observations
+     * over the whole trace, which is every bar this chart lights). */
     label: string;
   };
   /**
@@ -396,23 +398,26 @@ export function TimelineDense({
     setMarquee(next);
   };
 
-  const prepared = useMemo(
-    () => prepareTimeline(roots, collapsed),
-    [roots, collapsed],
-  );
   /**
-   * Which ROWS the search lights, which is not the same as which observations
-   * it matched: a collapsed row hides its subtree, so it stands in for the
-   * hits inside it. Derived from the full tree rather than from `prepared.rows`
-   * precisely because the hits that need lifting have no row of their own.
-   * `null` = no query and nothing dims.
+   * The collapse state the rows are actually built with: the user's, plus the
+   * paths to the search's hits opened, because a match with no row is a match
+   * the count promises and the chart cannot show. Identical to `collapsed` when
+   * there is no query or nothing is hidden.
    */
-  const litIds = useMemo(
+  const effectiveCollapsed = useMemo(
     () =>
       search
-        ? litRowIds({ roots, collapsed, matchedIds: search.matchedIds })
-        : null,
+        ? collapsedForSearch({
+            roots,
+            collapsed: collapsed ?? EMPTY_COLLAPSED,
+            matchedIds: search.matchedIds,
+          })
+        : collapsed,
     [search, roots, collapsed],
+  );
+  const prepared = useMemo(
+    () => prepareTimeline(roots, effectiveCollapsed),
+    [roots, effectiveCollapsed],
   );
   // Measured in the font the labels ACTUALLY render in, read off a probe span
   // that carries their own size — `10px ui-sans-serif` is a guess, and the
@@ -840,7 +845,7 @@ export function TimelineDense({
   const searchKey = search?.query ?? null;
   if (searchKey !== revealedQueryRef.current) {
     const index = searchKey
-      ? prepared.rows.findIndex((row) => litIds?.has(row.node.id))
+      ? prepared.rows.findIndex((row) => search?.matchedIds.has(row.node.id))
       : -1;
     const row = index >= 0 ? prepared.rows[index] : undefined;
     // Same lesson as the selection reveal: with no rows yet there is nothing to
@@ -1622,7 +1627,7 @@ export function TimelineDense({
             // A miss under a live query. Not "hidden": the row keeps its place
             // on the clock, its click target and its hover, so the matches read
             // in the context of everything they sit between.
-            const isDimmed = litIds != null && !litIds.has(node.id);
+            const isDimmed = search != null && !search.matchedIds.has(node.id);
             const typeColor = TYPE_COLOR[node.type] ?? FALLBACK_COLOR;
             // One place decides the bar's colour, so the label can ask about the
             // exact class the bar got rather than guessing at it.
@@ -1821,7 +1826,7 @@ export function TimelineDense({
                     rowHeight={rowHeight}
                     barHeight={barHeight}
                     showName
-                    dimmed={litIds != null && !litIds.has(node.id)}
+                    dimmed={search != null && !search.matchedIds.has(node.id)}
                   />
                 </div>
               );

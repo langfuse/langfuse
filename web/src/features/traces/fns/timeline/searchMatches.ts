@@ -1,60 +1,57 @@
 /**
- * Which timeline ROWS a search lights up.
+ * What a live search does to the timeline's collapse state.
  *
  * A match is an observation, but the timeline draws rows, and a collapsed row
- * hides its whole subtree. Dimming purely by matched-observation id therefore
- * fades a collapsed parent that is standing in for a hit — the count says
- * "3 matches" while the chart lights two and the reveal has nowhere to scroll,
- * because the third row does not exist.
+ * hides its whole subtree. A hit inside one therefore has no bar to light: the
+ * toolbar says "3 matches" while a single stand-in parent is lit, and the
+ * reveal-first-hit pan has nowhere to scroll.
  *
- * So a visible row is lit when it matched, or when it is COLLAPSED and
- * something it is hiding matched. That is the only reading a collapsed row can
- * honestly carry: it stands in for its subtree, so it stands in for the
- * subtree's hits. An expanded parent is not lit by a child's match — the child
- * has its own row and can say so itself.
+ * So the timeline draws those rows. While a query is live the collapsed rows
+ * between a hit and the surface are treated as OPEN, which makes the count and
+ * the lit bars the same fact: every match has a bar of its own. Only the
+ * ANCESTORS open — a matched row that is itself collapsed already has a bar, and
+ * the query said nothing about its children.
  *
- * The count stays observation-level: the number of matching observations, the
- * same number the flat result list gives, not the number of lit rows. Those
- * are different facts, and collapsing a subtree should not change how many
- * things matched.
+ * Derived per render rather than written back to the shared collapse state:
+ * clearing the search box restores exactly the shape the user had, and the tree
+ * beside it does not reshuffle under a keystroke. The trade is that a live query
+ * PINS the paths to its hits open — re-collapsing one while still searching does
+ * not hold.
  */
 import { type LayoutNode } from "./layout";
 
-export function litRowIds({
+export function collapsedForSearch({
   roots,
   collapsed,
   matchedIds,
 }: {
-  roots: LayoutNode[];
-  /** Ids whose descendants are hidden — the same set the rows are built with. */
-  collapsed?: ReadonlySet<string>;
+  roots: readonly LayoutNode[];
+  /** The user's own collapse state — what the rows would be built with. */
+  collapsed: ReadonlySet<string>;
   matchedIds: ReadonlySet<string>;
-}): Set<string> {
-  const lit = new Set<string>();
-  if (matchedIds.size === 0) return lit;
+}): ReadonlySet<string> {
+  // Same reference when nothing has to open, so the row layout downstream keeps
+  // its memo instead of rebuilding on every keystroke.
+  if (collapsed.size === 0 || matchedIds.size === 0) return collapsed;
 
-  /**
-   * Walks the full tree, not the rendered rows — which is the whole point: the
-   * hits that need lifting are exactly the ones no row exists for. Returns
-   * whether this node or anything below it matched, so the nearest VISIBLE
-   * collapsed ancestor can claim it.
-   */
-  const visit = (node: LayoutNode, hidden: boolean): boolean => {
-    const isCollapsed = collapsed?.has(node.id) ?? false;
-    let descendantMatched = false;
-    for (const child of node.children) {
-      // Hidden propagates: below a collapsed row, everything is hidden.
-      if (visit(child, hidden || isCollapsed)) descendantMatched = true;
+  // Collapsed rows standing between a hit and a row of its own. Walks the full
+  // tree, not the rendered rows — the hits that need a row are exactly the ones
+  // no row exists for.
+  const hiding = new Set<string>();
+  const visit = (node: LayoutNode, collapsedAncestors: readonly string[]) => {
+    // The whole chain opens: an inner collapsed row is no use while an outer one
+    // still hides it.
+    if (collapsedAncestors.length > 0 && matchedIds.has(node.id)) {
+      for (const id of collapsedAncestors) hiding.add(id);
     }
-    const ownMatch = matchedIds.has(node.id);
-    // A hidden row has nothing to light. Its match travels up the return value
-    // and lands on the nearest visible collapsed ancestor instead.
-    if (!hidden && (ownMatch || (isCollapsed && descendantMatched))) {
-      lit.add(node.id);
-    }
-    return ownMatch || descendantMatched;
+    if (node.children.length === 0) return;
+    const below = collapsed.has(node.id)
+      ? [...collapsedAncestors, node.id]
+      : collapsedAncestors;
+    for (const child of node.children) visit(child, below);
   };
+  for (const root of roots) visit(root, []);
 
-  for (const root of roots) visit(root, false);
-  return lit;
+  if (hiding.size === 0) return collapsed;
+  return new Set([...collapsed].filter((id) => !hiding.has(id)));
 }
