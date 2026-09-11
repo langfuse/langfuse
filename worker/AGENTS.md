@@ -15,6 +15,11 @@
 
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
+- Trace-read micro-batching: `src/features/traces/traceBatching.ts` tracks
+  successful direct-v4 writer submissions and dispatches ready traces by project
+  to `trace-batch`; `src/queues/traceBatchQueue.ts` reads their event payloads.
+  Intake, dispatcher, and consumer have independent disabled-by-default flags.
+  Stop intake first and keep dispatcher/consumer running to drain pending work.
 - Feature processors: `src/features/*`
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`
