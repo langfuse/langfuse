@@ -998,4 +998,111 @@ describe("IngestionService unit tests", () => {
       ).resolves.toBe(events.at(-1)?.body.value);
     }
   });
+
+  it("preserves explicit usage.total of 0 in legacy ingestion events", () => {
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const [record] = (ingestionService as any).mapObservationEventsToRecords({
+      projectId: "project-id",
+      entityId: "observation-id",
+      observationEventList: [
+        {
+          id: "event-id",
+          timestamp: "2026-08-03T00:00:00.000Z",
+          type: "generation-create",
+          body: {
+            id: "observation-id",
+            traceId: "trace-id",
+            name: "cached-generation",
+            usage: {
+              input: 100,
+              output: 50,
+              total: 0,
+            },
+          },
+        },
+      ],
+      prompt: null,
+    });
+
+    expect(record.provided_usage_details).toEqual({
+      input: 100,
+      output: 50,
+      total: 0,
+    });
+  });
+
+  it("computes usage.total correctly when input or output is 0 and total is omitted", () => {
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const [recordWithZeroInput] = (
+      ingestionService as any
+    ).mapObservationEventsToRecords({
+      projectId: "project-id",
+      entityId: "observation-id-1",
+      observationEventList: [
+        {
+          id: "event-id-1",
+          timestamp: "2026-08-03T00:00:00.000Z",
+          type: "generation-create",
+          body: {
+            id: "observation-id-1",
+            traceId: "trace-id",
+            name: "gen-zero-input",
+            usage: {
+              input: 0,
+              output: 50,
+            },
+          },
+        },
+      ],
+      prompt: null,
+    });
+
+    expect(recordWithZeroInput.provided_usage_details).toEqual({
+      input: 0,
+      output: 50,
+      total: 50,
+    });
+
+    const [recordWithZeroOutput] = (
+      ingestionService as any
+    ).mapObservationEventsToRecords({
+      projectId: "project-id",
+      entityId: "observation-id-2",
+      observationEventList: [
+        {
+          id: "event-id-2",
+          timestamp: "2026-08-03T00:00:00.000Z",
+          type: "generation-create",
+          body: {
+            id: "observation-id-2",
+            traceId: "trace-id",
+            name: "gen-zero-output",
+            usage: {
+              input: 100,
+              output: 0,
+            },
+          },
+        },
+      ],
+      prompt: null,
+    });
+
+    expect(recordWithZeroOutput.provided_usage_details).toEqual({
+      input: 100,
+      output: 0,
+      total: 100,
+    });
+  });
 });
