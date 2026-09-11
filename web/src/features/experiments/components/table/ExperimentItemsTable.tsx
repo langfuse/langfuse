@@ -247,7 +247,7 @@ const formatScoreAggregateValue = (
 ): string => {
   if (!aggregate) return "nothing";
   return aggregate.type === "NUMERIC"
-    ? aggregate.average.toFixed(4)
+    ? aggregate.average.toFixed(2)
     : (aggregate.values[0] ?? "nothing");
 };
 

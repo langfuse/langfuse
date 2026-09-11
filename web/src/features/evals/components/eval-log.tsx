@@ -130,7 +130,7 @@ export default function EvalLogTable({
           return undefined;
         }
         if (typeof value === "number") {
-          return value % 1 === 0 ? value : value.toFixed(4);
+          return <span title={value.toFixed(4)}>{value.toFixed(2)}</span>;
         }
         return value;
       },

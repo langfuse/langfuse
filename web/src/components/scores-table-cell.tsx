@@ -97,7 +97,7 @@ export const ScoresTableCell = ({
           className="truncate"
           title={valueTitle ? `${valueTitle}: ${value}` : value}
         >
-          {value}
+          {aggregate.type === "NUMERIC" ? aggregate.average.toFixed(2) : value}
         </span>
         {aggregate.comment && (
           <HoverCard>
@@ -143,7 +143,9 @@ export const ScoresTableCell = ({
 
   if (aggregate.type === "NUMERIC") {
     return (
-      <span className="rounded-sm">{`Ø ${aggregate.average.toFixed(4)}`}</span>
+      <span className="rounded-sm" title={aggregate.average.toFixed(4)}>
+        {`Ø ${aggregate.average.toFixed(2)}`}
+      </span>
     );
   }
 
