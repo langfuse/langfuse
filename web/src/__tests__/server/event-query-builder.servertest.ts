@@ -1,6 +1,7 @@
 import {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
+  buildEventsExactFilterOptionsForColumnsQuery,
   buildEventsMetadataValuesQuery,
   CTEQueryBuilder,
   createFilterFromFilterState,
@@ -269,6 +270,61 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(built.query).toContain("LEFT JOIN trace_scores_agg AS ts");
     expect(built.query).toContain("FROM events_full e");
     expect(Object.values(built.params)).toContain("quality");
+  });
+
+  it("combines scores-view event facets into one exact single-scan query", () => {
+    const built = buildEventsExactFilterOptionsForColumnsQuery({
+      projectId: "test-project",
+      filter: [
+        {
+          column: "startTime",
+          operator: ">=",
+          value: new Date("2026-01-01T00:00:00.000Z"),
+          type: "datetime",
+        },
+      ],
+      columns: ["traceTags", "traceName", "userId"],
+      limit: 1000,
+      scope: {
+        type: "scoredTraces",
+        fromTime: {
+          operator: ">=",
+          value: new Date("2026-01-01T00:00:00.000Z"),
+        },
+        toTime: {
+          operator: "<=",
+          value: new Date("2026-01-01T00:30:00.000Z"),
+        },
+      },
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    // One scan of events_core, one scope semi-join, no UNION ALL / GROUP BY /
+    // approx sketch: facets are exact aggregates fanned out with arrayJoin.
+    expect(built.query.match(/FROM events_core e/g)).toHaveLength(1);
+    expect(built.query).not.toContain("UNION ALL");
+    expect(built.query).not.toContain("GROUP BY value");
+    expect(built.query).not.toContain("approx_top_k");
+    expect(built.query.match(/FROM scores WHERE/g)).toHaveLength(1);
+    expect(built.query).toContain("sumMapIf(");
+    expect(built.query).toContain("sumMap(");
+    expect(built.query).toContain("arrayJoin(arrayConcat(");
+    expect(built.query).toContain("tuple('traceTags'");
+    expect(built.query).toContain("tuple('traceName'");
+    expect(built.query).toContain("tuple('userId'");
+    expect(built.query).not.toContain("FINAL");
+    expect(built.query).not.toMatch(/\bJOIN\b/i);
+    expect(built.query).toContain(
+      "e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE project_id = {projectId: String} AND timestamp >= {scoredTracesFromTime: DateTime64(3, 'UTC')} AND timestamp <= {scoredTracesToTime: DateTime64(3, 'UTC')})",
+    );
+    expect(built.params).toMatchObject({
+      projectId: "test-project",
+      optionLimit: 1000,
+      scoredTracesFromTime: "2026-01-01 00:00:00.000",
+      scoredTracesToTime: "2026-01-01 00:30:00.000",
+    });
   });
 
   it("bounds the scored traces scope by the view's both-sided window", () => {

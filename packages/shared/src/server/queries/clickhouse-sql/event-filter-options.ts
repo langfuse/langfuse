@@ -549,6 +549,152 @@ ORDER BY column ASC, tupleElement(option, 4) ASC, tupleElement(option, 2) ASC
   };
 };
 
+// Per-column exact aggregate state, computed in the single base scan.
+// Scalars/arrays aggregate an exact value→count Map (sumMap); booleans need
+// only two countIf branches. The full histogram is held in aggregate-function
+// state, so unlike a GROUP BY it does not spill to disk — scan cost is bounded
+// by the base scan's sampleRows.
+const exactOptionAggSelectExpression = (
+  column: EventFilterOptionColumn,
+): string => {
+  const definition = EVENTS_FILTER_OPTION_DEFINITIONS[column];
+  const alias = optionTopAlias(column);
+
+  if (definition.kind === "boolean") {
+    return `arrayFilter(option -> tupleElement(option, 2) > 0, [tuple('false', countIf(NOT (${definition.expression})), toUInt64(0)), tuple('true', countIf(${definition.expression}), toUInt64(0))]) AS ${alias}`;
+  }
+
+  if (definition.kind === "scalar") {
+    return `sumMapIf([${stringValueExpression(definition.expression)}], [toUInt64(1)], ${definition.includeWhen}) AS ${alias}`;
+  }
+
+  if (definition.kind === "labeledScalar") {
+    return `sumMapIf([tuple(${stringValueExpression(definition.expression)}, ${stringValueExpression(definition.labelExpression)})], [toUInt64(1)], ${definition.includeWhen}) AS ${alias}`;
+  }
+
+  const valuesExpression = optionValuesArrayExpression(column);
+  return `sumMap(${valuesExpression}, arrayMap(value -> toUInt64(1), ${valuesExpression})) AS ${alias}`;
+};
+
+// countDesc ranks by (count DESC, value ASC): the value tie-breaker must be
+// applied before the optionLimit cap so the top-N stays deterministic at the
+// boundary, matching the single-column ORDER BY count() DESC, value ASC.
+const exactOptionRowsArrayExpression = (
+  column: EventFilterOptionColumn,
+): string => {
+  const definition = EVENTS_FILTER_OPTION_DEFINITIONS[column];
+  const alias = optionTopAlias(column);
+  const isLabeled = definition.kind === "labeledScalar";
+
+  const sortKeyExpression =
+    definition.sort === "countDesc"
+      ? "-toInt64(tupleElement(option, 2))"
+      : definition.sort === "booleanAsc"
+        ? "if(tupleElement(option, 1) = 'true', toInt64(1), toInt64(0))"
+        : "toInt64(0)";
+  const valueExpression = isLabeled
+    ? "tupleElement(tupleElement(option, 1), 1)"
+    : "tupleElement(option, 1)";
+  const displayValueExpression = isLabeled
+    ? "tupleElement(tupleElement(option, 1), 2)"
+    : "''";
+
+  const mapped = (candidates: string) =>
+    `arrayMap(option -> tuple(${eventFilterOptionColumnSqlLiteral(column)}, ${valueExpression}, tupleElement(option, 2), ${sortKeyExpression}, ${displayValueExpression}), ${candidates})`;
+
+  if (definition.kind === "boolean") {
+    return mapped(alias);
+  }
+
+  const zipped = `arrayZip(tupleElement(${alias}, 1), tupleElement(${alias}, 2))`;
+  const ranked =
+    definition.sort === "countDesc"
+      ? `arraySort(pair -> tuple(-toInt64(tupleElement(pair, 2)), tupleElement(pair, 1)), ${zipped})`
+      : `arraySort(pair -> tupleElement(pair, 1), ${zipped})`;
+  return mapped(`arraySlice(${ranked}, 1, {optionLimit: UInt64})`);
+};
+
+/**
+ * One events_core scan that materialises the given filter-option facets with
+ * exact value→count aggregation (sumMap / countIf), then fans the per-column
+ * top-N out with arrayJoin. Used where facet values must stay exact
+ * (scores-view facets) instead of the approx_top_k multi-column sketch, without
+ * re-scanning or re-evaluating the scope semi-join once per facet.
+ */
+export const buildEventsExactFilterOptionsForColumnsQuery = (params: {
+  projectId: string;
+  filter: FilterState;
+  columns: readonly EventFilterOptionColumn[];
+  limit: number;
+  scope?: EventFilterOptionScope;
+  sampleRows?: number;
+}): { query: string; params: Record<string, unknown> } | null => {
+  const columns = uniqueEventFilterOptionColumns(params.columns);
+  if (columns.length === 0 || params.limit <= 0) {
+    return null;
+  }
+
+  const optionLimit = Math.min(params.limit, EVENTS_FILTER_OPTION_TOP_K_MAX_N);
+  const { queryBuilder: aggregatedOptionsBuilder } =
+    buildEventsObservationRowSelection({
+      projectId: params.projectId,
+      filter: params.filter,
+    });
+
+  const sampleRows = params.sampleRows ?? 0;
+  const sampled = sampleRows > 0;
+
+  aggregatedOptionsBuilder.selectRaw(
+    ...columns.map(exactOptionAggSelectExpression),
+    ...(sampled ? [EVENTS_SAMPLE_FACTOR_SELECT] : []),
+  );
+  aggregatedOptionsBuilder.sampleRows(sampleRows);
+
+  if (params.scope) {
+    const scopeCondition = eventFilterOptionScopeCondition(params.scope);
+    aggregatedOptionsBuilder.whereRaw(
+      scopeCondition.condition,
+      scopeCondition.params,
+    );
+  }
+
+  const { query: aggregatedOptionsQuery, params: aggregatedOptionsParams } =
+    aggregatedOptionsBuilder.buildWithParams();
+
+  const sampleFactorRow = sampled ? ",\n    sample_factor" : "";
+  const countExpression = sampled
+    ? "toUInt64(round(tupleElement(option, 3) * sample_factor))"
+    : "tupleElement(option, 3)";
+
+  const query = `
+WITH aggregated_options AS (
+${aggregatedOptionsQuery}
+),
+option_rows AS (
+  SELECT
+    arrayJoin(arrayConcat(
+      ${columns.map(exactOptionRowsArrayExpression).join(",\n      ")}
+    )) AS option${sampleFactorRow}
+  FROM aggregated_options
+)
+SELECT
+  tupleElement(option, 1) AS column,
+  tupleElement(option, 2) AS value,
+  ${countExpression} AS count,
+  tupleElement(option, 5) AS displayValue
+FROM option_rows
+ORDER BY column ASC, tupleElement(option, 4) ASC, tupleElement(option, 2) ASC
+`.trim();
+
+  return {
+    query,
+    params: {
+      ...aggregatedOptionsParams,
+      optionLimit,
+    },
+  };
+};
+
 /** buildEventsMetadataValuesQuery builds the top-N distinct value query for one metadata key on the events table. */
 export const buildEventsMetadataValuesQuery = (params: {
   projectId: string;
