@@ -91,7 +91,8 @@ service:
               Supports filtering by score metadata using the stringObject type.
               Example: [{"type":"stringObject","column":"metadata","key":"user_id","operator":"=","value":"abc123"}].
               Supported types: stringObject (metadata key-value filtering), string, number, datetime, stringOptions, arrayOptions.
-              Supported operators for stringObject: =, contains, does not contain, starts with, ends with.
+              Supported operators for stringObject: =, contains, does not contain, starts with, ends with, is set, is not set.
+              Use is set / is not set to filter on metadata key presence. An empty value is not allowed for contains, starts with, or ends with.
       response: GetScoresResponse
     get-by-id:
       availability:

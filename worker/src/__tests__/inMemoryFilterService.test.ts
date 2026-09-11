@@ -982,6 +982,33 @@ describe("InMemoryFilterService", () => {
       ).toBe(true);
     });
 
+    test("evaluates stringObject key presence/absence operators", () => {
+      const presence = (key: string, operator: "is set" | "is not set") =>
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "metadata",
+              type: "stringObject",
+              key,
+              operator,
+              value: "",
+            },
+          ],
+          fieldMapper,
+        );
+
+      expect(presence("userId", "is set")).toBe(true);
+      expect(presence("userId", "is not set")).toBe(false);
+      expect(presence("missingKey", "is set")).toBe(false);
+      expect(presence("missingKey", "is not set")).toBe(true);
+
+      // A key colliding with an inherited Object.prototype name counts as
+      // absent, mirroring the hasOwnProperty guard used by the value operators.
+      expect(presence("toString", "is set")).toBe(false);
+      expect(presence("toString", "is not set")).toBe(true);
+    });
+
     test("evaluates numberObject filters correctly", () => {
       expect(
         InMemoryFilterService.evaluateFilter(

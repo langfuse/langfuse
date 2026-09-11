@@ -338,23 +338,35 @@ export class InMemoryFilterService {
     filterValue: string,
     operator: string,
   ): boolean {
-    if (!fieldValue || typeof fieldValue !== "object") {
-      return false;
-    }
-
-    // Type assertion is safe here since we've checked typeof fieldValue === "object" above.
     // Use hasOwnProperty rather than bracket-access-is-undefined: a key that
     // collides with an Object.prototype name (e.g. "toString", "constructor")
     // would otherwise resolve the inherited property instead of undefined,
     // silently bypassing this guard.
-    const record = fieldValue as Record<string, unknown>;
-    if (!Object.prototype.hasOwnProperty.call(record, key)) {
+    const hasKey =
+      !!fieldValue &&
+      typeof fieldValue === "object" &&
+      Object.prototype.hasOwnProperty.call(
+        fieldValue as Record<string, unknown>,
+        key,
+      );
+
+    // Presence operators only care whether the key exists, mirroring the
+    // ClickHouse `has(names, k)` / `mapContains(column, k)` conditions.
+    if (operator === "is set") {
+      return hasKey;
+    }
+    if (operator === "is not set") {
+      return !hasKey;
+    }
+
+    if (!hasKey) {
       // The key does not exist on the object. Coalescing this to an empty
       // string below would make e.g. `contains ""` incorrectly match rows
-      // that never had the key. Mirror the ClickHouse `mapContains` guard
-      // (PR #13369) and require the key to exist for every operator.
+      // that never had the key, so require the key to exist for every value
+      // operator (matching the ClickHouse `mapContains` / `has` guard).
       return false;
     }
+    const record = fieldValue as Record<string, unknown>;
     const objectValue = record[key];
     // Mirror the ClickHouse-side representation exactly: ingestion stores a
     // metadata value as `typeof value === "string" ? value : JSON.stringify(value)`

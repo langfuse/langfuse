@@ -21,6 +21,8 @@ export const filterOperators = {
     "does not contain",
     "starts with",
     "ends with",
+    "is set",
+    "is not set",
   ],
   numberObject: ["=", ">", "<", ">=", "<="],
   booleanObject: ["=", "<>"],
