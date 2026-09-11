@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-null-render */
+/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
@@ -77,19 +77,20 @@ function Calendar({
 }
 Calendar.displayName = "Calendar";
 
-const Chevron = ({ orientation = "left" }) => {
-  switch (orientation) {
-    case "left":
-      return <ChevronLeft className="h-4 w-4" />;
-    case "right":
-      return <ChevronRight className="h-4 w-4" />;
-    case "up":
-      return <ChevronUp className="h-4 w-4" />;
-    case "down":
-      return <ChevronDown className="h-4 w-4" />;
-    default:
-      return null;
-  }
+const chevronIcons = {
+  left: ChevronLeft,
+  right: ChevronRight,
+  up: ChevronUp,
+  down: ChevronDown,
+};
+
+const Chevron = ({
+  orientation = "left",
+}: {
+  orientation?: keyof typeof chevronIcons;
+}) => {
+  const Icon = chevronIcons[orientation];
+  return <Icon className="h-4 w-4" />;
 };
 
 export { Calendar };
