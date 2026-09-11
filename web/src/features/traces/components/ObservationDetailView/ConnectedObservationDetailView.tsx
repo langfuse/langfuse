@@ -49,6 +49,8 @@ import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMos
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 
 // Contexts and hooks
@@ -88,6 +90,8 @@ export function ConnectedObservationDetailView({
     setSelectedTab: setGlobalSelectedTab,
   } = useSelection();
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
+  const analyticsDimensions = useTraceAnalyticsDimensions();
 
   // V4 beta mode and observations for log tab
   const { isV4: isV4Enabled } = useReadPath();
@@ -178,6 +182,13 @@ export function ConnectedObservationDetailView({
     if (tab === "scores") {
       refreshTraceScores();
     }
+    if (tab !== selectedTab) {
+      capture("trace_detail:detail_tab_switch", {
+        tab,
+        target: "observation",
+        ...analyticsDimensions,
+      });
+    }
     setGlobalSelectedTab(tab);
   };
 
@@ -188,6 +199,14 @@ export function ConnectedObservationDetailView({
 
   const handleViewTabChange = useCallback(
     (tab: string) => {
+      if (selectedTab === "log") {
+        capture("trace_detail:log_view_interaction", {
+          action: "view_mode_switch",
+          target: "observation",
+          mode: tab,
+          ...analyticsDimensions,
+        });
+      }
       if (tab === "pretty") {
         setJsonViewPreference(tab);
       } else {
@@ -195,15 +214,26 @@ export function ConnectedObservationDetailView({
         setJsonViewPreference(jsonBetaEnabled ? "json-beta" : "json");
       }
     },
-    [jsonBetaEnabled, setJsonViewPreference],
+    [
+      jsonBetaEnabled,
+      setJsonViewPreference,
+      selectedTab,
+      capture,
+      analyticsDimensions,
+    ],
   );
 
   const handleBetaToggle = useCallback(
     (enabled: boolean) => {
+      capture("trace_detail:json_beta_toggle", {
+        enabled,
+        target: "observation",
+        ...analyticsDimensions,
+      });
       setJsonBetaEnabled(enabled);
       setJsonViewPreference(enabled ? "json-beta" : "json");
     },
-    [setJsonBetaEnabled, setJsonViewPreference],
+    [setJsonBetaEnabled, setJsonViewPreference, capture, analyticsDimensions],
   );
 
   // Get comments, scores, corrections, and expansion state from contexts
@@ -551,6 +581,7 @@ export function ConnectedObservationDetailView({
                   traceId={traceId}
                   projectId={projectId}
                   currentView={isLogViewVirtualized ? "pretty" : currentView}
+                  target="observation"
                 />
               </TabsBarContent>
             ) : null}
