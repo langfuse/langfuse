@@ -167,10 +167,8 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
 
     encoding = get_encoding("cl100k_base");
   }
-  const cleandedText = unicodeToBytesInString(text);
-
   logger.debug(`Tokenized data for model: ${model}`);
-  return encoding?.encode(cleandedText, "all").length;
+  return encoding?.encode(text, "all").length;
 };
 
 interface Tokenizer {
@@ -203,25 +201,4 @@ function isChatMessageArray(value: unknown): value is ChatMessage[] {
       typeof item.content === "string" &&
       (!("name" in item) || typeof item.name === "string"),
   );
-}
-
-function unicodeToBytesInString(input: string): string {
-  let result = "";
-  for (let i = 0; i < input.length; i++) {
-    const char = input[i];
-    if (char && /[\u{10000}-\u{10FFFF}]/u.test(char)) {
-      const bytes = unicodeToBytes(char);
-      result += Array.from(bytes)
-        .map((b) => b.toString(16))
-        .join("");
-    } else {
-      result += char;
-    }
-  }
-  return result;
-}
-
-function unicodeToBytes(input: string): Uint8Array {
-  const encoder = new TextEncoder();
-  return encoder.encode(input);
 }
