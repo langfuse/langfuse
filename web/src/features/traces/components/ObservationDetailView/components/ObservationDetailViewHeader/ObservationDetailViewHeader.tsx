@@ -730,14 +730,18 @@ export const ObservationDetailViewHeader = memo(
               <TimeToFirstTokenBadge
                 timeToFirstToken={observation.timeToFirstToken}
               />
-              <SessionBadge
-                sessionId={observation.sessionId ?? null}
-                projectId={projectId}
-              />
-              <UserIdBadge
-                userId={observation.userId ?? null}
-                projectId={projectId}
-              />
+              {observation.sessionId && (
+                <SessionBadge
+                  sessionId={observation.sessionId}
+                  projectId={projectId}
+                />
+              )}
+              {observation.userId && (
+                <UserIdBadge
+                  userId={observation.userId}
+                  projectId={projectId}
+                />
+              )}
               {evaluatorId &&
                 (observation.environment ===
                   LangfuseInternalTraceEnvironment.LLMJudge ||
