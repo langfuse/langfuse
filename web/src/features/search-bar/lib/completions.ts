@@ -983,7 +983,7 @@ function valueStageSections(input: ValueStageInput): {
         // complement (mirrors the free-text → scope path, gated on !negated).
         const scopeSwitches =
           !negated && (f.id === "input" || f.id === "output")
-            ? scopeSwitchOptions(f.id, typed, tokenSpan)
+            ? scopeSwitchOptions(f.id, typed, tokenSpan, registry)
             : [];
         return {
           sections: [
@@ -1188,14 +1188,21 @@ type FullTextScope = "default" | "input" | "output";
 // explicit "this is the default-scope search" option (the anchor) ahead of the
 // input:/output: rewrites. Value-stage switches leave it off, so an `input:`
 // value never offers a no-op switch back to `input:`.
+//
+// The scoped forms are offered only where the registry actually resolves them.
+// Users narrows the events catalog to what its grouped query can answer, and
+// `input:` is not in it — offering the rewrite there would hand the user a
+// token the parser rejects. With nothing left to switch to, the anchor alone is
+// noise, so the section drops out entirely.
 function scopeSwitchOptions(
   current: FullTextScope,
   value: string,
   span: { from: number; to: number },
+  registry: FieldRegistry,
   opts?: { keepCurrentFirst?: boolean },
 ): CompletionOption[] {
   const v = serializeValue(value);
-  const defs: { scope: FullTextScope; insert: string; detail: string }[] = [
+  const allDefs: { scope: FullTextScope; insert: string; detail: string }[] = [
     {
       scope: "input",
       insert: `input:${v}`,
@@ -1209,15 +1216,20 @@ function scopeSwitchOptions(
     {
       scope: "default",
       insert: v,
-      detail: "default: ids, names, input & output",
+      detail: registry.freeTextScopeLabel
+        ? `default: ${registry.freeTextScopeLabel}`
+        : "default full-text search",
     },
   ];
+  const defs = allDefs.filter(
+    (d) =>
+      d.scope === "default" || registry.resolveField(d.scope)?.type === "field",
+  );
+  const alternatives = defs.filter((d) => d.scope !== current);
+  if (alternatives.length === 0) return [];
   const ordered = opts?.keepCurrentFirst
-    ? [
-        ...defs.filter((d) => d.scope === current),
-        ...defs.filter((d) => d.scope !== current),
-      ]
-    : defs.filter((d) => d.scope !== current);
+    ? [...defs.filter((d) => d.scope === current), ...alternatives]
+    : alternatives;
   return ordered.map((d) => ({
     id: `scope:${d.scope}`,
     kind: "pattern" as const,
@@ -1422,6 +1434,7 @@ export function planInputCompletions(
             // re-quotes it once.
             run.text,
             { from: run.from, to: run.to },
+            registry,
             // Surface the typed text itself (default scope) as the first option,
             // ahead of the input:/output: rewrites.
             { keepCurrentFirst: true },

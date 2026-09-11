@@ -215,6 +215,39 @@ describe("prepareSessionTimelineObservations", () => {
     ]);
   });
 
+  it("deduplicates large inherited input throughout a deeply nested trace", () => {
+    const inheritedText = "large inherited input ".repeat(600);
+    const inheritedInput = [{ role: "user", content: inheritedText }];
+    const observations = [
+      observation("level-0", inheritedInput, null, "AGENT"),
+    ];
+    for (let level = 1; level < 25; level += 1) {
+      observations.push(
+        observation(
+          `level-${level}`,
+          inheritedInput,
+          null,
+          "AGENT",
+          new Date(level),
+          "trace-1",
+          `level-${level - 1}`,
+        ),
+      );
+    }
+
+    const prepared = prepareSessionTimelineObservations(observations);
+    const visibleText = prepared.flatMap(({ processedMessages }) =>
+      processedMessages.messages.flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === "text" ? [part.text] : [],
+        ),
+      ),
+    );
+
+    expect(inheritedText.length).toBeGreaterThan(10_000);
+    expect(visibleText).toEqual([inheritedText]);
+  });
+
   it("emits rolled-up tool calls as nested items before generation output", () => {
     const prepared = prepareSessionTimelineObservations([
       observation("generation", "Question", [

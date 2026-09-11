@@ -72,7 +72,7 @@ describe("explainSegment", () => {
     // The label already says "per second" — don't spell the unit out twice.
     expect(explain("tps:>=50")).toBe("Tokens per second is 50 or more.");
     expect(explain("refund policy")).toBe(
-      'Full-text search for "refund policy" — matches id, name, input and output.',
+      'Full-text search for "refund policy" — matches ids, names, input & output.',
     );
     expect(explain("level:ERROR AND latency:>2", 1)).toBe(
       "AND — every filter has to match.",
