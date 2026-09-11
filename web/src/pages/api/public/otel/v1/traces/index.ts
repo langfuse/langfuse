@@ -30,6 +30,7 @@ export default withMiddlewares({
     querySchema: z.any(),
     responseSchema: z.any(),
     rateLimitResource: "ingestion",
+    allowGatewayIngestionToken: true,
     fn: async ({ req, res, auth }) => {
       // Check if ingestion is suspended due to usage threshold
       if (auth.scope.isIngestionSuspended) {

@@ -44,6 +44,7 @@ import {
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
+import { ScoresSearchBar } from "@/src/features/scores/components/ScoresSearchBar";
 import { getScoreChartTimeRange } from "@/src/features/scores-chart-view/fns/scoreChartConfig";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -272,6 +273,12 @@ export default function ScoresTable({
   );
   const chartActive =
     chartEnabled && chartTimeRange !== undefined && chartViewMode === "chart";
+  const searchBarEnabled =
+    isV4 &&
+    showControlsInPageHeader &&
+    chartEnabled &&
+    !chartActive &&
+    !peekContext;
 
   // Drill-in from the outlier strip writes the clicked bucket as an absolute
   // range. URL-only and deliberately NOT persisted as the project's default
@@ -1082,6 +1089,15 @@ export default function ScoresTable({
           <TableHeaderControls
             timeRange={timeRange}
             setTimeRange={setTimeRange}
+          />
+        )}
+        {searchBarEnabled && (
+          <ScoresSearchBar
+            projectId={projectId}
+            filterState={queryFilter.searchBarFilterState}
+            setFilterState={setFiltersWrapper}
+            filterOptions={newFilterOptions}
+            isLoading={isSidebarFilterLoading}
           />
         )}
         {/* Toolbar spanning full width */}

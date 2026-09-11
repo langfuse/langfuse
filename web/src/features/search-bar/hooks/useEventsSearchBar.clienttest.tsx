@@ -5,6 +5,7 @@ import type { FilterState } from "@langfuse/shared";
 
 import { DEFAULT_SEARCH_TYPE } from "@/src/features/search-bar/lib/commit";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { SCORES_FIELD_REGISTRY } from "@/src/features/scores/constants/scoresSearchRegistry";
 
 const NEW_FILTERS: FilterState = [
   { type: "string", column: "name", operator: "contains", value: "checkout" },
@@ -35,6 +36,36 @@ function setup(
 }
 
 describe("useEventsSearchBar.commit", () => {
+  it("preserves a Scores saved-view filter the bar cannot represent", () => {
+    const hiddenFilter: FilterState = [
+      {
+        column: "evaluatorId",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["legacy-evaluator"],
+      },
+    ];
+    const { result, setFilterState } = setup({
+      tableName: "scores",
+      registry: SCORES_FIELD_REGISTRY,
+      filterState: hiddenFilter,
+      searchQuery: null,
+    });
+    act(() => result.current.store.getState().actions.setDraft("Rouge Score"));
+    act(() => {
+      result.current.commit("enter");
+    });
+    expect(setFilterState).toHaveBeenCalledWith([
+      {
+        column: "name",
+        type: "string",
+        operator: "contains",
+        value: "Rouge Score",
+      },
+      ...hiddenFilter,
+    ]);
+  });
+
   it("fully replaces hidden filters when a query preset is picked", () => {
     const hiddenFilter: FilterState = [
       {
