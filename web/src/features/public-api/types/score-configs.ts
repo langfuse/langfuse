@@ -8,6 +8,7 @@ import {
   publicApiPaginationZod,
   ScoreConfigCategory,
   ScoreConfigNameSchema,
+  stringDateTime,
   validateCategories,
   validateNumericRangeFields,
 } from "@langfuse/shared";
@@ -149,6 +150,16 @@ export const PutScoreConfigResponse = APIScoreConfig;
 
 // GET /score-configs
 export const GetScoreConfigsQuery = z.object({
+  // Optional ISO-8601 time window on the score config row's `createdAt`.
+  // Both params are independently optional and compose into a half-open
+  // `[fromTimestamp, toTimestamp)` range. Omitting both preserves the
+  // historical "all configs" behavior. Pattern matches
+  // `GET /api/public/comments` (PR #15692), `GET /api/public/models`
+  // (PR #16952), `GET /api/public/datasets` (PR #17002),
+  // `GET /api/public/llm-connections` (PR #17070), and
+  // `GET /api/public/annotation-queues` (PR #17090).
+  fromTimestamp: stringDateTime,
+  toTimestamp: stringDateTime,
   ...publicApiPaginationZod,
 });
 

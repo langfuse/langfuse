@@ -473,6 +473,162 @@ describe("/api/public/score-configs API Endpoint", () => {
     });
   });
 
+  describe("GET /api/public/score-configs timestamp window", () => {
+    // Three score configs at deterministic, well-separated `createdAt`
+    // values so the half-open `[fromTimestamp, toTimestamp)` window can
+    // be exercised without relying on clock or ordering accidents.
+    const OLD = new Date("2021-01-01T00:00:00.000Z");
+    const MID = new Date("2021-06-01T00:00:00.000Z");
+    const NEW = new Date("2022-01-01T00:00:00.000Z");
+
+    let oldId: string;
+    let midId: string;
+    let newId: string;
+
+    const createConfigAt = async (name: string, createdAt: Date) => {
+      return prisma.scoreConfig.create({
+        data: {
+          projectId,
+          name,
+          dataType: ScoreConfigDataType.NUMERIC,
+          minValue: 0,
+          maxValue: 1,
+          createdAt,
+          updatedAt: createdAt,
+        },
+      });
+    };
+
+    beforeEach(async () => {
+      const oldConfig = await createConfigAt(`ts-old-${v4()}`, OLD);
+      const midConfig = await createConfigAt(`ts-mid-${v4()}`, MID);
+      const newConfig = await createConfigAt(`ts-new-${v4()}`, NEW);
+      oldId = oldConfig.id;
+      midId = midConfig.id;
+      newId = newConfig.id;
+    });
+
+    it("omits the filter when neither timestamp is provided (existing behavior)", async () => {
+      const response = await makeZodVerifiedAPICall(
+        GetScoreConfigsResponse,
+        "GET",
+        "/api/public/score-configs?limit=50",
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const ids = response.body.data.map((c) => c.id);
+      expect(ids).toEqual(expect.arrayContaining([oldId, midId, newId]));
+      expect(response.body.meta.totalItems).toBeGreaterThanOrEqual(3);
+    });
+
+    it("filters by fromTimestamp only (inclusive lower bound)", async () => {
+      // Anything on or after MID: the mid and new configs.
+      const response = await makeZodVerifiedAPICall(
+        GetScoreConfigsResponse,
+        "GET",
+        `/api/public/score-configs?fromTimestamp=${MID.toISOString()}&limit=50`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const ids = response.body.data.map((c) => c.id);
+      expect(ids).toEqual(expect.arrayContaining([midId, newId]));
+      expect(ids).not.toContain(oldId);
+      expect(response.body.meta.totalItems).toBe(2);
+    });
+
+    it("filters by toTimestamp only (exclusive upper bound)", async () => {
+      // Anything strictly before NEW: the old and mid configs. The
+      // config created exactly at NEW is excluded because the upper
+      // bound is `lt`.
+      const response = await makeZodVerifiedAPICall(
+        GetScoreConfigsResponse,
+        "GET",
+        `/api/public/score-configs?toTimestamp=${NEW.toISOString()}&limit=50`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const ids = response.body.data.map((c) => c.id);
+      expect(ids).toEqual(expect.arrayContaining([oldId, midId]));
+      expect(ids).not.toContain(newId);
+      expect(response.body.meta.totalItems).toBe(2);
+    });
+
+    it("filters by a half-open [fromTimestamp, toTimestamp) window when both are provided", async () => {
+      // Window [OLD, NEW) -> exactly the mid config.
+      const response = await makeZodVerifiedAPICall(
+        GetScoreConfigsResponse,
+        "GET",
+        `/api/public/score-configs?fromTimestamp=${OLD.toISOString()}&toTimestamp=${NEW.toISOString()}&limit=50`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const ids = response.body.data.map((c) => c.id);
+      expect(ids).toEqual([midId]);
+      expect(response.body.meta.totalItems).toBe(1);
+    });
+
+    it("returns 400 on an invalid fromTimestamp format", async () => {
+      const response = await makeAPICall(
+        "GET",
+        "/api/public/score-configs?fromTimestamp=not-a-date",
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("returns 400 on an invalid toTimestamp format", async () => {
+      const response = await makeAPICall(
+        "GET",
+        "/api/public/score-configs?toTimestamp=2021-13-40T99:99:99Z",
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("composes the time window with the existing project scope", async () => {
+      // Create a separate project + api key so we can prove the filter
+      // does not leak configs across the project boundary.
+      const other = await createOrgProjectAndApiKey();
+
+      await prisma.scoreConfig.create({
+        data: {
+          projectId: other.projectId,
+          name: `ts-other-project-${v4()}`,
+          dataType: ScoreConfigDataType.NUMERIC,
+          minValue: 0,
+          maxValue: 1,
+          createdAt: NEW,
+          updatedAt: NEW,
+        },
+      });
+
+      const response = await makeZodVerifiedAPICall(
+        GetScoreConfigsResponse,
+        "GET",
+        `/api/public/score-configs?fromTimestamp=${NEW.toISOString()}&limit=50`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      // Only `newId` belongs to `projectId` with createdAt >= NEW.
+      expect(response.body.meta.totalItems).toBe(1);
+      expect(response.body.data.map((c) => c.id)).toEqual([newId]);
+    });
+  });
+
   describe("PATCH /api/public/score-configs/:configId", () => {
     it("should successfully archive a score config", async () => {
       const { id: configId } = (await prisma.scoreConfig.findFirst({
