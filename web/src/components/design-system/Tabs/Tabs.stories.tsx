@@ -1,6 +1,6 @@
 import React from "react";
 import { KeyRound, User } from "lucide-react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { Tabs } from "./Tabs";
@@ -248,5 +248,36 @@ export const TruncatesLabel = meta.story({
       "A label that is too long for its trigger",
     );
     await expect(label.scrollWidth).toBeGreaterThan(label.clientWidth);
+  },
+});
+
+export const SlidesIndicator = meta.story({
+  name: "(Test) Slides Indicator",
+  args: {
+    defaultValue: "short",
+    children: (
+      <Tabs.List variant="outline" slidingIndicator>
+        <Tabs.Trigger value="short" label="Python" />
+        <Tabs.Trigger value="long" label="TypeScript" />
+      </Tabs.List>
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const indicator = canvasElement.querySelector("[data-tabs-indicator]");
+
+    await expect(indicator).toBeInTheDocument();
+    const initialRect = indicator!.getBoundingClientRect();
+
+    const typeScriptTab = canvas.getByRole("tab", { name: "TypeScript" });
+    await userEvent.click(typeScriptTab);
+    await waitFor(() => {
+      const nextRect = indicator!.getBoundingClientRect();
+      const tabRect = typeScriptTab.getBoundingClientRect();
+      expect(nextRect.left).toBeGreaterThan(initialRect.left);
+      expect(nextRect.width).toBeGreaterThan(initialRect.width);
+      expect(Math.abs(nextRect.left - tabRect.left)).toBeLessThan(0.5);
+      expect(Math.abs(nextRect.width - tabRect.width)).toBeLessThan(0.5);
+    });
   },
 });

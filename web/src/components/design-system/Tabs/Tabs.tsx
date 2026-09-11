@@ -5,6 +5,8 @@ import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { cva, type VariantProps } from "class-variance-authority";
 import { type LucideIcon } from "lucide-react";
 
+import { cn } from "@/src/utils/tailwind";
+
 const tabsListVariants = cva(
   "text-muted-foreground items-center justify-center [&>:not([role=tab])]:flex [&>:not([role=tab])>[role=tab]]:w-full",
   {
@@ -12,8 +14,11 @@ const tabsListVariants = cva(
       variant: {
         default: "bg-muted rounded-md",
         underline: "rounded-none border-b bg-transparent",
-        outline:
-          "bg-background rounded-md border **:data-[state=active]:bg-muted",
+        outline: "bg-background rounded-md border",
+      },
+      slidingIndicator: {
+        true: "relative isolate",
+        false: "",
       },
       size: {
         default: "",
@@ -45,9 +50,15 @@ const tabsListVariants = cva(
       { variant: "underline", size: "md", class: "h-auto p-0" },
       { variant: "underline", size: "sm", class: "h-auto p-0" },
       { variant: "underline", size: "auto", class: "h-auto p-0" },
+      {
+        variant: "outline",
+        slidingIndicator: false,
+        class: "**:data-[state=active]:bg-muted",
+      },
     ],
     defaultVariants: {
       variant: "default",
+      slidingIndicator: false,
       size: "default",
       layout: "default",
       gap: "none",
@@ -81,6 +92,7 @@ const tabsTriggerVariants = cva(
 type TabsListProps = {
   "aria-label"?: string;
   children: React.ReactNode;
+  slidingIndicator?: boolean;
 } & Pick<
   VariantProps<typeof tabsListVariants>,
   "gap" | "layout" | "size" | "variant"
@@ -113,21 +125,97 @@ function TabsRoot({
   );
 }
 
+const TabsIndicatorContext = React.createContext(false);
+
 function TabsList({
   "aria-label": ariaLabel,
   children,
   gap,
   layout,
   size,
+  slidingIndicator = false,
   variant,
 }: TabsListProps) {
+  const listRef = React.useRef<HTMLDivElement>(null);
+  const indicatorRef = React.useRef<HTMLSpanElement>(null);
+
+  React.useLayoutEffect(() => {
+    if (!slidingIndicator) return;
+
+    const list = listRef.current;
+    const indicator = indicatorRef.current;
+    if (!list || !indicator) return;
+
+    let frame: number | undefined;
+    let readyFrame: number | undefined;
+    const updateIndicator = () => {
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const activeTrigger = list.querySelector<HTMLElement>(
+          '[role="tab"][data-state="active"]',
+        );
+        if (!activeTrigger) return;
+
+        const listRect = list.getBoundingClientRect();
+        const triggerRect = activeTrigger.getBoundingClientRect();
+        indicator.style.width = `${triggerRect.width}px`;
+        indicator.style.transform = `translateX(${triggerRect.left - listRect.left - list.clientLeft}px)`;
+        indicator.style.opacity = "1";
+
+        if (indicator.dataset.ready !== "true") {
+          readyFrame = requestAnimationFrame(() => {
+            indicator.dataset.ready = "true";
+          });
+        }
+      });
+    };
+
+    const resizeObserver = new ResizeObserver(updateIndicator);
+    const mutationObserver = new MutationObserver(updateIndicator);
+    resizeObserver.observe(list);
+    mutationObserver.observe(list, {
+      attributes: true,
+      attributeFilter: ["data-state"],
+      childList: true,
+      subtree: true,
+    });
+    updateIndicator();
+
+    return () => {
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      if (readyFrame !== undefined) cancelAnimationFrame(readyFrame);
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+    };
+  }, [slidingIndicator]);
+
   return (
-    <TabsPrimitive.List
-      aria-label={ariaLabel}
-      className={tabsListVariants({ gap, layout, size, variant })}
-    >
-      {children}
-    </TabsPrimitive.List>
+    <TabsIndicatorContext value={slidingIndicator}>
+      <TabsPrimitive.List
+        ref={listRef}
+        aria-label={ariaLabel}
+        className={tabsListVariants({
+          gap,
+          layout,
+          size,
+          slidingIndicator,
+          variant,
+        })}
+      >
+        {slidingIndicator ? (
+          <span
+            ref={indicatorRef}
+            data-tabs-indicator=""
+            aria-hidden="true"
+            className={cn(
+              "pointer-events-none absolute inset-y-1 left-0 z-0 rounded-sm opacity-0 data-[ready=true]:transition-[width,transform] data-[ready=true]:duration-200 data-[ready=true]:ease-out motion-reduce:transition-none",
+              variant === "outline" ? "bg-muted" : "bg-background shadow-xs",
+            )}
+          />
+        ) : null}
+        {children}
+      </TabsPrimitive.List>
+    </TabsIndicatorContext>
   );
 }
 
@@ -161,12 +249,18 @@ function TabsTrigger({
   value,
   variant,
 }: TabsTriggerProps) {
+  const slidingIndicator = React.use(TabsIndicatorContext);
+
   return (
     <TabsPrimitive.Trigger
       value={value}
       disabled={disabled}
       title={label ?? title}
-      className={tabsTriggerVariants({ size, variant })}
+      className={cn(
+        tabsTriggerVariants({ size, variant }),
+        slidingIndicator &&
+          "relative z-1 data-[state=active]:bg-transparent data-[state=active]:shadow-none",
+      )}
     >
       {Icon ? <Icon aria-hidden="true" className="size-3.5 shrink-0" /> : null}
       {label !== undefined ? (
