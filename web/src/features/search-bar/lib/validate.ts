@@ -220,6 +220,10 @@ export function semanticDiagnostics(
     ? { ...registry, filterStateErrors: undefined }
     : registry;
   for (const node of topLevel) {
+    // A compatibility scope selects the following global phrase; lowering it
+    // alone would incorrectly report that its phrase is missing.
+    const ref = node.kind === "filter" ? registry.resolveField(node.key) : null;
+    if (ref?.type === "pseudo" && ref.id === "in") continue;
     const { errors } = astToFilterState(node, scoreTypes, termRegistry);
     const span = nodeSpan(node, textLength);
     for (const message of errors) {
@@ -231,7 +235,7 @@ export function semanticDiagnostics(
   // Some view contracts constrain the complete filter set (for example, one
   // filter per column). Check the complete lowering as well as each term so
   // draft validation and commit validation share the same backend boundary.
-  if (registry.filterStateErrors) {
+  {
     const { errors } = astToFilterState(ast, scoreTypes, registry);
     const span = nodeSpan(ast, textLength);
     for (const message of errors) {

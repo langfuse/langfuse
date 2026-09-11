@@ -91,7 +91,6 @@ import {
 } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import { SearchScopeSelect } from "@/src/components/table/SearchScopeSelect";
 import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
 import { observationsFieldRegistry } from "@/src/features/filters/config/tracingSearchRegistry";
 import { useRouter } from "next/router";
@@ -565,7 +564,10 @@ export default function ObservationsTable({
     facetOptions,
     queryFilterOptions,
   );
-  const searchRegistry = observationsFieldRegistry(observationsFilterConfig);
+  const searchRegistry = observationsFieldRegistry(
+    observationsFilterConfig,
+    legacyTracingIoSearchEnabled,
+  );
   const observedOptions = toObservedOptions(
     facetOptions,
     isSidebarFilterLoading,
@@ -1348,22 +1350,8 @@ export default function ObservationsTable({
                 query: searchQuery,
                 type: searchType,
                 setQuery: handleSearchQueryChange,
+                setType: handleSearchTypeChange,
               }}
-              searchScope={
-                legacyTracingIoSearchEnabled ? (
-                  <SearchScopeSelect
-                    searchType={searchType}
-                    setSearchType={handleSearchTypeChange}
-                    metadataLabel="IDs / Names"
-                    fullTextLabel="Full Text"
-                    availableSearchTypes={{
-                      content: true,
-                      input: true,
-                      output: true,
-                    }}
-                  />
-                ) : undefined
-              }
             />
             <ObservationsDataTableToolbar
               rowClassName="my-1"
