@@ -2,13 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import {
   BooleanObjectFilter,
+  DateTimeFilter,
   FilterList,
   filtersRequireEventsFull,
+  inputOutputContentFilterMissingCompanion,
   metadataFilterIsEventsCoreSafe,
   NullFilter,
   NumberObjectFilter,
   StringFilter,
   StringObjectFilter,
+  StringOptionsFilter,
 } from "./clickhouse-filter";
 
 // events_core_mv truncates metadata values to leftUTF8(v, 200), so the safety
@@ -197,5 +200,188 @@ describe("filtersRequireEventsFull input/output routing", () => {
         ]),
       ),
     ).toBe(true);
+  });
+});
+
+const ioFilter = (
+  operator: StringFilter["operator"],
+  field: "input" | "output" = "output",
+) =>
+  new StringFilter({
+    clickhouseTable: "events_full",
+    field,
+    operator,
+    value: "needle",
+  });
+
+const idFilter = (
+  field: "trace_id" | "span_id" | "user_id" | "session_id",
+  operator: StringFilter["operator"] = "=",
+) =>
+  new StringFilter({
+    clickhouseTable: "events_full",
+    field,
+    operator,
+    value: "id-value",
+  });
+
+const idAnyOfFilter = (
+  field: "trace_id" | "span_id" | "user_id" | "session_id",
+) =>
+  new StringOptionsFilter({
+    clickhouseTable: "events_full",
+    field,
+    operator: "any of",
+    values: ["id-value"],
+  });
+
+const startTime = (operator: DateTimeFilter["operator"], value: Date) =>
+  new DateTimeFilter({
+    clickhouseTable: "events_full",
+    field: "start_time",
+    operator,
+    value,
+  });
+
+const T0 = new Date("2026-01-01T00:00:00.000Z");
+const plusDays = (base: Date, days: number) =>
+  new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+
+describe("inputOutputContentFilterMissingCompanion", () => {
+  it("returns false when there is no input/output substring scan", () => {
+    expect(
+      inputOutputContentFilterMissingCompanion(
+        new FilterList([idFilter("trace_id")]),
+      ),
+    ).toBe(false);
+  });
+
+  it("treats an input/output exact `=` as index-accelerated (not a scan)", () => {
+    expect(
+      inputOutputContentFilterMissingCompanion(new FilterList([ioFilter("=")])),
+    ).toBe(false);
+  });
+
+  it("treats input/output `is not empty` as a plain non-scan check", () => {
+    expect(
+      inputOutputContentFilterMissingCompanion(
+        new FilterList([ioFilter("is not empty")]),
+      ),
+    ).toBe(false);
+  });
+
+  it.each([
+    "contains",
+    "does not contain",
+    "matches",
+    "starts with",
+    "ends with",
+  ] as const)("flags a lone input/output `%s` scan", (operator) => {
+    expect(
+      inputOutputContentFilterMissingCompanion(
+        new FilterList([ioFilter(operator)]),
+      ),
+    ).toBe(true);
+  });
+
+  it("accepts an exact `=` on input/output as a companion for a sibling scan", () => {
+    expect(
+      inputOutputContentFilterMissingCompanion(
+        new FilterList([
+          ioFilter("contains", "input"),
+          ioFilter("=", "output"),
+        ]),
+      ),
+    ).toBe(false);
+  });
+
+  it.each(["trace_id", "span_id", "user_id", "session_id"] as const)(
+    "accepts a `%s` equality companion",
+    (field) => {
+      expect(
+        inputOutputContentFilterMissingCompanion(
+          new FilterList([ioFilter("matches"), idFilter(field)]),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it.each(["trace_id", "span_id", "user_id", "session_id"] as const)(
+    "accepts a `%s` `any of` (IN) companion",
+    (field) => {
+      expect(
+        inputOutputContentFilterMissingCompanion(
+          new FilterList([ioFilter("matches"), idAnyOfFilter(field)]),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it("does not accept a non-equality id companion", () => {
+    expect(
+      inputOutputContentFilterMissingCompanion(
+        new FilterList([ioFilter("matches"), idFilter("trace_id", "contains")]),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not accept a non-selective column equality (e.g. name)", () => {
+    expect(
+      inputOutputContentFilterMissingCompanion(
+        new FilterList([
+          ioFilter("matches"),
+          new StringFilter({
+            clickhouseTable: "events_full",
+            field: "name",
+            operator: "=",
+            value: "chat",
+          }),
+        ]),
+      ),
+    ).toBe(true);
+  });
+
+  it("accepts a metadata equality companion", () => {
+    expect(
+      inputOutputContentFilterMissingCompanion(
+        new FilterList([ioFilter("matches"), metadataString("=", "value")]),
+      ),
+    ).toBe(false);
+  });
+
+  it("does not accept a metadata substring as a companion", () => {
+    expect(
+      inputOutputContentFilterMissingCompanion(
+        new FilterList([ioFilter("matches"), metadataString("contains", "v")]),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a lower-bound-only start_time window", () => {
+    expect(
+      inputOutputContentFilterMissingCompanion(
+        new FilterList([ioFilter("matches"), startTime(">=", T0)]),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects an upper-bound-only start_time window", () => {
+    expect(
+      inputOutputContentFilterMissingCompanion(
+        new FilterList([ioFilter("matches"), startTime("<", T0)]),
+      ),
+    ).toBe(true);
+  });
+
+  it("accepts a both-ends start_time window of any span", () => {
+    expect(
+      inputOutputContentFilterMissingCompanion(
+        new FilterList([
+          ioFilter("matches"),
+          startTime(">=", T0),
+          startTime("<", plusDays(T0, 90)),
+        ]),
+      ),
+    ).toBe(false);
   });
 });

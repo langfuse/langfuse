@@ -46,6 +46,7 @@ import {
   createPublicApiTracesColumnMapping,
   deriveFilters,
   filtersRequireEventsFull,
+  inputOutputContentFilterMissingCompanion,
   isFtsAcceleratedIoOperator,
   isFtsEventsTable,
   isFtsTextField,
@@ -1418,6 +1419,25 @@ const validateIndexedInputOutputFilters = (filter: FilterList) => {
   }
 };
 
+const IO_CONTENT_FILTER_COMPANION_ERROR =
+  "Input/output substring filters (`contains`/`matches`/`starts with`/`ends " +
+  "with`) must be combined with at least one of: an equality or `any of` " +
+  "filter on trace_id, span_id (id), user_id, or session_id; a metadata " +
+  "equality (`=`) filter; an exact `=` match on input/output; or a start_time " +
+  "window bounded on both ends. These columns are the largest on the events " +
+  "table and have no index that reliably prunes a substring scan, so an " +
+  "unpaired content filter reads the full table and times out.";
+
+// Reject an input/output content scan that is not paired with a companion
+// filter the events_full indexes can prune on. See
+// inputOutputContentFilterMissingCompanion for why this is a weak nudge rather
+// than a real selectivity guarantee.
+const validateInputOutputContentFilterHasCompanion = (filter: FilterList) => {
+  if (inputOutputContentFilterMissingCompanion(filter)) {
+    throw new InvalidRequestError(IO_CONTENT_FILTER_COMPANION_ERROR);
+  }
+};
+
 /**
  * Build observation query components: an EventsQueryBuilder (with JOINs and filters but
  * without CTEs) and any external CTEs that should be composed at the outer level.
@@ -1453,6 +1473,7 @@ function buildObservationsQueryComponents(
 
   if (!options.allowUnindexedIoFilters) {
     validateIndexedInputOutputFilters(observationsFilter);
+    validateInputOutputContentFilterHasCompanion(observationsFilter);
   }
 
   // Determine if we need to join traces (check both simple params and advanced filters)

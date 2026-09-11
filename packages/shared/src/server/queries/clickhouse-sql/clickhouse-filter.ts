@@ -8,6 +8,7 @@ import { clickhouseCompliantRandomCharacters } from "../../repositories";
 import { escapeSqlLikePattern } from "../../utils/sqlLike";
 import {
   assertValidFtsMatchFilter,
+  bareFtsField,
   FTS_OPERATOR_DESCRIPTORS,
   isFtsEventsTable,
   isFtsMetadataField,
@@ -844,3 +845,94 @@ const filterRequiresEventsFull = (filter: Filter): boolean => {
 
 export const filtersRequireEventsFull = (filters: FilterList): boolean =>
   filters.some(filterRequiresEventsFull);
+
+// An input/output substring search (`contains`/`matches`/`starts with`/... →
+// position()/startsWith()) scans the largest events_full columns and has no
+// index that reliably prunes for common tokens, so on its own it is a confirmed
+// timeout class. We cannot know a value's true selectivity at build time, so
+// the mitigation is deliberately weak and structural: require the caller to
+// pair the substring filter with *some* predicate the events_full indexes can
+// prune on, keeping the scan over a smaller candidate set. It nudges; it does
+// not guarantee selectivity (a non-selective id/metadata value still slips
+// through). The accepted companions are a superset of the two upstream scope
+// gates that funnel into this path — the public-API indexed-operator check
+// (which blesses an exact `=` on input/output, index-accelerated via the text
+// token index) and the MCP expensive-access check (which blesses an id-list, a
+// traceId, or any both-ends start_time window) — so a request those gates admit
+// is never contradicted here.
+
+// Equality (`=`) or IN (`any of`) on these columns hits a bloom_filter skipping
+// index on events_full.
+const SELECTIVE_ID_COMPANION_FIELDS: ReadonlySet<string> = new Set([
+  "trace_id",
+  "span_id",
+  "user_id",
+  "session_id",
+]);
+
+// Operators on input/output that do NOT scan: an exact `=` prunes via the text
+// token index, and `is not empty` compiles to a plain `!= ''` check.
+const NON_SCAN_IO_OPERATORS: ReadonlySet<ClickhouseOperator> = new Set([
+  "=",
+  "is not empty",
+]);
+
+const isIoContentScanFilter = (filter: Filter): boolean =>
+  isFtsTextField(filter.field) && !NON_SCAN_IO_OPERATORS.has(filter.operator);
+
+// An exact `=` on input/output is itself index-accelerated (text token index),
+// so it prunes a sibling substring scan to a small candidate set.
+const isIoEqualityCompanion = (filter: Filter): boolean =>
+  isFtsTextField(filter.field) && filter.operator === "=";
+
+const isSelectiveIdCompanion = (filter: Filter): boolean =>
+  (filter.operator === "=" || filter.operator === "any of") &&
+  SELECTIVE_ID_COMPANION_FIELDS.has(bareFtsField(filter.field));
+
+const isMetadataEqualityFilter = (filter: Filter): boolean =>
+  filter.operator === "=" && isFtsMetadataField(filter.field);
+
+// True when start_time is bounded on both ends (any span). Bounding is the
+// nudge; we intentionally do not cap the span, both because we cannot know a
+// safe span at build time and to stay consistent with the upstream MCP gate,
+// which accepts any both-ends window.
+const hasBothEndsStartTimeWindow = (filters: FilterList): boolean => {
+  let hasLower = false;
+  let hasUpper = false;
+  filters.forEach((filter) => {
+    if (
+      !(filter instanceof DateTimeFilter) ||
+      bareFtsField(filter.field) !== "start_time"
+    ) {
+      return;
+    }
+    if (filter.operator === ">" || filter.operator === ">=") {
+      hasLower = true;
+    } else if (filter.operator === "<" || filter.operator === "<=") {
+      hasUpper = true;
+    }
+  });
+  return hasLower && hasUpper;
+};
+
+/**
+ * True when the filter list contains an input/output substring scan but no
+ * companion filter the events_full indexes can prune on (an exact `=` on
+ * input/output, an equality/IN on an indexed id column, a metadata equality, or
+ * a both-ends start_time window). The caller decides how to react.
+ */
+export const inputOutputContentFilterMissingCompanion = (
+  filters: FilterList,
+): boolean => {
+  if (!filters.some(isIoContentScanFilter)) {
+    return false;
+  }
+  const hasCompanion =
+    filters.some(
+      (filter) =>
+        isIoEqualityCompanion(filter) ||
+        isSelectiveIdCompanion(filter) ||
+        isMetadataEqualityFilter(filter),
+    ) || hasBothEndsStartTimeWindow(filters);
+  return !hasCompanion;
+};

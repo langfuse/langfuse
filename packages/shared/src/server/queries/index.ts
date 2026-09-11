@@ -20,6 +20,7 @@ export {
   NullFilter,
   encodeBooleanScoreEntry,
   filtersRequireEventsFull,
+  inputOutputContentFilterMissingCompanion,
   metadataFilterIsEventsCoreSafe,
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";

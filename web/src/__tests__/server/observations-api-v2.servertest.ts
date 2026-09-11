@@ -1134,6 +1134,43 @@ describe("/api/public/v2/observations API Endpoint", () => {
       );
       expect(ioIds).not.toContain(embeddedOnlyId);
 
+      // An `id any of` list is a valid companion for the content scan even
+      // without traceId (mirrors the MCP expensive-access scope).
+      const ioIdListFilterParam = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "matches",
+          value: "needle",
+        },
+        {
+          type: "stringOptions",
+          column: "id",
+          operator: "any of",
+          value: [tokenMatchId, punctuationMatchId],
+        },
+      ]);
+      const ioIdListResponse = await getObservations(
+        `/api/public/v2/observations?fields=basic,io&filter=${encodeURIComponent(ioIdListFilterParam)}`,
+      );
+      expect(ioIdListResponse.status).toBe(200);
+      expect(ioIdListResponse.body.data.map((obs: any) => obs.id)).toEqual(
+        expect.arrayContaining([tokenMatchId, punctuationMatchId]),
+      );
+
+      // A both-ends start_time window is a valid companion without traceId.
+      const ioWindowResponse = await getObservations(
+        `/api/public/v2/observations?fields=basic,io&fromStartTime=${encodeURIComponent(
+          new Date(timestamp.getTime() - 1000).toISOString(),
+        )}&toStartTime=${encodeURIComponent(
+          new Date(timestamp.getTime() + 60000).toISOString(),
+        )}&filter=${encodeURIComponent(ioFilterParam)}`,
+      );
+      expect(ioWindowResponse.status).toBe(200);
+      expect(ioWindowResponse.body.data.map((obs: any) => obs.id)).toEqual(
+        expect.arrayContaining([tokenMatchId, punctuationMatchId]),
+      );
+
       const ioPhraseFilterParam = JSON.stringify([
         {
           type: "string",
@@ -1209,6 +1246,26 @@ describe("/api/public/v2/observations API Endpoint", () => {
       );
       expect(containsOnlyResponse.status).toBe(400);
 
+      // An indexed `matches` scan without a companion the events indexes can
+      // prune on still reads the full table, so it is rejected.
+      const matchesOnlyFilter = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "matches",
+          value: "needle",
+        },
+      ]);
+      const matchesOnlyResponse = await getRaw(
+        `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(matchesOnlyFilter)}`,
+      );
+      expect(matchesOnlyResponse.status).toBe(400);
+      expect(JSON.stringify(matchesOnlyResponse.body)).toContain(
+        "must be combined with",
+      );
+
+      // An indexed `matches` without a companion still reads the full table,
+      // so an IO content scan is rejected on its own.
       const matchesAndContainsFilter = JSON.stringify([
         {
           type: "string",
@@ -1226,7 +1283,10 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const matchesAndContainsResponse = await getRaw(
         `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(matchesAndContainsFilter)}`,
       );
-      expect(matchesAndContainsResponse.status).toBe(200);
+      expect(matchesAndContainsResponse.status).toBe(400);
+      expect(JSON.stringify(matchesAndContainsResponse.body)).toContain(
+        "must be combined with",
+      );
 
       const metadataMatchesAndIoContainsFilter = JSON.stringify([
         {
