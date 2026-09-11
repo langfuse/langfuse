@@ -23,10 +23,7 @@ import {
   SessionBadge,
   UserIdBadge,
 } from "@/src/features/traces/components/TraceMetadataBadges";
-import {
-  SessionHoverCard,
-  UserHoverCard,
-} from "@/src/features/traces/components/ReferenceHoverCard";
+import { SessionHoverCard } from "@/src/features/traces/components/ReferenceHoverCard";
 import { LatencyBadge } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { CostUsageBadge } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
@@ -74,15 +71,7 @@ export function TraceSummaryStrip() {
             />
           </SessionHoverCard>
         ) : null}
-        {trace.userId ? (
-          <UserHoverCard
-            userId={trace.userId}
-            projectId={trace.projectId}
-            anchorTime={trace.timestamp}
-          >
-            <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
-          </UserHoverCard>
-        ) : null}
+        <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
         {trace.tags.length > 0 && (
           <div className="flex min-w-0 items-center gap-1">
             {/* Session-header pill styling; v4 tags are immutable here, so no

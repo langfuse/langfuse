@@ -1,21 +1,18 @@
 /**
- * Hover cards for the Session and User references in the trace summary strip.
+ * Hover card for the Session reference in the trace summary strip.
  *
- * The strip shows the references as quiet links; this answers "is it worth
- * opening?" without the click: how big the session is, how heavy the user is.
- * Same grammar as the observation hover card (bold label, muted rows). The raw
- * id sits in the header with copy and filter shortcuts, since the strip itself
- * shows only the label.
- *
- * Numbers are the ones the Sessions and Users tables show, fetched on first
- * open and cached. User totals are capped to the last 30 days so a bot user
- * with years of traffic does not turn a hover into a full-table scan.
+ * The strip shows the reference as a quiet link; this answers "is it worth
+ * opening?" without the click: how big the session is. Same grammar as the
+ * observation hover card (bold label, muted rows). The raw id sits in the
+ * header with copy and add-to-filter, since the strip itself shows only the
+ * label. Numbers are the ones the Sessions table shows, fetched on first open
+ * and cached. (The User reference deliberately has no card: the id is already
+ * visible in the strip and per-user totals are expensive.)
  */
 
 import { type ReactNode, useState } from "react";
 import { useRouter } from "next/router";
 import { Copy, Filter } from "lucide-react";
-import { format } from "date-fns";
 import { type FilterState } from "@langfuse/shared";
 
 import {
@@ -31,15 +28,9 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { buildEventsTablePathForColumnFilter } from "@/src/features/events/lib/eventsTablePaths";
 import { attributeColumnFilter } from "@/src/features/traces/components/ObservationAttributesList";
 
-export const USER_WINDOW_DAYS = 30;
-
 type Row = { label: string; value: string };
 
 const CARD_CLASS = "w-64 p-2.5 text-xs";
-
-function formatTime(date: Date | null | undefined): string {
-  return date ? format(date, "MMM d HH:mm") : "";
-}
 
 function Rows({ rows }: { rows: Row[] }) {
   return (
@@ -85,7 +76,7 @@ function ReferenceActions({
   anchorTime,
 }: {
   value: string;
-  filterKey: "session_id" | "user_id";
+  filterKey: "session_id";
   projectId: string;
   anchorTime: Date | null | undefined;
 }) {
@@ -221,81 +212,6 @@ export function SessionHoverCard({
             <ReferenceActions
               value={sessionId}
               filterKey="session_id"
-              projectId={projectId}
-              anchorTime={anchorTime}
-            />
-          }
-        />
-      </HoverCardContent>
-    </HoverCard>
-  );
-}
-
-export function UserHoverCard({
-  userId,
-  projectId,
-  anchorTime,
-  children,
-}: {
-  userId: string;
-  projectId: string;
-  anchorTime: Date | null | undefined;
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  const { isV4 } = useReadPath();
-  // Fixed at first open so the query key does not change every render.
-  const [fromTimestamp] = useState(
-    () => new Date(Date.now() - USER_WINDOW_DAYS * 24 * 60 * 60 * 1000),
-  );
-  const v4 = api.users.byIdFromEvents.useQuery(
-    { projectId, userId, fromTimestamp },
-    { enabled: open && isV4, staleTime: 60_000 },
-  );
-  const v3 = api.users.byId.useQuery(
-    { projectId, userId },
-    { enabled: open && !isV4, staleTime: 60_000 },
-  );
-  const query = isV4 ? v4 : v3;
-
-  const rows: Row[] = [];
-  if (query.data) {
-    rows.push({
-      label: "Traces",
-      value: numberFormatter(Number(query.data.totalTraces), 0),
-    });
-    if (query.data.firstTrace) {
-      rows.push({
-        label: "First seen",
-        value: formatTime(query.data.firstTrace),
-      });
-    }
-    if (query.data.lastTrace) {
-      rows.push({
-        label: "Last seen",
-        value: formatTime(query.data.lastTrace),
-      });
-    }
-    rows.push({
-      label: "Cost",
-      value: usdFormatter(Number(query.data.sumCalculatedTotalCost)),
-    });
-  }
-
-  return (
-    <HoverCard open={open} onOpenChange={setOpen} openDelay={150}>
-      <HoverCardTrigger asChild>{children}</HoverCardTrigger>
-      <HoverCardContent align="start" className={CARD_CLASS}>
-        <CardFrame
-          label="User"
-          id={userId}
-          note={isV4 ? `Last ${USER_WINDOW_DAYS} days` : "All time"}
-          status={query.isError ? "error" : query.data ? "ready" : "loading"}
-          rows={rows}
-          actions={
-            <ReferenceActions
-              value={userId}
-              filterKey="user_id"
               projectId={projectId}
               anchorTime={anchorTime}
             />

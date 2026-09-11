@@ -35,9 +35,9 @@ import { usdFormatter, numberFormatter } from "@/src/utils/numbers";
 const METRIC_TEXT_CLASS =
   "text-muted-foreground inline-flex shrink-0 items-center gap-1 text-[11px] whitespace-nowrap";
 
-// Values that own a hover breakdown get a faint dotted underline at rest so
+// Values that own a hover breakdown get a faint underline at rest so
 // they read as "more here" next to plain metrics (latency) that have nothing.
-const BREAKDOWN_AFFORDANCE_CLASS = `${METRIC_TEXT_CLASS} decoration-muted-foreground/50 underline decoration-dotted underline-offset-4`;
+const BREAKDOWN_AFFORDANCE_CLASS = `${METRIC_TEXT_CLASS} decoration-muted-foreground/50 underline underline-offset-4`;
 
 /**
  * Whether a usage object is worth rendering at all — `CostUsageBadge`'s own
