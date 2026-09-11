@@ -1,4 +1,4 @@
-import { percentile, type ScoreDomain } from "@langfuse/shared";
+import { type ScoreDomain } from "@langfuse/shared";
 import { Clock, Plus, Search, X } from "lucide-react";
 import { type ReactNode, type SyntheticEvent, useState } from "react";
 
@@ -44,7 +44,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
  * header). The pill
  * primitive survives for the "+N" overflow control alone.
  *
- * The latency metric is the median trace latency alone. Behaviour is
+ * The time metric is the session duration (first to last trace). Behaviour is
  * unchanged: one measured line with a searchable "+N" overflow popover (users
  * paginate inside it), pinned metadata JSONPaths with a hover remove and a `+`
  * editor, and the PostHog captures on JSONPath config changes.
@@ -53,6 +53,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 type ModernSessionHeaderProps = {
   projectId: string;
   countTraces: number;
+  /** First and last trace timestamp of the session; their distance is the
+      session duration, the same figure the sessions table shows. */
+  minTimestamp: Date | null;
+  maxTimestamp: Date | null;
   traces:
     | { state: "loading" }
     | {
@@ -272,6 +276,8 @@ const MetadataJsonPathEditorContent = ({
 export function ModernSessionHeader({
   projectId,
   countTraces,
+  minTimestamp,
+  maxTimestamp,
   traces,
   tokensIn,
   tokensOut,
@@ -308,19 +314,14 @@ export function ModernSessionHeader({
       isV4: true,
     });
   };
-  const latencies =
-    traces.state === "loaded"
-      ? traces.data.flatMap((trace) =>
-          trace.latencyMs !== null && trace.latencyMs > 0
-            ? [trace.latencyMs]
-            : [],
-        )
-      : [];
   const spanCount =
     traces.state === "loaded"
       ? traces.data.reduce((total, trace) => total + trace.observationCount, 0)
       : null;
-  const p50LatencyMs = latencies.length > 0 ? percentile(latencies, 0.5) : null;
+  const sessionDurationMs =
+    minTimestamp && maxTimestamp
+      ? Math.max(0, maxTimestamp.getTime() - minTimestamp.getTime())
+      : null;
   const details: SessionHeaderDetail[] = [
     {
       key: "traces",
@@ -344,20 +345,17 @@ export function ModernSessionHeader({
     },
   ];
 
-  if (p50LatencyMs !== null) {
+  if (sessionDurationMs !== null) {
     details.push({
-      key: "latency",
-      searchText: `latency p50 ${p50LatencyMs}`,
+      key: "duration",
+      searchText: `duration ${sessionDurationMs}`,
       type: "latency",
       content: (
-        <span title="Median trace latency" className={METRIC_TEXT_CLASS}>
+        <span title="Session duration" className={METRIC_TEXT_CLASS}>
           <Clock className="size-3 shrink-0" aria-hidden />
-          <span>
-            p50{" "}
-            <MetricValue>
-              {formatIntervalSeconds(p50LatencyMs / 1000)}
-            </MetricValue>
-          </span>
+          <MetricValue>
+            {formatIntervalSeconds(sessionDurationMs / 1000)}
+          </MetricValue>
         </span>
       ),
     });

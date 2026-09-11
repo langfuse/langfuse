@@ -64,6 +64,8 @@ const scores: ModernSessionHeaderScore[] = [
 const defaultProps = {
   projectId: "project-1",
   countTraces: 3,
+  minTimestamp: new Date("2026-01-01T00:00:00.000Z"),
+  maxTimestamp: new Date("2026-01-01T00:00:01.200Z"),
   traces: {
     state: "loaded" as const,
     data: [{ latencyMs: 1_200, observationCount: 7 }],
@@ -92,15 +94,13 @@ describe("ModernSessionHeader", () => {
   it("renders every session detail as quiet text, links and score chips", () => {
     render(<ModernSessionHeader {...defaultProps} />);
 
-    // Metrics: counts and latency percentiles as plain text, no pill box.
+    // Metrics: counts and session duration as plain text, no pill box.
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByText("traces")).toBeInTheDocument();
     expect(screen.getByText("7")).toBeInTheDocument();
     expect(screen.getByText("spans")).toBeInTheDocument();
     // Latency is the median alone; p95 is no longer shown.
-    expect(screen.getByTitle("Median trace latency")).toHaveTextContent(
-      "p50 1.20s",
-    );
+    expect(screen.getByTitle("Session duration")).toHaveTextContent("1.20s");
     expect(screen.queryByText(/p95/)).not.toBeInTheDocument();
     // Cost and usage share one element.
     expect(screen.getByTitle("Cost")).toBeInTheDocument();

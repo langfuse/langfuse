@@ -29,6 +29,8 @@ const manyUsers = Array.from(
 const defaultArgs = {
   projectId: "project-1",
   countTraces: 24,
+  minTimestamp: new Date("2026-01-01T09:00:00.000Z"),
+  maxTimestamp: new Date("2026-01-01T09:14:32.000Z"),
   traces: {
     state: "loaded",
     data: [
