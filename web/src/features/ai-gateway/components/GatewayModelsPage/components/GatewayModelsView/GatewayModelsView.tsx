@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Route } from "lucide-react";
+import { SiAnthropic, SiOpenai } from "react-icons/si";
 
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -20,8 +21,8 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { useSidebarFilterState } from "@/src/features/filters";
-import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import { gatewayModelsFilterConfig } from "@/src/features/ai-gateway/constants/modelsFilterConfig";
+import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { GATEWAY_MODELS_FIELD_REGISTRY } from "@/src/features/ai-gateway/constants/modelsSearchRegistry";
 import {
   TableSearchBar,
@@ -43,7 +44,7 @@ const columns: LangfuseColumnDef<GatewayModelRow, unknown>[] = [
     header: "Model",
     size: 200,
     cell: ({ row }) => (
-      <span className="block truncate font-mono" title={row.original.id}>
+      <span className="block truncate" title={row.original.id}>
         {row.original.id}
       </span>
     ),
@@ -59,8 +60,9 @@ const columns: LangfuseColumnDef<GatewayModelRow, unknown>[] = [
         additionalOverflowCount={0}
         getKey={(connection) => connection.connectionId}
         renderItem={(connection) => (
-          <Badge variant="secondary">
-            {connection.connectionName} · {providerLabels[connection.provider]}
+          <Badge variant="secondary" className="gap-1.5">
+            <GatewayProviderIcon provider={connection.provider} />
+            {connection.connectionName}
           </Badge>
         )}
         renderOverflow={({ hiddenItems, overflowItemCount }) => (
@@ -71,12 +73,17 @@ const columns: LangfuseColumnDef<GatewayModelRow, unknown>[] = [
               </span>
             </TooltipTrigger>
             <TooltipContent className="max-w-xs">
-              {hiddenItems
-                .map(
-                  (connection) =>
-                    `${connection.connectionName} · ${providerLabels[connection.provider]}`,
-                )
-                .join(", ")}
+              <div className="flex flex-col gap-1">
+                {hiddenItems.map((connection) => (
+                  <span
+                    key={connection.connectionId}
+                    className="flex items-center gap-1.5"
+                  >
+                    <GatewayProviderIcon provider={connection.provider} />
+                    {connection.connectionName}
+                  </span>
+                ))}
+              </div>
             </TooltipContent>
           </Tooltip>
         )}
@@ -93,7 +100,9 @@ const columns: LangfuseColumnDef<GatewayModelRow, unknown>[] = [
         items={row.original.apiFormats}
         additionalOverflowCount={0}
         getKey={(format) => format}
-        renderItem={(format) => <Badge variant="secondary">{format}</Badge>}
+        renderItem={(format) => (
+          <Badge variant="secondary">{getApiFormatLabel(format)}</Badge>
+        )}
         renderOverflow={({ hiddenItems, overflowItemCount }) => (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -102,7 +111,7 @@ const columns: LangfuseColumnDef<GatewayModelRow, unknown>[] = [
               </span>
             </TooltipTrigger>
             <TooltipContent className="max-w-xs">
-              {hiddenItems.join(", ")}
+              {hiddenItems.map(getApiFormatLabel).join(", ")}
             </TooltipContent>
           </Tooltip>
         )}
@@ -332,6 +341,21 @@ export function GatewayModelsView({
       </DataTableControlsProvider>
     </div>
   );
+}
+
+function GatewayProviderIcon({ provider }: { provider: GatewayProvider }) {
+  if (provider === "OPENAI")
+    return <SiOpenai className="size-3" aria-hidden="true" />;
+  if (provider === "ANTHROPIC")
+    return <SiAnthropic className="size-3" aria-hidden="true" />;
+  return <Route className="size-3" aria-hidden="true" />;
+}
+
+function getApiFormatLabel(format: string) {
+  if (format === "Anthropic Messages") return "Messages";
+  if (format === "OpenAI Chat Completions") return "Completions";
+  if (format === "OpenAI Responses") return "Responses";
+  return format;
 }
 
 function uniqueSorted(values: string[]) {
