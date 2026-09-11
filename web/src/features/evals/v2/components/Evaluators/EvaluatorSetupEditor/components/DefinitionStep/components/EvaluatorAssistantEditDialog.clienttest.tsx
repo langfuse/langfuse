@@ -50,12 +50,12 @@ describe("EvaluatorAssistantEditDialog", () => {
     fireEvent.pointerDown(overlay!, { button: 0, pointerType: "mouse" });
     fireEvent.click(overlay!);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(trigger).toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
 
     fireEvent.click(trigger);
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(trigger).toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
 
     fireEvent.click(trigger);
     fireEvent.click(
@@ -64,7 +64,7 @@ describe("EvaluatorAssistantEditDialog", () => {
       })[0],
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(trigger).toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it("uses only the embedded send action and locks handoff while pending", async () => {
