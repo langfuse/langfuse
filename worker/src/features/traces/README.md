@@ -142,6 +142,14 @@ Also inspect these metrics under `langfuse.trace_batch`:
   Enable percentile aggregations to distinguish mixed-project jobs from jobs
   filled by one hot project. Query-log attribution is `MULTI_PROJECT` when a
   read spans projects; row coverage counts exact project/trace pairs.
+- `found_project_count`: distribution of distinct project IDs in rows actually
+  returned by ClickHouse, once per successful consumer attempt. Multiple traces
+  and observations from one project count once; requested projects with no rows
+  do not count. Empty reads emit zero. Retries contribute another sample.
+  Job results expose the same value as `projectCount`. No project IDs are tags.
+  Enable percentile aggregations for this metric in Metrics Summary; then use
+  `p95:langfuse.trace_batch.found_project_count{env:prod-jp}` (or `prod-eu`),
+  replacing `p95` with `avg`, `p50`, `p75`, `p90` or `p99` as needed.
 
 | Metric                                                          | Meaning                                                                                               |
 | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |

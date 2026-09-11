@@ -12,12 +12,14 @@ export const traceBatchQueueProcessor: Processor<
 > = async (job) => {
   const batch = TraceBatchEventSchema.parse(job.data).payload;
   const foundTraces = new Set<string>();
+  const foundProjects = new Set<string>();
   let observationCount = 0;
   let ioMetadataBytes = 0;
 
   for await (const event of getTraceBatchEventStream(batch)) {
     observationCount++;
     foundTraces.add(JSON.stringify([event.project_id, event.trace_id]));
+    foundProjects.add(event.project_id);
     // Logical UTF-8 payload size, excluding JSON transport and compression.
     ioMetadataBytes +=
       Buffer.byteLength(event.input) + Buffer.byteLength(event.output);
@@ -36,6 +38,10 @@ export const traceBatchQueueProcessor: Processor<
   );
   recordDistribution("langfuse.trace_batch.io_metadata_bytes", ioMetadataBytes);
   recordDistribution(
+    "langfuse.trace_batch.found_project_count",
+    foundProjects.size,
+  );
+  recordDistribution(
     "langfuse.trace_batch.missing_trace_count",
     batch.traces.length - foundTraces.size,
   );
@@ -44,6 +50,7 @@ export const traceBatchQueueProcessor: Processor<
   return {
     observationCount,
     traceCount: foundTraces.size,
+    projectCount: foundProjects.size,
     ioMetadataBytes,
   };
 };

@@ -293,7 +293,15 @@ describe("trace micro-batch scheduling with Redis", () => {
         batch.data.payload.traces.map((trace) => trace.traceId).sort(),
       ).toEqual([traceId, otherTraceId].sort());
       const result = await batch.waitUntilFinished(batchEvents, 10_000);
-      expect(result).toMatchObject({ observationCount: 3, traceCount: 2 });
+      expect(result).toMatchObject({
+        observationCount: 3,
+        traceCount: 2,
+        projectCount: 1,
+      });
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.trace_batch.found_project_count",
+        1,
+      );
       // All three observations must carry their untruncated I/O and metadata.
       expect(result.ioMetadataBytes).toBeGreaterThanOrEqual(
         3 * (Buffer.byteLength(input) + Buffer.byteLength(output) + 8_000),
