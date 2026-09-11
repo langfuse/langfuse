@@ -225,10 +225,12 @@ function aggregateIntoMultiUnitBuckets<
   // Create buckets going backwards until we cover fromDate
   while (bucketEnd >= fromDate && iterations < maxIterations) {
     iterations++;
+    // Buckets must tile contiguously: each spans exactly `count` units and
+    // the next bucket starts where this one ends. Going back only `count - 1`
+    // units here leaves a one-unit gap between buckets, and single-unit data
+    // points falling into that gap are silently dropped.
     let bucketStart = bucketEnd;
-
-    // Go back `count` units
-    for (let i = 0; i < count - 1; i++) {
+    for (let i = 0; i < count; i++) {
       bucketStart = subtractSingleUnit(bucketStart);
     }
 
@@ -247,12 +249,16 @@ function aggregateIntoMultiUnitBuckets<
     }
   }
 
-  // Assign data points to buckets
+  // Assign data points to buckets with (start, end] semantics: a point on a
+  // shared boundary belongs to the earlier bucket, and the rightmost bucket
+  // still includes toDate itself without also admitting its start boundary
+  // (the ClickHouse query is timestamp <= toTimestamp, so an aligned toDate
+  // point does arrive - inclusive start would overfill the last bucket).
   for (const dataPoint of data) {
     const ts = toStartOfSingleUnit(dataPoint.timestamp);
 
     for (const bucket of buckets) {
-      if (ts >= bucket.start && ts <= bucket.end) {
+      if (ts > bucket.start && ts <= bucket.end) {
         bucket.dataPoints.push(dataPoint);
         break;
       }
@@ -533,10 +539,12 @@ function aggregateCategoricalIntoMultiUnitBuckets<
   // Create buckets going backwards
   while (bucketEnd >= fromDate && iterations < maxIterations) {
     iterations++;
+    // Buckets must tile contiguously: each spans exactly `count` units and
+    // the next bucket starts where this one ends. Going back only `count - 1`
+    // units here leaves a one-unit gap between buckets, and single-unit data
+    // points falling into that gap are silently dropped.
     let bucketStart = bucketEnd;
-
-    // Go back `count` units
-    for (let i = 0; i < count - 1; i++) {
+    for (let i = 0; i < count; i++) {
       bucketStart = subtractSingleUnit(bucketStart);
     }
 
@@ -555,12 +563,16 @@ function aggregateCategoricalIntoMultiUnitBuckets<
     }
   }
 
-  // Assign data points to buckets
+  // Assign data points to buckets with (start, end] semantics: a point on a
+  // shared boundary belongs to the earlier bucket, and the rightmost bucket
+  // still includes toDate itself without also admitting its start boundary
+  // (the ClickHouse query is timestamp <= toTimestamp, so an aligned toDate
+  // point does arrive - inclusive start would overfill the last bucket).
   for (const dataPoint of data) {
     const ts = toStartOfSingleUnit(dataPoint.timestamp);
 
     for (const bucket of buckets) {
-      if (ts >= bucket.start && ts <= bucket.end) {
+      if (ts > bucket.start && ts <= bucket.end) {
         bucket.dataPoints.push(dataPoint);
         break;
       }
