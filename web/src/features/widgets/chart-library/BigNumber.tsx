@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-null-render */
+/* eslint-disable @repo/no-style-props */
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
@@ -52,12 +52,7 @@ export const BigNumber: React.FC<ChartProps> = ({
   const [fontSize, setFontSize] = useState<FontSizeClass>("text-6xl");
   const [maxCharacters, setMaxCharacters] = useState<number>();
 
-  // Calculate metric value from data - show loading if no data
-  const isLoading = !data || data.length === 0;
-
   const calculatedMetric = useMemo(() => {
-    if (isLoading) return 0;
-
     // Show the sum of all metrics, or just the first metric if only one
     if (data.length === 1) {
       return typeof data[0].metric === "number" ? data[0].metric : 0;
@@ -67,13 +62,9 @@ export const BigNumber: React.FC<ChartProps> = ({
       const metric = typeof d.metric === "number" ? d.metric : 0;
       return acc + metric;
     }, 0);
-  }, [data, isLoading]);
+  }, [data]);
 
   const displayValue = useMemo(() => {
-    if (isLoading) {
-      return { main: "0" };
-    }
-
     return metricFormatter
       ? metricFormatter(
           calculatedMetric,
@@ -87,7 +78,7 @@ export const BigNumber: React.FC<ChartProps> = ({
       : {
           main: calculatedMetric.toString(),
         };
-  }, [calculatedMetric, isLoading, maxCharacters, metricFormatter]);
+  }, [calculatedMetric, maxCharacters, metricFormatter]);
 
   useEffect(() => {
     const resizeObserver = new ResizeObserver(() => {
@@ -112,13 +103,11 @@ export const BigNumber: React.FC<ChartProps> = ({
         const maxChars = Math.floor(availableWidth / charWidth);
 
         // Quick test with current display value
-        const testDisplayValue = !isLoading
-          ? metricFormatter
-            ? metricFormatter(calculatedMetric, {
-                style: "compact",
-                maxCharacters: maxChars,
-              })
-            : { main: "0" }
+        const testDisplayValue = metricFormatter
+          ? metricFormatter(calculatedMetric, {
+              style: "compact",
+              maxCharacters: maxChars,
+            })
           : { main: "0" };
 
         const textLength = (
@@ -149,11 +138,7 @@ export const BigNumber: React.FC<ChartProps> = ({
     }
 
     return () => resizeObserver.disconnect();
-  }, [calculatedMetric, isLoading, metricFormatter]);
-
-  if (isLoading) {
-    return null;
-  }
+  }, [calculatedMetric, metricFormatter]);
 
   return (
     <div
