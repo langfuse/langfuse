@@ -659,7 +659,7 @@ export const ValueCell = memo(
           <Button
             variant="ghost"
             size="icon"
-            className="absolute top-0 right-0 h-5 w-5 p-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+            className="absolute top-1/2 right-0 h-5 w-5 -translate-y-1/2 p-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
             onClick={handleCopy}
             title="Copy value"
             aria-label="Copy cell value"
