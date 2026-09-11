@@ -67,4 +67,23 @@ describe("observations-events system table view presets", () => {
     expect(new Set(ids).size).toBe(ids.length);
     expect(new Set(names).size).toBe(names.length);
   });
+
+  it("offers a cost preset for observations with no cache use", () => {
+    const preset = presets.find(({ name }) => name === "No cache used");
+
+    expect(preset).toMatchObject({
+      description: "Observations reporting zero cached input tokens",
+      category: SystemTableViewPresetCategory.CostRegression,
+      state: {
+        filters: [
+          {
+            column: "cachedInputTokens",
+            type: "number",
+            operator: "<=",
+            value: 0,
+          },
+        ],
+      },
+    });
+  });
 });
