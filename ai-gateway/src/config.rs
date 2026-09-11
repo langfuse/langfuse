@@ -1,7 +1,9 @@
+use crate::resolution::ResolverConfig;
 use std::{env, error::Error, fmt, net::SocketAddr, time::Duration};
 use tracing::level_filters::LevelFilter;
 
 pub struct Config {
+    pub resolver: Option<ResolverConfig>,
     pub listen_address: SocketAddr,
     pub shutdown_timeout: Duration,
     pub log_level: LevelFilter,
@@ -30,14 +32,28 @@ impl Config {
     ///
     /// # Errors
     /// Returns an error if a configured value is not Unicode or fails validation
-    /// in [`Self::from_values`]. Error messages never include the supplied values.
+    /// in [`Self::from_values`], or if a Web URL is configured with an invalid URL
+    /// or missing/blank service key. Error messages never include supplied values.
     pub fn from_env() -> Result<Self, ConfigError> {
-        Self::from_values(
+        let mut config = Self::from_values(
             read_env("LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS")?.as_deref(),
             read_env("LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS")?.as_deref(),
             read_env("LANGFUSE_LOG_LEVEL")?.as_deref(),
             read_env("LANGFUSE_LOG_FORMAT")?.as_deref(),
-        )
+        )?;
+        if let Some(web_url) =
+            read_env("LANGFUSE_AI_GATEWAY_WEB_URL")?.filter(|url| !url.is_empty())
+        {
+            let service_key = read_env("LANGFUSE_AI_GATEWAY_SERVICE_KEY")?.ok_or(ConfigError(
+                "LANGFUSE_AI_GATEWAY_SERVICE_KEY is required when LANGFUSE_AI_GATEWAY_WEB_URL is set",
+            ))?;
+            config.resolver = Some(ResolverConfig::new(&web_url, &service_key).map_err(|_| {
+                ConfigError(
+                    "invalid LANGFUSE_AI_GATEWAY_WEB_URL or LANGFUSE_AI_GATEWAY_SERVICE_KEY",
+                )
+            })?);
+        }
+        Ok(config)
     }
 
     /// Parse gateway configuration, using defaults for absent values.
@@ -86,6 +102,7 @@ impl Config {
             _ => return Err(ConfigError("LANGFUSE_LOG_FORMAT must be text or json")),
         };
         Ok(Self {
+            resolver: None,
             listen_address,
             shutdown_timeout: Duration::from_secs(seconds),
             log_level,

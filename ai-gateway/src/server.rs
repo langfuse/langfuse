@@ -15,11 +15,20 @@ use tokio::{net::TcpListener, sync::oneshot};
 #[derive(Clone, Default)]
 pub struct AppState {
     ready: Arc<AtomicBool>,
+    disabled: bool,
 }
 
 impl AppState {
     pub fn is_ready(&self) -> bool {
-        self.ready.load(Ordering::Acquire)
+        !self.disabled && self.ready.load(Ordering::Acquire)
+    }
+
+    /// Keep liveness available without advertising inference readiness.
+    pub fn unconfigured() -> Self {
+        Self {
+            disabled: true,
+            ..Self::default()
+        }
     }
 }
 
@@ -41,7 +50,13 @@ async fn readiness(State(state): State<AppState>) -> (StatusCode, Json<Probe>) {
     } else {
         (
             StatusCode::SERVICE_UNAVAILABLE,
-            Json(Probe { status: "draining" }),
+            Json(Probe {
+                status: if state.disabled {
+                    "unconfigured"
+                } else {
+                    "draining"
+                },
+            }),
         )
     }
 }

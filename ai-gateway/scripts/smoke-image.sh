@@ -3,7 +3,9 @@ set -euo pipefail
 
 image="${1:?Usage: bash scripts/smoke-image.sh IMAGE}"
 container="$(docker run -d --read-only --cap-drop ALL --security-opt no-new-privileges \
-  -e LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS=2 -p 127.0.0.1::8080 "$image")"
+  -e LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS=2 \
+  -e LANGFUSE_AI_GATEWAY_WEB_URL=https://web.example \
+  -e LANGFUSE_AI_GATEWAY_SERVICE_KEY=smoke-test-service-key -p 127.0.0.1::8080 "$image")"
 cleanup() {
   docker logs "$container" || true
   docker rm -f "$container" >/dev/null || true
@@ -20,9 +22,9 @@ for route in health ready; do
 done
 [[ "$(docker exec "$container" id -u)" != 0 ]]
 [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' \
-  --max-time 2 -X POST "http://$port/openai/v1/responses")" == 404 ]]
+  --max-time 2 -X POST "http://$port/openai/v1/responses")" == 401 ]]
 docker stop --time 5 "$container" >/dev/null
 [[ "$(docker inspect --format '{{.State.ExitCode}}' "$container")" == 0 ]]
 docker logs "$container" 2>&1 | grep -q 'gateway draining'
 docker logs "$container" 2>&1 | grep -q 'gateway stopped'
-printf '%s\n' 'Image smoke: non-root, probes, unimplemented inference, SIGTERM passed'
+printf '%s\n' 'Image smoke: non-root, probes, unauthenticated inference, SIGTERM passed'
