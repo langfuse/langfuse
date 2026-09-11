@@ -48,6 +48,8 @@ fi
 
 attempt=1
 until install_playwright; do
+  release_apt_locks
+
   if [[ "${attempt}" -ge "${MAX_FALLBACK_ATTEMPTS}" ]]; then
     echo "Playwright install failed after ${MAX_FALLBACK_ATTEMPTS} fallback attempts." >&2
     exit 1
