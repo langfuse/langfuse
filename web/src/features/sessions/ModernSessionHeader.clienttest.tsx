@@ -109,7 +109,7 @@ describe("ModernSessionHeader", () => {
     expect(screen.getByText("env")).toBeInTheDocument();
     expect(screen.getByText("production")).toBeInTheDocument();
     // Scores: chips, name and value kept.
-    expect(screen.getByText("Helpfulness:")).toBeInTheDocument();
+    expect(screen.getByText("Helpfulness")).toBeInTheDocument();
     expect(screen.getByText("0.86")).toBeInTheDocument();
   });
 
