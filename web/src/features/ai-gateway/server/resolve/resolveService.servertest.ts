@@ -107,6 +107,7 @@ describe("GatewayResolveService", () => {
         project_id: "project-1",
         key_id: "key-1",
         key_metadata: { team: "platform", project_id: "spoofed-project" },
+        provider_connection_id: "connection-1",
       },
       ingestion_mode: "usage",
       ingestion: {
@@ -133,6 +134,7 @@ describe("GatewayResolveService", () => {
         project_id: "project-1",
         key_id: "key-1",
         key_metadata: {},
+        provider_connection_id: "connection-1",
       },
     });
   });

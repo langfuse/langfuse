@@ -55,7 +55,7 @@ export function GatewayApiKeysPage({
           {({ openDialog }) => (
             <Button onClick={openDialog}>
               <Plus className="mr-1.5 size-4" />
-              Create gateway key
+              Create key
             </Button>
           )}
         </CreateGatewayApiKeyDialogController>

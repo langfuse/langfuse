@@ -18,7 +18,6 @@ import type { FilterState, TracingSearchType } from "@langfuse/shared";
 
 import {
   classifySearchError,
-  DEFAULT_SEARCH_TYPE,
   planCommit,
 } from "@/src/features/search-bar/lib/commit";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
@@ -298,15 +297,15 @@ export function useEventsSearchBar({
       beginCommit({
         filters: committedFilters,
         query: null,
-        scopes: DEFAULT_SEARCH_TYPE,
+        scopes: [...registry.defaultSearchType],
       });
       setFilterState(committedFilters);
       setSearchQuery(null);
-      if (!sameScopes(DEFAULT_SEARCH_TYPE, searchTypeRef.current)) {
-        setSearchType(DEFAULT_SEARCH_TYPE);
+      if (!sameScopes([...registry.defaultSearchType], searchTypeRef.current)) {
+        setSearchType([...registry.defaultSearchType]);
       }
     },
-    [beginCommit, mergeWithSkipped],
+    [beginCommit, mergeWithSkipped, registry],
   );
 
   // The committed text at the last render — the dedup baseline so a blur that
@@ -374,11 +373,7 @@ export function useEventsSearchBar({
       });
       setFilterState(committedFilters);
       setSearchQuery(result.searchQuery);
-      // Only write searchType when it actually changed. planCommit coerces a
-      // draft with no scope token to the default (`["id","content"]` — ids+names
-      // +input+output); the bar's default deliberately differs from the legacy
-      // toolbar's `["id"]`, so it IS written to the URL (that's how the content
-      // lane persists). The guard just avoids a redundant rewrite when unchanged.
+      // Commit the scope alongside the query, without redundant URL writes.
       if (!sameScopes(result.searchType, searchTypeRef.current)) {
         setSearchType(result.searchType);
       }
@@ -393,6 +388,18 @@ export function useEventsSearchBar({
           filterCount: committedFilters.length,
           hasFreeText: (result.searchQuery ?? "").trim().length > 0,
           searchType: analyticsSearchType ?? result.searchType,
+          searchScopes: Array.from(
+            new Set([
+              ...((result.searchQuery ?? "").trim()
+                ? (analyticsSearchType ?? result.searchType)
+                : []),
+              ...result.filters.flatMap((filter) =>
+                filter.column === "input" || filter.column === "output"
+                  ? [filter.column]
+                  : [],
+              ),
+            ]),
+          ),
           queryLength: committed.trim().length,
           trigger,
           isV4,

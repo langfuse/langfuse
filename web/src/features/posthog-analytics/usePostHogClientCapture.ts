@@ -60,7 +60,16 @@ const events = {
     // target tab, `target` is trace vs observation. Answers whether the Log
     // View and Scores tabs earn their place.
     "detail_tab_switch",
-    // The JSON-view Beta switch (legacy JSON ↔ virtualized json-beta).
+    // Controls used *inside* the Log View tab, so a removal decision can weigh
+    // what people actually do there. `target` is trace vs observation;
+    // `action` is one of (see `LogViewAction` in TraceLogView.tsx):
+    // search_focus (once per focus, not per keystroke), indent_toggle,
+    // milliseconds_toggle, expand_all, collapse_all, row_expand, row_collapse,
+    // copy_json, json_mode_collapse_toggle, and view_mode_switch (the
+    // Formatted/JSON toggle, emitted by the hosting detail views).
+    // Metadata only — never an observation id or the search text.
+    "log_view_interaction",
+    // The JSON-view Beta switch (legacy JSON <-> virtualized json-beta).
     // `enabled` is the new value. Decides whether json-beta graduates.
     "json_beta_toggle",
     // Whole-section collapse chevrons on Input/Output/Metadata/Corrected

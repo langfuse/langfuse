@@ -31,8 +31,11 @@ export function eventsSearchRegistry(
         "trace_score_categories",
         "trace_score_booleans",
       ].some((column) => omitted.has(column)),
+    defaultSearchType: useHostSearchScopes
+      ? ["id"]
+      : EVENTS_FIELD_REGISTRY.defaultSearchType,
     freeTextScopeLabel: useHostSearchScopes
-      ? "the selected search scope"
+      ? "IDs, user IDs and names"
       : EVENTS_FIELD_REGISTRY.freeTextScopeLabel,
     // A scoped registry cannot use the full events AI vocabulary.
     aiFilterPrompt: omittedColumns.length === 0,

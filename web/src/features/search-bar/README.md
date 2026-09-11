@@ -44,51 +44,52 @@ state remain canonical; both editors update the same state.
   to the real key when lowering; the reverse adapter and completions re-quote
   them — so they round-trip)
 - `has:endTime` / `-has:endTime` null checks
-- full-text search (see below): bare text, or `input:`/`output:`/`name:`/`id:`
+- text search (see below): bare text, declared `content:`/`all:` scopes, and
+  supported `input:`/`output:`/`name:`/`id:` fields
 
 Cross-field OR, negated groups, and other shapes the flat contract cannot
 represent are commit-blocking diagnostics, not silent drops. There is no
 FTS `*` operator: the events tRPC filter contract has none.
 
-**Full-text search.** It matches as a **contiguous substring** server-side
-(`clickhouse-sql/search.ts`, `ILIKE %query%`) and is expressed field-style:
+**Full-text search.** Each registry declares `defaultSearchType` and
+`searchScopes`. The adapter writes the existing `searchQuery` / `searchType`
+contract; it does not introduce backend filter columns or change matching rules.
 
-- **bare text** (`refund policy`) → `searchQuery`, default scope:
-  `searchType=['id','content']` — i.e. `id` + `user_id` + `name` (the `id`
-  lane) **and** `input` + `output` (the `content` lane). Typing plain text
-  searches all of them. The adapter emits a `null` searchType (no scope token);
-  `commit.ts`'s `DEFAULT_SEARCH_TYPE` supplies `['id','content']`.
-- **`input:"refund"` / `output:"refund"`** → real `string` "contains" **column
-  filters** on `e.input`/`e.output` (not `searchType`). Use them to narrow the
-  search to one payload channel. They round-trip as `FilterState` like any
-  other column filter, and support operators (`:=`, `*`/glob, `-` negation).
-- **`name:"checkout"` / `id:"abc"`** → `string` "contains" column filters on
-  `name`/`id`. Use them to narrow to that column. They are `textSearch` fields
-  (bare = contains, `:=` = exact) but keep their observed-value autocomplete.
+- **Bare text** (`refund policy`) is one phrase in the registry's default
+  scope. Full Events uses `['id', 'content']`; metadata-first hosts use `['id']`.
+- **`content:"refund policy"`** searches only the declared content lane.
+  For Events this is input/output; for Prompts it is the prompt body; for
+  Dataset Items it includes input, expected output, and metadata.
+- **`all:"refund policy"`** uses `['id', 'content']`, including the host's
+  IDs/names lane. This preserves the additive Full Text dropdown choice.
+- **`input:` / `output:`** remain real string column filters on V4 Events,
+  supporting comparisons such as exact/glob matches and negation. On legacy
+  tracing and Dataset Items, registries instead declare them as search scopes
+  backed by the existing `searchType` lane. Prompts does not support them.
+- **`name:` / `id:`** remain ordinary column filters where the registry exposes
+  them; they do not select the metadata search lane.
 
-Typing bare text offers the scope rewrites (`input:`/`output:`) with hover
-explanations. Scope is global per query (`searchType` is one value), so
-multi-word free text is a **phrase**, not token-AND — `test media` matches
-"Test Media" but not "Media — Test run" (open Decision A below).
+Scope tokens accept one positive phrase with the plain `:` operator. Multiple
+scope phrases, a scope phrase mixed with bare text, negation, comparison/glob
+operators, and grouped scope phrases are rejected: one backend search string
+cannot express those independent predicates. Ordinary facet filters can still
+combine with a scoped search, for example `content:"refund policy" env:prod`.
+The same constraint is checked in validation and lowering. V4 Events column
+filters remain independent, so `input:refund output:policy` continues to work.
 
-Historical note: the old `in:<scope>` token and the `content:` pseudo-field are
-both **gone**. `content:` searched input + output combined; that is now simply
-the default (a bare query already searches both), so the token was removed (the
-one capability it uniquely had — "payloads but NOT ids/names" — is dropped,
-pending feedback). The reverse adapter canonicalizes a legacy
-`searchType=input|output` to the `input:`/`output:` **column filter** on the
-next commit (the chosen normalization), and treats any `id`/`content` searchType
-as the default — rendered as bare text, no token.
+The reverse adapter emits bare text only for the exact default scope, then
+prefers a declared scope token. Unnamed legacy combinations use compatibility
+syntax such as `in:(id OR input) "refund policy"`. This preserves every channel
+without converting the search into a different column filter. `in:` accepts
+only search types supported by that host, applies to the global bare phrase,
+and is never offered in normal autocomplete. It cannot combine with a second
+`in:` or another scope token.
 
-**Known limitation (multi-scope legacy state).** The bar's scope is a single
-value per query; the legacy toolbar's `searchType` was a _set_. `['id','content']`
-now round-trips losslessly — it **is** the default, rendered as bare text. The
-two remaining multi-scope states still drop their id channel on the next commit:
-`['id','input']` / `['id','output']` canonicalize to `input:"…"` / `output:"…"`
-**column filters** (per the historical note above) and drop the id-scope
-`searchType`/`searchQuery`. There's no lossless single-token projection of those
-two without a real per-column "all fields" scope — deferred past beta. Trigger is
-narrow (a legacy URL from the old dropdown + the bar enabled + a commit).
+Autocomplete offers only the registry's search scopes and supported V4 payload
+column rewrites, with host-specific descriptions. SQL search remains one
+`ILIKE %query%` phrase across an OR union of selected columns; V4's existing
+fast IO search also applies its token prefilter. Search operators are not
+silently translated between these backend search lanes and column filters.
 
 Operator-looking tokens that aren't supported yet are **reserved** — they emit
 an explicit "not supported yet" diagnostic instead of silently becoming free
@@ -407,6 +408,14 @@ the v4 sessions table passes `SESSIONS_FIELD_REGISTRY`
 **Use `TableSearchBar` for table hosts.** It passes one registry to the hook and
 row. A specialized host that uses `useEventsSearchBar` and `EventsSearchBarRow`
 directly must pass the same registry to both, so autocomplete and commits agree.
+
+Registries with a backend search lane also declare `defaultSearchType` and
+`searchScopes: Record<string, { searchType, label, description }>`. Scope
+entries describe existing backend search types, not `FilterState` columns;
+unsupported host lanes must not be declared. Preserve both declarations when
+projecting or extending a registry. Hosts pass their actual query and scope
+setters so a commit can change the scope and the phrase together. Views with
+`allowFreeText: false` keep their existing `defaultTextField` behavior.
 
 **Recipe to add the bar to a view:**
 

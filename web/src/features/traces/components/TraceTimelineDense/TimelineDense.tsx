@@ -1233,6 +1233,16 @@ export function TimelineDense({
     endGesture();
   }, [endGesture]);
 
+  /**
+   * Shared by the bar rows and the hover peek tree. Selecting is not free
+   * (analytics + reopen the detail panel), and a double-click's second click
+   * must not fire it again.
+   */
+  const selectRowOnClick = (event: { detail: number }, nodeId: string) => {
+    if (event.detail > 1 || focusedByTap.current) return;
+    onSelect(nodeId);
+  };
+
   /** Double-click an element: both axes move to put it on screen, readably. */
   const focusRow = (index: number) => {
     const positioned = result.nodes.find((node) => node.index === index);
@@ -1505,16 +1515,7 @@ export function TimelineDense({
                 )}
                 style={{ top: `${y}px`, height: `${rowHeight}px` }}
                 data-testid="timeline-dense-row"
-                // A double-click delivers TWO clicks, and selecting is not free:
-                // it captures an analytics event and reopens the detail panel.
-                // The first click of the pair already selected the row, so the
-                // second one only focuses.
-                onClick={(event) => {
-                  // A double-click delivers two clicks; a double-TAP delivers two
-                  // clicks that both look like the first one.
-                  if (event.detail > 1 || focusedByTap.current) return;
-                  onSelect(node.id);
-                }}
+                onClick={(event) => selectRowOnClick(event, node.id)}
                 onDoubleClick={() => focusRow(node.index)}
               >
                 <GutterContent
@@ -1663,14 +1664,8 @@ export function TimelineDense({
                     }),
                   )}
                   style={{ top: `${y}px`, height: `${rowHeight}px` }}
-                  // The overlay floats OVER the chart rows, so without its own
-                  // click handler it swallowed row clicks: hovering the rail,
-                  // reading a name, and clicking it selected nothing. Mirror the
-                  // chart row's behavior (double-click guard included).
-                  onClick={(event) => {
-                    if (event.detail > 1 || focusedByTap.current) return;
-                    onSelect(node.id);
-                  }}
+                  data-testid="timeline-dense-peek-row"
+                  onClick={(event) => selectRowOnClick(event, node.id)}
                   onDoubleClick={() => focusRow(node.index)}
                 >
                   <GutterContent
