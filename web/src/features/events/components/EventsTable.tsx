@@ -1,6 +1,5 @@
 import { eventsSearchRegistry } from "../config/eventsSearchRegistry";
-import { useEventsTableSearch } from "../hooks/useEventsTableSearch";
-import { SearchScopeSelect } from "@/src/components/table/SearchScopeSelect";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -57,7 +56,6 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   buildAiContext,
-  DEFAULT_SEARCH_TYPE,
   EventsSearchBarRow,
   filterStateToQueryText,
   observedScoreNamesFromOptions,
@@ -784,11 +782,10 @@ export default function ObservationsEventsTable({
     commit: searchBarCommit,
     applyFilters: searchBarApplyFilters,
     resetDraft: resetSearchBarDraft,
-  } = useEventsTableSearch({
+  } = useEventsSearchBar({
     projectId,
     tableName: eventsFilterConfig.tableName,
     enabled: searchBarMode,
-    useHostSearchScopes: tableStatePolicy.useHostSearchScopes,
     registry: searchRegistry,
     filterState: queryFilter.searchBarFilterState,
     searchQuery,
@@ -821,9 +818,7 @@ export default function ObservationsEventsTable({
             projectFiltersForSearchBar(state.filters),
             {
               searchQuery: state.searchQuery,
-              searchType: tableStatePolicy.useHostSearchScopes
-                ? DEFAULT_SEARCH_TYPE
-                : searchType,
+              searchType,
             },
             searchRegistry,
           ).text,
@@ -837,7 +832,6 @@ export default function ObservationsEventsTable({
       searchBarStore,
       projectFiltersForSearchBar,
       searchRegistry,
-      tableStatePolicy.useHostSearchScopes,
       searchType,
     ],
   );
@@ -1802,15 +1796,6 @@ export default function ObservationsEventsTable({
     new Set(
       (queryFilter.explicitFilterState ?? []).map((filter) => filter.column),
     ).size + (searchQuery && searchQuery.trim().length > 0 ? 1 : 0);
-  const searchScope = tableStatePolicy.useHostSearchScopes ? (
-    <SearchScopeSelect
-      searchType={searchType}
-      setSearchType={handleSearchTypeChange}
-      metadataLabel="IDs / Names"
-      fullTextLabel="Full Text"
-      availableSearchTypes={{ content: true, input: true, output: true }}
-    />
-  ) : null;
 
   return (
     <DataTableControlsProvider tableName={eventsFilterConfig.tableName}>
@@ -1869,9 +1854,6 @@ export default function ObservationsEventsTable({
                       // padding, so the bar lines up with time range / presets.
                       className="p-0"
                     />
-                    {searchScope && (
-                      <div className="flex justify-end">{searchScope}</div>
-                    )}
                   </div>
                 ) : (
                   // Externally controlled filters retain the host's search input.
@@ -2003,7 +1985,6 @@ export default function ObservationsEventsTable({
                     aiScoreNames={aiScoreNames}
                   />
                 </div>
-                {searchScope}
               </div>
             )}
             {/* Toolbar spanning full width */}

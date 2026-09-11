@@ -13,15 +13,20 @@ import {
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { useSidebarFilterState } from "@/src/features/filters";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import { gatewayModelsFilterConfig } from "@/src/features/ai-gateway/constants/modelsFilterConfig";
 import { GATEWAY_MODELS_FIELD_REGISTRY } from "@/src/features/ai-gateway/constants/modelsSearchRegistry";
-import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import {
+  TableSearchBar,
+  toObservedOptions,
+  withFieldOptions,
+} from "@/src/features/search-bar";
 import {
   filterGatewayModels,
   type GatewayModelRow,
 } from "./filterGatewayModels";
+import { getGatewayModelConnectionSearchOptions } from "./fns/getGatewayModelConnectionSearchOptions";
 
 const TABLE_NAME = gatewayModelsFilterConfig.tableName;
 
@@ -131,6 +136,43 @@ export function GatewayModelsView({
       stateLocation: "url",
     },
   );
+  const retainedConnectionIds = useMemo(
+    () =>
+      queryFilter.filterState.flatMap((filter) =>
+        filter.column === "connection" && filter.type === "arrayOptions"
+          ? filter.value
+          : [],
+      ),
+    [queryFilter.filterState],
+  );
+  const connectionSearchOptions = useMemo(
+    () =>
+      getGatewayModelConnectionSearchOptions(
+        filterOptions.connection,
+        retainedConnectionIds,
+      ),
+    [filterOptions.connection, retainedConnectionIds],
+  );
+  const searchRegistry = useMemo(
+    () =>
+      withFieldOptions(
+        GATEWAY_MODELS_FIELD_REGISTRY,
+        "connection",
+        connectionSearchOptions.registryOptions,
+      ),
+    [connectionSearchOptions.registryOptions],
+  );
+  const observedOptions = useMemo(
+    () =>
+      toObservedOptions(
+        {
+          ...filterOptions,
+          connection: connectionSearchOptions.observedValues,
+        },
+        isLoading,
+      ),
+    [connectionSearchOptions.observedValues, filterOptions, isLoading],
+  );
   const filteredModels = useMemo(
     () => filterGatewayModels(models, searchQuery, queryFilter.filterState),
     [models, queryFilter.filterState, searchQuery],
@@ -182,10 +224,27 @@ export function GatewayModelsView({
           <TableSearchBar
             key={queryFilter.draftResetKey}
             tableName={TABLE_NAME}
-            registry={GATEWAY_MODELS_FIELD_REGISTRY}
+            registry={searchRegistry}
             filterState={queryFilter.searchBarFilterState}
-            setFilterState={queryFilter.setFilterState}
-            observed={toObservedOptions(filterOptions, isLoading)}
+            setFilterState={(filters) =>
+              queryFilter.setFilterState(
+                filters.map((filter) =>
+                  filter.column === "connection" &&
+                  filter.type === "arrayOptions"
+                    ? {
+                        ...filter,
+                        value: filter.value.map(
+                          (value) =>
+                            connectionSearchOptions.connectionIdByDisplayValue.get(
+                              value,
+                            ) ?? value,
+                        ),
+                      }
+                    : filter,
+                ),
+              )
+            }
+            observed={observedOptions}
             isV4={false}
             search={{
               query: searchQuery,

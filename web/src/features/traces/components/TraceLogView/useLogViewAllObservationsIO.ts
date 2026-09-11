@@ -2,7 +2,7 @@
  * Hook for on-demand batch-loading all observation I/O data.
  *
  * IMPORTANT: This hook does NOT fetch data automatically.
- * Call `loadAllData()` to trigger fetching when needed (e.g., download button click).
+ * Call `loadAllData()` to trigger fetching when needed (e.g., copy button click).
  *
  * This avoids creating 10k+ queries on mount which would freeze the browser.
  */

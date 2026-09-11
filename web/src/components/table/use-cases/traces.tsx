@@ -92,7 +92,6 @@ import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import { SearchScopeSelect } from "@/src/components/table/SearchScopeSelect";
 import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
 import { tracesFieldRegistry } from "@/src/features/filters/config/tracingSearchRegistry";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
@@ -437,7 +436,6 @@ function TracesTableInternal({
     filterOptions,
     queryFilterOptions,
   );
-  const searchRegistry = tracesFieldRegistry(tracesFilterConfig);
   const observedOptions = toObservedOptions(
     filterOptions,
     isSidebarFilterLoading,
@@ -467,6 +465,10 @@ function TracesTableInternal({
   );
   const legacyTracingIoSearchEnabled =
     legacyTracingSearchConfig.data?.legacyTracingIoSearchEnabled ?? true;
+  const searchRegistry = tracesFieldRegistry(
+    tracesFilterConfig,
+    legacyTracingIoSearchEnabled,
+  );
   const { searchQuery, searchType, setSearchQuery, setSearchType } =
     useFullTextSearch({
       tableAllowsFullTextSearch: legacyTracingIoSearchEnabled,
@@ -1406,22 +1408,8 @@ function TracesTableInternal({
                 query: searchQuery,
                 type: searchType,
                 setQuery: handleSearchQueryChange,
+                setType: handleSearchTypeChange,
               }}
-              searchScope={
-                legacyTracingIoSearchEnabled ? (
-                  <SearchScopeSelect
-                    searchType={searchType}
-                    setSearchType={handleSearchTypeChange}
-                    metadataLabel="IDs / Names"
-                    fullTextLabel="Full Text"
-                    availableSearchTypes={{
-                      content: true,
-                      input: true,
-                      output: true,
-                    }}
-                  />
-                ) : undefined
-              }
             />
             <DataTableToolbar
               rowClassName="my-1"
