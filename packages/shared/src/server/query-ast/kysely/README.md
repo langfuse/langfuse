@@ -51,7 +51,9 @@ is where tenancy is enforced:
    both. It then identity-stamps the tree (`WeakSet`); a copied
    `langfuseTenancy` property is not a valid stamp.
 3. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is
-   present, so `qb.compile()` without the plugin also fails.
+   present, so `qb.compile()` without the plugin also fails. Value binds take
+   their ClickHouse type from the compared column's registry entry when one is
+   in scope (`total_cost > 1` → `{p:Float64}`).
 4. Raw-SQL table sources (`selectFrom(sql\`...\`)`) and raw fragments embedding a
    `SELECT`/`FROM`/`JOIN` in SELECT/WHERE throw `UnscopedRelationError`. Kysely's
    own keyword fragments (`asc`/`desc`) are not relations.

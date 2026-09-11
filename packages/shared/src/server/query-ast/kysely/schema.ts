@@ -1,15 +1,17 @@
 /**
  * Single source of truth for the physical ClickHouse relations the Kysely
- * compiler targets. One table declaration drives all three downstream views:
+ * compiler targets. One table declaration drives the downstream views:
  *
  *  - `ClickHouseDatabase` — the Kysely row types (column autocomplete and typed
  *    comparisons).
  *  - `COLUMN_DATA_TYPES` — the coarse runtime type map the aggregate type-check
  *    pass consults (`typecheck.ts`).
+ *  - `COLUMN_BIND_TYPES` — the ClickHouse bind types the compiler uses when a
+ *    value is compared to a known column (`compiler.ts`).
  *  - `TENANTED_TABLES` — the relations the tenancy pass must scope
  *    (`tenancy.ts`).
  *
- * Deriving all three from one declaration keeps them from drifting apart.
+ * Deriving every view from one declaration keeps them from drifting apart.
  *
  * Column sets cover the relations the compiler targets, not a full schema
  * dump. Physical tuning metadata (partition / sort / dedup keys) is not
@@ -137,4 +139,27 @@ export const TENANTED_TABLES = new Set<string>(
   Object.entries(TABLE_REGISTRY)
     .filter(([, spec]) => spec.tenant)
     .map(([name]) => name),
+);
+
+/**
+ * ClickHouse bind type for a JS value compared against this column. Wider than
+ * the coarse {@link COLUMN_DATA_TYPES} category: `DateTime` columns bind as
+ * `DateTime64(3)`, `Float` as `Float64`, so an integer literal compared to
+ * `total_cost` still becomes `{p:Float64}`.
+ */
+const BIND_TYPE: Record<ChColumnType, string> = {
+  String: "String",
+  Float: "Float64",
+  DateTime: "DateTime64(3)",
+  "Array(String)": "Array(String)",
+  "Map(String, Float)": "Map(String, Float64)",
+};
+
+export const COLUMN_BIND_TYPES: Record<string, string> = Object.fromEntries(
+  Object.values(TABLE_REGISTRY).flatMap((table) =>
+    Object.entries(table.columns).map(([name, chType]) => [
+      name,
+      BIND_TYPE[chType],
+    ]),
+  ),
 );

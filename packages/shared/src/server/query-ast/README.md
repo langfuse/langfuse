@@ -56,6 +56,9 @@ a required check once it has proven stable.
 - **Never filter `project_id` yourself.** The compile step injects
   `project_id = {projectId}` into every tenanted relation, so call sites pass
   only `{ projectId }` (see `repositories/environments.ts`).
+- **Value binds take their ClickHouse type from the compared column** in the
+  table registry (`total_cost > 1` emits `{p:Float64}`, not inferred
+  `{p:Int64}`). Same-value binds still intern to one placeholder.
 - **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
   methods, so they compose inside CTEs, subqueries, and views. See the recipes
   below.
