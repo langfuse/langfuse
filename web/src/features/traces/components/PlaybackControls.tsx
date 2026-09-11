@@ -5,9 +5,9 @@
  * trace's total time — a compact "where are we in the trace" indicator. Stop
  * resets it.
  *
- * Mounted only inside the graph view's mode bar (the node glow is the one
- * playback surface with controls); the timeline keeps its playhead and
- * scrubbing but carries no transport buttons.
+ * Mounted only inside the graph view's mode bar: the graph is the one playback
+ * surface. The timeline carries no playhead and no transport (intentional in
+ * the redesign, it reads time from its own axis).
  *
  * The ring is driven imperatively off the playhead position feed, so it
  * animates at 60fps without re-rendering (only the play/pause icon flips, via

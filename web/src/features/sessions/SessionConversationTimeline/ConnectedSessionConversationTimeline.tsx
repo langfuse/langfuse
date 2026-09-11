@@ -167,7 +167,8 @@ export function ConnectedSessionConversationTimeline({
       }
       if (
         Array.from(queryIndices).some(
-          (queryIndex) => ioQueries[queryIndex]?.isPending,
+          (queryIndex) =>
+            !ioQueries[queryIndex] || ioQueries[queryIndex].isPending,
         )
       ) {
         return undefined;

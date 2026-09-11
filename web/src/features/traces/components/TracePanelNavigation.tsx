@@ -38,15 +38,22 @@ export function TracePanelNavigation() {
 
   // Memoize to prevent recreation when deps haven't changed
   const content = useMemo(() => {
-    // Priority: Search > Graph > Timeline > Tree
-    if (hasQuery) {
-      return <TraceSearchList />;
-    }
+    // The Timeline answers a query IN PLACE — matching bars keep their colour
+    // and the rest dim — so it is not replaced by the flat result list. Losing
+    // the chart was the thing that made searching in the Timeline feel like
+    // leaving it: the one view whose whole point is where in time a span sits
+    // gave that up the moment you typed.
+    //
+    // The Tree still hands a query to the flat list; highlighting it is its own
+    // change.
     if (isGraphView) {
       return <TraceGraphView />;
     }
     if (isTimelineView) {
       return <TraceTimelineCompact />;
+    }
+    if (hasQuery) {
+      return <TraceSearchList />;
     }
     return <TraceTree />;
   }, [hasQuery, isGraphView, isTimelineView]);
