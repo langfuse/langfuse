@@ -58,7 +58,7 @@ export const MobileTopBar = ({
       </div>
 
       {/* Center: the Langfuse wordmark. */}
-      <TopbarBrand variant="wordmark" />
+      {hasAppSidebar && <TopbarBrand variant="wordmark" />}
 
       {/* Right: the assistant launcher (prominent, gradient-bordered so it
           reads as a real entry point here) + account. Balances the left slot
