@@ -15,7 +15,9 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 import { type RowMetrics } from "./TimelineRowMetrics";
 import { usdFormatter } from "@/src/utils/numbers";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useSearch } from "@/src/features/traces/contexts/SearchContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { matchesSearchQuery } from "@/src/features/traces/fns/matchesSearchQuery";
 import {
   useActiveObservationIds,
   usePlayhead,
@@ -27,7 +29,8 @@ import { detectPointerModality } from "../../fns/timeline/density";
 import { TimelineDense } from "./TimelineDense";
 
 export function TraceTimelineCompact() {
-  const { roots, nodeMap } = useTraceData();
+  const { roots, nodeMap, searchItems } = useTraceData();
+  const { searchQuery } = useSearch();
   const { selectedNodeId, collapsedNodes } = useSelection();
   // The same five switches the tree honours. They live in one place because a
   // toggle that works in one view and silently does nothing in the other is
@@ -52,6 +55,34 @@ export function TraceTimelineCompact() {
     }),
     [showPlayhead, getPlayheadSec, subscribePosition, seekToSec],
   );
+
+  /**
+   * The search box, answered in place. The renderer takes the SET of ids that
+   * keep their colour and nothing about searching — it dims the rest, reveals
+   * the first hit and states the count, which is all a chart can do with a
+   * query.
+   *
+   * The count is every match in the trace, the same number the Tree's result
+   * list would show for the same query, rather than every match among the rows
+   * currently rendered: the two views must not disagree about what a match is,
+   * and `matchesSearchQuery` is the one rule so they cannot.
+   */
+  const search = useMemo(() => {
+    if (!searchQuery.trim()) return undefined;
+    const matchedIds = new Set(
+      searchItems
+        .filter((item) => matchesSearchQuery(item.node, searchQuery))
+        .map((item) => item.node.id),
+    );
+    return {
+      query: searchQuery,
+      matchedIds,
+      label:
+        matchedIds.size === 0
+          ? "No matches"
+          : `${matchedIds.size} ${matchedIds.size === 1 ? "match" : "matches"}`,
+    };
+  }, [searchItems, searchQuery]);
 
   const [pointerModality] = useState(detectPointerModality);
   const [box, setBox] = useState<{ width: number; height: number } | null>(
@@ -125,6 +156,7 @@ export function TraceTimelineCompact() {
           playhead={playhead}
           metricsOf={metricsOf}
           showDuration={showDuration}
+          search={search}
         />
       ) : null}
     </div>
