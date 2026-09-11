@@ -33,6 +33,18 @@ service:
           limit:
             type: optional<integer>
             docs: limit of items per page
+          fromTimestamp:
+            type: optional<datetime>
+            docs: |
+              Optional ISO-8601 lower bound on the model row's `createdAt`.
+              Omit for an open-ended start. Pattern matches
+              `GET /api/public/comments`.
+          toTimestamp:
+            type: optional<datetime>
+            docs: |
+              Optional ISO-8601 upper bound on the model row's `createdAt`.
+              Omit for an open-ended end. Pattern matches
+              `GET /api/public/comments`.
       response: PaginatedModels
     get:
       method: GET
