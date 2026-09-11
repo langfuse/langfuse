@@ -13,6 +13,7 @@ import {
   createNewRedisInstance,
   getQueuePrefix,
   getS3EventStorageClient,
+  getTraceBatchEventStream,
   QueueJobs,
   QueueName,
   recordDistribution,
@@ -56,6 +57,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   const dueKey = "{trace-batch}:due";
   const stateKey = "{trace-batch}:state";
   const originalEnabled = env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED;
+  const originalSamplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
   let queue: Queue<TQueueJobTypes[QueueName.TraceBatch]>;
   let connection: NonNullable<ReturnType<typeof createNewRedisInstance>>;
   const runners: TraceBatchDispatcher[] = [];
@@ -81,6 +83,7 @@ describe("trace micro-batch scheduling with Redis", () => {
 
   beforeEach(async () => {
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
+    env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 1;
     await client().del(dueKey, stateKey, "{trace-batch}:dispatcher");
     const redisConnection = createNewRedisInstance();
     if (!redisConnection) throw new Error("Redis is required for this test");
@@ -97,6 +100,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = originalEnabled;
+    env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = originalSamplingRate;
     await queue.obliterate({ force: true });
     await queue.close();
     connection.disconnect();
@@ -114,6 +118,7 @@ describe("trace micro-batch scheduling with Redis", () => {
         env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED,
     };
     env.LANGFUSE_TRACE_BATCH_IDLE_MS = 4_000;
+    env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 0.1;
     env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
     env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
     env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED = "false";
@@ -149,8 +154,10 @@ describe("trace micro-batch scheduling with Redis", () => {
         batchEvents.waitUntilReady(),
       ]);
       const projectId = randomUUID();
-      const traceId = randomUUID().replaceAll("-", "");
-      const otherTraceId = randomUUID().replaceAll("-", "");
+      // The evaluator sampler assigns these scores 0.0593, 0.0291 and 0.7116.
+      const traceId = "00000000000000000000000000000001";
+      const otherTraceId = "00000000000000000000000000000003";
+      const excludedTraceId = "00000000000000000000000000000002";
       const input = JSON.stringify({ message: "input".repeat(1_000) });
       const output = JSON.stringify({ message: "output".repeat(1_000) });
       const metadata = JSON.stringify({ context: "metadata".repeat(1_000) });
@@ -224,7 +231,7 @@ describe("trace micro-batch scheduling with Redis", () => {
           .toBeGreaterThanOrEqual(deadline);
       }
 
-      await ingest([traceId]);
+      await ingest([traceId, excludedTraceId]);
       expect(await client().hlen(stateKey)).toBe(1);
       const firstDue = Number(
         await client().zscore(dueKey, member(projectId, traceId)),
@@ -232,7 +239,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       await waitUntilRedisTime(firstDue - 2_000);
       // Leave ample time to check the old deadline even on a busy CI worker.
       env.LANGFUSE_TRACE_BATCH_IDLE_MS = 10_000;
-      await ingest([traceId, otherTraceId]);
+      await ingest([traceId, otherTraceId, excludedTraceId]);
       const renewedDue = Number(
         await client().zscore(dueKey, member(projectId, traceId)),
       );
@@ -249,7 +256,24 @@ describe("trace micro-batch scheduling with Redis", () => {
       });
 
       await writer.flushAll(true);
+      // Sampling only gates readiness; excluded observations are still ingested.
+      let excludedObservations = 0;
+      for await (const observation of getTraceBatchEventStream({
+        projectId,
+        traces: [
+          {
+            traceId: excludedTraceId,
+            minStart: Number(nano / 1_000_000n),
+            maxStart: Number(nano / 1_000_000n),
+          },
+        ],
+      })) {
+        expect(observation.trace_id).toBe(excludedTraceId);
+        excludedObservations++;
+      }
+      expect(excludedObservations).toBe(2);
       env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
+      env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 0;
       await waitUntilRedisTime(renewedDue);
       await dispatcher.processBatch();
       const [batch] = await queue.getJobs(["wait", "active", "completed"]);
@@ -286,6 +310,50 @@ describe("trace micro-batch scheduling with Redis", () => {
       }
     }
   }, 30_000);
+
+  it("keeps stable nested trace samples across replay and counts decisions once per trace in each ingestion batch", async () => {
+    const traceIds = Array.from({ length: 1_000 }, (_, i) =>
+      i.toString(16).padStart(32, "0"),
+    );
+    let previous: string[] = [];
+    // Fixed fixtures pin the evaluator's sampling cohort, including both endpoints.
+    for (const [rate, expectedCount] of [
+      [0, 0],
+      [0.1, 78],
+      [0.1, 78],
+      [0.5, 478],
+      [1, 1_000],
+    ]) {
+      await client().del(dueKey, stateKey);
+      vi.mocked(recordIncrement).mockClear();
+      env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = rate;
+      traceIds.reverse();
+      await trackTraceBatchActivity(
+        "project",
+        traceIds.flatMap((id) => [
+          event(id, 100),
+          event(id, 200),
+          event(id, 150),
+        ]),
+      );
+      const selected = (await client().hkeys(stateKey)).sort();
+      expect(selected).toHaveLength(expectedCount);
+      expect(await client().zcard(dueKey)).toBe(expectedCount);
+      expect(selected).toEqual(expect.arrayContaining(previous));
+      if (previous.length === expectedCount) expect(selected).toEqual(previous);
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.trace_batch.sampling_decisions",
+        expectedCount,
+        { decision: "selected" },
+      );
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.trace_batch.sampling_decisions",
+        1_000 - expectedCount,
+        { decision: "excluded" },
+      );
+      previous = selected;
+    }
+  });
 
   it("preserves min/max across concurrent out-of-order arrivals, resets readiness, and separates tenants", async () => {
     await Promise.all(

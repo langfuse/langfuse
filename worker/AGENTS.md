@@ -19,6 +19,8 @@
   successful direct-v4 writer submissions and dispatches ready traces by project
   to `trace-batch`; `src/queues/traceBatchQueue.ts` reads their event payloads.
   Intake, dispatcher, and consumer have independent disabled-by-default flags.
+  `LANGFUSE_TRACE_BATCH_SAMPLING_RATE` is a 0–1 admission rate (default 1),
+  using evaluator sampling by trace ID before Redis; queued work is not resampled.
   Stop intake first and keep dispatcher/consumer running to drain pending work.
 - Feature processors: `src/features/*`
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.

@@ -7,7 +7,7 @@ generate transcripts, or write topic results.
 
 ## Data flow
 
-Direct-v4 OTel ingestion collects accepted event writes and atomically updates
+Direct-v4 OTel ingestion collects accepted event writes, samples trace IDs, and atomically updates
 two Redis keys: `{trace-batch}:due` (sorted set) and `{trace-batch}:state` (hash).
 The shared Redis client adds the configured key prefix; the hash tag puts both
 keys in one Redis Cluster slot. There is no project index. Each member encodes
@@ -35,17 +35,18 @@ I/O/metadata bytes are retained in job results.
 
 ## Controls and rollout
 
-All enablement flags default to `false`. Every eligible trace is tracked when
-intake is enabled; there is no sampling code or sampling setting.
+All enablement flags default to `false`. Sampling defaults to `1` (100%), so
+enabled intake tracks every eligible trace unless a lower rate is configured.
 
-| Setting                                       | Default  | Purpose                                         |
-| --------------------------------------------- | -------- | ----------------------------------------------- |
-| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | `false`  | Track accepted direct-v4 event writes in Redis  |
-| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`  | Turn ready state into queue jobs                |
-| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`  | Consume existing `trace-batch` jobs             |
-| `LANGFUSE_TRACE_BATCH_CONCURRENCY`            | `2`      | Concurrent reads **per enabled worker process** |
-| `LANGFUSE_TRACE_BATCH_IDLE_MS`                | `600000` | Inactivity before a trace becomes due           |
-| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`   | `30000`  | Delay between dispatcher runs                   |
+| Setting                                       | Default  | Purpose                                            |
+| --------------------------------------------- | -------- | -------------------------------------------------- |
+| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | `false`  | Track accepted direct-v4 event writes in Redis     |
+| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`          | `1`      | Stable trace admission fraction, 0–1 (`0.1` = 10%) |
+| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`  | Turn ready state into queue jobs                   |
+| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`  | Consume existing `trace-batch` jobs                |
+| `LANGFUSE_TRACE_BATCH_CONCURRENCY`            | `2`      | Concurrent reads **per enabled worker process**    |
+| `LANGFUSE_TRACE_BATCH_IDLE_MS`                | `600000` | Inactivity before a trace becomes due              |
+| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`   | `30000`  | Delay between dispatcher runs                      |
 
 Deploy with flags off. Start consumers on a small, known number of worker
 processes, enable the dispatcher, then enable intake on direct-v4 ingestion
@@ -60,6 +61,23 @@ to reads, disable consumers and disable intake/dispatcher to stop backlog
 growth; existing jobs remain available to resume. These are startup env flags,
 so changing them requires a worker rollout. Keep this code deployed while
 draining; reverting consumer code cannot drain its queue.
+
+Sampling reuses the evaluator's versioned SHA-256 helper with the trace ID as
+its target. At a fixed rate, every observation and retry of a trace gets the
+same decision. Increasing the rate includes the previous sample. The rate is
+validated between 0 and 1; 0 admits no new traces and 1 admits all. Sampling is
+applied once per distinct trace in an ingestion job before Redis tracking.
+Normal ClickHouse ingestion is unaffected, and the dispatcher/consumer never
+resample admitted work. The project ID still scopes state and queue batches;
+it is not part of the sampling hash, matching trace-level evaluator sampling.
+
+Keep the rate consistent across producers and stable during measurements.
+Changing rates or running mixed-rate replicas can stop readiness/bounds updates
+for an already pending trace if it leaves the sample. Exclude rollout transition
+windows from results; a clean comparison can stop intake and drain before
+changing the rate and resuming. Sampling makes batches smaller, so sample rates
+do not translate directly into query-count reductions or the unsampled batch
+distribution: a nonempty project batch still issues one query.
 
 ## Datadog
 
@@ -91,15 +109,17 @@ by **traces**, not by batches. No project or trace IDs are attached to metrics.
 
 Also inspect these metrics under `langfuse.trace_batch`:
 
-| Metric                                                          | Meaning                                                                                        |
-| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `ingestion_trace_count`                                         | Distinct eligible traces per ingestion job, distribution                                       |
-| `tracked_traces`, `tracking_errors`                             | Successful state updates and failed tracking calls, counters                                   |
-| `pending_traces`, `ready_traces`                                | Global due-set depth and currently due subset, gauges                                          |
-| `oldest_due_age_ms`, `due_lag_ms`                               | Oldest backlog age gauge and per-dispatch trace lag distribution                               |
-| `reactivated_traces`                                            | Acknowledgements that preserved changed revisions, counter                                     |
-| `observation_count`, `found_trace_count`, `missing_trace_count` | Per-consumer-attempt read coverage distributions                                               |
-| `io_metadata_bytes`                                             | Logical UTF-8 payload bytes read per attempt, excluding transport, compression and tool fields |
+| Metric                                                          | Meaning                                                                                               |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `ingestion_trace_count`                                         | Distinct eligible traces per ingestion job, distribution                                              |
+| `sampling_rate`                                                 | Configured admission fraction on producers handling eligible jobs, gauge                              |
+| `sampling_decisions`                                            | Distinct trace decisions per ingestion job, counter tagged `decision:selected` or `decision:excluded` |
+| `tracked_traces`, `tracking_errors`                             | Successful state updates and failed tracking calls, counters                                          |
+| `pending_traces`, `ready_traces`                                | Global due-set depth and currently due subset, gauges                                                 |
+| `oldest_due_age_ms`, `due_lag_ms`                               | Oldest backlog age gauge and per-dispatch trace lag distribution                                      |
+| `reactivated_traces`                                            | Acknowledgements that preserved changed revisions, counter                                            |
+| `observation_count`, `found_trace_count`, `missing_trace_count` | Per-consumer-attempt read coverage distributions                                                      |
+| `io_metadata_bytes`                                             | Logical UTF-8 payload bytes read per attempt, excluding transport, compression and tool fields        |
 
 Backlog gauges are emitted by the active dispatcher; use a **max**, not a sum,
 across hosts for one Redis deployment. They stop updating when dispatch is off.
@@ -108,6 +128,12 @@ The existing `langfuse.queue.trace_batch` metrics cover queue waiting/processing
 time, depth and failures; periodic-runner metrics cover dispatch failures.
 ClickHouse query tags identify `worker: langfuse.queue.trace_batch` so compare
 query CPU, bytes read and latency with actual traces processed.
+
+For observed sampling, divide the `sampling_decisions{decision:selected}` count
+by the count across both decisions over the same environment and time window.
+Repeated trace IDs in different ingestion jobs count again; this is not a
+globally unique trace percentage. Compare min/max `sampling_rate` across active
+producer hosts to spot mixed rollout settings.
 
 Measure the natural project batch distribution with a fixed dispatch interval
 and consumer fleet size. Compare the distribution and singleton trace percentage with
@@ -150,3 +176,8 @@ producer-off draining, enqueue failure, concurrent updates including state
 recreation, exclusive dispatch, and shutdown. The ClickHouse test reads more
 than 20,000 rows and checks full payloads, tenant isolation, exact trace IDs,
 and per-trace time bounds.
+The connected integration test uses actual ingestion and batch BullMQ workers,
+Redis, OTLP conversion and ClickHouse. It checks fixed 10% sampling identities,
+delay reset, persistence of excluded observations, and draining after sampling
+is set to zero. A fixed 1,000-trace cohort also covers 0/10/50/100% admission,
+reordered replay, nested samples and per-ingestion-job decision counts.

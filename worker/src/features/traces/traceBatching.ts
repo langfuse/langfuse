@@ -13,6 +13,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
+import {
+  getDeterministicSamplingValue,
+  shouldSampleEvaluation,
+} from "../evaluation/deterministicSampling";
 
 // The shared client applies REDIS_KEY_PREFIX. Both keys must occupy one
 // Redis Cluster slot for the atomic update, snapshot, and acknowledgement.
@@ -98,8 +102,30 @@ export async function trackTraceBatchActivity(
   if (bounds.size === 0) return;
 
   try {
+    const samplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
+    // Sample by trace ID so later observations and retries keep the same decision.
+    // Dispatcher and consumer process admitted work without resampling.
+    const entries = [...bounds].filter(
+      ([traceId]) =>
+        samplingRate === 1 ||
+        (samplingRate > 0 &&
+          shouldSampleEvaluation({
+            samplingValue: getDeterministicSamplingValue(traceId),
+            samplingRate,
+          })),
+    );
+    recordGauge("langfuse.trace_batch.sampling_rate", samplingRate);
+    // Counts distinct trace IDs per ingestion batch, not globally unique traces.
+    recordIncrement("langfuse.trace_batch.sampling_decisions", entries.length, {
+      decision: "selected",
+    });
+    recordIncrement(
+      "langfuse.trace_batch.sampling_decisions",
+      bounds.size - entries.length,
+      { decision: "excluded" },
+    );
+    if (entries.length === 0) return;
     if (!redis) throw new Error("Trace batching requires Redis");
-    const entries = [...bounds];
     // Bounded scripts keep ingestion from monopolizing the global Redis slot.
     for (let offset = 0; offset < entries.length; offset += CHUNK_SIZE) {
       const chunk = entries.slice(offset, offset + CHUNK_SIZE);
