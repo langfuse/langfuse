@@ -37,6 +37,8 @@ export interface LogViewToolbarProps {
   searchQuery: string;
   /** Callback when search query changes */
   onSearchChange: (query: string) => void;
+  /** Callback when the search input gains focus (analytics: once per focus) */
+  onSearchFocus?: () => void;
   /** Whether virtualization is active (for large traces) */
   isVirtualized?: boolean;
   /** Total number of observations (shown in Large Trace indicator) */
@@ -75,6 +77,7 @@ export interface LogViewToolbarProps {
 export const LogViewToolbar = memo(function LogViewToolbar({
   searchQuery,
   onSearchChange,
+  onSearchFocus,
   isVirtualized = true,
   observationCount,
   loadedObservationCount,
@@ -141,6 +144,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
             className="h-7 border-0 focus:ring-0"
             value={searchQuery}
             onValueChange={onSearchChange}
+            onFocus={onSearchFocus}
           />
         </Command>
       )}
