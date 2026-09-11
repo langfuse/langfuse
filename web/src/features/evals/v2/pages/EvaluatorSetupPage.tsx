@@ -968,7 +968,7 @@ export function EvaluatorSetupPage(
     isAssistantAvailable: isAssistantLauncherVisible,
     showAssistantScratch,
   });
-  const assistantHeaderAction =
+  const renderAssistantHeaderAction = () =>
     headerState.assistantAction === "create" ? (
       <EvaluatorAssistantHeaderAction
         mode="create"
@@ -997,15 +997,31 @@ export function EvaluatorSetupPage(
         }}
       />
     ) : null;
+  const hasAssistantHeaderAction = headerState.assistantAction !== "none";
 
   return (
     <Page
       headerProps={{
         title: headerState.title,
+        titleContent: (
+          <>
+            <span title={headerState.title} data-testid="page-header-title">
+              {headerState.title}
+            </span>
+            {hasAssistantHeaderAction ? (
+              <span className="hidden md:inline">
+                {" "}
+                {renderAssistantHeaderAction()}
+              </span>
+            ) : null}
+          </>
+        ),
         breadcrumb: [
           { name: "Evaluators", href: `/project/${projectId}/evals` },
         ],
-        actionButtonsLeft: assistantHeaderAction,
+        actionButtonsMenu: hasAssistantHeaderAction
+          ? renderAssistantHeaderAction()
+          : undefined,
         actionButtonsRight:
           initialEvaluator && persistedEvaluatorUi ? (
             <div className="flex gap-2">

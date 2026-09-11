@@ -1,4 +1,5 @@
 import type { RefObject } from "react";
+import { BotMessageSquare } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 
@@ -22,11 +23,15 @@ export function EvaluatorAssistantHeaderAction(
       type="button"
       variant="link"
       size="sm"
-      className="text-muted-foreground h-auto px-0 py-0 font-normal"
+      className="text-muted-foreground inline h-auto px-0 py-0 align-baseline font-normal"
       aria-haspopup={props.mode === "edit" ? "dialog" : undefined}
       onClick={props.onClick}
     >
-      or say what should change
+      <BotMessageSquare
+        aria-hidden="true"
+        className="mr-1 inline-block h-4 w-4 align-text-bottom"
+      />
+      <span>or say what should change</span>
     </Button>
   );
 }

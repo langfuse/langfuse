@@ -3,7 +3,15 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../../../../../.storybook/preview";
 import { EvaluatorAssistantHeaderAction } from "./EvaluatorAssistantHeaderAction";
 
-const meta = preview.meta({ component: EvaluatorAssistantHeaderAction });
+const meta = preview.meta({
+  component: EvaluatorAssistantHeaderAction,
+  render: (args) => (
+    <h2 className="text-primary text-lg leading-7 font-bold">
+      <span>Configure evaluator</span>{" "}
+      <EvaluatorAssistantHeaderAction {...args} />
+    </h2>
+  ),
+});
 
 export const Create = meta.story({
   args: {
