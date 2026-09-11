@@ -30,6 +30,12 @@ pub struct ResolverConfig {
 }
 
 impl ResolverConfig {
+    /// Configure resolution against a trusted Web origin.
+    ///
+    /// # Errors
+    /// Returns [`ResolveError::Configuration`] for a blank service key or an invalid
+    /// origin. Origins require HTTPS (HTTP is allowed on loopback), with no userinfo,
+    /// query, fragment, or path other than `/`.
     pub fn new(web_url: &str, service_key: &str) -> Result<Self, ResolveError> {
         let mut url = Url::parse(web_url).map_err(|_| ResolveError::Configuration)?;
         let loopback = url.host_str().is_some_and(|host| {
@@ -69,6 +75,10 @@ pub struct Resolver {
 }
 
 impl Resolver {
+    /// Build a resolver with a reusable HTTP connection pool.
+    ///
+    /// # Errors
+    /// Returns [`ResolveError::Configuration`] if the HTTP client cannot be initialized.
     pub fn new(config: ResolverConfig) -> Result<Self, ResolveError> {
         let client = Client::builder()
             .redirect(reqwest::redirect::Policy::none())
@@ -83,6 +93,12 @@ impl Resolver {
         Ok(Self { client, config })
     }
 
+    /// Resolve a gateway credential and API format into a validated execution contract.
+    ///
+    /// # Errors
+    /// Returns a sanitized [`ResolveError`] for invalid credentials, authentication or
+    /// authorization failures, missing routes, unavailable Web or system time, request
+    /// construction or transport failures, timeouts, or oversized or invalid responses.
     pub async fn resolve(
         &self,
         gateway_key: &str,

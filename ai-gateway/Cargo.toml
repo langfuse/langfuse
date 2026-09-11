@@ -21,6 +21,11 @@ futures-util = "0.3"
 tokio = { version = "1.53.1", features = ["io-util"] }
 tower = { version = "0.5", features = ["util"] }
 
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Avoid requiring annotations on every side-effect-free getter.
+must_use_candidate = "allow"
+
 [profile.release]
 lto = "thin"
 strip = true

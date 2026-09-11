@@ -72,6 +72,10 @@ impl FakeWeb {
     }
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "Response fixtures consume their JSON values, including inline json! expressions"
+)]
 fn response(value: Value) -> Response<Body> {
     Response::builder()
         .header(header::CONTENT_TYPE, "application/json")
