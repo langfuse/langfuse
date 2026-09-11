@@ -23,6 +23,10 @@ import {
   SessionBadge,
   UserIdBadge,
 } from "@/src/features/traces/components/TraceMetadataBadges";
+import {
+  SessionHoverCard,
+  UserHoverCard,
+} from "@/src/features/traces/components/ReferenceHoverCard";
 import { LatencyBadge } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { CostUsageBadge } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
@@ -58,8 +62,27 @@ export function TraceSummaryStrip() {
           totalUsage={aggregatedMetrics.totalUsage}
           usageDetails={aggregatedMetrics.usageDetails}
         />
-        <SessionBadge sessionId={trace.sessionId} projectId={trace.projectId} />
-        <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
+        {trace.sessionId ? (
+          <SessionHoverCard
+            sessionId={trace.sessionId}
+            projectId={trace.projectId}
+            anchorTime={trace.timestamp}
+          >
+            <SessionBadge
+              sessionId={trace.sessionId}
+              projectId={trace.projectId}
+            />
+          </SessionHoverCard>
+        ) : null}
+        {trace.userId ? (
+          <UserHoverCard
+            userId={trace.userId}
+            projectId={trace.projectId}
+            anchorTime={trace.timestamp}
+          >
+            <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
+          </UserHoverCard>
+        ) : null}
         {trace.tags.length > 0 && (
           <div className="flex min-w-0 items-center gap-1">
             {/* Session-header pill styling; v4 tags are immutable here, so no

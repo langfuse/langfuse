@@ -200,11 +200,27 @@ export const userRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         userId: z.string().min(1),
+        /** Only count events from this time on. The trace-view hover card
+         * caps at 30 days so a bot user with years of traffic stays cheap. */
+        fromTimestamp: z.date().optional(),
       }),
     )
     .query(async ({ input }) => {
       const result = (
-        await getUserMetricsFromEventsTable(input.projectId, [input.userId], [])
+        await getUserMetricsFromEventsTable(
+          input.projectId,
+          [input.userId],
+          input.fromTimestamp
+            ? [
+                {
+                  column: "timestamp",
+                  type: "datetime",
+                  operator: ">=",
+                  value: input.fromTimestamp,
+                },
+              ]
+            : [],
+        )
       ).shift();
 
       return {

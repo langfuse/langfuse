@@ -7,6 +7,7 @@
  * own null check and returns null when the underlying value is unavailable.
  */
 
+import { type ComponentPropsWithoutRef, forwardRef } from "react";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
@@ -15,40 +16,45 @@ import Link from "next/link";
 const REFERENCE_LINK_CLASS =
   "text-muted-foreground hover:text-link inline-flex min-w-0 max-w-[280px] shrink-0 items-center gap-1 text-[11px] whitespace-nowrap hover:underline";
 
-export function SessionBadge({
-  sessionId,
-  projectId,
-}: {
-  sessionId: string | null;
-  projectId: string;
-}) {
+type ReferenceLinkProps = Omit<
+  ComponentPropsWithoutRef<typeof Link>,
+  "href" | "children" | "className"
+>;
+
+/** Extra props and the ref go to the anchor so a Radix `asChild` trigger
+ * (the session / user hover cards) can attach to the link itself. */
+export const SessionBadge = forwardRef<
+  HTMLAnchorElement,
+  { sessionId: string | null; projectId: string } & ReferenceLinkProps
+>(function SessionBadge({ sessionId, projectId, ...props }, ref) {
   if (!sessionId) return null;
 
   return (
     <Link
+      ref={ref}
       href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
       className={`ph-no-capture ${REFERENCE_LINK_CLASS}`}
       title={`Session ${sessionId}`}
+      {...props}
     >
       Session
       <ArrowUpRight className="h-3 w-3 shrink-0" />
     </Link>
   );
-}
+});
 
-export function UserIdBadge({
-  userId,
-  projectId,
-}: {
-  userId: string | null;
-  projectId: string;
-}) {
+export const UserIdBadge = forwardRef<
+  HTMLAnchorElement,
+  { userId: string | null; projectId: string } & ReferenceLinkProps
+>(function UserIdBadge({ userId, projectId, ...props }, ref) {
   if (!userId) return null;
 
   return (
     <Link
+      ref={ref}
       href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
       className={`ph-no-capture ${REFERENCE_LINK_CLASS}`}
+      {...props}
     >
       User{" "}
       <span className="truncate" title={userId}>
@@ -57,7 +63,7 @@ export function UserIdBadge({
       <ArrowUpRight className="h-3 w-3 shrink-0" />
     </Link>
   );
-}
+});
 
 export function TargetTraceBadge({
   targetTraceId,
