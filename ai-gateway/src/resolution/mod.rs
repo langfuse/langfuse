@@ -22,7 +22,7 @@ struct Limits {
     max_response_bytes: usize,
 }
 
-/// Operator-supplied Web origin and the existing gateway/Web service key.
+/// Operator-supplied Web base URL and the existing gateway/Web service key.
 pub struct ResolverConfig {
     url: Url,
     service_key: String,
@@ -30,12 +30,12 @@ pub struct ResolverConfig {
 }
 
 impl ResolverConfig {
-    /// Configure resolution against a trusted Web origin.
+    /// Configure resolution against a trusted Web base URL, including any deployment prefix.
     ///
     /// # Errors
     /// Returns [`ResolveError::Configuration`] for a blank service key or an invalid
-    /// origin. Origins require HTTPS (HTTP is allowed on loopback), with no userinfo,
-    /// query, fragment, or path other than `/`.
+    /// base URL. URLs require HTTPS (HTTP is allowed on loopback), with no userinfo,
+    /// query, or fragment.
     pub fn new(web_url: &str, service_key: &str) -> Result<Self, ResolveError> {
         let mut url = Url::parse(web_url).map_err(|_| ResolveError::Configuration)?;
         let loopback = url.host_str().is_some_and(|host| {
@@ -51,12 +51,12 @@ impl ResolverConfig {
             || url.password().is_some()
             || url.query().is_some()
             || url.fragment().is_some()
-            || url.path() != "/"
             || service_key.trim().is_empty()
         {
             return Err(ResolveError::Configuration);
         }
-        url.set_path(RESOLVE_PATH);
+        let resolve_path = format!("{}{RESOLVE_PATH}", url.path().trim_end_matches('/'));
+        url.set_path(&resolve_path);
         Ok(Self {
             url,
             service_key: service_key.to_owned(),
