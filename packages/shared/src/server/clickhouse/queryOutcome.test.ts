@@ -58,6 +58,7 @@ describe("ClickHouse query outcome metric", () => {
     it.each([
       ["events.all", "events.all"],
       ["listObservations", "listObservations"],
+      ["trace_redirect", "trace_redirect"],
     ])("labels the bare route %s verbatim", (route, expected) => {
       expect(clickHouseQueryOutcomeRouteLabel(route)).toBe(expected);
     });
