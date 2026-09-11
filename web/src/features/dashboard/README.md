@@ -8,10 +8,12 @@ as "preset" placements.
 
 ## Entry Points
 
-- `web/src/pages/project/[projectId]/index.tsx` — Home. Controller resolves the
-  v3/v4 read path before anything mounts, then renders `HomeDashboard`.
-- `web/src/pages/project/[projectId]/dashboards/[dashboardId]/index.tsx` —
-  dashboard detail. Same controller split (`DashboardDetailView`).
+- `web/src/features/dashboard/ProjectHomePage.tsx` — Home (route shim at
+  `pages/.../index.tsx`). Controller resolves the v3/v4 read path before
+  anything mounts, then renders `HomeDashboard`.
+- `web/src/features/dashboard/DashboardDetailPage.tsx` — dashboard detail
+  (route shim at `pages/.../dashboards/[dashboardId]/index.tsx`). Same
+  controller split (`DashboardDetailView`).
 - Both pages create the per-mount scheduler store and provide it via
   `DashboardQuerySchedulerProvider`.
 
