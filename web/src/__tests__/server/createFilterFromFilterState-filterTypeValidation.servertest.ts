@@ -574,6 +574,33 @@ describe("createFilterFromFilterState filter type validation", () => {
     expect(Object.values(params)).toEqual(["environment", "production"]);
   });
 
+  it("ORs a nested event metadata filter against flattened and JSON-encoded values", () => {
+    const filters = [
+      {
+        column: "metadata",
+        type: "stringObject",
+        operator: "=",
+        key: "config.timeout",
+        value: "30",
+      },
+    ] satisfies EventsTableFilterState;
+
+    const [result] = createFilterFromFilterState(
+      filters,
+      [mappings.eventMetadata],
+      columnDefinitions,
+    );
+
+    const { query, params } = result.apply();
+
+    expect(query).toContain(" OR ");
+    expect(query).toContain("JSONExtractString(");
+    expect(query).toContain("JSONHas(");
+    expect(Object.values(params)).toEqual(
+      expect.arrayContaining(["config.timeout", "config", "timeout", "30"]),
+    );
+  });
+
   it.each([
     {
       description: "non-indexed event string column",
