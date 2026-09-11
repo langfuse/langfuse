@@ -2089,7 +2089,8 @@ function NumericFacet({
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
-  const [appliedMin, appliedMax] = value;
+  const appliedMin = value?.[0];
+  const appliedMax = value?.[1];
 
   // An external reset or replacement cancels the pending draft.
   useEffect(() => {
