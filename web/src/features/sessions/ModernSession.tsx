@@ -11,6 +11,7 @@ import {
   type EventSession,
   type EventSessionTrace,
 } from "@/src/features/sessions/sessionDetailPageTypes";
+import { type SessionFocusTarget } from "@/src/features/sessions/sessionFocusTarget";
 
 type ModernSessionProps = {
   isTimelineEnabled: boolean;
@@ -39,6 +40,8 @@ type ModernSessionProps = {
   viewLabel: string | null;
   showInlineToolCalls: boolean;
   showSystemPrompt: boolean;
+  /** Trace (and observation) the user arrived from; the body scrolls to it. */
+  focusTarget?: SessionFocusTarget | null;
   filterControlsProps: Omit<
     ComponentProps<typeof ModernSessionFilterControls>,
     "children"
@@ -62,6 +65,7 @@ export function ModernSession({
   viewLabel,
   showInlineToolCalls,
   showSystemPrompt,
+  focusTarget = null,
   filterControlsProps,
   onFilterObservationByName,
 }: ModernSessionProps) {
@@ -82,6 +86,7 @@ export function ModernSession({
     filterState,
     filterMeasurementKey,
     viewLabel,
+    focusTarget,
     onFilterObservationByName,
   };
 

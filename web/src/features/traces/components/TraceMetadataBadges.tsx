@@ -10,6 +10,7 @@
 import { type ComponentPropsWithoutRef, forwardRef } from "react";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
+import { buildSessionDetailHref } from "@/src/features/sessions/sessionFocusTarget";
 
 // Same scale as the metrics tier; link affordance (hover color + underline)
 // is the only thing that sets a reference apart from a plain metric.
@@ -22,17 +23,32 @@ type ReferenceLinkProps = Omit<
 >;
 
 /** Extra props and the ref go to the anchor so a Radix `asChild` trigger
- * (the session / user hover cards) can attach to the link itself. */
+ * (the session / user hover cards) can attach to the link itself.
+ * `traceId` / `observationId` carry the current selection into the session
+ * page (`?focusTraceId=&focusObservationId=`) so it opens on this trace. */
 export const SessionBadge = forwardRef<
   HTMLAnchorElement,
-  { sessionId: string | null; projectId: string } & ReferenceLinkProps
->(function SessionBadge({ sessionId, projectId, ...props }, ref) {
+  {
+    sessionId: string | null;
+    projectId: string;
+    traceId?: string;
+    observationId?: string | null;
+  } & ReferenceLinkProps
+>(function SessionBadge(
+  { sessionId, projectId, traceId, observationId, ...props },
+  ref,
+) {
   if (!sessionId) return null;
 
   return (
     <Link
       ref={ref}
-      href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
+      href={buildSessionDetailHref({
+        projectId,
+        sessionId,
+        traceId,
+        observationId,
+      })}
       // Underlined at rest: it owns a hover card, like the token count.
       className={`ph-no-capture ${REFERENCE_LINK_CLASS}`}
       title={`Session ${sessionId}`}

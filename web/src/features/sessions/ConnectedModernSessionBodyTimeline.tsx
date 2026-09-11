@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { type FilterState } from "@langfuse/shared";
 
 import {
@@ -10,6 +10,10 @@ import {
   useSessionConversationTimelineController,
 } from "@/src/features/sessions/SessionConversationTimeline/SessionConversationTimeline";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
+import {
+  type SessionFocusTarget,
+  useScrollToFocusedSessionTrace,
+} from "@/src/features/sessions/sessionFocusTarget";
 import { computeIdleGapSeconds } from "@/src/features/sessions/sessionIdleGap";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import {
@@ -37,6 +41,7 @@ type ConnectedModernSessionBodyTimelineProps = {
   filterState: FilterState;
   filterMeasurementKey: string;
   viewLabel: string | null;
+  focusTarget?: SessionFocusTarget | null;
   sidebarFilterControls: ModernSessionSidebarFilterControls;
   onFilterObservationByName: (
     name: string,
@@ -54,6 +59,7 @@ export function ConnectedModernSessionBodyTimeline({
   filterState,
   filterMeasurementKey,
   viewLabel,
+  focusTarget = null,
   sidebarFilterControls,
   onFilterObservationByName,
 }: ConnectedModernSessionBodyTimelineProps) {
@@ -67,9 +73,20 @@ export function ConnectedModernSessionBodyTimeline({
     new Set(),
   );
   const [visibleTraceIds, setVisibleTraceIds] = useState<string[]>([]);
+  // Seeded from the trace -> session link context (`?focusObservationId=`) so
+  // a focused observation inside a collapsed group is revealed, as a sidebar
+  // click would. Scrolling to it is useScrollToFocusedSessionTrace's job.
   const [scrollTarget, setScrollTarget] =
-    useState<SessionConversationTimelineScrollTarget | null>(null);
-  const scrollRequestIdRef = useRef(0);
+    useState<SessionConversationTimelineScrollTarget | null>(() =>
+      focusTarget?.observationId
+        ? {
+            traceId: focusTarget.traceId,
+            observationId: focusTarget.observationId,
+            requestId: 1,
+          }
+        : null,
+    );
+  const scrollRequestIdRef = useRef(scrollTarget ? 1 : 0);
   const [loadedTracePrefix, setLoadedTracePrefix] = useState({
     sessionId,
     chunkIndex: -1,
@@ -407,6 +424,17 @@ export function ConnectedModernSessionBodyTimeline({
     }
     timelineController.onSelect(index, observationId);
   };
+
+  // Trace -> session link context (`?focusTraceId=`): land the feed on the
+  // trace / observation the user came from. The sidebar's active turn then
+  // follows from the scroll spy like any other scroll position.
+  const traceIds = useMemo(() => traces.map((trace) => trace.id), [traces]);
+  useScrollToFocusedSessionTrace({
+    enabled: tracesState.type === "loaded",
+    focusTarget,
+    traceIds,
+    virtualizer: timelineController.virtualizer,
+  });
 
   return (
     <div className="bg-background relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden lg:grid-cols-[clamp(200px,24vw,296px)_minmax(0,1fr)] lg:grid-rows-1">
