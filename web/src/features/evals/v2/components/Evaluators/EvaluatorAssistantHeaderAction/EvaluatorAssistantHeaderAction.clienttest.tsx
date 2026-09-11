@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { EvaluatorAssistantHeaderAction } from "./EvaluatorAssistantHeaderAction";
 import { EvaluatorAssistantEditDialog } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/EvaluatorAssistantEditDialog";
+import { TooltipProvider } from "@/src/components/ui/tooltip";
 
 describe("EvaluatorAssistantHeaderAction", () => {
   it("switches a manual draft to AI entry without clearing draft state", () => {
@@ -63,7 +64,11 @@ describe("EvaluatorAssistantHeaderAction", () => {
       );
     }
 
-    render(<ExistingEvaluatorHarness />);
+    render(
+      <TooltipProvider>
+        <ExistingEvaluatorHarness />
+      </TooltipProvider>,
+    );
 
     fireEvent.click(
       screen.getByRole("button", {

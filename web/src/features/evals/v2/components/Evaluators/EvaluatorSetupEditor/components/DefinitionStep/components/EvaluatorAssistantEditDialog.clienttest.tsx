@@ -36,7 +36,7 @@ function DialogHarness({
 }
 
 describe("EvaluatorAssistantEditDialog", () => {
-  it("dismisses from the backdrop, Escape, and canonical close control", () => {
+  it("dismisses from the backdrop, Escape, and canonical close control", async () => {
     render(<DialogHarness />);
     const trigger = screen.getByRole("button", { name: "Edit evaluator" });
 
@@ -46,7 +46,9 @@ describe("EvaluatorAssistantEditDialog", () => {
       '[data-state="open"].fixed.inset-0',
     );
     expect(overlay).not.toBeNull();
-    fireEvent.pointerDown(overlay!);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fireEvent.pointerDown(overlay!, { button: 0, pointerType: "mouse" });
+    fireEvent.click(overlay!);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
 
@@ -56,7 +58,11 @@ describe("EvaluatorAssistantEditDialog", () => {
     expect(trigger).toHaveFocus();
 
     fireEvent.click(trigger);
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getAllByRole("button", {
+        name: "Close",
+      })[0],
+    );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
@@ -107,9 +113,14 @@ describe("EvaluatorAssistantEditDialog", () => {
     const overlay = document.querySelector<HTMLElement>(
       '[data-state="open"].fixed.inset-0',
     );
-    fireEvent.pointerDown(overlay!);
+    fireEvent.pointerDown(overlay!, { button: 0, pointerType: "mouse" });
+    fireEvent.click(overlay!);
     fireEvent.keyDown(document, { key: "Escape" });
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getAllByRole("button", {
+        name: "Close",
+      })[0],
+    );
     expect(screen.getByRole("dialog")).toBeInTheDocument();
 
     finishSubmission(false);
