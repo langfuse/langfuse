@@ -16,6 +16,8 @@ import { BillingPlanPeriodView } from "@/src/ee/features/billing/components/Bill
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { SpendAlertsSection } from "./SpendAlerts/SpendAlertsSection";
 import { useBillingInformation } from "./useBillingInformation";
+import { api } from "@/src/utils/api";
+import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -36,6 +38,22 @@ export const BillingSettings = () => {
     cancellation,
     scheduledPlanSwitch,
   } = useBillingInformation();
+  const usage = api.cloudBilling.getUsage.useQuery(
+    { orgId: organization?.id ?? "" },
+    {
+      enabled: Boolean(
+        organization &&
+        isCloudBillingAvailable &&
+        isCloudBillingEntitled &&
+        hasAccess,
+      ),
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
   const showBillingDiscount = Boolean(
     organization?.cloudConfig?.stripe?.activeSubscriptionId &&
     billingProvider !== "clickhouse",
@@ -81,7 +99,16 @@ export const BillingSettings = () => {
 
       <Header title="Usage & Billing" />
       <div className="space-y-6">
-        <BillingUsageChart />
+        {usage.data !== null && (
+          <BillingUsageChart
+            usage={usage.data}
+            hobbyPlanLimit={
+              organization?.cloudConfig?.monthlyObservationLimit ??
+              MAX_EVENTS_FREE_PLAN
+            }
+            plan={organization?.plan ?? "cloud:hobby"}
+          />
+        )}
         <BillingPlanPeriodView />
         {showBillingDiscount && organization && (
           <BillingDiscountView
