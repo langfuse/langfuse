@@ -630,6 +630,13 @@ function LoadedSessionConversationTimeline({
   const [expandedToolObservationIds, setExpandedToolObservationIds] = useState(
     () => new Set<string>(),
   );
+  const [hoveredSubsectionId, setHoveredSubsectionId] = useState<string | null>(
+    null,
+  );
+  const [focusedSubsectionId, setFocusedSubsectionId] = useState<string | null>(
+    null,
+  );
+  const highlightedSubsectionId = hoveredSubsectionId ?? focusedSubsectionId;
   let collapsedObservationIds = collapseState.observationIds;
   if (
     scrollTarget &&
@@ -710,6 +717,11 @@ function LoadedSessionConversationTimeline({
                 (phase !== "start" && hasPreviewValue(observation.output))
               : processedMessages.messages.length > 0);
           const moveCollapseControlUp = !isCollapsed && hasChatBubbles;
+          const isHighlightedSubsection =
+            highlightedSubsectionId === observation.id && phase === "start";
+          const isHighlightedDescendant = highlightedSubsectionId
+            ? ancestorObservationIds.includes(highlightedSubsectionId)
+            : false;
 
           const depth = ancestorObservationIds.length;
 
@@ -724,7 +736,10 @@ function LoadedSessionConversationTimeline({
               {ancestorObservationIds.length > 0 ? (
                 <span
                   data-session-observation-rail-depth={depth - 1}
-                  className="bg-border pointer-events-none absolute -top-1 -bottom-1 left-[7px] w-px"
+                  className={cn(
+                    "pointer-events-none absolute -top-1 -bottom-1 left-[7px] w-px transition-colors",
+                    isHighlightedDescendant ? "bg-primary/60" : "bg-border",
+                  )}
                   aria-hidden="true"
                 />
               ) : null}
@@ -735,7 +750,8 @@ function LoadedSessionConversationTimeline({
                 <span
                   data-session-observation-rail-depth={depth}
                   className={cn(
-                    "bg-border pointer-events-none absolute top-[22px] left-[7px] w-px",
+                    "pointer-events-none absolute top-[22px] left-[7px] w-px transition-colors",
+                    "bg-border",
                     phase === "start" ? "-bottom-1" : "bottom-0",
                   )}
                   aria-hidden="true"
@@ -799,6 +815,16 @@ function LoadedSessionConversationTimeline({
                     moveCollapseControlUp ? "h-0" : "h-7",
                   )}
                 >
+                  {isHighlightedSubsection ? (
+                    <span
+                      data-session-collapse-rail-highlight
+                      className={cn(
+                        "bg-primary/60 pointer-events-none absolute -bottom-1 left-[7px] w-px",
+                        moveCollapseControlUp ? "-top-2" : "top-5",
+                      )}
+                      aria-hidden="true"
+                    />
+                  ) : null}
                   <Button
                     type="button"
                     variant="ghost"
@@ -810,15 +836,29 @@ function LoadedSessionConversationTimeline({
                     style={{ left: "7.5px" }}
                     aria-expanded={!isCollapsed}
                     aria-label={`${isCollapsed ? "Show" : "Hide"} ${nestedObservationSummary}`}
-                    onClick={() =>
+                    onMouseEnter={() => {
+                      if (!isCollapsed) {
+                        setHoveredSubsectionId(observation.id);
+                      }
+                    }}
+                    onMouseLeave={() => setHoveredSubsectionId(null)}
+                    onFocus={() => {
+                      if (!isCollapsed) {
+                        setFocusedSubsectionId(observation.id);
+                      }
+                    }}
+                    onBlur={() => setFocusedSubsectionId(null)}
+                    onClick={() => {
+                      setHoveredSubsectionId(null);
+                      setFocusedSubsectionId(null);
                       setCollapseState((current) => {
                         const observationIds = new Set(current.observationIds);
                         if (isCollapsed) {
                           observationIds.delete(observation.id);
                         } else observationIds.add(observation.id);
                         return { ...current, observationIds };
-                      })
-                    }
+                      });
+                    }}
                   >
                     {isCollapsed ? (
                       <ChevronsUpDown className="h-3 w-3" aria-hidden="true" />

@@ -2471,6 +2471,11 @@ export const ExpandNestedObservations = meta.story({
     await expect(
       rootToggle.querySelector(".lucide-chevrons-up-down"),
     ).not.toBeNull();
+    await userEvent.hover(rootToggle);
+    await expect(
+      rootStart?.querySelector('[data-session-observation-rail-depth="0"]'),
+    ).toHaveClass("bg-border");
+    await userEvent.unhover(rootToggle);
     const initialRootToggleTop = rootToggle.getBoundingClientRect().top;
 
     // Expanding a parent reveals its direct children, but nested groups remain collapsed.
@@ -2487,6 +2492,9 @@ export const ExpandNestedObservations = meta.story({
     await expect(
       rootToggle.querySelector(".lucide-chevron-down"),
     ).not.toBeNull();
+    await expect(
+      rootStart?.querySelector('[data-session-observation-rail-depth="0"]'),
+    ).toHaveClass("bg-border");
     const nestedGeneration = canvasElement
       .querySelector('[data-session-observation-id="generation-1"]')
       ?.closest("[data-session-observation-depth]");
@@ -2504,6 +2512,25 @@ export const ExpandNestedObservations = meta.story({
       '[data-session-observation-id="generation-1"] button svg',
     );
     await expect(nestedObservationIcon).not.toBeNull();
+    rootToggle.blur();
+    await userEvent.hover(rootToggle);
+    await expect(
+      rootToggle.parentElement?.querySelector(
+        "[data-session-collapse-rail-highlight]",
+      ),
+    ).toBeInTheDocument();
+    await expect(
+      rootStart?.querySelector('[data-session-observation-rail-depth="0"]'),
+    ).toHaveClass("bg-border");
+    await expect(
+      nestedGeneration?.querySelector("[data-session-observation-rail-depth]"),
+    ).toHaveClass("bg-primary/60");
+    await expect(
+      closingRailEnd
+        ?.closest("[data-session-observation-depth]")
+        ?.querySelector("[data-session-observation-rail-depth]"),
+    ).toHaveClass("bg-border");
+    await userEvent.unhover(rootToggle);
     const nestedToggle = canvas.getByRole("button", {
       name: "Show tools: tool-1, tool-2, and tool-3",
     });
@@ -2531,6 +2558,16 @@ export const ExpandNestedObservations = meta.story({
     await expect(
       nestedTool?.querySelector("[data-session-observation-rail-depth]"),
     ).toHaveClass("left-[7px]");
+
+    nestedToggle.blur();
+    await userEvent.hover(nestedToggle);
+    await expect(
+      nestedTool?.querySelector("[data-session-observation-rail-depth]"),
+    ).toHaveClass("bg-primary/60");
+    await userEvent.unhover(nestedToggle);
+    await expect(
+      nestedTool?.querySelector("[data-session-observation-rail-depth]"),
+    ).toHaveClass("bg-border");
 
     await userEvent.click(
       canvas.getByRole("button", { name: "Expand tool-1" }),
