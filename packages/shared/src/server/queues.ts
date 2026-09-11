@@ -501,8 +501,7 @@ export const TraceBatchEventSchema = z.object({
           revision: z.string(),
         }),
       )
-      .min(1)
-      .max(100),
+      .min(1),
   }),
 });
 

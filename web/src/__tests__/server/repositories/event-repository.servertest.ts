@@ -153,6 +153,13 @@ describe("Clickhouse Events Repository Test", () => {
           minStart: start + 600_000,
           maxStart: start + 600_000,
         },
+        // A full dispatcher snapshot can belong to one project. Missing IDs
+        // exercise that query size without adding unrelated fixture rows.
+        ...Array.from({ length: 998 }, () => ({
+          traceId: randomUUID(),
+          minStart: start,
+          maxStart: start,
+        })),
       ],
     })) {
       rowCount++;

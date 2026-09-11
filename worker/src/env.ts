@@ -130,12 +130,6 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(30_000),
-  LANGFUSE_TRACE_BATCH_MAX_SIZE: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(100)
-    .default(20),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),

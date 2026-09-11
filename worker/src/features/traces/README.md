@@ -16,7 +16,9 @@ and a unique revision. Redis server time determines ten minutes of inactivity;
 observation start time determines the query bounds.
 
 One lease-owning dispatcher snapshots at most 1,000 due members and their state
-atomically, groups by project, and enqueues batches including smaller groups.
+atomically and enqueues one batch per project containing all of that project's
+traces in the snapshot. There is no additional per-project batch-size cap;
+projects spanning multiple snapshots can produce multiple batches.
 It acknowledges only after enqueue succeeds, atomically removing state and due
 membership when the revision still matches. New arrivals remain scheduled.
 Each run stops at 10 seconds or 10,000 traces, checking the budget between jobs;
@@ -36,21 +38,20 @@ I/O/metadata bytes are retained in job results.
 All enablement flags default to `false`. Every eligible trace is tracked when
 intake is enabled; there is no sampling code or sampling setting.
 
-| Setting                                       | Default  | Purpose                                                       |
-| --------------------------------------------- | -------- | ------------------------------------------------------------- |
-| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | `false`  | Track accepted direct-v4 event writes in Redis                |
-| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`  | Turn ready state into queue jobs                              |
-| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`  | Consume existing `trace-batch` jobs                           |
-| `LANGFUSE_TRACE_BATCH_CONCURRENCY`            | `2`      | Concurrent reads **per enabled worker process**               |
-| `LANGFUSE_TRACE_BATCH_IDLE_MS`                | `600000` | Inactivity before a trace becomes due                         |
-| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`   | `30000`  | Delay between dispatcher runs                                 |
-| `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `20`     | Trace count cap per project batch, configurable from 1 to 100 |
+| Setting                                       | Default  | Purpose                                         |
+| --------------------------------------------- | -------- | ----------------------------------------------- |
+| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | `false`  | Track accepted direct-v4 event writes in Redis  |
+| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`  | Turn ready state into queue jobs                |
+| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`  | Consume existing `trace-batch` jobs             |
+| `LANGFUSE_TRACE_BATCH_CONCURRENCY`            | `2`      | Concurrent reads **per enabled worker process** |
+| `LANGFUSE_TRACE_BATCH_IDLE_MS`                | `600000` | Inactivity before a trace becomes due           |
+| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`   | `30000`  | Delay between dispatcher runs                   |
 
 Deploy with flags off. Start consumers on a small, known number of worker
 processes, enable the dispatcher, then enable intake on direct-v4 ingestion
 workers. Multiple dispatcher processes may be enabled; only the lease owner
 dispatches. Consumer concurrency multiplies across the fleet; this is not a
-global ClickHouse concurrency limit. A trace-count cap also does not cap bytes.
+global ClickHouse concurrency limit. Bounded Redis snapshots do not cap payload bytes.
 
 For a normal stop, disable **intake** first and keep dispatcher and consumers
 running until Redis pending/ready counts and the queue's waiting/active counts
@@ -108,11 +109,11 @@ time, depth and failures; periodic-runner metrics cover dispatch failures.
 ClickHouse query tags identify `worker: langfuse.queue.trace_batch` so compare
 query CPU, bytes read and latency with actual traces processed.
 
-Keep dispatch interval and consumer fleet size fixed while testing batch caps
-20, 50 and 100. Compare the distribution and singleton trace percentage with
+Measure the natural project batch distribution with a fixed dispatch interval
+and consumer fleet size. Compare the distribution and singleton trace percentage with
 CPU/bytes per found trace, queue delay, missing rows and ingestion latency. If
-singletons dominate, try a longer dispatch interval; increasing the cap alone
-cannot help sparse projects. Cross-project batching is a separate experiment.
+singletons dominate, try a longer dispatch interval. Additional batch splitting
+and cross-project batching are separate experiments.
 
 ## Semantics and limits
 

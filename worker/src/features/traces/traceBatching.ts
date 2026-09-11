@@ -215,65 +215,55 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         projects.set(projectId, group);
       }
 
-      for (const [projectId, entries] of projects) {
-        for (
-          let offset = 0;
-          offset < entries.length;
-          offset += env.LANGFUSE_TRACE_BATCH_MAX_SIZE
-        ) {
-          if (this.stopping || Date.now() - started >= RUN_BUDGET_MS) return;
-          await this.extendLockOnProgress(true);
-          if (this.stopping) return;
-          const batch = entries.slice(
-            offset,
-            offset + env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
-          );
-          const traces = batch.map(({ trace }) => trace);
-          const id = createHash("sha256")
-            .update(JSON.stringify([projectId, traces]))
-            .digest("hex");
-          // Stable IDs reduce duplicate delivery if enqueue succeeds but ACK fails.
-          // Reads remain retry-safe even if regrouping produces a different job ID.
-          await queue.add(
-            QueueJobs.TraceBatch,
-            {
-              id,
-              timestamp: new Date(),
-              name: QueueJobs.TraceBatch,
-              payload: { projectId, traces },
-            },
-            { jobId: id },
-          );
+      for (const [projectId, batch] of projects) {
+        if (this.stopping || Date.now() - started >= RUN_BUDGET_MS) return;
+        await this.extendLockOnProgress(true);
+        if (this.stopping) return;
+        const traces = batch.map(({ trace }) => trace);
+        const id = createHash("sha256")
+          .update(JSON.stringify([projectId, traces]))
+          .digest("hex");
+        // Stable IDs reduce duplicate delivery if enqueue succeeds but ACK fails.
+        // Reads remain retry-safe even if regrouping produces a different job ID.
+        await queue.add(
+          QueueJobs.TraceBatch,
+          {
+            id,
+            timestamp: new Date(),
+            name: QueueJobs.TraceBatch,
+            payload: { projectId, traces },
+          },
+          { jobId: id },
+        );
 
-          recordDistribution("langfuse.trace_batch.size", batch.length);
-          recordIncrement(
-            "langfuse.trace_batch.dispatched_traces",
-            batch.length,
-            {
-              batch_kind: batch.length === 1 ? "singleton" : "multi",
-            },
+        recordDistribution("langfuse.trace_batch.size", batch.length);
+        recordIncrement(
+          "langfuse.trace_batch.dispatched_traces",
+          batch.length,
+          {
+            batch_kind: batch.length === 1 ? "singleton" : "multi",
+          },
+        );
+        for (const entry of batch) {
+          recordDistribution(
+            "langfuse.trace_batch.due_lag_ms",
+            Math.max(0, now - entry.due),
           );
-          for (const entry of batch) {
-            recordDistribution(
-              "langfuse.trace_batch.due_lag_ms",
-              Math.max(0, now - entry.due),
-            );
-          }
-          const removed = Number(
-            await redis.eval(
-              ACKNOWLEDGE_SCRIPT,
-              2,
-              DUE_KEY,
-              STATE_KEY,
-              ...batch.flatMap(({ member, trace }) => [member, trace.revision]),
-            ),
-          );
-          recordIncrement(
-            "langfuse.trace_batch.reactivated_traces",
-            batch.length - removed,
-          );
-          dispatched += batch.length;
         }
+        const removed = Number(
+          await redis.eval(
+            ACKNOWLEDGE_SCRIPT,
+            2,
+            DUE_KEY,
+            STATE_KEY,
+            ...batch.flatMap(({ member, trace }) => [member, trace.revision]),
+          ),
+        );
+        recordIncrement(
+          "langfuse.trace_batch.reactivated_traces",
+          batch.length - removed,
+        );
+        dispatched += batch.length;
       }
     }
   }
