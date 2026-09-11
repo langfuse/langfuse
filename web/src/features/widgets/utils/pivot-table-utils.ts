@@ -468,9 +468,11 @@ function detectAggregationType(metricName: string): string {
         return "min";
       case "max":
         return "max";
+      case "p50":
+      case "p75":
+      case "p90":
       case "p95":
       case "p99":
-      case "p50":
         return "percentile";
       default:
         // Default to sum for unknown aggregations
