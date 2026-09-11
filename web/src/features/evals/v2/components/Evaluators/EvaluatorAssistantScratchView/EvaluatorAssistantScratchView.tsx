@@ -89,10 +89,7 @@ export function EvaluatorAssistantScratchView({
             onKeyDown={handleKeyDown}
             className="ph-no-capture min-h-32 resize-y rounded-none border-0 text-base shadow-none focus-visible:ring-0"
           />
-          <div className="border-border flex items-center gap-3 border-t border-dashed px-3 py-2">
-            <p className="text-muted-foreground min-w-0 flex-1 text-xs">
-              AI writes the prompt, score output, variable mapping, and name.
-            </p>
+          <div className="border-border flex justify-end border-t border-dashed p-2">
             <Button
               type="submit"
               size="sm"
@@ -119,17 +116,19 @@ export function EvaluatorAssistantScratchView({
           >
             Try one of these
           </p>
-          {EXAMPLE_PROMPTS.map((example) => (
-            <button
-              key={example}
-              type="button"
-              disabled={isSubmitting}
-              className="border-border bg-card text-card-foreground hover:bg-accent focus-visible:ring-ring rounded-md border px-3 py-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
-              onClick={() => setRequest(example)}
-            >
-              {example}
-            </button>
-          ))}
+          <div className="flex flex-wrap gap-2">
+            {EXAMPLE_PROMPTS.map((example) => (
+              <button
+                key={example}
+                type="button"
+                disabled={isSubmitting}
+                className="border-border bg-card text-card-foreground hover:bg-accent focus-visible:ring-ring min-w-0 flex-[1_1_12rem] rounded-md border px-3 py-2 text-left text-sm text-wrap transition-colors focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => setRequest(example)}
+              >
+                {example}
+              </button>
+            ))}
+          </div>
         </section>
 
         <Button
