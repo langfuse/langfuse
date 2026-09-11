@@ -785,7 +785,7 @@ export default function ExperimentItemsTable({
   );
 
   // Use the custom hook for experiment items data fetching
-  const { items, totalCount, dataUpdatedAt, ioLoading } =
+  const { items, totalCount, dataUpdatedAt, ioLoading, isTotalCountLoading } =
     useExperimentItemsTableData({
       projectId,
       baseExperimentId: baselineId,
@@ -1926,10 +1926,13 @@ export default function ExperimentItemsTable({
   const pagination = useMemo(
     () => ({
       totalCount: totalCount ?? null,
+      // Without this the footer prints "of 1" for as long as the count query
+      // is in flight behind rows that are already on screen.
+      isTotalCountLoading,
       onChange: setPaginationState,
       state: paginationState,
     }),
-    [paginationState, setPaginationState, totalCount],
+    [isTotalCountLoading, paginationState, setPaginationState, totalCount],
   );
 
   // Compute selected observation IDs for batch evaluation
@@ -2180,6 +2183,7 @@ export default function ExperimentItemsTable({
                   singleLine={ioSingleLine}
                   rows={rows}
                   isLoading={items.status === "loading" || isViewLoading}
+                  ioLoading={ioLoading}
                   rowHeight={rowHeight}
                   showExpectedOutput={showExpectedOutput}
                   pagination={pagination}

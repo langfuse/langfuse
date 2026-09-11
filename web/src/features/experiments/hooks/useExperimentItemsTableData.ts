@@ -191,10 +191,20 @@ export function useExperimentItemsTableData({
 
   const dataUpdatedAt = itemsQuery.dataUpdatedAt;
 
+  // Readiness comes from the query settling, never from `isLoading`: a query
+  // that has not started is neither loading nor errored, so `isLoading` is
+  // already false while its empty data would read as the answer. The payload
+  // check keeps the flag false when there is genuinely nothing to fetch.
+  const ioLoading =
+    batchIOPayload !== null && !batchIOQuery.isSuccess && !batchIOQuery.isError;
+  const isTotalCountLoading =
+    hasSelectedRuns && !totalCountQuery.isSuccess && !totalCountQuery.isError;
+
   return {
     items: joinedData,
     dataUpdatedAt,
     totalCount,
-    ioLoading: batchIOQuery.isLoading,
+    ioLoading,
+    isTotalCountLoading,
   };
 }

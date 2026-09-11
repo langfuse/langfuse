@@ -41,6 +41,12 @@ type ExperimentGridViewProps = {
   singleLine: boolean;
   rows: ExperimentItemsTableRow[];
   isLoading: boolean;
+  /**
+   * Whether the item I/O query is still in flight. Separate from `isLoading`:
+   * the rows arrive from one query and their I/O from a second, so a cell that
+   * read row-loading would show an empty payload as if it were the answer.
+   */
+  ioLoading: boolean;
   rowHeight: RowHeight;
   /** Whether any item in view has an expected output worth a column. */
   showExpectedOutput: boolean;
@@ -75,6 +81,7 @@ export const ExperimentGridView = ({
   singleLine,
   rows,
   isLoading,
+  ioLoading,
   rowHeight,
   showExpectedOutput,
   observationScoreOrder,
@@ -165,6 +172,7 @@ export const ExperimentGridView = ({
               projectId={projectId}
               itemId={row.original.itemId}
               output={outputData?.output}
+              isLoading={ioLoading}
               level={expData.level}
               startTime={expData.startTime}
               totalCost={expData.totalCost}
@@ -211,6 +219,7 @@ export const ExperimentGridView = ({
     allExperimentIds,
     experimentNames,
     baselineExperimentId,
+    ioLoading,
     projectId,
     observationScoreOrder,
     traceScoreOrder,
@@ -231,7 +240,7 @@ export const ExperimentGridView = ({
         accessorKey: "input",
         header: "Input",
         size: 200,
-        getCell: (value) => (isLoading ? { type: "loading" } : (value ?? null)),
+        getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
         singleLine,
       }),
       // Gated: an empty expected output used to render as two literal quote
@@ -243,7 +252,7 @@ export const ExperimentGridView = ({
               header: "Expected Output",
               size: 200,
               getCell: (value) =>
-                isLoading ? { type: "loading" } : value || undefined,
+                ioLoading ? { type: "loading" } : value || undefined,
               singleLine,
               variant: "output",
             }),
@@ -253,7 +262,7 @@ export const ExperimentGridView = ({
     ],
     [
       experimentColumns,
-      isLoading,
+      ioLoading,
       selectActionColumn,
       showExpectedOutput,
       singleLine,
