@@ -19,7 +19,7 @@
  */
 
 import { type TreeNode } from "../types/treeNode";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Layer } from "@/src/components/ui/layer";
 import {
   tooltipPlacement,
@@ -46,6 +46,15 @@ import type Decimal from "decimal.js";
 // collapsing the rest into a "+N" pill. Keeps dense-score rows compact; the
 // full set is always on the node's Scores tab. (The timeline caps at 3.)
 const MAX_INLINE_SCORE_GROUPS = 3;
+
+/** Rest on a row this long before its hover card opens. Sweeping the pointer
+ * up and down the tree shows nothing; pausing on a row shows the card. */
+const HOVER_CARD_OPEN_DELAY_MS = 350;
+/** After a card closes, the next row opens instantly for this long, so moving
+ * row to row with a card open reads as one continuous hover (tooltip warm state). */
+const HOVER_CARD_WARM_MS = 300;
+/** Shared across rows on purpose: warmth belongs to the pointer, not to a row. */
+let hoverCardWarmUntil = 0;
 
 interface SpanContentProps {
   node: TreeNode;
@@ -134,6 +143,20 @@ export function SpanContent({
     clientX: number;
     clientY: number;
   } | null>(null);
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastPointer = useRef<{ clientX: number; clientY: number } | null>(null);
+  const clearOpenTimer = () => {
+    if (openTimer.current) clearTimeout(openTimer.current);
+    openTimer.current = null;
+  };
+  useEffect(() => clearOpenTimer, []);
+  const closeHoverCard = () => {
+    clearOpenTimer();
+    setHovered((current) => {
+      if (current) hoverCardWarmUntil = Date.now() + HOVER_CARD_WARM_MS;
+      return null;
+    });
+  };
 
   return (
     <>
@@ -148,10 +171,21 @@ export function SpanContent({
         // where you are looking, not at a fixed edge of a variable-width row.
         onPointerMove={(event) => {
           if (event.pointerType !== "mouse") return;
-          setHovered({ clientX: event.clientX, clientY: event.clientY });
+          const point = { clientX: event.clientX, clientY: event.clientY };
+          lastPointer.current = point;
+          if (hovered || Date.now() < hoverCardWarmUntil) {
+            clearOpenTimer();
+            setHovered(point);
+            return;
+          }
+          if (openTimer.current) return;
+          openTimer.current = setTimeout(() => {
+            openTimer.current = null;
+            if (lastPointer.current) setHovered(lastPointer.current);
+          }, HOVER_CARD_OPEN_DELAY_MS);
         }}
-        onPointerLeave={() => setHovered(null)}
-        onPointerDown={() => setHovered(null)}
+        onPointerLeave={closeHoverCard}
+        onPointerDown={closeHoverCard}
         // No row-level title: it would pop a native tooltip from ANYWHERE in the
         // row — stacking on the score chips' own titles and the ScoreTag level
         // tooltip. The truncating name span below carries its own title.
