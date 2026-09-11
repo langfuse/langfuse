@@ -12,13 +12,11 @@ function PromptEditorStory({
   messages,
   compact = false,
   previewEnabled = false,
-  assistantAvailable = false,
   sampleObject = null,
 }: {
   messages: EvaluatorPromptMessage[];
   compact?: boolean;
   previewEnabled?: boolean;
-  assistantAvailable?: boolean;
   sampleObject?: ComponentProps<typeof PromptEditorContent>["sampleObject"];
 }) {
   const [store] = useState(() => {
@@ -41,11 +39,7 @@ function PromptEditorStory({
 
   return (
     <div className={compact ? "w-64 max-w-full" : "w-[42rem] max-w-full"}>
-      <PromptEditorContent
-        store={store}
-        sampleObject={sampleObject}
-        onAssistantSubmit={assistantAvailable ? async () => true : undefined}
-      />
+      <PromptEditorContent store={store} sampleObject={sampleObject} />
     </div>
   );
 }
@@ -153,73 +147,6 @@ export const MultipleMessages = meta.story({
     );
     await expect(expandButton.getBoundingClientRect().left).toBe(
       userCollapseButton.getBoundingClientRect().left,
-    );
-  },
-});
-
-export const ExistingJudgeAssistantModal = meta.story({
-  name: "(Test) Existing judge Assistant modal",
-  render: () => (
-    <PromptEditorStory
-      assistantAvailable
-      messages={[
-        {
-          role: "system",
-          content: "Judge the response consistently.",
-        },
-        {
-          role: "user",
-          content: "Input: {{input}}\nResponse: {{output}}",
-        },
-      ]}
-    />
-  ),
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const page = within(canvasElement.ownerDocument.body);
-
-    await userEvent.click(canvas.getByRole("button", { name: "Edit with AI" }));
-    await waitFor(() => expect(page.getByRole("dialog")).toBeVisible());
-    await waitFor(() =>
-      expect(
-        page.getByLabelText(
-          "Describe how to change this LLM-as-a-judge evaluator",
-        ),
-      ).toBeVisible(),
-    );
-    await userEvent.click(page.getByRole("button", { name: "Cancel" }));
-    await waitFor(() =>
-      expect(page.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-  },
-});
-
-export const NewJudgeAssistantModal = meta.story({
-  name: "(Test) New judge Assistant modal",
-  render: () => (
-    <PromptEditorStory
-      compact
-      assistantAvailable
-      messages={[
-        {
-          role: "user",
-          content: "Judge whether {{output}} answers {{input}}.",
-        },
-      ]}
-    />
-  ),
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const page = within(canvasElement.ownerDocument.body);
-
-    await expect(canvas.queryByText("1 message")).not.toBeInTheDocument();
-    await userEvent.click(canvas.getByRole("button", { name: "Edit with AI" }));
-    await waitFor(() =>
-      expect(
-        page.getByLabelText(
-          "Describe how to change this LLM-as-a-judge evaluator",
-        ),
-      ).toBeVisible(),
     );
   },
 });
@@ -523,7 +450,6 @@ export const SingleMessage = meta.story({
   name: "(Test) Single user message",
   render: () => (
     <PromptEditorStory
-      assistantAvailable
       messages={[
         {
           role: "user",
@@ -540,8 +466,8 @@ export const SingleMessage = meta.story({
       canvas.getByRole("button", { name: "Prompt message settings" }),
     ).toBeVisible();
     await expect(
-      canvas.getByRole("button", { name: "Edit with AI" }),
-    ).toHaveTextContent("Edit with AI");
+      canvas.queryByRole("button", { name: "Edit with AI" }),
+    ).not.toBeInTheDocument();
     await expect(canvas.getByText("Preview")).toBeVisible();
     await expect(canvas.getByRole("switch", { name: "Preview" })).toBeVisible();
 

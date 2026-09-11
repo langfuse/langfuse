@@ -1,7 +1,6 @@
 import {
   Fragment,
   useId,
-  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
@@ -15,7 +14,6 @@ import {
   Plus,
   Trash2,
   TriangleAlert,
-  WandSparkles,
 } from "lucide-react";
 import {
   closestCenter,
@@ -58,7 +56,6 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { PromptVariableEditor } from "@/src/features/evals/v2/components/Evaluators/Judges/PromptVariableEditor/PromptVariableEditor";
-import { EvaluatorAssistantEditDialog } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/EvaluatorAssistantEditDialog";
 import { preparePromptEditorState } from "@/src/features/evals/v2/fns/promptEditor/preparePromptEditorState";
 import {
   EMPTY_PROMPT_MESSAGE_ERROR,
@@ -67,7 +64,6 @@ import {
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
-import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { InAppAgentUpdateHighlight } from "@/src/features/in-app-agent";
 import { useEvaluatorAssistantPromptUpdateSignal } from "@/src/features/evals/v2/store/evaluatorAssistantUpdateSignalStore";
 import { cn } from "@/src/utils/tailwind";
@@ -88,28 +84,19 @@ export function PromptEditor({
   projectId,
   evaluatorId,
   store,
-  onAssistantSubmit,
 }: {
   projectId: string;
   evaluatorId: string;
   store: EvaluatorSetupStore;
-  onAssistantSubmit?: (request: string) => Promise<boolean>;
 }) {
   const sampleObject = useEvaluatorSetupSample({ projectId, store });
-  const isAssistantLauncherVisible = useIsInAppAgentLauncherVisible();
   const promptUpdateId = useEvaluatorAssistantPromptUpdateSignal(
     projectId,
     evaluatorId,
   );
   return (
     <InAppAgentUpdateHighlight updateId={promptUpdateId}>
-      <PromptEditorContent
-        store={store}
-        sampleObject={sampleObject}
-        onAssistantSubmit={
-          isAssistantLauncherVisible ? onAssistantSubmit : undefined
-        }
-      />
+      <PromptEditorContent store={store} sampleObject={sampleObject} />
     </InAppAgentUpdateHighlight>
   );
 }
@@ -118,11 +105,9 @@ export function PromptEditor({
 export function PromptEditorContent({
   store,
   sampleObject,
-  onAssistantSubmit,
 }: {
   store: EvaluatorSetupStore;
   sampleObject: Record<string, unknown> | null;
-  onAssistantSubmit?: (request: string) => Promise<boolean>;
 }) {
   const state = useStore(
     store,
@@ -144,8 +129,6 @@ export function PromptEditorContent({
     sampleObject,
   });
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
-  const [assistantDialogOpen, setAssistantDialogOpen] = useState(false);
-  const assistantTriggerRef = useRef<HTMLButtonElement>(null);
   const previewDisabledDescriptionId = useId();
   const activeMessageIndex = activeMessageId
     ? state.promptMessageIds.indexOf(activeMessageId)
@@ -158,28 +141,6 @@ export function PromptEditorContent({
     useSensor(KeyboardSensor),
   );
   const isSingleMessage = state.promptMessages.length === 1;
-  const assistantAction = onAssistantSubmit ? (
-    <button
-      ref={assistantTriggerRef}
-      type="button"
-      aria-haspopup="dialog"
-      aria-label={isSingleMessage ? "Edit with AI" : undefined}
-      title={isSingleMessage ? "Edit with AI" : undefined}
-      className={cn(
-        "bg-background text-muted-foreground hover:border-border hover:text-foreground hover:bg-accent ring-offset-background focus-visible:ring-ring inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 font-sans text-xs transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
-        isSingleMessage &&
-          "h-6 justify-center @max-[340px]/prompt-group:w-6 @max-[340px]/prompt-group:gap-0 @max-[340px]/prompt-group:p-0",
-      )}
-      onClick={() => setAssistantDialogOpen(true)}
-    >
-      <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
-      <span
-        className={cn(isSingleMessage && "@max-[340px]/prompt-group:sr-only")}
-      >
-        Edit with AI
-      </span>
-    </button>
-  ) : null;
   const previewAction = (
     <>
       <Tooltip delayDuration={0}>
@@ -265,7 +226,6 @@ export function PromptEditorContent({
         {!isSingleMessage ? (
           <div className="flex min-h-9 flex-wrap items-center justify-end gap-2 rounded-t-md border-b px-2">
             <div className="flex flex-wrap items-center justify-end gap-1.5">
-              {assistantAction}
               {previewAction}
             </div>
           </div>
@@ -293,12 +253,7 @@ export function PromptEditorContent({
                 onChange={(next) => state.actions.setPromptMessage(index, next)}
                 onRemove={() => state.actions.removePromptMessage(index)}
                 toolbarActionsBeforeMenu={
-                  isSingleMessage ? (
-                    <>
-                      {assistantAction}
-                      {previewAction}
-                    </>
-                  ) : null
+                  isSingleMessage ? previewAction : null
                 }
                 toolbarVariant={isSingleMessage ? "group" : "message"}
               />
@@ -338,15 +293,6 @@ export function PromptEditorContent({
           </div>
         ) : null}
       </DragOverlay>
-      {onAssistantSubmit ? (
-        <EvaluatorAssistantEditDialog
-          open={assistantDialogOpen}
-          evaluatorType="judge"
-          returnFocusRef={assistantTriggerRef}
-          onOpenChange={setAssistantDialogOpen}
-          onAssistantSubmit={onAssistantSubmit}
-        />
-      ) : null}
     </DndContext>
   );
 }

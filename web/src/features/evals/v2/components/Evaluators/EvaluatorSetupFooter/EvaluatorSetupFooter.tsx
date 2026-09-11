@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
@@ -13,6 +14,7 @@ export function EvaluatorSetupFooter({
   isSaving,
   nameAIAssistanceAvailable,
   codeValidation,
+  editWithAI,
   onClose,
   onSave,
 }: {
@@ -22,6 +24,10 @@ export function EvaluatorSetupFooter({
   isSaving: boolean;
   nameAIAssistanceAvailable: boolean;
   codeValidation: { isValid: boolean; isPending: boolean } | null;
+  editWithAI: {
+    triggerRef: RefObject<HTMLButtonElement | null>;
+    onClick: () => void;
+  } | null;
   onClose: () => void;
   onSave: () => void;
 }) {
@@ -93,7 +99,20 @@ export function EvaluatorSetupFooter({
   };
 
   if (isEditing) {
-    return <EvaluatorSetupFooterView mode="edit" {...sharedProps} />;
+    return (
+      <EvaluatorSetupFooterView
+        mode="edit"
+        editWithAI={
+          editWithAI
+            ? {
+                ...editWithAI,
+                disabled: isSaving,
+              }
+            : null
+        }
+        {...sharedProps}
+      />
+    );
   }
 
   return (
