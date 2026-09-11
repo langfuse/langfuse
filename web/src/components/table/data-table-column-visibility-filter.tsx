@@ -10,7 +10,7 @@ import {
   type ColumnOrderState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { ChevronDown, ChevronRight, Component, Menu, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Menu } from "lucide-react";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import DocPopup from "@/src/components/layouts/doc-popup";
@@ -33,14 +33,8 @@ import {
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { cn } from "@/src/utils/tailwind";
 import { isString } from "@/src/utils/types";
-import {
-  DrawerTrigger,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  Drawer,
-  DrawerClose,
-} from "@/src/components/ui/drawer";
+import { PopoverController } from "@/src/components/ui/popover";
+import { ColumnVisibilityHeader } from "@/src/components/table/ColumnVisibilityHeader";
 import {
   Collapsible,
   CollapsibleContent,
@@ -64,19 +58,21 @@ export type ColumnGroupTogglePayload = {
   totalCount: number;
 };
 
-interface DataTableColumnVisibilityFilterProps<TData, TValue> {
+interface ColumnVisibilityProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
   columnVisibility: VisibilityState;
   setColumnVisibility: Dispatch<SetStateAction<VisibilityState>>;
   columnOrder?: ColumnOrderState;
   setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
-  triggerSize?: ComponentProps<typeof Button>["size"];
-  /** Defaults to "Columns"; overridden where the surrounding surface already
-   *  says "Columns" (the merged table-settings popover). */
-  triggerLabel?: string;
   tableName?: string;
   isV4?: boolean;
   onColumnGroupToggle?: (payload: ColumnGroupTogglePayload) => void;
+  triggerSize?: ComponentProps<typeof Button>["size"];
+  additionalColumnSettings?: {
+    content: React.ReactNode;
+    isDefault: boolean;
+    onRestoreDefaults: () => void;
+  };
 }
 
 /**
@@ -120,6 +116,20 @@ const calculateColumnCounts = <TData, TValue>(
   );
 };
 
+function hasVisibilityChanges<TData, TValue>(
+  columns: LangfuseColumnDef<TData, TValue>[],
+  columnVisibility: VisibilityState,
+): boolean {
+  return columns.some((column) =>
+    column.columns?.length
+      ? hasVisibilityChanges(column.columns, columnVisibility)
+      : column.enableHiding &&
+        !column.isFixedPosition &&
+        (columnVisibility[column.accessorKey] ?? !column.defaultHidden) !==
+          !column.defaultHidden,
+  );
+}
+
 function ColumnVisibilityListItem<TData, TValue>({
   column,
   toggleColumn,
@@ -146,7 +156,7 @@ function ColumnVisibilityListItem<TData, TValue>({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex w-full items-center justify-between rounded-md p-2",
+        "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5",
         isDragging ? "opacity-80" : "opacity-100",
         "hover:bg-muted/50 group transition-colors",
       )}
@@ -158,7 +168,7 @@ function ColumnVisibilityListItem<TData, TValue>({
         zIndex: isDragging ? 1 : undefined,
       }}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2">
         <Checkbox
           id={checkboxId}
           checked={isChecked || isLocked}
@@ -170,7 +180,7 @@ function ColumnVisibilityListItem<TData, TValue>({
         <label
           htmlFor={checkboxId}
           className={cn(
-            "text-sm capitalize",
+            "min-w-0 text-sm break-words capitalize",
             isLocked ? "opacity-50" : "cursor-pointer",
           )}
           title={
@@ -198,7 +208,7 @@ function ColumnVisibilityListItem<TData, TValue>({
           variant="ghost"
           size="xs"
           title="Drag and drop to reorder columns"
-          className="invisible group-hover:visible"
+          className="invisible shrink-0 group-focus-within:visible group-hover:visible"
         >
           <Menu className="h-3 w-3" />
         </Button>
@@ -231,65 +241,71 @@ function GroupVisibilityHeader<TData, TValue>({
 
   return (
     <Collapsible open={isOpen} onOpenChange={onToggle}>
-      <CollapsibleTrigger asChild>
-        <div
-          ref={setNodeRef}
-          className={cn(
-            "bg-muted/30 flex w-full items-center justify-between gap-2 rounded-md p-2",
-            isDragging ? "opacity-80" : "opacity-100",
-            "hover:bg-muted group cursor-pointer",
-          )}
-          style={{
-            transform: transform
-              ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
-              : undefined,
-            transition: isDragging ? "none" : "transform 0.15s ease-in-out",
-            zIndex: isDragging ? 1 : undefined,
-          }}
-        >
-          <div className="flex items-center gap-2">
-            <Component className="h-4 w-4 opacity-50" />
-            <span className="text-sm font-bold">{getColumnLabel(column)}</span>
-            <span className="text-muted-foreground text-xs">
+      <div
+        ref={setNodeRef}
+        className={cn(
+          "bg-muted/30 group flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5",
+          isDragging ? "opacity-80" : "opacity-100",
+          "hover:bg-muted",
+        )}
+        style={{
+          transform: transform
+            ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
+            : undefined,
+          transition: isDragging ? "none" : "transform 0.15s ease-in-out",
+          zIndex: isDragging ? 1 : undefined,
+        }}
+      >
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 text-left"
+          >
+            {isOpen ? (
+              <ChevronDown className="size-4 shrink-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100" />
+            ) : (
+              <ChevronRight className="size-4 shrink-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100" />
+            )}
+            <span className="min-w-0 text-sm font-bold">
+              {getColumnLabel(column)}
+            </span>
+            <span className="text-muted-foreground shrink-0 text-xs whitespace-nowrap">
               ({groupVisibleCount}/{groupTotalCount})
             </span>
-          </div>
+          </button>
+        </CollapsibleTrigger>
 
-          <div className="flex items-center gap-2">
-            {attributes && listeners && (
-              <Button
-                {...attributes}
-                {...listeners}
-                variant="ghost"
-                size="xs"
-                title="Drag and drop to reorder columns"
-                className="opacity-0 transition-opacity group-hover:opacity-100"
-              >
-                <Menu className="h-3 w-3" />
-              </Button>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "h-5 px-2 text-xs group-focus-within:visible group-hover:visible",
+              !isOpen && "invisible",
             )}
+            onClick={toggleAll}
+          >
+            {groupVisibleCount === groupTotalCount
+              ? "Deselect All"
+              : "Select All"}
+          </Button>
+          {attributes && listeners && (
             <Button
+              {...attributes}
+              {...listeners}
               variant="ghost"
-              size="sm"
-              className="h-6 px-2 py-1 text-xs"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleAll();
-              }}
+              size="xs"
+              title="Drag and drop to reorder columns"
+              className="invisible group-focus-within:visible group-hover:visible"
             >
-              {groupVisibleCount === groupTotalCount
-                ? "Deselect All"
-                : "Select All"}
+              <Menu className="h-3 w-3" />
             </Button>
-            {isOpen ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )}
-          </div>
+          )}
         </div>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="pt-1 pl-4">{children}</CollapsibleContent>
+      </div>
+      <CollapsibleContent className="pt-0.5 pl-4">
+        {children}
+      </CollapsibleContent>
     </Collapsible>
   );
 }
@@ -327,11 +343,11 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   columnOrder,
   setColumnOrder,
   triggerSize,
-  triggerLabel = "Columns",
+  additionalColumnSettings,
   tableName = "unknown",
   isV4 = false,
   onColumnGroupToggle,
-}: DataTableColumnVisibilityFilterProps<TData, TValue>) {
+}: ColumnVisibilityProps<TData, TValue>) {
   const capture = usePostHogClientCapture();
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(
     {},
@@ -342,6 +358,9 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
       defaultColumnOrder: columns.map((col) => col.accessorKey),
       defaultColumnVisibility: columns.reduce((acc, col) => {
         acc[col.accessorKey] = !col.defaultHidden;
+        col.columns?.forEach((subCol) => {
+          acc[subCol.accessorKey] = !subCol.defaultHidden;
+        });
         return acc;
       }, {} as VisibilityState),
     };
@@ -400,6 +419,14 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   const { count, total } = calculateColumnCounts(columns, columnVisibility);
   const columnIdsOrder = columnOrder ?? columns.map((col) => col.accessorKey);
   const isColumnOrderingEnabled = !!setColumnOrder;
+  const hasOrderChanges =
+    isColumnOrderingEnabled &&
+    (columnIdsOrder.length !== defaultColumnOrder.length ||
+      columnIdsOrder.some((id, index) => id !== defaultColumnOrder[index]));
+  const hasChanges =
+    hasVisibilityChanges(columns, columnVisibility) ||
+    hasOrderChanges ||
+    (additionalColumnSettings && !additionalColumnSettings.isDefault);
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -424,79 +451,51 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   }
 
   return (
-    <DndContext
-      collisionDetection={closestCenter}
-      modifiers={[restrictToVerticalAxis]}
-      onDragEnd={isColumnOrderingEnabled ? handleDragEnd : undefined}
-      sensors={sensors}
-    >
-      <Drawer modal={false}>
-        <DrawerTrigger asChild>
-          <Button
-            variant="outline"
-            size={triggerSize}
-            title="Show/hide columns"
-          >
-            <span>{triggerLabel}</span>
-            <div className="bg-input ml-1 rounded-sm px-1 text-xs">{`${count}/${total}`}</div>
-          </Button>
-        </DrawerTrigger>
-        <DrawerContent portalLayer="popover" overlayClassName="bg-primary/10">
-          <div className="mx-auto w-full overflow-y-auto md:max-h-full">
-            <div className="sticky top-0 z-10">
-              <DrawerHeader className="bg-modal flex flex-row items-center justify-between rounded-sm px-3 py-2">
-                <DrawerTitle>Column Visibility</DrawerTitle>
-                <div className="flex flex-row gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      if (setColumnOrder) {
-                        setColumnOrder(defaultColumnOrder);
-                      }
+    <PopoverController
+      align="end"
+      contentClassName="max-h-[min(70vh,var(--radix-popover-content-available-height))] w-90 max-w-[calc(100vw-1rem)] overflow-y-auto p-0"
+      disabled={false}
+      modal={false}
+      renderContent={() => (
+        <DndContext
+          collisionDetection={closestCenter}
+          modifiers={[restrictToVerticalAxis]}
+          onDragEnd={isColumnOrderingEnabled ? handleDragEnd : undefined}
+          sensors={sensors}
+        >
+          <div className="w-full">
+            <ColumnVisibilityHeader
+              onRestoreDefaults={
+                hasChanges
+                  ? () => {
+                      setColumnOrder?.(defaultColumnOrder);
                       setColumnVisibility(defaultColumnVisibility);
-                    }}
-                  >
-                    Restore Defaults
-                  </Button>
-                  <DrawerClose asChild>
-                    <Button variant="outline" size="icon">
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </DrawerClose>
-                </div>
-              </DrawerHeader>
-              <Separator />
-            </div>
-            <div>
-              <div
-                className="hover:bg-muted/50 my-1 flex w-full cursor-pointer items-center justify-between rounded-md p-2"
+                      additionalColumnSettings?.onRestoreDefaults();
+                    }
+                  : undefined
+              }
+            />
+            <div className="p-1">
+              <Button
+                variant="ghost"
+                className="w-full justify-between px-2"
                 onClick={() => toggleAllColumns(count, total)}
               >
-                <div className="flex items-center gap-2">
-                  <Button
-                    id="toggle-all-columns"
-                    variant="ghost"
-                    size="sm"
-                    className="hover:bg-transparent!"
-                    onClick={() => toggleAllColumns(count, total)}
-                  >
-                    <span className="text-sm font-bold">
-                      {count === total
-                        ? "Deselect All Columns"
-                        : "Select All Columns"}
-                    </span>
-                    <div className="bg-input ml-1 rounded-sm px-1 text-xs">{`${count}/${total}`}</div>
-                  </Button>
-                </div>
-              </div>
+                <span>
+                  {count === total
+                    ? "Deselect All Columns"
+                    : "Select All Columns"}
+                </span>
+                <span className="text-muted-foreground text-xs">{`${count}/${total}`}</span>
+              </Button>
             </div>
             <Separator />
-            <div data-vaul-no-drag className="px-3 py-2">
+            <div className="p-1">
               <SortableContext
                 items={columnIdsOrder}
                 strategy={verticalListSortingStrategy}
               >
-                <div className="space-y-2">
+                <div className="space-y-0.5">
                   {columnIdsOrder.map((columnId) => {
                     const column = columns.find(
                       (col) => col.accessorKey === columnId,
@@ -538,7 +537,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                             }
                           }}
                         >
-                          <div className="mt-1 space-y-1">
+                          <div className="space-y-0.5">
                             {column.columns.map((col) => (
                               <ColumnVisibilityListItem
                                 key={col.accessorKey}
@@ -566,9 +565,28 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                 </div>
               </SortableContext>
             </div>
+            {additionalColumnSettings && (
+              <>
+                <Separator />
+                {additionalColumnSettings.content}
+              </>
+            )}
           </div>
-        </DrawerContent>
-      </Drawer>
-    </DndContext>
+        </DndContext>
+      )}
+    >
+      {({ Trigger }) => (
+        <Trigger asChild>
+          <Button
+            variant="outline"
+            size={triggerSize}
+            title="Show/hide columns"
+          >
+            <span>Columns</span>
+            <div className="bg-input ml-1 rounded-sm px-1 text-xs">{`${count}/${total}`}</div>
+          </Button>
+        </Trigger>
+      )}
+    </PopoverController>
   );
 }
