@@ -169,7 +169,7 @@ and cross-project batching are separate experiments.
 The repository uses the same `EventsQueryBuilder`, full-I/O selection and
 streaming client as the event blob-export reader. The batch-I/O API also reads
 `events_full` by project, trace IDs and time bounds. The experiment adds an
-explicit trace-hash filter and an individual time window for each trace.
+explicit trace-hash filter and uses one shared time window for the batch.
 These are comparable existing code paths, not a production capacity guarantee.
 
 The emitted query has this shape (the builder also selects span identity,
@@ -186,19 +186,18 @@ WHERE e.project_id = {projectId: String}
   )
   AND e.start_time >= fromUnixTimestamp64Milli({batchMinStart: Int64})
   AND e.start_time <= fromUnixTimestamp64Milli({batchMaxStart: Int64})
-  AND e.start_time >= fromUnixTimestamp64Milli(
-    transform(e.trace_id, {traceIds: Array(String)}, {minStarts: Array(Int64)}, toInt64(0)))
-  AND e.start_time <= fromUnixTimestamp64Milli(
-    transform(e.trace_id, {traceIds: Array(String)}, {maxStarts: Array(Int64)}, toInt64(0)))
 SETTINGS max_threads = 2, max_execution_time = 30, timeout_overflow_mode = 'throw'
 ```
 
-There are six parameters, independent of batch size. The three arrays grow
+There are four parameters, independent of batch size. The trace-ID array grows
 with the batch, but the request does not add a parameter or SQL branch per trace.
-`transform` maps each unique trace ID to its bounds. The hash subquery reads only
+The hash subquery reads only
 the supplied array, not another table, and is compatible with ClickHouse 25.12.
-Global bounds retain primary-key pruning; individual bounds preserve coverage
-when traces have different windows. No `FINAL`, aggregation or sorting is added.
+Global bounds retain primary-key pruning and include a two-minute buffer at
+each end. A selected trace can return observations outside its own tracked
+bounds when another trace widens the batch window. Per-trace predicates can
+narrow this coverage if needed; the shared window is not a complete-history
+guarantee. No `FINAL`, aggregation or sorting is added.
 
 Inspect `system.query_log` using the consumer's query ID to see the executed
 SQL, `read_rows`, `read_bytes`, `result_rows`, `memory_usage`, duration and CPU
@@ -226,7 +225,8 @@ The Redis tests cover bounds/readiness, per-project grouping and metrics,
 producer-off draining, enqueue failure, concurrent updates including state
 recreation, exclusive dispatch, and shutdown. The ClickHouse test reads more
 than 20,000 rows and checks full payloads, tenant isolation, exact trace IDs,
-and per-trace time bounds.
+and shared batch time bounds, including observations beyond an individual
+trace's tracked window.
 The connected integration test uses actual ingestion and batch BullMQ workers,
 Redis, OTLP conversion and ClickHouse. It checks fixed 10% sampling identities,
 delay reset, persistence of excluded observations, and draining after sampling

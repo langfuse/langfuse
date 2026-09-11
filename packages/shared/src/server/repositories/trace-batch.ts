@@ -34,12 +34,7 @@ export async function* getTraceBatchEventStream(props: {
 }): AsyncGenerator<TraceBatchEventRow> {
   if (props.traces.length === 0) return;
 
-  const bounds = props.traces.map((trace) => ({
-    traceId: trace.traceId,
-    minStart: trace.minStart - TRACE_QUERY_BUFFER_MS,
-    maxStart: trace.maxStart + TRACE_QUERY_BUFFER_MS,
-  }));
-  const traceIds = bounds.map((trace) => trace.traceId);
+  const traceIds = props.traces.map((trace) => trace.traceId);
   const builder = new EventsQueryBuilder({ projectId: props.projectId })
     .selectRaw(
       "e.trace_id",
@@ -62,24 +57,18 @@ export async function* getTraceBatchEventStream(props: {
     .whereRaw(
       "xxHash32(e.trace_id) IN (SELECT arrayJoin(arrayMap(id -> xxHash32(id), {traceIds: Array(String)})))",
     )
-    // This shared time range enables partition/granule pruning before the
-    // individual trace-window checks below.
+    // One shared window enables partition/granule pruning. It can include
+    // observations beyond a selected trace's own bounds when another trace
+    // widens the batch window; per-trace predicates can narrow that coverage.
     .whereRaw(
       "e.start_time >= fromUnixTimestamp64Milli({batchMinStart: Int64}) AND e.start_time <= fromUnixTimestamp64Milli({batchMaxStart: Int64})",
       {
-        batchMinStart: Math.min(...bounds.map((trace) => trace.minStart)),
-        batchMaxStart: Math.max(...bounds.map((trace) => trace.maxStart)),
-      },
-    )
-    // Dispatcher snapshots contain unique trace IDs. transform builds a lookup
-    // for their individual bounds, so a wider batch window cannot widen a trace.
-    // Array parameters keep the HTTP field count and SQL size constant instead
-    // of sending three parameters and an OR branch per trace.
-    .whereRaw(
-      "e.start_time >= fromUnixTimestamp64Milli(transform(e.trace_id, {traceIds: Array(String)}, {minStarts: Array(Int64)}, toInt64(0))) AND e.start_time <= fromUnixTimestamp64Milli(transform(e.trace_id, {traceIds: Array(String)}, {maxStarts: Array(Int64)}, toInt64(0)))",
-      {
-        minStarts: bounds.map((trace) => trace.minStart),
-        maxStarts: bounds.map((trace) => trace.maxStart),
+        batchMinStart:
+          Math.min(...props.traces.map((trace) => trace.minStart)) -
+          TRACE_QUERY_BUFFER_MS,
+        batchMaxStart:
+          Math.max(...props.traces.map((trace) => trace.maxStart)) +
+          TRACE_QUERY_BUFFER_MS,
       },
     );
 

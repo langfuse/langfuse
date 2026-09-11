@@ -64,7 +64,7 @@ const findFilterOption = (
 ) => rows.find((row) => row.column === column && row.value === value);
 
 describe("Clickhouse Events Repository Test", () => {
-  it("streams complete trace batches with full payloads, tenant isolation and per-trace time bounds", async () => {
+  it("streams complete trace batches with full payloads, tenant isolation and shared batch time bounds", async () => {
     const batchProjectId = randomUUID();
     const firstTraceId = randomUUID();
     const secondTraceId = randomUUID();
@@ -90,9 +90,16 @@ describe("Clickhouse Events Repository Test", () => {
       trace_id: secondTraceId,
       start_time: new Date(start + 600_000 + buffer),
     });
+    // Another trace can widen the shared window beyond this trace's own bounds.
+    const insideBatchWindow = createEvent({
+      project_id: batchProjectId,
+      trace_id: firstTraceId,
+      start_time: new Date(start + buffer + 1),
+    });
     await createEventsCh([
       first,
       second,
+      insideBatchWindow,
       createEvent({
         project_id: randomUUID(),
         trace_id: firstTraceId,
@@ -107,12 +114,6 @@ describe("Clickhouse Events Repository Test", () => {
         project_id: batchProjectId,
         trace_id: firstTraceId,
         start_time: new Date(start - buffer - 1),
-      }),
-      // Inside the overall batch window, but outside this trace's own window.
-      createEvent({
-        project_id: batchProjectId,
-        trace_id: firstTraceId,
-        start_time: new Date(start + buffer + 1),
       }),
       createEvent({
         project_id: batchProjectId,
@@ -143,6 +144,7 @@ describe("Clickhouse Events Repository Test", () => {
 
     let rowCount = 0;
     let fullPayloadSeen = false;
+    let insideBatchWindowSeen = false;
     const foundTraceIds = new Set<string>();
     for await (const event of getTraceBatchEventStream({
       projectId: batchProjectId,
@@ -165,6 +167,9 @@ describe("Clickhouse Events Repository Test", () => {
     })) {
       rowCount++;
       foundTraceIds.add(event.trace_id);
+      if (event.span_id === insideBatchWindow.span_id) {
+        insideBatchWindowSeen = true;
+      }
       if (event.span_id === first.span_id) {
         fullPayloadSeen = true;
         expect(event).toMatchObject({
@@ -178,8 +183,9 @@ describe("Clickhouse Events Repository Test", () => {
       }
     }
     expect(fullPayloadSeen).toBe(true);
+    expect(insideBatchWindowSeen).toBe(true);
     expect(foundTraceIds).toEqual(new Set([firstTraceId, secondTraceId]));
-    expect(rowCount).toBe(extraRowCount + 2);
+    expect(rowCount).toBe(extraRowCount + 3);
   }, 60_000);
 
   it("should kill redis connection", () => {
