@@ -12,6 +12,7 @@ import { IOPreviewJSON, type IOPreviewJSONProps } from "./IOPreviewJSON";
 import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
 import { IOPreviewPretty } from "./IOPreviewPretty";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
+import type { IOPreviewParserComparisonOutcome } from "../../hooks/useIOPreviewParser";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
 import { BookOpen, X } from "lucide-react";
@@ -316,6 +317,9 @@ export function IOPreview({
             improvedRenderingEnabled && chatMLParserResult === undefined
               ? "normalized"
               : "legacy"
+          }
+          onParserComparison={(outcome: IOPreviewParserComparisonOutcome) =>
+            capture("trace_detail:io_parser_comparison", { outcome })
           }
           observationName={observationName}
           showMetadata={showMetadata}

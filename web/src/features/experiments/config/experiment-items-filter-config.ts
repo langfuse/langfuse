@@ -1,4 +1,5 @@
 import type { FilterConfig } from "@/src/features/filters";
+import { renderLevelIcon } from "@/src/components/level-colors";
 import type { ColumnDefinition, ObservationLevelType } from "@langfuse/shared";
 
 /**
@@ -151,6 +152,12 @@ export const experimentItemsFilterConfig: FilterConfig = {
   columnDefinitions: experimentItemsTableCols,
 
   facets: [
+    {
+      type: "categorical" as const,
+      column: "level",
+      label: getExperimentItemsColumnName("level"),
+      renderIcon: renderLevelIcon,
+    },
     {
       type: "stringKeyValue" as const,
       column: "itemMetadata",

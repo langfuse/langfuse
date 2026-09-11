@@ -1,7 +1,7 @@
 # Search Bar
 
 Grammar-based query bar shared by the observations (v4 events) table,
-evaluation-rule observation filters, and the sessions table. On the events table it does NOT replace
+evaluation-rule observation filters, sessions, experiments, and scores tables. On the events table it does NOT replace
 the facet sidebar — it is an ADDITIONAL keyboard-driven editor that coexists
 with the sidebar and stays in sync with it. The facet sidebar's `FilterState`
 (+ the table's full-text search) remains the single source of truth; the bar
@@ -433,7 +433,13 @@ so a new view must check the field dropdown, not just that Enter applies.
    aliases/macros**, **AI context fields**, **dot-path roots**
    (`metadata.`, `scores.`/`traceScores.` and their score columns), and
    **value-parse hints** (datetime ISO, numeric, boolean). Keep it small and
-   declarative. Three flags are per-view capabilities, not cosmetics:
+   declarative.
+   A field's `syncMode` can override the column-derived default: Scores uses
+   `textSearch` plus `suggestObservedValues` for option-backed score names, so
+   bare text searches within names while selected exact values still round-trip.
+   The derived `exactMatchUsesOptions` flag keeps singleton exact selections in
+   a categorical facet's `stringOptions` shape, so its checkbox stays selected.
+   Three flags are per-view capabilities, not cosmetics:
    - `metadata` / `scores` / `traceScores` — the keyed dot-path roots. Set them
      from the columns the view's BACKEND has, not from what reads well: sessions
      aggregates scores at session level and has no `trace_scores_*` columns, so
@@ -528,6 +534,11 @@ real consumer and validate it against that view's backend filter contract.
 - **`SearchComposer` (~1.3k LOC) has no unit tests** — the contenteditable
   controller is browser-reviewed only. Extracting the selection/`beforeinput`
   machinery into a hook (below) is the prerequisite to testing it.
+- **Client integration coverage** in `web/src/components/table/data-table-controls.clienttest.tsx`
+  exercises real sidebar inputs, filter state, and bar commits: delayed string
+  and numeric edits preserve newly committed bar filters, and clearing a facet
+  cancels its pending edit. This does not cover the table's network request or
+  rendered result rows.
 - **No e2e** for bar↔sidebar sync or the embedded-vs-full-page mount matrix
   (the bar leaking onto user/session detail was a review find, not caught by a
   test).
