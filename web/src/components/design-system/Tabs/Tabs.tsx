@@ -170,9 +170,12 @@ function TabsList({
       });
     };
 
-    const resizeObserver = new ResizeObserver(updateIndicator);
+    const resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(updateIndicator);
     const mutationObserver = new MutationObserver(updateIndicator);
-    resizeObserver.observe(list);
+    resizeObserver?.observe(list);
     mutationObserver.observe(list, {
       attributes: true,
       attributeFilter: ["data-state"],
@@ -184,7 +187,7 @@ function TabsList({
     return () => {
       if (frame !== undefined) cancelAnimationFrame(frame);
       if (readyFrame !== undefined) cancelAnimationFrame(readyFrame);
-      resizeObserver.disconnect();
+      resizeObserver?.disconnect();
       mutationObserver.disconnect();
     };
   }, [slidingIndicator]);
