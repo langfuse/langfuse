@@ -220,6 +220,40 @@ describe("transformToAnnotationScores - flat scores", () => {
 });
 
 describe("transformToAnnotationScores - aggregates", () => {
+  it("should keep the real score name when it contains characters normalized in the aggregate key", () => {
+    // Aggregate keys normalize - and . to _ (see composeAggregateScoreKey), so
+    // the key alone cannot recover the original name.
+    const aggregates: ScoreAggregate = {
+      "my_score-ANNOTATION-NUMERIC": {
+        id: "score-9",
+        type: "NUMERIC",
+        values: [7],
+        average: 7,
+        comment: null,
+        timestamp: new Date(),
+      },
+    };
+
+    const configs: ScoreConfigDomain[] = [
+      {
+        id: "config-9",
+        name: "my-score",
+        dataType: "NUMERIC",
+        minValue: 0,
+        maxValue: 10,
+        isArchived: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        projectId: "project-1",
+      },
+    ];
+
+    const result = transformToAnnotationScores(aggregates, configs, "trace-1");
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.name).toBe("my-score");
+  });
+
   it("should transform single-value numeric aggregate correctly", () => {
     const aggregates: ScoreAggregate = {
       "quality-ANNOTATION-NUMERIC": {
