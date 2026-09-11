@@ -124,6 +124,9 @@ function CostUsageTable({
     // A side with neither tokens nor cost isn't a real row (e.g. an
     // embedding-only call has no output) — omit it rather than show zeros.
   ].filter((row) => row.tokens > 0 || row.cost > 0);
+  // Sessions and traces aggregate cost without an input/output split; the
+  // cost columns would only read $0.00 there, so they are dropped.
+  const showCostColumns = inputCost > 0 || outputCost > 0;
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
@@ -133,8 +136,12 @@ function CostUsageTable({
           <tr className="text-muted-foreground">
             <th className="pb-1 text-left font-normal" />
             <th className="pb-1 pl-5 text-right font-normal">Tokens</th>
-            <th className="pb-1 pl-5 text-right font-normal">Cost</th>
-            <th className="pb-1 pl-5 text-right font-normal">% of cost</th>
+            {showCostColumns ? (
+              <>
+                <th className="pb-1 pl-5 text-right font-normal">Cost</th>
+                <th className="pb-1 pl-5 text-right font-normal">% of cost</th>
+              </>
+            ) : null}
           </tr>
         </thead>
         <tbody>
@@ -146,12 +153,16 @@ function CostUsageTable({
               <td className={tableCellClass}>
                 {numberFormatter(row.tokens, 0)}
               </td>
-              <td className={tableCellClass}>{usdFormatter(row.cost)}</td>
-              <td className={tableCellClass}>
-                {totalCost > 0
-                  ? `${((row.cost / totalCost) * 100).toFixed(0)}%`
-                  : "—"}
-              </td>
+              {showCostColumns ? (
+                <>
+                  <td className={tableCellClass}>{usdFormatter(row.cost)}</td>
+                  <td className={tableCellClass}>
+                    {totalCost > 0
+                      ? `${((row.cost / totalCost) * 100).toFixed(0)}%`
+                      : "—"}
+                  </td>
+                </>
+              ) : null}
             </tr>
           ))}
           <tr className="border-border/60 border-t">
@@ -159,12 +170,16 @@ function CostUsageTable({
             <td className="pt-2 pb-0.5 pl-5 text-right font-bold tabular-nums">
               {numberFormatter(totalTokens, 0)}
             </td>
-            <td className="pt-2 pb-0.5 pl-5 text-right font-bold tabular-nums">
-              {usdFormatter(totalCost)}
-            </td>
-            <td className="pt-2 pb-0.5 pl-5 text-right font-bold tabular-nums">
-              100%
-            </td>
+            {showCostColumns ? (
+              <>
+                <td className="pt-2 pb-0.5 pl-5 text-right font-bold tabular-nums">
+                  {usdFormatter(totalCost)}
+                </td>
+                <td className="pt-2 pb-0.5 pl-5 text-right font-bold tabular-nums">
+                  100%
+                </td>
+              </>
+            ) : null}
           </tr>
         </tbody>
       </table>
