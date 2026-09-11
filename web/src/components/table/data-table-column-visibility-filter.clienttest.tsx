@@ -97,6 +97,41 @@ function GroupedColumnVisibilityHarness() {
   );
 }
 
+function DefaultSettingsHarness({
+  initialColumnOrder = ["name", "traceItemScores"],
+}: {
+  initialColumnOrder?: string[];
+}) {
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    name: true,
+    "traceItemScores-accuracy": true,
+    "traceItemScores-helpfulness": false,
+    traceItemScores: false,
+    removedColumn: false,
+  });
+  const [columnOrder, setColumnOrder] = useState(initialColumnOrder);
+  const [showOutput, setShowOutput] = useState(true);
+
+  return (
+    <DataTableColumnVisibilityFilter
+      columns={groupedColumns}
+      columnVisibility={columnVisibility}
+      setColumnVisibility={setColumnVisibility}
+      columnOrder={columnOrder}
+      setColumnOrder={setColumnOrder}
+      additionalColumnSettings={{
+        isDefault: showOutput,
+        onRestoreDefaults: () => setShowOutput(true),
+        content: (
+          <button onClick={() => setShowOutput(!showOutput)}>
+            Toggle output section
+          </button>
+        ),
+      }}
+    />
+  );
+}
+
 function installOverlayLayers() {
   const overlayRoot = document.createElement("div");
   overlayRoot.setAttribute("data-overlay-root", "");
@@ -227,5 +262,57 @@ describe("DataTableColumnVisibilityFilter", () => {
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     fireEvent.click(screen.getByRole("button", { name: /columns/i }));
     expect(screen.getByRole("checkbox", { name: "accuracy" })).toBeChecked();
+  });
+
+  it("shows reset only for changed leaf visibility and hides it after restoring defaults", () => {
+    render(<DefaultSettingsHarness />);
+    fireEvent.click(screen.getByRole("button", { name: /^Columns/ }));
+    expect(
+      screen.queryByRole("button", { name: "Restore Defaults" }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByText("Name"));
+    expect(
+      screen.getByRole("button", { name: "Restore Defaults" }),
+    ).toBeVisible();
+    fireEvent.click(screen.getByText("Name"));
+    expect(
+      screen.queryByRole("button", { name: "Restore Defaults" }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByText("Trace Item Scores"));
+    fireEvent.click(screen.getByRole("checkbox", { name: "helpfulness" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restore Defaults" }));
+    expect(
+      screen.getByRole("checkbox", { name: "helpfulness" }),
+    ).not.toBeChecked();
+    expect(
+      screen.queryByRole("button", { name: "Restore Defaults" }),
+    ).toBeNull();
+  });
+
+  it("offers reset when only the column order differs", () => {
+    render(
+      <DefaultSettingsHarness
+        initialColumnOrder={["traceItemScores", "name"]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Columns/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Restore Defaults" }));
+    expect(
+      screen.queryByRole("button", { name: "Restore Defaults" }),
+    ).toBeNull();
+  });
+
+  it("offers reset for comparison content settings even with default columns", () => {
+    render(<DefaultSettingsHarness />);
+    fireEvent.click(screen.getByRole("button", { name: /^Columns/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle output section" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Restore Defaults" }));
+    expect(
+      screen.queryByRole("button", { name: "Restore Defaults" }),
+    ).toBeNull();
   });
 });

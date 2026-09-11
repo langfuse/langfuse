@@ -198,6 +198,10 @@ function DatasetCompareRunsTableInternal(props: {
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         additionalColumnSettings={{
+          isDefault:
+            isFieldSelected("output") &&
+            isFieldSelected("scores") &&
+            isFieldSelected("resourceMetrics"),
           content: (
             <div className="px-3 py-2">
               <p className="text-muted-foreground px-2 pb-1 text-xs">

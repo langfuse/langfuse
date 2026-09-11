@@ -231,9 +231,7 @@ describe("DataTableToolbar presentation controls", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Formatted" }));
     expect(onIoRenderModeChange).toHaveBeenCalledExactlyOnceWith("text");
     fireEvent.click(screen.getByRole("button", { name: /^Columns/ }));
-    expect(
-      screen.getByRole("button", { name: "Restore Defaults" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Row height" })).toBeVisible();
     expect(screen.getByRole("radio", { name: "JSON" })).toBeVisible();
   });

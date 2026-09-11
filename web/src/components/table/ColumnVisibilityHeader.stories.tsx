@@ -5,5 +5,9 @@ import { ColumnVisibilityHeader } from "./ColumnVisibilityHeader";
 const meta = preview.meta({ component: ColumnVisibilityHeader });
 
 export const Default = meta.story({
+  args: {},
+});
+
+export const Modified = meta.story({
   args: { onRestoreDefaults: fn() },
 });

@@ -168,6 +168,7 @@ interface DataTableToolbarProps<TData, TValue> {
   toolbarSettings?: React.ReactNode;
   additionalColumnSettings?: {
     content: React.ReactNode;
+    isDefault: boolean;
     onRestoreDefaults: () => void;
   };
   /** Notified when a whole column group is shown or hidden at once, for surfaces

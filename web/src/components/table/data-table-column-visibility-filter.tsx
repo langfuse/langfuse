@@ -10,7 +10,7 @@ import {
   type ColumnOrderState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { ChevronDown, ChevronRight, Component, Menu } from "lucide-react";
+import { ChevronDown, ChevronRight, Menu } from "lucide-react";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import DocPopup from "@/src/components/layouts/doc-popup";
@@ -70,6 +70,7 @@ interface ColumnVisibilityProps<TData, TValue> {
   triggerSize?: ComponentProps<typeof Button>["size"];
   additionalColumnSettings?: {
     content: React.ReactNode;
+    isDefault: boolean;
     onRestoreDefaults: () => void;
   };
 }
@@ -114,6 +115,20 @@ const calculateColumnCounts = <TData, TValue>(
     { count: 0, total: 0 },
   );
 };
+
+function hasVisibilityChanges<TData, TValue>(
+  columns: LangfuseColumnDef<TData, TValue>[],
+  columnVisibility: VisibilityState,
+): boolean {
+  return columns.some((column) =>
+    column.columns?.length
+      ? hasVisibilityChanges(column.columns, columnVisibility)
+      : column.enableHiding &&
+        !column.isFixedPosition &&
+        (columnVisibility[column.accessorKey] ?? !column.defaultHidden) !==
+          !column.defaultHidden,
+  );
+}
 
 function ColumnVisibilityListItem<TData, TValue>({
   column,
@@ -226,67 +241,71 @@ function GroupVisibilityHeader<TData, TValue>({
 
   return (
     <Collapsible open={isOpen} onOpenChange={onToggle}>
-      <CollapsibleTrigger asChild>
-        <div
-          ref={setNodeRef}
-          className={cn(
-            "bg-muted/30 flex w-full items-center justify-between gap-2 rounded-md p-2",
-            isDragging ? "opacity-80" : "opacity-100",
-            "hover:bg-muted group cursor-pointer",
-          )}
-          style={{
-            transform: transform
-              ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
-              : undefined,
-            transition: isDragging ? "none" : "transform 0.15s ease-in-out",
-            zIndex: isDragging ? 1 : undefined,
-          }}
-        >
-          <div className="flex min-w-0 items-center gap-2">
-            <Component className="h-4 w-4 shrink-0 opacity-50" />
+      <div
+        ref={setNodeRef}
+        className={cn(
+          "bg-muted/30 group flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5",
+          isDragging ? "opacity-80" : "opacity-100",
+          "hover:bg-muted",
+        )}
+        style={{
+          transform: transform
+            ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
+            : undefined,
+          transition: isDragging ? "none" : "transform 0.15s ease-in-out",
+          zIndex: isDragging ? 1 : undefined,
+        }}
+      >
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 text-left"
+          >
+            {isOpen ? (
+              <ChevronDown className="size-4 shrink-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100" />
+            ) : (
+              <ChevronRight className="size-4 shrink-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100" />
+            )}
             <span className="min-w-0 text-sm font-bold">
               {getColumnLabel(column)}
             </span>
             <span className="text-muted-foreground shrink-0 text-xs whitespace-nowrap">
               ({groupVisibleCount}/{groupTotalCount})
             </span>
-          </div>
+          </button>
+        </CollapsibleTrigger>
 
-          <div className="flex shrink-0 items-center gap-1">
-            {attributes && listeners && (
-              <Button
-                {...attributes}
-                {...listeners}
-                variant="ghost"
-                size="xs"
-                title="Drag and drop to reorder columns"
-                className="opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
-              >
-                <Menu className="h-3 w-3" />
-              </Button>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "h-5 px-2 text-xs group-focus-within:visible group-hover:visible",
+              !isOpen && "invisible",
             )}
+            onClick={toggleAll}
+          >
+            {groupVisibleCount === groupTotalCount
+              ? "Deselect All"
+              : "Select All"}
+          </Button>
+          {attributes && listeners && (
             <Button
+              {...attributes}
+              {...listeners}
               variant="ghost"
-              size="sm"
-              className="h-6 px-2 py-1 text-xs"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleAll();
-              }}
+              size="xs"
+              title="Drag and drop to reorder columns"
+              className="invisible group-focus-within:visible group-hover:visible"
             >
-              {groupVisibleCount === groupTotalCount
-                ? "Deselect All"
-                : "Select All"}
+              <Menu className="h-3 w-3" />
             </Button>
-            {isOpen ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )}
-          </div>
+          )}
         </div>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="pt-1 pl-4">{children}</CollapsibleContent>
+      </div>
+      <CollapsibleContent className="pt-0.5 pl-4">
+        {children}
+      </CollapsibleContent>
     </Collapsible>
   );
 }
@@ -400,6 +419,14 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   const { count, total } = calculateColumnCounts(columns, columnVisibility);
   const columnIdsOrder = columnOrder ?? columns.map((col) => col.accessorKey);
   const isColumnOrderingEnabled = !!setColumnOrder;
+  const hasOrderChanges =
+    isColumnOrderingEnabled &&
+    (columnIdsOrder.length !== defaultColumnOrder.length ||
+      columnIdsOrder.some((id, index) => id !== defaultColumnOrder[index]));
+  const hasChanges =
+    hasVisibilityChanges(columns, columnVisibility) ||
+    hasOrderChanges ||
+    (additionalColumnSettings && !additionalColumnSettings.isDefault);
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -438,11 +465,15 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         >
           <div className="w-full">
             <ColumnVisibilityHeader
-              onRestoreDefaults={() => {
-                setColumnOrder?.(defaultColumnOrder);
-                setColumnVisibility(defaultColumnVisibility);
-                additionalColumnSettings?.onRestoreDefaults();
-              }}
+              onRestoreDefaults={
+                hasChanges
+                  ? () => {
+                      setColumnOrder?.(defaultColumnOrder);
+                      setColumnVisibility(defaultColumnVisibility);
+                      additionalColumnSettings?.onRestoreDefaults();
+                    }
+                  : undefined
+              }
             />
             <div className="p-1">
               <Button
@@ -506,7 +537,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                             }
                           }}
                         >
-                          <div className="mt-1 space-y-1">
+                          <div className="space-y-0.5">
                             {column.columns.map((col) => (
                               <ColumnVisibilityListItem
                                 key={col.accessorKey}
