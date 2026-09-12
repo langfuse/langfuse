@@ -494,6 +494,188 @@ describe("Fetch datasets for UI presentation", () => {
     expect(firstRun.scores).toEqual(expectedObject);
   });
 
+  it("should count a shared trace once per run when multiple run items link to it", async () => {
+    const datasetId = v4();
+
+    await prisma.dataset.create({
+      data: {
+        id: datasetId,
+        name: v4(),
+        projectId: projectId,
+      },
+    });
+
+    const sharedTraceRunId = v4();
+    const sharedObsTraceRunId = v4();
+    await prisma.datasetRuns.createMany({
+      data: [
+        {
+          id: sharedTraceRunId,
+          name: "shared-trace-run",
+          datasetId,
+          metadata: {},
+          projectId,
+        },
+        {
+          id: sharedObsTraceRunId,
+          name: "shared-observation-run",
+          datasetId,
+          metadata: {},
+          projectId,
+        },
+      ],
+    });
+
+    const [
+      firstItemId,
+      secondItemId,
+      thirdItemId,
+      fourthItemId,
+      fifthItemId,
+    ] = [v4(), v4(), v4(), v4(), v4()];
+    await createManyDatasetItems({
+      projectId,
+      items: [
+        { id: firstItemId, datasetId, metadata: {} },
+        { id: secondItemId, datasetId, metadata: {} },
+        { id: thirdItemId, datasetId, metadata: {} },
+        { id: fourthItemId, datasetId, metadata: {} },
+        { id: fifthItemId, datasetId, metadata: {} },
+      ],
+    });
+
+    // Run 1: two trace-level items share traceId1; one links traceId2
+    const sharedTraceId = v4();
+    const otherTraceId = v4();
+    // Run 2: two observation-level items on different observations of the same trace
+    const sharedObservationTraceId = v4();
+
+    await createDatasetRunItemsCh([
+      createDatasetRunItem({
+        id: v4(),
+        dataset_run_id: sharedTraceRunId,
+        observation_id: null,
+        trace_id: sharedTraceId,
+        project_id: projectId,
+        dataset_item_id: firstItemId,
+        dataset_id: datasetId,
+        dataset_run_name: "shared-trace-run",
+      }),
+      createDatasetRunItem({
+        id: v4(),
+        dataset_run_id: sharedTraceRunId,
+        observation_id: null,
+        trace_id: sharedTraceId,
+        project_id: projectId,
+        dataset_item_id: secondItemId,
+        dataset_id: datasetId,
+        dataset_run_name: "shared-trace-run",
+      }),
+      createDatasetRunItem({
+        id: v4(),
+        dataset_run_id: sharedTraceRunId,
+        observation_id: null,
+        trace_id: otherTraceId,
+        project_id: projectId,
+        dataset_item_id: thirdItemId,
+        dataset_id: datasetId,
+        dataset_run_name: "shared-trace-run",
+      }),
+      createDatasetRunItem({
+        id: v4(),
+        dataset_run_id: sharedObsTraceRunId,
+        observation_id: v4(),
+        trace_id: sharedObservationTraceId,
+        project_id: projectId,
+        dataset_item_id: fourthItemId,
+        dataset_id: datasetId,
+        dataset_run_name: "shared-observation-run",
+      }),
+      createDatasetRunItem({
+        id: v4(),
+        dataset_run_id: sharedObsTraceRunId,
+        observation_id: v4(),
+        trace_id: sharedObservationTraceId,
+        project_id: projectId,
+        dataset_item_id: fifthItemId,
+        dataset_id: datasetId,
+        dataset_run_name: "shared-observation-run",
+      }),
+    ]);
+
+    // traceId1 costs 10 + 5 = 15, traceId2 costs 4, shared observation trace costs 7 + 3 = 10
+    await createObservationsCh([
+      createObservation({
+        trace_id: sharedTraceId,
+        project_id: projectId,
+        start_time: new Date().getTime() - 2000,
+        end_time: new Date().getTime() - 1000,
+        total_cost: 10,
+      }),
+      createObservation({
+        trace_id: sharedTraceId,
+        project_id: projectId,
+        start_time: new Date().getTime() - 1000,
+        end_time: new Date().getTime(),
+        total_cost: 5,
+      }),
+      createObservation({
+        trace_id: otherTraceId,
+        project_id: projectId,
+        start_time: new Date().getTime() - 1000,
+        end_time: new Date().getTime(),
+        total_cost: 4,
+      }),
+      createObservation({
+        trace_id: sharedObservationTraceId,
+        project_id: projectId,
+        start_time: new Date().getTime() - 1000,
+        end_time: new Date().getTime(),
+        total_cost: 7,
+      }),
+      createObservation({
+        trace_id: sharedObservationTraceId,
+        project_id: projectId,
+        start_time: new Date().getTime() - 1000,
+        end_time: new Date().getTime(),
+        total_cost: 3,
+      }),
+    ]);
+
+    const runsWithMetrics = await getDatasetRunsTableMetricsCh({
+      projectId: projectId,
+      datasetId: datasetId,
+      runIds: [sharedTraceRunId, sharedObsTraceRunId],
+      filter: [],
+    });
+
+    expect(runsWithMetrics).toHaveLength(2);
+
+    const sharedTraceRun = runsWithMetrics.find(
+      (run) => run.id === sharedTraceRunId,
+    );
+    expect(sharedTraceRun).toBeDefined();
+    if (!sharedTraceRun) {
+      throw new Error("shared trace run is not defined");
+    }
+    expect(sharedTraceRun.countRunItems).toEqual(3);
+    // The shared trace ($15) must be counted once, plus $4 for the other trace
+    expect(sharedTraceRun.totalCost?.toString()).toStrictEqual("19");
+    expect((sharedTraceRun.avgTotalCost ?? 0).toString()).toMatch(/^9\.5/);
+
+    const sharedObservationRun = runsWithMetrics.find(
+      (run) => run.id === sharedObsTraceRunId,
+    );
+    expect(sharedObservationRun).toBeDefined();
+    if (!sharedObservationRun) {
+      throw new Error("shared observation run is not defined");
+    }
+    expect(sharedObservationRun.countRunItems).toEqual(2);
+    // Both observation-level items share one trace whose full cost counts once
+    expect(sharedObservationRun.totalCost?.toString()).toStrictEqual("10");
+    expect(sharedObservationRun.avgTotalCost?.toString()).toStrictEqual("10");
+  });
+
   describe("Dataset Run Score Filtering", () => {
     it("should filter dataset runs by numeric scores", async () => {
       const datasetId = v4();

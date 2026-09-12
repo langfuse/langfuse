@@ -263,18 +263,18 @@ const getDatasetRunsTableInternal = async <T>(
         
         -- Latency metrics (priority: trace > observation - matching old PostgreSQL behavior)
         CASE
-          WHEN drm.trace_avg_latency IS NOT NULL THEN drm.trace_avg_latency
+          WHEN rtm.trace_avg_latency IS NOT NULL THEN rtm.trace_avg_latency
           ELSE drm.obs_avg_latency
         END as avg_latency_seconds,
         
         -- Cost metrics (priority: trace > observation - matching old PostgreSQL behavior)  
         CASE
-          WHEN drm.trace_avg_cost IS NOT NULL THEN drm.trace_avg_cost
-          ELSE COALESCE(drm.obs_avg_cost, 0)
+          WHEN rtm.trace_avg_cost IS NOT NULL THEN rtm.trace_avg_cost
+          ELSE COALESCE(oitm.obs_avg_cost, 0)
         END as avg_total_cost,
         CASE
-          WHEN drm.trace_total_cost IS NOT NULL THEN drm.trace_total_cost
-          ELSE COALESCE(drm.obs_total_cost, 0)
+          WHEN rtm.trace_total_cost IS NOT NULL THEN rtm.trace_total_cost
+          ELSE COALESCE(oitm.obs_total_cost, 0)
         END as total_cost,
 
         -- Score aggregations
@@ -420,19 +420,51 @@ const getDatasetRunsTableInternal = async <T>(
   `;
 
   const traceMetricsCte = `
+    -- One row per (run, trace): aggregates the full observation tree of each
+    -- trace exactly once, even when several run items share the same trace.
     trace_metrics AS (
       SELECT
         dri.trace_id,
         dri.project_id,
         dri.dataset_id,
         dri.dataset_run_id,
-        dri.dataset_item_id,
         dateDiff('millisecond', min(of.start_time), max(of.end_time)) as latency_ms,
         sum(of.total_cost) as total_cost
       FROM dataset_run_items_deduped dri
       JOIN observations_filtered of ON dri.trace_id = of.trace_id
         AND dri.project_id = of.project_id
-      GROUP BY dri.trace_id, dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id
+      GROUP BY dri.trace_id, dri.project_id, dri.dataset_id, dri.dataset_run_id
+    ),
+    run_trace_metrics AS (
+      SELECT
+        project_id,
+        dataset_id,
+        dataset_run_id,
+        AVG(latency_ms) / 1000.0 as trace_avg_latency,
+        AVG(total_cost) as trace_avg_cost,
+        SUM(total_cost) as trace_total_cost
+      FROM trace_metrics tm
+      WHERE (tm.project_id, tm.dataset_id, tm.dataset_run_id, tm.trace_id) IN (
+        SELECT project_id, dataset_id, dataset_run_id, trace_id
+        FROM dataset_run_items_deduped
+        WHERE observation_id IS NULL
+      )
+      GROUP BY project_id, dataset_id, dataset_run_id
+    ),
+    obs_item_trace_metrics AS (
+      SELECT
+        tm.project_id,
+        tm.dataset_id,
+        tm.dataset_run_id,
+        AVG(tm.total_cost) as obs_avg_cost,
+        SUM(tm.total_cost) as obs_total_cost
+      FROM trace_metrics tm
+      WHERE (tm.project_id, tm.dataset_id, tm.dataset_run_id, tm.trace_id) IN (
+        SELECT project_id, dataset_id, dataset_run_id, trace_id
+        FROM dataset_run_items_deduped
+        WHERE observation_id IS NOT NULL
+      )
+      GROUP BY tm.project_id, tm.dataset_id, tm.dataset_run_id
     ),
   `;
 
@@ -448,27 +480,15 @@ const getDatasetRunsTableInternal = async <T>(
         dri.dataset_run_metadata as dataset_run_metadata,
         count(DISTINCT dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id) as count_run_items,
 
-        -- Trace-level metrics (average across traces in this dataset run)
-        AVG(CASE WHEN dri.observation_id IS NULL THEN tm.latency_ms ELSE NULL END) / 1000.0 as trace_avg_latency,
-        AVG(CASE WHEN dri.observation_id IS NULL THEN tm.total_cost ELSE NULL END) as trace_avg_cost,
-        SUM(CASE WHEN dri.observation_id IS NULL THEN tm.total_cost ELSE NULL END) as trace_total_cost,
-
-        -- Observation-level metrics
+        -- Observation-level latency is per item and does not depend on trace metrics
         AVG(CASE WHEN dri.observation_id IS NOT NULL THEN
           dateDiff('millisecond', of.start_time, of.end_time) / 1000.0
-        ELSE NULL END) as obs_avg_latency,
-        AVG(CASE WHEN dri.observation_id IS NOT NULL THEN tm.total_cost ELSE NULL END) as obs_avg_cost,
-        SUM(CASE WHEN dri.observation_id IS NOT NULL THEN tm.total_cost ELSE NULL END) as obs_total_cost
+        ELSE NULL END) as obs_avg_latency
 
       FROM dataset_run_items_deduped dri
       LEFT JOIN observations_filtered of ON dri.observation_id = of.id
         AND dri.project_id = of.project_id
         AND dri.trace_id = of.trace_id
-      LEFT JOIN trace_metrics tm ON dri.trace_id = tm.trace_id
-        AND dri.project_id = tm.project_id
-        AND dri.dataset_id = tm.dataset_id
-        AND dri.dataset_run_id = tm.dataset_run_id
-        AND dri.dataset_item_id = tm.dataset_item_id
       WHERE ${baseFilter.query}
       GROUP BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_run_name, dri.dataset_run_description, dri.dataset_run_metadata, dri.dataset_run_created_at
     )
@@ -483,6 +503,12 @@ const getDatasetRunsTableInternal = async <T>(
     SELECT ${opts.select === "count" ? "" : "DISTINCT"}
       ${select}
     FROM dataset_run_metrics drm
+    LEFT JOIN run_trace_metrics rtm ON drm.project_id = rtm.project_id
+      AND drm.dataset_id = rtm.dataset_id
+      AND drm.dataset_run_id = rtm.dataset_run_id
+    LEFT JOIN obs_item_trace_metrics oitm ON drm.project_id = oitm.project_id
+      AND drm.dataset_id = oitm.dataset_id
+      AND drm.dataset_run_id = oitm.dataset_run_id
     LEFT JOIN scores_aggregated sa ON drm.dataset_run_id = sa.dataset_run_id AND drm.project_id = sa.project_id
     WHERE drm.project_id = {projectId: String} AND drm.dataset_id = {datasetId: String}
     ${appliedFilter.query ? `AND ${appliedFilter.query}` : ""}
