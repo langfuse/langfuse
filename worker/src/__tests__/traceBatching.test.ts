@@ -14,6 +14,7 @@ import {
   getQueuePrefix,
   getS3EventStorageClient,
   getTraceBatchEventStream,
+  queryClickhouse,
   QueueJobs,
   QueueName,
   recordDistribution,
@@ -126,6 +127,35 @@ describe("trace batch selection", () => {
     ]);
     expect(selectTraceBatches(candidates.toReversed(), 3, "locality")).toEqual(
       expected,
+    );
+  });
+
+  it("uses the same trace hash order as ClickHouse", async () => {
+    const traceIds = Array.from({ length: 6 }, (_, index) => `trace-${index}`);
+    const clickhouseOrder = await queryClickhouse<{ traceId: string }>({
+      query: `
+        SELECT traceId
+        FROM (
+          SELECT arrayJoin({traceIds: Array(String)}) AS traceId
+        )
+        ORDER BY xxHash32(traceId)
+      `,
+      params: { traceIds },
+    });
+    const candidates = traceIds.map((traceId, index) =>
+      pendingTrace("project", traceId, index, 10 * minute, 11 * minute),
+    );
+
+    const selectedOrder = selectTraceBatches(
+      candidates.toReversed(),
+      2,
+      "locality",
+    )
+      .flat()
+      .map(({ trace }) => trace.traceId);
+
+    expect(selectedOrder).toEqual(
+      clickhouseOrder.map(({ traceId }) => traceId),
     );
   });
 
@@ -696,9 +726,24 @@ describe("trace micro-batch scheduling with Redis", () => {
         (batch) => new Set(batch.map((trace) => trace.projectId)).size > 1,
       ),
     ).toHaveLength(1);
-    expect(new Set(batches.flat().map((trace) => trace.traceId))).toEqual(
-      new Set(traces.map((trace) => trace.traceId)),
+    const dispatchedMembers = batches
+      .flat()
+      .map((trace) => member(trace.projectId, trace.traceId));
+    expect(dispatchedMembers).toHaveLength(traces.length);
+    expect(new Set(dispatchedMembers)).toEqual(
+      new Set(traces.map((trace) => member(trace.projectId, trace.traceId))),
     );
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(
+          ([name]) => name === "langfuse.trace_batch.skipped_traces",
+        )
+        .map(([, value]) => value),
+    ).toEqual([0, 0, 0]);
+    expect(await queue.getWaitingCount()).toBe(34);
+    expect(await client().zcard(dueKey)).toBe(0);
+    expect(await client().hlen(stateKey)).toBe(0);
   });
 
   it("groups the complete due cohort by sorted project across hydration chunks and the former run limit", async () => {
