@@ -24,6 +24,13 @@ export const allOrganizationActions: OrganizationAction[] = [
   ...organizationScopes,
 ];
 
+/** organizationActionSet is allOrganizationActions indexed for membership tests. */
+const organizationActionSet: ReadonlySet<string> = new Set(organizationScopes);
+
+/** isOrgAction reports whether an action belongs to the disjoint org vocabulary. */
+export const isOrgAction = (action: Action): action is OrganizationAction =>
+  organizationActionSet.has(action);
+
 /** Wildcard is the type of the wildcard resource matcher literal. */
 type Wildcard = typeof wildcard;
 
@@ -58,7 +65,7 @@ export type Principal =
       scope: ApiKeyScope;
       presentation: "publicKey" | "privateKey";
       organizations: PrincipalOrganization[];
-      boundResource?: Resource;
+      boundResource: BoundResource;
     };
 
 /** Source describes where a policy came from: a role or an explicit grant. */
@@ -72,6 +79,9 @@ type OrgResource = { orgId: string };
 
 /** Resource is the thing being checked: a bare project or an org node. */
 export type Resource = ProjectResource | OrgResource;
+
+/** BoundResource is what a credential is bound to: its organization, narrowed to one project when the credential is project-scoped. */
+export type BoundResource = OrgResource & { projectId?: string };
 
 /** BasePolicy carries the origin and effect every policy shares. */
 type BasePolicy = {

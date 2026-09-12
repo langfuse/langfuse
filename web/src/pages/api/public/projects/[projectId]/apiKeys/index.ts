@@ -1,7 +1,6 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { logger } from "@langfuse/shared/src/server";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import {
@@ -10,6 +9,8 @@ import {
   handleCreateApiKey,
 } from "@/src/ee/features/admin-api/server/projects/projectById/apiKeys";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { writeProjectError } from "@/src/features/public-api/server/writeError";
 
 export default async function handler(
   req: NextApiRequest,
@@ -23,28 +24,19 @@ export default async function handler(
       return;
     }
 
-    // CHECK AUTH
-    const authCheck = await new ApiAuthService(
-      prisma,
-      redis,
-    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-    if (!authCheck.validKey) {
-      return res.status(401).json({
-        message: authCheck.error,
-      });
+    const authCheck = await shadowAuth({
+      req,
+      action: req.method === "GET" ? "apiKeys:read" : "apiKeys:CUD",
+      allowedAccessLevels: ["organization"],
+    });
+    if (!authCheck.success) {
+      return writeProjectError(res, authCheck.error);
     }
 
-    // Check if using an organization API key
-    if (
-      authCheck.scope.accessLevel !== "organization" ||
-      !authCheck.scope.orgId
-    ) {
-      return res.status(403).json({
-        message:
-          "Invalid API key. Organization-scoped API key required for this operation.",
-      });
+    const projectId = validateQueryAndExtractId(req.query);
+    if (!projectId) {
+      return res.status(400).json({ message: "Invalid project ID" });
     }
-    // END CHECK AUTH
 
     if (
       !hasEntitlementBasedOnPlan({
@@ -64,11 +56,6 @@ export default async function handler(
       );
     if (rateLimitCheck?.isRateLimited()) {
       return rateLimitCheck.sendRestResponseIfLimited(res);
-    }
-
-    const projectId = validateQueryAndExtractId(req.query);
-    if (!projectId) {
-      return res.status(400).json({ message: "Invalid project ID" });
     }
 
     // Check if project exists and belongs to the organization

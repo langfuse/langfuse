@@ -1,8 +1,12 @@
 import { type Redis } from "ioredis";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type ApiKey, type PrismaClient } from "@langfuse/shared/src/db";
-import { InternalServerError, UnauthorizedError } from "@langfuse/shared";
+import {
+  ForbiddenError,
+  InternalServerError,
+  UnauthorizedError,
+} from "@langfuse/shared";
 import {
   AUTHZ_CONTEXT_CACHE_KEY_PREFIX,
   API_KEY_CACHE_KEY_PREFIX,
@@ -18,6 +22,7 @@ import {
 import { ContextResolver } from "@/src/features/auth/policy/contextResolver";
 import { Verifier } from "@/src/features/apiKey/verifier";
 import { type ApiKeyRepository } from "@/src/features/apiKey/apiKeyRepository";
+import { env } from "@/src/env.mjs";
 
 const SALT = "test-salt";
 const ORG = "org_1";
@@ -101,9 +106,20 @@ const bearer = (token: string) => ({
 
 describe("Authenticator consolidated context cache", () => {
   let verifier: Verifier;
+  let originalCloudRegion: string | undefined;
 
   beforeEach(() => {
     verifier = new Verifier(store(apiKey()), SALT);
+    originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    (
+      env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string }
+    ).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+  });
+
+  afterEach(() => {
+    (
+      env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string }
+    ).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
   it("miss then hit: first call resolves via verify and caches; second call serves from cache without verifying", async () => {
@@ -245,6 +261,25 @@ describe("Authenticator consolidated context cache", () => {
     expect(gated.success).toBe(false);
     if (!gated.success) {
       expect(gated.error).toBeInstanceOf(UnauthorizedError);
+    }
+  });
+
+  it("admin key on a cloud region: 403s even when the route allows it", async () => {
+    (
+      env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string }
+    ).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    const auth = new Authenticator(
+      new Verifier(store(apiKey()), SALT, KNOWN_SECRET),
+      resolver,
+      new AuthenticatorCache(fakeRedis(), SALT),
+    );
+    const result = await auth.authenticate({
+      ...bearer(KNOWN_SECRET),
+      isAdminApiKeyAuthAllowed: true,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toBeInstanceOf(ForbiddenError);
     }
   });
 

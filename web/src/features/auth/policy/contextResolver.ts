@@ -11,11 +11,11 @@ import {
 import {
   wildcard,
   type AuthorizationContext,
+  type BoundResource,
   type ErrorResult,
   type Policy,
   type Principal,
   type PrincipalOrganization,
-  type Resource,
   type Success,
   type SystemPolicy,
 } from "./types";
@@ -106,7 +106,7 @@ function materialize(
     scope: apiKey.scope,
     presentation: authorization,
     organizations: [org],
-    boundResource: boundResourceFor(apiKey),
+    boundResource: boundResourceFor(apiKey, org),
   };
 
   const grants =
@@ -124,6 +124,46 @@ function adminContext(): AuthorizationContext {
     principal,
     policies: apiKeyAccessRights.ADMIN.map((policy) => bind(policy, principal)),
   };
+}
+
+/** boundResourceFor is the target a request resolves against with no header: the key's org, narrowed to its project when the key is project-scoped. */
+function boundResourceFor(
+  apiKey: ApiKey,
+  org: PrincipalOrganization,
+): BoundResource {
+  if (apiKey.scope === "ORGANIZATION") return { orgId: org.orgId };
+  return { orgId: org.orgId, projectId: apiKey.projectId! };
+}
+
+/** bind fixes a resource-less SystemPolicy to the resources the principal covers, by the policy's kind. */
+function bind(policy: SystemPolicy, principal: Principal): Policy {
+  return policy.kind === "organization"
+    ? { ...policy, resources: orgResources(principal) }
+    : { ...policy, resources: projectResources(principal) };
+}
+
+/** orgResources are the org ids an org-kind policy binds to: the bound org, or the wildcard for admin. */
+function orgResources(principal: Principal): Policy["resources"] {
+  if (principal.kind === "admin") return wildcard;
+  return boundOrgs(principal).map((o) => o.orgId);
+}
+
+/** projectResources are the project ids a project-kind policy binds to: the bound project, the bound org's projects, or the wildcard for admin. */
+function projectResources(principal: Principal): Policy["resources"] {
+  if (principal.kind === "admin") return wildcard;
+  const bound =
+    principal.kind === "apiKey" ? principal.boundResource : undefined;
+  if (bound?.projectId) return [bound.projectId];
+  return boundOrgs(principal).flatMap((o) => o.projectIds);
+}
+
+/** boundOrgs are the principal's organizations, narrowed to the bound org when the credential bound one. */
+function boundOrgs(principal: NonAdminPrincipal): PrincipalOrganization[] {
+  const bound =
+    principal.kind === "apiKey" ? principal.boundResource : undefined;
+  return bound
+    ? principal.organizations.filter((o) => o.orgId === bound.orgId)
+    : principal.organizations;
 }
 
 /** toPrincipalOrganization derives an org's `PrincipalOrganization` caps and liveness from its raw row. */
@@ -147,44 +187,6 @@ function getCloudConfig(
   return org.cloudConfig ? CloudConfigSchema.parse(org.cloudConfig) : undefined;
 }
 
-/** bind fixes a resource-less SystemPolicy to the resources the principal covers, by the policy's kind. */
-function bind(policy: SystemPolicy, principal: Principal): Policy {
-  return policy.kind === "organization"
-    ? { ...policy, resources: orgResources(principal) }
-    : { ...policy, resources: projectResources(principal) };
-}
-
-/** projectResources are the project ids a project-kind policy binds to: the bound project, the bound org's projects, or the wildcard for admin. */
-function projectResources(principal: Principal): Policy["resources"] {
-  if (principal.kind === "admin") return wildcard;
-  const bound =
-    principal.kind === "apiKey" ? principal.boundResource : undefined;
-  if (bound && "projectId" in bound) return [bound.projectId];
-  const orgs =
-    bound && "orgId" in bound
-      ? principal.organizations.filter((o) => o.orgId === bound.orgId)
-      : principal.organizations;
-  return orgs.flatMap((o) => o.projectIds);
-}
-
-/** orgResources are the org ids an org-kind policy binds to: the bound org, or the wildcard for admin. */
-function orgResources(principal: Principal): Policy["resources"] {
-  if (principal.kind === "admin") return wildcard;
-  const bound =
-    principal.kind === "apiKey" ? principal.boundResource : undefined;
-  const orgs =
-    bound && "orgId" in bound
-      ? principal.organizations.filter((o) => o.orgId === bound.orgId)
-      : principal.organizations;
-  return orgs.map((o) => o.orgId);
-}
-
-/** boundResourceFor is the legacy single-target a request resolves against with no header. */
-function boundResourceFor(apiKey: ApiKey): Resource {
-  if (apiKey.scope === "ORGANIZATION") return { orgId: apiKey.orgId! };
-  return { projectId: apiKey.projectId! };
-}
-
 /** ResolveContextParams is a verified credential: an api key with how it was presented, or the admin key. */
 export type ResolveContextParams =
   | {
@@ -197,3 +199,6 @@ export type ResolveContextParams =
 export type Resolved =
   | (Success & { context: AuthorizationContext })
   | ErrorResult<InternalServerError>;
+
+/** NonAdminPrincipal is a user or api-key principal, the credentials that carry organizations. */
+type NonAdminPrincipal = Exclude<Principal, { kind: "admin" }>;
