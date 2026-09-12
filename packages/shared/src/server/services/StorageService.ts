@@ -31,6 +31,14 @@ import {
 } from "./BufferedStreamUploader";
 import { S3ChunkedUploadStrategy } from "./S3ChunkedUploadStrategy";
 import {
+  S3_DEFAULT_PART_SIZE_BYTES,
+  S3_DEFAULT_QUEUE_SIZE,
+  S3MultipartLimitExceededError,
+  formatGiB,
+  isS3MultipartLimitExceededError,
+  maxBytesForPartSize,
+} from "./s3MultipartLimits";
+import {
   buildS3RequestDiagnostics,
   isS3DiagnosableError,
   type S3DiagnosticsContext,
@@ -827,6 +835,12 @@ class S3StorageService implements StorageService {
     partSize,
     queueSize,
   }: UploadFile): Promise<void> {
+    // lib-storage defaults partSize to 5 MiB and never scales it, capping every
+    // object at 10,000 x 5 MiB = 48.83 GiB ("Exceeded 10000 parts"). Default to
+    // 64 MiB (~625 GiB ceiling) so large blob-export windows don't hit the wall;
+    // callers with an explicit tuning (e.g. blob export 100 MiB) still win.
+    const resolvedPartSize = partSize ?? S3_DEFAULT_PART_SIZE_BYTES;
+    const resolvedQueueSize = queueSize ?? S3_DEFAULT_QUEUE_SIZE;
     try {
       await new Upload({
         client: this.client,
@@ -836,16 +850,31 @@ class S3StorageService implements StorageService {
           Body: data,
           ContentType: fileType,
         }),
-        // Use provided partSize and queueSize, or fall back to defaults
-        // Default: 5 MB part size supports files up to ~50 GB (5 MB × 10,000 parts)
-        // For large files, use partSize: 100 * 1024 * 1024 (100 MB) to support up to ~1 TB
-        partSize: partSize,
-        queueSize: queueSize,
+        partSize: resolvedPartSize,
+        queueSize: resolvedQueueSize,
       }).done();
 
       return;
     } catch (err) {
       logger.error(`Failed to upload file to ${fileName}`, err);
+      if (isS3MultipartLimitExceededError(err)) {
+        // Non-retryable: retrying the same bytes cannot succeed, and for blob
+        // exports a retry re-queries a TTL-shrunk window and can commit a
+        // truncated object as success (issue #17282). Throw a named error so
+        // the worker converts it to BullMQ UnrecoverableError instead of
+        // retrying; the cause chain is preserved for diagnostics.
+        throw new S3MultipartLimitExceededError(
+          `Upload of ${fileName} exceeds S3's 10,000-part limit at ` +
+            `${(resolvedPartSize / 1024 / 1024).toFixed(1)} MiB/part ` +
+            `(max ~${formatGiB(maxBytesForPartSize(resolvedPartSize))}). ` +
+            `Increase partSize and/or shorten the export window (e.g. daily -> hourly).`,
+          {
+            key: fileName,
+            partSizeBytes: resolvedPartSize,
+            cause: err,
+          },
+        );
+      }
       handleStorageError(err, "upload file to S3");
     }
   }
@@ -860,10 +889,17 @@ class S3StorageService implements StorageService {
     stats,
   }: UploadFileBuffered): Promise<UploadPartStats | undefined> {
     if (env.LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED !== "true") {
-      // Tuning applies only on the buffered path. Forward no overrides so the
-      // fallback keeps lib-storage's defaults — forwarding the resolved 100 MiB
-      // partSize would ~20x per-upload memory (buffered is off by default).
-      await this.uploadFile({ fileName, fileType, data });
+      // Fallback is the same lib-storage path as uploadFile, so it must honor
+      // the caller's partSize: dropping the resolved 100 MiB tuning here would
+      // silently reintroduce the 5 MiB SDK default and its 48.83 GiB wall
+      // (issue #17282). Peak lib-storage buffer is ~partSize x queueSize.
+      await this.uploadFile({
+        fileName,
+        fileType,
+        data,
+        partSize: partSizeBytes,
+        queueSize: maxConcurrentParts,
+      });
       return undefined;
     }
 
@@ -893,6 +929,10 @@ class S3StorageService implements StorageService {
       return await uploader.upload(data);
     } catch (err) {
       logger.error(`Failed to upload file (buffered) to ${fileName}`, err);
+      // Preserve the non-retryable identity so the worker can convert it to
+      // BullMQ UnrecoverableError instead of retrying into a TTL-truncated
+      // object. handleStorageError would wrap it and hide the name.
+      if (isS3MultipartLimitExceededError(err)) throw err;
       handleStorageError(err, "upload file to S3 (buffered)");
     }
   }
