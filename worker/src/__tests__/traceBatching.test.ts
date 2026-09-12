@@ -105,6 +105,19 @@ describe("trace batch selection", () => {
     ]);
   });
 
+  it("bounds chained wide-trace expansion relative to the oldest seed", () => {
+    const candidates = [
+      pendingTrace("project", "seed", 1, 0, 120 * minute),
+      pendingTrace("project", "compatible", 2, 0, 144 * minute),
+      pendingTrace("project", "would-chain", 3, 0, 168 * minute),
+    ];
+
+    expect(ids(selectTraceBatches(candidates, 60, "locality"))).toEqual([
+      [candidates[0].member, candidates[1].member],
+      [candidates[2].member],
+    ]);
+  });
+
   it("fills compatible batches across small projects and is deterministic", () => {
     const candidates = Array.from({ length: 12 }, (_, index) =>
       pendingTrace(

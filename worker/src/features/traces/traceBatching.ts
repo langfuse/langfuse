@@ -61,6 +61,7 @@ const getBounds = (batch: PendingTrace[]): Bounds => ({
 const getCandidateScore = (
   bounds: Bounds,
   batchIsWide: boolean,
+  wideMaxEnvelope: number,
   batchProjects: ReadonlySet<string>,
   candidate: PendingTrace,
 ): number[] | null => {
@@ -100,6 +101,7 @@ const getCandidateScore = (
   const referenceSpan = Math.max(batchSpan, candidateSpan);
   const expansion = combinedSpan - referenceSpan;
   if (
+    combinedSpan > wideMaxEnvelope ||
     overlapRatio < WIDE_MIN_OVERLAP_RATIO ||
     expansion > referenceSpan * WIDE_MAX_EXPANSION_RATIO
   ) {
@@ -122,7 +124,8 @@ const getCandidateScore = (
  * The locality strategy starts every batch with the oldest remaining trace,
  * then scores compatible candidates. Narrow traces may share at most a one-hour
  * event-time envelope. Wide traces only share when at least half of the shorter
- * interval overlaps and the union expands the longer interval by at most 25%.
+ * interval overlaps and the union expands neither the longer interval nor the
+ * seed trace's interval by more than 25%.
  * Five-minute/5% score buckets prefer the same project only among candidates
  * with comparable time locality.
  *
@@ -153,6 +156,9 @@ export function selectTraceBatches(
     const batchIsWide =
       batch[0].trace.maxStart - batch[0].trace.minStart >
       NARROW_TRACE_MAX_SPAN_MS;
+    const wideMaxEnvelope =
+      (batch[0].trace.maxStart - batch[0].trace.minStart) *
+      (1 + WIDE_MAX_EXPANSION_RATIO);
     const batchProjects = new Set([batch[0].trace.projectId]);
     while (batch.length < maxBatchSize) {
       let bestIndex = -1;
@@ -162,6 +168,7 @@ export function selectTraceBatches(
         const score = getCandidateScore(
           bounds,
           batchIsWide,
+          wideMaxEnvelope,
           batchProjects,
           candidate,
         );

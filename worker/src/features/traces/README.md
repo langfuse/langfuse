@@ -36,9 +36,10 @@ independently inside each hydrated window. Every batch starts with the oldest
 remaining candidate. Narrow traces (observed start span at most one hour) can
 share only while their combined event-time envelope stays within one hour.
 Wide traces share only when at least half of the shorter interval overlaps and
-the union expands the longer interval by at most 25%. Five-minute/5% score
-buckets prefer the same project among candidates with comparable locality.
-These thresholds are experimental starting values, not measured optima.
+the union expands the longer interval by at most 25%; the whole batch is also
+capped at 125% of its oldest seed trace's span. Five-minute/5% score buckets
+prefer the same project among candidates with comparable locality. These
+thresholds are experimental starting values, not measured optima.
 
 Scoring is deterministic and worst-case O(n²) time/O(n) memory, with `n`
 hard-bounded to the existing 1,000-entry hydration window. Locality tails flush
