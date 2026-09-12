@@ -23,10 +23,10 @@
   capped by `LANGFUSE_TRACE_BATCH_MAX_SIZE` (default 60). Upgrade every consumer
   before enabling cross-project dispatch; consumers also accept legacy jobs.
   `LANGFUSE_TRACE_BATCH_STRATEGY=locality` optionally groups each bounded
-  hydration window by compatible observed start-time ranges using first-fit
-  after the oldest remaining seed; `project` remains the default and immediate
-  rollback path. The locality selector is deterministic and flushes every
-  hydrated candidate in the same dispatch run.
+  hydration window in `events_full` sort-key order: project, observed
+  start-time minute range, then `xxHash32(trace_id)`; `project` remains the
+  default and immediate rollback path. The locality selector is deterministic
+  and flushes every hydrated candidate in the same dispatch run.
   One Redis range read collects all due IDs; state hydration and expiry cleanup
   are bounded. The complete run has no trace-count/time cutoff. Worker memory
   and the ID response size scale with the due backlog; no scratch disk is used.

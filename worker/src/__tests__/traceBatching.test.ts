@@ -77,111 +77,56 @@ describe("trace batch selection", () => {
   const ids = (batches: PendingTrace[][]) =>
     batches.map((batch) => batch.map(({ member }) => member));
 
-  it("groups nearby narrow traces while separating a wide-window outlier", () => {
-    const candidates = [
-      pendingTrace("project-a", "short-1", 1, 10 * minute, 12 * minute),
-      pendingTrace("project-a", "wide", 2, 0, 8 * 60 * minute),
-      pendingTrace("project-b", "short-2", 3, 11 * minute, 13 * minute),
-    ];
-
-    expect(ids(selectTraceBatches(candidates, 60, "locality"))).toEqual([
-      [candidates[0].member, candidates[2].member],
-      [candidates[1].member],
-    ]);
-  });
-
-  it("separates distant narrow traces and groups overlapping wide traces", () => {
-    const candidates = [
-      pendingTrace("project", "day-one", 1, 0, minute),
-      pendingTrace("project", "wide-1", 2, 10 * minute, 250 * minute),
-      pendingTrace("other", "day-two", 3, 24 * 60 * minute, 24 * 61 * minute),
-      pendingTrace("other", "wide-2", 4, 20 * minute, 260 * minute),
-    ];
-
-    expect(ids(selectTraceBatches(candidates, 60, "locality"))).toEqual([
-      [candidates[0].member],
-      [candidates[1].member, candidates[3].member],
-      [candidates[2].member],
-    ]);
-  });
-
-  it("bounds chained wide-trace expansion relative to the oldest seed", () => {
-    const candidates = [
-      pendingTrace("project", "seed", 1, 0, 120 * minute),
-      pendingTrace("project", "compatible", 2, 0, 144 * minute),
-      pendingTrace("project", "would-chain", 3, 0, 168 * minute),
-    ];
-
-    expect(ids(selectTraceBatches(candidates, 60, "locality"))).toEqual([
-      [candidates[0].member, candidates[1].member],
-      [candidates[2].member],
-    ]);
-  });
-
-  it("first-fits the earliest compatible companion in due order", () => {
-    const seed = pendingTrace("project-a", "seed", 1, 0, 10 * minute);
-    const otherProject = pendingTrace(
-      "project-b",
-      "other",
-      2,
-      50 * minute,
-      55 * minute,
-    );
-    const sameProject = pendingTrace(
+  it("orders batches by the events table locality key", () => {
+    const projectB = pendingTrace("project-b", "trace-1", 1, 0, minute);
+    const laterMinute = pendingTrace(
       "project-a",
-      "later-same",
+      "trace-3",
+      2,
+      2 * minute,
+      3 * minute,
+    );
+    const widerRange = pendingTrace(
+      "project-a",
+      "trace-4",
       3,
-      -6 * minute,
-      5 * minute,
+      10_000,
+      2 * minute,
+    );
+    const trace0 = pendingTrace("project-a", "trace-0", 4, 20_000, 50_000);
+    const trace1 = pendingTrace("project-a", "trace-1", 5, 10_000, 50_000);
+
+    const batches = selectTraceBatches(
+      [projectB, laterMinute, widerRange, trace0, trace1],
+      2,
+      "locality",
     );
 
-    expect(
-      ids(
-        selectTraceBatches([seed, otherProject, sameProject], 60, "locality"),
-      ),
-    ).toEqual([[seed.member, otherProject.member], [sameProject.member]]);
+    expect(ids(batches)).toEqual([
+      [trace1.member, trace0.member],
+      [widerRange.member, laterMinute.member],
+      [projectB.member],
+    ]);
   });
 
-  it("fills compatible batches across small projects and is deterministic", () => {
-    const candidates = Array.from({ length: 12 }, (_, index) =>
-      pendingTrace(
-        `project-${index % 4}`,
-        `trace-${index}`,
-        index,
-        100 * minute + index * 1_000,
-        101 * minute + index * 1_000,
-      ),
-    );
-    const expected = selectTraceBatches(candidates, 5, "locality");
+  it("is independent of readiness and input order", () => {
+    const candidates = [
+      pendingTrace("project-b", "trace-3", 1, 10 * minute, 11 * minute),
+      pendingTrace("project-a", "trace-0", 4, 10 * minute, 11 * minute),
+      pendingTrace("project-a", "trace-1", 3, 10 * minute, 11 * minute),
+      pendingTrace("project-a", "trace-4", 2, 10 * minute, 11 * minute),
+    ];
+    const expected = selectTraceBatches(candidates, 3, "locality");
 
-    expect(expected.map((batch) => batch.length)).toEqual([5, 5, 2]);
-    expect(
-      expected.every(
-        (batch) =>
-          new Set(batch.map((entry) => entry.trace.projectId)).size > 1,
-      ),
-    ).toBe(true);
-    expect(selectTraceBatches(candidates.toReversed(), 5, "locality")).toEqual(
+    expect(expected.flat().map(({ trace }) => trace.traceId)).toEqual([
+      "trace-1",
+      "trace-0",
+      "trace-4",
+      "trace-3",
+    ]);
+    expect(selectTraceBatches(candidates.toReversed(), 3, "locality")).toEqual(
       expected,
     );
-  });
-
-  it("dispatches the oldest incompatible trace without starvation", () => {
-    const oldest = pendingTrace(
-      "project",
-      "old-outlier",
-      1,
-      365 * 24 * 60 * minute,
-      365 * 24 * 60 * minute + minute,
-    );
-    const recent = Array.from({ length: 20 }, (_, index) =>
-      pendingTrace("project", `recent-${index}`, index + 2, 0, minute),
-    );
-
-    const batches = selectTraceBatches([oldest, ...recent], 10, "locality");
-
-    expect(batches[0]).toEqual([oldest]);
-    expect(batches.flat()).toHaveLength(21);
   });
 
   it("handles empty input, cap boundaries, and lossless chunked assignment", () => {
@@ -687,7 +632,7 @@ describe("trace micro-batch scheduling with Redis", () => {
             .join(","),
         )
         .sort(),
-    ).toEqual(["short-1,short-2", "wide"]);
+    ).toEqual(["short-1,short-2,wide"]);
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.trace_batch.candidate_buffer_size",
       3,
@@ -701,7 +646,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.trace_batch.dispatched_batches",
       1,
-      { strategy: "locality", fill: "singleton" },
+      { strategy: "locality", fill: "partial" },
     );
     expect(
       vi

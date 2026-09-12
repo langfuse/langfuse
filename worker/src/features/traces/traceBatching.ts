@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { xxh32 } from "@node-rs/xxhash";
 import {
   logger,
   QueueJobs,
@@ -24,9 +25,7 @@ const DUE_KEY = "{trace-batch}:due";
 const STATE_KEY = "{trace-batch}:state";
 const CHUNK_SIZE = 1_000;
 const QUERY_BUFFER_MS = 2 * 60_000;
-const NARROW_TRACE_MAX_SPAN_MS = 60 * 60_000;
-const NARROW_BATCH_MAX_ENVELOPE_MS = 60 * 60_000;
-const WIDE_MAX_EXPANSION_RATIO = 0.25;
+const MINUTE_MS = 60_000;
 
 export type TraceBatchStrategy = "project" | "locality";
 export type PendingTrace = {
@@ -35,53 +34,36 @@ export type PendingTrace = {
   trace: TQueueJobTypes[QueueName.TraceBatch]["payload"]["traces"][number];
 };
 
-type Bounds = { minStart: number; maxStart: number };
-
 const compareNumbers = (left: number, right: number) => left - right;
 
-const comparePendingTrace = (left: PendingTrace, right: PendingTrace) =>
-  compareNumbers(left.due, right.due) ||
-  left.member.localeCompare(right.member);
+const compareStrings = (left: string, right: string) =>
+  left < right ? -1 : left > right ? 1 : 0;
 
-const getSpan = ({ trace }: PendingTrace) => trace.maxStart - trace.minStart;
+const toMinuteBucket = (timestamp: number) => Math.floor(timestamp / MINUTE_MS);
 
-const isWide = (entry: PendingTrace) =>
-  getSpan(entry) > NARROW_TRACE_MAX_SPAN_MS;
-
-const getBounds = (batch: PendingTrace[]): Bounds => ({
-  minStart: Math.min(...batch.map(({ trace }) => trace.minStart)),
-  maxStart: Math.max(...batch.map(({ trace }) => trace.maxStart)),
-});
-
-const isCompatible = (
-  bounds: Bounds,
-  seed: PendingTrace,
-  candidate: PendingTrace,
-): boolean => {
-  if (isWide(seed) !== isWide(candidate)) return false;
-  const combinedMin = Math.min(bounds.minStart, candidate.trace.minStart);
-  const combinedMax = Math.max(bounds.maxStart, candidate.trace.maxStart);
-  const combinedSpan = combinedMax - combinedMin;
-  if (!isWide(seed)) return combinedSpan <= NARROW_BATCH_MAX_ENVELOPE_MS;
-  const overlaps =
-    Math.min(bounds.maxStart, candidate.trace.maxStart) >
-    Math.max(bounds.minStart, candidate.trace.minStart);
-  return (
-    overlaps && combinedSpan <= getSpan(seed) * (1 + WIDE_MAX_EXPANSION_RATIO)
-  );
-};
+const compareByClickHouseLocality = (left: PendingTrace, right: PendingTrace) =>
+  compareStrings(left.trace.projectId, right.trace.projectId) ||
+  compareNumbers(
+    toMinuteBucket(left.trace.minStart),
+    toMinuteBucket(right.trace.minStart),
+  ) ||
+  compareNumbers(
+    toMinuteBucket(left.trace.maxStart),
+    toMinuteBucket(right.trace.maxStart),
+  ) ||
+  compareNumbers(xxh32(left.trace.traceId), xxh32(right.trace.traceId)) ||
+  compareStrings(left.trace.traceId, right.trace.traceId);
 
 /**
  * Deterministically assigns one bounded hydrated candidate window.
  *
- * Locality starts every batch with the oldest remaining trace, then first-fits
- * later due traces that keep the same width class. Narrow traces share only
- * while the combined event-time envelope stays within one hour. Wide traces
- * share only when they overlap and the union stays within 125% of the seed
- * trace's span. The first compatible candidate in due/member order is taken;
- * leftover traces flush in this run. These thresholds are experimental.
+ * Locality follows the events table's physical order: project, start-time
+ * minute, and xxHash32(trace ID). The maximum observed start-time minute keeps
+ * similarly ranged traces adjacent before the hash tie-breaker. Cutting this
+ * order at the batch cap makes cross-project batches the last fallback, then
+ * cross-time-range batches, while preserving contiguous trace-hash ranges.
  *
- * Selection is O(n²) time and O(n) memory in the worst case. The caller
+ * Selection is O(n log n) time and O(n) memory in the worst case. The caller
  * hard-bounds n to CHUNK_SIZE (1,000). The project strategy is O(n) and
  * retains its tail across hydration windows in the dispatcher.
  */
@@ -99,25 +81,10 @@ export function selectTraceBatches(
     return batches;
   }
 
-  const remaining = candidates.toSorted(comparePendingTrace);
+  const sorted = candidates.toSorted(compareByClickHouseLocality);
   const batches: PendingTrace[][] = [];
-  while (remaining.length > 0) {
-    const seed = remaining.shift()!;
-    const batch = [seed];
-    let bounds = getBounds(batch);
-    for (
-      let index = 0;
-      index < remaining.length && batch.length < maxBatchSize;
-    ) {
-      const candidate = remaining[index];
-      if (!isCompatible(bounds, seed, candidate)) {
-        index += 1;
-        continue;
-      }
-      batch.push(remaining.splice(index, 1)[0]);
-      bounds = getBounds(batch);
-    }
-    batches.push(batch);
+  for (let offset = 0; offset < sorted.length; offset += maxBatchSize) {
+    batches.push(sorted.slice(offset, offset + maxBatchSize));
   }
   return batches;
 }

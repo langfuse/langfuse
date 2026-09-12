@@ -32,16 +32,19 @@ For A:70 and B:70, jobs contain A:60, A:10+B:50, then B:20. Its tail spans
 hydration chunks.
 
 The optional `locality` strategy leaves IDs in Redis readiness order and selects
-independently inside each hydrated window. Every batch starts with the oldest
-remaining candidate, then first-fits later due traces that keep the same width
-class. Narrow traces (observed start span at most one hour) share only while
-the combined event-time envelope stays within one hour. Wide traces share only
-when their intervals overlap and the union stays within 125% of the seed
-trace's span. Incompatible traces are skipped and remain available for later
-batches in the same run. These thresholds are experimental starting values,
-not measured optima.
+independently inside each hydrated window. It sorts by the `events_full`
+physical locality hierarchy: project ID, minimum observed start-time minute,
+maximum observed start-time minute, then `xxHash32(trace_id)`. The maximum
+minute keeps traces with similar complete observed ranges adjacent; the other
+keys align with the table's primary key. Consecutive entries are cut into
+batches at `LANGFUSE_TRACE_BATCH_MAX_SIZE`.
 
-Selection is deterministic and worst-case O(n²) time/O(n) memory, with `n`
+This hierarchy makes crossing a project boundary the last fallback when filling
+a batch, followed by crossing an observed time range. Within one project and
+time range, each batch covers a contiguous trace-hash range. It does not impose
+fixed trace-width or overlap assumptions.
+
+Selection is deterministic and worst-case O(n log n) time/O(n) memory, with `n`
 hard-bounded to the existing 1,000-entry hydration window. Locality tails flush
 inside that window; no candidate state survives a dispatch run. Project mode
 may carry at most `max batch size - 1` entries into the next hydration window.
@@ -360,7 +363,7 @@ pnpm --filter web run test event-repository.servertest.ts -t 'streams complete t
 ```
 
 The Redis tests cover bounds/readiness, bounded cross-project packing and metrics,
-locality grouping, wide-trace separation, deterministic/lossless bounded
+project/time/trace-hash locality ordering, deterministic/lossless bounded
 selection, producer-off draining, enqueue failure, concurrent updates including
 state recreation, exclusive dispatch, and shutdown. The ClickHouse test reads
 more than 20,000 rows and checks full payloads, exact project/trace pairs
