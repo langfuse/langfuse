@@ -95,8 +95,9 @@ const SelectContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => {
   // Route into the `popover` overlay layer (above `modal`, so a Select opened
-  // inside a Dialog renders above it). null until mounted → falls back to
-  // <body>, SSR-parity. Layer order, not z-index, stacks it.
+  // inside a Dialog renders above it). The layer node is static HTML, so the
+  // container is available on the first client render — no <body> fallback
+  // hop. Layer order, not z-index, stacks it.
   const container = useLayerContainer("popover");
   return (
     <SelectPrimitive.Portal container={container}>

@@ -57,21 +57,30 @@ export type LayerName = (typeof LAYER_ORDER)[number];
  * touch a11y: focus trap, Escape, aria wiring and `data-state` animations all
  * live on the Radix Root/Content, not the portal parent.
  *
- * Returns `null` on the server and the first client render (SSR parity), then
- * the matching container declared in `_document`. When `null`, callers pass it
- * straight through to the portal's `container`, which falls back to
- * `document.body` — identical to pre-migration behaviour on first paint. The
- * container is static HTML, so it always exists post-hydration: no creation, no
- * ordering, no teardown here.
+ * The containers are static HTML in `_document`, so they exist before any
+ * client overlay mounts. Resolve them synchronously on the client. A first
+ * render of `null` makes Radix/Vaul `*.Portal` fall back to `document.body`,
+ * then remount into the layer — `aria-hidden`'s `hideOthers` then logs
+ * because the dialog node is briefly detached from `body`.
+ *
+ * Server render still returns `null` (`document` is undefined). Callers that
+ * portal only after mount never hit that path for an open overlay.
  */
+function getLayerContainer(name: LayerName): HTMLElement | null {
+  if (typeof document === "undefined") {
+    return null;
+  }
+  return document.querySelector<HTMLElement>(
+    `[data-overlay-root] > [data-layer="${CSS.escape(name)}"]`,
+  );
+}
+
 export function useLayerContainer(name: LayerName): HTMLElement | null {
-  const [container, setContainer] = React.useState<HTMLElement | null>(null);
-  React.useEffect(() => {
-    setContainer(
-      document.querySelector<HTMLElement>(
-        `[data-overlay-root] > [data-layer="${CSS.escape(name)}"]`,
-      ),
-    );
+  const [container, setContainer] = React.useState(() =>
+    getLayerContainer(name),
+  );
+  React.useLayoutEffect(() => {
+    setContainer(getLayerContainer(name));
   }, [name]);
   return container;
 }

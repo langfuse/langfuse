@@ -13,8 +13,9 @@ const AlertDialog = AlertDialogPrimitive.Root;
 
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
 
-// Route the portal into the `modal` overlay layer (null until mounted →
-// falls back to <body>, SSR-parity). Layer order, not z-index, stacks it.
+// Route the portal into the `modal` overlay layer. The layer node is static
+// HTML, so the container is available on the first client render — no <body>
+// fallback hop. Layer order, not z-index, stacks it.
 const AlertDialogPortal = ({
   ...props
 }: React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Portal>) => {
