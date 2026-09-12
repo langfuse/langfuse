@@ -212,6 +212,30 @@ def main():
 main()
 ```
 
+For OpenAI-compatible providers, create the Langfuse-wrapped SDK client with the provider's base URL. For example,
+TokenLab:
+
+```python filename="main.py"
+import os
+
+from langfuse import observe
+from langfuse.openai import OpenAI
+
+client = OpenAI(
+    api_key=os.environ["TOKENLAB_API_KEY"],
+    base_url="https://api.tokenlab.sh/v1",
+)
+
+@observe()
+def main():
+    return client.chat.completions.create(
+        model="claude-sonnet-5",  # TokenLab catalog model ID
+        messages=[{"role": "user", "content": "What is Langfuse?"}],
+    ).choices[0].message.content
+
+main()
+```
+
 ### 3️⃣ See traces in Langfuse
 
 See your language model calls and other application logic in Langfuse.
