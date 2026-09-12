@@ -131,6 +131,9 @@ const EnvSchema = z.object({
     .positive()
     .max(1_000)
     .default(60),
+  LANGFUSE_TRACE_BATCH_STRATEGY: z
+    .enum(["project", "locality"])
+    .default("project"),
   LANGFUSE_TRACE_BATCH_IDLE_MS: z.coerce
     .number()
     .int()

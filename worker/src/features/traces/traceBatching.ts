@@ -23,11 +23,169 @@ import {
 const DUE_KEY = "{trace-batch}:due";
 const STATE_KEY = "{trace-batch}:state";
 const CHUNK_SIZE = 1_000;
-type PendingTrace = {
+const QUERY_BUFFER_MS = 2 * 60_000;
+const NARROW_TRACE_MAX_SPAN_MS = 60 * 60_000;
+const NARROW_BATCH_MAX_ENVELOPE_MS = 60 * 60_000;
+const LOCALITY_SCORE_BUCKET_MS = 5 * 60_000;
+const WIDE_MIN_OVERLAP_RATIO = 0.5;
+const WIDE_MAX_EXPANSION_RATIO = 0.25;
+
+export type TraceBatchStrategy = "project" | "locality";
+export type PendingTrace = {
   member: string;
   due: number;
   trace: TQueueJobTypes[QueueName.TraceBatch]["payload"]["traces"][number];
 };
+
+type Bounds = { minStart: number; maxStart: number };
+
+const compareNumbers = (left: number, right: number) => left - right;
+
+const comparePendingTrace = (left: PendingTrace, right: PendingTrace) =>
+  compareNumbers(left.due, right.due) ||
+  left.member.localeCompare(right.member);
+
+const compareScores = (left: number[], right: number[]) => {
+  for (let index = 0; index < left.length; index++) {
+    const difference = left[index] - right[index];
+    if (difference !== 0) return difference;
+  }
+  return 0;
+};
+
+const getBounds = (batch: PendingTrace[]): Bounds => ({
+  minStart: Math.min(...batch.map(({ trace }) => trace.minStart)),
+  maxStart: Math.max(...batch.map(({ trace }) => trace.maxStart)),
+});
+
+const getCandidateScore = (
+  bounds: Bounds,
+  batchIsWide: boolean,
+  batchProjects: ReadonlySet<string>,
+  candidate: PendingTrace,
+): number[] | null => {
+  const batchSpan = bounds.maxStart - bounds.minStart;
+  const candidateSpan = candidate.trace.maxStart - candidate.trace.minStart;
+  const candidateIsWide = candidateSpan > NARROW_TRACE_MAX_SPAN_MS;
+  if (batchIsWide !== candidateIsWide) return null;
+
+  const combinedMin = Math.min(bounds.minStart, candidate.trace.minStart);
+  const combinedMax = Math.max(bounds.maxStart, candidate.trace.maxStart);
+  const combinedSpan = combinedMax - combinedMin;
+  const sameProject = batchProjects.has(candidate.trace.projectId);
+
+  if (!batchIsWide) {
+    if (combinedSpan > NARROW_BATCH_MAX_ENVELOPE_MS) return null;
+    const gap = Math.max(
+      0,
+      Math.max(bounds.minStart, candidate.trace.minStart) -
+        Math.min(bounds.maxStart, candidate.trace.maxStart),
+    );
+    const expansion = combinedSpan - batchSpan;
+    return [
+      Math.floor(gap / LOCALITY_SCORE_BUCKET_MS),
+      Math.floor(expansion / LOCALITY_SCORE_BUCKET_MS),
+      sameProject ? 0 : 1,
+      gap,
+      expansion,
+    ];
+  }
+
+  const overlap = Math.max(
+    0,
+    Math.min(bounds.maxStart, candidate.trace.maxStart) -
+      Math.max(bounds.minStart, candidate.trace.minStart),
+  );
+  const overlapRatio = overlap / Math.min(batchSpan, candidateSpan);
+  const referenceSpan = Math.max(batchSpan, candidateSpan);
+  const expansion = combinedSpan - referenceSpan;
+  if (
+    overlapRatio < WIDE_MIN_OVERLAP_RATIO ||
+    expansion > referenceSpan * WIDE_MAX_EXPANSION_RATIO
+  ) {
+    return null;
+  }
+  return [
+    Math.floor((1 - overlapRatio) / 0.05),
+    Math.floor(
+      expansion / Math.max(referenceSpan, 1) / WIDE_MAX_EXPANSION_RATIO / 0.2,
+    ),
+    sameProject ? 0 : 1,
+    1 - overlapRatio,
+    expansion,
+  ];
+};
+
+/**
+ * Deterministically assigns one bounded hydrated candidate window.
+ *
+ * The locality strategy starts every batch with the oldest remaining trace,
+ * then scores compatible candidates. Narrow traces may share at most a one-hour
+ * event-time envelope. Wide traces only share when at least half of the shorter
+ * interval overlaps and the union expands the longer interval by at most 25%.
+ * Five-minute/5% score buckets prefer the same project only among candidates
+ * with comparable time locality.
+ *
+ * Locality scoring is O(n²) time and O(n) memory in the worst case. The caller
+ * hard-bounds n to CHUNK_SIZE (1,000), so no state carries across candidate
+ * windows or dispatch runs. The project strategy is O(n) and retains its tail
+ * across hydration windows in the dispatcher.
+ */
+export function selectTraceBatches(
+  candidates: readonly PendingTrace[],
+  maxBatchSize: number,
+  strategy: TraceBatchStrategy,
+): PendingTrace[][] {
+  if (candidates.length === 0) return [];
+  if (strategy === "project") {
+    const batches: PendingTrace[][] = [];
+    for (let offset = 0; offset < candidates.length; offset += maxBatchSize) {
+      batches.push(candidates.slice(offset, offset + maxBatchSize));
+    }
+    return batches;
+  }
+
+  const remaining = candidates.toSorted(comparePendingTrace);
+  const batches: PendingTrace[][] = [];
+  while (remaining.length > 0) {
+    const batch = [remaining.shift()!];
+    let bounds = getBounds(batch);
+    const batchIsWide =
+      batch[0].trace.maxStart - batch[0].trace.minStart >
+      NARROW_TRACE_MAX_SPAN_MS;
+    const batchProjects = new Set([batch[0].trace.projectId]);
+    while (batch.length < maxBatchSize) {
+      let bestIndex = -1;
+      let bestScore: number[] | null = null;
+      for (let index = 0; index < remaining.length; index++) {
+        const candidate = remaining[index];
+        const score = getCandidateScore(
+          bounds,
+          batchIsWide,
+          batchProjects,
+          candidate,
+        );
+        if (!score) continue;
+        const tieBreak = [...score, candidate.due];
+        if (
+          !bestScore ||
+          compareScores(tieBreak, bestScore) < 0 ||
+          (compareScores(tieBreak, bestScore) === 0 &&
+            candidate.member < remaining[bestIndex].member)
+        ) {
+          bestIndex = index;
+          bestScore = tieBreak;
+        }
+      }
+      if (bestIndex === -1) break;
+      batch.push(remaining.splice(bestIndex, 1)[0]);
+      batchProjects.add(batch.at(-1)!.trace.projectId);
+      bounds = getBounds(batch);
+    }
+    batches.push(batch);
+  }
+  return batches;
+}
 
 // Retain traces for a bounded time after readiness. Reuse the due index so
 // cleanup needs neither a full hash scan nor expiry of shared Redis keys.
@@ -265,6 +423,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
 
     // One range read captures all due IDs without cursor races or loading every
     // trace's state. Memory and the Redis response size grow with the due cohort.
+    const strategy = env.LANGFUSE_TRACE_BATCH_STRATEGY;
     const members = (
       await redis.zrange(
         DUE_KEY,
@@ -276,10 +435,12 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       member,
       projectId: (JSON.parse(member) as [string, string])[0],
     }));
-    // Stable sorting keeps Redis readiness order within each project.
-    members.sort((a, b) =>
-      a.projectId < b.projectId ? -1 : a.projectId > b.projectId ? 1 : 0,
-    );
+    if (strategy === "project") {
+      // Stable sorting keeps Redis readiness order within each project.
+      members.sort((a, b) =>
+        a.projectId < b.projectId ? -1 : a.projectId > b.projectId ? 1 : 0,
+      );
+    }
     recordDistribution("langfuse.trace_batch.snapshot_size", members.length);
 
     const enqueue = async (batch: PendingTrace[]) => {
@@ -306,10 +467,32 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         "langfuse.trace_batch.project_count",
         new Set(traces.map((trace) => trace.projectId)).size,
       );
+      const fill =
+        batch.length === 1
+          ? "singleton"
+          : batch.length === env.LANGFUSE_TRACE_BATCH_MAX_SIZE
+            ? "full"
+            : "partial";
+      recordIncrement("langfuse.trace_batch.dispatched_batches", 1, {
+        strategy,
+        fill,
+      });
+      recordDistribution(
+        "langfuse.trace_batch.event_time_envelope_ms",
+        Math.max(...traces.map(({ maxStart }) => maxStart)) -
+          Math.min(...traces.map(({ minStart }) => minStart)) +
+          2 * QUERY_BUFFER_MS,
+        { strategy },
+      );
       recordIncrement("langfuse.trace_batch.dispatched_traces", batch.length, {
         batch_kind: batch.length === 1 ? "singleton" : "multi",
       });
       for (const entry of batch) {
+        recordDistribution(
+          "langfuse.trace_batch.observed_start_span_ms",
+          entry.trace.maxStart - entry.trace.minStart,
+          { strategy },
+        );
         recordDistribution(
           "langfuse.trace_batch.due_lag_ms",
           Math.max(0, Date.now() - entry.due),
@@ -330,7 +513,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       );
     };
 
-    let batch: PendingTrace[] = [];
+    let projectTail: PendingTrace[] = [];
     for (
       let offset = 0;
       offset < members.length && !this.stopping;
@@ -351,11 +534,12 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         "langfuse.trace_batch.skipped_traces",
         candidates.length - hydrated.length / 3,
       );
+      const hydratedCandidates: PendingTrace[] = [];
       for (let i = 0; i < hydrated.length; i += 3) {
         if (this.stopping) return;
         const member = hydrated[i];
         const [projectId, traceId] = JSON.parse(member) as [string, string];
-        batch.push({
+        hydratedCandidates.push({
           member,
           due: Number(hydrated[i + 2]),
           trace: TraceBatchTraceSchema.parse({
@@ -364,12 +548,40 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
             traceId,
           }),
         });
-        if (batch.length === env.LANGFUSE_TRACE_BATCH_MAX_SIZE) {
-          await enqueue(batch);
-          batch = [];
+      }
+
+      const selectorInput =
+        strategy === "project"
+          ? [...projectTail, ...hydratedCandidates]
+          : hydratedCandidates;
+      recordDistribution(
+        "langfuse.trace_batch.candidate_buffer_size",
+        selectorInput.length,
+        { strategy },
+      );
+      const selectorStartedAt = performance.now();
+      const selected = selectTraceBatches(
+        selectorInput,
+        env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
+        strategy,
+      );
+      recordDistribution(
+        "langfuse.trace_batch.selector_duration_ms",
+        performance.now() - selectorStartedAt,
+        { strategy },
+      );
+
+      if (strategy === "project") {
+        projectTail = [];
+        if (selected.at(-1)?.length !== env.LANGFUSE_TRACE_BATCH_MAX_SIZE) {
+          projectTail = selected.pop() ?? [];
         }
       }
+      for (const batch of selected) {
+        if (this.stopping) return;
+        await enqueue(batch);
+      }
     }
-    if (!this.stopping && batch.length > 0) await enqueue(batch);
+    if (!this.stopping && projectTail.length > 0) await enqueue(projectTail);
   }
 }
