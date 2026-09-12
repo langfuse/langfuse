@@ -163,7 +163,7 @@ export function DatasetItemsTable({
         return {
           type: "link",
           props: {
-            path: `/project/${projectId}/datasets/${datasetId}/items/${id}${versionParam}`,
+            path: `/project/${projectId}/datasets/${datasetId}/items/${encodeURIComponent(id)}${versionParam}`,
             value: id,
           },
         };

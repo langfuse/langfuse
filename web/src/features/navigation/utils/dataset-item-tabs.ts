@@ -18,11 +18,11 @@ export const getDatasetItemTabs = ({
   {
     value: DATASET_ITEM_TABS.ITEM,
     label: "Item",
-    href: `/project/${projectId}/datasets/${datasetId}/items/${itemId}`,
+    href: `/project/${projectId}/datasets/${datasetId}/items/${encodeURIComponent(itemId)}`,
   },
   {
     value: DATASET_ITEM_TABS.RUNS,
     label: "Experiments",
-    href: `/project/${projectId}/datasets/${datasetId}/items/${itemId}/runs`,
+    href: `/project/${projectId}/datasets/${datasetId}/items/${encodeURIComponent(itemId)}/runs`,
   },
 ];
