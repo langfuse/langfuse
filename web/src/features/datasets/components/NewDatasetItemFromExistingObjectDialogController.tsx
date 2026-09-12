@@ -6,22 +6,23 @@ import {
   DialogController,
   DialogHeader,
   DialogTitle,
-  type DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { type MetadataDomainClient } from "@/src/utils/clientSideDomainTypes";
 
-export function NewDatasetItemFromExistingObjectDialogController(props: {
-  projectId: string;
+type DatasetItemDialogState = {
   traceId?: string;
   observationId?: string;
   fromDatasetId?: string;
   input: Prisma.JsonValue | null;
   output: Prisma.JsonValue | null;
   metadata: MetadataDomainClient;
+};
+
+export function NewDatasetItemFromExistingObjectDialogController(props: {
+  projectId: string;
   children: (control: {
-    openDialog: () => void;
-    Trigger: typeof DialogTrigger;
+    openDialog: (payload: DatasetItemDialogState) => void;
   }) => ReactNode;
 }) {
   const normalizePrefillValue = (
@@ -40,29 +41,29 @@ export function NewDatasetItemFromExistingObjectDialogController(props: {
   };
 
   return (
-    <DialogController
+    <DialogController<DatasetItemDialogState>
       closeOnInteractionOutside={false}
       size="xxl"
-      renderContent={({ closeDialog }) => (
+      renderContent={({ state, closeDialog }) => (
         <>
           <DialogHeader>
             <DialogTitle>Add item to datasets</DialogTitle>
           </DialogHeader>
           <NewDatasetItemForm
-            traceId={props.traceId}
-            observationId={props.observationId}
+            traceId={state.traceId}
+            observationId={state.observationId}
             projectId={props.projectId}
-            input={normalizePrefillValue(props.input)}
-            output={normalizePrefillValue(props.output)}
-            metadata={props.metadata}
+            input={normalizePrefillValue(state.input)}
+            output={normalizePrefillValue(state.output)}
+            metadata={state.metadata}
             onFormSuccess={closeDialog}
             className="h-full overflow-y-auto"
-            currentDatasetId={props.fromDatasetId}
+            currentDatasetId={state.fromDatasetId}
           />
         </>
       )}
     >
-      {({ openDialog, Trigger }) => props.children({ openDialog, Trigger })}
+      {({ openDialog }) => props.children({ openDialog })}
     </DialogController>
   );
 }

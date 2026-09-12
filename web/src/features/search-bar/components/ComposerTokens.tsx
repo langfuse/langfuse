@@ -23,7 +23,7 @@ import {
 } from "@/src/features/search-bar/lib/composer-segments";
 import { indexOfOutsideQuotes } from "@/src/features/search-bar/lib/langQ";
 import { deactivationReason } from "@/src/features/search-bar/components/presentation";
-import { FilterToken } from "@/src/features/filters/components/FilterToken";
+import { FilterToken } from "@/src/features/filters";
 
 // Word joiner around pills: gives the DOM caret boundaries between tokens
 // without changing the query text. Stripped before the text reaches the model

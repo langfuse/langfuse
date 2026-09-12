@@ -348,4 +348,15 @@ describe("admin access webhook in tRPC authorization middleware", () => {
       org: null,
     });
   });
+
+  it("rejects an empty session id before checking access", async () => {
+    const { caller, mockPrisma } = createTestCaller({
+      session: createAdminSession([]),
+    });
+
+    await expect(
+      caller.session({ sessionId: "", projectId: "project-id" }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mockPrisma.traceSession.findFirst).not.toHaveBeenCalled();
+  });
 });

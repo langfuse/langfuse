@@ -4,3 +4,6 @@
 # Design system
 /web/src/components/design-system/ @bezbac
 /web/.storybook/ @bezbac
+
+# Skills for langfuse assistant
+/packages/langfuse-skills/ @LysanderKie @bezbac

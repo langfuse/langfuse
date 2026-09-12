@@ -2,9 +2,40 @@ import { describe, expect, it } from "vitest";
 import { TableViewPresetTableName } from "../domain/table-view-presets";
 import {
   buildCurrentPageSavedViewPermalink,
+  buildExperimentPath,
   parseSavedViewFromURL,
   tableViewPresetPermalinkUsesCurrentPath,
 } from "./productUrl";
+
+describe("buildExperimentPath", () => {
+  it("links a run to its items view", () => {
+    expect(
+      buildExperimentPath({
+        projectId: "proj_1",
+        experimentId: "exp_1",
+      }),
+    ).toBe("/project/proj_1/experiments/results?baseline=exp_1");
+  });
+
+  it("can pre-apply a shareable items filter", () => {
+    expect(
+      buildExperimentPath({
+        projectId: "proj_1",
+        experimentId: "exp_1",
+        filters: [
+          {
+            column: "level",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["ERROR"],
+          },
+        ],
+      }),
+    ).toBe(
+      "/project/proj_1/experiments/results?baseline=exp_1&filter=level%3BstringOptions%3B%3Bany+of%3BERROR",
+    );
+  });
+});
 
 describe("tableViewPresetPermalinkUsesCurrentPath", () => {
   it("is true only for session detail, which embeds a session id in the path", () => {

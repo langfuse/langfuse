@@ -50,6 +50,27 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 import chatCompletionHandler from "@/src/features/playground/server/chatCompletionHandler";
 import { LLMValidationError } from "@langfuse/shared/src/server";
 
+const AISDK_ERROR_MARKER = Symbol.for("vercel.ai.error");
+const API_CALL_ERROR_MARKER = Symbol.for("vercel.ai.error.AI_APICallError");
+
+function createAiSdkError(name: string, message: string): Error {
+  const error = new Error(message);
+  error.name = name;
+  Object.assign(error, { [AISDK_ERROR_MARKER]: true });
+  return error;
+}
+
+function createProviderApiError(message: string, statusCode: number): Error {
+  const error = createAiSdkError("AI_APICallError", message);
+  Object.assign(error, {
+    [API_CALL_ERROR_MARKER]: true,
+    statusCode,
+    url: "https://api.example.com/v1/messages",
+    isRetryable: false,
+  });
+  return error;
+}
+
 const baseBody = {
   projectId: "project-1",
   messages: [{ role: "user", type: "user", content: "Hello" }],
@@ -234,6 +255,47 @@ describe("chatCompletionHandler", () => {
     await expect(response.json()).resolves.toEqual({
       error: "LLMValidationError",
       message: "Unsupported provider options: unknown_parameter",
+    });
+  });
+
+  it("maps structured-output AI SDK failures to 400 instead of 500", async () => {
+    mocks.createOutput.mockReturnValue({ kind: "object-output" });
+    mocks.generate.mockRejectedValue(
+      createAiSdkError(
+        "AI_NoOutputGeneratedError",
+        "The model did not generate output",
+      ),
+    );
+
+    const response = await chatCompletionHandler(
+      createRequest({
+        ...baseBody,
+        structuredOutputSchema: {
+          type: "object",
+          properties: { answer: { type: "number" } },
+          required: ["answer"],
+        },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "AI_NoOutputGeneratedError",
+      message: "The model did not generate output",
+    });
+  });
+
+  it("preserves upstream provider 5xx status codes", async () => {
+    mocks.generate.mockRejectedValue(
+      createProviderApiError("Provider unavailable", 500),
+    );
+
+    const response = await chatCompletionHandler(createRequest(baseBody));
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: "AI_APICallError",
+      message: "Provider unavailable",
     });
   });
 });

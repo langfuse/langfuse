@@ -40,6 +40,7 @@ Components are useful because they act as an encapsulated unit and therefore pro
 ## Overlays
 
 - Compose overlays with `DropdownMenuController`, `PopoverController`, or `DialogController`. Trigger presentation should remain in the caller and not be abstracted. If additional behavior is needed, add a feature-specific wrapper that handles things such as permissions, analytics, mutations, or other workflow behavior that should be shared.
+- When overlay content depends on the action that opened it, let the controller own that transient state. Pass the complete payload to `openDialog(payload)` or `openDrawer(payload)` and render content from the controller state instead of hoisting selection and open state into the parent.
 - Keep the controller components outside transient overlays that can trigger it. A popover or dialog opened from a dropdown item must not be owned by `DropdownMenuContent`, which unmounts when the dropdown closes.
 - Consume the controller's render-prop controls instead of duplicating their shape. Do not move the passed `Trigger` into components. Abstract trigger presentation through a ref-forwarding component with explicit variants, while keeping `<Trigger asChild>` at each call site.
 - Compose `<Trigger asChild>` in the caller around a semantic child that forwards its ref and injected props. For example, use `DropdownMenuItem` directly rather than nesting a `Button` inside it.

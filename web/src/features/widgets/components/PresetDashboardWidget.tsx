@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
-import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
+import type { ResolvedReadPath } from "@/src/features/events";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import {
   getHomePreset,

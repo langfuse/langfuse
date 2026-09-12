@@ -8,7 +8,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { ActionButton } from "@/src/components/ActionButton";
 import { CreateProjectMemberDialogController } from "@/src/features/rbac/components/CreateProjectMemberDialogController";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -19,7 +22,7 @@ import { Role } from "@langfuse/shared";
 import { PlusIcon, Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements";
 import { showSuccessToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
@@ -30,7 +33,6 @@ import {
   HoverCardPortal,
 } from "@/src/components/ui/hover-card";
 import Link from "next/link";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import useSessionStorage from "@/src/components/useSessionStorage";
@@ -426,21 +428,20 @@ export function MembersTable({
               hasOnlySingleProjectAccess,
               isSubmitting,
               usageLimit,
-              Trigger,
+              openDialog,
             }) => (
-              <Trigger asChild>
-                <ActionButton
-                  variant="secondary"
-                  loading={isSubmitting}
-                  hasAccess={hasAccess}
-                  usageLimit={usageLimit}
-                  icon={<PlusIcon className="h-5 w-5" aria-hidden="true" />}
-                >
-                  {hasOnlySingleProjectAccess
-                    ? "Add project member"
-                    : "Add new member"}
-                </ActionButton>
-              </Trigger>
+              <ActionButton
+                variant="secondary"
+                loading={isSubmitting}
+                hasAccess={hasAccess}
+                usageLimit={usageLimit}
+                icon={<PlusIcon className="h-5 w-5" aria-hidden="true" />}
+                onClick={openDialog}
+              >
+                {hasOnlySingleProjectAccess
+                  ? "Add project member"
+                  : "Add new member"}
+              </ActionButton>
             )}
           </CreateProjectMemberDialogController>
         }

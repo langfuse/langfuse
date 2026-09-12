@@ -5,6 +5,7 @@ import { StreamLanguage, type StringStream } from "@codemirror/language";
 import { useTheme } from "next-themes";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import { darkTheme } from "@/src/components/editor/dark-theme";
+import { tolerateUnstableViewportPosAtCoords } from "@/src/components/editor/tolerateUnstableViewportPosAtCoords";
 import { cn } from "@/src/utils/tailwind";
 import { evaluateJsonPath } from "@langfuse/shared";
 
@@ -133,6 +134,7 @@ export function JsonPathInput({
           highlightActiveLine: false,
         }}
         extensions={[
+          tolerateUnstableViewportPosAtCoords,
           EditorView.theme({
             "&.cm-focused": {
               outline: "none",

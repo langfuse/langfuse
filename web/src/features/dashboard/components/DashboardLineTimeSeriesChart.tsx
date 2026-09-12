@@ -1,11 +1,11 @@
 import React, { useMemo } from "react";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
-import { type TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/hooks";
 import {
+  Chart,
   type LegendSummaryMode,
   type MissingBucketValue,
-} from "@/src/features/widgets/chart-library/chart-props";
+} from "@/src/features/widgets";
+import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { type TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/hooks";
 
 /**
  * Memoized LINE_TIME_SERIES card shared by the dashboard time-series panels.

@@ -1,5 +1,5 @@
 import { SelectItem } from "@/src/components/ui/select";
-import { useOptionalEntitlement } from "@/src/features/entitlements/hooks";
+import { useOptionalEntitlement } from "@/src/features/entitlements";
 import { targetOptionsQueryMap } from "@/src/features/table/components/targetOptionsQueryMap";
 import { type TableAction } from "@/src/features/table/types";
 import { useSession } from "next-auth/react";

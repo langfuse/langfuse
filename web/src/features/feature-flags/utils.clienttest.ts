@@ -37,6 +37,28 @@ describe("parseFlags", () => {
     expect(flags.modernSession).toBe(false);
   });
 
+  it("enables the gateway flag only for allowlisted organizations", () => {
+    expect(
+      parseFlags([], {
+        email: "user@example.com",
+        v4BetaEnabled: true,
+        aiGatewayEnabled: true,
+      }).aiGateway,
+    ).toBe(true);
+    expect(
+      parseFlags(["aiGateway"], {
+        email: "user@example.com",
+        v4BetaEnabled: true,
+      }).aiGateway,
+    ).toBe(false);
+    expect(
+      parseFlags(["aiGateway"], {
+        email: "team.member@langfuse.com",
+        v4BetaEnabled: true,
+      }).aiGateway,
+    ).toBe(false);
+  });
+
   it("honors a Langfuse team member's explicit opt-out", () => {
     const flags = parseFlags(
       [getFeaturePreviewOptOutFlag("modernSession"), "templateFlag"],

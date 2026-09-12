@@ -1644,7 +1644,10 @@ export class IngestionService {
       return;
     }
     IngestionService.lastUsageTotalMismatchLogAt = now;
-    logger.warn(
+    // The `langfuse.ingestion.usage_details.total_mismatch` metric above carries
+    // the aggregate signal; keep the detailed line at debug to avoid drowning
+    // warn-level log volume with a per-event customer-data condition.
+    logger.debug(
       "Sum of provided non-total usage_details buckets exceeds provided total; the instrumentor may be sending an inclusive input alongside cache buckets",
       {
         projectId: observationRecord.project_id,

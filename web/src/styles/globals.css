@@ -528,7 +528,10 @@
     /* Status pairs: light-* are dark tinted backgrounds (alpha baked in),
        dark-* the readable text/icon color on them. */
     --light-red: oklch(39.6% 0.141 25.723 / 0.7);
-    --dark-red: oklch(57.7% 0.245 27.325);
+    /* Lightened for dark mode like its green and yellow siblings below — left
+       at the light-mode step it was darker than the fill it sits on (2.74:1;
+       5.35:1 here, against green's 6.49 and yellow's 6.43). */
+    --dark-red: oklch(76.5% 0.177 27.325);
 
     --light-yellow: oklch(55.4% 0.135 66.442 / 0.4);
     --dark-yellow: oklch(79.5% 0.184 86.047);

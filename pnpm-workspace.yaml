@@ -2,6 +2,7 @@ packages:
   # include packages in subfolders (e.g. apps/ and packages/)
   - "web"
   - "worker"
+  - "ai-gateway"
   - "packages/**"
   - "ee"
 catalog:
@@ -46,9 +47,6 @@ packageExtensions:
   "eslint-plugin-storybook@10.3.6":
     dependencies:
       typescript: npm:@typescript/typescript6@^6.0.2
-  "eslint-plugin-tailwindcss@4.0.2":
-    dependencies:
-      typescript: npm:@typescript/typescript6@^6.0.2
   "vite-tsconfig-paths@6.1.1":
     dependencies:
       typescript: npm:@typescript/typescript6@^6.0.2
@@ -80,7 +78,10 @@ overrides:
   browserslist: 4.28.7
   postcss: 8.5.25
   esbuild: "0.28.1"
-  "undici@7": 7.29.0
+  # @ai-sdk/provider-utils depends on undici ^6.28.0 and resolves to the
+  # vulnerable 6.28.0; 6.28.1 is the last release of the 6.x line.
+  "undici@6": 6.28.1
+  "undici@7": 7.29.1
   zod: 4.3.6
   nanoid: 3.3.18
   katex: ^0.16.21
@@ -110,16 +111,25 @@ overrides:
   # evaluation needs exports (validatorSymbol) that only exist in its own
   # provider-utils 2.x line — exempt it from the blanket 4.0.33 lift above.
   "@ai-sdk/ui-utils>@ai-sdk/provider-utils": 2.2.8
+  # addon-vitest accepts any @vitest/browser ^3 || ^4 as an optional peer, so
+  # pnpm keeps the already-resolved 4.1.10 copy, which pulls in a vulnerable
+  # @vitest/mocker 4.1.10 (CVE-2026-84373). Pin it to the fixed patch.
+  "@storybook/addon-vitest>@vitest/browser": 4.1.11
   # next-auth 4.24.x caps its optional nodemailer peer at ^7 but contains no
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
   # Remove once next-auth allows nodemailer ^9.
-  "next-auth>nodemailer": "^9.0.3"
+  "next-auth>nodemailer": "^9.1.1"
 patchedDependencies:
   # focusFirst crashes on null item refs (items unmounting while entry focus
   # runs), e.g. opening a row-actions dropdown while a table re-renders.
   # Still unfixed upstream as of 1.1.19; remove once Radix guards focusFirst.
   '@radix-ui/react-roving-focus@1.1.11': patches/@radix-ui__react-roving-focus@1.1.11.patch
+  # Select typeahead schedules nextItem.ref.current.focus() in a setTimeout.
+  # If the item unmounts before the timeout (dynamic option lists, closing the
+  # menu, a sibling field remounting items), the ref is null and throws.
+  # Fixed upstream in 2.3.7; remove this patch when we bump.
+  '@radix-ui/react-select@2.2.6': patches/@radix-ui__react-select@2.2.6.patch
   next-auth@4.24.15: patches/next-auth@4.24.15.patch
   # The document-level drag handlers crash when a panel group unmounts
   # mid-drag: setPointerCapture on the detached separator throws
@@ -155,3 +165,10 @@ minimumReleaseAgeExclude:
   - qs@6.16.0
   # Host confusion + output-escaping fixes (CVE-2026-84394, CVE-2026-84292).
   - fast-uri@3.1.7
+  # Certificate validation, request smuggling, and resource-exhaustion fixes
+  # in the 7.x line (CVE-2026-84961, CVE-2026-18540, CVE-2026-84890 and more).
+  - undici@7.29.1
+  # Uncaught-exception and request-smuggling fixes for the 6.x line pulled in
+  # transitively by @ai-sdk/provider-utils (CVE-2026-85024, CVE-2026-19534,
+  # CVE-2026-18540).
+  - undici@6.28.1

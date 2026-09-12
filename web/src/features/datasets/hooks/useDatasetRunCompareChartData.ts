@@ -1,9 +1,9 @@
 import { api } from "@/src/utils/api";
 import { useMemo } from "react";
 import {
-  scoreFilters,
   convertScoreColumnsToAnalyticsData,
-} from "@/src/features/scores/lib/scoreColumns";
+  scoreFilters,
+} from "@/src/features/scores";
 import { transformAggregatedRunMetricsToChartData } from "@/src/features/dashboard/lib/score-analytics-utils";
 
 export function useDatasetRunCompareChartData(

@@ -1,7 +1,7 @@
 import { v4 } from "uuid";
 import type { z } from "zod";
 
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
 import {
   type GetCommentV1Query,

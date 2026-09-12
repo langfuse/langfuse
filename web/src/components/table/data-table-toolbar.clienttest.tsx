@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
+import { ExperimentFormatSetting } from "@/src/features/experiments/components/ExperimentFormatSetting";
 import {
   DataTableToolbar,
   type MultiSelect,
@@ -190,7 +191,7 @@ describe("DataTableToolbar select-all banner gate", () => {
   });
 });
 
-describe("DataTableToolbar merged table settings", () => {
+describe("DataTableToolbar presentation controls", () => {
   const settingsProps = {
     columns: [],
     tableName: "test-table",
@@ -211,14 +212,27 @@ describe("DataTableToolbar merged table settings", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("collapses both into one popover when opted in", () => {
-    render(<DataTableToolbar {...settingsProps} mergeSettingsIntoPopover />);
+  it("keeps the format switch accessible while the column picker is closed", () => {
+    const onIoRenderModeChange = vi.fn();
+    render(
+      <DataTableToolbar
+        {...settingsProps}
+        toolbarSettings={
+          <ExperimentFormatSetting
+            ioRenderMode="json"
+            onIoRenderModeChange={onIoRenderModeChange}
+          />
+        }
+      />,
+    );
 
-    expect(
-      screen.getByRole("button", { name: "Table settings" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /^Columns/ }),
-    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "JSON" }));
+    expect(onIoRenderModeChange).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("radio", { name: "Formatted" }));
+    expect(onIoRenderModeChange).toHaveBeenCalledExactlyOnceWith("text");
+    fireEvent.click(screen.getByRole("button", { name: /^Columns/ }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Row height" })).toBeVisible();
+    expect(screen.getByRole("radio", { name: "JSON" })).toBeVisible();
   });
 });

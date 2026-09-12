@@ -82,6 +82,70 @@ describe("validateQuery — merged-diagnostic dedup", () => {
   );
 });
 
+describe("validateQuery — compatibility scope diagnostics", () => {
+  it("anchors an unsupported scope to its token beside other query terms", () => {
+    const query = "env:prod in:unknown refund";
+    const result = validateQuery(query);
+
+    expect(result.valid).toBe(false);
+    expect(result.diagnostics).toEqual([
+      {
+        from: query.indexOf("in:unknown"),
+        to: query.indexOf("in:unknown") + "in:unknown".length,
+        severity: "error",
+        message: expect.stringContaining("Unsupported search scope"),
+      },
+    ]);
+  });
+
+  it("anchors a missing phrase to the scope that requires it", () => {
+    const query = "env:prod in:id";
+
+    expect(validateQuery(query).diagnostics).toEqual([
+      {
+        from: query.indexOf("in:id"),
+        to: query.length,
+        severity: "error",
+        message: "Add search text after in:",
+      },
+    ]);
+  });
+
+  it("validates a scope with its phrase elsewhere in the query", () => {
+    expect(validateQuery("env:prod in:id refund")).toMatchObject({
+      valid: true,
+      diagnostics: [],
+    });
+  });
+
+  it("anchors a duplicate scope to the second scope token", () => {
+    const query = "assistant in:id in:content";
+
+    expect(validateQuery(query).diagnostics).toEqual([
+      {
+        from: query.indexOf("in:content"),
+        to: query.length,
+        severity: "error",
+        message: "Only one in: scope selection is supported",
+      },
+    ]);
+  });
+
+  it("does not add a missing-phrase error to competing scoped searches", () => {
+    const query = "env:prod content:refund in:id";
+
+    expect(validateQuery(query).diagnostics).toEqual([
+      {
+        from: 0,
+        to: query.length,
+        severity: "error",
+        message:
+          "Only one search phrase is supported — use either bare text or one scoped search",
+      },
+    ]);
+  });
+});
+
 // LFE-11017: a partial filter token that isn't a complete expression must not
 // silently apply to the query. A bare field word (`type`, no operator/value)
 // used to parse as free text and lower to a full-text searchQuery, wiping the

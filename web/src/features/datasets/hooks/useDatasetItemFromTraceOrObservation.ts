@@ -1,4 +1,4 @@
-import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";

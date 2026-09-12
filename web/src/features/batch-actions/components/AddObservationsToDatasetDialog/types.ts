@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import type { DatasetFormRef } from "@/src/features/datasets/components/DatasetForm";
+import type { DatasetFormRef } from "@/src/features/datasets";
 
 // Re-export base types from shared
 export type { SourceField, MappingMode, MappingTarget } from "@langfuse/shared";

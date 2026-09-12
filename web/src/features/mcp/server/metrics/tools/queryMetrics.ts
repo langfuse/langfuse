@@ -14,7 +14,7 @@ import {
 import { defineTool } from "../../../core/define-tool";
 import { McpAdvancedFilterBaseSchema } from "../../../core/filter-schema";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 import { z } from "zod";
 
 const DEFAULT_ROW_LIMIT = 100;

@@ -57,6 +57,10 @@
   AI SDK-native LLM execution helpers (`generateLLMText` and
   `streamLLMText`), Bedrock default-credential provider auth
   (`createDefaultBedrockProviderAuth`), and server test utilities.
+- `@langfuse/shared/src/server/clickhouse` via `src/server/clickhouse/index.ts`:
+  ClickHouse clients and helpers without loading the full server barrel. Use this
+  entry point for test cleanup so built and source-aliased clients retain the same
+  module identity.
 - `@langfuse/shared/src/db` via `src/db.ts`: Prisma client singleton plus
   Prisma namespace/types for direct database access. Never route this into
   frontend-safe code.
@@ -81,9 +85,11 @@
   `@langfuse/shared/src/server/clickhouse/clickhouseIdentifiers`,
   `@langfuse/shared/src/server/ee/ingestionMasking`,
   `@langfuse/shared/src/server/llm/llmText`, and
-  `@langfuse/shared/src/utils/chatml`. The experimental
-  `@langfuse/shared/src/utils/normalized-io` parser is client-safe but **do not
-  use it yet**; its public contract is still being validated.
+  `@langfuse/shared/src/utils/chatml`. The
+  `@langfuse/shared/src/utils/normalized-io` parser is client-safe and powers
+  the web "Improved Message Rendering" feature preview (the normalized Formatted
+  trace/observation view). Its public contract is still settling, so treat other
+  consumers as experimental until it stabilizes.
 
 When changing export surfaces, keep `package.json#exports`, the relevant barrel
 file (`src/index.ts`, `src/server/index.ts`, etc.), and this guide aligned in

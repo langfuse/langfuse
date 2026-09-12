@@ -37,10 +37,12 @@ describe("Authenticate API calls", () => {
   };
 
   let testApiKey: TestApiKeyFixture;
+  const cacheKeyPrefix = `api-auth-test:${v4()}:`;
 
   const createRedisClient = (): RedisTestClient => {
     return createRedisTestClient({
       maxRetriesPerRequest: null,
+      keyPrefix: cacheKeyPrefix,
     });
   };
 
@@ -418,6 +420,24 @@ describe("Authenticate API calls", () => {
     afterAll(() => {
       redis.disconnect();
     }, 20_000);
+
+    it("clears only this suite's API-key cache entries", async () => {
+      const otherClient = createRedisTestClient({ keyPrefix: "" });
+      const ownKey = `api-key:${v4()}`;
+      const otherKey = `api-key:${v4()}`;
+      try {
+        await setRedisValue(redis, ownKey, "owned");
+        await setRedisValue(otherClient, otherKey, "other-suite");
+
+        await clearApiKeyCacheSafely(redis);
+
+        expect(await getRedisValue(redis, ownKey)).toBeNull();
+        expect(await getRedisValue(otherClient, otherKey)).toBe("other-suite");
+      } finally {
+        await otherClient.del(otherKey);
+        otherClient.disconnect();
+      }
+    });
 
     it("should create new api key and read from cache", async () => {
       const legacySecretKey = ["legacy", "secret", "key", v4()].join("-");

@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 /**
  * LogViewTreeIndent - Tree indentation lines for log view rows.
  *
@@ -13,8 +12,6 @@ export interface LogViewTreeIndentProps {
   treeLines: boolean[];
   /** Whether this node is the last sibling at its level */
   isLastSibling: boolean;
-  /** Current depth level */
-  depth: number;
 }
 
 /**
@@ -23,10 +20,7 @@ export interface LogViewTreeIndentProps {
 export const LogViewTreeIndent = memo(function LogViewTreeIndent({
   treeLines,
   isLastSibling,
-  depth,
 }: LogViewTreeIndentProps) {
-  if (depth <= 0) return null;
-
   return (
     <div className="flex shrink-0">
       {/* Vertical lines for each ancestor level */}

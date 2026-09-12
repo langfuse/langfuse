@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { type ApiKey } from "@langfuse/shared/src/db";
 import { InternalServerError } from "@langfuse/shared";
+import { type ApiKey } from "@langfuse/shared/src/db";
 import { hashSecretKey } from "@langfuse/shared/src/server";
 
 import { Verifier } from "@/src/features/apiKey/verifier";

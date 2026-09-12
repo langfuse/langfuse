@@ -22,7 +22,7 @@
     },
     "build:test": {
       "dependsOn": ["db:generate", "^build"],
-      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
+      "env": ["NEXT_IGNORE_BUILD_ERRORS", "NEXT_DISABLE_BUILD_CACHE"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
       "cache": true,
       "outputLogs": "errors-only"

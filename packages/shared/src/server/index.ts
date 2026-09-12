@@ -138,6 +138,7 @@ export * from "./filterToPrisma";
 export * from "./prismaFilter";
 export * from "./instrumentation";
 export * from "./logger";
+export * from "./processErrorHandlers";
 export * from "./headerPropagation";
 export * from "./queries";
 export * from "./queries/clickhouse-sql/orderby-factory";

@@ -10,7 +10,7 @@ import {
   parsePastedWidget,
   type WidgetExportSource,
   type WidgetImport,
-} from "@/src/features/widgets/utils/import-export-utils";
+} from "@/src/features/widgets";
 
 /**
  * Dashboard JSON file-format version. `$langfuseDashboard: true` marks a JSON

@@ -9,7 +9,6 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import { Settings2, Check } from "lucide-react";
-import { type IoRenderMode } from "@/src/components/table/data-table-io-render-mode-switch";
 import {
   type ExperimentDiffMode,
   type ExperimentResultsLayout,
@@ -24,8 +23,6 @@ type ExperimentDisplaySettingsProps = {
   onItemVisibilityChange: (visibility: "baseline-only" | "all") => void;
   hasComparisons: boolean;
   hasBaseline: boolean;
-  ioRenderMode: IoRenderMode;
-  onIoRenderModeChange: (mode: IoRenderMode) => void;
 };
 
 /** A menu row that reads as a radio option. */
@@ -50,6 +47,13 @@ const OptionItem = ({
   </DropdownMenuItem>
 );
 
+/**
+ * The shape of the comparison, as one menu: which layout, what each cell's
+ * second line is measured against, and whether items missing from the baseline
+ * are listed.
+ *
+ * These settings live in the URL and travel with a shared link.
+ */
 export function ExperimentDisplaySettings({
   layout,
   onLayoutChange,
@@ -59,8 +63,6 @@ export function ExperimentDisplaySettings({
   onItemVisibilityChange,
   hasComparisons,
   hasBaseline,
-  ioRenderMode,
-  onIoRenderModeChange,
 }: ExperimentDisplaySettingsProps) {
   const isItemVisibilityDisabled = !hasComparisons || !hasBaseline;
 
@@ -131,22 +133,6 @@ export function ExperimentDisplaySettings({
           onSelect={() => onItemVisibilityChange("all")}
         >
           Show all items
-        </OptionItem>
-
-        <DropdownMenuSeparator />
-
-        <DropdownMenuLabel>Format</DropdownMenuLabel>
-        <OptionItem
-          selected={ioRenderMode === "json"}
-          onSelect={() => onIoRenderModeChange("json")}
-        >
-          JSON
-        </OptionItem>
-        <OptionItem
-          selected={ioRenderMode === "text"}
-          onSelect={() => onIoRenderModeChange("text")}
-        >
-          Formatted
         </OptionItem>
       </DropdownMenuContent>
     </DropdownMenu>

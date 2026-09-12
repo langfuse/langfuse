@@ -8,7 +8,7 @@ import {
   type PresetPlacement,
 } from "../components/PresetDashboardWidget";
 import { DashboardWidget } from "@/src/features/widgets";
-import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
+import type { ResolvedReadPath } from "@/src/features/events";
 import { type FilterState } from "@langfuse/shared";
 import { useState, useEffect, useRef } from "react";
 

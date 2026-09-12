@@ -27,7 +27,7 @@ import { processWebhookActionConfig } from "./webhookHelpers";
 import { processGitHubDispatchActionConfig } from "./githubDispatchHelpers";
 import { updateTriggerEventActions } from "./automationService";
 import { TRPCError } from "@trpc/server";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 
 const CreateAutomationInputSchema = z.object({
   projectId: z.string(),

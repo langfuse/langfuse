@@ -1,11 +1,11 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { env } from "@/src/env.mjs";
 import { parseBatchExportFileKeyFromUrl } from "@/src/features/batch-exports/server/batchExportFileKey";
 import { getBatchExportStorageServiceClient } from "@/src/features/batch-exports/server/getBatchExportStorageClient";
 import {
   hasEntitlement,
   throwIfNoEntitlement,
-} from "@/src/features/entitlements/server/hasEntitlement";
+} from "@/src/features/entitlements/server";
 import { hasProjectAccess, throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   type AuthedSession,

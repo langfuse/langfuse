@@ -15,17 +15,16 @@ import {
 import startCase from "lodash/startCase";
 import {
   ChartConfigSchema,
-  DashboardWidgetChartType,
   DimensionSchema,
   MetricSchema,
   singleFilter,
   type FilterState,
 } from "@langfuse/shared";
+import { dashboardWidgetChartTypeSchema } from "@/src/features/widgets/lib/dashboardWidgetChartTypes";
 import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
-const dashboardWidgetChartTypeSchema = z.enum(DashboardWidgetChartType);
 const widgetMetricSchema = MetricSchema.extend({
   agg: metricAggregations,
 });

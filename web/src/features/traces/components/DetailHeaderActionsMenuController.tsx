@@ -1,4 +1,5 @@
 import { useRouter } from "next/router";
+import { useSession } from "next-auth/react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useState, type ComponentProps, type ReactNode } from "react";
 import {
@@ -9,7 +10,7 @@ import {
 import {
   buildEventsTablePathForObservationType,
   buildEventsTablePathForSpanName,
-} from "@/src/features/events/lib/eventsTablePaths";
+} from "@/src/features/events";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationType } from "@langfuse/shared";
 import {
@@ -26,6 +27,11 @@ type DetailHeaderActionsMenuControllerProps = {
   idItems: IdItem[];
   observationType?: ObservationType;
   projectId: string;
+  observation?: {
+    id: string;
+    traceId: string;
+    startTime: Date;
+  };
   spanName?: string;
   webCallout?: {
     traceId: string | null;
@@ -34,6 +40,32 @@ type DetailHeaderActionsMenuControllerProps = {
   };
   children: ComponentProps<typeof DropdownMenuController>["children"];
 };
+
+function buildObservationClickHouseQuery(
+  projectId: string,
+  observation: NonNullable<
+    DetailHeaderActionsMenuControllerProps["observation"]
+  >,
+) {
+  const quote = (value: string) =>
+    `'${value.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
+  const minute = observation.startTime
+    .toISOString()
+    .slice(0, 16)
+    .replace("T", " ");
+
+  // Match the events_full primary-key prefix, without requiring microsecond
+  // precision from the browser's Date. The query runs in the admin's SQL client.
+  return `SELECT *
+FROM events_full
+WHERE project_id = ${quote(projectId)}
+  AND toStartOfMinute(start_time) = toDateTime('${minute}:00', 'UTC')
+  AND xxHash32(trace_id) = xxHash32(${quote(observation.traceId)})
+  AND trace_id = ${quote(observation.traceId)}
+  AND span_id = ${quote(observation.id)}
+ORDER BY event_ts DESC
+LIMIT 1;`;
+}
 
 function WebCalloutActionController({
   projectId,
@@ -61,12 +93,19 @@ export function DetailHeaderActionsMenuController({
   idItems,
   observationType,
   projectId,
+  observation,
   spanName,
   webCallout,
   children,
 }: DetailHeaderActionsMenuControllerProps) {
   const router = useRouter();
+  const session = useSession();
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const clickHouseQuery =
+    session.data?.user?.admin === true && observation
+      ? buildObservationClickHouseQuery(projectId, observation)
+      : null;
 
   const handleCopy = (textToCopy: string) => {
     copyTextToClipboard(textToCopy);
@@ -156,6 +195,19 @@ export function DetailHeaderActionsMenuController({
               </span>
             </DropdownMenuItem>
           ))}
+          {clickHouseQuery && (
+            <DropdownMenuItem
+              className="text-xs"
+              onSelect={() => handleCopy(clickHouseQuery)}
+            >
+              {copiedId === clickHouseQuery ? (
+                <CheckIcon className="text-muted-green mr-2 h-4 w-4" />
+              ) : (
+                <CopyIcon className="mr-2 h-4 w-4" />
+              )}
+              Copy ClickHouse query
+            </DropdownMenuItem>
+          )}
         </>
       )}
     >

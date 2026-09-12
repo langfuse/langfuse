@@ -6,10 +6,6 @@ import {
   WINDOW_IDS_KEY,
 } from "./keys";
 
-/**
- * Retrieves the list of window IDs from sessionStorage.
- * @returns An array of window IDs.
- */
 export const getWindowIds = (): string[] | null => {
   const saved = sessionStorage.getItem(WINDOW_IDS_KEY);
   if (saved) {
@@ -26,20 +22,11 @@ export const getWindowIds = (): string[] | null => {
   return null;
 };
 
-/**
- * Saves the list of window IDs to sessionStorage.
- * @param ids - The array of window IDs to save.
- */
 export const saveWindowIds = (ids: string[]): void => {
   sessionStorage.setItem(WINDOW_IDS_KEY, JSON.stringify(ids));
 };
 
-/**
- * Retrieves the cached state for a specific window.
- * @param windowId - The ID of the window.
- * @returns The cached state or null if not found.
- */
-const getWindowState = (windowId: string): PlaygroundCache | null => {
+export const getWindowState = (windowId: string): PlaygroundCache | null => {
   const key = getCacheKey(windowId);
   const cachedState = sessionStorage.getItem(key);
   if (!cachedState) return null;
@@ -52,11 +39,18 @@ const getWindowState = (windowId: string): PlaygroundCache | null => {
   }
 };
 
-/**
- * Clones the entire state (cache and model params) from a source window to a target window.
- * @param sourceWindowId - The ID of the window to copy from.
- * @param targetWindowId - The ID of the window to copy to.
- */
+export const setWindowState = (
+  windowId: string,
+  cache: PlaygroundCache,
+): void => {
+  const key = getCacheKey(windowId);
+  if (cache === null) {
+    sessionStorage.removeItem(key);
+    return;
+  }
+  sessionStorage.setItem(key, JSON.stringify(cache));
+};
+
 export const cloneWindowState = (
   sourceWindowId: string,
   targetWindowId: string,
@@ -95,19 +89,12 @@ export const cloneWindowState = (
   }
 };
 
-/**
- * Removes all storage associated with a single window.
- * @param windowId - The ID of the window to remove.
- */
 export const removeWindowState = (windowId: string): void => {
   sessionStorage.removeItem(getCacheKey(windowId));
   sessionStorage.removeItem(getModelNameKey(windowId));
   sessionStorage.removeItem(getModelProviderKey(windowId));
 };
 
-/**
- * Clears all playground-related data from storage.
- */
 export const clearAllPlaygroundData = (): void => {
   const sessionKeysToRemove: string[] = [];
   for (let i = 0; i < sessionStorage.length; i++) {

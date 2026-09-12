@@ -2,8 +2,8 @@ import { format } from "date-fns";
 import {
   OUTLIER_STRIP_STEP_LADDER_SECONDS,
   outlierStripResultColumn,
-} from "@/src/features/events/components/outlier-strip/lib/binning";
-import { parseChartTimestamp } from "@/src/features/widgets/chart-library/prepareTimeAxis";
+} from "@/src/features/events";
+import { parseChartTimestamp } from "@/src/features/widgets";
 import { SCORE_OUTLIER_STRIP_METRICS } from "@/src/features/scores-chart-view/constants/scoreOutlierStripMetrics";
 import {
   type ScoreOutlierBin,

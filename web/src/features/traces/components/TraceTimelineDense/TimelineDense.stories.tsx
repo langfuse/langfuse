@@ -656,6 +656,57 @@ export const HoverPeeksTheNames = meta.story({
   },
 });
 
+/**
+ * The peek is a navigation surface, not a caption. Clicking a name selects
+ * the observation the same way clicking the bar does.
+ */
+export const PeekRowClickSelects = meta.story({
+  name: "(Test) Peek Row Click Selects",
+  args: {
+    roots: manySpans(40),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement, args }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    const rect = surface.getBoundingClientRect();
+    surface.dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true,
+        pointerType: "mouse",
+        clientX: rect.left + 4,
+        clientY: rect.top + 120,
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        canvasElement.querySelector('[data-testid="timeline-dense-peek-row"]'),
+      ).not.toBeNull(),
+    );
+
+    const peekRow = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-peek-row"]',
+    );
+    if (!peekRow) throw new Error("expected a peek row to click");
+    peekRow.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, detail: 1 }),
+    );
+
+    await expect(args.onSelect).toHaveBeenCalledTimes(1);
+    await expect(args.onSelect).toHaveBeenCalledWith(expect.any(String));
+  },
+});
+
 export const DoubleClickFocusesBothAxes = meta.story({
   name: "(Test) Double Click Focuses Both Axes",
   args: {

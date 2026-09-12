@@ -4,7 +4,7 @@ import {
   EvalTargetObject,
   LangfuseInternalTraceEnvironment,
 } from "@langfuse/shared";
-import { resolveCheckboxOperator } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { resolveCheckboxOperator } from "@/src/features/filters";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import {
   DEFAULT_OBSERVATION_FILTER,

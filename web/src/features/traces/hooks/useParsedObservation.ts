@@ -14,8 +14,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useEffect } from "react";
 import { api, sendAsPostOption } from "@/src/utils/api";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
-import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
+import { useReadPath } from "@/src/features/events";
+import type { EventBatchIOOutput } from "@/src/features/events/server";
 import {
   type ObservationReturnTypeWithMetadata,
   type ObservationReturnType,

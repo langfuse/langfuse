@@ -130,7 +130,7 @@ import {
   toSfdcPlan,
   type SfdcLeadSource,
 } from "@/src/ee/features/sfdc-sync/server";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import { parseDbOrg } from "@langfuse/shared";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";

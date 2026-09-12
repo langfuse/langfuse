@@ -1,0 +1,15 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "dev": {
+      "dependsOn": [],
+      "cache": false,
+      "persistent": true,
+      "interruptible": true
+    },
+    "build": { "dependsOn": [], "cache": false, "outputs": [] },
+    "typecheck": { "dependsOn": [], "cache": false, "outputs": [] },
+    "lint": { "dependsOn": [], "cache": false, "outputs": [] },
+    "test": { "dependsOn": [], "cache": false, "outputs": [] }
+  }
+}

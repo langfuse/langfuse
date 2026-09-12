@@ -8,11 +8,11 @@ import {
   type ApiAccessScope,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
-import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
+import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { ApiAuthService } from "@/src/features/public-api/server";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
 
 export async function handleUpdateProject(
@@ -120,6 +120,20 @@ export async function handleDeleteProject(
   scope: ApiAccessScope,
 ) {
   try {
+    const gatewayConfig = await prisma.gatewayConfig.findFirst({
+      where: {
+        organizationId: scope.orgId,
+        defaultIngestionProjectId: projectId,
+      },
+      select: { organizationId: true },
+    });
+    if (gatewayConfig) {
+      return res.status(409).json({
+        message:
+          "This project is used as the AI Gateway ingestion project. Select another ingestion project before deleting it.",
+      });
+    }
+
     // API keys need to be deleted from cache. Otherwise, they will still be valid.
     await new ApiAuthService(prisma, redis).invalidateCachedProjectApiKeys(
       projectId,

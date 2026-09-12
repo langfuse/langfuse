@@ -34,6 +34,7 @@ describe("credentials.resetPassword", () => {
     const { caller, userId, email } = await createPasswordUser();
     const token = uniqueOtp();
     await insertOtp({ email, token });
+    const beforeReset = new Date();
 
     await caller.credentials.resetPassword({
       email,
@@ -42,6 +43,13 @@ describe("credentials.resetPassword", () => {
     });
 
     await expectPassword(userId, NEW_PASSWORD);
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { sessionsExpiredAt: true },
+    });
+    expect(user.sessionsExpiredAt?.getTime()).toBeGreaterThanOrEqual(
+      beforeReset.getTime(),
+    );
     await expect(
       caller.credentials.resetPassword({
         email,

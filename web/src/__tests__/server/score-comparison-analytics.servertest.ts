@@ -1,5 +1,6 @@
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
+import { createScoreAnalyticsRouter } from "@/src/features/score-analytics/server/scoreAnalyticsRouter";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
@@ -58,6 +59,11 @@ describe("Score Comparison Analytics tRPC", () => {
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
+  const samplingCaller = createScoreAnalyticsRouter({
+    adaptiveFinalThreshold: 1_000,
+    samplingThreshold: 1_000,
+    targetSampleSize: 1_000,
+  }).createCaller({ ...ctx, prisma });
   type ScoreComparisonAnalyticsInput = Parameters<
     typeof caller.scoreAnalytics.getScoreComparisonAnalytics
   >[0];
@@ -459,7 +465,7 @@ describe("Score Comparison Analytics tRPC", () => {
       const { fromTimestamp, toTimestamp } = createOneHourWindow();
       const scoreName1 = `test-large-score1-${v4()}`;
       const scoreName2 = `test-large-score2-${v4()}`;
-      const totalRows = 120_000;
+      const totalRows = 5_000;
 
       await insertLargeTraceLevelScorePairs({
         totalRows,
@@ -467,7 +473,7 @@ describe("Score Comparison Analytics tRPC", () => {
         scoreName2,
       });
 
-      const result = await getScoreComparisonAnalyticsWithPreflight({
+      const result = await samplingCaller.getScoreComparisonAnalytics({
         projectId,
         score1: {
           name: scoreName1,
@@ -488,13 +494,13 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(result.counts).toBeDefined();
       expect(
         result.samplingMetadata.preflightEstimates?.score1Count,
-      ).toBeGreaterThan(100_000);
+      ).toBeGreaterThan(1_000);
       expect(
         result.samplingMetadata.preflightEstimates?.score2Count,
-      ).toBeGreaterThan(100_000);
+      ).toBeGreaterThan(1_000);
       expect(
         result.samplingMetadata.preflightEstimates?.estimatedMatchedCount,
-      ).toBeGreaterThan(100_000);
+      ).toBeGreaterThan(1_000);
 
       expect(result.samplingMetadata.adaptiveFinal?.usedFinal).toBe(false);
       expect(result.samplingMetadata.adaptiveFinal?.reason).toContain(
@@ -508,7 +514,7 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(result.samplingMetadata.samplingExpression).toContain(
         "cityHash64",
       );
-      expect(result.samplingMetadata.actualSampleSize).toBeGreaterThan(80_000);
+      expect(result.samplingMetadata.actualSampleSize).toBeGreaterThan(500);
       expect(result.samplingMetadata.actualSampleSize).toBeLessThan(totalRows);
 
       expect(result.counts.score1Total).toBe(result.counts.score2Total);
@@ -524,8 +530,8 @@ describe("Score Comparison Analytics tRPC", () => {
     it("should return perfect correlation for identical scores with sampling", async () => {
       const { fromTimestamp, toTimestamp } = createOneHourWindow();
       const scoreName = `test-identical-${v4()}`;
-      const totalRows = 20_000;
-      const forcedEstimateResults = buildEstimateResults(120_000);
+      const totalRows = 2_000;
+      const forcedEstimateResults = buildEstimateResults(1_200);
 
       await insertLargeIdenticalTraceLevelScores({
         totalRows,
@@ -533,7 +539,7 @@ describe("Score Comparison Analytics tRPC", () => {
       });
 
       // Compare score to itself
-      const result = await getScoreComparisonAnalytics({
+      const result = await samplingCaller.getScoreComparisonAnalytics({
         projectId,
         score1: {
           name: scoreName,
@@ -558,7 +564,7 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(result.counts.score1Total).toBe(result.counts.score2Total);
       expect(result.counts.matchedCount).toBe(result.counts.score1Total);
       expect(result.counts.matchedCount).toBe(result.counts.score2Total);
-      expect(result.counts.matchedCount).toBeGreaterThan(10_000);
+      expect(result.counts.matchedCount).toBeGreaterThan(1_000);
       expect(result.counts.matchedCount).toBeLessThan(totalRows);
 
       const offDiagonalPoints = result.heatmap.filter(

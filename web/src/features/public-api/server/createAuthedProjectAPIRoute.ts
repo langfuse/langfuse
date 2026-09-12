@@ -1,6 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodType, type z } from "zod";
 import {
+  type ApiAccessScopeWithOptionalApiKeyId,
   type AuthHeaderValidVerificationResult,
   traceException,
   logger,
@@ -44,6 +45,7 @@ import {
   type ProjectAction,
 } from "@/src/features/auth/policy/types";
 import { prisma } from "@langfuse/shared/src/db";
+import { verifyGatewayIngestionAuthorization } from "@/src/features/ai-gateway/server";
 
 // Next's res.json uses JSON.stringify; V8 throws this when the JSON string
 // exceeds the engine limit. Keep this check scoped to the response write.
@@ -94,6 +96,11 @@ export type AuthedProjectAPIRouteConfig<
    */
   allowInAppAgentKey?: boolean;
   /**
+   * Accept a short-lived gateway ingestion JWT in addition to normal project
+   * credentials. This must only be enabled on gateway ingestion boundaries.
+   */
+  allowGatewayIngestionToken?: boolean;
+  /**
    * When true, this route returns 404 if LANGFUSE_MIGRATION_V4_WRITE_MODE is
    * "events_only". Set this on routes that read from the legacy traces,
    * observations, or dataset_run_items ClickHouse tables without an
@@ -118,6 +125,14 @@ export type AuthedProjectAPIRouteConfig<
 export async function verifyAuth(
   params: VerifyAuthParams,
 ): Promise<VerifyAuthResult> {
+  if (params.allowGatewayIngestionToken) {
+    const gatewayAuth = await verifyGatewayIngestionAuthorization(
+      params.req.headers.authorization,
+      params.req.headers["langfuse-gateway-authorization"],
+    );
+    if (gatewayAuth) return gatewayAuth;
+  }
+
   // enforce mode runs only the new pipeline, which is the sole authority.
   if (env.API_AUTH_MIGRATION === "enforce") {
     const authz = await runNewAuth(params);
@@ -268,11 +283,16 @@ export type VerifyAuthParams = {
   isAdminApiKeyAuthAllowed?: boolean;
   allowedAccessLevels?: RouteAccessLevel[];
   allowInAppAgentKey?: boolean;
+  allowGatewayIngestionToken?: boolean;
 };
 
 /** VerifyAuthResult is the verified project scope the route handler receives. */
-type VerifyAuthResult = AuthHeaderValidVerificationResult & {
-  scope: { projectId: string; accessLevel: RouteAccessLevel };
+type VerifyAuthResult = {
+  validKey: true;
+  scope: ApiAccessScopeWithOptionalApiKeyId & {
+    projectId: string;
+    accessLevel: RouteAccessLevel;
+  };
 };
 
 /** ApiKeyPrincipal is the api-key variant of `Principal` the mapper consumes. */
@@ -316,9 +336,7 @@ export const createAuthedProjectAPIRoute = <
       return;
     }
 
-    let auth: AuthHeaderValidVerificationResult & {
-      scope: { projectId: string; accessLevel: RouteAccessLevel };
-    };
+    let auth: VerifyAuthResult;
 
     // Verify authentication (API key or admin API key)
     try {
@@ -329,6 +347,8 @@ export const createAuthedProjectAPIRoute = <
         isAdminApiKeyAuthAllowed: routeConfig.isAdminApiKeyAuthAllowed || false,
         allowedAccessLevels: routeConfig.allowedAccessLevels || ["project"],
         allowInAppAgentKey: routeConfig.allowInAppAgentKey === true,
+        allowGatewayIngestionToken:
+          routeConfig.allowGatewayIngestionToken === true,
       });
     } catch (error: any) {
       if (isPrismaException(error)) {

@@ -27,6 +27,10 @@ const STORY_TITLE_GROUPS: StoryTitleGroup[] = [
     titlePrefix: "Design/Components/Table/Cells",
   },
   {
+    directory: "src/features/ai-gateway/components",
+    titlePrefix: "Features/AI Gateway",
+  },
+  {
     directory: "src/features/evals/v2/components",
     titlePrefix: "Features/Evaluations",
   },

@@ -10,7 +10,7 @@ import {
 } from "@langfuse/shared";
 import {
   recordIncrement,
-  type ApiAccessScope,
+  type ApiAccessScopeWithOptionalApiKeyId,
   logger,
   createNewRedisInstance,
   redisQueueRetryOptions,
@@ -78,7 +78,7 @@ export class RateLimitService {
   }
 
   async rateLimitRequest(
-    scope: ApiAccessScope,
+    scope: ApiAccessScopeWithOptionalApiKeyId,
     resource: z.infer<typeof RateLimitResource>,
   ) {
     // if cloud config is not present, we don't apply rate limits and just return
@@ -99,7 +99,7 @@ export class RateLimitService {
   }
 
   async checkRateLimit(
-    scope: ApiAccessScope,
+    scope: ApiAccessScopeWithOptionalApiKeyId,
     resource: z.infer<typeof RateLimitResource>,
   ) {
     const effectiveConfig = getRateLimitConfig(scope, resource);
@@ -233,7 +233,7 @@ export const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
 };
 
 const getRateLimitConfig = (
-  scope: ApiAccessScope,
+  scope: ApiAccessScopeWithOptionalApiKeyId,
   resource: z.infer<typeof RateLimitResource>,
 ) => {
   const planBasedConfig = getPlanBasedRateLimitConfig(scope.plan, resource);

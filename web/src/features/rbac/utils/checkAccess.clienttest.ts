@@ -72,6 +72,20 @@ describe("RBAC access checks", () => {
     ).toBe(true);
   });
 
+  it("allows organization members to invoke the gateway", () => {
+    for (const role of ["OWNER", "ADMIN", "MEMBER"] as const) {
+      expect(hasOrganizationAccess({ role, scope: "gateway:invoke" })).toBe(
+        true,
+      );
+    }
+
+    for (const role of ["VIEWER", "NONE"] as const) {
+      expect(hasOrganizationAccess({ role, scope: "gateway:invoke" })).toBe(
+        false,
+      );
+    }
+  });
+
   it("allows members to manage llm tools", () => {
     expect(
       hasProjectAccess({

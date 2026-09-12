@@ -262,7 +262,11 @@ export function AuthenticatedLayout({
           <SidebarProvider>
             <div className="flex h-dvh w-full flex-col">
               <PaymentBanner />
-              <PreviewDeploymentBanner />
+              {env.NEXT_PUBLIC_PREVIEW_PR_URL && (
+                <PreviewDeploymentBanner
+                  prUrl={env.NEXT_PUBLIC_PREVIEW_PR_URL}
+                />
+              )}
               {versionUpdatePrompt.isVisible && (
                 <VersionUpdateBanner
                   onReload={versionUpdatePrompt.reload}

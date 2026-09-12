@@ -259,46 +259,17 @@ export type FilterStateToQueryResult = {
 export type FilterStateToQueryOptions = {
   /** Global full-text query — rendered as bare text or a scoped field token. */
   searchQuery?: string | null;
-  /** Search scope — a residual input/output searchType renders as input:/output:;
-   *  the default (`["id","content"]` and any id/content subset) renders as bare
-   *  free text. */
+  /** Exact backend search lanes, projected through the host's registry. */
   searchType?: TracingSearchType[] | null;
 };
 
-// The default full-text scope searches ids, names, input, and output — the
-// `id` and `content` searchType lanes together. There is no scope token for it
-// (the `content:` token was removed), so it renders as bare free text.
-// astToFilterState returns `null` searchType for the bar (no scope tokens); the
-// sync layer maps that back to this default, hence `["id","content"]` (and any
-// subset) must also be recognized as "default" so it round-trips to bare text
-// rather than a stray scope token.
-const DEFAULT_SEARCH_TYPES: ReadonlySet<TracingSearchType> = new Set([
-  "id",
-  "content",
-]);
-
-function isDefaultSearchType(
-  searchType: TracingSearchType[] | null | undefined,
+function sameSearchTypes(
+  a: readonly TracingSearchType[],
+  b: readonly TracingSearchType[],
 ): boolean {
   return (
-    searchType == null ||
-    searchType.length === 0 ||
-    searchType.every((t) => DEFAULT_SEARCH_TYPES.has(t))
+    new Set(a).size === new Set(b).size && a.every((type) => b.includes(type))
   );
-}
-
-// The bar field that expresses a non-default search scope. input/output alone
-// (e.g. from a pre-existing URL or the legacy toolbar) render as their real
-// text columns, which reparse to column filters — the intended convergence.
-// The default (ids+names+input+output) and id/content combos → null (bare text).
-function scopedSearchField(
-  searchType: TracingSearchType[] | null | undefined,
-): "input" | "output" | null {
-  if (isDefaultSearchType(searchType)) return null;
-  const set = new Set(searchType ?? []);
-  if (set.has("input")) return "input";
-  if (set.has("output")) return "output";
-  return null;
 }
 
 export function filterStateToQueryText(
@@ -319,21 +290,18 @@ export function filterStateToQueryText(
     nodes.push(node);
   }
 
-  // Full-text search. The default scope (ids+names+input+output) has no scope
-  // token, so it renders as bare free text. A residual input/output searchType
-  // (from a pre-existing URL or the legacy toolbar) bundles the whole query into
-  // one `input:"…"`/`output:"…"` token, which reparses to its real column filter
-  // — so such a searchType normalizes to a column filter on the next commit (the
-  // deliberate canonicalization). The query is a single contiguous-substring
-  // phrase (ILIKE %query%), so it renders as ONE token — quoted iff it has
-  // whitespace via serializeValue. NOT whitespace-split: separate tokens would
-  // misleadingly read as independent AND terms, disagree with the scope-rewrite
-  // suggestions (which serialize the whole phrase), and strip a user's own
-  // quotes on every derive.
-  const searchQuery = options.searchQuery?.trim() ?? "";
-  if (searchQuery.length > 0) {
-    const scopeField = scopedSearchField(options.searchType);
-    if (scopeField !== null) {
+  // One backend phrase can target several columns. Preserve the exact scope
+  // set: a legacy additive scope cannot become a payload-only column filter.
+  const searchQuery = options.searchQuery ?? "";
+  if (searchQuery.trim().length > 0) {
+    const searchType = options.searchType?.length
+      ? options.searchType
+      : registry.defaultSearchType;
+    const isDefault = sameSearchTypes(searchType, registry.defaultSearchType);
+    const scopeField = Object.entries(registry.searchScopes).find(([, scope]) =>
+      sameSearchTypes(searchType, scope.searchType),
+    )?.[0];
+    if (!isDefault && scopeField !== undefined) {
       nodes.push({
         kind: "filter",
         key: scopeField,
@@ -341,6 +309,14 @@ export function filterStateToQueryText(
         values: [searchQuery],
       });
     } else {
+      if (!isDefault) {
+        nodes.push({
+          kind: "filter",
+          key: "in",
+          op: "=",
+          values: [...searchType],
+        });
+      }
       nodes.push({ kind: "text", value: searchQuery });
     }
   }

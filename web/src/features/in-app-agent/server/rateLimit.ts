@@ -8,7 +8,7 @@ import {
 } from "@langfuse/shared";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
 
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import { RateLimitService } from "@/src/features/public-api/server";
 
 type SessionUser = NonNullable<Session["user"]>;

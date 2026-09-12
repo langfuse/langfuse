@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared";
 
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
+import { normalizeSingleValueOptions } from "@/src/features/filters";
 
 /** metadataValueQueryOptions is the shared react-query config for each per-key metadata-value query. */
 const metadataValueQueryOptions = {

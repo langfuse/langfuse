@@ -25,7 +25,7 @@ import {
   getPublicDashboardWidget,
   listPublicDashboardWidgets,
   updatePublicDashboardWidget,
-} from "@/src/features/widgets/server/public-dashboard-widget-service";
+} from "@/src/features/widgets/server";
 import {
   addPublicDashboardPlacement,
   createPublicDashboard,

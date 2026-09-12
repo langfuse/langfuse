@@ -1,4 +1,4 @@
-import { DatasetForm } from "@/src/features/datasets/components/DatasetForm";
+import { DatasetForm } from "@/src/features/datasets";
 import type { DatasetCreateStepProps } from "./types";
 
 export function DatasetCreateStep(props: DatasetCreateStepProps) {

@@ -1049,7 +1049,7 @@ export const sessionRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        sessionId: z.string(),
+        sessionId: z.string().min(1),
         public: z.boolean(),
       }),
     )

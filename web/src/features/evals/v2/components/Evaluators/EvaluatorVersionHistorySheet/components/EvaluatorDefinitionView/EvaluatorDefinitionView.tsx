@@ -145,24 +145,26 @@ function LlmEvaluatorDefinitionView({
       <section className="flex min-w-0 flex-col gap-2">
         <Label>Prompt</Label>
         {promptMessages.map((message, index) => (
-          <div key={index} className="flex min-w-0 flex-col gap-1">
-            <Badge variant="outline" className="w-fit capitalize">
-              {message.role}
-            </Badge>
-            <PromptVariableEditor
-              value={message.content}
-              onChange={noop}
-              variableMappings={variableLabels}
-              readOnly
-              validateVariableMappings={false}
-              previewEnabled
-              preview={{
-                status: "ready",
-                fragments: [{ type: "text", text: message.content }],
-              }}
-              renderPreviewText={renderMediaAwareText}
-            />
-          </div>
+          <PromptVariableEditor
+            key={index}
+            value={message.content}
+            onChange={noop}
+            variableMappings={variableLabels}
+            readOnly
+            validateVariableMappings={false}
+            toolbarStart={
+              <span className="text-muted-foreground px-1.5 text-xs capitalize">
+                {message.role}
+              </span>
+            }
+            previewEnabled
+            preview={{
+              status: "ready",
+              fragments: [{ type: "text", text: message.content }],
+            }}
+            previewSurface="muted"
+            renderPreviewText={renderMediaAwareText}
+          />
         ))}
       </section>
       {variableMappings.state === "visible" ? (

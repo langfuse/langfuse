@@ -165,13 +165,12 @@ checklist is only the spine. Every run ends the same way: exactly one issue.
 - [ ] Update all memory files, including `charts/<week>.svg`, `issues.json`,
       and pruned `notes.md`.
 - [ ] Write the FULL report — both filled-in `mermaid` charts (Chart 1 and
-      Chart 2, never the bare template), tables, `## Outcome` section — to
-      the job summary, and use it as the issue body. Before calling
-      `create_issue`, confirm the message you're about to submit literally
-      contains two ` ```mermaid ` blocks ("Report and graph" — final gate).
-      This holds even when you skip a fresh analysis (reuse the latest
-      `history/*.json` numbers and say so); never file an issue with a
-      one-line body ("Report and graph").
+      Chart 2, never the bare template), tables, `## Outcome` section — as the
+      issue body. Before calling `create_issue`, confirm the message you're
+      about to submit literally contains two ` ```mermaid ` blocks ("Report
+      and graph" — final gate). This holds even when you skip a fresh analysis
+      (reuse the latest `history/*.json` numbers and say so); never file an
+      issue with a one-line body ("Report and graph").
 
 ## Extracting bulk data without bloating your own context
 
@@ -497,12 +496,11 @@ against `issues.json`:
 run ends with exactly one issue carrying it.** A quiet week, an early exit,
 or a decision to skip recomputing changes the Outcome section, never the
 report's presence or completeness, and never whether the issue gets filed.
-Write the full report to the GitHub job summary AND use it verbatim as the
-issue body. If you decided not to recompute (e.g. a manual re-trigger
-shortly after the previous analysis), you may fill individual days from the
-latest `history/*.json` and state that those days are reused — but reuse
-never shrinks the chart window (see below): days the history does not cover
-are computed fresh from the API in this run.
+Use the full report verbatim as the issue body. If you decided not to
+recompute (e.g. a manual re-trigger shortly after the previous analysis), you
+may fill individual days from the latest `history/*.json` and state that those
+days are reused — but reuse never shrinks the chart window (see below): days
+the history does not cover are computed fresh from the API in this run.
 
 The report always contains, in order:
 

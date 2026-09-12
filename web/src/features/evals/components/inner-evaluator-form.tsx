@@ -36,7 +36,7 @@ import {
 import { z } from "zod";
 import { useEffect, useMemo, useState, memo, Suspense, lazy } from "react";
 import { api } from "@/src/utils/api";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { InlineFilterBuilder } from "@/src/features/filters";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
 import { reportError } from "@/src/utils/reportError";
@@ -63,7 +63,10 @@ import {
 } from "@/src/utils/date-range-utils";
 import { type PartialConfig } from "@/src/features/evals/types";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
-import { EvalVersionCallout } from "@/src/features/evals/components/eval-version-callout";
+import {
+  EvalVersionCallout,
+  getEvalVersionCalloutContent,
+} from "@/src/features/evals/components/eval-version-callout";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   Dialog,
@@ -106,7 +109,7 @@ import {
 } from "@/src/features/evals/utils/evaluator-constants";
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
 import { VariableMappingCard } from "@/src/features/evals/components/variable-mapping-card";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import {
   isCodeEvalTemplate,
@@ -566,6 +569,10 @@ export const InnerEvaluatorForm = (props: {
   const previewTableVisible = !props.disabled && !props.hidePreviewTable;
   const previewAlreadyShowsSdkWarning =
     previewTableVisible && shouldShowEventsPreview;
+  const evalVersionCalloutContent = getEvalVersionCalloutContent(
+    watchedTarget,
+    props.evalCapabilities,
+  );
   const eventsPreviewFilterState = useMemo(
     () =>
       shouldShowExperimentEventsPreview
@@ -1002,11 +1009,9 @@ export const InnerEvaluatorForm = (props: {
             {!props.hideTargetSelection &&
               props.mode !== "edit" &&
               !props.disabled &&
-              !previewAlreadyShowsSdkWarning && (
-                <EvalVersionCallout
-                  targetObject={watchedTarget}
-                  evalCapabilities={props.evalCapabilities}
-                />
+              !previewAlreadyShowsSdkWarning &&
+              evalVersionCalloutContent && (
+                <EvalVersionCallout content={evalVersionCalloutContent} />
               )}
 
             {!props.hideAdvancedSettings &&
@@ -1358,9 +1363,12 @@ export const InnerEvaluatorForm = (props: {
         <CodeEvalTestRunCard
           projectId={props.projectId}
           evalTemplate={props.evalTemplate}
-          target={watchedTarget}
+          target={
+            isEventTarget(watchedTarget)
+              ? EvalTargetObject.EVENT
+              : EvalTargetObject.EXPERIMENT
+          }
           scoreName={watchedScoreName}
-          disabled={props.disabled}
           enableExecutionTracePeek={!props.existingEvaluator}
         />
       ) : isCodeEvalConfig ? null : (

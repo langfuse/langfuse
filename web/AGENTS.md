@@ -199,6 +199,10 @@ Sentry instrumentation skill first and decide whether it should capture at all
   `JobConfiguration` naming into the public contract.
 - Keep tests independent; in `src/__tests__/server/**`, prefer scoped cleanup or
   unique test data over global reset helpers.
+- Test teardown closes existing `globalThis.redis` and imports ClickHouse through
+  `@langfuse/shared/src/server/clickhouse`, not the full server barrel or relative
+  shared source paths. Suites own their private Redis clients; shared-context
+  workers skip per-file teardown.
 - Put pure server unit tests that do not need Postgres bootstrap under
   `src/__tests__/server/unit/**` so they skip the shared DB setup hook.
 - Server tests that drive the public REST API over HTTP need a web server on
@@ -237,6 +241,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - In-source tests: `pnpm --filter web run test:in-source <args>`
 - Client tests: `pnpm --filter web run test-client <args>`
 - E2E tests: `pnpm --filter web run test:e2e`
+- AI Gateway E2E tests against the local configured stack (also run in CI for AI Gateway changes): `pnpm --filter web run test:e2e:ai-gateway`
 - Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
 - Structure-RFC violation counts: `pnpm --filter web run structure:stats`

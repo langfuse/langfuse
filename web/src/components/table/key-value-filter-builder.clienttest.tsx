@@ -1,7 +1,72 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
+import type { FilterState } from "@langfuse/shared";
+import { applyKeyedFilterEntries } from "@/src/features/filters/lib/sidebar-filter-actions";
 import { KeyValueFilterBuilder } from "./key-value-filter-builder";
 
 const noop = () => {};
+
+function MetadataBuilderHarness() {
+  const [filters, setFilters] = useState<FilterState>([
+    {
+      column: "metadata",
+      type: "stringObject",
+      key: "region",
+      operator: "=",
+      value: "eu",
+    },
+    {
+      column: "metadata",
+      type: "stringObject",
+      key: "team",
+      operator: "=",
+      value: "core",
+    },
+  ]);
+
+  return (
+    <>
+      <KeyValueFilterBuilder
+        mode="string"
+        activeFilters={filters.flatMap((filter) =>
+          filter.type === "stringObject" &&
+          (filter.operator === "=" ||
+            filter.operator === "contains" ||
+            filter.operator === "does not contain")
+            ? [
+                {
+                  key: filter.key,
+                  operator: filter.operator,
+                  value: filter.value,
+                },
+              ]
+            : [],
+        )}
+        onChange={(entries) =>
+          setFilters((current) =>
+            applyKeyedFilterEntries(current, "metadata", {
+              kind: "stringObject",
+              entries,
+            }),
+          )
+        }
+      />
+      <button
+        onClick={() =>
+          setFilters((current) =>
+            current.filter(
+              (filter) => !("key" in filter && filter.key === "region"),
+            ),
+          )
+        }
+      >
+        Remove region externally
+      </button>
+      <button onClick={() => setFilters([])}>Clear externally</button>
+      <output data-testid="applied-filters">{JSON.stringify(filters)}</output>
+    </>
+  );
+}
 
 describe("KeyValueFilterBuilder", () => {
   beforeAll(() => {
@@ -65,9 +130,6 @@ describe("KeyValueFilterBuilder", () => {
     fireEvent.change(screen.getByPlaceholderText("Key"), {
       target: { value: "draft-key" },
     });
-    fireEvent.change(screen.getByPlaceholderText("Value"), {
-      target: { value: "draft-value" },
-    });
 
     rerender(
       <KeyValueFilterBuilder
@@ -77,6 +139,41 @@ describe("KeyValueFilterBuilder", () => {
       />,
     );
 
-    expect(screen.getByDisplayValue("draft-value")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("draft-key")).toBeInTheDocument();
+  });
+
+  it("adopts external removals without reviving removed rows or losing incomplete edits", () => {
+    render(<MetadataBuilderHarness />);
+    fireEvent.click(screen.getByText("Add filter"));
+    fireEvent.change(screen.getAllByPlaceholderText("Key")[2], {
+      target: { value: "draft-key" },
+    });
+
+    fireEvent.click(screen.getByText("Remove region externally"));
+    expect(screen.queryByDisplayValue("region")).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue("draft-key")).toBeInTheDocument();
+
+    const value = screen.getByDisplayValue("core");
+    value.focus();
+    fireEvent.change(value, { target: { value: "" } });
+    expect(screen.getByDisplayValue("team")).toBeInTheDocument();
+    expect(value).toHaveFocus();
+    fireEvent.change(value, { target: { value: "platform" } });
+    expect(value).toHaveFocus();
+    expect(
+      JSON.parse(screen.getByTestId("applied-filters").textContent!),
+    ).toEqual([
+      {
+        column: "metadata",
+        type: "stringObject",
+        key: "team",
+        operator: "=",
+        value: "platform",
+      },
+    ]);
+
+    fireEvent.click(screen.getByText("Clear externally"));
+    expect(screen.queryByDisplayValue("team")).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue("draft-key")).toBeInTheDocument();
   });
 });

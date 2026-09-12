@@ -1,6 +1,6 @@
 import useLocalStorage from "@/src/components/useLocalStorage";
 
-type ViewMode = "pretty" | "pretty-beta" | "json" | "json-beta";
+type ViewMode = "pretty" | "json" | "json-beta";
 
 /**
  * Hook for managing JSON Beta toggle state alongside view preference.
@@ -13,10 +13,6 @@ type ViewMode = "pretty" | "pretty-beta" | "json" | "json-beta";
 export function useJsonBetaToggle(
   currentView: ViewMode,
   setCurrentView: (view: ViewMode) => void,
-  /** Whether the pretty-beta tab is selectable here. A persisted
-   * "pretty-beta" preference clamps to "pretty" when it is not, so the
-   * highlighted tab always matches the parser that produced the content. */
-  prettyBetaAvailable = false,
 ) {
   // Migration: default to true if user had json-beta selected previously
   // TODO: Remove migration logic after 2025-01-26 (2 weeks) when user settings are migrated
@@ -26,18 +22,15 @@ export function useJsonBetaToggle(
       localStorage.getItem("jsonViewPreference") === '"json-beta"',
   );
 
-  // Derive UI tab selection (pretty, flag-gated pretty-beta, or json)
+  // Derive UI tab selection (pretty or json). A previously persisted
+  // "pretty-beta" preference falls back to the Formatted tab.
   const selectedViewTab =
-    currentView === "pretty-beta"
-      ? prettyBetaAvailable
-        ? ("pretty-beta" as const)
-        : ("pretty" as const)
-      : currentView === "pretty"
-        ? ("pretty" as const)
-        : ("json" as const);
+    currentView === "pretty" || (currentView as string) === "pretty-beta"
+      ? ("pretty" as const)
+      : ("json" as const);
 
   const handleViewTabChange = (tab: string) => {
-    if (tab === "pretty" || tab === "pretty-beta") {
+    if (tab === "pretty") {
       setCurrentView(tab);
     } else {
       // When switching to JSON, use beta preference

@@ -7,7 +7,7 @@ import {
   usePreviewData,
 } from "@/src/features/evals/hooks/usePreviewData";
 import { useEffect, useRef } from "react";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import { isTraceTargetOnV4 } from "@/src/features/evals/utils/typeHelpers";
 import {
   type EvalPreviewPointer,

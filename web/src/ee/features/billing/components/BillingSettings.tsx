@@ -3,7 +3,7 @@
 
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import Header from "@/src/components/layouts/header";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements";
 import { useRouter } from "next/router";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 

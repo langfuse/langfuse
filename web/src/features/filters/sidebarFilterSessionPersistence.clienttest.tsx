@@ -1,8 +1,17 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { type FilterState, encodeFiltersGeneric } from "@langfuse/shared";
 import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
 import { omitFilterFacets, type FilterConfig } from "./lib/filter-config";
 import { buildSidebarFilterQueryStorageKey } from "./lib/persistedSidebarFilterQuery";
+import { getScoreFilterConfig } from "./config/scores-config";
+import { getFacetSummary } from "./lib/facet-display";
 
 const queryParamStore = new Map<string, unknown>();
 // Values placed here are NOT visible on the first render; they are applied on
@@ -94,6 +103,102 @@ const TEST_FILTER_CONFIG: FilterConfig = {
 const TEST_OPTIONS = {
   name: ["checkout", "search"],
 };
+
+describe("numeric conditions restored from the URL", () => {
+  it("keeps strict bounds visible and removes only the selected condition", () => {
+    const filters: FilterState = [
+      { column: "value", type: "number", operator: ">", value: 0.2 },
+      { column: "value", type: "number", operator: "<", value: 0.8 },
+      {
+        column: "source",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["API"],
+      },
+    ];
+    queryParamStore.clear();
+    deferredQueryParams.clear();
+    queryParamStore.set("filter", encodeFiltersGeneric(filters));
+    const { result } = renderHook(() =>
+      useSidebarFilterState(
+        getScoreFilterConfig(),
+        {},
+        { stateLocation: "url" },
+      ),
+    );
+    const facet = result.current.filters.find(
+      (filter) => filter.type === "numeric",
+    );
+    if (!facet || facet.type !== "numeric")
+      throw new Error("numeric facet missing");
+
+    expect(getFacetSummary(facet)).toBe("> 0.2 · < 0.8");
+    expect(facet.value).toBeNull();
+    act(() => facet.onRemoveCondition(0));
+    expect(result.current.explicitFilterState).toEqual(filters.slice(1));
+  });
+
+  it.each<{
+    conditions: Extract<FilterState[number], { type: "number" }>[];
+    range: [number, number] | null;
+    summary: string;
+  }>([
+    {
+      conditions: [
+        { column: "value", type: "number", operator: "=", value: 0.5 },
+      ],
+      range: null,
+      summary: "= 0.5",
+    },
+    {
+      conditions: [
+        { column: "value", type: "number", operator: ">=", value: 0.2 },
+        { column: "value", type: "number", operator: ">=", value: 0.4 },
+        { column: "value", type: "number", operator: "<=", value: 0.8 },
+      ],
+      range: null,
+      summary: ">= 0.2 · >= 0.4 · <= 0.8",
+    },
+    {
+      conditions: [
+        { column: "value", type: "number", operator: "<=", value: 0.8 },
+      ],
+      range: null,
+      summary: "<= 0.8",
+    },
+    {
+      conditions: [
+        { column: "value", type: "number", operator: ">=", value: 0.2 },
+        { column: "value", type: "number", operator: "<=", value: 0.8 },
+      ],
+      range: [0.2, 0.8],
+      summary: "0.2–0.8",
+    },
+  ])(
+    "projects $summary without adding or collapsing bounds",
+    ({ conditions, range, summary }) => {
+      queryParamStore.clear();
+      deferredQueryParams.clear();
+      queryParamStore.set("filter", encodeFiltersGeneric(conditions));
+      const { result } = renderHook(() =>
+        useSidebarFilterState(
+          getScoreFilterConfig(),
+          {},
+          { stateLocation: "url" },
+        ),
+      );
+      const facet = result.current.filters.find(
+        (filter) => filter.type === "numeric",
+      );
+      if (!facet || facet.type !== "numeric")
+        throw new Error("numeric facet missing");
+
+      expect(getFacetSummary(facet)).toBe(summary);
+      expect(facet.value).toEqual(range);
+      expect(result.current.explicitFilterState).toEqual(conditions);
+    },
+  );
+});
 
 const FILTER_A: FilterState = [
   {

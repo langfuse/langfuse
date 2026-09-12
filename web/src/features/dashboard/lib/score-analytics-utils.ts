@@ -1,9 +1,6 @@
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import {
-  type CategoryCounts,
-  type ChartBin,
-} from "@/src/features/scores/types";
+import type { CategoryCounts, ChartBin } from "@/src/features/scores";
 import { type RouterOutputs } from "@/src/utils/api";
 
 export const RESOURCE_METRICS = [

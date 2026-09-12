@@ -14,6 +14,7 @@ import {
   type PersistedEvaluatorPromptMessages,
 } from "@langfuse/shared";
 import { z } from "zod";
+import { endOfDay, startOfDay, subMonths } from "date-fns";
 
 const EvaluatorMetadataSchema = z.object({
   name: z.string().trim().min(1),
@@ -144,6 +145,24 @@ export const ActivationCostEstimatesSchema = EvaluatorIdsSchema.extend({
   sampling: z.number().min(0).max(1),
   shouldRunMissingTest: z.boolean().optional().default(true),
   knownTestRunCostUsd: z.number().nonnegative().optional(),
+  timeRange: z
+    .object({
+      from: z.date(),
+      to: z.date(),
+    })
+    .refine(({ from, to }) => from <= to, {
+      message: "The start of the time range must be before its end.",
+      path: ["from"],
+    })
+    .refine(({ from }) => from >= startOfDay(subMonths(new Date(), 6)), {
+      message: "The time range cannot start more than six months ago.",
+      path: ["from"],
+    })
+    .refine(({ to }) => to <= endOfDay(new Date()), {
+      message: "The time range cannot end in the future.",
+      path: ["to"],
+    })
+    .optional(),
 }).refine(
   ({ evaluatorIds }) => new Set(evaluatorIds).size === evaluatorIds.length,
   { message: "Evaluator IDs must be unique", path: ["evaluatorIds"] },

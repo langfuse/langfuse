@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 /**
  * Model badge for ObservationDetailView
  * Handles linked models (with external link) and unlinked models (with create form)
@@ -15,13 +14,11 @@ export function ModelBadge({
   projectId,
   usageDetails,
 }: {
-  model: string | null;
+  model: string;
   internalModelId: string | null;
   projectId: string;
   usageDetails: Record<string, number> | undefined;
 }) {
-  if (!model) return null;
-
   // Linked model - show link to model settings
   if (internalModelId) {
     return (

@@ -3,7 +3,7 @@
  *
  * Provides:
  * - Search input for filtering observations (hidden in JSON view)
- * - Action buttons: expand/collapse all, copy JSON, download JSON
+ * - Action buttons: expand/collapse all, copy JSON
  * - Large Trace indicator for virtualized mode
  */
 
@@ -12,7 +12,6 @@ import {
   FoldVertical,
   UnfoldVertical,
   Copy,
-  Download,
   Check,
   IndentIncrease,
   Timer,
@@ -37,6 +36,8 @@ export interface LogViewToolbarProps {
   searchQuery: string;
   /** Callback when search query changes */
   onSearchChange: (query: string) => void;
+  /** Callback when the search input gains focus (analytics: once per focus) */
+  onSearchFocus?: () => void;
   /** Whether virtualization is active (for large traces) */
   isVirtualized?: boolean;
   /** Total number of observations (shown in Large Trace indicator) */
@@ -53,10 +54,8 @@ export interface LogViewToolbarProps {
   isCopyOrDownloadCacheOnly?: boolean;
   /** Callback to copy JSON */
   onCopyJson?: () => void;
-  /** Callback to download JSON */
-  onDownloadJson?: () => void;
-  /** Current view type (pretty/pretty-beta/json/json-beta) */
-  currentView?: "pretty" | "pretty-beta" | "json" | "json-beta";
+  /** Current view type (pretty/json/json-beta) */
+  currentView?: "pretty" | "json" | "json-beta";
   /** Whether indent visualization is enabled */
   indentEnabled?: boolean;
   /** Whether indent toggle is disabled (tree too deep) */
@@ -75,6 +74,7 @@ export interface LogViewToolbarProps {
 export const LogViewToolbar = memo(function LogViewToolbar({
   searchQuery,
   onSearchChange,
+  onSearchFocus,
   isVirtualized = true,
   observationCount,
   loadedObservationCount,
@@ -82,7 +82,6 @@ export const LogViewToolbar = memo(function LogViewToolbar({
   allRowsExpanded,
   onCopyJson,
   isCopyOrDownloadLoading = false,
-  onDownloadJson,
   isCopyOrDownloadCacheOnly = false,
   currentView = "pretty",
   indentEnabled = false,
@@ -141,6 +140,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
             className="h-7 border-0 focus:ring-0"
             value={searchQuery}
             onValueChange={onSearchChange}
+            onFocus={onSearchFocus}
           />
         </Command>
       )}
@@ -262,58 +262,6 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                     : isCopyOrDownloadCacheOnly
                       ? "Copy as JSON (cache only)"
                       : "Copy as JSON"}
-                </TooltipContent>
-              </Tooltip>
-            </HoverCardTrigger>
-            {isCopyOrDownloadCacheOnly && !isCopyOrDownloadLoading && (
-              <HoverCardContent className="w-64 text-sm" sideOffset={8}>
-                <p className="font-bold">Cache-only mode</p>
-                <p className="text-muted-foreground mt-1">
-                  For large traces, only expanded observations include full I/O
-                  data.
-                </p>
-                {loadedObservationCount !== undefined &&
-                  observationCount !== undefined && (
-                    <p className="text-muted-foreground mt-1.5">
-                      <span className="font-bold">
-                        {loadedObservationCount} of {observationCount}
-                      </span>{" "}
-                      observations loaded
-                    </p>
-                  )}
-              </HoverCardContent>
-            )}
-          </HoverCard>
-        )}
-
-        {/* Download JSON */}
-        {onDownloadJson && (
-          <HoverCard openDelay={200}>
-            <HoverCardTrigger asChild>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={
-                      isCopyOrDownloadLoading ? undefined : onDownloadJson
-                    }
-                    disabled={isCopyOrDownloadLoading}
-                  >
-                    {isCopyOrDownloadLoading ? (
-                      <Spinner size="xs" />
-                    ) : (
-                      <Download className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {isCopyOrDownloadLoading
-                    ? "Loading data..."
-                    : isCopyOrDownloadCacheOnly
-                      ? "Download as JSON (cache only)"
-                      : "Download as JSON"}
                 </TooltipContent>
               </Tooltip>
             </HoverCardTrigger>

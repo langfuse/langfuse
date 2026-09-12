@@ -3,6 +3,7 @@
 import { TRPCClientError } from "@trpc/client";
 import { vi } from "vitest";
 import {
+  EXPECTED_TRPC_BAD_REQUEST_PATHS,
   EXPECTED_TRPC_CONFLICT_PATHS,
   EXPECTED_TRPC_ERROR_CODES,
   captureBuildId,
@@ -491,6 +492,50 @@ describe("isExpectedTrpcClientError", () => {
     ).toBe(false);
   });
 
+  it("treats a rejected remote-experiment URL as expected", () => {
+    // triggerRemoteExperiment / upsertRemoteExperiment throw BAD_REQUEST
+    // only when validateWebhookURL rejects a user-configured URL (DNS
+    // lookup failed, private IP, …). The UI already toasts the message.
+    for (const path of EXPECTED_TRPC_BAD_REQUEST_PATHS) {
+      expect(
+        isExpectedTrpcClientError(
+          trpcServerError({
+            code: "BAD_REQUEST",
+            httpStatus: 400,
+            path,
+            message:
+              "Invalid remote run URL: DNS lookup failed for example.invalid",
+          }),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("does not treat BAD_REQUEST on other procedures as expected", () => {
+    // Negative fixture: a missing-projectId / invariant BAD_REQUEST is a
+    // client bug and must still reach Sentry. Widening the allowlist
+    // would hide those.
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "BAD_REQUEST",
+          httpStatus: 400,
+          path: "traces.byId",
+          message: "Invalid input, projectId is required",
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "INTERNAL_SERVER_ERROR",
+          httpStatus: 500,
+          path: EXPECTED_TRPC_BAD_REQUEST_PATHS[0],
+        }),
+      ),
+    ).toBe(false);
+  });
+
   it("suppresses Zod input validation (empty/too-short fields) as expected user input", () => {
     expect(
       isExpectedTrpcClientError(
@@ -531,15 +576,19 @@ describe("isExpectedTrpcClientError", () => {
   });
 
   it("does not treat a non-Zod BAD_REQUEST as validation", () => {
-    expect(
-      isTrpcZodValidationError(
-        trpcServerError({
-          code: "BAD_REQUEST",
-          httpStatus: 400,
-          message: "Invalid input, projectId is required",
-        }),
-      ),
-    ).toBe(false);
+    // Protected-project middleware throws this when `projectId` is missing.
+    // That is a client call-site bug (queries firing before pages-router
+    // params hydrate), not expected user input — keep capturing until the
+    // remaining unguarded pages gate on useReadyRouteParams.
+    const error = trpcServerError({
+      code: "BAD_REQUEST",
+      httpStatus: 400,
+      path: "datasets.runsByDatasetId",
+      message: "Invalid input, projectId is required",
+    });
+
+    expect(isTrpcZodValidationError(error)).toBe(false);
+    expect(isExpectedTrpcClientError(error)).toBe(false);
   });
 
   it("does not suppress an unrecognized tRPC code", () => {
@@ -664,6 +713,26 @@ describe("reportTrpcErrorWithoutToast", () => {
     warnSpy.mockRestore();
   });
 
+  it("suppresses a rejected remote-experiment URL (breadcrumb, no capture)", () => {
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "BAD_REQUEST",
+        httpStatus: 400,
+        path: EXPECTED_TRPC_BAD_REQUEST_PATHS[0],
+        message:
+          "Invalid remote run URL: DNS lookup failed for example.invalid",
+      }),
+      "experiments",
+    );
+
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
+    expect(addBreadcrumbMock.mock.calls[0]![0].data).toMatchObject({
+      code: "BAD_REQUEST",
+      path: "datasets.triggerRemoteExperiment",
+    });
+  });
+
   it("suppresses a stale in-app-agent tool approval (breadcrumb, no capture)", () => {
     reportTrpcErrorWithoutToast(
       trpcServerError({
@@ -761,6 +830,27 @@ describe("reportTrpcErrorWithoutToast", () => {
       area: "trpc",
       "trpc.code": "INTERNAL_SERVER_ERROR",
       "trpc.path": "projects.create",
+    });
+  });
+
+  it("still captures a 5xx on an allowlisted remote-experiment path", () => {
+    // Negative fixture: the BAD_REQUEST allowlist must not swallow a real
+    // server failure on the same procedure.
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "INTERNAL_SERVER_ERROR",
+        httpStatus: 500,
+        path: EXPECTED_TRPC_BAD_REQUEST_PATHS[0],
+      }),
+      "experiments",
+    );
+
+    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+    const [, options] = captureExceptionMock.mock.calls[0]!;
+    expect(options.tags).toMatchObject({
+      area: "trpc",
+      "trpc.code": "INTERNAL_SERVER_ERROR",
+      "trpc.path": "datasets.triggerRemoteExperiment",
     });
   });
 

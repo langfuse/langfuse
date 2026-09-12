@@ -1,6 +1,6 @@
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 
-import type { ObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import type { ObservedOptions } from "@/src/features/search-bar";
 import {
   INTERNAL_EVALUATION_ENVIRONMENTS,
   INTERNAL_EVALUATION_ENVIRONMENT_FILTERS,

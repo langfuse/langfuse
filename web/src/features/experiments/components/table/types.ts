@@ -187,6 +187,8 @@ export type ExperimentItemsTableProps = {
   hideControls?: boolean;
   /** Available experiments for filter targeting (baseline + comparisons) */
   availableExperiments?: ExperimentOption[];
+  /** Page-owned presentation controls in the table toolbar. */
+  toolbarSettings?: ReactNode;
 };
 
 /**

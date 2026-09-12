@@ -7,7 +7,7 @@ import {
   ListExperimentItemsBaseSchema,
   ListExperimentItemsInputSchema,
 } from "../schema";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 
 export const [listExperimentItemsTool, handleListExperimentItems] = defineTool({
   name: "listExperimentItems",

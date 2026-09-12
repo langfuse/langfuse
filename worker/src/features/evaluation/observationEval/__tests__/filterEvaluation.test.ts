@@ -1053,6 +1053,33 @@ describe("Filter Evaluation for Observation Evals", () => {
       expect(matched).toBe(true);
     });
 
+    it("should treat an empty parentObservationId as null", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        parent_span_id: "",
+      });
+
+      const isNullMatch = await testFilterMatch(observation, [
+        {
+          column: "parentObservationId",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+      ]);
+      const isNotNullMatch = await testFilterMatch(observation, [
+        {
+          column: "parentObservationId",
+          type: "null",
+          operator: "is not null",
+          value: "",
+        },
+      ]);
+
+      expect(isNullMatch).toBe(true);
+      expect(isNotNullMatch).toBe(false);
+    });
+
     it("should not match observations where parentObservationId is not null (child observations)", async () => {
       const observation = createTestObservation({
         project_id: projectId,

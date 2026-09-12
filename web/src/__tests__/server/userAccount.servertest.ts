@@ -1,4 +1,5 @@
 import type { Session } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import { randomUUID } from "crypto";
 
 import type { Plan } from "@langfuse/shared";
@@ -7,6 +8,8 @@ import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils";
+import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
+import { getAuthOptions } from "@/src/server/auth";
 
 describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -78,6 +81,51 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
         enabled: true,
       }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+});
+
+describe("userAccountRouter.signOutAllSessions", () => {
+  it("advances the user's session revocation timestamp", async () => {
+    const { caller, userId } = await createCaller();
+    const beforeRevocation = new Date();
+
+    await expect(caller.userAccount.signOutAllSessions()).resolves.toEqual({
+      success: true,
+    });
+
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { sessionsExpiredAt: true },
+    });
+    expect(user.sessionsExpiredAt?.getTime()).toBeGreaterThanOrEqual(
+      beforeRevocation.getTime(),
+    );
+  });
+
+  it("evicts an older session and admits a later one", async () => {
+    const { caller, email, session } = await createCaller();
+    const revokedLoginAt = (await getSessionLoginAt(email, prisma)).getTime();
+
+    await caller.userAccount.signOutAllSessions();
+
+    const sessionCallback = (await getAuthOptions()).callbacks
+      ?.session as (params: {
+      session: Session;
+      token: JWT;
+    }) => Promise<Session>;
+
+    const revoked = await sessionCallback({
+      session,
+      token: { email, loginAt: revokedLoginAt },
+    });
+    expect(revoked.user).toBeNull();
+
+    const reLoginAt = (await getSessionLoginAt(email, prisma)).getTime();
+    const admitted = await sessionCallback({
+      session,
+      token: { email, loginAt: reLoginAt },
+    });
+    expect(admitted.user).not.toBeNull();
   });
 });
 
@@ -180,6 +228,8 @@ async function createCaller({
     orgId,
     projectId,
     userId,
+    email: user.email!,
+    session,
     caller: appRouter.createCaller({ ...ctx, prisma }),
   };
 }
