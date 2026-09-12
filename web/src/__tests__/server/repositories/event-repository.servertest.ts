@@ -234,6 +234,27 @@ describe("Clickhouse Events Repository Test", () => {
       ]),
     );
     expect(rowCount).toBe(extraRowCount + 5);
+
+    // Batch membership affects only incidental coverage. Read alone, the first
+    // trace still covers its recorded interval plus the two-minute buffer, but
+    // no longer receives the row admitted only by the second trace's bounds.
+    let ownBufferedRowSeen = false;
+    let incidentalRowSeen = false;
+    for await (const event of getTraceBatchEventStream({
+      traces: [
+        {
+          projectId: batchProjectId,
+          traceId: firstTraceId,
+          minStart: start,
+          maxStart: start,
+        },
+      ],
+    })) {
+      if (event.span_id === first.span_id) ownBufferedRowSeen = true;
+      if (event.span_id === insideBatchWindow.span_id) incidentalRowSeen = true;
+    }
+    expect(ownBufferedRowSeen).toBe(true);
+    expect(incidentalRowSeen).toBe(false);
   }, 60_000);
 
   it("should kill redis connection", () => {
