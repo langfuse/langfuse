@@ -124,15 +124,15 @@ describe("trace batch selection", () => {
       "project-b",
       "other",
       2,
-      5 * minute,
-      15 * minute,
+      50 * minute,
+      55 * minute,
     );
     const sameProject = pendingTrace(
       "project-a",
       "later-same",
       3,
-      8 * minute,
-      18 * minute,
+      -6 * minute,
+      5 * minute,
     );
 
     expect(
