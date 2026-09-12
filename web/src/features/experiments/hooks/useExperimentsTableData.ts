@@ -37,6 +37,13 @@ type UseExperimentsTableDataParams = {
     page: number;
     limit: number;
   };
+  /**
+   * Hold the queries while a filter value still needs translating. A dataset
+   * NAME reaches the query as an id, so firing before the name -> id map lands
+   * would query a bogus id and show "No experiments" before flipping to the
+   * real rows.
+   */
+  enabled?: boolean;
   orderByState: {
     column: string;
     order: "ASC" | "DESC";
@@ -48,6 +55,7 @@ export function useExperimentsTableData({
   filterState,
   paginationState,
   orderByState,
+  enabled = true,
 }: UseExperimentsTableDataParams) {
   // Prepare query payloads
   const getCountPayload = useMemo(
@@ -78,15 +86,17 @@ export function useExperimentsTableData({
   // on a cold load and the rejected zod input surfaces as a "Bad Request" toast.
   const isProjectReady = Boolean(projectId);
 
+  const canQuery = isProjectReady && enabled;
+
   // Fetch experiments
   const experimentsQuery = api.experiments.all.useQuery(getAllPayload, {
-    enabled: isProjectReady,
+    enabled: canQuery,
     refetchOnWindowFocus: true,
   });
 
   // Fetch total count
   const totalCountQuery = api.experiments.countAll.useQuery(getCountPayload, {
-    enabled: isProjectReady,
+    enabled: canQuery,
     refetchOnWindowFocus: true,
   });
 
@@ -99,7 +109,7 @@ export function useExperimentsTableData({
   const mostRecentQuery = api.experiments.mostRecent.useQuery(
     { ...getCountPayload, limit: MOST_RECENT_FALLBACK_LIMIT },
     {
-      enabled: isProjectReady && isEmptyWindow,
+      enabled: canQuery && isEmptyWindow,
       refetchOnWindowFocus: false,
     },
   );
@@ -132,7 +142,7 @@ export function useExperimentsTableData({
 
   // Fetch metrics
   const metricsQuery = api.experiments.metrics.useQuery(metricsPayload!, {
-    enabled: isProjectReady && metricsPayload !== null,
+    enabled: canQuery && metricsPayload !== null,
     refetchOnWindowFocus: false,
     staleTime: 0,
   });
@@ -140,9 +150,9 @@ export function useExperimentsTableData({
   // Memoize joined data to prevent infinite re-renders
   // Handle loading, error, and success states
   const joinedData = useMemo(() => {
-    // A disabled query is neither loading nor errored, so keep the table in its
-    // loading state until the project id arrives instead of flashing "no rows".
-    if (!isProjectReady || experimentsQuery.isLoading) {
+    // A disabled query is neither loading nor errored, so stay in the loading
+    // state while the gate is shut instead of flashing "no rows".
+    if (!canQuery || experimentsQuery.isLoading) {
       return { status: "loading" as const, rows: undefined };
     }
 
@@ -161,7 +171,7 @@ export function useExperimentsTableData({
       metricsQuery.data,
     );
   }, [
-    isProjectReady,
+    canQuery,
     experimentsQuery.isLoading,
     experimentsQuery.isError,
     isEmptyWindow,

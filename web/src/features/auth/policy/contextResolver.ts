@@ -2,7 +2,7 @@ import { type ApiKey } from "@langfuse/shared/src/db";
 import { CloudConfigSchema, InternalServerError } from "@langfuse/shared";
 
 import { apiKeyAccessRights } from "@/src/features/rbac/constants/apiKeyAccessRights";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import {
   OrganizationRepository,
   type GetOrganizationResult,

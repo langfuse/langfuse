@@ -364,6 +364,8 @@ export class ClickHouseQueryBuilder {
         'API' AS source,
         'Generated synthetic score' AS comment,
         map() AS metadata,
+        '' AS evaluator_id,
+        '' AS evaluation_rule_id,
         NULL AS author_user_id,
         NULL AS config_id,
         case 

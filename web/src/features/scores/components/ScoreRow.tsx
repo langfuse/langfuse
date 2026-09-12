@@ -17,8 +17,7 @@ import {
 import { api } from "@/src/utils/api";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { type BaselineDiff } from "@/src/features/datasets/lib/calculateBaselineDiff";
-import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
+import { type BaselineDiff, DiffLabel } from "@/src/features/datasets";
 
 const resolveScoreValue = (aggregate: AggregatedScoreData): string => {
   if (aggregate.type === "NUMERIC") {
@@ -58,7 +57,9 @@ const ScoreValueSection = ({
       {aggregate ? (
         <>
           <span className="line-clamp-1 font-bold">
-            {resolveScoreValue(aggregate)}
+            {aggregate.type === "NUMERIC"
+              ? aggregate.average.toFixed(2)
+              : resolveScoreValue(aggregate)}
           </span>
           {diff && (
             <DiffLabel diff={diff} formatValue={(value) => value.toFixed(2)} />

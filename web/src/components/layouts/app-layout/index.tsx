@@ -68,10 +68,14 @@ export function AppLayout(props: PropsWithChildren) {
   )?.title;
   const metadata = useLayoutMetadata(activePathName, navigation.navigation);
 
-  // Handle auth guard actions (redirect or sign-out)
+  // Handle auth guard actions (redirect or sign-out). Depend on the action
+  // and URL primitives so a new result object every render does not re-fire
+  // router.replace.
+  const redirectUrl =
+    authGuard.action === "redirect" ? authGuard.url : undefined;
   useEffect(() => {
-    if (authGuard.action === "redirect") {
-      router.replace(authGuard.url);
+    if (authGuard.action === "redirect" && redirectUrl !== undefined) {
+      router.replace(redirectUrl);
     } else if (authGuard.action === "sign-out") {
       // Invalid JWT user: stay on this page (redirect: false) but still drop
       // the pageload v4 cache so a later hard load is not tagged as the
@@ -79,7 +83,7 @@ export function AppLayout(props: PropsWithChildren) {
       clearV4BetaEnabledSentryTag();
       signOut({ redirect: false });
     }
-  }, [authGuard, router]);
+  }, [authGuard.action, redirectUrl, router]);
 
   // Loading or redirecting state. Loading only applies to a cold load: once a
   // shell has rendered, a re-check keeps it instead of unmounting it.

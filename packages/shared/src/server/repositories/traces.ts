@@ -1385,6 +1385,7 @@ export const getTracesByIdsForAnyProject = async (traceIds: string[]) => {
     params: {
       traceIds,
     },
+    tags: { surface: "ssr", route: "trace_redirect" },
   });
 
   return records.map((record) => ({

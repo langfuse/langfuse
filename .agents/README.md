@@ -262,7 +262,7 @@ Use HTTP/OAuth where available so credentials remain outside the agent VM.
 | --- | --- | --- |
 | GitHub | Cursor GitHub App | Enabled for same-repo branches, draft PRs, CI, and preview status |
 | Langfuse Docs | Shared HTTP MCP | Enabled, read-only |
-| Linear | Shared OAuth MCP | Enabled; allow read/search tools only |
+| Linear | Shared OAuth MCP | Enabled; allow read/search tools only. Cursor Cloud cannot complete that OAuth prompt — maintainers add a personal `LINEAR_API_KEY` secret at https://cursor.com/dashboard/cloud-agents and start a new run. |
 | Datadog EU and US | Team Marketplace MCPs | Enabled; allow logs, metrics, traces, dashboards, and monitor reads only |
 | Metabase | Team Marketplace MCP | Enabled; allow metadata and query reads only |
 | Pylon | Team Marketplace MCP | Enabled; allow issue/thread/customer reads only |

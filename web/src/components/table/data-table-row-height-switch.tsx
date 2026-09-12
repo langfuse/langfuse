@@ -13,8 +13,7 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Rows3, Rows2, Rows4 } from "lucide-react";
 
-/** Exported so the merged "Table settings" popover offers the same options. */
-export const ROW_HEIGHT_OPTIONS = [
+const ROW_HEIGHT_OPTIONS = [
   { id: "s", label: "Small", icon: <Rows4 /> },
   { id: "m", label: "Medium", icon: <Rows3 /> },
   { id: "l", label: "Large", icon: <Rows2 /> },
