@@ -160,6 +160,14 @@ the same PR.
 
 ### Queue payload contract change
 
+The `TraceExecution` queue is a sampled, read-only OTel experiment. Its
+payload carries project/trace identity and the latest batch's maximum observation
+start time for the query's inclusive upper bound; its Redis
+minimum-start cache is expiring, not a durable trace-history index.
+The processor pads the retained minimum and queued maximum by two minutes.
+The repository's explicit `minStartTime` overrides its legacy timestamp lookback;
+callers that omit it retain the existing behavior.
+
 1. Update zod schemas/types in `src/server/queues.ts`.
 2. Update queue helpers in `src/server/redis/*` if queue names/payload
    handling changed.

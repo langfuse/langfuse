@@ -24,6 +24,12 @@ import { ProjectNotificationWebhookQueueEventSchema } from "./notifications/type
 
 export type { MonitorQueueEvent, MonitorQueueEventInput };
 
+export const TraceExecutionEventSchema = z.object({
+  projectId: z.string(),
+  traceId: z.string(),
+  lastSeenStartTime: z.number(),
+});
+
 export const IngestionEvent = z.object({
   data: z.object({
     type: z.enum(Object.values(eventTypes)),
@@ -404,6 +410,7 @@ export const RetryBaggage = z.object({
 export type RetryBaggage = z.infer<typeof RetryBaggage>;
 
 export enum QueueName {
+  TraceExecution = "trace-execution",
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   TraceDelete = "trace-delete",
   ProjectDelete = "project-delete",
@@ -446,6 +453,7 @@ export enum QueueName {
 }
 
 export enum QueueJobs {
+  TraceExecution = "trace-execution",
   TraceUpsert = "trace-upsert",
   TraceDelete = "trace-delete",
   ProjectDelete = "project-delete",
@@ -485,6 +493,12 @@ export enum QueueJobs {
 }
 
 export type TQueueJobTypes = {
+  [QueueName.TraceExecution]: {
+    timestamp: Date;
+    id: string;
+    payload: z.infer<typeof TraceExecutionEventSchema>;
+    name: QueueJobs.TraceExecution;
+  };
   [QueueName.TraceUpsert]: {
     timestamp: Date;
     id: string;
