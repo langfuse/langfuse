@@ -159,6 +159,68 @@ describe("trace batch selection", () => {
     );
   });
 
+  it("moves a batch boundary instead of bridging distant time ranges", () => {
+    const early = Array.from({ length: 59 }, (_, index) =>
+      pendingTrace("project", `early-${index}`, index, 0, minute),
+    );
+    const late = Array.from({ length: 60 }, (_, index) =>
+      pendingTrace(
+        "project",
+        `late-${index}`,
+        100 + index,
+        10_000 * minute,
+        10_001 * minute,
+      ),
+    );
+
+    const batches = selectTraceBatches([...late, ...early], 60, "locality");
+
+    expect(batches.map((batch) => batch.length)).toEqual([59, 60]);
+    expect(
+      batches[0].every(({ trace }) => trace.traceId.startsWith("early-")),
+    ).toBe(true);
+    expect(
+      batches[1].every(({ trace }) => trace.traceId.startsWith("late-")),
+    ).toBe(true);
+  });
+
+  it("avoids a cross-project fill when the same job count permits it", () => {
+    const projectA = Array.from({ length: 59 }, (_, index) =>
+      pendingTrace("project-a", `trace-${index}`, index, 0, minute),
+    );
+    const projectB = Array.from({ length: 60 }, (_, index) =>
+      pendingTrace("project-b", `trace-${index}`, 100 + index, 0, minute),
+    );
+
+    const batches = selectTraceBatches(
+      [...projectB, ...projectA],
+      60,
+      "locality",
+    );
+
+    expect(batches.map((batch) => batch.length)).toEqual([59, 60]);
+    expect(
+      batches.map(
+        (batch) => new Set(batch.map(({ trace }) => trace.projectId)).size,
+      ),
+    ).toEqual([1, 1]);
+  });
+
+  it("cuts at the largest trace-hash gap within one time range", () => {
+    const candidates = Array.from({ length: 5 }, (_, index) =>
+      pendingTrace("project", `trace-${index}`, index, 0, minute),
+    );
+
+    const batches = selectTraceBatches(candidates.toReversed(), 3, "locality");
+
+    expect(
+      batches.map((batch) => batch.map(({ trace }) => trace.traceId)),
+    ).toEqual([
+      ["trace-1", "trace-0"],
+      ["trace-4", "trace-2", "trace-3"],
+    ]);
+  });
+
   it("handles empty input, cap boundaries, and lossless chunked assignment", () => {
     expect(selectTraceBatches([], 3, "locality")).toEqual([]);
 
@@ -191,6 +253,7 @@ describe("trace batch selection", () => {
     expect(
       batches.every((batch) => batch.length > 0 && batch.length <= 60),
     ).toBe(true);
+    expect(batches).toHaveLength(43);
     expect(assigned).toHaveLength(candidates.length);
     expect(new Set(assigned)).toEqual(
       new Set(candidates.map(({ member }) => member)),
@@ -717,15 +780,18 @@ describe("trace micro-batch scheduling with Redis", () => {
     await runner().processBatch();
 
     const batches = add.mock.calls.map(([, job]) => job.payload.traces);
-    expect(batches.map((batch) => batch.length)).toEqual([
-      ...Array(33).fill(60),
-      21,
-    ]);
+    expect(batches.length).toBeGreaterThanOrEqual(
+      Math.ceil(traces.length / 60),
+    );
+    expect(batches.length).toBeLessThanOrEqual(2 * Math.ceil(1_000 / 60) + 1);
+    expect(
+      batches.every((batch) => batch.length > 0 && batch.length <= 60),
+    ).toBe(true);
     expect(
       batches.filter(
         (batch) => new Set(batch.map((trace) => trace.projectId)).size > 1,
       ),
-    ).toHaveLength(1);
+    ).toHaveLength(0);
     const dispatchedMembers = batches
       .flat()
       .map((trace) => member(trace.projectId, trace.traceId));
@@ -741,7 +807,7 @@ describe("trace micro-batch scheduling with Redis", () => {
         )
         .map(([, value]) => value),
     ).toEqual([0, 0, 0]);
-    expect(await queue.getWaitingCount()).toBe(34);
+    expect(await queue.getWaitingCount()).toBe(batches.length);
     expect(await client().zcard(dueKey)).toBe(0);
     expect(await client().hlen(stateKey)).toBe(0);
   });

@@ -41,31 +41,175 @@ const compareStrings = (left: string, right: string) =>
 
 const toMinuteBucket = (timestamp: number) => Math.floor(timestamp / MINUTE_MS);
 
-const compareByClickHouseLocality = (left: PendingTrace, right: PendingTrace) =>
-  compareStrings(left.trace.projectId, right.trace.projectId) ||
-  compareNumbers(
-    toMinuteBucket(left.trace.minStart),
-    toMinuteBucket(right.trace.minStart),
-  ) ||
-  compareNumbers(
-    toMinuteBucket(left.trace.maxStart),
-    toMinuteBucket(right.trace.maxStart),
-  ) ||
-  compareNumbers(xxh32(left.trace.traceId), xxh32(right.trace.traceId)) ||
-  compareStrings(left.trace.traceId, right.trace.traceId);
+type LocalityCandidate = {
+  entry: PendingTrace;
+  minMinute: number;
+  maxMinute: number;
+  traceHash: number;
+};
+
+type BatchSelectionCost = {
+  crossProjectBoundaries: number;
+  minuteHashCells: number;
+  traceHashGap: number;
+};
+
+const compareByClickHouseLocality = (
+  left: LocalityCandidate,
+  right: LocalityCandidate,
+) =>
+  compareStrings(left.entry.trace.projectId, right.entry.trace.projectId) ||
+  compareNumbers(left.minMinute, right.minMinute) ||
+  compareNumbers(left.maxMinute, right.maxMinute) ||
+  compareNumbers(left.traceHash, right.traceHash) ||
+  compareStrings(left.entry.trace.traceId, right.entry.trace.traceId);
+
+const compareBatchSelectionCost = (
+  left: BatchSelectionCost,
+  right: BatchSelectionCost,
+) =>
+  compareNumbers(left.crossProjectBoundaries, right.crossProjectBoundaries) ||
+  compareNumbers(left.minuteHashCells, right.minuteHashCells) ||
+  compareNumbers(left.traceHashGap, right.traceHashGap);
+
+const addBatchSelectionCost = (
+  left: BatchSelectionCost,
+  right: BatchSelectionCost,
+): BatchSelectionCost => ({
+  crossProjectBoundaries:
+    left.crossProjectBoundaries + right.crossProjectBoundaries,
+  minuteHashCells: left.minuteHashCells + right.minuteHashCells,
+  traceHashGap: left.traceHashGap + right.traceHashGap,
+});
+
+const ZERO_BATCH_SELECTION_COST: BatchSelectionCost = {
+  crossProjectBoundaries: 0,
+  minuteHashCells: 0,
+  traceHashGap: 0,
+};
+
+const selectLocalityBatches = (
+  candidates: readonly PendingTrace[],
+  maxBatchSize: number,
+): PendingTrace[][] => {
+  const sorted = candidates
+    .map(
+      (entry): LocalityCandidate => ({
+        entry,
+        minMinute: toMinuteBucket(entry.trace.minStart),
+        maxMinute: toMinuteBucket(entry.trace.maxStart),
+        traceHash: xxh32(entry.trace.traceId),
+      }),
+    )
+    .toSorted(compareByClickHouseLocality);
+  const candidateCount = sorted.length;
+  // Optimize boundaries without increasing the theoretical minimum job count.
+  const batchCount = Math.ceil(candidateCount / maxBatchSize);
+  const stride = Math.min(maxBatchSize, candidateCount) + 1;
+  const minuteHashCellCosts = new Float64Array(candidateCount * stride);
+  const projectBoundaryPrefix = new Uint32Array(candidateCount + 1);
+  const traceHashGapPrefix = new Float64Array(candidateCount + 1);
+
+  for (let index = 1; index < candidateCount; index++) {
+    const previous = sorted[index - 1];
+    const current = sorted[index];
+    const sameProject =
+      previous.entry.trace.projectId === current.entry.trace.projectId;
+    const sameTimeRange =
+      previous.minMinute === current.minMinute &&
+      previous.maxMinute === current.maxMinute;
+    projectBoundaryPrefix[index + 1] =
+      projectBoundaryPrefix[index] + (sameProject ? 0 : 1);
+    traceHashGapPrefix[index + 1] =
+      traceHashGapPrefix[index] +
+      (sameProject && sameTimeRange
+        ? current.traceHash - previous.traceHash
+        : 0);
+  }
+
+  for (let start = 0; start < candidateCount; start++) {
+    let minMinute = Number.POSITIVE_INFINITY;
+    let maxMinute = Number.NEGATIVE_INFINITY;
+    const maxLength = Math.min(maxBatchSize, candidateCount - start);
+    for (let length = 1; length <= maxLength; length++) {
+      const candidate = sorted[start + length - 1];
+      minMinute = Math.min(minMinute, candidate.minMinute);
+      maxMinute = Math.max(maxMinute, candidate.maxMinute);
+      // The shared time predicate applies every selected trace hash across the
+      // complete envelope, so minute × hash count approximates PK cells read.
+      minuteHashCellCosts[start * stride + length] =
+        (maxMinute - minMinute + 1) * length;
+    }
+  }
+
+  const predecessors = Array.from({ length: batchCount + 1 }, () =>
+    new Int32Array(candidateCount + 1).fill(-1),
+  );
+  let previousCosts: Array<BatchSelectionCost | null> = Array(
+    candidateCount + 1,
+  ).fill(null);
+  previousCosts[0] = ZERO_BATCH_SELECTION_COST;
+
+  // Find the cheapest path through all prefixes using exactly batchCount jobs.
+  for (let batchIndex = 1; batchIndex <= batchCount; batchIndex++) {
+    const currentCosts: Array<BatchSelectionCost | null> = Array(
+      candidateCount + 1,
+    ).fill(null);
+    const minEnd = batchIndex;
+    const maxEnd = Math.min(candidateCount, batchIndex * maxBatchSize);
+    for (let end = minEnd; end <= maxEnd; end++) {
+      const minStart = Math.max(batchIndex - 1, end - maxBatchSize);
+      for (let start = minStart; start < end; start++) {
+        const previousCost = previousCosts[start];
+        if (!previousCost) continue;
+        const length = end - start;
+        const batchCost: BatchSelectionCost = {
+          crossProjectBoundaries:
+            projectBoundaryPrefix[end] - projectBoundaryPrefix[start + 1],
+          minuteHashCells: minuteHashCellCosts[start * stride + length],
+          traceHashGap: traceHashGapPrefix[end] - traceHashGapPrefix[start + 1],
+        };
+        const candidateCost = addBatchSelectionCost(previousCost, batchCost);
+        const currentCost = currentCosts[end];
+        if (
+          !currentCost ||
+          compareBatchSelectionCost(candidateCost, currentCost) < 0
+        ) {
+          currentCosts[end] = candidateCost;
+          predecessors[batchIndex][end] = start;
+        }
+      }
+    }
+    previousCosts = currentCosts;
+  }
+
+  const batches = Array<PendingTrace[]>(batchCount);
+  let end = candidateCount;
+  for (let batchIndex = batchCount; batchIndex > 0; batchIndex--) {
+    const start = predecessors[batchIndex][end];
+    if (start < 0)
+      throw new Error("Unable to partition trace batch candidates");
+    batches[batchIndex - 1] = sorted
+      .slice(start, end)
+      .map(({ entry }) => entry);
+    end = start;
+  }
+  return batches;
+};
 
 /**
  * Deterministically assigns one bounded hydrated candidate window.
  *
  * Locality follows the events table's physical order: project, start-time
- * minute, and xxHash32(trace ID). The maximum observed start-time minute keeps
- * similarly ranged traces adjacent before the hash tie-breaker. Cutting this
- * order at the batch cap makes cross-project batches the last fallback, then
- * cross-time-range batches, while preserving contiguous trace-hash ranges.
+ * minute, and xxHash32(trace ID). It keeps the minimum possible number of
+ * batches, then uses dynamic programming to place boundaries that first avoid
+ * crossing projects, then minimize minute × trace-hash cells, then split the
+ * largest hash gaps among otherwise equivalent ranges.
  *
- * Selection is O(n log n) time and O(n) memory in the worst case. The caller
- * bounds n to CHUNK_SIZE (1,000) hydrated candidates plus one partial batch
- * carried from the preceding window. The project strategy is O(n).
+ * Selection uses O(n × ceil(n / maxBatchSize) × maxBatchSize) time and
+ * O(n × maxBatchSize) memory. The caller bounds n to CHUNK_SIZE (1,000)
+ * hydrated candidates plus one partial batch carried from the preceding
+ * window. The project strategy is O(n).
  */
 export function selectTraceBatches(
   candidates: readonly PendingTrace[],
@@ -81,12 +225,7 @@ export function selectTraceBatches(
     return batches;
   }
 
-  const sorted = candidates.toSorted(compareByClickHouseLocality);
-  const batches: PendingTrace[][] = [];
-  for (let offset = 0; offset < sorted.length; offset += maxBatchSize) {
-    batches.push(sorted.slice(offset, offset + maxBatchSize));
-  }
-  return batches;
+  return selectLocalityBatches(candidates, maxBatchSize);
 }
 
 // Retain traces for a bounded time after readiness. Reuse the due index so

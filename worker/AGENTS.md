@@ -26,7 +26,9 @@
   hydration window plus one partial tail in `events_full` sort-key order:
   project, observed start-time minute range, then `xxHash32(trace_id)`;
   `project` remains the default and immediate rollback path. The locality
-  selector is deterministic and flushes every candidate in the same run.
+  selector keeps the minimum job count, uses dynamic programming to minimize
+  cross-project boundaries, minute/hash scan cells, then retained hash gaps,
+  and flushes every candidate in the same run.
   One Redis range read collects all due IDs; state hydration and expiry cleanup
   are bounded. The complete run has no trace-count/time cutoff. Worker memory
   and the ID response size scale with the due backlog; no scratch disk is used.
