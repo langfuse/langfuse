@@ -64,8 +64,8 @@ const compareByClickHouseLocality = (left: PendingTrace, right: PendingTrace) =>
  * cross-time-range batches, while preserving contiguous trace-hash ranges.
  *
  * Selection is O(n log n) time and O(n) memory in the worst case. The caller
- * hard-bounds n to CHUNK_SIZE (1,000). The project strategy is O(n) and
- * retains its tail across hydration windows in the dispatcher.
+ * bounds n to CHUNK_SIZE (1,000) hydrated candidates plus one partial batch
+ * carried from the preceding window. The project strategy is O(n).
  */
 export function selectTraceBatches(
   candidates: readonly PendingTrace[],
@@ -337,12 +337,9 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       member,
       projectId: (JSON.parse(member) as [string, string])[0],
     }));
-    if (strategy === "project") {
-      // Stable sorting keeps Redis readiness order within each project.
-      members.sort((a, b) =>
-        a.projectId < b.projectId ? -1 : a.projectId > b.projectId ? 1 : 0,
-      );
-    }
+    // Hydrate projects contiguously so every selector treats crossing a
+    // project boundary as the final fill fallback.
+    members.sort((a, b) => compareStrings(a.projectId, b.projectId));
     recordDistribution("langfuse.trace_batch.snapshot_size", members.length);
 
     const enqueue = async (batch: PendingTrace[]) => {
@@ -415,7 +412,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       );
     };
 
-    let projectTail: PendingTrace[] = [];
+    let batchTail: PendingTrace[] = [];
     for (
       let offset = 0;
       offset < members.length && !this.stopping;
@@ -452,10 +449,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         });
       }
 
-      const selectorInput =
-        strategy === "project"
-          ? [...projectTail, ...hydratedCandidates]
-          : hydratedCandidates;
+      const selectorInput = [...batchTail, ...hydratedCandidates];
       recordDistribution(
         "langfuse.trace_batch.candidate_buffer_size",
         selectorInput.length,
@@ -473,17 +467,15 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         { strategy },
       );
 
-      if (strategy === "project") {
-        projectTail = [];
-        if (selected.at(-1)?.length !== env.LANGFUSE_TRACE_BATCH_MAX_SIZE) {
-          projectTail = selected.pop() ?? [];
-        }
+      batchTail = [];
+      if (selected.at(-1)?.length !== env.LANGFUSE_TRACE_BATCH_MAX_SIZE) {
+        batchTail = selected.pop() ?? [];
       }
       for (const batch of selected) {
         if (this.stopping) return;
         await enqueue(batch);
       }
     }
-    if (!this.stopping && projectTail.length > 0) await enqueue(projectTail);
+    if (!this.stopping && batchTail.length > 0) await enqueue(batchTail);
   }
 }

@@ -31,23 +31,25 @@ pack consecutive traces up to `LANGFUSE_TRACE_BATCH_MAX_SIZE` (default 60).
 For A:70 and B:70, jobs contain A:60, A:10+B:50, then B:20. Its tail spans
 hydration chunks.
 
-The optional `locality` strategy leaves IDs in Redis readiness order and selects
-independently inside each hydrated window. It sorts by the `events_full`
-physical locality hierarchy: project ID, minimum observed start-time minute,
-maximum observed start-time minute, then `xxHash32(trace_id)`. The maximum
-minute keeps traces with similar complete observed ranges adjacent; the other
-keys align with the table's primary key. Consecutive entries are cut into
-batches at `LANGFUSE_TRACE_BATCH_MAX_SIZE`.
+Both strategies first sort the complete due ID cohort by project before bounded
+state hydration. The optional `locality` strategy then sorts each hydrated
+window plus one bounded partial tail by the `events_full` physical locality
+hierarchy: project ID, minimum observed start-time minute, maximum observed
+start-time minute, then `xxHash32(trace_id)`. The maximum minute keeps traces
+with similar complete observed ranges adjacent; the other keys align with the
+table's primary key. Consecutive entries are cut into batches at
+`LANGFUSE_TRACE_BATCH_MAX_SIZE`.
 
 This hierarchy makes crossing a project boundary the last fallback when filling
 a batch, followed by crossing an observed time range. Within one project and
 time range, each batch covers a contiguous trace-hash range. It does not impose
 fixed trace-width or overlap assumptions.
 
-Selection is deterministic and worst-case O(n log n) time/O(n) memory, with `n`
-hard-bounded to the existing 1,000-entry hydration window. Locality tails flush
-inside that window; no candidate state survives a dispatch run. Project mode
-may carry at most `max batch size - 1` entries into the next hydration window.
+Selection is deterministic and worst-case O(n log n) time/O(n) memory. State
+hydration remains hard-bounded to 1,000 entries at a time; either strategy may
+carry at most `max batch size - 1` hydrated entries into the next window to
+avoid an artificial partial batch at every chunk boundary. The final tail
+flushes in the same dispatch run, and no candidate state survives the run.
 Neither mode adds a second full-cohort state copy.
 
 After enqueue succeeds, acknowledgement atomically removes state and due membership

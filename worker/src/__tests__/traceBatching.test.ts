@@ -660,6 +660,47 @@ describe("trace micro-batch scheduling with Redis", () => {
     ).toBe(true);
   });
 
+  it("keeps project locality and a bounded partial tail across hydration chunks", async () => {
+    env.LANGFUSE_TRACE_BATCH_STRATEGY = "locality";
+    const traces = Array.from({ length: 2_001 }, (_, index) => ({
+      projectId: index % 2 === 0 ? "project-a" : "project-b",
+      traceId: `trace-${String(index).padStart(4, "0")}`,
+    }));
+    for (const projectId of ["project-a", "project-b"]) {
+      await trackTraceBatchActivity(
+        projectId,
+        traces
+          .filter((trace) => trace.projectId === projectId)
+          .map((trace) => event(trace.traceId)),
+      );
+    }
+    const due = Date.now() - 1_000;
+    await client().zadd(
+      dueKey,
+      ...traces.flatMap((trace) => [
+        due,
+        member(trace.projectId, trace.traceId),
+      ]),
+    );
+    const add = vi.spyOn(queue, "add");
+
+    await runner().processBatch();
+
+    const batches = add.mock.calls.map(([, job]) => job.payload.traces);
+    expect(batches.map((batch) => batch.length)).toEqual([
+      ...Array(33).fill(60),
+      21,
+    ]);
+    expect(
+      batches.filter(
+        (batch) => new Set(batch.map((trace) => trace.projectId)).size > 1,
+      ),
+    ).toHaveLength(1);
+    expect(new Set(batches.flat().map((trace) => trace.traceId))).toEqual(
+      new Set(traces.map((trace) => trace.traceId)),
+    );
+  });
+
   it("groups the complete due cohort by sorted project across hydration chunks and the former run limit", async () => {
     const due = Date.now() - 100_000;
     const traces = Array.from({ length: 10_061 }, (_, i) => ({
