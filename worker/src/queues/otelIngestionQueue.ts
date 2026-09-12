@@ -38,6 +38,7 @@ import {
 import { IngestionService } from "../services/IngestionService";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
+import { recordTraceActivity } from "../features/traces/traceActivityMap";
 import {
   ForbiddenError,
   convertEventRecordToObservationForEval,
@@ -788,6 +789,11 @@ export const otelIngestionQueueProcessorBuilder = (
       if (eventInputs.length === 0) {
         return;
       }
+
+      await recordTraceActivity(
+        projectId,
+        eventInputs.map((event) => event.traceId),
+      );
 
       // Determine what processing is needed
       const shouldWriteToEventsTable =
