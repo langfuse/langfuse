@@ -392,6 +392,7 @@ describe("isExpectedTrpcClientError", () => {
     FORBIDDEN: 403,
     UNAUTHORIZED: 401,
     UNPROCESSABLE_CONTENT: 422,
+    TOO_MANY_REQUESTS: 429,
   };
 
   // Expected, user-facing states — must be suppressed (not captured to Sentry).
@@ -467,6 +468,37 @@ describe("isExpectedTrpcClientError", () => {
     });
 
     expect(isExpectedTrpcClientError(error)).toBe(true);
+  });
+
+  it("treats an in-app-agent rate-limit 429 as expected", () => {
+    // assertInAppAgentRateLimit throws TOO_MANY_REQUESTS when the org
+    // assistant budget is exhausted. The panel already renders the retry
+    // window (isInAppAgentRateLimited) and the seam toasts — the limiter
+    // working is not a regression.
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "TOO_MANY_REQUESTS",
+          httpStatus: 429,
+          path: "inAppAgent.startRun",
+          message: "Too many assistant requests. Please retry in 60 seconds.",
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not treat a 5xx on inAppAgent.startRun as a rate limit", () => {
+    // Negative fixture: a real failure on the same procedure must still
+    // reach Sentry. Widening TOO_MANY_REQUESTS must not swallow 5xx.
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "INTERNAL_SERVER_ERROR",
+          httpStatus: 500,
+          path: "inAppAgent.startRun",
+        }),
+      ),
+    ).toBe(false);
   });
 
   it("does not treat CONFLICT on other procedures as expected", () => {
@@ -749,6 +781,25 @@ describe("reportTrpcErrorWithoutToast", () => {
     expect(addBreadcrumbMock.mock.calls[0]![0].data).toMatchObject({
       code: "CONFLICT",
       path: "inAppAgent.decideToolApproval",
+    });
+  });
+
+  it("suppresses an in-app-agent rate-limit 429 (breadcrumb, no capture)", () => {
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "TOO_MANY_REQUESTS",
+        httpStatus: 429,
+        path: "inAppAgent.startRun",
+        message: "Too many assistant requests. Please retry in 60 seconds.",
+      }),
+      "in-app-agent",
+    );
+
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
+    expect(addBreadcrumbMock.mock.calls[0]![0].data).toMatchObject({
+      code: "TOO_MANY_REQUESTS",
+      path: "inAppAgent.startRun",
     });
   });
 
