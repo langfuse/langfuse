@@ -998,6 +998,87 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("J. drops Safari password-manager addMore.click (document-attributed)", () => {
+    // Real shape: Safari 26.5 on settings API keys. Injected
+    // password-manager / autofill JS does `addMore.click()` after a key is
+    // created. `addMore` is undefined. WebKit's TypeError includes the
+    // expression. Stack is document-attributed global code — no /_next/
+    // chunk — so denyUrls cannot match. Langfuse has no `addMore` identifier.
+    const safariAddMoreClickEvent = (
+      value: string,
+      mechanismType = "auto.browser.global_handlers.onerror",
+      frames?: { filename: string; function?: string }[],
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+              ...(frames
+                ? {
+                    stacktrace: {
+                      frames: frames.map((frame) => ({
+                        filename: frame.filename,
+                        function: frame.function ?? "?",
+                      })),
+                    },
+                  }
+                : {}),
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the WebKit addMore.click TypeError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariAddMoreClickEvent(
+            "undefined is not an object (evaluating 'addMore.click')",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the null WebKit variant and a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariAddMoreClickEvent(
+            "null is not an object (evaluating 'addMore.click').",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with click()", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariAddMoreClickEvent(
+            "undefined is not an object (evaluating 'addMore.click()')",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with document-attributed frames", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariAddMoreClickEvent(
+            "undefined is not an object (evaluating 'addMore.click')",
+            "auto.browser.global_handlers.onerror",
+            [
+              {
+                filename: "app:///project/example/settings/api-keys",
+                function: "global code",
+              },
+            ],
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1495,6 +1576,114 @@ describe("isDenylistedNoiseEvent", () => {
               mechanism: {
                 type: "auto.browser.global_handlers.onunhandledrejection",
                 handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes addMore.click", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Failed to copy secret: undefined is not an object (evaluating 'addMore.click')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a different WebKit evaluating TypeError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "undefined is not an object (evaluating 'foo.bar')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps Chromium's generic undefined.click TypeError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'click')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured addMore.click TypeError (not a Sentry browser wrap)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "undefined is not an object (evaluating 'addMore.click')",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "undefined is not an object (evaluating 'addMore.click')",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps the Safari addMore.click TypeError when a first-party chunk is on the stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "undefined is not an object (evaluating 'addMore.click')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/settings/[page]-abc.js",
+                    function: "onClick",
+                  },
+                ],
               },
             },
           ],

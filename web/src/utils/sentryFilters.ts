@@ -367,6 +367,42 @@ const CHROME_EXTENSION_PORT_MESSAGES: readonly string[] = [
 ];
 
 /**
+ * Safari / WebKit wording when injected password-manager or autofill JS
+ * does `addMore.click()` and `addMore` is undefined. WebKit uniquely
+ * includes the expression in the TypeError. Langfuse has no `addMore`
+ * identifier. Observed as a global-handler TypeError with
+ * document-attributed frames — `denyUrls` cannot match.
+ *
+ * Whole-message only. An app error that quotes the phrase is longer
+ * and is KEPT.
+ */
+const SAFARI_ADDMORE_CLICK_RE =
+  /^(?:undefined|null) is not an object \(evaluating 'addMore\.click(?:\(\))?'\)$/;
+
+/**
+ * Match {@link SAFARI_ADDMORE_CLICK_RE} without {@link coreMessage}.
+ * `coreMessage` strips a trailing `(…)` parenthetical — that clause *is*
+ * WebKit's signature here, so stripping it would miss the real event.
+ */
+function isSafariAddMoreClickMessage(value: string): boolean {
+  return SAFARI_ADDMORE_CLICK_RE.test(value.trim().replace(/\.$/, "").trim());
+}
+
+/**
+ * True when any stack frame is a first-party Next.js chunk. Used as a
+ * negative guard so a future first-party throw that happens to share
+ * WebKit's wording still reaches Sentry.
+ */
+function hasFirstPartyChunkFrame(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+  return frames.some(
+    (frame) =>
+      typeof frame?.filename === "string" && frame.filename.includes("/_next/"),
+  );
+}
+
+/**
  * A `TRPCClientError` re-wraps its cause's message. Depending on capture path
  * the Sentry `value` may be the bare cause message (`Failed to fetch`) or carry
  * the wrapper prefix (`TRPCClientError: Failed to fetch`). We strip ONLY this
@@ -616,8 +652,13 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // no stack, `denyUrls` cannot match. Sibling message is the other
     // documented lastError for a torn-down extension port.
     //
-    // Both are anchored to a Sentry browser-API / global-handler mechanism
-    // so an app-captured exception that merely quotes the phrase is KEPT.
+    // Safari password-manager `addMore.click` is the same class: WebKit's
+    // exact TypeError for an injected `addMore` that is undefined. Stack is
+    // document-attributed global code, not a chunk.
+    //
+    // All three are anchored to a Sentry browser-API / global-handler
+    // mechanism so an app-captured exception that merely quotes the
+    // phrase is KEPT.
     const mechanismType = exception?.mechanism?.type;
     if (
       typeof mechanismType === "string" &&
@@ -628,6 +669,13 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       }
       if (
         CHROME_EXTENSION_PORT_MESSAGES.includes(coreMessage(exceptionValue))
+      ) {
+        return true;
+      }
+      if (
+        exceptionType === "TypeError" &&
+        isSafariAddMoreClickMessage(exceptionValue) &&
+        !hasFirstPartyChunkFrame(event)
       ) {
         return true;
       }
