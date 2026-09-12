@@ -32,6 +32,7 @@ import {
   type PlaceholderMessage,
   PromptType,
   isGenerationLike,
+  parseJsonIfString,
 } from "@langfuse/shared";
 import { normalizeInput, normalizeOutput } from "@/src/utils/chatml";
 import { extractTools } from "@/src/utils/chatml/extractTools";
@@ -503,7 +504,7 @@ function parseStructuredOutputSchema(
   },
 ): PlaygroundSchema | null {
   try {
-    let metadata = generation.metadata;
+    let metadata: unknown = generation.metadata;
 
     try {
       if (typeof metadata === "string") {
@@ -538,7 +539,9 @@ function parseStructuredOutputSchema(
       "response_format" in modelParams &&
       typeof modelParams["response_format"] === "string"
     ) {
-      const parsedResponseFormat = JSON.parse(modelParams["response_format"]);
+      const parsedResponseFormat = parseJsonIfString(
+        modelParams["response_format"],
+      );
 
       const parseStructuredOutputSchema =
         OpenAIResponseFormatSchema.safeParse(parsedResponseFormat);
@@ -550,6 +553,38 @@ function parseStructuredOutputSchema(
           description: "Schema parsed from generation",
           schema: parseStructuredOutputSchema.data.json_schema.schema,
         };
+    }
+
+    if (typeof metadata === "object" && metadata !== null) {
+      // AI SDK schemas can be top-level metadata or preserved OTel attributes.
+      const attributes = "attributes" in metadata ? metadata.attributes : null;
+      const candidates = [
+        "ai.schema" in metadata ? metadata["ai.schema"] : undefined,
+        typeof attributes === "object" &&
+        attributes !== null &&
+        "ai.schema" in attributes
+          ? attributes["ai.schema"]
+          : undefined,
+      ];
+
+      for (const candidate of candidates) {
+        const parsed = OpenAIResponseFormatSchema.safeParse({
+          type: "json_schema",
+          json_schema: {
+            name: "ai_sdk_schema",
+            schema: parseJsonIfString(candidate),
+          },
+        });
+
+        if (parsed.success) {
+          return {
+            id: Math.random().toString(36).substring(2),
+            name: parsed.data.json_schema.name,
+            description: "Schema parsed from generation",
+            schema: parsed.data.json_schema.schema,
+          };
+        }
+      }
     }
   } catch {}
   return null;
