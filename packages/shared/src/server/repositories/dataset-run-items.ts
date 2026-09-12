@@ -349,7 +349,7 @@ const getDatasetRunsTableInternal = async <T>(
           s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)
         ) AS score_categories,
         ${scoreBooleansAggregation("s.")} AS score_booleans
-      FROM dataset_run_items_rmt dri
+      FROM dataset_run_items_deduped dri
       LEFT JOIN (
         SELECT
           project_id,
@@ -475,9 +475,9 @@ const getDatasetRunsTableInternal = async <T>(
   `;
 
   const query = `
+    ${datasetRunItemsDedupedCte}
     ${scoresCte}
     ${filteredObservationsCte}
-    ${datasetRunItemsDedupedCte}
     ${traceMetricsCte}
     ${datasetRunMetricsCte}
     SELECT ${opts.select === "count" ? "" : "DISTINCT"}
