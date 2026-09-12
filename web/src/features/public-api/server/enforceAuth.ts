@@ -16,8 +16,10 @@ import {
   isOrgAction,
   type Action,
   type AuthorizationContext,
+  type Decision,
   type ErrorResult as ErrorResultOf,
   type Principal,
+  type Resource,
   type Success,
 } from "@/src/features/auth/policy/types";
 
@@ -57,7 +59,7 @@ export async function enforceAuth({
 async function enforceAdminAuth(
   context: AuthorizationContext,
   req: NextApiRequest,
-  action: Action,
+  action: Action | undefined,
 ): Promise<EnforceAuthResult | null> {
   if (context.principal.kind !== "admin") return null;
 
@@ -67,7 +69,7 @@ async function enforceAdminAuth(
   const org = await lookupProjectOrgId(projectId);
   if (!org.success) return org;
 
-  const decision = authorize(context, action, { projectId });
+  const decision = authorizeAction(context, action, { projectId });
   if (!decision.success) return decision;
 
   return access(context, org.orgId, projectId);
@@ -77,14 +79,20 @@ async function enforceAdminAuth(
 function enforceOrgAuth(
   context: AuthorizationContext,
   req: NextApiRequest,
-  action: Action,
+  action: Action | undefined,
 ): EnforceAuthResult | null {
-  if (context.principal.kind !== "apiKey" || !isOrgAction(action)) return null;
+  if (
+    context.principal.kind !== "apiKey" ||
+    action === undefined ||
+    !isOrgAction(action)
+  ) {
+    return null;
+  }
 
   const org = getOrgId(context, req);
   if (!org.success) return org;
 
-  const decision = authorize(context, action, { orgId: org.orgId });
+  const decision = authorizeAction(context, action, { orgId: org.orgId });
   if (!decision.success) return decision;
 
   return access(context, org.orgId);
@@ -94,9 +102,14 @@ function enforceOrgAuth(
 function enforceProjectAuth(
   context: AuthorizationContext,
   req: NextApiRequest,
-  action: Action,
+  action: Action | undefined,
 ): EnforceAuthResult | null {
-  if (context.principal.kind !== "apiKey" || isOrgAction(action)) return null;
+  if (
+    context.principal.kind !== "apiKey" ||
+    (action !== undefined && isOrgAction(action))
+  ) {
+    return null;
+  }
 
   const project = getProjectId(context, req);
   if (!project.success) return project;
@@ -105,7 +118,7 @@ function enforceProjectAuth(
     return notFoundError("Project not found or you don't have access to it");
   }
 
-  const decision = authorize(context, action, {
+  const decision = authorizeAction(context, action, {
     projectId: project.projectId,
   });
   if (!decision.success) return decision;
@@ -115,6 +128,16 @@ function enforceProjectAuth(
     context.principal.boundResource.orgId,
     project.projectId,
   );
+}
+
+/** authorizeAction authorizes against a given action, or passes when the route asserts none and authorizes each item itself. */
+function authorizeAction(
+  context: AuthorizationContext,
+  action: Action | undefined,
+  resource: Resource,
+): Decision {
+  if (action === undefined) return { success: true };
+  return authorize(context, action, resource);
 }
 
 /** getOrgId resolves the target org from the header, falling back to the key's bound org; whether the key may act on it is the policy's call. */
@@ -250,10 +273,10 @@ function access(
   };
 }
 
-/** EnforceAuthParams is the request, the checked action, and the request's key-kind opt-ins. */
+/** EnforceAuthParams is the request, the optional connection action, and the request's key-kind opt-ins; omit the action to resolve context without a connection-level check. */
 export type EnforceAuthParams = {
   req: NextApiRequest;
-  action: Action;
+  action?: Action;
   allowInAppAgentKey?: boolean;
   isAdminApiKeyAuthAllowed?: boolean;
 };

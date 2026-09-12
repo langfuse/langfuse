@@ -10,6 +10,7 @@ import { runMcpTool } from "../../../core/run-mcp-tool";
 export const [getModelTool, handleGetModel] = defineTool({
   name: "getModel",
   description: "Get a model definition by ID from the current project scope.",
+  action: "models:read",
   baseSchema: GetModelV1Query,
   inputSchema: GetModelV1Query,
   handler: async (input, context) =>

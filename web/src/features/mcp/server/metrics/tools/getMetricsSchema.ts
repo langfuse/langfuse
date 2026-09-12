@@ -60,6 +60,7 @@ const GetMetricsSchemaInput = z.object({
 
 export const [getMetricsSchemaTool, handleGetMetricsSchema] = defineTool({
   name: "getMetricsSchema",
+  action: "metrics:read",
   description:
     "Discover which Langfuse metrics can be analyzed and how to group, filter, aggregate, and time-bucket them before calling queryMetrics.",
   baseSchema: GetMetricsSchemaInput,

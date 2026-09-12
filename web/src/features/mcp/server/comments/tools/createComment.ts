@@ -25,6 +25,7 @@ const CreateCommentToolSchema = PostCommentsV1Body.omit({
 export const [createCommentTool, handleCreateComment] = defineTool({
   name: "createComment",
   description: "Create a comment on a trace, observation, session, or prompt.",
+  action: "comments:CUD",
   baseSchema: CreateCommentToolBaseSchema,
   inputSchema: CreateCommentToolSchema,
   handler: async (input, context) =>

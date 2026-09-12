@@ -12,6 +12,7 @@ export const [getObservationFieldSchemaTool, handleGetObservationFieldSchema] =
     name: "getObservationFieldSchema",
     description:
       "Show which observation fields can be requested from listObservations and getObservation. The response marks default fields and fields that may be large or contain sensitive application data.",
+    action: "traces:read",
     baseSchema: EmptyInputSchema,
     inputSchema: EmptyInputSchema,
     handler: async () => {

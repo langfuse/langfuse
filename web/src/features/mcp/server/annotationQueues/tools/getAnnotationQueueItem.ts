@@ -12,6 +12,7 @@ export const [getAnnotationQueueItemTool, handleGetAnnotationQueueItem] =
     name: "getAnnotationQueueItem",
     description:
       "Get an annotation queue item, one queued trace or observation with review status, by queue ID and item ID.",
+    action: "annotationQueues:read",
     baseSchema: GetAnnotationQueueItemByIdQuery,
     inputSchema: GetAnnotationQueueItemByIdQuery,
     handler: async (input, context) =>

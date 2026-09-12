@@ -16,6 +16,7 @@ export const [
     "Attach a project evaluator to an observation evaluation rule using their stable IDs.",
     "For LLM evaluators, omit variableMapping to inherit the evaluator version's mapping or provide an override. Code evaluators must omit variableMapping.",
   ].join(" "),
+  action: "evaluationRule:CUD",
   baseSchema: AttachEvaluatorToEvaluationRuleBaseSchema,
   inputSchema: AttachEvaluatorToEvaluationRuleBaseSchema,
   handler: async (input, context) =>
@@ -49,6 +50,7 @@ export const [
   name: "detachEvaluatorFromEvaluationRule",
   description:
     "Detach a project evaluator from an observation evaluation rule using their stable IDs.",
+  action: "evaluationRule:CUD",
   baseSchema: DetachEvaluatorFromEvaluationRuleInputSchema,
   inputSchema: DetachEvaluatorFromEvaluationRuleInputSchema,
   handler: async (input, context) =>

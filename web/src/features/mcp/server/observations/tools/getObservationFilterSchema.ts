@@ -42,6 +42,7 @@ export const [
   name: "getObservationFilterSchema",
   description:
     "Show which observation fields can be used in listObservations filters, including the supported operators for each field.",
+  action: "traces:read",
   baseSchema: EmptyInputSchema,
   inputSchema: EmptyInputSchema,
   handler: async () => {

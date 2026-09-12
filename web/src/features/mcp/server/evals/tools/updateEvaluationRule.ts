@@ -15,6 +15,7 @@ export const [updateEvaluationRuleTool, handleUpdateEvaluationRule] =
     name: "updateEvaluationRule",
     description:
       "Update an observation evaluation rule, including replacing all evaluator assignments.",
+    action: "evaluationRule:CUD",
     baseSchema: UpdateEvaluationRuleBaseSchema,
     inputSchema: UpdateEvaluationRuleInputSchema,
     handler: async (input, context) =>

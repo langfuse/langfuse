@@ -17,6 +17,7 @@ const HealthResponseSchema = z
 
 export const [getHealthTool, handleGetHealth] = defineTool({
   name: "getHealth",
+  action: null,
   description:
     "Check Langfuse API health. Optionally verify database availability and recent trace/observation ingestion.",
   baseSchema: HealthInputSchema,
