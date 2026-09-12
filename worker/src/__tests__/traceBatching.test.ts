@@ -118,6 +118,30 @@ describe("trace batch selection", () => {
     ]);
   });
 
+  it("first-fits the earliest compatible companion in due order", () => {
+    const seed = pendingTrace("project-a", "seed", 1, 0, 10 * minute);
+    const otherProject = pendingTrace(
+      "project-b",
+      "other",
+      2,
+      5 * minute,
+      15 * minute,
+    );
+    const sameProject = pendingTrace(
+      "project-a",
+      "later-same",
+      3,
+      8 * minute,
+      18 * minute,
+    );
+
+    expect(
+      ids(
+        selectTraceBatches([seed, otherProject, sameProject], 60, "locality"),
+      ),
+    ).toEqual([[seed.member, otherProject.member], [sameProject.member]]);
+  });
+
   it("fills compatible batches across small projects and is deterministic", () => {
     const candidates = Array.from({ length: 12 }, (_, index) =>
       pendingTrace(

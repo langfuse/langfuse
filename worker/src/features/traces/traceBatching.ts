@@ -26,8 +26,6 @@ const CHUNK_SIZE = 1_000;
 const QUERY_BUFFER_MS = 2 * 60_000;
 const NARROW_TRACE_MAX_SPAN_MS = 60 * 60_000;
 const NARROW_BATCH_MAX_ENVELOPE_MS = 60 * 60_000;
-const LOCALITY_SCORE_BUCKET_MS = 5 * 60_000;
-const WIDE_MIN_OVERLAP_RATIO = 0.5;
 const WIDE_MAX_EXPANSION_RATIO = 0.25;
 
 export type TraceBatchStrategy = "project" | "locality";
@@ -45,94 +43,47 @@ const comparePendingTrace = (left: PendingTrace, right: PendingTrace) =>
   compareNumbers(left.due, right.due) ||
   left.member.localeCompare(right.member);
 
-const compareScores = (left: number[], right: number[]) => {
-  for (let index = 0; index < left.length; index++) {
-    const difference = left[index] - right[index];
-    if (difference !== 0) return difference;
-  }
-  return 0;
-};
+const getSpan = ({ trace }: PendingTrace) => trace.maxStart - trace.minStart;
+
+const isWide = (entry: PendingTrace) =>
+  getSpan(entry) > NARROW_TRACE_MAX_SPAN_MS;
 
 const getBounds = (batch: PendingTrace[]): Bounds => ({
   minStart: Math.min(...batch.map(({ trace }) => trace.minStart)),
   maxStart: Math.max(...batch.map(({ trace }) => trace.maxStart)),
 });
 
-const getCandidateScore = (
+const isCompatible = (
   bounds: Bounds,
-  batchIsWide: boolean,
-  wideMaxEnvelope: number,
-  batchProjects: ReadonlySet<string>,
+  seed: PendingTrace,
   candidate: PendingTrace,
-): number[] | null => {
-  const batchSpan = bounds.maxStart - bounds.minStart;
-  const candidateSpan = candidate.trace.maxStart - candidate.trace.minStart;
-  const candidateIsWide = candidateSpan > NARROW_TRACE_MAX_SPAN_MS;
-  if (batchIsWide !== candidateIsWide) return null;
-
+): boolean => {
+  if (isWide(seed) !== isWide(candidate)) return false;
   const combinedMin = Math.min(bounds.minStart, candidate.trace.minStart);
   const combinedMax = Math.max(bounds.maxStart, candidate.trace.maxStart);
   const combinedSpan = combinedMax - combinedMin;
-  const sameProject = batchProjects.has(candidate.trace.projectId);
-
-  if (!batchIsWide) {
-    if (combinedSpan > NARROW_BATCH_MAX_ENVELOPE_MS) return null;
-    const gap = Math.max(
-      0,
-      Math.max(bounds.minStart, candidate.trace.minStart) -
-        Math.min(bounds.maxStart, candidate.trace.maxStart),
-    );
-    const expansion = combinedSpan - batchSpan;
-    return [
-      Math.floor(gap / LOCALITY_SCORE_BUCKET_MS),
-      Math.floor(expansion / LOCALITY_SCORE_BUCKET_MS),
-      sameProject ? 0 : 1,
-      gap,
-      expansion,
-    ];
-  }
-
-  const overlap = Math.max(
-    0,
-    Math.min(bounds.maxStart, candidate.trace.maxStart) -
-      Math.max(bounds.minStart, candidate.trace.minStart),
+  if (!isWide(seed)) return combinedSpan <= NARROW_BATCH_MAX_ENVELOPE_MS;
+  const overlaps =
+    Math.min(bounds.maxStart, candidate.trace.maxStart) >
+    Math.max(bounds.minStart, candidate.trace.minStart);
+  return (
+    overlaps && combinedSpan <= getSpan(seed) * (1 + WIDE_MAX_EXPANSION_RATIO)
   );
-  const overlapRatio = overlap / Math.min(batchSpan, candidateSpan);
-  const referenceSpan = Math.max(batchSpan, candidateSpan);
-  const expansion = combinedSpan - referenceSpan;
-  if (
-    combinedSpan > wideMaxEnvelope ||
-    overlapRatio < WIDE_MIN_OVERLAP_RATIO ||
-    expansion > referenceSpan * WIDE_MAX_EXPANSION_RATIO
-  ) {
-    return null;
-  }
-  return [
-    Math.floor((1 - overlapRatio) / 0.05),
-    Math.floor(
-      expansion / Math.max(referenceSpan, 1) / WIDE_MAX_EXPANSION_RATIO / 0.2,
-    ),
-    sameProject ? 0 : 1,
-    1 - overlapRatio,
-    expansion,
-  ];
 };
 
 /**
  * Deterministically assigns one bounded hydrated candidate window.
  *
- * The locality strategy starts every batch with the oldest remaining trace,
- * then scores compatible candidates. Narrow traces may share at most a one-hour
- * event-time envelope. Wide traces only share when at least half of the shorter
- * interval overlaps and the union expands neither the longer interval nor the
- * seed trace's interval by more than 25%.
- * Five-minute/5% score buckets prefer the same project only among candidates
- * with comparable time locality.
+ * Locality starts every batch with the oldest remaining trace, then first-fits
+ * later due traces that keep the same width class. Narrow traces share only
+ * while the combined event-time envelope stays within one hour. Wide traces
+ * share only when they overlap and the union stays within 125% of the seed
+ * trace's span. The first compatible candidate in due/member order is taken;
+ * leftover traces flush in this run. These thresholds are experimental.
  *
- * Locality scoring is O(n²) time and O(n) memory in the worst case. The caller
- * hard-bounds n to CHUNK_SIZE (1,000), so no state carries across candidate
- * windows or dispatch runs. The project strategy is O(n) and retains its tail
- * across hydration windows in the dispatcher.
+ * Selection is O(n²) time and O(n) memory in the worst case. The caller
+ * hard-bounds n to CHUNK_SIZE (1,000). The project strategy is O(n) and
+ * retains its tail across hydration windows in the dispatcher.
  */
 export function selectTraceBatches(
   candidates: readonly PendingTrace[],
@@ -151,42 +102,19 @@ export function selectTraceBatches(
   const remaining = candidates.toSorted(comparePendingTrace);
   const batches: PendingTrace[][] = [];
   while (remaining.length > 0) {
-    const batch = [remaining.shift()!];
+    const seed = remaining.shift()!;
+    const batch = [seed];
     let bounds = getBounds(batch);
-    const batchIsWide =
-      batch[0].trace.maxStart - batch[0].trace.minStart >
-      NARROW_TRACE_MAX_SPAN_MS;
-    const wideMaxEnvelope =
-      (batch[0].trace.maxStart - batch[0].trace.minStart) *
-      (1 + WIDE_MAX_EXPANSION_RATIO);
-    const batchProjects = new Set([batch[0].trace.projectId]);
-    while (batch.length < maxBatchSize) {
-      let bestIndex = -1;
-      let bestScore: number[] | null = null;
-      for (let index = 0; index < remaining.length; index++) {
-        const candidate = remaining[index];
-        const score = getCandidateScore(
-          bounds,
-          batchIsWide,
-          wideMaxEnvelope,
-          batchProjects,
-          candidate,
-        );
-        if (!score) continue;
-        const tieBreak = [...score, candidate.due];
-        if (
-          !bestScore ||
-          compareScores(tieBreak, bestScore) < 0 ||
-          (compareScores(tieBreak, bestScore) === 0 &&
-            candidate.member < remaining[bestIndex].member)
-        ) {
-          bestIndex = index;
-          bestScore = tieBreak;
-        }
+    for (
+      let index = 0;
+      index < remaining.length && batch.length < maxBatchSize;
+    ) {
+      const candidate = remaining[index];
+      if (!isCompatible(bounds, seed, candidate)) {
+        index += 1;
+        continue;
       }
-      if (bestIndex === -1) break;
-      batch.push(remaining.splice(bestIndex, 1)[0]);
-      batchProjects.add(batch.at(-1)!.trace.projectId);
+      batch.push(remaining.splice(index, 1)[0]);
       bounds = getBounds(batch);
     }
     batches.push(batch);
