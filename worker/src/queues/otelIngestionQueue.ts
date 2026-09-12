@@ -36,6 +36,7 @@ import {
   v4WritesToLegacyTables,
 } from "../env";
 import { IngestionService } from "../services/IngestionService";
+import { trackTraceBatchActivity } from "../features/traces/traceBatching";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import {
@@ -830,6 +831,8 @@ export const otelIngestionQueueProcessorBuilder = (
         ? createObservationEvalSchedulerDeps()
         : null;
 
+      const traceBatchEvents: { traceId: string; startTimeISO: string }[] = [];
+
       await Promise.all(
         // Process each event independently
         eventInputs.map(async (eventInput) => {
@@ -880,6 +883,12 @@ export const otelIngestionQueueProcessorBuilder = (
           if (shouldWriteToEventsTable) {
             try {
               await ingestionService.writeEventRecord(eventRecord);
+              if (env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED === "true") {
+                traceBatchEvents.push({
+                  traceId: eventInput.traceId,
+                  startTimeISO: eventInput.startTimeISO,
+                });
+              }
             } catch (error) {
               traceException(error);
               logger.error(
@@ -890,6 +899,15 @@ export const otelIngestionQueueProcessorBuilder = (
           }
         }),
       );
+
+      if (traceBatchEvents.length > 0) {
+        recordDistribution(
+          "langfuse.trace_batch.ingestion_trace_count",
+          new Set(traceBatchEvents.map((event) => event.traceId)).size,
+        );
+        // The writer has accepted these records; its flush completes separately.
+        await trackTraceBatchActivity(projectId, traceBatchEvents);
+      }
     } catch (e) {
       const fileKey = job.data.payload.data.fileKey;
       if (e instanceof ForbiddenError) {
