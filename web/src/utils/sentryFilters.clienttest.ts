@@ -1660,6 +1660,30 @@ describe("isStaleChunkParseErrorEvent", () => {
         isDenylistedNoiseEvent(chunkParseErrorEvent("Unexpected end of input")),
       ).toBe(false);
     });
+
+    it("matches Safari Unexpected EOF attributed to the page document (LANGFUSE-617)", () => {
+      // Safari reports a truncated/unparsable script against the document URL
+      // (line 1, no function), not `/_next/static/chunks/…`. The project id is
+      // in that path, so Sentry would mint one issue per project without
+      // grouping. Synthetic path only — never a real project id.
+      const event = chunkParseErrorEvent(
+        "Unexpected EOF",
+        "app:///project/synthetic-project-id/settings/api-keys",
+      );
+      expect(isStaleChunkParseErrorEvent(event)).toBe(true);
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("matches a full https document URL the same way", () => {
+      expect(
+        isStaleChunkParseErrorEvent(
+          chunkParseErrorEvent(
+            "Unexpected EOF",
+            "https://us.cloud.langfuse.com/project/synthetic-project-id/settings/api-keys",
+          ),
+        ),
+      ).toBe(true);
+    });
   });
 
   describe("NEVER matches a user-authored or app-code SyntaxError", () => {
@@ -1780,6 +1804,18 @@ describe("isStaleChunkParseErrorEvent", () => {
           chunkParseErrorEvent(
             "Unexpected end of input",
             "app:///some-other-script.js",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a single-frame SyntaxError on a page URL with a NAMED function", () => {
+      expect(
+        isStaleChunkParseErrorEvent(
+          chunkParseErrorEvent(
+            "Unexpected EOF",
+            "app:///project/synthetic-project-id/settings/api-keys",
+            "parseStoredView",
           ),
         ),
       ).toBe(false);
