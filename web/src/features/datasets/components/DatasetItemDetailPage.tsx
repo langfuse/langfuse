@@ -226,7 +226,7 @@ export const DatasetItemDetailPage = ({
             <DetailPageNav
               currentId={itemId}
               path={(entry) =>
-                `/project/${projectId}/datasets/${datasetId}/items/${entry.id}`
+                `/project/${projectId}/datasets/${datasetId}/items/${encodeURIComponent(entry.id)}`
               }
               listKey="datasetItems"
             />
