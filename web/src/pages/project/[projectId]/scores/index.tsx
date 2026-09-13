@@ -1,5 +1,6 @@
 import { useRouter } from "next/router";
-import ScoresTable from "@/src/components/table/use-cases/scores";
+import ScoresTable from "@/src/features/scores/ScoresTable";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { ScoresOnboarding } from "@/src/components/onboarding/ScoresOnboarding";
@@ -52,6 +53,15 @@ export default function ScoresPage() {
           projectId={projectId}
           showControlsInPageHeader
           showAllEnvironments={router.query.showAllEnvironments === "true"}
+          renderTracePeek={({ closePeek, expandPeek }) => (
+            <TablePeekViewTraceDetail
+              projectId={projectId}
+              itemType="TRACE"
+              tableName="scores"
+              closePeek={closePeek}
+              expandPeek={expandPeek}
+            />
+          )}
         />
       )}
     </Page>

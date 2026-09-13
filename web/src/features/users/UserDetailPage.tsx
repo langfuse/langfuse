@@ -5,7 +5,7 @@ import {
   useReadyRouteParams,
 } from "@/src/hooks/useReadyRouteParams";
 import TracesTable from "@/src/components/table/use-cases/traces";
-import ScoresTable from "@/src/components/table/use-cases/scores";
+import { ScoresTable } from "@/src/features/scores";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
