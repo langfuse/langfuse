@@ -100,5 +100,9 @@ Candidates for future references (do not add until a real finding recurs):
 - The shared `backend-dev-guidelines` skill should defer here when adding
   outbound HTTP, integration config, or URL-accepting procedures; see
   [backend-dev-guidelines/SKILL.md](../backend-dev-guidelines/SKILL.md).
+- The Claude Code PR security scan
+  (`.github/workflows/claude-code-security-review.yml`) concatenates this
+  skill via [scripts/assemble-scan-instructions.sh](scripts/assemble-scan-instructions.sh)
+  and passes it as `custom-security-scan-instructions`.
 - Confirmed issues with reproduction evidence go through `linear-bug-triage`
   for Linear handoff.

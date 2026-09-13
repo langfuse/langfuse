@@ -36,6 +36,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Assemble Langfuse security-review skill
+        id: skill
+        shell: bash
+        run: |
+          out="${RUNNER_TEMP}/langfuse-security-scan-instructions.md"
+          bash ".agents/skills/security-review/scripts/assemble-scan-instructions.sh" "${out}"
+          echo "path=${out}" >> "${GITHUB_OUTPUT}"
+
       - name: Patch Claude API validation model
         shell: bash
         run: |
@@ -68,3 +76,4 @@ jobs:
           claude-model: claude-opus-4-1-20250805
           comment-pr: true
           run-every-commit: true
+          custom-security-scan-instructions: ${{ steps.skill.outputs.path }}
