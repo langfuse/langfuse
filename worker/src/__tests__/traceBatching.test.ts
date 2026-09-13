@@ -1038,6 +1038,14 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(new Set(assigned)).toEqual(
       new Set(traces.map(({ traceId }) => member("project", traceId))),
     );
+    const candidateBufferSizes = vi
+      .mocked(recordDistribution)
+      .mock.calls.filter(
+        ([name]) => name === "langfuse.trace_batch.candidate_buffer_size",
+      )
+      .map(([, value]) => Number(value));
+    expect(candidateBufferSizes).toContain(42);
+    expect(Math.max(...candidateBufferSizes)).toBeLessThanOrEqual(1_059);
     expect(await client().zcard(dueKey)).toBe(0);
     expect(await client().hlen(stateKey)).toBe(0);
   });

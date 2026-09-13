@@ -831,6 +831,8 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         if (this.stopping) return;
         await enqueue(batch);
       }
+      await this.extendLockOnProgress();
+      if (this.stopping) return;
       const prepared = prepareLocalityPartials(
         partialBatches,
         env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
