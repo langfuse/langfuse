@@ -27,7 +27,7 @@ export type ScoreChipGroup<T> = {
 
 /** `Evaluator.metric` -> { evaluator, metric }; null when the name has no
     prefix (no separator, or a separator at either end). */
-export function splitEvaluatorPrefix(
+function splitEvaluatorPrefix(
   name: string,
 ): { evaluator: string; metric: string } | null {
   const index = name.search(EVALUATOR_SEPARATOR);
