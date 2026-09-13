@@ -39,18 +39,19 @@ start-time minute, then `xxHash32(trace_id)`. The maximum minute keeps traces
 with similar complete observed ranges adjacent; the other keys align with the
 table's primary key.
 
-The selector keeps the minimum possible job count for that candidate window,
-then uses dynamic programming to place the boundaries. It compares complete
+A batch may not exceed one hour, or 125% of its first trace's span, whichever
+is larger. The selector keeps the fewest jobs that respect those caps, then
+uses dynamic programming to place the boundaries. It compares complete
 partitions lexicographically: first minimize project boundaries inside jobs,
 then minimize the sum of `shared envelope minutes × trace count`, then minimize
-the hash gaps retained inside equal project/time ranges. This makes
+the hash gaps retained inside equal project/time ranges. Extra jobs are added
+only when a fill would exceed the seed-relative envelope cap. This makes
 cross-project reads the last fallback without arbitrary weights, avoids
 bridging a large time gap merely to make the preceding job full, and cuts the
-largest trace-hash gaps among otherwise equivalent choices. It does not impose
-fixed trace-width or overlap assumptions.
+largest trace-hash gaps among otherwise equivalent choices.
 
-For `n` candidates, cap `m`, and `ceil(n/m)` jobs, locality selection uses
-`O(n × ceil(n/m) × m)` time and `O(n × m)` memory. State hydration remains
+For `n` candidates, cap `m`, and `k` jobs (`k >= ceil(n/m)`), locality
+selection uses `O(n × k × m)` time and `O(n × m)` memory. State hydration remains
 hard-bounded to 1,000 entries at a time; either strategy may carry at most
 `max batch size - 1` hydrated entries into the next window. The final tail
 flushes in the same dispatch run, and no candidate state survives the run.

@@ -221,6 +221,63 @@ describe("trace batch selection", () => {
     ]);
   });
 
+  it("splits distant narrow traces rather than sharing one envelope", () => {
+    const candidates = Array.from({ length: 3 }, (_, index) =>
+      pendingTrace(
+        "project",
+        `day-${index}`,
+        index,
+        index * 3 * 60 * minute,
+        index * 3 * 60 * minute + minute,
+      ),
+    );
+
+    expect(ids(selectTraceBatches(candidates, 60, "locality"))).toEqual(
+      candidates.map((candidate) => [candidate.member]),
+    );
+  });
+
+  it("bounds chained wide-trace expansion relative to the batch seed", () => {
+    const seed = pendingTrace("project", "seed", 1, 0, 120 * minute);
+    const compatible = pendingTrace(
+      "project",
+      "compatible",
+      2,
+      0,
+      144 * minute,
+    );
+    const wouldChain = pendingTrace(
+      "project",
+      "would-chain",
+      3,
+      0,
+      168 * minute,
+    );
+
+    const batches = selectTraceBatches(
+      [wouldChain, compatible, seed],
+      60,
+      "locality",
+    );
+
+    expect(batches.flat()).toHaveLength(3);
+    expect(
+      batches.some((batch) => {
+        const ids = new Set(batch.map(({ member }) => member));
+        return ids.has(seed.member) && ids.has(wouldChain.member);
+      }),
+    ).toBe(false);
+    expect(
+      batches.every((batch) => {
+        const union =
+          Math.max(...batch.map(({ trace }) => trace.maxStart)) -
+          Math.min(...batch.map(({ trace }) => trace.minStart));
+        const seedSpan = batch[0].trace.maxStart - batch[0].trace.minStart;
+        return union <= Math.max(60 * minute, seedSpan * 1.25);
+      }),
+    ).toBe(true);
+  });
+
   it("handles empty input, cap boundaries, and lossless chunked assignment", () => {
     expect(selectTraceBatches([], 3, "locality")).toEqual([]);
 
@@ -253,7 +310,6 @@ describe("trace batch selection", () => {
     expect(
       batches.every((batch) => batch.length > 0 && batch.length <= 60),
     ).toBe(true);
-    expect(batches).toHaveLength(43);
     expect(assigned).toHaveLength(candidates.length);
     expect(new Set(assigned)).toEqual(
       new Set(candidates.map(({ member }) => member)),

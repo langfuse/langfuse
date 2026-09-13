@@ -26,6 +26,8 @@ const STATE_KEY = "{trace-batch}:state";
 const CHUNK_SIZE = 1_000;
 const QUERY_BUFFER_MS = 2 * 60_000;
 const MINUTE_MS = 60_000;
+const NARROW_BATCH_MAX_ENVELOPE_MS = 60 * MINUTE_MS;
+const WIDE_MAX_EXPANSION_RATIO = 0.25;
 
 export type TraceBatchStrategy = "project" | "locality";
 export type PendingTrace = {
@@ -40,6 +42,14 @@ const compareStrings = (left: string, right: string) =>
   left < right ? -1 : left > right ? 1 : 0;
 
 const toMinuteBucket = (timestamp: number) => Math.floor(timestamp / MINUTE_MS);
+
+const getSpanMs = ({ trace }: PendingTrace) => trace.maxStart - trace.minStart;
+
+const allowedEnvelopeMs = (seed: PendingTrace) =>
+  Math.max(
+    NARROW_BATCH_MAX_ENVELOPE_MS,
+    getSpanMs(seed) * (1 + WIDE_MAX_EXPANSION_RATIO),
+  );
 
 type LocalityCandidate = {
   entry: PendingTrace;
@@ -103,10 +113,9 @@ const selectLocalityBatches = (
     )
     .toSorted(compareByClickHouseLocality);
   const candidateCount = sorted.length;
-  // Optimize boundaries without increasing the theoretical minimum job count.
-  const batchCount = Math.ceil(candidateCount / maxBatchSize);
   const stride = Math.min(maxBatchSize, candidateCount) + 1;
   const minuteHashCellCosts = new Float64Array(candidateCount * stride);
+  const feasibleSlices = new Uint8Array(candidateCount * stride);
   const projectBoundaryPrefix = new Uint32Array(candidateCount + 1);
   const traceHashGapPrefix = new Float64Array(candidateCount + 1);
 
@@ -130,17 +139,42 @@ const selectLocalityBatches = (
   for (let start = 0; start < candidateCount; start++) {
     let minMinute = Number.POSITIVE_INFINITY;
     let maxMinute = Number.NEGATIVE_INFINITY;
+    let minStart = Number.POSITIVE_INFINITY;
+    let maxStart = Number.NEGATIVE_INFINITY;
+    const seedEnvelopeMs = allowedEnvelopeMs(sorted[start].entry);
     const maxLength = Math.min(maxBatchSize, candidateCount - start);
     for (let length = 1; length <= maxLength; length++) {
       const candidate = sorted[start + length - 1];
       minMinute = Math.min(minMinute, candidate.minMinute);
       maxMinute = Math.max(maxMinute, candidate.maxMinute);
+      minStart = Math.min(minStart, candidate.entry.trace.minStart);
+      maxStart = Math.max(maxStart, candidate.entry.trace.maxStart);
+      const slot = start * stride + length;
       // The shared time predicate applies every selected trace hash across the
       // complete envelope, so minute × hash count approximates PK cells read.
-      minuteHashCellCosts[start * stride + length] =
-        (maxMinute - minMinute + 1) * length;
+      minuteHashCellCosts[slot] = (maxMinute - minMinute + 1) * length;
+      // Narrow groups stay within one hour. Wide groups may not grow past
+      // 125% of the first trace in locality order, the slice seed.
+      feasibleSlices[slot] = maxStart - minStart <= seedEnvelopeMs ? 1 : 0;
     }
   }
+
+  const minJobs = new Int32Array(candidateCount + 1).fill(-1);
+  minJobs[0] = 0;
+  for (let end = 1; end <= candidateCount; end++) {
+    const minStart = Math.max(0, end - maxBatchSize);
+    let best = Number.MAX_SAFE_INTEGER;
+    for (let start = minStart; start < end; start++) {
+      if (minJobs[start] < 0) continue;
+      if (!feasibleSlices[start * stride + (end - start)]) continue;
+      best = Math.min(best, minJobs[start] + 1);
+    }
+    if (best === Number.MAX_SAFE_INTEGER) {
+      throw new Error("Unable to partition trace batch candidates");
+    }
+    minJobs[end] = best;
+  }
+  const batchCount = minJobs[candidateCount];
 
   const predecessors = Array.from({ length: batchCount + 1 }, () =>
     new Int32Array(candidateCount + 1).fill(-1),
@@ -163,6 +197,7 @@ const selectLocalityBatches = (
         const previousCost = previousCosts[start];
         if (!previousCost) continue;
         const length = end - start;
+        if (!feasibleSlices[start * stride + length]) continue;
         const batchCost: BatchSelectionCost = {
           crossProjectBoundaries:
             projectBoundaryPrefix[end] - projectBoundaryPrefix[start + 1],
@@ -201,15 +236,17 @@ const selectLocalityBatches = (
  * Deterministically assigns one bounded hydrated candidate window.
  *
  * Locality follows the events table's physical order: project, start-time
- * minute, and xxHash32(trace ID). It keeps the minimum possible number of
- * batches, then uses dynamic programming to place boundaries that first avoid
- * crossing projects, then minimize minute × trace-hash cells, then split the
- * largest hash gaps among otherwise equivalent ranges.
+ * minute, and xxHash32(trace ID). A batch may not exceed one hour, or 125% of
+ * its first trace's span, whichever is larger. Extra jobs are added only when
+ * that envelope cap forbids a cheaper fill. Among feasible partitions with
+ * that minimum job count, dynamic programming first avoids crossing projects,
+ * then minimizes minute × trace-hash cells, then splits the largest hash gaps.
  *
- * Selection uses O(n × ceil(n / maxBatchSize) × maxBatchSize) time and
- * O(n × maxBatchSize) memory. The caller bounds n to CHUNK_SIZE (1,000)
- * hydrated candidates plus one partial batch carried from the preceding
- * window. The project strategy is O(n).
+ * Selection uses O(n × k × maxBatchSize) time and O(n × maxBatchSize)
+ * memory, where k >= ceil(n / maxBatchSize) is the fewest feasible jobs.
+ * The caller bounds n to CHUNK_SIZE (1,000) hydrated candidates plus one
+ * partial batch carried from the preceding window. The project strategy is
+ * O(n).
  */
 export function selectTraceBatches(
   candidates: readonly PendingTrace[],
