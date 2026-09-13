@@ -22,22 +22,18 @@ type TraceBatchEventRow = {
 };
 
 const TRACE_QUERY_BUFFER_MS = 2 * 60_000;
+const TIME_GROUP_PARAM_CHUNK_SIZE = 5;
 
-/**
- * Stream full events_full payloads into the worker without retaining a whole batch.
- * Rows reflect the events table's current merge state, as in other event reads;
- * this read-only experiment does not deduplicate versions or enrich model data.
- */
-export async function* getTraceBatchEventStream(props: {
+type TraceBatchEventStreamProps = {
   traces: ReadonlyArray<{
     projectId: string;
     traceId: string;
     minStart: number;
     maxStart: number;
   }>;
-}): AsyncGenerator<TraceBatchEventRow> {
-  if (props.traces.length === 0) return;
+};
 
+const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
   const bufferedGroups = new Map<
     string,
     {
@@ -63,23 +59,37 @@ export async function* getTraceBatchEventStream(props: {
       });
     }
   }
+  const timeGroups = [...bufferedGroups.values()];
   const timeGroupParams: Record<string, unknown> = {};
-  const timeGroupPredicates = [...bufferedGroups.values()].map(
-    ({ projectId, minStart, maxStart, traceIds }, index) => {
-      const projectParam = `timeGroup${index}Project`;
-      const tracesParam = `timeGroup${index}Traces`;
-      const minParam = `timeGroup${index}Min`;
-      const maxParam = `timeGroup${index}Max`;
-      timeGroupParams[projectParam] = projectId;
-      timeGroupParams[tracesParam] = [...traceIds];
-      timeGroupParams[minParam] = minStart;
-      timeGroupParams[maxParam] = maxStart;
-      return `(e.project_id = {${projectParam}: String}
-        AND e.trace_id IN ({${tracesParam}: Array(String)})
-        AND e.start_time >= fromUnixTimestamp64Milli({${minParam}: Int64})
-        AND e.start_time <= fromUnixTimestamp64Milli({${maxParam}: Int64}))`;
-    },
-  );
+  const timeGroupPredicates: string[] = [];
+  // Five groups per parameter set keeps 1,000 distinct windows below
+  // ClickHouse's default 1,000 HTTP-field limit without repeating one giant
+  // constant array throughout the planner AST.
+  for (
+    let offset = 0;
+    offset < timeGroups.length;
+    offset += TIME_GROUP_PARAM_CHUNK_SIZE
+  ) {
+    const chunk = timeGroups.slice(
+      offset,
+      offset + TIME_GROUP_PARAM_CHUNK_SIZE,
+    );
+    const chunkIndex = offset / TIME_GROUP_PARAM_CHUNK_SIZE;
+    const projectParam = `g${chunkIndex}p`;
+    const tracesParam = `g${chunkIndex}t`;
+    const minParam = `g${chunkIndex}l`;
+    const maxParam = `g${chunkIndex}u`;
+    timeGroupParams[projectParam] = chunk.map(({ projectId }) => projectId);
+    timeGroupParams[tracesParam] = chunk.map(({ traceIds }) => [...traceIds]);
+    timeGroupParams[minParam] = chunk.map(({ minStart }) => minStart);
+    timeGroupParams[maxParam] = chunk.map(({ maxStart }) => maxStart);
+    chunk.forEach((_, index) => {
+      const position = index + 1;
+      timeGroupPredicates.push(
+        `(e.project_id={${projectParam}:Array(String)}[${position}] AND e.trace_id IN {${tracesParam}:Array(Array(String))}[${position}] AND e.start_time BETWEEN fromUnixTimestamp64Milli({${minParam}:Array(Int64)}[${position}]) AND fromUnixTimestamp64Milli({${maxParam}:Array(Int64)}[${position}]))`,
+      );
+    });
+  }
   const projectIds = [...new Set(props.traces.map((trace) => trace.projectId))];
   const traceIds = [...new Set(props.traces.map((trace) => trace.traceId))];
   const builder = new EventsQueryBuilder({ projectId: NoProjectId })
@@ -138,7 +148,24 @@ export async function* getTraceBatchEventStream(props: {
       timeGroupParams,
     );
 
-  const { query, params } = builder.buildWithParams();
+  return {
+    ...builder.buildWithParams(),
+    projectIds,
+    timeGroupCount: timeGroups.length,
+  };
+};
+
+/**
+ * Stream full events_full payloads into the worker without retaining a whole batch.
+ * Rows reflect the events table's current merge state, as in other event reads;
+ * this read-only experiment does not deduplicate versions or enrich model data.
+ */
+export async function* getTraceBatchEventStream(
+  props: TraceBatchEventStreamProps,
+): AsyncGenerator<TraceBatchEventRow> {
+  if (props.traces.length === 0) return;
+
+  const { query, params, projectIds } = buildTraceBatchEventQuery(props);
   yield* queryClickhouseStream<TraceBatchEventRow>({
     query,
     params,

@@ -285,6 +285,25 @@ describe("Clickhouse Events Repository Test", () => {
     expect(incidentalRowSeen).toBe(false);
   }, 60_000);
 
+  it("supports 1,000 distinct parameterized trace time groups", async () => {
+    const projectId = randomUUID();
+    const start = Date.now();
+    let rowCount = 0;
+
+    for await (const _ of getTraceBatchEventStream({
+      traces: Array.from({ length: 1_000 }, (_, index) => ({
+        projectId,
+        traceId: randomUUID(),
+        minStart: start + index,
+        maxStart: start + index,
+      })),
+    })) {
+      rowCount++;
+    }
+
+    expect(rowCount).toBe(0);
+  }, 60_000);
+
   it("should kill redis connection", () => {
     // we need at least one test case to avoid hanging
     // redis connection when everything else is skipped.
