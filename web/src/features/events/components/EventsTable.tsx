@@ -62,6 +62,7 @@ import {
   toObservedOptions,
   useSearchBarEnabled,
   withMetadataPathOptions,
+  useFullTextSearch,
 } from "@/src/features/search-bar";
 import { cn } from "@/src/utils/tailwind";
 import { getObservationLevelStatus } from "@/src/components/level-colors";
@@ -116,7 +117,6 @@ import {
   demoteViewOnUserFilterEdit,
   type ExplicitFilterStateChange,
 } from "@/src/features/events/lib/demoteViewOnUserFilterEdit";
-import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";

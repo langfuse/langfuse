@@ -92,9 +92,12 @@ import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import {
+  TableSearchBar,
+  toObservedOptions,
+  useFullTextSearch,
+} from "@/src/features/search-bar";
 import { tracesFieldRegistry } from "@/src/features/filters/config/tracingSearchRegistry";
-import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { type TableDateRange } from "@/src/utils/date-range-utils";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import {
