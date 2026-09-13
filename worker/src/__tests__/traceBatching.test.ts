@@ -1106,47 +1106,84 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(await client().hlen(stateKey)).toBe(0);
   });
 
-  it("groups the complete due cohort by sorted project across hydration chunks and the former run limit", async () => {
-    const due = Date.now() - 100_000;
-    const traces = Array.from({ length: 10_061 }, (_, i) => ({
-      projectId: ["project-c", "project-a", "project-b"][i % 3],
-      traceId: `trace-${String(i).padStart(5, "0")}`,
-      due: due + Math.floor(i / 2_000) * 1_000,
-    }));
-    for (const projectId of ["project-c", "project-a", "project-b"]) {
-      await trackTraceBatchActivity(
-        projectId,
-        traces
-          .filter((trace) => trace.projectId === projectId)
-          .map((trace) => event(trace.traceId)),
+  it.each(["project", "locality"] as const)(
+    "groups more than 10,000 due traces across hydration chunks with the %s strategy",
+    async (strategy) => {
+      env.LANGFUSE_TRACE_BATCH_STRATEGY = strategy;
+      const due = Date.now() - 100_000;
+      const traces = Array.from({ length: 10_061 }, (_, i) => ({
+        projectId: ["project-c", "project-a", "project-b"][i % 3],
+        traceId: `trace-${String(i).padStart(5, "0")}`,
+        due: due + Math.floor(i / 2_000) * 1_000,
+      }));
+      for (const projectId of ["project-c", "project-a", "project-b"]) {
+        await trackTraceBatchActivity(
+          projectId,
+          traces
+            .filter((trace) => trace.projectId === projectId)
+            .map((trace) => event(trace.traceId)),
+        );
+      }
+      await client().zadd(
+        dueKey,
+        ...traces.flatMap((trace) => [
+          trace.due,
+          member(trace.projectId, trace.traceId),
+        ]),
       );
-    }
-    await client().zadd(
-      dueKey,
-      ...traces.flatMap((trace) => [
-        trace.due,
-        member(trace.projectId, trace.traceId),
-      ]),
-    );
-    const add = vi.spyOn(queue, "add");
-    await runner().processBatch();
-    const batches = add.mock.calls.map(([, job]) => job.payload.traces);
-    expect(batches.map((batch) => batch.length)).toEqual([
-      ...Array(167).fill(60),
-      41,
-    ]);
-    const expected = traces.sort(
-      (a, b) =>
-        a.projectId.localeCompare(b.projectId) ||
-        a.due - b.due ||
-        a.traceId.localeCompare(b.traceId),
-    );
-    expect(
-      batches.flat().map((trace) => member(trace.projectId, trace.traceId)),
-    ).toEqual(expected.map((trace) => member(trace.projectId, trace.traceId)));
-    expect(await client().zcard(dueKey)).toBe(0);
-    expect(await client().hlen(stateKey)).toBe(0);
-  });
+      const add = vi.spyOn(queue, "add");
+      await runner().processBatch();
+      const batches = add.mock.calls.map(([, job]) => job.payload.traces);
+      expect(batches.every((batch) => batch.length <= 60)).toBe(true);
+      const assigned = batches
+        .flat()
+        .map((trace) => member(trace.projectId, trace.traceId));
+      expect(assigned).toHaveLength(traces.length);
+      expect(new Set(assigned)).toEqual(
+        new Set(
+          traces.map(({ projectId, traceId }) => member(projectId, traceId)),
+        ),
+      );
+      const candidateBufferSizes = vi
+        .mocked(recordDistribution)
+        .mock.calls.filter(
+          ([name]) => name === "langfuse.trace_batch.candidate_buffer_size",
+        )
+        .map(([, value]) => Number(value));
+      expect(Math.max(...candidateBufferSizes)).toBeLessThanOrEqual(1_059);
+      if (strategy === "project") {
+        expect(batches).toHaveLength(168);
+        expect(batches.map((batch) => batch.length)).toEqual([
+          ...Array(167).fill(60),
+          41,
+        ]);
+        const expected = traces.toSorted(
+          (a, b) =>
+            a.projectId.localeCompare(b.projectId) ||
+            a.due - b.due ||
+            a.traceId.localeCompare(b.traceId),
+        );
+        expect(assigned).toEqual(
+          expected.map((trace) => member(trace.projectId, trace.traceId)),
+        );
+      } else {
+        expect(batches.length).toBeGreaterThanOrEqual(
+          Math.ceil(traces.length / 60),
+        );
+        expect(batches.length).toBeLessThanOrEqual(
+          Math.ceil(traces.length / 1_000) * Math.ceil(1_059 / 60),
+        );
+        expect(
+          batches.filter(
+            (batch) =>
+              new Set(batch.map(({ projectId }) => projectId)).size > 1,
+          ).length,
+        ).toBeLessThanOrEqual(Math.ceil(traces.length / 1_000));
+      }
+      expect(await client().zcard(dueKey)).toBe(0);
+      expect(await client().hlen(stateKey)).toBe(0);
+    },
+  );
 
   it("revalidates the due ID list after deletion, missing state, reactivation and new arrivals", async () => {
     const traces = Array.from(
