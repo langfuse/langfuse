@@ -36,7 +36,7 @@ export const stripeProducts: StripeProduct[] = [
       description:
         "Great to get started for most projects with unlimited users and 90 days data access.",
       price: "$29 / month",
-      usagePrice: "$8-6/100k units (100k included, graduated pricing)",
+      usagePrice: "$8-6* per 100k units",
       mainFeatures: [
         "90 days data access",
         "Unlimited users",
@@ -56,7 +56,7 @@ export const stripeProducts: StripeProduct[] = [
       description:
         "For projects that scale and need unlimited data access, high rate limits, and Slack support.",
       price: "$199 / month",
-      usagePrice: "$8-6/100k units (100k included, graduated pricing)",
+      usagePrice: "$8-6* per 100k units",
       mainFeatures: [
         "Everything in Core",
         "3 years data access",
@@ -77,7 +77,7 @@ export const stripeProducts: StripeProduct[] = [
       title: "Pro + Teams Add-on",
       description: "Organizational and security controls for larger teams.",
       price: "$499 / month",
-      usagePrice: "$8-6/100k units (100k included, graduated pricing)",
+      usagePrice: "$8-6* per 100k units",
       mainFeatures: [
         "Everything in Pro",
         "Enterprise SSO (e.g. Okta)",
@@ -98,7 +98,7 @@ export const stripeProducts: StripeProduct[] = [
       description:
         "For large scale teams. Enterprise-grade support and security.",
       price: "$2499 / month",
-      usagePrice: "$8-6/100k units (100k included, graduated pricing)",
+      usagePrice: "$8-6* per 100k units",
       mainFeatures: [
         "Everything in Pro + Teams",
         "Audit Logs",

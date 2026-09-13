@@ -16,16 +16,16 @@ import {
   AnnotationQueueObjectType,
   LangfuseInternalTraceEnvironment,
 } from "@langfuse/shared";
-import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
-import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
-import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
-import { useDatasetItemFromTraceOrObservation } from "@/src/features/datasets/hooks/useDatasetItemFromTraceOrObservation";
-import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
-import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
+import {
+  ExistingDatasetItemsDropdownMenuController,
+  NewDatasetItemFromExistingObjectDialogController,
+  useDatasetItemFromTraceOrObservation,
+} from "@/src/features/datasets";
+import { AnnotateDrawerController } from "@/src/features/scores";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
@@ -75,11 +75,10 @@ export interface TraceDetailViewHeaderProps {
   projectId: string;
   traceScores: WithStringifiedMetadata<ScoreDomain>[];
   commentCount: number | undefined;
-  // Inline comment props
-  pendingSelection?: SelectionData | null;
-  onSelectionUsed?: () => void;
-  isCommentDrawerOpen?: boolean;
-  onCommentDrawerOpenChange?: (open: boolean) => void;
+  commentDrawerControl: {
+    disabled: boolean;
+    openDrawer: () => void;
+  };
 }
 
 export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
@@ -89,10 +88,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   projectId,
   traceScores,
   commentCount,
-  pendingSelection,
-  onSelectionUsed,
-  isCommentDrawerOpen,
-  onCommentDrawerOpenChange,
+  commentDrawerControl,
 }: TraceDetailViewHeaderProps) {
   const { isAnnotationMode } = useViewPreferences();
   const isMobile = useIsMobile();
@@ -125,13 +121,11 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
     <div className="@container shrink-0 space-y-2 border-b p-2">
       {/* Title row with actions */}
       <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
-        <div className="flex w-full flex-row items-center gap-1">
+        <div className="flex w-full min-w-0 flex-row items-center gap-1">
           <ItemBadge type="TRACE" isSmall />
           <span
-            className={cn(
-              "line-clamp-2 min-w-0 font-bold break-all md:break-normal md:wrap-break-word",
-              isMobile && "flex-1",
-            )}
+            className={cn("min-w-0 truncate font-bold", isMobile && "flex-1")}
+            title={trace.name || trace.id}
           >
             {trace.name || trace.id}
           </span>
@@ -182,18 +176,21 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                 className="flex w-auto min-w-44 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
               >
                 <NewDatasetItemFromExistingObjectDialogController
-                  traceId={trace.id}
                   projectId={projectId}
-                  input={trace.input}
-                  output={trace.output}
-                  metadata={trace.metadata}
                 >
                   {({ openDialog }) => (
                     <ExistingDatasetItemsDropdownMenuController
                       projectId={projectId}
                       datasetItems={existingDatasetItems}
                       disabled={!hasDatasetAccess}
-                      onOpenDialog={openDialog}
+                      onOpenDialog={() =>
+                        openDialog({
+                          traceId: trace.id,
+                          input: trace.input,
+                          output: trace.output,
+                          metadata: trace.metadata,
+                        })
+                      }
                     >
                       {({ Anchor, openDropdown }) => (
                         <Anchor>
@@ -209,7 +206,12 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                               }
 
                               captureNewDatasetItemFormOpen();
-                              openDialog();
+                              openDialog({
+                                traceId: trace.id,
+                                input: trace.input,
+                                output: trace.output,
+                                metadata: trace.metadata,
+                              });
                             }}
                           >
                             {hasExistingDatasetItems || hasDatasetAccess ? (
@@ -239,25 +241,30 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                 </NewDatasetItemFromExistingObjectDialogController>
                 {!isAnnotationMode && (
                   <>
-                    <AnnotateDrawerController
-                      projectId={projectId}
-                      scoreTarget={{
-                        type: "trace",
-                        traceId: trace.id,
-                      }}
-                      scores={traceScores}
-                      scoreMetadata={{
-                        projectId: projectId,
-                        environment: trace.environment,
-                      }}
-                    >
+                    <AnnotateDrawerController projectId={projectId}>
                       {({ disabled, openDrawer }) => (
                         <Button
                           variant="ghost"
                           size="sm"
                           disabled={disabled}
                           className="w-full justify-start gap-2 font-normal"
-                          onClick={openDrawer}
+                          onClick={() =>
+                            openDrawer({
+                              scoreTarget: {
+                                type: "trace",
+                                traceId: trace.id,
+                              },
+                              scores: traceScores,
+                              analyticsData: {
+                                type: "trace",
+                                source: "TraceDetail",
+                              },
+                              scoreMetadata: {
+                                projectId,
+                                environment: trace.environment,
+                              },
+                            })
+                          }
                         >
                           {disabled ? (
                             <LockIcon className="h-3 w-3" />
@@ -293,37 +300,24 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                     </AnnotationQueueItemDropdownMenuController>
                   </>
                 )}
-                <CommentDrawerController
-                  projectId={projectId}
-                  objectId={trace.id}
-                  objectType="TRACE"
-                  count={commentCount}
-                  pendingSelection={pendingSelection}
-                  onSelectionUsed={onSelectionUsed}
-                  isOpen={isCommentDrawerOpen}
-                  onOpenChange={onCommentDrawerOpenChange}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={commentDrawerControl.disabled}
+                  onClick={commentDrawerControl.openDrawer}
+                  className="w-full justify-start gap-2 font-normal"
                 >
-                  {({ disabled, openDrawer }) => (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      disabled={disabled}
-                      onClick={openDrawer}
-                      className="w-full justify-start gap-2 font-normal"
-                    >
-                      {disabled ? (
-                        <MessageSquareOff className="text-muted-foreground h-4 w-4" />
-                      ) : (
-                        <MessageSquare className="h-4 w-4" />
-                      )}
-                      <span className="text-sm">Add comment</span>
-                      {!disabled && commentCount ? (
-                        <ActionButtonCountBadge count={commentCount} />
-                      ) : null}
-                    </Button>
+                  {commentDrawerControl.disabled ? (
+                    <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                  ) : (
+                    <MessageSquare className="h-4 w-4" />
                   )}
-                </CommentDrawerController>
+                  <span className="text-sm">Add comment</span>
+                  {!commentDrawerControl.disabled && commentCount ? (
+                    <ActionButtonCountBadge count={commentCount} />
+                  ) : null}
+                </Button>
               </PopoverContent>
             </Popover>
           )}
@@ -332,11 +326,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
         {!isMobile && (
           <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
             <NewDatasetItemFromExistingObjectDialogController
-              traceId={trace.id}
               projectId={projectId}
-              input={trace.input}
-              output={trace.output}
-              metadata={trace.metadata}
               key={trace.id}
             >
               {({ openDialog }) => (
@@ -344,7 +334,14 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                   projectId={projectId}
                   datasetItems={existingDatasetItems}
                   disabled={!hasDatasetAccess}
-                  onOpenDialog={openDialog}
+                  onOpenDialog={() =>
+                    openDialog({
+                      traceId: trace.id,
+                      input: trace.input,
+                      output: trace.output,
+                      metadata: trace.metadata,
+                    })
+                  }
                 >
                   {({ Anchor, openDropdown }) => (
                     <Anchor>
@@ -359,7 +356,12 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                           }
 
                           captureNewDatasetItemFormOpen();
-                          openDialog();
+                          openDialog({
+                            traceId: trace.id,
+                            input: trace.input,
+                            output: trace.output,
+                            metadata: trace.metadata,
+                          });
                         }}
                       >
                         {!hasExistingDatasetItems && hasDatasetAccess ? (
@@ -388,26 +390,30 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             {/* Hide annotation buttons in annotation mode (panel shown separately) */}
             {!isAnnotationMode && (
               <div className="flex items-start">
-                <AnnotateDrawerController
-                  key={"annotation-drawer-" + trace.id}
-                  projectId={projectId}
-                  scoreTarget={{
-                    type: "trace",
-                    traceId: trace.id,
-                  }}
-                  scores={traceScores}
-                  scoreMetadata={{
-                    projectId: projectId,
-                    environment: trace.environment,
-                  }}
-                >
+                <AnnotateDrawerController projectId={projectId}>
                   {({ disabled, openDrawer }) => (
                     <Button
                       variant="secondary"
                       size="sm"
                       disabled={disabled}
                       className="rounded-r-none"
-                      onClick={openDrawer}
+                      onClick={() =>
+                        openDrawer({
+                          scoreTarget: {
+                            type: "trace",
+                            traceId: trace.id,
+                          },
+                          scores: traceScores,
+                          analyticsData: {
+                            type: "trace",
+                            source: "TraceDetail",
+                          },
+                          scoreMetadata: {
+                            projectId,
+                            environment: trace.environment,
+                          },
+                        })
+                      }
                     >
                       {disabled ? (
                         <LockIcon className="mr-1.5 h-3 w-3" />
@@ -444,39 +450,26 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                 </AnnotationQueueItemDropdownMenuController>
               </div>
             )}
-            <CommentDrawerController
-              projectId={projectId}
-              objectId={trace.id}
-              objectType="TRACE"
-              count={commentCount}
-              pendingSelection={pendingSelection}
-              onSelectionUsed={onSelectionUsed}
-              isOpen={isCommentDrawerOpen}
-              onOpenChange={onCommentDrawerOpenChange}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={commentDrawerControl.disabled}
+              onClick={commentDrawerControl.openDrawer}
+              className="gap-1"
             >
-              {({ disabled, openDrawer }) => (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={disabled}
-                  onClick={openDrawer}
-                  className="gap-1"
-                >
-                  {disabled ? (
-                    <MessageSquareOff className="text-muted-foreground h-3.5 w-3.5" />
-                  ) : (
-                    <>
-                      <MessageSquare className="h-3.5 w-3.5" />
-                      <span>Add comment</span>
-                      {!!commentCount ? (
-                        <ActionButtonCountBadge count={commentCount} />
-                      ) : null}
-                    </>
-                  )}
-                </Button>
+              {commentDrawerControl.disabled ? (
+                <MessageSquareOff className="text-muted-foreground h-3.5 w-3.5" />
+              ) : (
+                <>
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  <span>Add comment</span>
+                  {!!commentCount ? (
+                    <ActionButtonCountBadge count={commentCount} />
+                  ) : null}
+                </>
               )}
-            </CommentDrawerController>
+            </Button>
           </div>
         )}
       </div>

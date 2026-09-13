@@ -1,11 +1,13 @@
 import { cn } from "@/src/utils/tailwind";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
-import { type ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
@@ -16,15 +18,18 @@ type SettingsProps = {
     {
       title: string;
       slug: string;
+      section?: string;
       show?: boolean | (() => boolean);
     } & ({ content: ReactNode } | { href: string })
   >;
   activeSlug?: string;
+  fullHeight?: boolean;
 };
 
 export const PagedSettingsContainer = ({
   pages,
   activeSlug,
+  fullHeight = false,
 }: SettingsProps) => {
   const router = useRouter();
   const availablePages = pages.filter((page) =>
@@ -48,8 +53,19 @@ export const PagedSettingsContainer = ({
   };
 
   return (
-    <main className="flex flex-1 flex-col gap-4 py-4 md:gap-8">
-      <div className="grid w-full items-start gap-4 md:grid-cols-[150px_1fr] lg:grid-cols-[220px_1fr]">
+    <main
+      className={cn(
+        "flex flex-1 flex-col gap-4 py-4 md:gap-8",
+        fullHeight && "min-h-0 overflow-hidden",
+      )}
+    >
+      <div
+        className={cn(
+          "grid w-full items-start gap-4 md:grid-cols-[150px_1fr] lg:grid-cols-[220px_1fr]",
+          fullHeight &&
+            "min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] md:grid-rows-1",
+        )}
+      >
         <nav className="block md:hidden">
           <Select
             onValueChange={(slug) => {
@@ -63,49 +79,86 @@ export const PagedSettingsContainer = ({
               <SelectValue placeholder="Select a page" />
             </SelectTrigger>
             <SelectContent>
-              {availablePages.map((page) => (
-                <SelectItem key={page.title} value={page.slug}>
-                  {page.title}
-                  {"href" in page && (
-                    <ArrowUpRight size={14} className="ml-1 inline" />
-                  )}
-                </SelectItem>
+              {groupPagesBySection(availablePages).map((group) => (
+                <SelectGroup key={group.section ?? "default"}>
+                  {group.section ? (
+                    <SelectLabel>{group.section}</SelectLabel>
+                  ) : null}
+                  {group.pages.map((page) => (
+                    <SelectItem key={page.title} value={page.slug}>
+                      {page.title}
+                      {"href" in page && (
+                        <ArrowUpRight size={14} className="ml-1 inline" />
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               ))}
             </SelectContent>
           </Select>
         </nav>
         <nav
-          className="text-muted-foreground hidden gap-4 text-sm md:sticky md:top-5 md:grid"
+          className={cn(
+            "text-muted-foreground hidden text-sm md:sticky md:top-5 md:grid",
+            fullHeight && "md:top-0",
+          )}
           x-chunk="dashboard-04-chunk-0"
         >
-          {availablePages.map((page) =>
-            "href" in page ? (
-              <Link
-                key={page.title}
-                href={page.href}
-                className="flex flex-row items-center gap-2 font-bold"
-              >
-                {page.title}
-                <ArrowUpRight size={14} className="inline" />
-              </Link>
-            ) : (
-              <span
-                key={page.title}
-                onClick={() => onChange(page.slug)}
-                className={cn(
-                  "cursor-pointer font-bold",
-                  page.slug === currentPage.slug && "text-primary",
-                )}
-              >
-                {page.title}
-              </span>
-            ),
-          )}
+          {availablePages.map((page, index) => (
+            <Fragment key={page.title}>
+              {page.section &&
+              page.section !== availablePages[index - 1]?.section ? (
+                <span className="text-muted-foreground mt-4 flex h-8 items-center px-2 text-xs font-bold first:mt-0">
+                  {page.section}
+                </span>
+              ) : null}
+              {"href" in page ? (
+                <Link
+                  href={page.href}
+                  className="hover:bg-muted hover:text-foreground flex h-8 flex-row items-center gap-2 rounded-sm px-2"
+                >
+                  {page.title}
+                  <ArrowUpRight size={14} className="inline" />
+                </Link>
+              ) : (
+                <span
+                  onClick={() => onChange(page.slug)}
+                  className={cn(
+                    "hover:bg-muted hover:text-foreground flex h-8 cursor-pointer items-center rounded-sm px-2",
+                    page.slug === currentPage.slug &&
+                      "bg-muted text-primary font-bold",
+                  )}
+                >
+                  {page.title}
+                </span>
+              )}
+            </Fragment>
+          ))}
         </nav>
-        <div className="w-full overflow-hidden p-1">
+        <div
+          className={cn(
+            "w-full overflow-hidden p-1",
+            fullHeight && "h-full min-h-0",
+          )}
+        >
           {currentPage && "content" in currentPage ? currentPage.content : null}
         </div>
       </div>
     </main>
   );
 };
+
+function groupPagesBySection<T extends { section?: string }>(pages: T[]) {
+  return pages.reduce<Array<{ section: string | undefined; pages: T[] }>>(
+    (groups, page) => {
+      const previous = groups.at(-1);
+      if (previous && previous.section === page.section) {
+        previous.pages.push(page);
+      } else {
+        groups.push({ section: page.section, pages: [page] });
+      }
+      return groups;
+    },
+    [],
+  );
+}

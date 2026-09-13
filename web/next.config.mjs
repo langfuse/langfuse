@@ -150,6 +150,10 @@ const nextConfig = {
     browserToTerminal: true,
   },
   experimental: {
+    // Ephemeral CI builds can skip writing compiler state they never restore.
+    ...(process.env.NEXT_DISABLE_BUILD_CACHE === "true"
+      ? { turbopackFileSystemCacheForBuild: false }
+      : {}),
     // Use the Rust port instead of the Babel transform
     // turbopackRustReactCompiler: true,
     // Keep `new Worker(new URL(..., import.meta.url))` on the app origin when

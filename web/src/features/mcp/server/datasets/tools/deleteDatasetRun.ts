@@ -1,4 +1,4 @@
-import { deleteDatasetRunByIdForApi } from "@/src/features/datasets/server/publicDatasetService";
+import { deleteDatasetRunByIdForApi } from "@/src/features/datasets/server";
 import { DeleteDatasetRunV1Response } from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";

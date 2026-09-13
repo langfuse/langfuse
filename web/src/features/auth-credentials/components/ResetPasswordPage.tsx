@@ -24,7 +24,7 @@ import { TRPCClientError } from "@trpc/client";
 import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
+import { passwordSchema } from "@/src/features/auth";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
 
@@ -114,15 +114,15 @@ export function ResetPasswordPage({
 
       let target =
         isSetMode && isLangfuseCloud && region !== "DEV" ? "/onboarding" : "/";
-      if (session.status !== "authenticated") {
-        const signInResult = await signIn("credentials", {
-          email: effectiveEmail,
-          password: values.password,
-          redirect: false,
-        });
-        if (!signInResult?.ok) {
-          target = "/auth/sign-in";
-        }
+      // A password update revokes every existing JWT, including this
+      // browser's, so the current session always has to be re-established.
+      const signInResult = await signIn("credentials", {
+        email: effectiveEmail,
+        password: values.password,
+        redirect: false,
+      });
+      if (!signInResult?.ok) {
+        target = "/auth/sign-in";
       }
 
       setIsSuccess(true);

@@ -40,7 +40,7 @@ Include confidence for each recommendation: `high`, `medium`, `low`, or `unknown
 3. Inspect comments, latest activity, linked issues, checks, and review threads when status or ownership is ambiguous.
 4. Cluster duplicates or related items before prioritizing.
 5. Return recommendations ordered by urgency, then quick wins, then cleanup.
-6. Present the recommendations as a decision table for the engineer to act on. Every action this skill recommends is a state change reserved for a human, so do not perform them. If a queue item needs a note left on it for someone else, that is a comment or a description edit, which agents do write — see [`linear-agent-writes`](../linear-agent-writes/SKILL.md) for the shapes and the labels.
+6. Present the recommendations as a decision table for the engineer to act on. Every action this skill recommends is a state change reserved for a human, so do not perform them. If a queue item needs a note left on it for someone else, that is a comment or a description edit — propose it, get a yes, then write; see [`linear-agent-writes`](../linear-agent-writes/SKILL.md).
 
 ## Linear Review
 
@@ -109,13 +109,13 @@ Recommend:
 - `stale-candidate` for old, conflicting, duplicate, or superseded PRs.
 - `no-action` when a PR is blocked on the author, failing CLA, merge conflicts, unresolved requested changes, or unrelated team ownership.
 
-Do not approve, request changes, comment, close, merge, or edit a PR without explicit human approval for that PR. This is about **GitHub pull requests**, not the issue tracker — tracker comments and description edits follow `linear-agent-writes` and need nobody's permission.
+Do not approve, request changes, comment, close, merge, or edit a PR without explicit human approval for that PR. This is about **GitHub pull requests**, not the issue tracker — tracker comments and description edits follow [`linear-agent-writes`](../linear-agent-writes/SKILL.md) (propose, then write).
 
 ## Human Gates
 
 These writes require explicit human confirmation by row ID:
 
-- Linear state — status, priority, assignee, labels, cancellation, or customer-need changes. Comments and description edits are **not** gated: they are two of the permitted agent write shapes, so leave them to [`linear-agent-writes`](../linear-agent-writes/SKILL.md), which owns the shapes and the labels.
+- Linear state — status, priority, assignee, labels, cancellation, or customer-need changes. Comments and description edits are permitted agent shapes but still need a propose-then-write yes — leave them to [`linear-agent-writes`](../linear-agent-writes/SKILL.md).
 - Pylon replies, internal notes, status changes, assignment, tags, snoozes, closes, or external-issue links. This is customer-facing, and that gate stays.
 - GitHub approvals, comments, requested changes, reviewer changes, closes, merges, labels, or branch actions.
 

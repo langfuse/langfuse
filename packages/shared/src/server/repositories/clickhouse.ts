@@ -33,6 +33,7 @@ import {
 } from "../clickhouse/queryTags";
 import {
   CLICKHOUSE_RESOURCE_ERROR_OUTCOMES,
+  clickHouseQueryTableLabel,
   recordClickHouseQueryOutcome,
 } from "../clickhouse/queryOutcome";
 
@@ -54,14 +55,23 @@ const ERROR_TYPE_CONFIG: Record<
     discriminators: string[];
   }
 > = {
-  MEMORY_LIMIT: {
-    discriminators: ["memory limit exceeded"],
-  },
+  // Order matters: matched top-to-bottom, first hit wins. OvercommitTracker
+  // kills also carry a "Memory limit … exceeded" phrase, so OVERCOMMIT must
+  // precede MEMORY_LIMIT to keep the more specific cause in the outcome metric.
   OVERCOMMIT: {
-    discriminators: ["OvercommitTracker"],
+    discriminators: ["overcommittracker"],
+  },
+  MEMORY_LIMIT: {
+    discriminators: [
+      "memory limit exceeded",
+      "memory limit (for query) exceeded",
+      "memory limit (total) exceeded",
+      "memory limit (for user) exceeded",
+      "memory limit",
+    ],
   },
   TIMEOUT: {
-    discriminators: ["Timeout", "timeout", "timed out"],
+    discriminators: ["timeout", "timed out"],
   },
 };
 
@@ -88,11 +98,18 @@ export class ClickHouseResourceError extends Error {
     }
   }
 
+  static is(error: unknown): error is ClickHouseResourceError {
+    return (
+      error instanceof ClickHouseResourceError ||
+      (error instanceof Error && error.name === "ClickHouseResourceError")
+    );
+  }
+
   static wrapIfResourceError(
     originalError: Error,
     tags?: NormalizedClickHouseQueryTags,
   ): Error {
-    const errorMessage = originalError.message || "";
+    const errorMessage = (originalError.message || "").toLowerCase();
 
     for (const [type, config] of Object.entries(ERROR_TYPE_CONFIG) as Array<
       [
@@ -101,7 +118,7 @@ export class ClickHouseResourceError extends Error {
       ]
     >) {
       const hasDiscriminator = config.discriminators.some((discriminator) =>
-        errorMessage.includes(discriminator),
+        errorMessage.includes(discriminator.toLowerCase()),
       );
 
       if (hasDiscriminator) {
@@ -684,6 +701,7 @@ export async function queryClickhouse<T>(
 ): Promise<T[]> {
   if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
+  const table = clickHouseQueryTableLabel(opts.query);
   return await instrumentAsync(
     { name: "clickhouse-query", spanKind: SpanKind.CLIENT },
     async (span) => {
@@ -745,11 +763,12 @@ export async function queryClickhouse<T>(
             ? CLICKHOUSE_RESOURCE_ERROR_OUTCOMES[wrapped.errorType]
             : "error",
           normalizedTags,
+          table,
         );
         throw wrapped;
       });
 
-      recordClickHouseQueryOutcome("success", normalizedTags);
+      recordClickHouseQueryOutcome("success", normalizedTags, table);
       return rows;
     },
   );

@@ -100,7 +100,7 @@ type ProcessCase = {
   injectError?: {
     stage: InjectErrorStage;
     message: string;
-    errorClass?: "invalid-request" | "resource";
+    errorClass?: "invalid-request" | "resource" | "resource-memory";
   };
   preempt?: { newClaimedAt: Date };
   preemptPause?: { at: Date };
@@ -736,6 +736,37 @@ const cases: ProcessCase[] = [
     },
   },
   {
+    name: "ClickHouse memory limit resource error on executeQuery: rethrows, stays ACTIVE, not ERROR_BAD_QUERY",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: MonitorSeveritySchema.enum.OK,
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedAt: runAt,
+      },
+    ],
+    injectError: {
+      stage: "executeQuery",
+      errorClass: "resource-memory",
+      message: "Memory limit (for query) exceeded: would use 2.25 GiB",
+    },
+    expect: {
+      throws: "Memory limit (for query) exceeded: would use 2.25 GiB",
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          status: MonitorStatusSchema.enum.ACTIVE,
+          severity: MonitorSeveritySchema.enum.OK,
+          severityChangedAt: tenMinutesAgo,
+          alertedAt: null,
+          lastClaimedAt: justAfterRunAt,
+          lastCompletedAt: null,
+        },
+      ],
+    },
+  },
+  {
     name: "error on getTriggers: claim, no complete, no sev change, no emit",
     monitors: [
       {
@@ -1349,6 +1380,11 @@ describe("MonitorProcessor.process (integration)", () => {
         if (c.injectError.errorClass === "resource") {
           throw new ClickHouseResourceError(
             "TIMEOUT",
+            new Error(c.injectError.message),
+          );
+        }
+        if (c.injectError.errorClass === "resource-memory") {
+          throw ClickHouseResourceError.wrapIfResourceError(
             new Error(c.injectError.message),
           );
         }

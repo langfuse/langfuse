@@ -49,6 +49,7 @@ const renderMatrix = ({
         rows={rows}
         scoreRows={scoreRows}
         experiments={experiments}
+        colorExperimentIds={experiments.map((exp) => exp.experimentId)}
         isLoading={false}
         pagination={{ totalCount, onChange, state }}
       />
@@ -82,6 +83,7 @@ describe("ExperimentScoreMatrix pagination", () => {
           rows={[itemRow("a", 0.5)]}
           scoreRows={[]}
           experiments={experiments}
+          colorExperimentIds={experiments.map((exp) => exp.experimentId)}
           isLoading={false}
           pagination={{
             totalCount: 6,

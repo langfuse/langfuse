@@ -1,4 +1,4 @@
-import { PassThrough } from "node:stream";
+import { Duplex, PassThrough } from "node:stream";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -65,24 +65,48 @@ class FakeContainer {
   };
 
   running = false;
+  lastExecCmd: string[] | undefined;
+  lastExecStdin: string | undefined;
 
   constructor(
     public readonly id: string,
     private readonly name: string,
   ) {}
 
-  async exec(options: { Cmd: string[] }) {
-    const payload =
-      options.Cmd[3] === undefined
-        ? JSON.stringify({ status: "ok" })
-        : JSON.stringify({ result: { command: "ok" } });
+  async exec(options: { Cmd: string[]; AttachStdin?: boolean }) {
+    this.lastExecCmd = options.Cmd;
+
+    if (!options.AttachStdin) {
+      return {
+        inspect: async () => ({ ExitCode: 0 }),
+        start: async () => {
+          const stream = new PassThrough();
+          queueMicrotask(() => {
+            stream.end(JSON.stringify({ status: "ok" }));
+          });
+          return stream;
+        },
+      };
+    }
 
     return {
       inspect: async () => ({ ExitCode: 0 }),
       start: async () => {
-        const stream = new PassThrough();
-        queueMicrotask(() => {
-          stream.end(payload);
+        const chunks: Buffer[] = [];
+        const stream = new Duplex({
+          write(chunk, _encoding, callback) {
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+            callback();
+          },
+          final: (callback) => {
+            this.lastExecStdin = Buffer.concat(chunks).toString("utf8");
+            queueMicrotask(() => {
+              stream.push(JSON.stringify({ result: { command: "ok" } }));
+              stream.push(null);
+            });
+            callback();
+          },
+          read() {},
         });
         return stream;
       },
@@ -187,5 +211,37 @@ describe("in-app agent docker sandbox provider", () => {
       command: "ok",
     });
     expect(fakeDockerState.createCount).toBe(2);
+  });
+
+  it("sends sandbox payloads on exec stdin instead of argv", async () => {
+    const { createDockerSandboxProvider } = await import("./docker");
+    const provider = await createDockerSandboxProvider({
+      image: "langfuse-in-app-agent-sandbox:latest",
+    });
+
+    const session = await provider.ensureSession({
+      conversationId: "conversation-1",
+    });
+
+    const largeToolResult = "x".repeat(200_000);
+    await session.sandbox.syncReadonlyFiles({
+      files: [
+        {
+          path: "tool_calls/listObservations.json",
+          content: largeToolResult,
+        },
+      ],
+    });
+
+    await expect(session.sandbox.bash({ command: "pwd" })).resolves.toEqual({
+      command: "ok",
+    });
+
+    const container = Array.from(fakeDockerState.containersById.values())[0];
+    expect(
+      container?.lastExecCmd?.some((part) => part.includes(largeToolResult)),
+    ).toBe(false);
+    expect(container?.lastExecStdin).toContain(largeToolResult);
+    expect(container?.lastExecStdin).toContain('"command":"pwd"');
   });
 });

@@ -4,13 +4,12 @@ import {
   DialogController,
   DialogHeader,
   DialogTitle,
-  type DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { CreateProjectMemberDialogContent } from "@/src/features/rbac/components/CreateProjectMemberDialogContent";
 import {
   useEntitlementLimit,
   useHasEntitlement,
-} from "@/src/features/entitlements/hooks";
+} from "@/src/features/entitlements";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -29,7 +28,7 @@ type CreateProjectMemberDialogControllerProps = {
           max: number;
         }
       | undefined;
-    Trigger: typeof DialogTrigger;
+    openDialog: () => void;
   }) => ReactNode;
 };
 
@@ -134,13 +133,13 @@ export function CreateProjectMemberDialogController({
         </>
       )}
     >
-      {({ Trigger }) =>
+      {({ openDialog }) =>
         children({
           hasAccess,
           hasOnlySingleProjectAccess,
           isSubmitting: createProjectMemberMutation.isPending,
           usageLimit,
-          Trigger,
+          openDialog,
         })
       }
     </DialogController>

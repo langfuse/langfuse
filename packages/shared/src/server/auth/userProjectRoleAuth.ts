@@ -71,7 +71,7 @@ function generateUserProjectRolesQuery({
       WHERE om.org_id = ${orgId}
         AND om.role != 'NONE'
         AND NOT EXISTS (
-          SELECT 1 FROM project_memberships pm 
+          SELECT 1 FROM project_memberships pm
           WHERE pm.org_membership_id = om.id
             AND pm.project_id = ${projectId}
         )

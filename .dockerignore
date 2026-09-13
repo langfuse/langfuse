@@ -13,3 +13,4 @@ README.md
 **/*.tsbuildinfo
 .git
 **/node_modules
+ai-gateway/target
