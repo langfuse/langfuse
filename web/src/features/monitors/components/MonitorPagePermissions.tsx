@@ -3,7 +3,7 @@ import { type ReactNode } from "react";
 import { ErrorPage } from "@/src/components/error-page";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { useLangfuseV4WriteMode } from "@/src/features/organizations/hooks";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 
 /** MonitorScope is the RBAC scope a monitor page can require for entry. */

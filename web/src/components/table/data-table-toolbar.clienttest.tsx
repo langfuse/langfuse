@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
+import { ExperimentFormatSetting } from "@/src/features/experiments/components/ExperimentFormatSetting";
 import {
   DataTableToolbar,
   type MultiSelect,
@@ -25,6 +26,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: 500,
             selectedRowIds: selectedIds(50),
@@ -43,6 +45,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: null,
             selectedRowIds: selectedIds(50),
@@ -59,6 +62,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: 30,
             selectedRowIds: selectedIds(30),
@@ -78,6 +82,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: null,
             hasNextPage: true,
@@ -98,6 +103,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             selectAll: true,
             totalCount: null,
@@ -114,6 +120,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             selectAll: true,
             totalCount: 823,
@@ -131,6 +138,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: null,
             hasNextPage: false,
@@ -148,6 +156,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: null,
             hasNextPage: true,
@@ -165,6 +174,7 @@ describe("DataTableToolbar select-all banner gate", () => {
       render(
         <DataTableToolbar
           columns={[]}
+          tableName="test-table"
           multiSelect={baseMultiSelect({
             totalCount: null,
             hasNextPage: true,
@@ -178,5 +188,51 @@ describe("DataTableToolbar select-all banner gate", () => {
         screen.queryByText(/items on this page are selected/),
       ).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("DataTableToolbar presentation controls", () => {
+  const settingsProps = {
+    columns: [],
+    tableName: "test-table",
+    columnVisibility: {},
+    setColumnVisibility: vi.fn(),
+    rowHeight: "s" as const,
+    setRowHeight: vi.fn(),
+  };
+
+  it("renders Columns and row height as separate controls by default", () => {
+    render(<DataTableToolbar {...settingsProps} />);
+
+    expect(
+      screen.getByRole("button", { name: /^Columns/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Table settings" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the format switch accessible while the column picker is closed", () => {
+    const onIoRenderModeChange = vi.fn();
+    render(
+      <DataTableToolbar
+        {...settingsProps}
+        toolbarSettings={
+          <ExperimentFormatSetting
+            ioRenderMode="json"
+            onIoRenderModeChange={onIoRenderModeChange}
+          />
+        }
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("radio", { name: "JSON" }));
+    expect(onIoRenderModeChange).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("radio", { name: "Formatted" }));
+    expect(onIoRenderModeChange).toHaveBeenCalledExactlyOnceWith("text");
+    fireEvent.click(screen.getByRole("button", { name: /^Columns/ }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Row height" })).toBeVisible();
+    expect(screen.getByRole("radio", { name: "JSON" })).toBeVisible();
   });
 });

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 import * as React from "react";
 
 import { Button } from "@/src/components/ui/button";
@@ -179,5 +179,4 @@ export {
   TableRow,
   TableCell,
   TableCellWithCopyButton,
-  TableCaption,
 };

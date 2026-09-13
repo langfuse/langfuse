@@ -2,16 +2,31 @@ import { assertUnreachable } from "@langfuse/shared";
 
 export const featurePreviewFlags = [
   "modernSession",
-  // TODO(remove ~2026-06-19): "searchBar" is retired — the grammar search bar
-  // is now GA on the v4 events tables for everyone (see useSearchBarEnabled),
-  // no longer a per-user Feature Preview opt-in. Kept as dead plumbing for a
-  // safe rollback; drop once the GA rollout is confirmed stable.
-  "searchBar",
-  "v4UpgradeUi",
-  "compactTimeline",
+  "normalizedIoPreview",
 ] as const;
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
+
+const restrictedFlags = ["aiGateway"] as const;
+
+type RestrictedFlag = (typeof restrictedFlags)[number];
+
+export const isRestrictedFlag = (flag: string): flag is RestrictedFlag =>
+  restrictedFlags.some((restrictedFlag) => restrictedFlag === flag);
+
+export const isFeaturePreviewFlag = (
+  flag: string,
+): flag is FeaturePreviewFlag =>
+  featurePreviewFlags.some((previewFlag) => previewFlag === flag);
+
+export const filterFeaturePreviewFlags = (
+  flags: string[],
+): FeaturePreviewFlag[] => flags.filter(isFeaturePreviewFlag);
+
+export const featurePreviewLabels = {
+  modernSession: "Compact Session View",
+  normalizedIoPreview: "Improved Message Rendering",
+} satisfies Record<FeaturePreviewFlag, string>;
 
 export type FeaturePreviewAvailabilityContext = {
   v4BetaEnabled: boolean;
@@ -25,15 +40,7 @@ export const isFeaturePreviewAvailable = (
     return context.v4BetaEnabled;
   }
 
-  if (flag === "searchBar") {
-    return true;
-  }
-
-  if (flag === "v4UpgradeUi") {
-    return true;
-  }
-
-  if (flag === "compactTimeline") {
+  if (flag === "normalizedIoPreview") {
     return true;
   }
 
@@ -42,9 +49,14 @@ export const isFeaturePreviewAvailable = (
 
 export const availableFlags = [
   ...featurePreviewFlags,
+  ...restrictedFlags,
+  "searchBar",
   "templateFlag",
   "excludeClickhouseRead",
   "v4BetaToggleVisible",
   "observationEvals",
   "experimentsV4Enabled",
+  // Internal flag (deliberately NOT in featurePreviewFlags): gates the
+  // redesigned compact session timeline for admins/flagged users only.
+  "sessionTimeline",
 ] as const;

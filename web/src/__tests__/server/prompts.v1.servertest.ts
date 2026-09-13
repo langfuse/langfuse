@@ -1,8 +1,9 @@
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { makeAPICall } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4, v4 } from "uuid";
-import { type Prompt, PromptType } from "@langfuse/shared";
 import {
+  type Prompt,
+  PromptType,
   LegacyPromptSchema,
   type LegacyValidatedPrompt,
 } from "@langfuse/shared";

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 /**
  * TraceMetadataBadges - Extracted badge components for trace metadata
  *
@@ -7,7 +8,7 @@
 
 import Link from "next/link";
 import { ExternalLinkIcon } from "lucide-react";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 
 export function SessionBadge({
   sessionId,
@@ -23,14 +24,9 @@ export function SessionBadge({
   return (
     <Link
       href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
-      className="inline-flex"
+      className="ph-no-capture inline-flex"
     >
-      <Badge>
-        <span className="truncate" title={text}>
-          {text}
-        </span>
-        <ExternalLinkIcon className="ml-1 h-3 w-3" />
-      </Badge>
+      <Badge color="primary" text={text} trailingIcon={ExternalLinkIcon} />
     </Link>
   );
 }
@@ -49,14 +45,9 @@ export function UserIdBadge({
   return (
     <Link
       href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
-      className="inline-flex"
+      className="ph-no-capture inline-flex"
     >
-      <Badge>
-        <span className="truncate" title={text}>
-          {text}
-        </span>
-        <ExternalLinkIcon className="ml-1 h-3 w-3" />
-      </Badge>
+      <Badge color="primary" text={text} trailingIcon={ExternalLinkIcon} />
     </Link>
   );
 }
@@ -75,14 +66,9 @@ export function TargetTraceBadge({
   return (
     <Link
       href={`/project/${projectId}/traces/${encodeURIComponent(targetTraceId)}`}
-      className="inline-flex"
+      className="ph-no-capture inline-flex"
     >
-      <Badge>
-        <span className="truncate" title={text}>
-          {text}
-        </span>
-        <ExternalLinkIcon className="ml-1 h-3 w-3" />
-      </Badge>
+      <Badge color="primary" text={text} trailingIcon={ExternalLinkIcon} />
     </Link>
   );
 }
@@ -93,15 +79,15 @@ export function EnvironmentBadge({
   environment: string | null;
 }) {
   if (!environment) return null;
-  return <Badge variant="tertiary">Env: {environment}</Badge>;
+  return <Badge text={`Env: ${environment}`} />;
 }
 
 export function ReleaseBadge({ release }: { release: string | null }) {
   if (!release) return null;
-  return <Badge variant="tertiary">Release: {release}</Badge>;
+  return <Badge text={`Release: ${release}`} />;
 }
 
 export function VersionBadge({ version }: { version: string | null }) {
   if (!version) return null;
-  return <Badge variant="tertiary">Version: {version}</Badge>;
+  return <Badge text={`Version: ${version}`} />;
 }

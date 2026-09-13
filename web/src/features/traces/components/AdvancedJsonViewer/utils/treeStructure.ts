@@ -21,12 +21,6 @@ import {
 } from "./calculateWidth";
 
 /**
- * Size threshold for sync vs Web Worker
- * Tree building with >10K nodes can block main thread for 50ms+
- */
-export const TREE_BUILD_THRESHOLD = 10_000;
-
-/**
  * TreeNode represents a single node in the hierarchical JSON tree
  */
 export interface TreeNode {
@@ -585,43 +579,4 @@ export function buildTreeFromJSON(
     maxDepth,
     maxContentWidth,
   };
-}
-
-/**
- * Estimate total node count without building tree
- * Used to determine if we should use Web Worker
- *
- * @param data - The JSON data
- * @returns Estimated node count
- */
-export function estimateNodeCount(data: unknown): number {
-  let count = 0;
-
-  // Iterative traversal (stack-based)
-  const stack: unknown[] = [data];
-
-  while (stack.length > 0) {
-    const current = stack.pop()!;
-    count++;
-
-    if (isExpandable(current)) {
-      const children = getChildren(current);
-      children.forEach(([_, childValue]) => {
-        stack.push(childValue);
-      });
-    }
-  }
-
-  return count;
-}
-
-/**
- * Check if tree building should use Web Worker
- *
- * @param data - The JSON data
- * @returns True if Web Worker should be used
- */
-export function shouldUseWorkerForTreeBuild(data: unknown): boolean {
-  const estimatedCount = estimateNodeCount(data);
-  return estimatedCount > TREE_BUILD_THRESHOLD;
 }

@@ -193,6 +193,7 @@ async function sendEventAdminEmails({
           projectId: event.projectId,
           blockReason: event.blockReason,
           templateId: event.evalTemplateId,
+          evaluatorId: event.evaluatorId,
         },
       )}`;
       await Promise.allSettled(

@@ -29,8 +29,9 @@ import {
   readFileSync,
   statSync,
   writeSync,
+  existsSync,
+  mkdirSync,
 } from "node:fs";
-import { existsSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { tmpdir } from "node:os";

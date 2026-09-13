@@ -32,6 +32,12 @@ describe("chartFilterExclusionReason", () => {
 
   it("groups measures, scores, comments, and metadata by reason", () => {
     expect(chartFilterExclusionReason("latency")).toMatch(/latency, cost/i);
+    expect(chartFilterExclusionReason("cachedInputTokens")).toMatch(
+      /latency, cost/i,
+    );
+    expect(chartFilterExclusionReason("cachedInputCost")).toMatch(
+      /latency, cost/i,
+    );
     expect(chartFilterExclusionReason("totalCost")).toMatch(/latency, cost/i);
     expect(chartFilterExclusionReason("scores_avg")).toMatch(/scores/i);
     expect(chartFilterExclusionReason("trace_score_categories")).toMatch(
@@ -112,6 +118,13 @@ describe("chartSearchFieldReason", () => {
     // a search-bar startTime bound the chart can't honour
     expect(chartSearchFieldReason("startTime")).toMatch(/this field/i);
   });
+
+  it.each(["content", "all", "in"])(
+    "marks the %s text search as unapplied",
+    (field) => {
+      expect(chartSearchFieldReason(field)).toMatch(/search/i);
+    },
+  );
 
   it("returns null for unknown fields", () => {
     expect(chartSearchFieldReason("nonsense")).toBeNull();

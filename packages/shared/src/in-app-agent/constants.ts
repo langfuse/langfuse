@@ -9,17 +9,33 @@ export const IN_APP_AGENT_GENERIC_ERROR_MESSAGE =
   "An error occurred. Please try again or start a new conversation.";
 
 /** Runs that are not yet in a terminal state, including parked approvals. */
-export const IN_APP_AGENT_UNSETTLED_RUN_STATUSES: readonly InAppAgentRunStatus[] =
-  [
-    InAppAgentRunStatus.QUEUED,
-    InAppAgentRunStatus.RUNNING,
-    InAppAgentRunStatus.AWAITING_APPROVAL,
-  ];
+export const IN_APP_AGENT_UNSETTLED_RUN_STATUSES = [
+  InAppAgentRunStatus.QUEUED,
+  InAppAgentRunStatus.RUNNING,
+  InAppAgentRunStatus.AWAITING_APPROVAL,
+] as const;
+
+export type UnsettledInAppAgentRunStatus =
+  (typeof IN_APP_AGENT_UNSETTLED_RUN_STATUSES)[number];
+
+/** Complement of `IN_APP_AGENT_UNSETTLED_RUN_STATUSES`. */
+export type SettledInAppAgentRunStatus = Exclude<
+  InAppAgentRunStatus,
+  UnsettledInAppAgentRunStatus
+>;
 
 export function isUnsettledInAppAgentRunStatus(
   status: InAppAgentRunStatus,
-): boolean {
-  return IN_APP_AGENT_UNSETTLED_RUN_STATUSES.includes(status);
+): status is UnsettledInAppAgentRunStatus {
+  return (
+    IN_APP_AGENT_UNSETTLED_RUN_STATUSES as readonly InAppAgentRunStatus[]
+  ).includes(status);
+}
+
+export function isSettledInAppAgentRunStatus(
+  status: InAppAgentRunStatus,
+): status is SettledInAppAgentRunStatus {
+  return !isUnsettledInAppAgentRunStatus(status);
 }
 
 export const IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE = "silent-mcp-output";
@@ -47,3 +63,7 @@ export const getInAppAgentLlmCallObservationId = (
   runId: string,
   stepNumber: number,
 ) => `${runId}-llm-${stepNumber}`;
+
+// Product traces and feedback scores for the in-app agent. Must match so
+// scores attach to the same traces evaluators in the AI-features project see.
+export const IN_APP_AGENT_PRODUCT_ENVIRONMENT = "production";

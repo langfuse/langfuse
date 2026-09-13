@@ -1,5 +1,6 @@
 import { TRPCClientError } from "@trpc/client";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { formatTrpcZodValidationDescription } from "@/src/utils/trpcValidationError";
 
 // Catch network level errors, e.g. by proxy rate-limiting
 
@@ -95,11 +96,13 @@ export const trpcErrorToast = (error: unknown) => {
     const { errorTitle, httpStatus } = getErrorTitleAndHttpCode(error);
 
     const path = error.data?.path;
-    const description = getErrorDescription(httpStatus);
+    const validationDescription = formatTrpcZodValidationDescription(error);
+    const description =
+      validationDescription ?? error.message ?? getErrorDescription(httpStatus);
 
     showErrorToast(
-      errorTitle,
-      error.message ?? description,
+      validationDescription ? "Invalid input" : errorTitle,
+      description,
       httpStatus >= 500 && httpStatus < 600 ? "ERROR" : "WARNING",
       path,
     );

@@ -11,9 +11,12 @@
  */
 
 import { useCallback, useMemo, useState } from "react";
-import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { type RowMetrics } from "./TimelineRowMetrics";
+import { usdFormatter } from "@/src/utils/numbers";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { useTraceSearchMatches } from "@/src/features/traces/hooks/useTraceSearchMatches";
 import {
   useActiveObservationIds,
   usePlayhead,
@@ -26,7 +29,11 @@ import { TimelineDense } from "./TimelineDense";
 
 export function TraceTimelineCompact() {
   const { roots, nodeMap } = useTraceData();
-  const { selectedNodeId } = useSelection();
+  const { selectedNodeId, collapsedNodes } = useSelection();
+  // The same five switches the tree honours. They live in one place because a
+  // toggle that works in one view and silently does nothing in the other is
+  // worse than no toggle.
+  const { showDuration, showCostTokens } = useViewPreferences();
   const { handleHover } = useHandlePrefetchObservation();
   const selectNode = useSelectTraceNode("timeline_compact");
 
@@ -46,6 +53,15 @@ export function TraceTimelineCompact() {
     }),
     [showPlayhead, getPlayheadSec, subscribePosition, seekToSec],
   );
+
+  /**
+   * The search box, answered in place. The renderer takes the SET of ids that
+   * keep their colour and nothing about searching — it dims the rest, reveals
+   * the first hit and states the count, which is all a chart can do with a
+   * query. The Graph reads the same hook, so the two cannot state different
+   * counts for one query.
+   */
+  const search = useTraceSearchMatches();
 
   const [pointerModality] = useState(detectPointerModality);
   const [box, setBox] = useState<{ width: number; height: number } | null>(
@@ -81,28 +97,23 @@ export function TraceTimelineCompact() {
     [nodeMap, handleHover],
   );
 
-  // Cost and usage the way the tree row states them, so hovering a hairline row
-  // tells you what reading a tree row would. Same formatters, same order.
-  const factsOf = useCallback(
-    (nodeId: string) => {
+  /**
+   * What a row says about itself: its cost, formatted the way a tree row states
+   * it. Scores, comment counts and heat-map colouring were tried here and taken
+   * back out — a row beside a bar cannot carry them consistently, and colour
+   * already means observation type. `showScores` and `showComments` mean what
+   * their storage keys have always said: the observation tree.
+   */
+  const metricsOf = useCallback(
+    (nodeId: string): RowMetrics => {
       const node = nodeMap.get(nodeId);
-      if (!node) return [];
-      const facts: string[] = [];
-      if (node.totalCost) {
-        const aggregated = node.children.length > 0 || node.type === "TRACE";
-        facts.push(
-          `${aggregated ? "∑ " : ""}${usdFormatter(node.totalCost.toNumber())}`,
-        );
-      }
-      const tokens = formatTokenCounts(
-        node.inputUsage,
-        node.outputUsage,
-        node.totalUsage,
-      );
-      if (tokens) facts.push(tokens);
-      return facts;
+      if (!node?.totalCost || !showCostTokens) return {};
+      const aggregated = node.children.length > 0 || node.type === "TRACE";
+      return {
+        costText: `${aggregated ? "∑ " : ""}${usdFormatter(node.totalCost.toNumber())}`,
+      };
     },
-    [nodeMap],
+    [nodeMap, showCostTokens],
   );
 
   return (
@@ -112,6 +123,7 @@ export function TraceTimelineCompact() {
           roots={roots}
           box={box}
           gutter="auto"
+          collapsed={collapsedNodes}
           pointer={pointerModality}
           barColor="type"
           compress={false}
@@ -121,7 +133,9 @@ export function TraceTimelineCompact() {
           onHover={handleHoverNode}
           activeIds={activeIds}
           playhead={playhead}
-          factsOf={factsOf}
+          metricsOf={metricsOf}
+          showDuration={showDuration}
+          search={search}
         />
       ) : null}
     </div>

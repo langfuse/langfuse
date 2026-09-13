@@ -1,5 +1,6 @@
 import {
   LangfuseConflictError,
+  LangfuseNotFoundError,
   ServiceUnavailableError,
 } from "@langfuse/shared";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -147,6 +148,19 @@ describe("POST /api/public/feedback", () => {
     expect(JSON.parse(res._getData())).toMatchObject({
       message: "Feedback submission is not configured for this deployment",
       error: "LangfuseConflictError",
+    });
+  });
+
+  it("returns 404 when product feedback is hidden", async () => {
+    mockSubmitFeedback.mockRejectedValueOnce(new LangfuseNotFoundError());
+    const { req, res } = createRequest(validBody);
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(404);
+    expect(JSON.parse(res._getData())).toMatchObject({
+      message: "Not Found",
+      error: "LangfuseNotFoundError",
     });
   });
 });

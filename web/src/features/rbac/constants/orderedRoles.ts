@@ -1,9 +1,9 @@
-import { Role } from "@langfuse/shared";
+import { type Role } from "@langfuse/shared/src/db";
 
 export const orderedRoles: Record<Role, number> = {
-  [Role.OWNER]: 4,
-  [Role.ADMIN]: 3,
-  [Role.MEMBER]: 2,
-  [Role.VIEWER]: 1,
-  [Role.NONE]: 0,
+  OWNER: 4,
+  ADMIN: 3,
+  MEMBER: 2,
+  VIEWER: 1,
+  NONE: 0,
 };

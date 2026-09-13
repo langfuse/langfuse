@@ -24,7 +24,9 @@ const mocks = vi.hoisted(() => ({
   evalCount: 1,
   lastTracePending: false,
   canToggleV4: true,
-  isBetaEnabled: false,
+  isV4: false,
+  // Cloud is bound by the dated v3 sunset; self-hosted is not.
+  hasDeadline: true,
 }));
 
 vi.mock("next/router", () => ({
@@ -76,6 +78,7 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
 vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
   V4_MIGRATION_DEADLINE: "November 16, 2026",
   useCopyMigrationPrompt: () => vi.fn(),
+  useHasV4MigrationDeadline: () => mocks.hasDeadline,
   // Stand-ins for the shared sidebar copy: the real components are covered in
   // V4MigrationContent.clienttest.tsx, here we only assert they are rendered.
   V4MigrationDocsLink: () => (
@@ -83,10 +86,14 @@ vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
   ),
   V4MigrationDeadlineNote: () => (
     <p>
-      After November 16, 2026 some features may stop working without a v4
-      upgrade.
+      After November 16, 2026 some features may stop working if you don&apos;t
+      update integrations.
     </p>
   ),
+  useV4MigrationTitle: () =>
+    mocks.hasDeadline
+      ? "Ensure compatibility after November 16"
+      : "Ensure compatibility",
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
@@ -97,10 +104,10 @@ vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
   useV4UpgradeUiEnabled: () => true,
 }));
 
-vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
-  useV4Beta: () => ({
+vi.mock("@/src/features/events/hooks/useReadPath", () => ({
+  useReadPath: () => ({
     canToggleV4: mocks.canToggleV4,
-    isBetaEnabled: mocks.isBetaEnabled,
+    isV4: mocks.isV4,
   }),
 }));
 
@@ -161,7 +168,8 @@ describe("V4MigrationStatusPage", () => {
     mocks.evalCount = 1;
     mocks.lastTracePending = false;
     mocks.canToggleV4 = true;
-    mocks.isBetaEnabled = false;
+    mocks.hasDeadline = true;
+    mocks.isV4 = false;
   });
 
   it("keeps the project table readable through horizontal scrolling", () => {
@@ -228,7 +236,9 @@ describe("V4MigrationStatusPage", () => {
   it("opens the summary card with a link to the v4 docs", () => {
     render(<V4MigrationStatusPage />);
 
-    expect(screen.getByText("Upgrade to v4")).toBeInTheDocument();
+    expect(
+      screen.getByText("Ensure compatibility after November 16"),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "See docs." })).toHaveAttribute(
       "href",
       "https://langfuse.com/docs/v4",
@@ -250,7 +260,7 @@ describe("V4MigrationStatusPage", () => {
   });
 
   it("offers v3 users a switch to the latest UI without a sunset note", () => {
-    mocks.isBetaEnabled = false;
+    mocks.isV4 = false;
 
     render(<V4MigrationStatusPage />);
 
@@ -264,7 +274,7 @@ describe("V4MigrationStatusPage", () => {
   });
 
   it("warns v4 users about the v3 sunset when offering the switch back", () => {
-    mocks.isBetaEnabled = true;
+    mocks.isV4 = true;
 
     render(<V4MigrationStatusPage />);
 
@@ -298,6 +308,36 @@ describe("V4MigrationStatusPage", () => {
     expect(screen.getByText("on November 16, 2026")).toBeInTheDocument();
     expect(screen.getByText("On November 16, 2026")).toBeInTheDocument();
     expect(screen.queryByText(/Oct 9/)).not.toBeInTheDocument();
+  });
+
+  it("replaces the FAQ deadline with the operator cutoff when self-hosted", () => {
+    // Nothing happens to a self-hosted deployment on the Cloud sunset date, so
+    // the FAQ has to point at the operator's own write-mode switch instead.
+    mocks.hasDeadline = false;
+
+    render(<V4MigrationStatusPage />);
+
+    expect(
+      screen.getByText("once your administrator disables the legacy mode"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Once your administrator disables the legacy mode"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/on November 16, 2026/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/On November 16, 2026/)).not.toBeInTheDocument();
+  });
+
+  it("drops the dated sunset from the switch-back warning when self-hosted", () => {
+    mocks.isV4 = true;
+    mocks.hasDeadline = false;
+
+    render(<V4MigrationStatusPage />);
+
+    expect(
+      screen.getByText(
+        /The features powering the legacy v3 UI will be sunset once your administrator disables the legacy mode\./,
+      ),
+    ).toBeInTheDocument();
   });
 
   it("only shows the status pill when action is required", () => {

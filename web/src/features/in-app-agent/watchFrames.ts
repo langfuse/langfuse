@@ -30,8 +30,10 @@ export const InAppAgentWatchFrameSchema = z.discriminatedUnion("type", [
 export type InAppAgentWatchFrame = z.infer<typeof InAppAgentWatchFrameSchema>;
 
 /** A parked approval occupies neither a worker nor the conversation slot. */
-export const IN_APP_AGENT_ACTIVE_RUN_STATUSES: readonly InAppAgentRunStatus[] =
-  [InAppAgentRunStatus.QUEUED, InAppAgentRunStatus.RUNNING];
+const IN_APP_AGENT_ACTIVE_RUN_STATUSES: readonly InAppAgentRunStatus[] = [
+  InAppAgentRunStatus.QUEUED,
+  InAppAgentRunStatus.RUNNING,
+];
 
 export function isActiveInAppAgentRunStatus(
   status: InAppAgentRunStatus,

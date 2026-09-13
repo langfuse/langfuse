@@ -8,6 +8,7 @@ import {
 import { ScanSearch } from "lucide-react";
 import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
+import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import {
   InAppAgentWindow,
   type InAppAgentWindowProps,
@@ -116,9 +117,11 @@ function windowElement(
   };
 
   return (
-    <TooltipProvider>
-      <InAppAgentWindow {...props} />
-    </TooltipProvider>
+    <MarkdownContextProvider>
+      <TooltipProvider>
+        <InAppAgentWindow {...props} />
+      </TooltipProvider>
+    </MarkdownContextProvider>
   );
 }
 
@@ -258,9 +261,8 @@ describe("InAppAgentWindow header", () => {
     );
 
     expect(screen.getByText("Latency outliers")).toBeInTheDocument();
-    expect(screen.queryByText("Beta")).not.toBeInTheDocument();
 
-    // An unnamed conversation is where the product name and Beta tag belong.
+    // An unnamed conversation falls back to the product name.
     rerender(
       windowElement({
         selectedConversationId: "conversation-1",
@@ -269,7 +271,6 @@ describe("InAppAgentWindow header", () => {
     );
 
     expect(screen.getByText("Assistant")).toBeInTheDocument();
-    expect(screen.getByText("Beta")).toBeInTheDocument();
   });
 
   it("toggles expanded on a header double-click, but not from its actions", () => {

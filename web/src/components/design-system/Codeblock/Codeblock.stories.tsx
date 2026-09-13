@@ -12,3 +12,14 @@ export const Default = meta.story({
     theme: "light",
   },
 });
+
+export const ReadOnly = meta.story({
+  args: {
+    language: "typescript",
+    value:
+      "export default function evaluate({ output }) {\n  return { score: output ? 1 : 0 };\n}",
+    theme: "light",
+    showLanguage: false,
+    variant: "read-only",
+  },
+});

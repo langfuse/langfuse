@@ -114,17 +114,6 @@ export function zoomView(
   );
 }
 
-export function panView(
-  view: TimeSpan,
-  space: TimeSpan,
-  deltaMs: number,
-): TimeSpan {
-  return clampView(
-    { start: view.start + finite(deltaMs, 0), duration: view.duration },
-    space,
-  );
-}
-
 /** Zoom-to-fit one span, with breathing room on both sides. */
 export function zoomToSpan(
   target: TimeSpan,
@@ -144,6 +133,3 @@ export function zoomToSpan(
     space,
   );
 }
-
-export const isFitted = (view: TimeSpan, space: TimeSpan): boolean =>
-  view.start <= space.start && view.duration >= space.duration;

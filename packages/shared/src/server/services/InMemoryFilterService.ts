@@ -2,6 +2,10 @@ import { FilterCondition, FilterState } from "../../types";
 import { logger } from "../logger";
 import { encodeBooleanScoreEntry } from "../queries/clickhouse-sql/clickhouse-filter";
 
+export type InMemoryFilterOptions = {
+  emptyEqualsNullColumns?: ReadonlySet<string>;
+};
+
 export class InMemoryFilterService {
   /**
    * Evaluates whether a data object matches the given filter conditions.
@@ -9,12 +13,14 @@ export class InMemoryFilterService {
    * @param data - The data object to evaluate
    * @param filter - The filter conditions to apply
    * @param fieldMapper - Function to map filter column names to data object values
+   * @param options - Column-specific filter semantics
    * @returns true if the data matches all filter conditions, false otherwise
    */
   static evaluateFilter<T>(
     data: T,
     filter: FilterState,
     fieldMapper: (data: T, column: string) => unknown,
+    options?: InMemoryFilterOptions,
   ): boolean {
     try {
       // If no filters, data matches
@@ -24,7 +30,9 @@ export class InMemoryFilterService {
 
       // Evaluate each filter condition
       for (const condition of filter) {
-        if (!this.evaluateFilterCondition(data, condition, fieldMapper)) {
+        if (
+          !this.evaluateFilterCondition(data, condition, fieldMapper, options)
+        ) {
           return false;
         }
       }
@@ -47,6 +55,7 @@ export class InMemoryFilterService {
     data: T,
     condition: FilterCondition,
     fieldMapper: (data: T, column: string) => unknown,
+    options?: InMemoryFilterOptions,
   ): boolean {
     const { column, type, operator } = condition;
 
@@ -111,7 +120,11 @@ export class InMemoryFilterService {
           operator,
         );
       case "null":
-        return this.evaluateNullFilter(fieldValue, operator);
+        return this.evaluateNullFilter(
+          fieldValue,
+          operator,
+          options?.emptyEqualsNullColumns?.has(column) ?? false,
+        );
       case "positionInTrace":
         // Position filters are applied after all other filters in DB queries.
         // Ignore them in in-memory filtering.
@@ -143,6 +156,8 @@ export class InMemoryFilterService {
         return strValue.startsWith(filterValue);
       case "ends with":
         return strValue.endsWith(filterValue);
+      case "is not empty":
+        return strValue.length > 0;
       default:
         logger.error("Unsupported string filter operator", {
           operator,
@@ -432,14 +447,18 @@ export class InMemoryFilterService {
   private static evaluateNullFilter(
     fieldValue: unknown,
     operator: string,
+    emptyEqualsNull: boolean,
   ): boolean {
+    const isNull =
+      fieldValue === null ||
+      fieldValue === undefined ||
+      (emptyEqualsNull && fieldValue === "");
+
     switch (operator) {
       case "is null":
-        return (
-          fieldValue === null || fieldValue === undefined || fieldValue === ""
-        );
+        return isNull;
       case "is not null":
-        return fieldValue !== null && fieldValue !== undefined;
+        return !isNull;
       default:
         logger.error("Unsupported null filter operator", {
           operator,

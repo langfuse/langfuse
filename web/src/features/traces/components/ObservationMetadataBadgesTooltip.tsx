@@ -3,10 +3,10 @@
  * These badges use BreakdownTooltip to show detailed cost/usage information
  */
 
-import { type ObservationType, isGenerationLike } from "@langfuse/shared";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import {
   BreakdownTooltip,
+  type CostSource,
   type PriceSource,
 } from "@/src/features/traces/components/BreakdownTooltip";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
@@ -16,61 +16,52 @@ export function CostBadge({
   totalCost,
   costDetails,
   priceSource,
+  costSource,
 }: {
-  totalCost: number | null;
-  costDetails: Record<string, number> | undefined;
+  totalCost: number;
+  costDetails: Record<string, number>;
   priceSource?: PriceSource;
+  costSource?: CostSource;
 }) {
-  // Don't show if no cost data or cost is 0
-  if (totalCost == null || totalCost === 0 || !costDetails) return null;
-
   return (
     <BreakdownTooltip
       details={costDetails}
       isCost={true}
       priceSource={priceSource}
+      costSource={costSource}
     >
-      <Badge variant="tertiary" className="flex items-center gap-1">
-        <span>{usdFormatter(totalCost)}</span>
-        <InfoIcon className="h-3 w-3" />
-      </Badge>
+      <Badge text={usdFormatter(totalCost)} trailingIcon={InfoIcon} />
     </BreakdownTooltip>
   );
 }
 
 export function UsageBadge({
-  type,
   inputUsage,
   outputUsage,
   totalUsage,
   usageDetails,
 }: {
-  type: ObservationType;
   inputUsage: number;
   outputUsage: number;
   totalUsage: number;
-  usageDetails: Record<string, number> | undefined;
+  usageDetails: Record<string, number>;
 }) {
-  // Only show for generation-like observations
-  if (!isGenerationLike(type) || !usageDetails) return null;
-
   const tokenText = formatTokenCounts(
     inputUsage,
     outputUsage,
     totalUsage,
     true,
   );
-  const hasText = tokenText.length > 0;
 
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>
-      <Badge
-        variant="tertiary"
-        className={`flex items-center gap-1 ${!hasText ? "h-6 pl-2" : ""}`}
-      >
-        {hasText && <span>{tokenText}</span>}
-        <InfoIcon className="h-3 w-3" />
-      </Badge>
+      {tokenText ? (
+        <Badge text={tokenText} trailingIcon={InfoIcon} />
+      ) : (
+        <BadgeShell aria-label="View usage breakdown">
+          <InfoIcon aria-hidden className="size-3" />
+        </BadgeShell>
+      )}
     </BreakdownTooltip>
   );
 }

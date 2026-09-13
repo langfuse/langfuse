@@ -83,7 +83,7 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
       {jsonData && !isLoading && (
         <PrettyJsonView
           json={jsonData}
-          // Map "json-beta" to "pretty" for PrettyJsonView since it only supports "pretty" | "json"
+          // Map json-beta to "pretty" for PrettyJsonView since it only supports "pretty" | "json"
           currentView={currentView === "json-beta" ? "pretty" : currentView}
           isLoading={false}
           showNullValues={false}

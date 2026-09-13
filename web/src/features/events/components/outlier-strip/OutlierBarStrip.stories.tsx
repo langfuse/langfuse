@@ -1,7 +1,8 @@
-import { fn } from "storybook/test";
+import { expect, fn, waitFor } from "storybook/test";
 import preview from "../../../../../.storybook/preview";
 import { OutlierBarStrip } from "./OutlierBarStrip";
 import { makeFixtureSeries } from "./lib/fixtures";
+import { prepareOutlierSeries, type OutlierStripBin } from "./lib/binning";
 
 /**
  * Design surface for the outlier strip above the trace table (LFE-14451).
@@ -143,5 +144,67 @@ export const MinimalNoLabels = meta.story({
     ...spikyCost,
     metric: "cost",
     showTimeLabels: false,
+  },
+});
+
+/** Last bucket is also a tick: a start-anchored date would clip off the svg. */
+function lastBinTickSeries(widthPx: number) {
+  const stepSeconds = 86400;
+  const t0 = 0;
+  const n = 45;
+  const bins: OutlierStripBin[] = Array.from({ length: n }, (_, i) => ({
+    bucketStart: new Date(t0 + i * stepSeconds * 1000),
+    count: 4 + (i % 7),
+    values: {
+      count_count: 4 + (i % 7),
+      sum_totalCost: 0.02 * (1 + (i % 5)),
+      p95_latency: 400 + (i % 9) * 80,
+      p50_latency: 200 + (i % 9) * 40,
+    },
+  }));
+  return {
+    ...prepareOutlierSeries({
+      bins,
+      metric: "latency",
+      fromMs: t0,
+      toMs: t0 + n * stepSeconds * 1000,
+      stepSeconds,
+      widthPx,
+    }),
+    stepMs: stepSeconds * 1000,
+    widthPx,
+  };
+}
+
+export const LastDateAtEdge = meta.story({
+  args: {
+    ...lastBinTickSeries(450),
+    metric: "latency",
+  },
+});
+
+export const TestLastDateFullyVisible = meta.story({
+  name: "(Test) Last Date Fully Visible",
+  args: {
+    ...lastBinTickSeries(450),
+    metric: "latency",
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(() => {
+      const svg = canvasElement.querySelector("svg");
+      expect(svg).toBeTruthy();
+    });
+    const svg = canvasElement.querySelector("svg");
+    if (!svg) throw new Error("plot svg not found");
+    const svgBox = svg.getBoundingClientRect();
+    const timeLabels = [...svg.querySelectorAll("text")].filter((el) =>
+      /^[A-Z][a-z]{2} \d/.test(el.textContent ?? ""),
+    );
+    await expect(timeLabels.length).toBeGreaterThan(0);
+    for (const label of timeLabels) {
+      const box = label.getBoundingClientRect();
+      await expect(box.right).toBeLessThanOrEqual(svgBox.right + 1);
+      await expect(box.left).toBeGreaterThanOrEqual(svgBox.left - 1);
+    }
   },
 });

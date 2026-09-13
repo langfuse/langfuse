@@ -171,6 +171,28 @@ describe("dispatchProjectNotification", () => {
     });
   });
 
+  it("links evaluator-blocked emails to the v2 evaluator", async () => {
+    setEmailEnv(emailEnvValues);
+    vi.mocked(getProjectAdminEmails).mockResolvedValue(["admin@example.com"]);
+
+    await dispatchProjectNotification({
+      projectId: "proj_1",
+      event: {
+        ...evaluatorEvent,
+        blockReason: "DEFAULT_EVAL_MODEL_MISSING",
+        evalTemplateId: undefined,
+        evaluatorId: "evaluator-1",
+      },
+    });
+
+    expect(sendEvaluatorBlockedEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resolutionUrl:
+          "https://cloud.langfuse.com/project/proj_1/evals/v2/evaluator-1",
+      }),
+    );
+  });
+
   it("still sends admin emails when the channel dispatch throws", async () => {
     setEmailEnv(emailEnvValues);
     // A Postgres/Redis/queue error in the channel path must not suppress email.

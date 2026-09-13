@@ -17,13 +17,15 @@ import { ZoomIn, ZoomOut, Maximize } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { reportError } from "@/src/utils/reportError";
+import { cn } from "@/src/utils/tailwind";
 import { type GraphCanvasData, type GraphNodeData } from "../types";
 import {
   type GraphLayout,
   type GraphLayoutDirection,
+  isElkCallStackOverflow,
 } from "../layout/elkLayout";
 import { requestGraphLayout } from "../layout/graphLayoutWorkerClient";
-import { GraphNode } from "./GraphNode";
+import { GraphNode, SEARCH_DIM_OPACITY } from "./GraphNode";
 
 type ElkGraphRendererProps = {
   graph: GraphCanvasData;
@@ -37,6 +39,16 @@ type ElkGraphRendererProps = {
    * (resting state stays fully visible — no dimming).
    */
   activeNodeNames?: ReadonlySet<string> | null;
+  /**
+   * Node names that answer the active search, or `null`/absent when there is no
+   * query. The inverse of `activeNodeNames`: playback glows the few UP and
+   * leaves the rest alone, a search fades everything that missed DOWN — with
+   * a query live, "not in this set" is a statement and has to look like one,
+   * including the empty set, which dims the whole graph.
+   *
+   * Nodes and edges keep their hit targets while dimmed.
+   */
+  matchedNodeNames?: ReadonlySet<string> | null;
   /** Layer direction: DOWN (default) or RIGHT (long expanded chains). */
   layoutDirection?: GraphLayoutDirection;
   /**
@@ -92,6 +104,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   nodeToObservationsMap = {},
   currentObservationIndices = {},
   activeNodeNames = null,
+  matchedNodeNames = null,
   layoutDirection = "DOWN",
   onShowExpanded = null,
 }) => {
@@ -186,8 +199,18 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       .catch((error) => {
         clearTimeout(slowTimer);
         if (cancelled) return; // superseded — the rejection IS the cancellation
-        // No warnMessage: the console line must carry ELK's own reason (e.g.
-        // "too much recursion"), which is the whole diagnostic.
+        // Stack overflow is converted to `tooLarge` inside runGraphLayout.
+        // If a wrapper still rejects with that signature, treat it as the
+        // same expected "cannot lay out" state — do not page Sentry.
+        if (isElkCallStackOverflow(error)) {
+          reportError(error, {
+            area: "trace-graph-layout",
+            expected: true,
+          });
+          setLayoutError(true);
+          return;
+        }
+        // No warnMessage: the console line must carry ELK's own reason.
         reportError(error, { area: "trace-graph-layout" });
         setLayoutError(true);
       });
@@ -484,15 +507,24 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
               const active =
                 focusNode != null &&
                 (edge.source === focusNode || edge.target === focusNode);
+              // An edge belongs to the matches when either end does — a hit's
+              // connections are part of reading where it sits. An edge between
+              // two misses is background and fades with them, which is what
+              // keeps the matching path readable through a dense graph.
+              const dimmed =
+                matchedNodeNames != null &&
+                !matchedNodeNames.has(edge.source) &&
+                !matchedNodeNames.has(edge.target);
               return (
                 <path
                   key={edge.id}
                   d={toPath(edge.points)}
-                  className={
+                  className={cn(
                     active
                       ? "stroke-primary fill-none"
-                      : "stroke-muted-foreground/40 fill-none"
-                  }
+                      : "stroke-muted-foreground/40 fill-none",
+                    dimmed && SEARCH_DIM_OPACITY,
+                  )}
                   // Strokes scale with the world transform (vector-effect can't
                   // reach across the HTML ancestor) — the CSS var, written by
                   // the zoom handler, keeps them visible when zoomed out.
@@ -522,6 +554,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
                 counter={counters.get(node.id)}
                 selected={node.id === selectedNodeName}
                 active={activeNodeNames?.has(node.id) ?? false}
+                dimmed={
+                  matchedNodeNames != null && !matchedNodeNames.has(node.id)
+                }
                 compact={compact}
                 onSelect={handleSelect}
                 onHover={setHoveredId}

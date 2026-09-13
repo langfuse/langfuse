@@ -15,22 +15,16 @@ const PREVIEW_BANNER_ORDER = 20;
  * baked into preview web images by .github/workflows/preview-build.yml; they
  * are unset everywhere else, so the banner never renders outside previews.
  */
-export function PreviewDeploymentBanner() {
+export function PreviewDeploymentBanner({ prUrl }: { prUrl: string }) {
   const bannerRef = useRef<HTMLDivElement>(null);
   const { getTopBannerOffset } = useTopBanner();
-
-  const prUrl = env.NEXT_PUBLIC_PREVIEW_PR_URL;
 
   useTopBannerRegistration({
     bannerId: PREVIEW_BANNER_ID,
     order: PREVIEW_BANNER_ORDER,
-    isVisible: Boolean(prUrl),
+    isVisible: true,
     elementRef: bannerRef,
   });
-
-  if (!prUrl) {
-    return null;
-  }
 
   const parsed = env.NEXT_PUBLIC_PREVIEW_LAST_UPDATED
     ? new Date(env.NEXT_PUBLIC_PREVIEW_LAST_UPDATED)
