@@ -33,7 +33,7 @@ hydration chunks.
 
 Both strategies first sort the complete due ID cohort by project before bounded
 state hydration. The optional `locality` strategy then sorts each hydrated
-window plus one bounded partial tail by the `events_full` physical locality
+window plus all bounded retained partials by the `events_full` physical locality
 hierarchy: project ID, minimum observed start-time minute, maximum observed
 start-time minute, then `xxHash32(trace_id)`. The maximum minute keeps traces
 with similar complete observed ranges adjacent; the other keys align with the
@@ -50,12 +50,22 @@ cross-project reads the last fallback without arbitrary weights, avoids
 bridging a large time gap merely to make the preceding job full, and cuts the
 largest trace-hash gaps among otherwise equivalent choices.
 
+All locality partials remain available until the next hydrated window. After
+selection, same-project partials may coalesce only when their two-minute-buffered
+absolute-time intervals overlap and their canonically ordered union still
+respects the trace cap and seed-relative envelope. The smallest envelope
+increase wins, with canonical order breaking ties, and merging repeats to a
+fixed point. Full batches dispatch immediately. If the partials exceed one
+global `max batch size - 1` trace budget, complete batches dispatch
+oldest-due-first until the carry fits; a batch is never split to fit that budget.
+
 For `n` candidates, cap `m`, and `k` jobs (`k >= ceil(n/m)`), locality
 selection uses `O(n × k × m)` time and `O(n × m)` memory. State hydration remains
-hard-bounded to 1,000 entries at a time; either strategy may carry at most
-`max batch size - 1` hydrated entries into the next window. The final tail
-flushes in the same dispatch run, and no candidate state survives the run.
-Neither mode adds a second full-cohort state copy.
+hard-bounded to 1,000 entries at a time; either strategy carries at most
+`max batch size - 1` hydrated entries into the next window, across every
+locality partial rather than per project. All retained partials flush in the
+same dispatch run, and no candidate state survives the run. Neither mode adds a
+second full-cohort state copy.
 
 After enqueue succeeds, acknowledgement atomically removes state and due membership
 only when the revision still matches. Arrivals during enqueue remain scheduled.
