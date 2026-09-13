@@ -284,8 +284,8 @@ const selectLocalityBatches = (
  *
  * Selection uses O(n × k × maxBatchSize) time and O(n × maxBatchSize)
  * memory, where k >= ceil(n / maxBatchSize) is the fewest feasible jobs.
- * The caller bounds n to CHUNK_SIZE (1,000) hydrated candidates plus one
- * partial batch carried from the preceding window. The project strategy is
+ * The caller bounds n to CHUNK_SIZE (1,000) hydrated candidates plus at most
+ * maxBatchSize - 1 traces across retained partials. The project strategy is
  * O(n).
  */
 export function selectTraceBatches(

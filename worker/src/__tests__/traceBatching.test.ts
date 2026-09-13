@@ -338,6 +338,28 @@ describe("trace batch selection", () => {
     expect(result.carry.flat().length).toBeLessThanOrEqual(5);
   });
 
+  it("breaks equal-increase coalescing ties by canonical order", () => {
+    const candidates = [
+      pendingTrace("project", "trace-1", 1, 0, 0),
+      pendingTrace("project", "trace-2", 1, 0, 0),
+      pendingTrace("project", "trace-3", 1, 0, 0),
+    ];
+    const canonical = selectTraceBatches(candidates, 3, "locality")[0];
+
+    const result = prepareLocalityPartials(
+      candidates.toReversed().map((candidate) => [candidate]),
+      2,
+    );
+
+    expect(result.dispatch).toHaveLength(1);
+    expect(ids(result.dispatch)).toEqual([
+      canonical.slice(0, 2).map(({ member }) => member),
+    ]);
+    expect(ids(result.carry)).toEqual([
+      canonical.slice(2).map(({ member }) => member),
+    ]);
+  });
+
   it("does not coalesce incompatible partials or exceed the trace cap", () => {
     const wide = [
       pendingTrace("project", "wide", 1, 0, 120 * minute),
@@ -1014,10 +1036,31 @@ describe("trace micro-batch scheduling with Redis", () => {
         member("project", traceId),
       ]),
     );
+    const targetMember = member("project", early[0].traceId);
+    const hydratedRevision = JSON.parse(
+      (await client().hget(stateKey, targetMember))!,
+    ).revision;
+    const evaluate = client().eval.bind(client());
+    let reactivated = false;
+    vi.spyOn(client(), "eval").mockImplementation(async (...args) => {
+      const result = await evaluate(...args);
+      if (
+        !reactivated &&
+        typeof args[0] === "string" &&
+        args[0].includes("local result = {}")
+      ) {
+        reactivated = true;
+        await trackTraceBatchActivity("project", [
+          event(early[0].traceId, 11 * minute),
+        ]);
+      }
+      return result;
+    });
     const add = vi.spyOn(queue, "add");
 
     await runner().processBatch();
 
+    expect(reactivated).toBe(true);
     const batches = add.mock.calls.map(([, job]) => job.payload.traces);
     expect(
       batches
@@ -1046,6 +1089,19 @@ describe("trace micro-batch scheduling with Redis", () => {
       .map(([, value]) => Number(value));
     expect(candidateBufferSizes).toContain(42);
     expect(Math.max(...candidateBufferSizes)).toBeLessThanOrEqual(1_059);
+    const current = JSON.parse((await client().hget(stateKey, targetMember))!);
+    const dispatched = batches
+      .flat()
+      .find(({ traceId }) => traceId === early[0].traceId);
+    expect(dispatched?.revision).toBe(hydratedRevision);
+    expect(current.revision).not.toBe(hydratedRevision);
+    expect(current.maxStart).toBe(11 * minute);
+    expect(await client().zcard(dueKey)).toBe(1);
+    expect(await client().hlen(stateKey)).toBe(1);
+
+    await makeDue("project", early[0].traceId);
+    await runner().processBatch();
+    expect(await queue.getWaitingCount()).toBe(batches.length + 1);
     expect(await client().zcard(dueKey)).toBe(0);
     expect(await client().hlen(stateKey)).toBe(0);
   });
