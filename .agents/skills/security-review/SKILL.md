@@ -1,14 +1,14 @@
 ---
 name: security-review
-description: Review Langfuse changes for SSRF, tenant isolation, secret handling, unsafe redirects or uploads, RBAC drift, and client telemetry privacy. Use when a design or change accepts URLs or host fields, handles secrets or cross-tenant data, makes outbound requests, adds an integration, follows redirects, widens permissions, or can send customer-controlled UI data through analytics, monitoring, or session replay.
+description: Review Langfuse changes, or scan the whole repository, for SSRF, tenant isolation, secret handling, unsafe redirects or uploads, RBAC drift, and client telemetry privacy. Use when a design or change accepts URLs or host fields, handles secrets or cross-tenant data, makes outbound requests, adds an integration, follows redirects, widens permissions, or can send customer-controlled UI data through analytics, monitoring, or session replay. Also the skill to run for a scheduled Langfuse security scan or vulnerability sweep, including a request to "run the deepsec skill" — DeepSec is a scanner, not a skill, and this is its in-repo equivalent.
 ---
 
 # Security Review
 
 Use this skill when reviewing or planning code that touches a security-sensitive
-surface in Langfuse. It collects the recurring findings the team has seen in
-external security reports so that future agents catch them at design and review
-time rather than after the fact.
+surface in Langfuse, and when scanning the repository on a schedule. It collects
+the recurring findings the team has seen in external security reports so that
+future agents catch them at design and review time rather than after the fact.
 
 ## When to Apply
 
@@ -30,6 +30,9 @@ Apply this skill when the change touches any of:
 
 Apply this skill during **plan mode** when designing a new integration so the
 correct validation surfaces land in the plan, not in a follow-up CVE.
+
+Apply it in **scan mode** when a scheduled security scan asks for a repository
+sweep rather than a review of one change; see "Scheduled Scan Mode".
 
 ## How to Read This Skill
 
@@ -70,6 +73,38 @@ When this skill is used while planning:
 - Treat "we will validate later" as a design defect: validation belongs in the
   same change that introduces the surface.
 
+## Scheduled Scan Mode
+
+The Langfuse security scan automation runs unattended against the default
+branch, so there is no diff to anchor on and no human to ask mid-run. Its
+prompt may name the external scanner instead of this skill ("run the deepsec
+skill"); that scanner produces the Linear vulnerability tickets, and this skill
+is what an agent runs in the repository.
+
+Scope the sweep to the [checklist](references/checklist.md) sections, one pass
+each, and run the passes in parallel:
+
+- outbound URLs and SSRF
+- tenant isolation
+- secret handling, including secret-in-log paths
+- RBAC scope and audit logging
+- client telemetry and session replay
+
+Report only what you verified in the source. The bar is higher than in review
+mode, because nobody is reading the diff alongside you:
+
+- Read the call site before reporting it. A helper-protected call site is not a
+  finding, and an unreachable path is not a finding.
+- Say which defense is missing and which canonical helper supplies it, not that
+  a category applies.
+- Report a scanner finding you could not confirm as unconfirmed, and say what
+  would settle it.
+- Say when a sweep found nothing. Silence reads as a broken run.
+
+Route confirmed findings with reproduction evidence through
+[`linear-bug-triage`](../linear-bug-triage/SKILL.md); its propose-then-write
+gate still applies, and an unattended run has nobody to approve a write.
+
 ## Extending This Skill
 
 Add a new `references/<topic>.md` whenever a security finding recurs across
@@ -100,9 +135,5 @@ Candidates for future references (do not add until a real finding recurs):
 - The shared `backend-dev-guidelines` skill should defer here when adding
   outbound HTTP, integration config, or URL-accepting procedures; see
   [backend-dev-guidelines/SKILL.md](../backend-dev-guidelines/SKILL.md).
-- The Claude Code PR security scan
-  (`.github/workflows/claude-code-security-review.yml`) concatenates this
-  skill via [scripts/assemble-scan-instructions.sh](scripts/assemble-scan-instructions.sh)
-  and passes it as `custom-security-scan-instructions`.
 - Confirmed issues with reproduction evidence go through `linear-bug-triage`
   for Linear handoff.

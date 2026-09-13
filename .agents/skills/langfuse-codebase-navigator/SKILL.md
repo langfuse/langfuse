@@ -32,6 +32,7 @@ Use this as the first stop for Langfuse org navigation. Your job is to choose th
 - Before any agent write to Linear — a comment, a description edit, a ticket: use `linear-agent-writes`, the write policy (propose updates; mark every write). Ordinary writes stay a title and a few sentences. Subtickets under an existing parent are free.
 - Frontend work under `langfuse/langfuse/web`: also check `web/.agents/skills/vercel-react-best-practices` and `web/.agents/skills/vercel-composition-patterns`.
 - Infrastructure autoscaling or cloud capacity: use `infra-scaling`.
+- A scheduled Langfuse security scan or vulnerability sweep, including a prompt that asks for the `deepsec` skill: use `security-review`. DeepSec is the external scanner behind the Linear vulnerability tickets, not a skill in any repo.
 - Public Langfuse usage, docs lookup, API access, instrumentation, prompt migration, SDK upgrade, trace analysis, or CLI work: use the public `langfuse` skill from `langfuse/skills`.
 - Support, support review, PR funnel, social copy, meeting notes, Plain search, blog writing, or unslop work: use the matching skill from `langfuse/langfuse-internal-skills` when available.
 

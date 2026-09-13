@@ -103,7 +103,7 @@ Repo-local skills in `langfuse/.agents/skills`:
 - `langfuse-codebase-navigator`: org, repository, folder, and skill routing.
 - `linear-bug-triage`: Linear issue deduplication and bug evidence workflows.
 - `pnpm-upgrade-package`: dependency upgrades under pnpm release-age constraints.
-- `security-review`: security review patterns for user-supplied URLs, secrets, tenancy, and auth scopes.
+- `security-review`: security review patterns for user-supplied URLs, secrets, tenancy, and auth scopes; also the scheduled repo-wide security scan (the `deepsec` automation prompt).
 - `seed-test-data`: local Langfuse seed scenarios for traces, sessions, lists, and event data.
 - `skill-creator`: create or update repo-owned skills.
 - `storybook`: write or review React component stories.
