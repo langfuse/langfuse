@@ -125,7 +125,7 @@ const TracesTable = lazy(
   () => import("@/src/components/table/use-cases/traces"),
 );
 const ObservationsTable = lazy(
-  () => import("@/src/components/table/use-cases/observations"),
+  () => import("@/src/features/tracing-tables/observations/ObservationsTable"),
 );
 
 const EventsTable = lazy(
