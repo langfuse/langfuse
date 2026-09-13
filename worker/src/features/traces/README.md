@@ -303,7 +303,7 @@ WHERE e.project_id IN ({projectIds: Array(String)})
   )
   AND e.start_time >= fromUnixTimestamp64Milli({batchMinStart: Int64})
   AND e.start_time <= fromUnixTimestamp64Milli({batchMaxStart: Int64})
-SETTINGS max_threads = 2, max_execution_time = 30, timeout_overflow_mode = 'throw'
+SETTINGS max_threads = 1, max_execution_time = 30, timeout_overflow_mode = 'throw'
 ```
 
 There are five parameters, independent of batch size. The ID arrays grow

@@ -177,8 +177,9 @@ export async function* getTraceBatchEventStream(
       compression: { response: true },
     },
     // Bound background-read CPU/time; timeouts fail instead of returning partial results.
+    // Prefer max_threads=1: lower peak memory per ClickHouse guidance for this setting.
     clickhouseSettings: {
-      max_threads: 2,
+      max_threads: 1,
       max_execution_time: 30,
       timeout_overflow_mode: "throw",
     },
