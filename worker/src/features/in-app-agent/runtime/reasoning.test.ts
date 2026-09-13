@@ -70,7 +70,7 @@ describe("OpenAI Chat Completions request shape", () => {
     const { calls, fetch } = createCaptureFetch(OPENAI_CHAT_RESPONSE);
     vi.stubGlobal("fetch", fetch);
 
-    const model = createInAppAgentLanguageModel({ config });
+    const model = await createInAppAgentLanguageModel({ config });
     await model.doGenerate({
       prompt: userPrompt(),
       providerOptions: getInAppAgentReasoningProviderOptions(config),
@@ -96,7 +96,7 @@ describe("OpenAI Chat Completions request shape", () => {
     const { calls, fetch } = createCaptureFetch(OPENAI_CHAT_RESPONSE);
     vi.stubGlobal("fetch", fetch);
 
-    const model = createInAppAgentLanguageModel({ config });
+    const model = await createInAppAgentLanguageModel({ config });
     const prompt = [
       { role: "system" as const, content: "You are the Langfuse assistant." },
       {
@@ -143,7 +143,7 @@ describe("OpenAI Responses request shape", () => {
     const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
     vi.stubGlobal("fetch", fetch);
 
-    const model = createInAppAgentLanguageModel({ config });
+    const model = await createInAppAgentLanguageModel({ config });
     await model.doGenerate({
       prompt: userPrompt(),
       providerOptions: getInAppAgentReasoningProviderOptions(config),
@@ -171,7 +171,7 @@ describe("OpenAI Responses request shape", () => {
     const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
     vi.stubGlobal("fetch", fetch);
 
-    const model = createInAppAgentLanguageModel({ config });
+    const model = await createInAppAgentLanguageModel({ config });
     const prompt = [
       { role: "system" as const, content: "You are the Langfuse assistant." },
       {
@@ -225,7 +225,7 @@ describe("OpenAI Responses request shape", () => {
     const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
     vi.stubGlobal("fetch", fetch);
 
-    const model = createInAppAgentLanguageModel({ config });
+    const model = await createInAppAgentLanguageModel({ config });
     await model.doGenerate({
       prompt: userPrompt(),
       providerOptions: getInAppAgentReasoningProviderOptions(config),
@@ -254,7 +254,7 @@ describe("OpenAI Responses request shape", () => {
     const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
     vi.stubGlobal("fetch", fetch);
 
-    const model = createInAppAgentLanguageModel({ config });
+    const model = await createInAppAgentLanguageModel({ config });
     await model.doGenerate({
       prompt: [
         { role: "system" as const, content: "You are the Langfuse assistant." },
@@ -287,7 +287,7 @@ describe("OpenAI Responses request shape", () => {
     const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
     vi.stubGlobal("fetch", fetch);
 
-    const model = createInAppAgentLanguageModel({ config });
+    const model = await createInAppAgentLanguageModel({ config });
     await model.doGenerate({
       prompt: userPrompt(),
       providerOptions: getInAppAgentReasoningProviderOptions(config),
@@ -328,7 +328,7 @@ describe("Anthropic Messages request shape", () => {
     });
     vi.stubGlobal("fetch", fetch);
 
-    const model = createInAppAgentLanguageModel({ config });
+    const model = await createInAppAgentLanguageModel({ config });
     await model.doGenerate({
       prompt: userPrompt(),
       providerOptions: getInAppAgentReasoningProviderOptions(config),

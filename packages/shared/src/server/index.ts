@@ -61,6 +61,8 @@ export * from "./llm/compileChatMessages";
 export * from "./llm/testModelCall";
 export * from "./llm/baseUrlValidation";
 export * from "./llm/ai-sdk/providers/bedrock";
+export * from "./llm/ai-sdk/providers/vertex";
+export * from "./llm/ai-sdk/providers/vertexAuth";
 export * from "./outbound-url";
 export * from "./services/blobStorageEndpointValidation";
 export * from "./llm/getInternalTracingHandler";

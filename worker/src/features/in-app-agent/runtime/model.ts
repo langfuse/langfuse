@@ -1,5 +1,7 @@
 import { createAmazonBedrock } from "ai-sdk-amazon-bedrock-v4";
 import { createAnthropic } from "ai-sdk-anthropic-v4";
+import { createVertex } from "ai-sdk-google-vertex-v4";
+import { createVertexAnthropic } from "ai-sdk-google-vertex-v4/anthropic";
 import { createOpenAICompatible } from "ai-sdk-openai-compatible-v4";
 import { createOpenAI } from "ai-sdk-openai-v4";
 
@@ -9,19 +11,28 @@ import {
   resolveLangfuseAIOpenAICall,
 } from "@langfuse/shared/in-app-agent/server/openaiCompatibility";
 import { env } from "@langfuse/shared/src/env";
-import { createDefaultBedrockProviderAuth } from "@langfuse/shared/src/server";
+import {
+  assertValidAnthropicVertexModelName,
+  createDefaultBedrockProviderAuth,
+  isClaudeModel,
+  resolveVertexProjectIdFromADC,
+} from "@langfuse/shared/src/server";
 
 const BEDROCK_CLAUDE_MODEL_ID_PART = "anthropic.claude";
 const ANTHROPIC_CLAUDE_MODEL_ID_PART = "claude";
+
+// Existing Vertex connections default the location to "global" for both model
+// families; the in-app agent follows the same default.
+const DEFAULT_VERTEX_LOCATION = "global";
 
 export type InAppAgentLanguageModel = ReturnType<
   ReturnType<typeof createAmazonBedrock>
 >;
 
-export function createInAppAgentLanguageModel(params: {
+export async function createInAppAgentLanguageModel(params: {
   config: InAppAgentModelConfig;
   awsProfile?: string;
-}): InAppAgentLanguageModel {
+}): Promise<InAppAgentLanguageModel> {
   switch (params.config.provider) {
     case "anthropic": {
       const anthropic = createAnthropic({
@@ -41,6 +52,11 @@ export function createInAppAgentLanguageModel(params: {
         params.config,
       ) as InAppAgentLanguageModel;
     }
+    case "vertex": {
+      return (await createVertexInAppAgentLanguageModel(
+        params.config,
+      )) as InAppAgentLanguageModel;
+    }
     case "bedrock": {
       const bedrock = createAmazonBedrock({
         ...(params.config.region ? { region: params.config.region } : {}),
@@ -58,6 +74,32 @@ export function createInAppAgentLanguageModel(params: {
       );
     }
   }
+}
+
+async function createVertexInAppAgentLanguageModel(config: {
+  modelId: string;
+  location?: string;
+}) {
+  // Vertex authenticates through application default credentials, and the AI
+  // SDK needs the project spelled out for URL construction, so resolve it from
+  // the same credential chain. The helper lives in shared because the worker
+  // cannot reach google-auth-library under pnpm's strict layout.
+  const project = await resolveVertexProjectIdFromADC();
+  const location = config.location ?? DEFAULT_VERTEX_LOCATION;
+
+  if (isClaudeModel(config.modelId)) {
+    assertValidAnthropicVertexModelName(config.modelId);
+
+    const vertexAnthropic = createVertexAnthropic({ project, location });
+
+    return vertexAnthropic(
+      config.modelId as Parameters<typeof vertexAnthropic>[0],
+    );
+  }
+
+  const vertex = createVertex({ project, location });
+
+  return vertex(config.modelId as Parameters<typeof vertex>[0]);
 }
 
 function createOpenAIInAppAgentLanguageModel(config: {
@@ -151,6 +193,29 @@ export function getInAppAgentReasoningProviderOptions(
       }
 
       return forceResponsesReasoning(call.providerOptions);
+    }
+    case "vertex": {
+      // Claude on Vertex runs the Anthropic Messages model, which reads its
+      // canonical "anthropic" provider options regardless of the
+      // vertex-prefixed provider name.
+      //
+      // Gemini has no adaptive switch: thoughts surface only with an explicit
+      // thinkingBudget alongside includeThoughts, so it currently spends
+      // reasoning tokens without showing them. Wiring that up needs a default
+      // budget and should reuse the budget and clamp rules in
+      // buildThinkingConfig rather than restate them, so it stays out of here.
+      if (!isClaudeModel(config.modelId)) {
+        return undefined;
+      }
+
+      return {
+        anthropic: {
+          thinking: {
+            type: "adaptive" as const,
+            display: "summarized" as const,
+          },
+        },
+      };
     }
     case "bedrock":
       return getBedrockReasoningProviderOptions(config.modelId);
