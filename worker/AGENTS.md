@@ -39,6 +39,10 @@
   Intake, dispatcher, and consumer have independent disabled-by-default flags.
   `LANGFUSE_TRACE_BATCH_SAMPLING_RATE` is a 0–1 admission rate (default 1),
   using evaluator sampling by trace ID before Redis; queued work is not resampled.
+  The consumer retains outer project, trace, pair, hash and batch-time pruning,
+  then groups exact project/trace pairs by identical buffered bounds so each
+  pair reads only its own recorded interval plus two minutes on either side.
+  Full `events_full` input, output, metadata and tools remain selected.
   Stop intake first and keep dispatcher/consumer running to drain pending work.
   Pending entries are pruned atomically from due/state during ingestion and
   dispatch after `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS` past readiness (default

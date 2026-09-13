@@ -38,6 +38,48 @@ export async function* getTraceBatchEventStream(props: {
 }): AsyncGenerator<TraceBatchEventRow> {
   if (props.traces.length === 0) return;
 
+  const bufferedGroups = new Map<
+    string,
+    {
+      projectId: string;
+      minStart: number;
+      maxStart: number;
+      traceIds: Set<string>;
+    }
+  >();
+  for (const trace of props.traces) {
+    const minStart = trace.minStart - TRACE_QUERY_BUFFER_MS;
+    const maxStart = trace.maxStart + TRACE_QUERY_BUFFER_MS;
+    const key = JSON.stringify([trace.projectId, minStart, maxStart]);
+    const group = bufferedGroups.get(key);
+    if (group) {
+      group.traceIds.add(trace.traceId);
+    } else {
+      bufferedGroups.set(key, {
+        projectId: trace.projectId,
+        minStart,
+        maxStart,
+        traceIds: new Set([trace.traceId]),
+      });
+    }
+  }
+  const timeGroupParams: Record<string, unknown> = {};
+  const timeGroupPredicates = [...bufferedGroups.values()].map(
+    ({ projectId, minStart, maxStart, traceIds }, index) => {
+      const projectParam = `timeGroup${index}Project`;
+      const tracesParam = `timeGroup${index}Traces`;
+      const minParam = `timeGroup${index}Min`;
+      const maxParam = `timeGroup${index}Max`;
+      timeGroupParams[projectParam] = projectId;
+      timeGroupParams[tracesParam] = [...traceIds];
+      timeGroupParams[minParam] = minStart;
+      timeGroupParams[maxParam] = maxStart;
+      return `(e.project_id = {${projectParam}: String}
+        AND e.trace_id IN ({${tracesParam}: Array(String)})
+        AND e.start_time >= fromUnixTimestamp64Milli({${minParam}: Int64})
+        AND e.start_time <= fromUnixTimestamp64Milli({${maxParam}: Int64}))`;
+    },
+  );
   const projectIds = [...new Set(props.traces.map((trace) => trace.projectId))];
   const traceIds = [...new Set(props.traces.map((trace) => trace.traceId))];
   const builder = new EventsQueryBuilder({ projectId: NoProjectId })
@@ -75,19 +117,25 @@ export async function* getTraceBatchEventStream(props: {
     .whereRaw(
       "xxHash32(e.trace_id) IN (SELECT arrayJoin(arrayMap(id -> xxHash32(id), {traceIds: Array(String)})))",
     )
-    // One shared window enables partition/granule pruning. It can include
-    // observations beyond a selected trace's own bounds when another trace
-    // widens the batch window; per-trace predicates can narrow that coverage.
+    // Keep one shared outer window for partition/granule pruning.
     .whereRaw(
       "e.start_time >= fromUnixTimestamp64Milli({batchMinStart: Int64}) AND e.start_time <= fromUnixTimestamp64Milli({batchMaxStart: Int64})",
       {
-        batchMinStart:
-          Math.min(...props.traces.map((trace) => trace.minStart)) -
-          TRACE_QUERY_BUFFER_MS,
-        batchMaxStart:
-          Math.max(...props.traces.map((trace) => trace.maxStart)) +
-          TRACE_QUERY_BUFFER_MS,
+        batchMinStart: Math.min(
+          ...[...bufferedGroups.values()].map(({ minStart }) => minStart),
+        ),
+        batchMaxStart: Math.max(
+          ...[...bufferedGroups.values()].map(({ maxStart }) => maxStart),
+        ),
       },
+    )
+    // Batch companions must not widen another trace's required coverage.
+    // Identical project/time windows share one ID list; repeated pair intervals
+    // remain separate OR branches and therefore return each matching row once.
+    .whereRaw(
+      `(${timeGroupPredicates.join(`
+      OR `)})`,
+      timeGroupParams,
     );
 
   const { query, params } = builder.buildWithParams();

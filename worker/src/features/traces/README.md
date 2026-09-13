@@ -82,12 +82,18 @@ Collecting/sorting the entire cohort delays the first enqueue. Worker memory and
 the Redis response size grow with the due backlog; a large range read can delay
 other Redis clients. Monitor runtime, cohort size, backlog age and worker memory.
 
-The consumer makes one streamed query per batch with exact project/trace
-pair filters, explicit trace-hash pruning, and one shared min/max start-time
-window plus a two-minute buffer. No observation-count cap silently truncates a trace. Queries
-use at most two execution threads and a 30-second execution limit; failures
-throw and follow the queue's three-attempt retry policy. Only counts and logical
-I/O/metadata bytes are retained in job results.
+The consumer makes one streamed query per batch with exact project/trace pair
+filters, explicit trace-hash pruning, and a shared outer min/max start-time
+window. An additional grouped predicate restricts each exact project/trace pair
+to its own inclusive recorded interval plus a two-minute buffer on each side.
+Only traces with identical project and buffered bounds share an ID-list branch;
+repeated intervals for one pair form a union without duplicating rows.
+Consequently, a wider batch companion no longer admits observations outside
+another trace's required window. Full input, output, metadata and tool fields
+still come from `events_full`, and no observation-count cap silently truncates a
+trace. Queries use at most two execution threads and a 30-second execution
+limit; failures throw and follow the queue's three-attempt retry policy. Only
+counts and logical I/O/metadata bytes are retained in job results.
 
 ## Controls and rollout
 
