@@ -98,6 +98,9 @@ export async function* getTraceBatchEventStream(props: {
       projectId: projectIds.length === 1 ? projectIds[0] : "MULTI_PROJECT",
     },
     preferredClickhouseService: "EventsReadOnly",
+    clickhouseConfigs: {
+      compression: { response: true },
+    },
     // Bound background-read CPU/time; timeouts fail instead of returning partial results.
     clickhouseSettings: {
       max_threads: 2,
