@@ -91,7 +91,7 @@ repeated intervals for one pair form a union without duplicating rows.
 Consequently, a wider batch companion no longer admits observations outside
 another trace's required window. Full input, output, metadata and tool fields
 still come from `events_full`, and no observation-count cap silently truncates a
-trace. Queries use at most two execution threads and a 30-second execution
+trace. Queries use one execution thread and a 30-second execution
 limit; failures throw and follow the queue's three-attempt retry policy. Only
 counts and logical I/O/metadata bytes are retained in job results.
 
@@ -107,7 +107,7 @@ enabled intake tracks every eligible trace unless a lower rate is configured.
 | `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`   | Turn ready state into queue jobs                            |
 | `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`   | Consume existing `trace-batch` jobs                         |
 | `LANGFUSE_TRACE_BATCH_CONCURRENCY`            | `2`       | Concurrent reads **per enabled worker process**             |
-| `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`      | Cross-project trace cap per job (1–1,000)                   |
+| `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`      | Cross-project trace cap per job (1–10,000)                  |
 | `LANGFUSE_TRACE_BATCH_STRATEGY`               | `project` | Rollback baseline (`project`) or experimental `locality`    |
 | `LANGFUSE_TRACE_BATCH_IDLE_MS`                | `600000`  | Inactivity before a trace becomes due                       |
 | `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`         | `7200000` | Retention after readiness, pruned during ingestion/dispatch |
@@ -296,28 +296,28 @@ SELECT input, output,
        mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
 FROM events_full AS e
 WHERE e.project_id IN ({projectIds: Array(String)})
-  AND e.trace_id IN ({traceIds: Array(String)})
-  AND (e.project_id, e.trace_id) IN {tracePairs: Array(Tuple(String, String))}
-  AND xxHash32(e.trace_id) IN (
-    SELECT arrayJoin(arrayMap(id -> xxHash32(id), {traceIds: Array(String)}))
-  )
+  AND (e.trace_id IN ({traceIds0: Array(String)}) OR ...)
+  AND ((e.project_id, e.trace_id) IN {tracePairs0: Array(Tuple(String, String))} OR ...)
+  AND (xxHash32(e.trace_id) IN (
+    SELECT arrayJoin(arrayMap(id -> xxHash32(id), {traceIds0: Array(String)}))
+  ) OR ...)
   AND e.start_time >= fromUnixTimestamp64Milli({batchMinStart: Int64})
   AND e.start_time <= fromUnixTimestamp64Milli({batchMaxStart: Int64})
+  AND (arrayExists(...) OR ...)
 SETTINGS max_threads = 1, max_execution_time = 30, timeout_overflow_mode = 'throw'
 ```
 
-There are five parameters, independent of batch size. The ID arrays grow
-with the batch, but the request does not add a parameter or SQL branch per trace.
+ID lists, pair lists and time windows are chunked so a 10,000-trace job stays
+under ClickHouse's default 1,000 HTTP fields and 128 KiB per field. Time windows
+use one `arrayExists` per chunk instead of one SQL branch per trace.
 The exact tuple filter prevents independent project/trace lists from matching
 unrequested crossed pairs. The reader also returns `project_id`, so identical
 trace IDs in different projects remain distinct when counting coverage.
 The hash subquery reads only
-the supplied array, not another table, and is compatible with ClickHouse 25.12.
+the supplied arrays, not another table, and is compatible with ClickHouse 25.12.
 Global bounds retain primary-key pruning and include a two-minute buffer at
-each end. A selected trace can return observations outside its own tracked
-bounds when another trace widens the batch window. Per-trace predicates can
-narrow this coverage if needed; the shared window is not a complete-history
-guarantee. No `FINAL`, aggregation or sorting is added.
+each end. Grouped `arrayExists` windows then restrict each pair to its own
+recorded interval plus that buffer. No `FINAL`, aggregation or sorting is added.
 
 Inspect `system.query_log` using the consumer's query ID to see the executed
 SQL, `read_rows`, `read_bytes`, `result_rows`, `memory_usage`, duration and CPU

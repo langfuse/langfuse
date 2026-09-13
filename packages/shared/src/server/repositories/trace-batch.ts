@@ -22,7 +22,20 @@ type TraceBatchEventRow = {
 };
 
 const TRACE_QUERY_BUFFER_MS = 2 * 60_000;
-const TIME_GROUP_PARAM_CHUNK_SIZE = 5;
+// Chunk sizes keep a 10,000-trace job under ClickHouse's default 1,000 HTTP
+// fields and 128 KiB per field. Unrolling one predicate per window would also
+// exceed default max_query_size.
+const TIME_GROUP_PARAM_CHUNK_SIZE = 50;
+const TRACE_ID_PARAM_CHUNK_SIZE = 2_000;
+const TRACE_PAIR_PARAM_CHUNK_SIZE = 1_000;
+
+const chunkItems = <T>(items: readonly T[], size: number) => {
+  const chunks: T[][] = [];
+  for (let offset = 0; offset < items.length; offset += size) {
+    chunks.push(items.slice(offset, offset + size));
+  }
+  return chunks;
+};
 
 type TraceBatchEventStreamProps = {
   traces: ReadonlyArray<{
@@ -62,19 +75,10 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
   const timeGroups = [...bufferedGroups.values()];
   const timeGroupParams: Record<string, unknown> = {};
   const timeGroupPredicates: string[] = [];
-  // Five groups per parameter set keeps 1,000 distinct windows below
-  // ClickHouse's default 1,000 HTTP-field limit without repeating one giant
-  // constant array throughout the planner AST.
-  for (
-    let offset = 0;
-    offset < timeGroups.length;
-    offset += TIME_GROUP_PARAM_CHUNK_SIZE
-  ) {
-    const chunk = timeGroups.slice(
-      offset,
-      offset + TIME_GROUP_PARAM_CHUNK_SIZE,
-    );
-    const chunkIndex = offset / TIME_GROUP_PARAM_CHUNK_SIZE;
+  for (const [chunkIndex, chunk] of chunkItems(
+    timeGroups,
+    TIME_GROUP_PARAM_CHUNK_SIZE,
+  ).entries()) {
     const projectParam = `g${chunkIndex}p`;
     const tracesParam = `g${chunkIndex}t`;
     const minParam = `g${chunkIndex}l`;
@@ -83,15 +87,35 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
     timeGroupParams[tracesParam] = chunk.map(({ traceIds }) => [...traceIds]);
     timeGroupParams[minParam] = chunk.map(({ minStart }) => minStart);
     timeGroupParams[maxParam] = chunk.map(({ maxStart }) => maxStart);
-    chunk.forEach((_, index) => {
-      const position = index + 1;
-      timeGroupPredicates.push(
-        `(e.project_id={${projectParam}:Array(String)}[${position}] AND e.trace_id IN {${tracesParam}:Array(Array(String))}[${position}] AND e.start_time BETWEEN fromUnixTimestamp64Milli({${minParam}:Array(Int64)}[${position}]) AND fromUnixTimestamp64Milli({${maxParam}:Array(Int64)}[${position}]))`,
-      );
-    });
+    timeGroupPredicates.push(
+      `arrayExists((group_project_id, group_trace_ids, min_ms, max_ms) -> e.project_id = group_project_id AND has(group_trace_ids, e.trace_id) AND e.start_time BETWEEN fromUnixTimestamp64Milli(min_ms) AND fromUnixTimestamp64Milli(max_ms), {${projectParam}:Array(String)}, {${tracesParam}:Array(Array(String))}, {${minParam}:Array(Int64)}, {${maxParam}:Array(Int64)})`,
+    );
   }
   const projectIds = [...new Set(props.traces.map((trace) => trace.projectId))];
   const traceIds = [...new Set(props.traces.map((trace) => trace.traceId))];
+  const traceIdParams: Record<string, unknown> = {};
+  const traceIdPredicates = chunkItems(traceIds, TRACE_ID_PARAM_CHUNK_SIZE).map(
+    (chunk, index) => {
+      const name = `traceIds${index}`;
+      traceIdParams[name] = chunk;
+      return `e.trace_id IN ({${name}: Array(String)})`;
+    },
+  );
+  const hashPredicates = Object.keys(traceIdParams).map(
+    (name) =>
+      `xxHash32(e.trace_id) IN (SELECT arrayJoin(arrayMap(id -> xxHash32(id), {${name}: Array(String)})))`,
+  );
+  const pairParams: Record<string, unknown> = {};
+  const pairPredicates = chunkItems(
+    props.traces,
+    TRACE_PAIR_PARAM_CHUNK_SIZE,
+  ).map((chunk, index) => {
+    const name = `tracePairs${index}`;
+    pairParams[name] = chunk.map(
+      ({ projectId, traceId }) => new TupleParam([projectId, traceId]),
+    );
+    return `(e.project_id, e.trace_id) IN {${name}: Array(Tuple(String, String))}`;
+  });
   const builder = new EventsQueryBuilder({ projectId: NoProjectId })
     .selectRaw(
       "e.project_id",
@@ -111,22 +135,13 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
     .forceFullTable()
     // Separate filters retain project-prefix and trace-index pruning.
     .whereRaw("e.project_id IN ({projectIds: Array(String)})", { projectIds })
-    .whereRaw("e.trace_id IN ({traceIds: Array(String)})", { traceIds })
+    .whereRaw(`(${traceIdPredicates.join(" OR ")})`, traceIdParams)
     // Independent IN lists also match crossed pairs. Only these exact tenant/
     // trace pairs may return payloads, even when projects share trace IDs.
-    .whereRaw(
-      "(e.project_id, e.trace_id) IN {tracePairs: Array(Tuple(String, String))}",
-      {
-        tracePairs: props.traces.map(
-          ({ projectId, traceId }) => new TupleParam([projectId, traceId]),
-        ),
-      },
-    )
+    .whereRaw(`(${pairPredicates.join(" OR ")})`, pairParams)
     // Equality filters add this primary-key hash condition automatically; IN
     // needs it explicitly. The exact IDs above also exclude hash collisions.
-    .whereRaw(
-      "xxHash32(e.trace_id) IN (SELECT arrayJoin(arrayMap(id -> xxHash32(id), {traceIds: Array(String)})))",
-    )
+    .whereRaw(`(${hashPredicates.join(" OR ")})`)
     // Keep one shared outer window for partition/granule pruning.
     .whereRaw(
       "e.start_time >= fromUnixTimestamp64Milli({batchMinStart: Int64}) AND e.start_time <= fromUnixTimestamp64Milli({batchMaxStart: Int64})",
@@ -169,6 +184,7 @@ export async function* getTraceBatchEventStream(
   yield* queryClickhouseStream<TraceBatchEventRow>({
     query,
     params,
+    useMultipartParamsAuto: true,
     tags: {
       projectId: projectIds.length === 1 ? projectIds[0] : "MULTI_PROJECT",
     },

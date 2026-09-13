@@ -452,6 +452,18 @@ describe("trace batch selection", () => {
     expect(new Set(assigned)).toEqual(
       new Set(candidates.map(({ member }) => member)),
     );
+    expect(
+      selectTraceBatches(candidates.slice(0, 2), 10_000, "project"),
+    ).toEqual([candidates.slice(0, 2)]);
+    const localityAtTenThousand = selectTraceBatches(
+      candidates.slice(0, 2),
+      10_000,
+      "locality",
+    );
+    expect(localityAtTenThousand.flat()).toHaveLength(2);
+    expect(localityAtTenThousand.every((batch) => batch.length <= 10_000)).toBe(
+      true,
+    );
   });
 });
 

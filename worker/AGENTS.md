@@ -20,7 +20,7 @@
   to `trace-batch`; `src/queues/traceBatchQueue.ts` reads their event payloads.
   The cross-project experiment collects the entire due cohort at a fixed cutoff,
   sorts the due ID list by project ID in worker memory, and packs batches
-  capped by `LANGFUSE_TRACE_BATCH_MAX_SIZE` (default 60). Upgrade every consumer
+  capped by `LANGFUSE_TRACE_BATCH_MAX_SIZE` (default 60, max 10,000). Upgrade every consumer
   before enabling cross-project dispatch; consumers also accept legacy jobs.
   `LANGFUSE_TRACE_BATCH_STRATEGY=locality` optionally groups each bounded
   hydration window plus globally bounded retained partials in `events_full`

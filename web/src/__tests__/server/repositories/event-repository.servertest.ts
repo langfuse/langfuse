@@ -222,8 +222,7 @@ describe("Clickhouse Events Repository Test", () => {
           minStart: start + 1_200_000,
           maxStart: start + 1_200_000,
         },
-        // Exercise the maximum configurable batch size. Missing IDs stress
-        // HTTP parameters and query size without unrelated fixture rows.
+        // Missing IDs stress HTTP parameters without unrelated fixture rows.
         ...Array.from({ length: 994 }, () => ({
           projectId: batchProjectId,
           traceId: randomUUID(),
@@ -303,6 +302,25 @@ describe("Clickhouse Events Repository Test", () => {
 
     expect(rowCount).toBe(0);
   }, 60_000);
+
+  it("supports 10,000 distinct parameterized trace time groups", async () => {
+    const projectId = randomUUID();
+    const start = Date.now();
+    let rowCount = 0;
+
+    for await (const _ of getTraceBatchEventStream({
+      traces: Array.from({ length: 10_000 }, (_, index) => ({
+        projectId,
+        traceId: randomUUID(),
+        minStart: start + index,
+        maxStart: start + index,
+      })),
+    })) {
+      rowCount++;
+    }
+
+    expect(rowCount).toBe(0);
+  }, 120_000);
 
   it("should kill redis connection", () => {
     // we need at least one test case to avoid hanging
