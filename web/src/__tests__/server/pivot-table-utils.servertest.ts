@@ -359,21 +359,41 @@ describe("pivot-table-utils", () => {
       });
     });
 
-    it("weights averages by count instead of averaging the averages", () => {
-      // Two groups of very different sizes. Average of the per-row averages is
-      // (90 + 60) / 2 = 75, but the true overall average weighted by count is
-      // (90*10 + 60*5) / 15 = 80.
-      const data: DatabaseRow[] = [
-        { count: 10, avg_score: 90 },
-        { count: 5, avg_score: 60 },
+    it("never lets metric order pick the weight for an average", () => {
+      // Each average is weighted by its own count_<measure>, in either order.
+      const paired: DatabaseRow[] = [
+        { count_cost: 10, count_latency: 1, avg_cost: 1, avg_latency: 100 },
+        { count_cost: 1, count_latency: 10, avg_cost: 3, avg_latency: 200 },
       ];
+      const metrics = [
+        "count_cost",
+        "count_latency",
+        "avg_cost",
+        "avg_latency",
+      ];
+      const expected = {
+        count_cost: 11,
+        count_latency: 11,
+        avg_cost: 1.1818181818, // (1*10 + 3*1) / 11
+        avg_latency: 190.9090909091, // (100*1 + 200*10) / 11
+      };
+      expect(calculateSubtotals(paired, metrics)).toEqual(expected);
+      expect(calculateSubtotals(paired, [...metrics].reverse())).toEqual(
+        expected,
+      );
 
-      const result = calculateSubtotals(data, ["count", "avg_score"]);
-
-      expect(result).toEqual({
-        count: 15,
-        avg_score: 80,
-      });
+      // Two unrelated count columns and no match: unweighted mean, not a guess.
+      const ambiguous: DatabaseRow[] = [
+        { count_traces: 10, count_observations: 30, avg_latency: 100 },
+        { count_traces: 5, count_observations: 25, avg_latency: 200 },
+      ];
+      expect(
+        calculateSubtotals(ambiguous, [
+          "count_observations",
+          "count_traces",
+          "avg_latency",
+        ]).avg_latency,
+      ).toBe(150);
     });
 
     it("should handle missing values", () => {

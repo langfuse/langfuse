@@ -519,17 +519,24 @@ function applyAggregation(values: number[], aggregationType: string): number {
 }
 
 /**
- * Identifies the metric to use as the per-row weight (row cardinality) when
- * aggregating averages across groups. Averaging pre-aggregated per-row averages
- * without weighting by each row's count yields an "average of averages", which
- * only equals the true overall average when every group has the same size.
- * Returns the count metric field, or null if the rows carry no count.
+ * Picks the column to weight `metric` by when aggregating per-row averages:
+ * its own `count_<measure>`, else the row count (`count_count` or `count`),
+ * else the only count column. With several unrelated count columns there is no
+ * safe choice, so this returns null rather than letting metric order decide.
  */
-function findWeightMetric(metrics: string[]): string | null {
+function findWeightMetric(metric: string, metrics: string[]): string | null {
+  const counts = metrics.filter(
+    (m) =>
+      m !== metric &&
+      (detectAggregationType(m) === "count" ||
+        m.toLowerCase().startsWith("count")),
+  );
+  const measure = metric.slice(metric.indexOf("_") + 1);
+
   return (
-    metrics.find((m) => detectAggregationType(m) === "count") ??
-    metrics.find((m) => m.toLowerCase().startsWith("count")) ??
-    null
+    counts.find((m) => m === `count_${measure}`) ??
+    counts.find((m) => m === "count_count" || m === "count") ??
+    (counts.length === 1 ? counts[0] : null)
   );
 }
 
@@ -564,17 +571,16 @@ export function calculateSubtotals(
   metrics: string[],
 ): Record<string, number> {
   const subtotals: Record<string, number> = {};
-  const weightMetric = findWeightMetric(metrics);
 
   for (const metric of metrics) {
     const aggregationType = detectAggregationType(metric);
+    const weightMetric =
+      aggregationType === "avg" || aggregationType === "percentile"
+        ? findWeightMetric(metric, metrics)
+        : null;
 
     let result: number;
-    if (
-      (aggregationType === "avg" || aggregationType === "percentile") &&
-      weightMetric &&
-      weightMetric !== metric
-    ) {
+    if (weightMetric) {
       // Weight each row's value by its count so the group aggregate equals the
       // true overall average (rather than an average of averages). Missing
       // fields coerce to 0 via extractMetricValues, as elsewhere in this file;
