@@ -25,10 +25,47 @@ The dispatcher fetches state in chunks of at most 1,000, atomically checking
 that each trace is still due by the fixed cutoff and has not expired. Deleted,
 reactivated or missing-state entries are excluded. State contains the current
 bounds and revision; observations becoming ready after the cutoff wait for another run.
-It packs the resulting sequence into batches of at most
-`LANGFUSE_TRACE_BATCH_MAX_SIZE` traces (default 60). For A:70 and B:70, jobs
-contain A:60, A:10+B:50, then B:20. Batches span hydration chunks; only the final
-tail is partial unless activity invalidates selected traces.
+`LANGFUSE_TRACE_BATCH_STRATEGY=project` keeps the rollback behavior: sort the
+complete ID cohort by project, preserve readiness order within a project, and
+pack consecutive traces up to `LANGFUSE_TRACE_BATCH_MAX_SIZE` (default 60).
+For A:70 and B:70, jobs contain A:60, A:10+B:50, then B:20. Its tail spans
+hydration chunks.
+
+Both strategies first sort the complete due ID cohort by project before bounded
+state hydration. The optional `locality` strategy then sorts each hydrated
+window plus all bounded retained partials by the `events_full` physical locality
+hierarchy: project ID, minimum observed start-time minute, maximum observed
+start-time minute, then `xxHash32(trace_id)`. The maximum minute keeps traces
+with similar complete observed ranges adjacent; the other keys align with the
+table's primary key.
+
+A batch may not exceed one hour, or 125% of its first trace's span, whichever
+is larger. The selector keeps the fewest jobs that respect those caps, then
+uses dynamic programming to place the boundaries. It compares complete
+partitions lexicographically: first minimize project boundaries inside jobs,
+then minimize the sum of `shared envelope minutes × trace count`, then minimize
+the hash gaps retained inside equal project/time ranges. Extra jobs are added
+only when a fill would exceed the seed-relative envelope cap. This makes
+cross-project reads the last fallback without arbitrary weights, avoids
+bridging a large time gap merely to make the preceding job full, and cuts the
+largest trace-hash gaps among otherwise equivalent choices.
+
+All locality partials remain available until the next hydrated window. After
+selection, same-project partials may coalesce only when their two-minute-buffered
+absolute-time intervals overlap and their canonically ordered union still
+respects the trace cap and seed-relative envelope. The smallest envelope
+increase wins, with canonical order breaking ties, and merging repeats to a
+fixed point. Full batches dispatch immediately. If the partials exceed one
+global `max batch size - 1` trace budget, complete batches dispatch
+oldest-due-first until the carry fits; a batch is never split to fit that budget.
+
+For `n` candidates, cap `m`, and `k` jobs (`k >= ceil(n/m)`), locality
+selection uses `O(n × k × m)` time and `O(n × m)` memory. State hydration remains
+hard-bounded to 1,000 entries at a time; either strategy carries at most
+`max batch size - 1` hydrated entries into the next window, across every
+locality partial rather than per project. All retained partials flush in the
+same dispatch run, and no candidate state survives the run. Neither mode adds a
+second full-cohort state copy.
 
 After enqueue succeeds, acknowledgement atomically removes state and due membership
 only when the revision still matches. Arrivals during enqueue remain scheduled.
@@ -45,12 +82,18 @@ Collecting/sorting the entire cohort delays the first enqueue. Worker memory and
 the Redis response size grow with the due backlog; a large range read can delay
 other Redis clients. Monitor runtime, cohort size, backlog age and worker memory.
 
-The consumer makes one streamed query per batch with exact project/trace
-pair filters, explicit trace-hash pruning, and one shared min/max start-time
-window plus a two-minute buffer. No observation-count cap silently truncates a trace. Queries
-use at most two execution threads and a 30-second execution limit; failures
-throw and follow the queue's three-attempt retry policy. Only counts and logical
-I/O/metadata bytes are retained in job results.
+The consumer makes one streamed query per batch with exact project/trace pair
+filters, explicit trace-hash pruning, and a shared outer min/max start-time
+window. An additional grouped predicate restricts each exact project/trace pair
+to its own inclusive recorded interval plus a two-minute buffer on each side.
+Only traces with identical project and buffered bounds share an ID-list branch;
+repeated intervals for one pair form a union without duplicating rows.
+Consequently, a wider batch companion no longer admits observations outside
+another trace's required window. Full input, output, metadata and tool fields
+still come from `events_full`, and no observation-count cap silently truncates a
+trace. Queries use one execution thread and a 30-second execution
+limit; failures throw and follow the queue's three-attempt retry policy. Only
+counts and logical I/O/metadata bytes are retained in job results.
 
 ## Controls and rollout
 
@@ -64,7 +107,8 @@ enabled intake tracks every eligible trace unless a lower rate is configured.
 | `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`   | Turn ready state into queue jobs                            |
 | `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`   | Consume existing `trace-batch` jobs                         |
 | `LANGFUSE_TRACE_BATCH_CONCURRENCY`            | `2`       | Concurrent reads **per enabled worker process**             |
-| `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`      | Cross-project trace cap per job (1–1,000)                   |
+| `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`      | Cross-project trace cap per job (1–10,000)                  |
+| `LANGFUSE_TRACE_BATCH_STRATEGY`               | `project` | Rollback baseline (`project`) or experimental `locality`    |
 | `LANGFUSE_TRACE_BATCH_IDLE_MS`                | `600000`  | Inactivity before a trace becomes due                       |
 | `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`         | `7200000` | Retention after readiness, pruned during ingestion/dispatch |
 | `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`   | `30000`   | Target start interval; catches up after overruns            |
@@ -74,6 +118,10 @@ processes, enable the dispatcher, then enable intake on direct-v4 ingestion
 workers. Multiple dispatcher processes may be enabled; only the lease owner
 dispatches. Consumer concurrency multiplies across the fleet; this is not a
 global ClickHouse concurrency limit. Trace-count caps do not cap payload bytes.
+Changing the strategy requires only a dispatcher rollout; queued payloads and
+consumer behavior are unchanged. Set it back to `project` for immediate
+algorithm rollback. Do not enable `locality` in production without a controlled
+comparison showing lower total ClickHouse work at equivalent required coverage.
 
 When upgrading from single-project jobs, disable the dispatcher before the
 deployment and upgrade **every enabled consumer** before resuming dispatch.
@@ -151,20 +199,23 @@ Also inspect these metrics under `langfuse.trace_batch`:
   `p95:langfuse.trace_batch.found_project_count{env:prod-jp}` (or `prod-eu`),
   replacing `p95` with `avg`, `p50`, `p75`, `p90` or `p99` as needed.
 
-| Metric                                                          | Meaning                                                                                               |
-| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `ingestion_trace_count`                                         | Distinct eligible traces per ingestion job, distribution                                              |
-| `sampling_rate`                                                 | Configured admission fraction on producers handling eligible jobs, gauge                              |
-| `sampling_decisions`                                            | Distinct trace decisions per ingestion job, counter tagged `decision:selected` or `decision:excluded` |
-| `tracked_traces`, `tracking_errors`                             | Successful state updates and failed tracking calls, counters                                          |
-| `pending_traces`, `ready_traces`                                | Global due-set depth and eligible subset at the run cutoff, gauges                                    |
-| `snapshot_size`                                                 | Complete collected due-ID cohort size, distribution                                                   |
-| `skipped_traces`                                                | Collected entries excluded by pre-delivery validation, counter                                        |
-| `expired_traces`                                                | Pending trace entries discarded after retention, counter                                              |
-| `oldest_due_age_ms`, `due_lag_ms`                               | Oldest backlog age gauge and per-dispatch trace lag distribution                                      |
-| `reactivated_traces`                                            | Acknowledgements that preserved changed revisions, counter                                            |
-| `observation_count`, `found_trace_count`, `missing_trace_count` | Per-consumer-attempt read coverage distributions                                                      |
-| `io_metadata_bytes`                                             | Logical UTF-8 payload bytes read per attempt, excluding transport, compression and tool fields        |
+| Metric                                                          | Meaning                                                                                                |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `ingestion_trace_count`                                         | Distinct eligible traces per ingestion job, distribution                                               |
+| `sampling_rate`                                                 | Configured admission fraction on producers handling eligible jobs, gauge                               |
+| `sampling_decisions`                                            | Distinct trace decisions per ingestion job, counter tagged `decision:selected` or `decision:excluded`  |
+| `tracked_traces`, `tracking_errors`                             | Successful state updates and failed tracking calls, counters                                           |
+| `pending_traces`, `ready_traces`                                | Global due-set depth and eligible subset at the run cutoff, gauges                                     |
+| `snapshot_size`                                                 | Complete collected due-ID cohort size, distribution                                                    |
+| `candidate_buffer_size`, `selector_duration_ms`                 | Bounded selector input and scoring time, distributions tagged only by strategy                         |
+| `event_time_envelope_ms`, `observed_start_span_ms`              | Buffered batch query envelope and per-trace observed start span, distributions tagged only by strategy |
+| `dispatched_batches`                                            | Counter tagged by strategy and `fill:singleton/partial/full`                                           |
+| `skipped_traces`                                                | Collected entries excluded by pre-delivery validation, counter                                         |
+| `expired_traces`                                                | Pending trace entries discarded after retention, counter                                               |
+| `oldest_due_age_ms`, `due_lag_ms`                               | Oldest backlog age gauge and per-dispatch trace lag distribution                                       |
+| `reactivated_traces`                                            | Acknowledgements that preserved changed revisions, counter                                             |
+| `observation_count`, `found_trace_count`, `missing_trace_count` | Per-consumer-attempt read coverage distributions                                                       |
+| `io_metadata_bytes`                                             | Logical UTF-8 payload bytes read per attempt, excluding transport, compression and tool fields         |
 
 Backlog gauges are emitted by the active dispatcher; use a **max**, not a sum,
 across hosts for one Redis deployment. They stop updating when dispatch is off.
@@ -197,8 +248,13 @@ the cap is an experiment setting, not an established production optimum.
   not a guarantee that every write is visible.
 - State is deleted after successful scheduling. A trace reactivated afterward
   starts new bounds; earlier historical observations can fall outside them.
-  These reads measure the active window and do not guarantee complete historical
-  transcripts. The events table may also return pre-merge duplicate versions.
+  Required coverage for this experiment is each selected trace's recorded
+  min/max observation-start interval plus the existing two-minute buffer, under
+  the same database visibility and merge-state assumptions. A wider companion
+  trace can incidentally admit more rows for a selected trace, so changing batch
+  membership can change those extra rows. These reads do not guarantee complete
+  lifetime history after state is acknowledged and later recreated. The events
+  table may also return pre-merge duplicate versions.
 - Enqueue and acknowledgement are not one transaction. Stable job IDs and
   bounded completed-job retention reduce duplicates, but regrouping/retries can
   repeat reads. Metrics describe dispatches/read attempts, not exactly-once
@@ -240,28 +296,28 @@ SELECT input, output,
        mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
 FROM events_full AS e
 WHERE e.project_id IN ({projectIds: Array(String)})
-  AND e.trace_id IN ({traceIds: Array(String)})
-  AND (e.project_id, e.trace_id) IN {tracePairs: Array(Tuple(String, String))}
-  AND xxHash32(e.trace_id) IN (
-    SELECT arrayJoin(arrayMap(id -> xxHash32(id), {traceIds: Array(String)}))
-  )
+  AND (e.trace_id IN ({traceIds0: Array(String)}) OR ...)
+  AND ((e.project_id, e.trace_id) IN {tracePairs0: Array(Tuple(String, String))} OR ...)
+  AND (xxHash32(e.trace_id) IN (
+    SELECT arrayJoin(arrayMap(id -> xxHash32(id), {traceIds0: Array(String)}))
+  ) OR ...)
   AND e.start_time >= fromUnixTimestamp64Milli({batchMinStart: Int64})
   AND e.start_time <= fromUnixTimestamp64Milli({batchMaxStart: Int64})
-SETTINGS max_threads = 2, max_execution_time = 30, timeout_overflow_mode = 'throw'
+  AND (arrayExists(...) OR ...)
+SETTINGS max_threads = 1, max_execution_time = 30, timeout_overflow_mode = 'throw'
 ```
 
-There are five parameters, independent of batch size. The ID arrays grow
-with the batch, but the request does not add a parameter or SQL branch per trace.
+ID lists, pair lists and time windows are chunked so a 10,000-trace job stays
+under ClickHouse's default 1,000 HTTP fields and 128 KiB per field. Time windows
+use one `arrayExists` per chunk instead of one SQL branch per trace.
 The exact tuple filter prevents independent project/trace lists from matching
 unrequested crossed pairs. The reader also returns `project_id`, so identical
 trace IDs in different projects remain distinct when counting coverage.
 The hash subquery reads only
-the supplied array, not another table, and is compatible with ClickHouse 25.12.
+the supplied arrays, not another table, and is compatible with ClickHouse 25.12.
 Global bounds retain primary-key pruning and include a two-minute buffer at
-each end. A selected trace can return observations outside its own tracked
-bounds when another trace widens the batch window. Per-trace predicates can
-narrow this coverage if needed; the shared window is not a complete-history
-guarantee. No `FINAL`, aggregation or sorting is added.
+each end. Grouped `arrayExists` windows then restrict each pair to its own
+recorded interval plus that buffer. No `FINAL`, aggregation or sorting is added.
 
 Inspect `system.query_log` using the consumer's query ID to see the executed
 SQL, `read_rows`, `read_bytes`, `result_rows`, `memory_usage`, duration and CPU
@@ -276,6 +332,50 @@ time-window spread, cache/storage behavior and the concurrent consumer fleet.
 Compare equal trace cohorts across batch sizes and measure bytes/CPU per trace,
 not just query latency or query count.
 
+### Locality benchmark recipe
+
+Performance is currently unproven. Compare equivalent eligible cohorts in this
+order, draining between arms while holding sampling, consumer concurrency,
+project/trace-size distribution and foreground load fixed:
+
+1. `LANGFUSE_TRACE_BATCH_STRATEGY=project`, max size 60.
+2. `LANGFUSE_TRACE_BATCH_STRATEGY=locality`, max size 60.
+3. The lower-work strategy at max size 120.
+4. Max size 240 only if the preceding arm reduces total work without material
+   latency, memory, fairness or backlog regressions.
+
+Repeat or interleave arms to reduce cache and time-of-day bias. Do not run
+duplicate full reads simultaneously in production. For each arm, capture
+dispatcher/queue metrics and query-log rows, including failed attempts:
+
+```sql
+SELECT
+  query_id,
+  type,
+  query_duration_ms,
+  read_rows,
+  read_bytes,
+  result_rows,
+  memory_usage,
+  (
+    ProfileEvents['UserTimeMicroseconds']
+    + ProfileEvents['SystemTimeMicroseconds']
+  ) / 1e6 AS cpu_seconds
+FROM system.query_log
+WHERE event_time >= {arm_start:DateTime}
+  AND event_time < {arm_end:DateTime}
+  AND JSONExtractString(log_comment, 'surface') = 'worker'
+  AND JSONExtractString(log_comment, 'route') = 'langfuse.queue.trace_batch'
+  AND type IN ('QueryFinish', 'ExceptionWhileProcessing')
+ORDER BY event_time, query_id;
+```
+
+Report CPU seconds and read bytes per selected trace, and normalize both by
+returned observations/logical payload bytes. Also report p95 query latency,
+peak memory, fill, query rate, dispatcher duration, queue wait, oldest due age,
+errors/retries and foreground-query latency. Fewer queries alone is not a win;
+retain `project` if representative runs do not repeatably reduce total work.
+
 ### Integration tests
 
 With the standard local Redis and ClickHouse services and shared package built:
@@ -286,12 +386,14 @@ pnpm --filter web run test event-repository.servertest.ts -t 'streams complete t
 ```
 
 The Redis tests cover bounds/readiness, bounded cross-project packing and metrics,
-producer-off draining, enqueue failure, concurrent updates including state
-recreation, exclusive dispatch, and shutdown. The ClickHouse test reads more
-than 20,000 rows and checks full payloads, exact project/trace pairs (including
-forbidden crossed pairs and the same trace ID requested in two projects),
-and shared batch time bounds, including observations beyond an individual
-trace's tracked window.
+project/time/trace-hash locality ordering, deterministic/lossless bounded
+selection, producer-off draining, enqueue failure, concurrent updates including
+state recreation, exclusive dispatch, and shutdown. The ClickHouse test reads
+more than 20,000 rows and checks full payloads, exact project/trace pairs
+(including forbidden crossed pairs and the same trace ID requested in two
+projects), and shared batch time bounds. It contrasts an incidental row admitted
+by a wider companion trace with the same trace read alone, while retaining its
+own buffered interval.
 The connected integration test uses actual ingestion and batch BullMQ workers,
 Redis, OTLP conversion and ClickHouse. It checks fixed 10% sampling identities,
 delay reset, persistence of excluded observations, and draining after sampling
