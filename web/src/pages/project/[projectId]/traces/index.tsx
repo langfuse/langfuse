@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
-import TracesTable from "@/src/components/table/use-cases/traces";
+import TracesTable from "@/src/features/traces/TracesTable";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { TracesOnboarding } from "@/src/components/onboarding/TracesOnboarding";

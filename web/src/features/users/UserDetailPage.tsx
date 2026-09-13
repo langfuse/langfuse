@@ -5,7 +5,7 @@ import {
   RouteParamsPendingFallback,
   useReadyRouteParams,
 } from "@/src/hooks/useReadyRouteParams";
-import TracesTable from "@/src/components/table/use-cases/traces";
+import { TracesTable } from "@/src/features/traces";
 import { ScoresTable } from "@/src/features/scores";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
