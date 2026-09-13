@@ -63,7 +63,6 @@ const baseSession: Session = {
     canCreateOrganizations: true,
     organizations: [],
     featureFlags: {
-      searchBar: false,
       templateFlag: false,
       excludeClickhouseRead: false,
       observationEvals: false,

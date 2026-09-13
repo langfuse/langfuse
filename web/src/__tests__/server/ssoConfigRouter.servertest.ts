@@ -87,7 +87,6 @@ function createSession(
         v4BetaToggleVisible: false,
         observationEvals: false,
         experimentsV4Enabled: false,
-        searchBar: false,
       },
       admin: false,
     },
