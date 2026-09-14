@@ -128,6 +128,27 @@ types:
       generation-update:
         type: UpdateGenerationEvent
         docs: "Updates a generation based on id. Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
+      agent-create:
+        type: CreateAgentEvent
+        docs: "Creates an agent observation. Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
+      tool-create:
+        type: CreateToolEvent
+        docs: "Creates a tool observation. Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
+      chain-create:
+        type: CreateChainEvent
+        docs: "Creates a chain observation. Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
+      retriever-create:
+        type: CreateRetrieverEvent
+        docs: "Creates a retriever observation. Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
+      evaluator-create:
+        type: CreateEvaluatorEvent
+        docs: "Creates an evaluator observation. Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
+      embedding-create:
+        type: CreateEmbeddingEvent
+        docs: "Creates an embedding observation. Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
+      guardrail-create:
+        type: CreateGuardrailEvent
+        docs: "Creates a guardrail observation. Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
       event-create:
         type: CreateEventEvent
         docs: "Creates an event. Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
@@ -388,6 +409,41 @@ types:
     extends: BaseEvent
     properties:
       body: UpdateGenerationBody
+
+  CreateAgentEvent:
+    extends: BaseEvent
+    properties:
+      body: CreateGenerationBody
+
+  CreateToolEvent:
+    extends: BaseEvent
+    properties:
+      body: CreateGenerationBody
+
+  CreateChainEvent:
+    extends: BaseEvent
+    properties:
+      body: CreateGenerationBody
+
+  CreateRetrieverEvent:
+    extends: BaseEvent
+    properties:
+      body: CreateGenerationBody
+
+  CreateEvaluatorEvent:
+    extends: BaseEvent
+    properties:
+      body: CreateGenerationBody
+
+  CreateEmbeddingEvent:
+    extends: BaseEvent
+    properties:
+      body: CreateGenerationBody
+
+  CreateGuardrailEvent:
+    extends: BaseEvent
+    properties:
+      body: CreateGenerationBody
 
   CreateSpanEvent:
     extends: BaseEvent

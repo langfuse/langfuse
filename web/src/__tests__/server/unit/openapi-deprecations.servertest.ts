@@ -235,6 +235,27 @@ describe("OpenAPI deprecations", () => {
     };
     const ingestionEvents = ingestionDefinition.types.IngestionEvent.union;
     const supportedEventTypes = new Set(["score-create", "sdk-log"]);
+    const expectedEventTypes = new Set([
+      "trace-create",
+      "score-create",
+      "span-create",
+      "span-update",
+      "generation-create",
+      "generation-update",
+      "agent-create",
+      "tool-create",
+      "chain-create",
+      "retriever-create",
+      "evaluator-create",
+      "embedding-create",
+      "guardrail-create",
+      "event-create",
+      "sdk-log",
+      "observation-create",
+      "observation-update",
+    ]);
+
+    expect(new Set(Object.keys(ingestionEvents))).toEqual(expectedEventTypes);
 
     for (const [eventType, event] of Object.entries(ingestionEvents)) {
       if (supportedEventTypes.has(eventType)) {
