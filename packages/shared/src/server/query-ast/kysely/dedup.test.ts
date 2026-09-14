@@ -52,7 +52,7 @@ describe("per-table dedup lowering", () => {
     const lower = sql.toLowerCase();
     expect(lower).not.toContain("limit 1 by");
     expect(lower).not.toContain("from (select *");
-    expect(lower).toMatch(/group by environment/);
+    expect(lower).toContain("group by environment");
   });
 
   it("still emits an explicit caller LIMIT BY", () => {
