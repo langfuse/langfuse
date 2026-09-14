@@ -45,11 +45,18 @@ const groupAverage = <T extends ChipScore>(
 
 /** What the "+N" hover lists: one line per chip, so an evaluator group shows
  * as `Prefix(N)` with its average, exactly like its chip, not as N metrics. */
+type OverflowHoverRow = {
+  name: string;
+  dataType: string;
+  value?: number | null;
+  stringValue?: string | null;
+};
+
 const overflowHoverRows = <T extends ChipScore>(
   groups: ReadonlyArray<ScoreChipGroup<T>>,
-) =>
-  groups.flatMap((group) => {
-    if (group.kind !== "evaluator") return group.scores;
+): OverflowHoverRow[] =>
+  groups.flatMap((group): OverflowHoverRow[] => {
+    if (group.kind !== "evaluator") return [...group.scores];
     const count = groupMetricCount(group);
     const average = groupAverage(group);
     return [
