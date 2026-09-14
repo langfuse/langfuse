@@ -33,16 +33,30 @@ function durationSeconds(node: TreeNode): number | undefined {
   return node.latency ?? undefined;
 }
 
-/** Sum of usage over the node and all descendants (roots have no own usage). */
+/**
+ * Sum of usage over the node and all descendants (roots have no own usage).
+ * Iterative like the rest of the tree walks here: a deep enough chain would
+ * blow the call stack on recursion.
+ */
 function subtreeTokens(node: TreeNode): number {
-  let total = node.totalUsage ?? 0;
-  for (const child of node.children) total += subtreeTokens(child);
+  let total = 0;
+  const stack: TreeNode[] = [node];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    total += current.totalUsage ?? 0;
+    for (const child of current.children) stack.push(child);
+  }
   return total;
 }
 
 function descendantCount(node: TreeNode): number {
-  let count = node.children.length;
-  for (const child of node.children) count += descendantCount(child);
+  let count = 0;
+  const stack: TreeNode[] = [...node.children];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    count += 1;
+    for (const child of current.children) stack.push(child);
+  }
   return count;
 }
 
