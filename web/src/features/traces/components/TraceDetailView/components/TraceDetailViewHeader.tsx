@@ -482,14 +482,17 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             own env/release/version. */}
         {!isAnnotationMode && (
           <>
-            <CollapsibleBadgeRow>
-              {targetTraceId && (
+            {/* Only eval-execution traces have a target, and an empty row
+                would still take the parent's gap (plus a mobile chevron with
+                nothing to expand). */}
+            {targetTraceId ? (
+              <CollapsibleBadgeRow>
                 <TargetTraceBadge
                   targetTraceId={targetTraceId}
                   projectId={projectId}
                 />
-              )}
-            </CollapsibleBadgeRow>
+              </CollapsibleBadgeRow>
+            ) : null}
             <CollapsibleBadgeRow>
               <EnvironmentBadge environment={trace.environment} />
               <ReleaseBadge release={trace.release} />
