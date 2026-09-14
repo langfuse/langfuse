@@ -22,11 +22,12 @@ pnpm dev
 ```
 
 This starts the gateway alongside the other development services. Turbo Watch
-recompiles and restarts the gateway after Rust source changes; Web and worker
-keep their built-in watchers. The gateway loads the root `.env` and listens on
-the first available port starting at 8080. This lets multiple worktrees run
-their development stacks at the same time. Add overrides from the table below
-to your root `.env`; exported shell variables take precedence.
+restores the cached debug gateway binary when its inputs are unchanged, then
+rebuilds and restarts it after Rust source changes; Web and worker keep their
+built-in watchers. The gateway loads the root `.env` and listens on the first
+available port starting at 8080. This lets multiple worktrees run their
+development stacks at the same time. Add overrides from the table below to your
+root `.env`; exported shell variables take precedence.
 Without a Web URL, the process starts with liveness available; readiness and
 inference return 503. To enable inference, configure the Web URL and shared service key.
 
@@ -237,7 +238,10 @@ pnpm --filter ai-gateway format
 
 These scripts delegate to Cargo. Root `pnpm build`, `pnpm typecheck`, `pnpm lint`
 and `pnpm test` include the gateway; its Turbo tasks have no Prisma/JavaScript
-dependencies and disable Turbo caching, leaving incremental builds to Cargo.
+dependencies. Turbo caches successful checks and only the final release binary,
+not Cargo's potentially large `target` directory. Development similarly caches
+only the final debug binary so unchanged gateway builds can be reused across
+worktrees.
 The JavaScript CI jobs and commit-hook lint exclude it; the dedicated Rust CI job
 runs its checks without Node. Root Prettier formatting remains JavaScript/CSS-only;
 use the gateway `format` script for Rust. Docker builds also use Cargo directly.
