@@ -207,7 +207,7 @@ const formatQueues = (queues: QueueLimit) =>
 const formatIngestion = (ingestion: IngestionLimit) =>
   ingestion.kind === "custom"
     ? "Custom rate limits"
-    : `${formatCount(ingestion.value)} req/min ingestion`;
+    : `${formatCount(ingestion.value)} ingestion requests/min`;
 
 const formatSupport = (support: SupportLevel) => {
   switch (support) {
@@ -220,20 +220,12 @@ const formatSupport = (support: SupportLevel) => {
     case "slack-24h":
       return "Private Slack channel, 24h response";
     case "named-sla":
-      return "Named lead support engineer and support SLA";
+      return "Support SLA";
   }
 };
 
-const formatUsage = (limits: PlanLimits) => {
-  const included = `${formatCount(limits.includedUnits)} units included`;
-  if (limits.usageModel === "capped") {
-    return `${included}, no additional usage — capped`;
-  }
-  if (limits.usageModel === "negotiated") {
-    return `${included}, then $8 / 100k, negotiated on yearly terms`;
-  }
-  return `${included}, then $8 / 100k, lower with increasing usage`;
-};
+const formatHistory = (access: DataAccess) =>
+  `${formatDataAccess(access)} of history`;
 
 export const planTierLabel = (tier: PlanTier) => TIER_LABEL[tier];
 
@@ -257,17 +249,18 @@ export const suggestedUpgradeTier = (current: PlanTier): PlanTier | null => {
   }
 };
 
-export const includedUnitsForTier = (tier: PlanTier) =>
-  LIMITS[tier].includedUnits;
-
-export const dataAccessLabelForTier = (tier: PlanTier) =>
-  formatDataAccess(LIMITS[tier].dataAccess);
-
-export const usersLabelForTier = (tier: PlanTier, memberCount?: number) => {
-  if (typeof memberCount === "number") {
-    return `${memberCount} user${memberCount === 1 ? "" : "s"}`;
+export const suggestedUpgradeReason = (current: PlanTier): string | null => {
+  switch (current) {
+    case "hobby":
+      return "More included usage, longer history, and unlimited users.";
+    case "core":
+      return "Longer history, higher limits, and compliance reports.";
+    case "pro":
+    case "team":
+      return "Custom limits, audit logs, and named support.";
+    case "enterprise":
+      return null;
   }
-  return formatUsers(LIMITS[tier].users);
 };
 
 export const checkoutProductForTier = (tier: Exclude<PlanTier, "hobby">) =>
@@ -281,90 +274,59 @@ const parseLeadingDollarAmount = (price: string) => {
 export const teamsAddonPriceLabel = () => {
   const pro = checkoutProductForTier("pro")?.checkout?.price;
   const team = checkoutProductForTier("team")?.checkout?.price;
-  if (!pro || !team) return "+$300 / month";
+  if (!pro || !team) return "+$300/mo";
   const proAmount = parseLeadingDollarAmount(pro);
   const teamAmount = parseLeadingDollarAmount(team);
-  if (proAmount === null || teamAmount === null) return "+$300 / month";
-  return `+$${teamAmount - proAmount} / month`;
+  if (proAmount === null || teamAmount === null) return "+$300/mo";
+  return `+$${teamAmount - proAmount}/mo`;
+};
+
+const additionalCapabilityLines = (limits: PlanLimits): string[] => {
+  const lines: string[] = [];
+  if (limits.dataRetentionManagement) {
+    lines.push("Data retention management");
+  }
+  if (limits.complianceReports) {
+    lines.push("SOC2 Type II & ISO27001 reports, HIPAA-ready region");
+  }
+  if (limits.enterpriseSso || limits.fineGrainedRbac) {
+    lines.push("Enterprise SSO and fine-grained RBAC");
+  }
+  if (limits.auditLogs || limits.scim) {
+    lines.push("Audit logs and SCIM provisioning");
+  }
+  if (limits.uptimeSla) {
+    lines.push("Uptime SLA");
+  }
+  if (limits.namedSupportEngineer) {
+    lines.push("Named lead support engineer");
+  }
+  return lines;
 };
 
 const currentHeadlines = (tier: PlanTier): PlanComparisonLine[] => {
   const limits = LIMITS[tier];
-  const lines: PlanComparisonLine[] = [
-    { polarity: "neutral", text: formatUsage(limits) },
-    {
-      polarity: "neutral",
-      text: `${formatDataAccess(limits.dataAccess)} of history`,
-    },
+  return [
+    { polarity: "neutral", text: formatHistory(limits.dataAccess) },
     { polarity: "neutral", text: formatUsers(limits.users) },
+    { polarity: "neutral", text: formatIngestion(limits.ingestion) },
+    { polarity: "neutral", text: `${limits.alerts} alerts` },
+    { polarity: "neutral", text: formatQueues(limits.annotationQueues) },
+    { polarity: "neutral", text: formatSupport(limits.support) },
+    ...additionalCapabilityLines(limits).map((text) => ({
+      polarity: "neutral" as const,
+      text,
+    })),
   ];
-
-  if (limits.ingestion.kind === "fixed") {
-    lines.push({
-      polarity: "neutral",
-      text: `${formatIngestion(limits.ingestion)}, ${limits.alerts} alerts`,
-    });
-  } else {
-    lines.push({
-      polarity: "neutral",
-      text: `${formatIngestion(limits.ingestion)}, ${limits.alerts} alerts`,
-    });
-  }
-
-  lines.push({
-    polarity: "neutral",
-    text: formatQueues(limits.annotationQueues),
-  });
-  lines.push({ polarity: "neutral", text: formatSupport(limits.support) });
-
-  if (limits.dataRetentionManagement) {
-    lines.push({ polarity: "neutral", text: "Data retention management" });
-  }
-  if (limits.complianceReports) {
-    lines.push({
-      polarity: "neutral",
-      text: "SOC2 Type II & ISO27001 reports, HIPAA-ready region",
-    });
-  }
-  if (limits.enterpriseSso) {
-    lines.push({
-      polarity: "neutral",
-      text: "Enterprise SSO and fine-grained RBAC",
-    });
-  }
-  if (limits.auditLogs || limits.scim) {
-    lines.push({
-      polarity: "neutral",
-      text: "Audit logs and SCIM provisioning",
-    });
-  }
-  if (limits.uptimeSla) {
-    lines.push({ polarity: "neutral", text: "Uptime SLA and support SLA" });
-  }
-  if (limits.namedSupportEngineer) {
-    lines.push({ polarity: "neutral", text: "Named lead support engineer" });
-  }
-
-  return lines;
 };
 
 const hobbyLossFromPaid = (
   current: PlanLimits,
   memberCount?: number,
 ): PlanComparisonLine[] => {
-  const lines: PlanComparisonLine[] = [];
-
-  if (current.dataAccess.kind === "days") {
-    lines.push({
-      polarity: "minus",
-      text: `History drops to 30 days, from ${current.dataAccess.days}`,
-    });
-  } else {
-    lines.push({
-      polarity: "minus",
-      text: `History drops to 30 days, from ${current.dataAccess.years} years`,
-    });
-  }
+  const lines: PlanComparisonLine[] = [
+    { polarity: "minus", text: formatHistory(LIMITS.hobby.dataAccess) },
+  ];
 
   if (typeof memberCount === "number" && memberCount > 2) {
     lines.push({
@@ -372,22 +334,25 @@ const hobbyLossFromPaid = (
       text: `2 users — ${memberCount - 2} of your ${memberCount} lose access`,
     });
   } else {
-    lines.push({ polarity: "minus", text: "2 users" });
+    lines.push({ polarity: "minus", text: formatUsers(LIMITS.hobby.users) });
   }
 
   if (current.usageModel !== "capped") {
     lines.push({
       polarity: "minus",
-      text: `Ingestion stops at ${formatCount(MAX_EVENTS_FREE_PLAN)} units instead of being billed`,
+      text: "Usage capped at included units",
     });
   }
 
-  if (current.ingestion.kind === "fixed") {
-    lines.push({
-      polarity: "minus",
-      text: `Ingestion throughput drops to 1,000 req/min, 2 alerts`,
-    });
-  }
+  lines.push({
+    polarity: "minus",
+    text: formatIngestion(LIMITS.hobby.ingestion),
+  });
+  lines.push({ polarity: "minus", text: `${LIMITS.hobby.alerts} alerts` });
+  lines.push({
+    polarity: "minus",
+    text: formatQueues(LIMITS.hobby.annotationQueues),
+  });
 
   if (current.support !== "community") {
     lines.push({ polarity: "minus", text: "No in-app support" });
@@ -407,6 +372,11 @@ const pushChanged = (
   }
 };
 
+const dataAccessChanged = (from: DataAccess, to: DataAccess) =>
+  from.kind !== to.kind ||
+  (from.kind === "days" && to.kind === "days" && from.days !== to.days) ||
+  (from.kind === "years" && to.kind === "years" && from.years !== to.years);
+
 const capabilityDiff = (
   from: PlanLimits,
   to: PlanLimits,
@@ -415,26 +385,8 @@ const capabilityDiff = (
 ): PlanComparisonLine[] => {
   const lines: PlanComparisonLine[] = [];
 
-  if (
-    from.dataAccess.kind !== to.dataAccess.kind ||
-    (from.dataAccess.kind === "days" &&
-      to.dataAccess.kind === "days" &&
-      from.dataAccess.days !== to.dataAccess.days) ||
-    (from.dataAccess.kind === "years" &&
-      to.dataAccess.kind === "years" &&
-      from.dataAccess.years !== to.dataAccess.years)
-  ) {
-    if (polarity === "plus") {
-      lines.push({
-        polarity,
-        text: `${formatDataAccess(to.dataAccess)} of history, up from ${formatDataAccess(from.dataAccess)}`,
-      });
-    } else {
-      lines.push({
-        polarity,
-        text: `History drops to ${formatDataAccess(to.dataAccess)}, from ${formatDataAccess(from.dataAccess)}`,
-      });
-    }
+  if (dataAccessChanged(from.dataAccess, to.dataAccess)) {
+    lines.push({ polarity, text: formatHistory(to.dataAccess) });
   }
 
   if (from.users.kind !== to.users.kind) {
@@ -459,22 +411,17 @@ const capabilityDiff = (
     if (to.usageModel === "capped") {
       lines.push({
         polarity,
-        text: `Ingestion stops at ${formatCount(to.includedUnits)} units instead of being billed`,
-      });
-    } else if (from.usageModel === "capped") {
-      lines.push({
-        polarity,
-        text: `${formatCount(to.includedUnits)} units included, then billed instead of a ${formatCount(from.includedUnits)} cap`,
+        text: "Usage capped at included units",
       });
     } else if (to.usageModel === "negotiated") {
       lines.push({
         polarity,
-        text: "Negotiated usage rate on yearly terms",
+        text: "Negotiated usage on yearly terms",
       });
-    } else if (from.usageModel === "negotiated") {
+    } else {
       lines.push({
         polarity,
-        text: `${formatCount(to.includedUnits)} units included, then $8 / 100k, lower with increasing usage`,
+        text: "Additional usage billed beyond included units",
       });
     }
   }
@@ -484,31 +431,12 @@ const capabilityDiff = (
     (from.ingestion.kind === "fixed" &&
       to.ingestion.kind === "fixed" &&
       from.ingestion.value !== to.ingestion.value);
-  const alertsChanged = from.alerts !== to.alerts;
+  if (ingestionChanged) {
+    lines.push({ polarity, text: formatIngestion(to.ingestion) });
+  }
 
-  if (ingestionChanged && alertsChanged && to.ingestion.kind === "fixed") {
-    lines.push({
-      polarity,
-      text:
-        polarity === "plus"
-          ? `${formatIngestion(to.ingestion)}, up from ${from.ingestion.kind === "fixed" ? formatCount(from.ingestion.value) : "custom"}, ${to.alerts} alerts`
-          : `${formatIngestion(to.ingestion)}, ${to.alerts} alerts`,
-    });
-  } else {
-    if (ingestionChanged) {
-      lines.push({
-        polarity,
-        text:
-          polarity === "plus" &&
-          to.ingestion.kind === "fixed" &&
-          from.ingestion.kind === "fixed"
-            ? `${formatIngestion(to.ingestion)}, up from ${formatCount(from.ingestion.value)}`
-            : formatIngestion(to.ingestion),
-      });
-    }
-    if (alertsChanged) {
-      lines.push({ polarity, text: `${to.alerts} alerts` });
-    }
+  if (from.alerts !== to.alerts) {
+    lines.push({ polarity, text: `${to.alerts} alerts` });
   }
 
   if (
@@ -553,18 +481,16 @@ const capabilityDiff = (
     from.auditLogs !== to.auditLogs || from.scim !== to.scim,
     "Audit logs and SCIM provisioning",
   );
+  const ingestionAlreadyStatesCustomRate =
+    to.ingestion.kind === "custom" || from.ingestion.kind === "custom";
   pushChanged(
     lines,
     polarity,
-    from.customRateLimits !== to.customRateLimits,
+    !ingestionAlreadyStatesCustomRate &&
+      from.customRateLimits !== to.customRateLimits,
     "Custom rate limits",
   );
-  pushChanged(
-    lines,
-    polarity,
-    from.uptimeSla !== to.uptimeSla,
-    "Uptime SLA and support SLA",
-  );
+  pushChanged(lines, polarity, from.uptimeSla !== to.uptimeSla, "Uptime SLA");
   pushChanged(
     lines,
     polarity,

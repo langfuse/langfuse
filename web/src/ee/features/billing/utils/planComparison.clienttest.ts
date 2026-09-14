@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   getPlanComparison,
   planTierFromPlan,
+  suggestedUpgradeReason,
   suggestedUpgradeTier,
   teamsAddonPriceLabel,
 } from "./planComparison";
@@ -25,8 +26,31 @@ describe("planComparison", () => {
     expect(suggestedUpgradeTier("enterprise")).toBeNull();
   });
 
+  it("explains why the suggested step is the recommended upgrade", () => {
+    expect(suggestedUpgradeReason("hobby")).toBe(
+      "More included usage, longer history, and unlimited users.",
+    );
+  });
+
   it("derives the Teams add-on price from catalogue list prices", () => {
-    expect(teamsAddonPriceLabel()).toBe("+$300 / month");
+    expect(teamsAddonPriceLabel()).toBe("+$300/mo");
+  });
+
+  it("lists current-plan rows in a shared comparison order", () => {
+    const comparison = getPlanComparison({
+      currentTier: "hobby",
+      targetTier: "hobby",
+    });
+
+    expect(comparison.heading).toBe("What you have today");
+    expect(comparison.lines.map((line) => line.text)).toEqual([
+      "30 days of history",
+      "2 users",
+      "1,000 ingestion requests/min",
+      "2 alerts",
+      "1 annotation queue",
+      "Community support via GitHub",
+    ]);
   });
 
   it("lists current Core capabilities without gain or loss markers", () => {
@@ -39,13 +63,32 @@ describe("planComparison", () => {
     expect(comparison.lines.every((line) => line.polarity === "neutral")).toBe(
       true,
     );
-    expect(comparison.lines.map((line) => line.text)).toEqual(
-      expect.arrayContaining([
-        "90 days of history",
-        "Unlimited users",
-        "In-app support, 48h response",
-      ]),
-    );
+    expect(comparison.lines.map((line) => line.text)).toEqual([
+      "90 days of history",
+      "Unlimited users",
+      "4,000 ingestion requests/min",
+      "20 alerts",
+      "3 annotation queues",
+      "In-app support, 48h response",
+    ]);
+  });
+
+  it("describes Core gains over Hobby without restating the Hobby baseline", () => {
+    const comparison = getPlanComparison({
+      currentTier: "hobby",
+      targetTier: "core",
+    });
+
+    expect(comparison.heading).toBe("What you gain over Hobby");
+    expect(comparison.lines.map((line) => line.text)).toEqual([
+      "90 days of history",
+      "Unlimited users",
+      "Additional usage billed beyond included units",
+      "4,000 ingestion requests/min",
+      "20 alerts",
+      "3 annotation queues",
+      "In-app support, 48h response",
+    ]);
   });
 
   it("describes Hobby losses from Core, including seats that would be removed", () => {
@@ -61,9 +104,9 @@ describe("planComparison", () => {
     );
     expect(comparison.lines.map((line) => line.text)).toEqual(
       expect.arrayContaining([
-        "History drops to 30 days, from 90",
+        "30 days of history",
         "2 users — 5 of your 7 lose access",
-        "Ingestion stops at 50,000 units instead of being billed",
+        "Usage capped at included units",
         "No in-app support",
       ]),
     );
@@ -79,15 +122,15 @@ describe("planComparison", () => {
     expect(comparison.lines.every((line) => line.polarity === "plus")).toBe(
       true,
     );
-    expect(comparison.lines.map((line) => line.text)).toEqual(
-      expect.arrayContaining([
-        "3 years of history, up from 90 days",
-        "Unlimited annotation queues",
-        "Data retention management",
-        "SOC2 Type II & ISO27001 reports, HIPAA-ready region",
-        "Prioritized in-app support",
-      ]),
-    );
+    expect(comparison.lines.map((line) => line.text)).toEqual([
+      "3 years of history",
+      "20,000 ingestion requests/min",
+      "50 alerts",
+      "Unlimited annotation queues",
+      "Prioritized in-app support",
+      "Data retention management",
+      "SOC2 Type II & ISO27001 reports, HIPAA-ready region",
+    ]);
   });
 
   it("adds Teams-only controls when comparing Core to Pro + Teams", () => {
@@ -111,26 +154,43 @@ describe("planComparison", () => {
     });
 
     expect(comparison.lines.map((line) => line.text)).toEqual(
-      expect.arrayContaining([
-        "100,000 units included, then $8 / 100k, lower with increasing usage",
-      ]),
+      expect.arrayContaining(["Additional usage billed beyond included units"]),
     );
   });
 
-  it("lists Enterprise-only additions over Pro + Teams", () => {
+  it("lists Enterprise-only additions over Pro + Teams once each", () => {
     const comparison = getPlanComparison({
       currentTier: "team",
       targetTier: "enterprise",
     });
+    const texts = comparison.lines.map((line) => line.text);
 
     expect(comparison.heading).toBe("What you gain over Pro + Teams");
-    expect(comparison.lines.map((line) => line.text)).toEqual(
-      expect.arrayContaining([
-        "Audit logs and SCIM provisioning",
-        "Custom rate limits",
-        "Uptime SLA and support SLA",
-        "Named lead support engineer",
-      ]),
+    expect(texts).toEqual([
+      "Negotiated usage on yearly terms",
+      "Custom rate limits",
+      "100 alerts",
+      "Support SLA",
+      "Audit logs and SCIM provisioning",
+      "Uptime SLA",
+      "Named lead support engineer",
+    ]);
+    expect(new Set(texts).size).toBe(texts.length);
+  });
+
+  it("does not duplicate Enterprise extras when comparing from Hobby", () => {
+    const texts = getPlanComparison({
+      currentTier: "hobby",
+      targetTier: "enterprise",
+    }).lines.map((line) => line.text);
+
+    expect(texts.filter((text) => text === "Custom rate limits")).toHaveLength(
+      1,
     );
+    expect(
+      texts.filter((text) => text === "Named lead support engineer"),
+    ).toHaveLength(1);
+    expect(texts.filter((text) => text === "Support SLA")).toHaveLength(1);
+    expect(new Set(texts).size).toBe(texts.length);
   });
 });

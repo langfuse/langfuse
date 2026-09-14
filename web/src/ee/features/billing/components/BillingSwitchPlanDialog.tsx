@@ -15,7 +15,6 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { BillingSwitchPlanUsageBar } from "@/src/ee/features/billing/components/BillingSwitchPlanUsageBar";
 import { StripeCancellationButton } from "@/src/ee/features/billing/components/StripeCancellationButton";
 import { StripeKeepPlanButton } from "@/src/ee/features/billing/components/StripeKeepPlanButton";
 import { StripeSwitchPlanButton } from "@/src/ee/features/billing/components/StripeSwitchPlanButton";
@@ -30,6 +29,7 @@ import {
   getPlanComparison,
   planTierFromPlan,
   planTierLabel,
+  suggestedUpgradeReason,
   suggestedUpgradeTier,
   teamsAddonPriceLabel,
   type DisplayPlanTier,
@@ -39,6 +39,7 @@ import { isUpgrade } from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
+import { numberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 
 const PRICING_COMPARISON_HREF = "https://langfuse.com/pricing";
@@ -128,11 +129,14 @@ function BillingSwitchPlanDialogContent() {
       },
     });
 
-  const currentPriceLabel =
-    currentTier === "hobby"
-      ? "Free"
-      : (checkoutProductForTier(currentTier === "team" ? "team" : currentTier)
-          ?.checkout?.price ?? "");
+  const usageSummary = [
+    `Current plan: ${planTierLabel(currentTier)}`,
+    usage.data
+      ? `Used this billing period: ${numberFormatter(usage.data.usageCount, 0)} ${usage.data.usageType ?? "units"}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   const startCheckout = (stripeProductId: string) => {
     if (!organization) return;
@@ -156,9 +160,10 @@ function BillingSwitchPlanDialogContent() {
           <div className="min-w-0">
             <DialogTitle>Plans</DialogTitle>
             <DialogDescription>
-              Main platform features are included across plans. What changes is
-              included usage, history, limits, support and enterprise features.
+              Compare included usage, history, limits, support, and enterprise
+              features.
             </DialogDescription>
+            <p className="text-muted-foreground mt-1 text-sm">{usageSummary}</p>
           </div>
           <ActionButton variant="secondary" href={PRICING_COMPARISON_HREF}>
             Full comparison of plans
@@ -166,19 +171,7 @@ function BillingSwitchPlanDialogContent() {
         </div>
       </DialogHeader>
       <DialogBody>
-        <BillingSwitchPlanUsageBar
-          currentTier={currentTier}
-          priceLabel={currentPriceLabel}
-          memberCount={memberCount}
-          usage={usage.data ?? undefined}
-          usageLoading={usage.isLoading}
-          usageError={usage.isError}
-          hobbyPlanLimit={
-            organization?.cloudConfig?.monthlyObservationLimit ??
-            MAX_EVENTS_FREE_PLAN
-          }
-        />
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-4">
           {DISPLAY_PLAN_TIERS.map((displayTier) => (
             <PlanCard
               key={displayTier}
@@ -268,6 +261,9 @@ function PlanCard({
   const scheduledHere =
     Boolean(product) && scheduledNewPlanId === product?.stripeProductId;
   const hobbyScheduled = displayTier === "hobby" && cancellationScheduled;
+  const upgradeReason = isSuggested
+    ? suggestedUpgradeReason(currentTier)
+    : null;
 
   const priceLabel =
     displayTier === "hobby"
@@ -289,32 +285,45 @@ function PlanCard({
   return (
     <div
       className={cn(
-        "bg-card relative flex flex-col rounded-xl border p-4",
+        "bg-card relative flex h-full flex-col rounded-xl border p-4",
         isCurrentDisplay && "border-border",
-        isSuggested && "border-primary/40",
+        isSuggested && "border-primary border-2",
       )}
     >
-      <div className="mb-3 flex min-h-6 items-start justify-end gap-1">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <h3 className="text-2xl font-bold">{planTierLabel(displayTier)}</h3>
         {isCurrentTarget ? (
           <Badge variant="secondary" size="sm">
             Current plan
           </Badge>
         ) : null}
-        {isSuggested ? (
-          <Badge variant="warning" size="sm">
-            Suggested upgrade
-          </Badge>
-        ) : null}
+        {isSuggested ? <Badge size="sm">Recommended upgrade</Badge> : null}
         {scheduledHere || hobbyScheduled ? (
           <Badge variant="outline-solid" size="sm">
             Starts next period
           </Badge>
         ) : null}
       </div>
-      <h3 className="text-2xl font-bold">{planTierLabel(displayTier)}</h3>
+      {upgradeReason ? <p className="mt-1 text-sm">{upgradeReason}</p> : null}
       <p className="mt-2 text-2xl font-bold">{priceLabel}</p>
       <p className="text-muted-foreground mt-1 text-sm">{usageLabel}</p>
       <p className="text-muted-foreground text-sm">{usageDetail}</p>
+      {displayTier === "pro" ? (
+        <label className="mt-3 flex items-center gap-2">
+          <Switch
+            size="sm"
+            checked={teamsAddonOn}
+            onCheckedChange={onTeamsAddonChange}
+          />
+          <span className="text-sm whitespace-nowrap">
+            <span className="font-bold">Teams add-on</span>
+            <span className="text-muted-foreground">
+              {" "}
+              · {teamsAddonPriceLabel()}
+            </span>
+          </span>
+        </label>
+      ) : null}
       <div className="mt-4 border-t pt-4">
         <p className="mb-2 text-xs font-bold tracking-wide uppercase">
           {comparison.heading}
@@ -334,24 +343,6 @@ function PlanCard({
           ))}
         </ul>
       </div>
-      {displayTier === "pro" ? (
-        <label className="mt-4 flex items-start gap-3 rounded-lg border p-3">
-          <Switch
-            size="sm"
-            checked={teamsAddonOn}
-            onCheckedChange={onTeamsAddonChange}
-          />
-          <span className="text-sm">
-            <span className="font-bold">
-              Teams add-on — {teamsAddonPriceLabel()}
-            </span>
-            <span className="text-muted-foreground mt-0.5 block">
-              Enterprise SSO and fine-grained RBAC, private Slack channel, 24h
-              response.
-            </span>
-          </span>
-        </label>
-      ) : null}
       <div className="mt-auto pt-4">
         <PlanCardAction
           displayTier={displayTier}
@@ -497,6 +488,7 @@ function PlanCardAction({
         <ActionButton
           onClick={() => onCheckout(productId)}
           loading={processing}
+          variant={isSuggested ? "default" : "secondary"}
         >
           {continueLabel}
         </ActionButton>
@@ -529,7 +521,7 @@ function PlanCardAction({
         onProcessing={onProcessing}
         processing={processing}
         buttonLabel={isThisUpgrade ? continueLabel : downgradeLabel}
-        buttonVariant={isSuggested || isThisUpgrade ? "default" : "secondary"}
+        buttonVariant={isSuggested ? "default" : "secondary"}
       />
       {displayTier === "enterprise" && salesHref ? (
         <ActionButton variant="secondary" href={salesHref}>
