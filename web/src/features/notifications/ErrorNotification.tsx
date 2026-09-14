@@ -2,7 +2,8 @@ import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
-import { AlertTriangle, X } from "lucide-react";
+import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
+import { AlertTriangle, Check, Copy, X } from "lucide-react";
 
 interface ErrorNotificationProps {
   error: string;
@@ -11,6 +12,7 @@ interface ErrorNotificationProps {
   dismissToast: (t?: string | number | undefined) => void;
   toast: string | number;
   path?: string;
+  traceId?: string;
 }
 
 export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
@@ -20,10 +22,12 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
   dismissToast,
   toast,
   path,
+  traceId,
 }) => {
   const { setOpen } = useSupportDrawer();
   const { setOpen: setMigrationPanelOpen } = useV4MigrationPanel();
   const capture = usePostHogClientCapture();
+  const { copy, isCopied } = useCopyToClipboard();
   const isError = type === "ERROR";
   const textColor = isError
     ? "text-destructive-foreground"
@@ -57,6 +61,24 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
         {path && (
           <div className={`text-sm leading-tight ${textColor}`}>
             Path: {path}
+          </div>
+        )}
+        {traceId && (
+          <div
+            className={`flex items-start gap-1 text-sm leading-tight ${textColor}`}
+          >
+            <span className="min-w-0 break-all">Trace ID: {traceId}</span>
+            <button
+              className={`flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center border-none bg-transparent p-0 ${textColor}`}
+              onClick={() => copy(traceId)}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+              }}
+              aria-label="Copy trace ID"
+              title="Copy trace ID"
+            >
+              {isCopied ? <Check size={14} /> : <Copy size={14} />}
+            </button>
           </div>
         )}
 
