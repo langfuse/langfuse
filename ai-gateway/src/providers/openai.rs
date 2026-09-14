@@ -136,6 +136,8 @@ impl OpenAiProvider {
             self.client
                 .post(endpoint)
                 .headers(transport::request_headers(headers))
+                // Observe plain JSON/SSE while relaying the provider bytes unchanged.
+                .header(header::ACCEPT_ENCODING, "identity")
                 .header(header::AUTHORIZATION, authorization)
                 .body(body)
                 .send(),

@@ -64,15 +64,7 @@ fn selected_headers(source: &HeaderMap, allowed: &[&'static str]) -> HeaderMap {
 }
 
 pub(crate) fn request_headers(source: &HeaderMap) -> HeaderMap {
-    selected_headers(
-        source,
-        &[
-            "content-type",
-            "content-encoding",
-            "accept",
-            "accept-encoding",
-        ],
-    )
+    selected_headers(source, &["content-type", "content-encoding", "accept"])
 }
 
 pub(crate) fn response_headers(source: &HeaderMap) -> HeaderMap {

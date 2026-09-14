@@ -149,9 +149,11 @@ There is no separate downstream stall timeout; a client that stops reading can
 retain execution capacity until the overall deadline. A progress-based downstream
 stall policy is deferred to a separate change.
 
-Only request content type/encoding and accept/accept-encoding cross the provider
-boundary, plus the resolved Bearer token. Response content type/encoding, cache
-control, retry-after, request ID and selected OpenAI timing/version/rate-limit
+Only request content type/encoding and accept cross the provider boundary, plus
+the resolved Bearer token. The gateway sets `Accept-Encoding: identity` upstream
+so client compression preferences cannot disable JSON/SSE observation. Response
+content type/encoding, cache control, retry-after, request ID and selected OpenAI
+timing/version/rate-limit
 headers are retained. Cookies, routing overrides, gateway/ingestion credentials,
 hop-by-hop headers and upstream framing are excluded.
 

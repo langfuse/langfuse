@@ -495,3 +495,87 @@ async fn provider_future_finalizes_on_timeout_and_cancellation_before_headers() 
         assert!(provider.try_admit().is_ok());
     }
 }
+
+#[tokio::test]
+async fn client_compression_preferences_do_not_disable_capture() {
+    use crate::{
+        providers::openai::{OpenAiProvider, ProviderLimits},
+        test_support::FakeServer,
+    };
+    use axum::{
+        body::{Body, Bytes, to_bytes},
+        http::Response,
+    };
+
+    for streaming in [false, true] {
+        let native = if streaming {
+            format!(
+                "{}{}",
+                completed_item(0, "captured output"),
+                terminal("completed", 1)
+            )
+        } else {
+            json!({"id":"resp-1","status":"completed","model":"actual","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"captured output"}]}],"usage":{"input_tokens":10,"output_tokens":21,"total_tokens":31}}).to_string()
+        };
+        let expected = native.clone();
+        let upstream = FakeServer::start(move |request| {
+            let native = native.clone();
+            async move {
+                assert_eq!(request.headers()[header::ACCEPT_ENCODING], "identity");
+                Response::builder()
+                    .header(
+                        "content-type",
+                        if streaming {
+                            "text/event-stream"
+                        } else {
+                            "application/json"
+                        },
+                    )
+                    .body(Body::from(native))
+                    .unwrap()
+            }
+        })
+        .await;
+        let context = resolved_request_context_with_mode("provider-secret", "full").await;
+        let provider = OpenAiProvider::for_test(
+            format!("{}/v1/responses", upstream.url),
+            ProviderLimits::default(),
+        );
+        let writer = LogWriter::default();
+        let subscriber = tracing_subscriber::fmt()
+            .json()
+            .with_max_level(tracing::Level::DEBUG)
+            .with_writer(writer.clone())
+            .finish();
+        let _guard = tracing::subscriber::set_default(subscriber);
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::ACCEPT_ENCODING,
+            HeaderValue::from_static("gzip, deflate, br"),
+        );
+        let response = provider
+            .forward(
+                provider.try_admit().unwrap(),
+                context,
+                &headers,
+                Bytes::from(json!({"input":"hello","stream":streaming}).to_string()),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            to_bytes(response.into_body(), 4096).await.unwrap(),
+            expected
+        );
+        let records = records(&writer);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0]["observation_complete"], true);
+        assert_eq!(records[0]["output_complete"], true);
+        assert_eq!(records[0]["provider_response_id"], "resp-1");
+        assert_eq!(records[0]["provider_status"], "completed");
+        assert!(records[0]["usage_details"]["input_tokens"].is_number());
+        assert_eq!(
+            records[0]["output"][0]["content"][0]["text"],
+            "captured output"
+        );
+    }
+}
