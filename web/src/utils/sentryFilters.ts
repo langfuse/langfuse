@@ -464,7 +464,8 @@ export function isReactDevtoolsInternalEvent(event: ErrorEvent): boolean {
  *    surfaces as a spike on one issue.
  *  - first-party `Failed to fetch dynamically imported module` of a
  *    `/_next/static/chunks/` URL — same Chrome wording as the extension
- *    family, but our chunks (stale tab / CDN); kept.
+ *    family, but our chunks (stale tab / CDN); kept and GROUPED via
+ *    {@link isStaleChunkLoadErrorEvent}.
  */
 export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
   const exception = event.exception?.values?.[0];
@@ -696,6 +697,16 @@ function isGlobalHandlerUnsupportedMediaResourceEvent(
 export const STALE_CHUNK_PARSE_FINGERPRINT = "stale-chunk-parse-error";
 
 /**
+ * Fingerprint used to collapse first-party chunk LOAD failures into ONE Sentry
+ * issue (see {@link isStaleChunkLoadErrorEvent}). Separate from the parse
+ * fingerprint: a 404/network miss is not the same signal as an unparsable body.
+ */
+export const STALE_CHUNK_LOAD_FINGERPRINT = "stale-chunk-load-error";
+
+const NEXT_STATIC_CHUNK_PATH = "/_next/static/";
+const FAILED_TO_LOAD_SCRIPT_MARKER = "Failed to load script:";
+
+/**
  * True for a browser-level parse failure of a Next.js chunk: the global
  * `onerror` handler caught a `SyntaxError` whose entire stack is ONE anonymous
  * frame at a `/_next/static/chunks/…` script — the shape a browser produces
@@ -737,6 +748,31 @@ export function isStaleChunkParseErrorEvent(event: ErrorEvent): boolean {
   return (
     typeof frame?.filename === "string" &&
     frame.filename.includes("/_next/static/chunks/")
+  );
+}
+
+/**
+ * True for a first-party Next.js chunk that failed to LOAD (not parse):
+ * Pages Router `route-loader` `script.onerror` (`Failed to load script:
+ * <hashed /_next/static/… URL>` — LANGFUSE-61H) or Chrome's dynamic
+ * `import()` of the same path. Chunk filenames are content-hashed, so Sentry
+ * minted a new issue per chunk per deploy. The one-shot reload in
+ * `reloadOnStaleChunk` is the user-facing recovery; these events are GROUPED
+ * under {@link STALE_CHUNK_LOAD_FINGERPRINT} in `beforeSend`, NOT dropped —
+ * a CDN/deploy that 404s a chunk for everyone still spikes on one issue.
+ *
+ * Cannot catch:
+ *  - a third-party `Failed to load script:` (no `/_next/static/` path);
+ *  - UI copy such as `Failed to load evaluators:` (no chunk URL);
+ *  - worker `importScripts` failures (different message family);
+ *  - browser-extension `import()` (extension protocol, already denylisted).
+ */
+export function isStaleChunkLoadErrorEvent(event: ErrorEvent): boolean {
+  const text = eventText(event);
+  if (!text.includes(NEXT_STATIC_CHUNK_PATH)) return false;
+  return (
+    text.includes(FAILED_TO_LOAD_SCRIPT_MARKER) ||
+    text.includes(DYNAMIC_IMPORT_FAILURE_MARKER)
   );
 }
 
