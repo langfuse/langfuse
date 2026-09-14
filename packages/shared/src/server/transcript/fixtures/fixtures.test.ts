@@ -44,7 +44,7 @@ describe("transcript fixtures", () => {
       const observations = fixture.observations.map((observation) =>
         convertObservation(createObservation(observation)),
       );
-      const transcript = getTranscript(observations, fixture.config);
+      const transcript = getTranscript(observations);
 
       // console.log("----------Transcript-------------------");
       // console.log(JSON.stringify(transcript, null, 2));

@@ -436,7 +436,7 @@ const payload13 = JSON.stringify([
   },
 ]);
 
-export const vercelAiSdkDocsToolLoopFixture = {
+export const vercelAiSdkDocsToolLoopFixture: TranscriptFixture = {
   name: "Vercel AI SDK docs search with replayed tool history",
   scope: "trace",
   description:
@@ -706,4 +706,4 @@ export const vercelAiSdkDocsToolLoopFixture = {
   config: {
     includeSystemMessages: false,
   },
-} satisfies TranscriptFixture;
+};

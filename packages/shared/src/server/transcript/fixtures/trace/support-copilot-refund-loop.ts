@@ -354,11 +354,3 @@ export const supportCopilotRefundLoopFixture = {
   observations,
   expected: undefined,
 } satisfies TranscriptFixture;
-
-export const supportCopilotRefundLoopWithoutSystemFixture = {
-  ...supportCopilotRefundLoopFixture,
-  name: "support copilot refund loop without system messages",
-  description:
-    "Same tree as the default case, built with `includeSystemMessages: false`. The repeated copilot system prompt and the classifier instruction disappear; everything else is unchanged.",
-  config: { includeSystemMessages: false },
-} satisfies TranscriptFixture;

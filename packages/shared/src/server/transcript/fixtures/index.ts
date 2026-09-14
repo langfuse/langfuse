@@ -1,14 +1,14 @@
 import type { TranscriptFixture } from "./fixture-types";
 import { vercelAiSdkDocsToolLoopFixture } from "./trace/vercel-ai-sdk-docs-tool-loop";
 import { openaiAgentsJokeAndRatingFixture } from "./trace/openai-agents-joke-and-rating";
+import { supportCopilotRefundLoopFixture } from "./trace/support-copilot-refund-loop";
 
 export type { TranscriptFixture } from "./fixture-types";
 
 export const traceTranscriptFixtures: TranscriptFixture[] = [
   vercelAiSdkDocsToolLoopFixture,
   openaiAgentsJokeAndRatingFixture,
-  // supportCopilotRefundLoopFixture,
-  // supportCopilotRefundLoopWithoutSystemFixture,
+  supportCopilotRefundLoopFixture,
 ];
 
 export const sessionTranscriptFixtures: TranscriptFixture[] = [];
