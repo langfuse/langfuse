@@ -14,6 +14,7 @@ import {
   type ParsedSessionTimelineObservation,
   type PreparedSessionTimelineItem,
   type PreparedSessionTimelineMessages,
+  type SessionTimelineObservation,
 } from "@/src/features/sessions/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
 import { SessionTimelineContentMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTimelineContentMessage/SessionTimelineContentMessage";
 import { SessionTimelineSystemMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTimelineSystemMessage/SessionTimelineSystemMessage";
@@ -43,6 +44,10 @@ export type SessionObservation = Omit<
   EventObservation,
   "input" | "output" | "metadata" | "traceId"
 > &
+  Omit<
+    SessionTimelineObservation,
+    "input" | "output" | "metadata" | "traceId"
+  > &
   Pick<EventObservationIO, "input" | "output" | "metadata"> & {
     traceId: string;
     inputTruncated?: boolean;
