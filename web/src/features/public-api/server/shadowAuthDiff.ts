@@ -59,10 +59,10 @@ function legacyVerdict(decision: LegacyDecision): {
 }
 
 /** classify names the disagreement: legacy without a gate is `net_new`, agreement is `match`, else which path is stricter. */
-function classify(legacy: Verdict, neu: Verdict): ParityResult {
-  if (legacy === "absent") return "net_new";
-  if (legacy === neu) return "match";
-  return neu === "deny" ? "new_denies" : "new_allows";
+function classify(legacyVerdict: Verdict, newVerdict: Verdict): ParityResult {
+  if (legacyVerdict === "absent") return "net_new";
+  if (legacyVerdict === newVerdict) return "match";
+  return newVerdict === "deny" ? "new_denies" : "new_allows";
 }
 
 /** Verdict is one path's decision at one enforcement point; legacy is `absent` only where it runs no gate. */
