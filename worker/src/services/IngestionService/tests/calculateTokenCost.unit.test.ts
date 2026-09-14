@@ -7,6 +7,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey, logger } from "@langfuse/shared/src/server";
 
 import { IngestionService } from "../../IngestionService";
+import defaultModelPrices from "../../../constants/default-model-prices.json";
 import * as clickhouseWriteExports from "../../ClickhouseWriter";
 
 // vi.hoisted ensures this is declared before vi.mock's hoisted factory runs.
@@ -1784,5 +1785,114 @@ describe("Token Cost Calculation", () => {
       );
       expect(mismatchWarnings).toHaveLength(0);
     });
+  });
+});
+
+describe("LangChain cache write pricing", () => {
+  for (const model of defaultModelPrices) {
+    for (const tier of model.pricingTiers) {
+      for (const ttl of ["5m", "1h"]) {
+        const canonical = `input_cache_creation_${ttl}`;
+        if (!(canonical in tier.prices)) continue;
+        const alias = `input_ephemeral_${ttl}_input_tokens`;
+
+        it(`${model.modelName} / ${tier.name} prices LangChain ${ttl} writes like canonical writes`, () => {
+          const prices = Object.entries(tier.prices).map(
+            ([usageType, price]) => ({
+              usageType,
+              price: new Decimal(price),
+            }),
+          );
+          const canonicalCosts = IngestionService.calculateUsageCosts(
+            prices,
+            { provided_cost_details: {} },
+            { [canonical]: 100 },
+          );
+          const aliasCosts = IngestionService.calculateUsageCosts(
+            prices,
+            { provided_cost_details: {} },
+            { [alias]: 100 },
+          );
+
+          expect(canonicalCosts.total_cost).toBeGreaterThan(0);
+          expect(aliasCosts.cost_details[alias]).toBe(
+            canonicalCosts.cost_details[canonical],
+          );
+          expect(aliasCosts.total_cost).toBe(canonicalCosts.total_cost);
+        });
+      }
+    }
+  }
+
+  const model = defaultModelPrices.find(
+    (entry) => entry.modelName === "claude-sonnet-5",
+  )!;
+  const tier = model.pricingTiers.find((entry) => entry.isDefault)!;
+  const prices = Object.entries(tier.prices).map(([usageType, price]) => ({
+    usageType,
+    price: new Decimal(price),
+  }));
+
+  it("prices one-hour writes from the Python LangChain callback", () => {
+    // LangChain input_tokens includes cache tokens. The Python callback splits
+    // them into exclusive input_* buckets and preserves TTL detail names.
+    const usage = {
+      input: 83_989,
+      input_cache_read: 15_463_073,
+      input_cache_creation: 0,
+      input_ephemeral_1h_input_tokens: 686_651,
+      output: 95_066,
+      total: 16_328_779,
+    };
+    const costs = IngestionService.calculateUsageCosts(
+      prices,
+      { provided_cost_details: {} },
+      usage,
+    );
+
+    expect(costs.cost_details.input).toBe(0.167978);
+    expect(costs.cost_details.input_cache_read).toBe(3.0926146);
+    expect(costs.cost_details.input_cache_creation).toBe(0);
+    expect(costs.cost_details.input_ephemeral_1h_input_tokens).toBe(2.746604);
+    expect(costs.cost_details.output).toBe(0.95066);
+    expect(costs.total_cost).toBeCloseTo(6.9578566, 12);
+    expect(costs.cost_details.total).toBe(costs.total_cost);
+  });
+
+  it("prices both TTL buckets separately when a request writes both", () => {
+    // With TTL details, the adapter zeroes aggregate cache_creation; the two
+    // TTL counters describe different tokens, not duplicate aggregate writes.
+    const costs = IngestionService.calculateUsageCosts(
+      prices,
+      { provided_cost_details: {} },
+      {
+        input: 100,
+        input_cache_read: 200,
+        input_cache_creation: 0,
+        input_ephemeral_5m_input_tokens: 30,
+        input_ephemeral_1h_input_tokens: 40,
+        output: 50,
+        total: 420,
+      },
+    );
+
+    expect(costs.cost_details.input_ephemeral_5m_input_tokens).toBe(0.000075);
+    expect(costs.cost_details.input_ephemeral_1h_input_tokens).toBe(0.00016);
+    expect(costs.cost_details.input_cache_creation).toBe(0);
+    expect(costs.total_cost).toBeCloseTo(0.000975, 12);
+  });
+
+  it("preserves aggregate cache write pricing when TTL details are absent", () => {
+    const costs = IngestionService.calculateUsageCosts(
+      prices,
+      { provided_cost_details: {} },
+      { input_cache_creation: 30 },
+    );
+
+    expect(costs.cost_details).toEqual({
+      input_cache_creation: 0.000075,
+      total: 0.000075,
+    });
+    expect(costs.total_cost).toBe(0.000075);
   });
 });
