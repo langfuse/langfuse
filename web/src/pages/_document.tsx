@@ -1,7 +1,6 @@
 import { Html, Head, Main, NextScript } from "next/document";
 
 import { LAYER_ORDER } from "@/src/components/ui/layer";
-import { env } from "@/src/env.mjs";
 
 // The app renders inside #__next (<Main />), which is isolated into its own
 // stacking context (globals.css). The overlay layer containers are declared
@@ -10,7 +9,6 @@ import { env } from "@/src/env.mjs";
 // by LAYER_ORDER (later = on top); <Layer> (components/ui/layer.tsx) finds its
 // container and portals into it. Styling lives in globals.css.
 export default function Document() {
-  const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
   return (
     // lang is set explicitly (not left to the i18n config, which is being
     // phased out in App Router) so screen readers always get the document
@@ -18,14 +16,7 @@ export default function Document() {
     // next-themes mutates class/style on <html> before hydration; suppress the
     // expected mismatch one level deep (React 19 logs it and can re-render).
     <Html lang="en" suppressHydrationWarning>
-      <Head>
-        <link rel="icon" href={`${basePath}/favicon.ico`} sizes="32x32" />
-        <link rel="icon" href={`${basePath}/icon.svg`} type="image/svg+xml" />
-        <link
-          rel="apple-touch-icon"
-          href={`${basePath}/apple-touch-icon.png`}
-        />
-      </Head>
+      <Head />
       <body>
         <Main />
         <div data-overlay-root>

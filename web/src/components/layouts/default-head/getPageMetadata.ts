@@ -28,10 +28,6 @@ const cloudAuthPages: Record<string, PageMetadata> = {
     description:
       "Create a free Langfuse Cloud account. No credit card required. Trace, evaluate, and manage prompts for your LLM application.",
   },
-  "/auth/reset-password": {
-    title: "Reset password | Langfuse Cloud",
-    description: "Reset the password of your Langfuse Cloud account.",
-  },
 };
 
 const selfHostedAuthPages: Record<string, PageMetadata> = {
@@ -44,9 +40,19 @@ const selfHostedAuthPages: Record<string, PageMetadata> = {
     title: "Sign up | Langfuse",
     description: "Create a Langfuse account.",
   },
+};
+
+// Reached from e-mail links, not from search, so no region-specific copy.
+// ResetPasswordPage swaps in "Set password" after hydration when the session
+// shows the user has no password yet; that cannot be known from the route.
+const passwordPages: Record<string, PageMetadata> = {
   "/auth/reset-password": {
     title: "Reset password | Langfuse",
     description: "Reset the password of your Langfuse account.",
+  },
+  "/auth/setup-password": {
+    title: "Set password | Langfuse",
+    description: "Set the password of your Langfuse account.",
   },
 };
 
@@ -64,9 +70,15 @@ export function getPageMetadata(
   pathname: string,
   region: CloudRegionName | undefined,
 ): PageMetadata {
-  if (!region) return selfHostedAuthPages[pathname] ?? defaultMetadata;
+  if (!region) {
+    return (
+      selfHostedAuthPages[pathname] ??
+      passwordPages[pathname] ??
+      defaultMetadata
+    );
+  }
 
-  const metadata = cloudAuthPages[pathname];
+  const metadata = cloudAuthPages[pathname] ?? passwordPages[pathname];
   if (!metadata) return defaultMetadata;
 
   // Staging and dev share the page but must not point Google at production.

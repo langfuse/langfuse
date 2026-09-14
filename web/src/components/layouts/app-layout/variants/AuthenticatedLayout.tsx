@@ -243,14 +243,24 @@ export function AuthenticatedLayout({
     <>
       <Head>
         <title>{metadata.title}</title>
-        <link rel="icon" type="image/svg+xml" href={metadata.faviconPath} />
         <link
+          key="favicon-svg"
+          rel="icon"
+          type="image/svg+xml"
+          href={metadata.faviconPath}
+        />
+        <link
+          key="favicon-png"
           rel="icon"
           type="image/png"
           sizes="256x256"
           href={metadata.favicon256Path}
         />
-        <link rel="apple-touch-icon" href={metadata.appleTouchIconPath} />
+        <link
+          key="apple-touch-icon"
+          rel="apple-touch-icon"
+          href={metadata.appleTouchIconPath}
+        />
       </Head>
 
       <SidebarPresenceProvider>
