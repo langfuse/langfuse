@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="820" viewBox="0 0 780 820" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+  <rect x="0" y="0" width="780" height="820" fill="#ffffff"/>
+
+  <!-- ============ PANEL A: pipeline totals ============ -->
+  <text x="70" y="26" font-size="15" font-weight="600" fill="#1a1a1a">Daily merge-group medians: pipeline totals (seconds)</text>
+  <text x="70" y="42" font-size="11" fill="#666666">langfuse/langfuse &#183; trailing 7 days 2026-09-08..2026-09-14 &#183; 09-12 omitted (zero merge_group runs)</text>
+
+  <!-- gridlines + y axis labels -->
+  <line x1="70" y1="360" x2="720" y2="360" stroke="#333333" stroke-width="1"/>
+  <line x1="70" y1="50"  x2="70"  y2="360" stroke="#333333" stroke-width="1"/>
+  <line x1="70" y1="282.5" x2="720" y2="282.5" stroke="#e6e6e6" stroke-width="1"/>
+  <line x1="70" y1="205"   x2="720" y2="205"   stroke="#e6e6e6" stroke-width="1"/>
+  <line x1="70" y1="127.5" x2="720" y2="127.5" stroke="#e6e6e6" stroke-width="1"/>
+  <line x1="70" y1="50"    x2="720" y2="50"    stroke="#e6e6e6" stroke-width="1"/>
+  <text x="62" y="364" font-size="11" fill="#555555" text-anchor="end">0</text>
+  <text x="62" y="286.5" font-size="11" fill="#555555" text-anchor="end">50</text>
+  <text x="62" y="209" font-size="11" fill="#555555" text-anchor="end">100</text>
+  <text x="62" y="131.5" font-size="11" fill="#555555" text-anchor="end">150</text>
+  <text x="62" y="54" font-size="11" fill="#555555" text-anchor="end">200</text>
+  <text x="22" y="205" font-size="12" fill="#333333" text-anchor="middle" transform="rotate(-90 22 205)">seconds</text>
+
+  <!-- x axis labels -->
+  <text x="70"  y="380" font-size="11" fill="#555555" text-anchor="middle">09-08</text>
+  <text x="200" y="380" font-size="11" fill="#555555" text-anchor="middle">09-09</text>
+  <text x="330" y="380" font-size="11" fill="#555555" text-anchor="middle">09-10</text>
+  <text x="460" y="380" font-size="11" fill="#555555" text-anchor="middle">09-11</text>
+  <text x="590" y="380" font-size="11" fill="#555555" text-anchor="middle">09-13</text>
+  <text x="720" y="380" font-size="11" fill="#555555" text-anchor="middle">09-14</text>
+  <text x="590" y="394" font-size="9" fill="#999999" text-anchor="middle">n=1</text>
+  <text x="720" y="394" font-size="9" fill="#999999" text-anchor="middle">n=1</text>
+  <text x="395" y="410" font-size="12" fill="#333333" text-anchor="middle">day (UTC)</text>
+
+  <!-- series: overall incl. wait -->
+  <polyline fill="none" stroke="#3987e5" stroke-width="2.5"
+    points="70,75.6 200,67.1 330,57.8 460,77.9 590,96.5 720,96.5"/>
+  <circle cx="70" cy="75.6" r="3.5" fill="#3987e5"/>
+  <circle cx="200" cy="67.1" r="3.5" fill="#3987e5"/>
+  <circle cx="330" cy="57.8" r="3.5" fill="#3987e5"/>
+  <circle cx="460" cy="77.9" r="3.5" fill="#3987e5"/>
+  <circle cx="590" cy="96.5" r="3.5" fill="#3987e5"/>
+  <circle cx="720" cy="96.5" r="3.5" fill="#3987e5"/>
+
+  <!-- series: overall excl. wait -->
+  <polyline fill="none" stroke="#de5a20" stroke-width="2.5"
+    points="70,106.6 200,91.1 330,85.7 460,101.2 590,119.8 720,118.2"/>
+  <circle cx="70" cy="106.6" r="3.5" fill="#de5a20"/>
+  <circle cx="200" cy="91.1" r="3.5" fill="#de5a20"/>
+  <circle cx="330" cy="85.7" r="3.5" fill="#de5a20"/>
+  <circle cx="460" cy="101.2" r="3.5" fill="#de5a20"/>
+  <circle cx="590" cy="119.8" r="3.5" fill="#de5a20"/>
+  <circle cx="720" cy="118.2" r="3.5" fill="#de5a20"/>
+
+  <!-- series: runner wait -->
+  <polyline fill="none" stroke="#8875e0" stroke-width="2.5"
+    points="70,329 200,336 330,332.1 460,336 590,336.8 720,338.3"/>
+  <circle cx="70" cy="329" r="3.5" fill="#8875e0"/>
+  <circle cx="200" cy="336" r="3.5" fill="#8875e0"/>
+  <circle cx="330" cy="332.1" r="3.5" fill="#8875e0"/>
+  <circle cx="460" cy="336" r="3.5" fill="#8875e0"/>
+  <circle cx="590" cy="336.8" r="3.5" fill="#8875e0"/>
+  <circle cx="720" cy="338.3" r="3.5" fill="#8875e0"/>
+
+  <!-- legend A (placed in empty band between the excl-wait and runner-wait series) -->
+  <rect x="92" y="170" width="248" height="76" fill="#ffffff" fill-opacity="0.94" stroke="#dddddd" stroke-width="1" rx="4"/>
+  <rect x="104" y="186" width="18" height="4" fill="#3987e5"/>
+  <text x="130" y="191" font-size="12" fill="#333333">overall incl. wait</text>
+  <rect x="104" y="208" width="18" height="4" fill="#de5a20"/>
+  <text x="130" y="213" font-size="12" fill="#333333">overall excl. wait</text>
+  <rect x="104" y="230" width="18" height="4" fill="#8875e0"/>
+  <text x="130" y="235" font-size="12" fill="#333333">runner wait</text>
+
+  <!-- ============ PANEL B: segments ============ -->
+  <text x="70" y="452" font-size="15" font-weight="600" fill="#1a1a1a">Daily merge-group medians: segments (seconds)</text>
+  <text x="70" y="468" font-size="11" fill="#666666">e2e-tests is the critical path; web/worker shards run in parallel with ~84s of slack</text>
+
+  <line x1="70" y1="786" x2="720" y2="786" stroke="#333333" stroke-width="1"/>
+  <line x1="70" y1="476" x2="70"  y2="786" stroke="#333333" stroke-width="1"/>
+  <line x1="70" y1="708.5" x2="720" y2="708.5" stroke="#e6e6e6" stroke-width="1"/>
+  <line x1="70" y1="631"   x2="720" y2="631"   stroke="#e6e6e6" stroke-width="1"/>
+  <line x1="70" y1="553.5" x2="720" y2="553.5" stroke="#e6e6e6" stroke-width="1"/>
+  <line x1="70" y1="476"   x2="720" y2="476"   stroke="#e6e6e6" stroke-width="1"/>
+  <text x="62" y="790" font-size="11" fill="#555555" text-anchor="end">0</text>
+  <text x="62" y="712.5" font-size="11" fill="#555555" text-anchor="end">50</text>
+  <text x="62" y="635" font-size="11" fill="#555555" text-anchor="end">100</text>
+  <text x="62" y="557.5" font-size="11" fill="#555555" text-anchor="end">150</text>
+  <text x="62" y="480" font-size="11" fill="#555555" text-anchor="end">200</text>
+  <text x="22" y="631" font-size="12" fill="#333333" text-anchor="middle" transform="rotate(-90 22 631)">seconds</text>
+
+  <text x="70"  y="806" font-size="11" fill="#555555" text-anchor="middle">09-08</text>
+  <text x="200" y="806" font-size="11" fill="#555555" text-anchor="middle">09-09</text>
+  <text x="330" y="806" font-size="11" fill="#555555" text-anchor="middle">09-10</text>
+  <text x="460" y="806" font-size="11" fill="#555555" text-anchor="middle">09-11</text>
+  <text x="590" y="806" font-size="11" fill="#555555" text-anchor="middle">09-13</text>
+  <text x="720" y="806" font-size="11" fill="#555555" text-anchor="middle">09-14</text>
+
+  <!-- series: run tests (web shard median) -->
+  <polyline fill="none" stroke="#3987e5" stroke-width="2.5"
+    points="70,686.8 200,680.6 330,677.5 460,682.2 590,683.7 720,682.2"/>
+  <circle cx="70" cy="686.8" r="3.5" fill="#3987e5"/>
+  <circle cx="200" cy="680.6" r="3.5" fill="#3987e5"/>
+  <circle cx="330" cy="677.5" r="3.5" fill="#3987e5"/>
+  <circle cx="460" cy="682.2" r="3.5" fill="#3987e5"/>
+  <circle cx="590" cy="683.7" r="3.5" fill="#3987e5"/>
+  <circle cx="720" cy="682.2" r="3.5" fill="#3987e5"/>
+
+  <!-- series: Build -->
+  <polyline fill="none" stroke="#de5a20" stroke-width="2.5"
+    points="70,716.3 200,710.1 330,710.1 460,717.8 590,720.9 720,719.4"/>
+  <circle cx="70" cy="716.3" r="3.5" fill="#de5a20"/>
+  <circle cx="200" cy="710.1" r="3.5" fill="#de5a20"/>
+  <circle cx="330" cy="710.1" r="3.5" fill="#de5a20"/>
+  <circle cx="460" cy="717.8" r="3.5" fill="#de5a20"/>
+  <circle cx="590" cy="720.9" r="3.5" fill="#de5a20"/>
+  <circle cx="720" cy="719.4" r="3.5" fill="#de5a20"/>
+
+  <!-- series: e2e-tests -->
+  <polyline fill="none" stroke="#8875e0" stroke-width="2.5"
+    points="70,552 200,530.3 330,538 460,556.6 590,555.1 720,567.5"/>
+  <circle cx="70" cy="552" r="3.5" fill="#8875e0"/>
+  <circle cx="200" cy="530.3" r="3.5" fill="#8875e0"/>
+  <circle cx="330" cy="538" r="3.5" fill="#8875e0"/>
+  <circle cx="460" cy="556.6" r="3.5" fill="#8875e0"/>
+  <circle cx="590" cy="555.1" r="3.5" fill="#8875e0"/>
+  <circle cx="720" cy="567.5" r="3.5" fill="#8875e0"/>
+
+  <!-- legend B (placed in the empty band between e2e and the shard series) -->
+  <rect x="92" y="596" width="210" height="76" fill="#ffffff" fill-opacity="0.94" stroke="#dddddd" stroke-width="1" rx="4"/>
+  <rect x="104" y="612" width="18" height="4" fill="#3987e5"/>
+  <text x="130" y="617" font-size="12" fill="#333333">run tests</text>
+  <rect x="104" y="634" width="18" height="4" fill="#de5a20"/>
+  <text x="130" y="639" font-size="12" fill="#333333">Build</text>
+  <rect x="104" y="656" width="18" height="4" fill="#8875e0"/>
+  <text x="130" y="661" font-size="12" fill="#333333">e2e-tests</text>
+</svg>

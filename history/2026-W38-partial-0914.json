@@ -1,0 +1,136 @@
+{
+  "window": "2026-09-08..2026-09-14",
+  "windowRule": "trailing 7 calendar days ending today (UTC)",
+  "isoWeekNote": "2026-09-14 is the Monday of ISO W38. The window covers 6 days of ISO W37 (09-08..09-13) and 1 day of W38 (09-14). Filed under W38-partial to avoid overwriting the published 2026-W37.json record, which remains the W37 baseline.",
+  "generatedAt": "2026-09-14",
+  "population": {
+    "timing": "successful merge_group runs only",
+    "vitestAndFlaky": "merge_group + pull_request, never push/main",
+    "notes": "09-08/09/10 daily medians reused verbatim from 2026-W37.json (same window rule, already computed). 09-11/13/14 computed fresh from the API this run."
+  },
+  "runCounts": {
+    "2026-09-11": { "merge_group_success": 42, "merge_group_failed": 28, "sampled": 8 },
+    "2026-09-12": { "merge_group_success": 0, "note": "Saturday - zero merge_group runs, day omitted from chart per window rule" },
+    "2026-09-13": { "merge_group_success": 1, "sampled": 1 },
+    "2026-09-14": { "merge_group_success": 1, "sampled": 1, "note": "partial day, data through ~05:33Z" }
+  },
+  "dailyMedians": {
+    "2026-09-08": { "n": 6, "perceived": 183.5, "execution": 163.5, "runnerWait": 20, "webBuildStep": 45, "webRunTestsStep": 64, "workerRunTestsStep": 73.5, "e2eTestsJob": 151, "source": "reused from 2026-W37.json" },
+    "2026-09-09": { "n": 6, "perceived": 189, "execution": 173.5, "runnerWait": 15.5, "webBuildStep": 49, "webRunTestsStep": 68, "workerRunTestsStep": 72, "e2eTestsJob": 165, "source": "reused from 2026-W37.json" },
+    "2026-09-10": { "n": 7, "perceived": 195, "execution": 177, "runnerWait": 18, "webBuildStep": 49, "webRunTestsStep": 70, "workerRunTestsStep": 68, "e2eTestsJob": 160, "source": "reused from 2026-W37.json" },
+    "2026-09-11": { "n": 8, "perceived": 182, "execution": 167, "runnerWait": 15.5, "webBuildStep": 44, "webRunTestsStep": 67, "workerRunTestsStep": 70.5, "e2eTestsJob": 148, "source": "fresh" },
+    "2026-09-13": { "n": 1, "perceived": 170, "execution": 155, "runnerWait": 15, "webBuildStep": 42, "webRunTestsStep": 66, "workerRunTestsStep": 67, "e2eTestsJob": 149, "source": "fresh", "thin": true },
+    "2026-09-14": { "n": 1, "perceived": 170, "execution": 156, "runnerWait": 14, "webBuildStep": 43, "webRunTestsStep": 67, "workerRunTestsStep": 66, "e2eTestsJob": 141, "source": "fresh", "thin": true }
+  },
+  "denseDays": ["2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11"],
+  "thinDaysExcludedFromAggregate": ["2026-09-13", "2026-09-14"],
+  "weeklyAggregate": {
+    "method": "median of dense (n>=5) daily medians",
+    "perceived": 186.3,
+    "execution": 170.3,
+    "runnerWait": 16.8,
+    "webBuildStep": 47,
+    "webRunTestsStep": 67.5,
+    "workerRunTestsStep": 71.3,
+    "e2eTestsJob": 155.5
+  },
+  "pooledPercentiles": {
+    "basis": "10 freshly sampled runs (09-11, 09-13, 09-14)",
+    "perceived": { "p50": 181, "p90": 204.9 },
+    "execution": { "p50": 166.5, "p90": 193.3 },
+    "runnerWait": { "p50": 15, "p90": 17.9 },
+    "webBuildStep": { "p50": 43.5, "p90": 45.1 },
+    "webRunTestsStep": { "p50": 67, "p90": 70.3 },
+    "workerRunTestsStep": { "p50": 69, "p90": 75.2 },
+    "e2eTestsJob": { "p50": 148, "p90": 154.6 }
+  },
+  "vsW37": {
+    "baseline": "2026-W37.json weeklyAggregate",
+    "perceived": "192 -> 186.3 (-3.0%)",
+    "execution": "175.3 -> 170.3 (-2.9%)",
+    "runnerWait": "17 -> 16.8 (-1.2%)",
+    "webBuildStep": "47.3 -> 47 (-0.6%)",
+    "webRunTestsStep": "69 -> 67.5 (-2.2%)",
+    "workerRunTestsStep": "72.8 -> 71.3 (-2.1%)",
+    "e2eTestsJob": "155.5 -> 155.5 (0%)",
+    "honestyCaveat": "Days 09-08/09/10 are shared with the W37 window. The -3.0% is largely window shift (dropping 09-07 at perceived 213.5, adding 09-11 at 182 and two thin days), not an independent fresh improvement. Treat this week as flat-to-marginally-better, not as a new win."
+  },
+  "regressionCheck": {
+    "result": "none",
+    "detail": "No metric moved more than 10% vs W37. No sustained intra-week shift of >=50% within the window. Marginal new best on perceived time."
+  },
+  "incident20260911Resolution": {
+    "status": "RESOLVED - root cause identified, no code/test regression",
+    "summary": "Main was red roughly 06:35Z - 11:32Z (~5h) on 2026-09-11. All failing runs from 06:35Z failed on e2e-tests + tests-storybook with a uniform ~700-725s wall time.",
+    "rootCause": "apt / Ubuntu mirror failures while installing Playwright system dependencies - infrastructure, not a code or test regression.",
+    "fixCommit": "ae2b6dbd3 fix(ci): add apt retries for Playwright dependencies (#17328), committed 2026-09-11T11:32:19Z",
+    "fixShape": ".github/workflows/pipeline.yml -18/+2, new scripts/ci/install-playwright.sh +31 (apt lock handling, Ubuntu mirror fallbacks, prioritise healthy mirrors)",
+    "method": "git log on .github/workflows/ - the only workflow commit that day, and its timestamp matches the recovery exactly.",
+    "residual": "09-11 still carried 28 merge_group failures against 42 successes. Successful-run timings on 09-11 are unaffected (failed runs are excluded from timing by population rule)."
+  },
+  "vitestAnalysis": {
+    "runsSampled": 5,
+    "shardLogsRead": 6,
+    "runs": [
+      { "runId": 34802928135, "day": "2026-09-14", "shards": ["tests-web", "tests-worker"] },
+      { "runId": 34760697298, "day": "2026-09-13", "shards": ["tests-web"] },
+      { "runId": 34594776079, "day": "2026-09-11", "shards": ["tests-worker"] },
+      { "runId": 34613319787, "day": "2026-09-11", "shards": ["tests-worker"] },
+      { "runId": 34619264516, "day": "2026-09-11", "shards": ["tests-worker"] }
+    ],
+    "retriedTests": {
+      "count": 0,
+      "detail": "No 'Retried tests (N):' block in any of the 6 shard logs read. In every case the 'Slowest test files' block runs straight into 'Post job cleanup.', which is the reporter's zero-retry signature. Second consecutive week at zero."
+    },
+    "flakyWatchlist": {
+      "admin-api-keys.servertest.ts > invalidates all cached API keys without deleting other redis entries": "DROPPED - quiet for a second consecutive week (carried over from W37 with a one-more-week rule). Re-add only if it retries again."
+    },
+    "shardShape": {
+      "web": { "testFiles": 305, "tests": "5221 passed | 10 skipped", "duration": "62.20s (09-14), 63.87s (09-13)" },
+      "worker": { "testFiles": "180 (09-11) -> 183 (09-14)", "tests": "2366 (09-11) -> 2383 (09-14)", "duration": "70.31s (09-11), 65.92s (09-14)" }
+    },
+    "slowestWebFiles": [
+      "20.24s / 21.83s src/__tests__/server/repositories/event-repository.servertest.ts (96 tests) - #1 both days",
+      "15.76s / 13.48s src/__tests__/server/score-comparison-analytics.servertest.ts (46 tests) - PARKED candidate",
+      "14.56s / 14.21s src/__tests__/server/traces-api.servertest.ts (84 tests)",
+      "13.21s / 16.89s src/__tests__/server/ingestion-api.servertest.ts (63 tests)",
+      "11.35s / 12.95s src/__tests__/server/dataset-service.servertest.ts (35 tests)"
+    ],
+    "slowestWorkerFiles": [
+      "10.60-12.01s src/__tests__/batchExport.test.ts (77 tests)",
+      "10.01-15.19s src/services/IngestionService/tests/IngestionService.integration.test.ts (59 tests)",
+      "8.84-11.38s src/__tests__/evalService.test.ts (108 tests)",
+      "6.47-6.60s src/__tests__/bufferedStreamUploader.test.ts (46-48 tests)",
+      "6.07-6.46s src/__tests__/blobStorageIntegrationProcessing.test.ts (38-40 tests)"
+    ],
+    "notableSlowTests": [
+      "3.00s bufferedStreamUploader.test.ts > upload concurrency > should count retries on transient failures - DEAD candidate, internal sleeps only 10-100ms",
+      "2.00-2.08s redisConsumer.test.ts > handle redis events > handle no matching queue worker - PARKED, unconditional setTimeout(2000); vitest itself flags it yellow",
+      "experiment-score-levels.servertest.ts took 5 of the top-10 slowest individual web tests on 09-14 (0.79-1.08s each) but never enters the top-10 slowest FILES, so its summed cost is under ~6.7s - not a lever"
+    ]
+  },
+  "criticalPathArithmetic": {
+    "e2eTestsJob": 155.5,
+    "webRunTestsStep": 67.5,
+    "workerRunTestsStep": 71.3,
+    "slack": "~84s",
+    "conclusion": "e2e-tests remains the long pole. web and worker shards run fully parallel and finish ~84s before e2e does. Any vitest-level micro-optimisation on those shards buys zero wall-clock until that slack is consumed. This is why no test-level diff is proposed this week."
+  },
+  "openObservations": {
+    "turboCacheReservationRace": {
+      "status": "persists, report-only",
+      "evidence": [
+        "09-14 web shard: 'Failed to save: Unable to reserve cache with key Linux-X64-node24-turbo-ci-59cd482d9c8b11cd, another job may be creating this cache.'",
+        "09-13 web shard: same for key ...-6c40733d639ebaab",
+        "09-11 worker shard: '##[warning]Failed to save: Unable to reserve cache with key pnpm-lockfile-verified-Linux-x64-a04c9791... ' - the pnpm lockfile cache hits it too, at warning level"
+      ],
+      "whyNoDiff": "The fix would live in .github/workflows/**, which this workflow is forbidden to edit even temporarily."
+    }
+  },
+  "followUps": [
+    "Confirm the #17122 (Blacksmith CPU/concurrency) gain keeps holding - webRunTests 67.5s this window vs W36's 91.5s, no reversion after two weeks. Consider closing this follow-up next week.",
+    "Next week is the first with a clean, non-overlapping comparison window (09-15..09-21 vs this one). Treat that delta as the first genuinely independent week-over-week number since W37.",
+    "e2e-tests is the only metric that has not improved at all (155.5s in both W37 and this window). If anyone wants a real CI win, that is where the ~84s of slack says to look.",
+    "PR #17103 (chore(ci): test fast) was CLOSED unmerged on 2026-09-11T08:14:36Z by its author - follow-up resolved, drop it."
+  ]
+}
