@@ -200,6 +200,34 @@ export function FeaturePreviewModal({
                   </div>
                 </div>
 
+                {selected.flag === "modernSession" && state.sessionTimeline ? (
+                  <div className="border-border mt-5 flex items-start justify-between gap-6 border-t pt-5">
+                    <div>
+                      <h3 className="text-foreground text-sm font-bold">
+                        {featurePreviewLabels.sessionTimeline}
+                      </h3>
+                      <p className="text-muted-foreground mt-1 max-w-2xl text-sm leading-5">
+                        Use the redesigned timeline to navigate session events
+                        in chronological order.
+                      </p>
+                      {state.sessionTimeline.warningReason ? (
+                        <p className="mt-2 text-xs text-yellow-800 dark:text-yellow-200">
+                          {state.sessionTimeline.warningReason}
+                        </p>
+                      ) : null}
+                    </div>
+                    <Switch
+                      checked={state.sessionTimeline.enabled}
+                      disabled={
+                        state.sessionTimeline.disabled === true ||
+                        state.sessionTimeline.isToggling === true
+                      }
+                      onCheckedChange={state.sessionTimeline.onToggle}
+                      aria-label={`Toggle ${featurePreviewLabels.sessionTimeline}`}
+                    />
+                  </div>
+                ) : null}
+
                 <PreviewMockupPanel illustration={selected.illustration} />
 
                 <p className="text-muted-foreground mt-5 text-sm leading-5">
