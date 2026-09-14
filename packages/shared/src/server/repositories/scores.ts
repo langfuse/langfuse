@@ -1485,23 +1485,40 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   );
   const scoreOnlyFilterRes = scoreOnlyFilters.apply();
 
-  // Timestamp-only fragment for the count path: it prunes partitions inside the
-  // pre-dedup subquery. Timestamp is part of the table sorting key, so it is
-  // safe to apply before dedup; mutable-column filters must not be (see count
-  // query below). Separate FilterList → independent random param names.
+  // Coarse partition/granule prune for the count path's pre-dedup subquery.
+  // A score's exact `timestamp` is mutable across ReplacingMergeTree versions
+  // of the same id, so the exact bound must NOT filter raw rows before dedup:
+  // dropping the latest-event_ts version would let argMax reconstruct a stale
+  // one, diverging from the FINAL row path. Instead prune whole
+  // toDate(timestamp) buckets — the dedup/sorting-key granularity, so a bucket
+  // is kept or dropped as a unit and the reconstructed latest is never lost.
+  // The exact bound is re-applied on the reconstructed value in the outer WHERE
+  // (via scoreOnlyFilterRes), matching FINAL. Relax > / < to >= / <= at date
+  // granularity so boundary-day rows survive to the exact outer check.
   const timestampColumn = scoresTableUiColumnDefinitionsFromEvents.find(
     (c) => c.uiTableId === "timestamp",
   );
   const timestampFilterState = timestampColumn
     ? filter.filter((f) => matchesUiColumnMapping(timestampColumn, f.column))
     : [];
-  const innerTimestampFilterRes = new FilterList(
-    createFilterFromFilterState(
-      timestampFilterState,
-      scoresTableUiColumnDefinitionsFromEvents,
-      scoresTableCols,
-    ),
-  ).apply();
+  const innerDatePruneClauses: string[] = [];
+  const innerDatePruneParams: Record<string, unknown> = {};
+  for (const f of createFilterFromFilterState(
+    timestampFilterState,
+    scoresTableUiColumnDefinitionsFromEvents,
+    scoresTableCols,
+  ).filter((f): f is DateTimeFilter => f instanceof DateTimeFilter)) {
+    const dateOp = f.operator.startsWith(">") ? ">=" : "<=";
+    const varName = `scoresInnerDatePrune${clickhouseCompliantRandomCharacters()}`;
+    const column = `${f.tablePrefix ? f.tablePrefix + "." : ""}${f.field}`;
+    innerDatePruneClauses.push(
+      `toDate(${column}) ${dateOp} toDate({${varName}: DateTime64(3, 'UTC')})`,
+    );
+    innerDatePruneParams[varName] = convertDateToClickhouseDateTime(
+      new Date(f.value),
+    );
+  }
+  const innerDatePruneQuery = innerDatePruneClauses.join(" AND ");
 
   // Trace-level filter entries from the frontend filter state
   const traceFilterState = filter.filter((filterEntry) =>
@@ -1599,9 +1616,9 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   // score's latest version — matching FINAL without its multi-part merge. The
   // GROUP BY mirrors the table sorting key (project_id, toDate(timestamp), name,
   // id) — the key FINAL collapses on; the user-provided id is not unique alone.
-  // Mutable score columns (value, comment, ...) are filtered AFTER dedup, on the
-  // reconstructed latest values, so the count matches the row list; only the
-  // timestamp bound stays in the inner query, to prune partitions.
+  // All filters (value, comment, timestamp, ...) are applied AFTER dedup, on the
+  // reconstructed latest values, so the count matches the row list; the inner
+  // query carries only a coarse toDate(timestamp) prune (see above).
   const query =
     props.select === "count"
       ? `
@@ -1625,16 +1642,14 @@ const getScoresUiGenericFromEvents = async <T>(props: {
           argMax(s.author_user_id, s.event_ts) AS author_user_id,
           argMax(s.data_type, s.event_ts) AS data_type,
           argMax(s.string_value, s.event_ts) AS string_value,
-          argMax(s.metadata, s.event_ts) AS metadata,
-          argMax(s.is_deleted, s.event_ts) AS is_deleted
+          argMax(s.metadata, s.event_ts) AS metadata
         FROM scores s
         ${eventsJoin}
         WHERE s.project_id = {projectId: String}
-        ${innerTimestampFilterRes?.query ? `AND ${innerTimestampFilterRes.query}` : ""}
+        ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}
         GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
       ) s
       WHERE s.data_type IN ({dataTypes: Array(String)})
-      AND s.is_deleted = 0
       ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}
     `
       : `
@@ -1653,7 +1668,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       projectId,
       dataTypes: LISTABLE_SCORE_TYPES,
       ...(scoreOnlyFilterRes ? scoreOnlyFilterRes.params : {}),
-      ...innerTimestampFilterRes.params,
+      ...innerDatePruneParams,
       ...tracesCTEParams,
       limit,
       offset,
