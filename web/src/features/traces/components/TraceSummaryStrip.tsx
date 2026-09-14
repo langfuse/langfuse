@@ -24,7 +24,10 @@ import {
   UserIdBadge,
 } from "@/src/features/traces/components/TraceMetadataBadges";
 import { LatencyBadge } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
-import { CostUsageBadge } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import {
+  CostUsageBadge,
+  hasCostOrUsage,
+} from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 
@@ -50,14 +53,16 @@ export function TraceSummaryStrip() {
     <div className="shrink-0 border-b px-3 py-2">
       <CollapsibleBadgeRow>
         <LatencyBadge latencySeconds={trace.latency ?? null} />
-        <CostUsageBadge
-          totalCost={aggregatedMetrics.totalCost}
-          costDetails={aggregatedMetrics.costDetails}
-          inputUsage={aggregatedMetrics.inputUsage}
-          outputUsage={aggregatedMetrics.outputUsage}
-          totalUsage={aggregatedMetrics.totalUsage}
-          usageDetails={aggregatedMetrics.usageDetails}
-        />
+        {hasCostOrUsage(aggregatedMetrics) ? (
+          <CostUsageBadge
+            totalCost={aggregatedMetrics.totalCost}
+            costDetails={aggregatedMetrics.costDetails}
+            inputUsage={aggregatedMetrics.inputUsage}
+            outputUsage={aggregatedMetrics.outputUsage}
+            totalUsage={aggregatedMetrics.totalUsage}
+            usageDetails={aggregatedMetrics.usageDetails}
+          />
+        ) : null}
         {trace.sessionId ? (
           <SessionBadge
             sessionId={trace.sessionId}

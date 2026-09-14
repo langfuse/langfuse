@@ -6,7 +6,10 @@ import {
   TargetTraceBadge,
   UserIdBadge,
 } from "./TraceMetadataBadges";
-import { CostUsageBadge } from "./ObservationMetadataBadgesTooltip";
+import {
+  CostUsageBadge,
+  hasCostOrUsage,
+} from "./ObservationMetadataBadgesTooltip";
 
 describe("TraceMetadataBadges session replay privacy", () => {
   it("blocks trace identifiers from PostHog session recordings", () => {
@@ -90,18 +93,16 @@ describe("CostUsageBadge", () => {
     expect(screen.queryByText(/9,618/)).not.toBeInTheDocument();
   });
 
-  it("renders nothing when there is neither cost nor usage", () => {
-    const { container } = render(
-      <CostUsageBadge
-        totalCost={null}
-        costDetails={undefined}
-        inputUsage={0}
-        outputUsage={0}
-        totalUsage={0}
-        usageDetails={undefined}
-      />,
-    );
-
-    expect(container).toBeEmptyDOMElement();
+  it("tells its callers there is nothing to show when there is neither cost nor usage", () => {
+    expect(
+      hasCostOrUsage({
+        totalCost: null,
+        costDetails: undefined,
+        inputUsage: 0,
+        outputUsage: 0,
+        totalUsage: 0,
+        usageDetails: undefined,
+      }),
+    ).toBe(false);
   });
 });

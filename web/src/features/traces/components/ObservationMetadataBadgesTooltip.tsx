@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 /**
  * Cost/usage metadata text for ObservationDetailView and the trace summary
  * strip. Quiet grammar: muted mono text, no border/box — pills are reserved
@@ -36,8 +35,7 @@ const METRIC_TEXT_CLASS =
 const BREAKDOWN_AFFORDANCE_CLASS = `${METRIC_TEXT_CLASS} decoration-muted-foreground/30 underline underline-offset-2`;
 
 /**
- * Whether a usage object is worth rendering at all — `CostUsageBadge`'s own
- * null-render check.
+ * Whether a usage object is worth rendering at all.
  */
 function hasRenderableUsage({
   inputUsage,
@@ -77,6 +75,52 @@ function getCompactUsageTotal({
   return totalUsage > 0 ? totalUsage : inputUsage + outputUsage;
 }
 
+type CostUsageProps = {
+  totalCost: number | null | undefined;
+  costDetails: Record<string, number> | null | undefined;
+  inputUsage: number;
+  outputUsage: number;
+  totalUsage: number;
+  usageDetails: Record<string, number> | null | undefined;
+};
+
+/**
+ * Aggregates (session header, summary strip) carry totals but no per-key map.
+ * Synthesize input/output/total so the shared breakdown has rows.
+ */
+function buildUsageMap({
+  inputUsage,
+  outputUsage,
+  totalUsage,
+  usageDetails,
+}: Omit<CostUsageProps, "totalCost" | "costDetails">): Record<string, number> {
+  return usageDetails && Object.keys(usageDetails).length > 0
+    ? usageDetails
+    : {
+        ...(inputUsage > 0 ? { input: inputUsage } : {}),
+        ...(outputUsage > 0 ? { output: outputUsage } : {}),
+        total: getCompactUsageTotal({ inputUsage, outputUsage, totalUsage }),
+      };
+}
+
+/**
+ * Whether `CostUsageBadge` has anything to say. The gate lives with the
+ * callers: a badge that renders nothing would still take its row's gap.
+ */
+export function hasCostOrUsage(props: CostUsageProps): boolean {
+  const { inputUsage, outputUsage, totalUsage } = props;
+  const hasCost = props.totalCost != null && !!props.costDetails;
+  return (
+    hasCost ||
+    hasRenderableUsage({
+      inputUsage,
+      outputUsage,
+      totalUsage,
+      usageDetails: buildUsageMap(props),
+    })
+  );
+}
+
 export function CostUsageBadge({
   totalCost,
   costDetails,
@@ -84,25 +128,14 @@ export function CostUsageBadge({
   outputUsage,
   totalUsage,
   usageDetails,
-}: {
-  totalCost: number | null | undefined;
-  costDetails: Record<string, number> | null | undefined;
-  inputUsage: number;
-  outputUsage: number;
-  totalUsage: number;
-  usageDetails: Record<string, number> | null | undefined;
-}) {
+}: CostUsageProps) {
   const hasCost = totalCost != null && !!costDetails;
-  // Aggregates (session header, summary strip) carry totals but no per-key
-  // map. Synthesize input/output/total so the shared breakdown has rows.
-  const usage =
-    usageDetails && Object.keys(usageDetails).length > 0
-      ? usageDetails
-      : {
-          ...(inputUsage > 0 ? { input: inputUsage } : {}),
-          ...(outputUsage > 0 ? { output: outputUsage } : {}),
-          total: getCompactUsageTotal({ inputUsage, outputUsage, totalUsage }),
-        };
+  const usage = buildUsageMap({
+    inputUsage,
+    outputUsage,
+    totalUsage,
+    usageDetails,
+  });
   const total = getCompactUsageTotal({ inputUsage, outputUsage, totalUsage });
   const hasUsage = hasRenderableUsage({
     inputUsage,
@@ -110,8 +143,6 @@ export function CostUsageBadge({
     totalUsage,
     usageDetails: usage,
   });
-
-  if (!hasCost && !hasUsage) return null;
 
   const tokens = (
     <BreakdownTooltip details={usage} isCost={false}>
