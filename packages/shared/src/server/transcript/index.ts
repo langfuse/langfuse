@@ -34,7 +34,7 @@ const sameMessage = (a: NormalizedMessage, b: NormalizedMessage) =>
   a.role === b.role && a.senderName === b.senderName && equal(a.parts, b.parts);
 
 /**
- * Normalize every generation and append only the input suffix not already
+ * Normalize every generation and append only the input messages not already
  * present in a thread. Replayed messages retain their first-seen provenance.
  */
 export function getTranscript(
@@ -63,21 +63,30 @@ export function getTranscript(
     );
 
     let thread: Thread | undefined;
-    let replayed = 0;
+    let newInput = input;
     // Try the most recent thread first, then earlier conversations.
     for (let i = threads.length - 1; i >= 0; i--) {
       const candidate = threads[i];
-      const overlap = Math.min(input.length, candidate.messages.length);
+      const matched = new Set<number>();
+      const additions: NormalizedMessage[] = [];
+      for (const incoming of input) {
+        let found = false;
+        candidate.messages.forEach((existing, index) => {
+          if (sameMessage(existing, incoming)) {
+            matched.add(index);
+            found = true;
+          }
+        });
+        if (!found) additions.push(incoming);
+      }
       if (
-        overlap > 0 &&
-        input
-          .slice(0, overlap)
-          .every((message, index) =>
-            sameMessage(message, candidate.messages[index]),
-          )
+        candidate.messages.some((message) => message.role !== "system") &&
+        candidate.messages.every(
+          (message, index) => message.role === "system" || matched.has(index),
+        )
       ) {
         thread = candidate;
-        replayed = overlap;
+        newInput = additions;
         break;
       }
     }
@@ -90,7 +99,7 @@ export function getTranscript(
     if (!thread.traceIds.includes(generation.traceId)) {
       thread.traceIds.push(generation.traceId);
     }
-    for (const message of input.slice(replayed).concat(output)) {
+    for (const message of newInput.concat(output)) {
       thread.messages.push({
         ...message,
         generationId: generation.id,
