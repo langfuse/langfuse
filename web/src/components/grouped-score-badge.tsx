@@ -27,22 +27,39 @@ type ChipScore = WithStringifiedMetadata<ScoreDomain> | LastUserScore;
 const groupMetricCount = <T extends ChipScore>(group: ScoreChipGroup<T>) =>
   new Set(group.scores.map((score) => score.name)).size;
 
-/** Average over numeric and boolean metrics (booleans count 0 / 1, so the
- * mean is the share that is true). Categorical strings have no mean; null when
- * the group has nothing to average. */
-const groupAverage = <T extends ChipScore>(
+/**
+ * One number for a group. Numeric and boolean metrics average (booleans count
+ * 0 / 1, so the mean is the share that is true); when some metrics have no
+ * numeric value the label says how many counted, like "18/20 scored".
+ * Categorical-only groups show the majority value and its share. Null when
+ * there is nothing to summarise.
+ */
+const groupSummary = <T extends ChipScore>(
   group: ScoreChipGroup<T>,
-): number | null => {
+): string | null => {
+  const total = groupMetricCount(group);
   const numericValues = group.scores.flatMap((score) =>
     (score.dataType === "NUMERIC" || score.dataType === "BOOLEAN") &&
     typeof score.value === "number"
       ? [score.value]
       : [],
   );
-  return numericValues.length > 0
-    ? numericValues.reduce((sum, value) => sum + value, 0) /
-        numericValues.length
-    : null;
+  if (numericValues.length > 0) {
+    const average =
+      numericValues.reduce((sum, value) => sum + value, 0) /
+      numericValues.length;
+    const scored =
+      numericValues.length < total ? ` (${numericValues.length}/${total})` : "";
+    return `Avg ${average.toFixed(2)}${scored}`;
+  }
+  const tally = new Map<string, number>();
+  for (const score of group.scores) {
+    if (score.stringValue) {
+      tally.set(score.stringValue, (tally.get(score.stringValue) ?? 0) + 1);
+    }
+  }
+  const [top] = [...tally.entries()].sort((a, b) => b[1] - a[1]);
+  return top ? `Mostly ${top[0]} (${top[1]}/${total})` : null;
 };
 
 /** What the "+N" hover lists: one line per chip, so an evaluator group shows
@@ -60,14 +77,13 @@ const overflowHoverRows = <T extends ChipScore>(
   groups.flatMap((group): OverflowHoverRow[] => {
     if (group.kind !== "evaluator") return [...group.scores];
     const count = groupMetricCount(group);
-    const average = groupAverage(group);
+    const summary = groupSummary(group);
     return [
       {
         name: `${group.label}(${count})`,
         dataType: "CATEGORICAL",
         value: null,
-        stringValue:
-          average !== null ? `Avg ${average.toFixed(2)}` : `${count} metrics`,
+        stringValue: summary ?? `${count} metrics`,
       },
     ];
   });
@@ -87,7 +103,7 @@ const EvaluatorGroupBadge = <T extends ChipScore>({
   onClick?: () => void;
 }) => {
   const metricCount = groupMetricCount(group);
-  const average = groupAverage(group);
+  const summary = groupSummary(group);
   const levels = showLevels
     ? Array.from(
         new Set(group.scores.map((score) => scoreLevelFromScore(score))),
@@ -102,16 +118,16 @@ const EvaluatorGroupBadge = <T extends ChipScore>({
         )}
         title={group.label}
       >
-        {group.label}({metricCount}){average !== null ? ":" : ""}
+        {group.label}({metricCount}){summary ? ":" : ""}
       </span>
-      {average !== null ? (
+      {summary ? (
         <span className="text-muted-foreground text-nowrap tabular-nums">
-          Avg {average.toFixed(2)}
+          {summary}
         </span>
       ) : null}
     </>
   );
-  const ariaLabel = `Open scores, ${group.label}, ${metricCount} metrics${average !== null ? `, average ${average.toFixed(2)}` : ""}`;
+  const ariaLabel = `Open scores, ${group.label}, ${metricCount} metrics${summary ? `, ${summary}` : ""}`;
   // A button only when a click does something; chips render inside clickable
   // rows, so the click must not also select the row.
   const chip = onClick ? (
