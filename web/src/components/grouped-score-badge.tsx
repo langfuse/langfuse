@@ -27,13 +27,15 @@ type ChipScore = WithStringifiedMetadata<ScoreDomain> | LastUserScore;
 const groupMetricCount = <T extends ChipScore>(group: ScoreChipGroup<T>) =>
   new Set(group.scores.map((score) => score.name)).size;
 
-/** Average over the numeric metrics only; categorical and boolean values have
- * no mean. Null when the group has no numeric value at all. */
+/** Average over numeric and boolean metrics (booleans count 0 / 1, so the
+ * mean is the share that is true). Categorical strings have no mean; null when
+ * the group has nothing to average. */
 const groupAverage = <T extends ChipScore>(
   group: ScoreChipGroup<T>,
 ): number | null => {
   const numericValues = group.scores.flatMap((score) =>
-    score.dataType === "NUMERIC" && typeof score.value === "number"
+    (score.dataType === "NUMERIC" || score.dataType === "BOOLEAN") &&
+    typeof score.value === "number"
       ? [score.value]
       : [],
   );
