@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ForbiddenError } from "@langfuse/shared";
+
+const { env } = vi.hoisted(() => ({
+  env: { API_AUTH_MIGRATION: "enforce" as string },
+}));
+
+vi.mock("@/src/env.mjs", () => ({ env }));
 
 import { __test } from "@/src/features/mcp/server/mcpServer";
 import type { ToolDefinition } from "@/src/features/mcp/core/define-tool";
@@ -57,6 +63,10 @@ const tool = (action: ProjectAction | null): ToolDefinition => ({
 });
 
 describe("assertToolAuthorized", () => {
+  beforeEach(() => {
+    env.API_AUTH_MIGRATION = "enforce";
+  });
+
   it("throws when the resolved context lacks the tool's action", () => {
     expect(() =>
       assertToolAuthorized(
@@ -81,9 +91,45 @@ describe("assertToolAuthorized", () => {
     ).not.toThrow();
   });
 
-  it("passes when no context resolved (legacy/shadow)", () => {
+  it("passes when no context resolved (legacy)", () => {
     expect(() =>
       assertToolAuthorized(tool("prompts:CUD"), serverContext(undefined)),
     ).not.toThrow();
+  });
+
+  describe("shadow mode", () => {
+    beforeEach(() => {
+      env.API_AUTH_MIGRATION = "shadow";
+    });
+
+    it("diffs a denied action without throwing", () => {
+      const diff = vi.fn();
+      expect(() =>
+        assertToolAuthorized(
+          tool("prompts:CUD"),
+          serverContext(authContext([allowPrompts])),
+          diff,
+        ),
+      ).not.toThrow();
+      expect(diff).toHaveBeenCalledWith(
+        { success: false, error: expect.any(ForbiddenError) },
+        { success: true, scope: { accessLevel: "project" } },
+        "prompts:CUD",
+      );
+    });
+
+    it("diffs an allowed action", () => {
+      const diff = vi.fn();
+      assertToolAuthorized(
+        tool("prompts:read"),
+        serverContext(authContext([allowPrompts])),
+        diff,
+      );
+      expect(diff).toHaveBeenCalledWith(
+        { success: true },
+        { success: true, scope: { accessLevel: "project" } },
+        "prompts:read",
+      );
+    });
   });
 });

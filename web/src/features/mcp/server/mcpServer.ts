@@ -18,7 +18,9 @@ import {
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
+import { env } from "@/src/env.mjs";
 import { authorize } from "@/src/features/auth/policy/authorize";
+import { shadowAuthDiff } from "@/src/features/public-api/server/shadowAuthDiff";
 import type { ServerContext } from "../types";
 import type { ToolDefinition } from "../core/define-tool";
 import { toolRegistry } from "./registry";
@@ -136,15 +138,24 @@ export function createMcpServer(context: ServerContext): Server {
   return server;
 }
 
-/** assertToolAuthorized enforces the resolved context against a tool's action; ungated tools and unresolved contexts (legacy/shadow) pass. */
+/** assertToolAuthorized checks the resolved context against a tool's action: enforce throws on deny, shadow only diffs, ungated tools and unresolved contexts (legacy) pass. */
 function assertToolAuthorized(
   definition: ToolDefinition,
   context: ServerContext,
+  diff = shadowAuthDiff,
 ): void {
   if (definition.action === null || !context.auth) return;
   const decision = authorize(context.auth, definition.action, {
     projectId: context.projectId,
   });
+  if (env.API_AUTH_MIGRATION === "shadow") {
+    diff(
+      decision,
+      { success: true, scope: { accessLevel: context.accessLevel } },
+      definition.action,
+    );
+    return;
+  }
   if (!decision.success) throw decision.error;
 }
 
