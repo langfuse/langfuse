@@ -63,6 +63,12 @@ For a v4 experiment with chat messages and nested JSON input/output, run
 three items, then prints the experiment results link. Set `NEXTAUTH_URL` to
 your local app URL when using a port other than 3000.
 
+For a small comparison walkthrough, run `pnpm run seed -- experiment-comparison`.
+It creates two runs over three shared dataset items with numeric `quality`
+scores: baseline `[0.9, 0.3, 0.6]` and candidate `[0.3, 0.6, 0.6]`. Use the
+printed results and score-matrix links to inspect the comparison from each run's
+perspective.
+
 ## Contract
 
 - Last stdout line is a JSON summary: `traceIds`, `sessionIds`, `counts`,

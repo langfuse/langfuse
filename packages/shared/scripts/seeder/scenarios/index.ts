@@ -4,6 +4,7 @@ import { annotationQueueScenario } from "./annotation-queue";
 import { customModelsScenario } from "./custom-models";
 import { deepChainScenario } from "./deep-chain";
 import { evaluatorGalleryScenario } from "./evaluator-gallery";
+import { experimentComparisonScenario } from "./experiment-comparison";
 import { experimentIoScenario } from "./experiment-io";
 import { longSessionScenario } from "./long-session";
 import { manyTracesScenario } from "./many-traces";
@@ -26,6 +27,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "agent-graph": agentGraphScenario,
   "deep-chain": deepChainScenario,
   "evaluator-gallery": evaluatorGalleryScenario,
+  "experiment-comparison": experimentComparisonScenario,
   "experiment-io": experimentIoScenario,
   "long-session": longSessionScenario,
   "many-traces": manyTracesScenario,
