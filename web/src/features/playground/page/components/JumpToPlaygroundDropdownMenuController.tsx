@@ -46,7 +46,7 @@ import {
   type JumpToPlaygroundAction,
 } from "./JumpToPlaygroundMenu";
 
-type JumpToPlaygroundDropdownMenuControllerProps = (
+type JumpToPlaygroundSourceProps =
   | {
       source: "prompt";
       prompt: Prompt & { resolvedPrompt?: Prisma.JsonValue };
@@ -62,21 +62,34 @@ type JumpToPlaygroundDropdownMenuControllerProps = (
         output: string | null;
       };
       analyticsEventName: "trace_detail:test_in_playground_button_click";
-    }
-) & {
-  children: (control: {
-    disabled: boolean;
-    title: string;
-    Trigger: Parameters<
-      NonNullable<
-        React.ComponentProps<typeof DropdownMenuController>["children"]
-      >
-    >[0]["Trigger"];
-  }) => React.ReactNode;
-};
+    };
 
-export const JumpToPlaygroundDropdownMenuController = (
-  props: JumpToPlaygroundDropdownMenuControllerProps,
+type JumpToPlaygroundDropdownMenuControllerProps =
+  JumpToPlaygroundSourceProps & {
+    children: (control: {
+      disabled: boolean;
+      title: string;
+      Trigger: Parameters<
+        NonNullable<
+          React.ComponentProps<typeof DropdownMenuController>["children"]
+        >
+      >[0]["Trigger"];
+    }) => React.ReactNode;
+  };
+
+/**
+ * The jump-to-playground logic without any trigger UI, so hosts can embed the
+ * playground actions in their own menus (e.g. the observation header's
+ * combined "Add to" menu) as well as behind the standalone controller below.
+ *
+ * The hook itself must always be called unconditionally (rules of hooks) —
+ * callers that only offer the Playground entry for some observation types
+ * (e.g. generation-like ones) pass `enabled: false` for the rest so the
+ * internal API key query doesn't fire for every span/event.
+ */
+export const useJumpToPlayground = (
+  props: JumpToPlaygroundSourceProps,
+  { enabled = true }: { enabled?: boolean } = {},
 ) => {
   const router = useRouter();
   const capture = usePostHogClientCapture();
@@ -95,7 +108,7 @@ export const JumpToPlaygroundDropdownMenuController = (
     {
       projectId: projectId as string,
     },
-    { enabled: Boolean(projectId) },
+    { enabled: enabled && Boolean(projectId) },
   );
 
   const modelToProviderMap = useMemo(() => {
@@ -187,11 +200,32 @@ export const JumpToPlaygroundDropdownMenuController = (
     ? "Test in LLM playground"
     : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a GitHub issue.";
 
+  return {
+    isAvailable,
+    tooltipMessage,
+    includeOutput,
+    setIncludeOutput,
+    handlePlaygroundAction,
+  };
+};
+
+export const JumpToPlaygroundDropdownMenuController = (
+  props: JumpToPlaygroundDropdownMenuControllerProps,
+) => {
+  const { children, ...sourceProps } = props;
+  const {
+    isAvailable,
+    tooltipMessage,
+    includeOutput,
+    setIncludeOutput,
+    handlePlaygroundAction,
+  } = useJumpToPlayground(sourceProps);
+
   return (
     <DropdownMenuController
       align="end"
       renderMenu={() =>
-        props.source === "prompt" ? (
+        sourceProps.source === "prompt" ? (
           <JumpToPlaygroundMenu
             source="prompt"
             onPlaygroundAction={handlePlaygroundAction}
@@ -207,7 +241,7 @@ export const JumpToPlaygroundDropdownMenuController = (
       }
     >
       {({ Trigger }) =>
-        props.children({
+        children({
           Trigger,
           disabled: !isAvailable,
           title: tooltipMessage,

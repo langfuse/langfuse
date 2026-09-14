@@ -13,17 +13,8 @@
  */
 
 import { Coins, InfoIcon } from "lucide-react";
-import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
-import {
-  BreakdownTooltip,
-  type CostSource,
-  type PriceSource,
-} from "@/src/features/traces/components/BreakdownTooltip";
-import {
-  usdFormatter,
-  numberFormatter,
-  formatTokenCounts,
-} from "@/src/utils/numbers";
+import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
+import { usdFormatter, numberFormatter } from "@/src/utils/numbers";
 
 // Matches the metrics-tier scale in ObservationMetadataBadgesSimple.tsx —
 // uniform muted mono text, no borders/boxes.
@@ -174,61 +165,5 @@ export function CostUsageBadge({
       {/* Tokens carry the breakdown: cost is a plain number. */}
       {hasUsage ? tokens : null}
     </span>
-  );
-}
-
-// Pill-shaped predecessors, still used by the observation detail header until
-// it moves to the quiet metric grammar.
-export function CostBadge({
-  totalCost,
-  costDetails,
-  priceSource,
-  costSource,
-}: {
-  totalCost: number;
-  costDetails: Record<string, number>;
-  priceSource?: PriceSource;
-  costSource?: CostSource;
-}) {
-  return (
-    <BreakdownTooltip
-      details={costDetails}
-      isCost={true}
-      priceSource={priceSource}
-      costSource={costSource}
-    >
-      <Badge text={usdFormatter(totalCost)} trailingIcon={InfoIcon} />
-    </BreakdownTooltip>
-  );
-}
-
-export function UsageBadge({
-  inputUsage,
-  outputUsage,
-  totalUsage,
-  usageDetails,
-}: {
-  inputUsage: number;
-  outputUsage: number;
-  totalUsage: number;
-  usageDetails: Record<string, number>;
-}) {
-  const tokenText = formatTokenCounts(
-    inputUsage,
-    outputUsage,
-    totalUsage,
-    true,
-  );
-
-  return (
-    <BreakdownTooltip details={usageDetails} isCost={false}>
-      {tokenText ? (
-        <Badge text={tokenText} trailingIcon={InfoIcon} />
-      ) : (
-        <BadgeShell aria-label="View usage breakdown">
-          <InfoIcon aria-hidden className="size-3" />
-        </BadgeShell>
-      )}
-    </BreakdownTooltip>
   );
 }

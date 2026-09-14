@@ -12,7 +12,7 @@ import { ExternalLink } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { cva, type VariantProps } from "class-variance-authority";
 
-export interface PriceSource {
+interface PriceSource {
   projectId: string;
   modelId: string;
   modelName: string;
@@ -20,7 +20,7 @@ export interface PriceSource {
   pricingTierName: string;
 }
 
-export type CostSource = "calculated" | "provided";
+type CostSource = "calculated" | "provided";
 
 interface BreakdownTooltipProps {
   details: Details | Details[];

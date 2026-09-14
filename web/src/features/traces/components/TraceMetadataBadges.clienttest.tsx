@@ -6,6 +6,7 @@ import {
   TargetTraceBadge,
   UserIdBadge,
 } from "./TraceMetadataBadges";
+import { EnvironmentBadge } from "./ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import {
   CostUsageBadge,
   hasCostOrUsage,
@@ -18,6 +19,7 @@ describe("TraceMetadataBadges session replay privacy", () => {
         <SessionBadge sessionId="customer-session" projectId="project" />
         <UserIdBadge userId="customer-user" projectId="project" />
         <TargetTraceBadge targetTraceId="target-trace" projectId="project" />
+        <EnvironmentBadge environment="production" />
       </>,
     );
 
@@ -37,6 +39,11 @@ describe("TraceMetadataBadges session replay privacy", () => {
     );
     // Quiet reference-link styling: muted text, no pill box.
     expect(sessionLink).toHaveClass("text-muted-foreground");
+    // Environment renders as quiet key/value text, not a boxed chip.
+    expect(screen.getByText("production").closest("span")).not.toBeNull();
+    expect(
+      screen.getByText("production").closest("span")?.parentElement,
+    ).toHaveTextContent("env production");
   });
 });
 

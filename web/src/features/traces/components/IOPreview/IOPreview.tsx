@@ -63,6 +63,11 @@ export interface IOPreviewProps extends ExpansionStateProps {
   parsedInput?: unknown;
   parsedOutput?: unknown;
   parsedMetadata?: unknown;
+  // Fixed-key attributes shown between output and metadata
+  attributes?: Record<string, unknown>;
+  attributesAnchorTime?: Date | null;
+  /** The LLM call's parameters, rendered as their own table under Attributes. */
+  modelParameters?: Record<string, unknown> | null;
   chatMLParserResult?: ChatMLParserResult;
   observationName?: string;
   isLoading?: boolean;
@@ -144,6 +149,9 @@ export function IOPreview({
   onAddInlineComment,
   commentedPathsByField,
   showMetadata = false,
+  attributes,
+  attributesAnchorTime,
+  modelParameters,
   onVirtualizationChange,
   observationId,
   projectId,
@@ -285,6 +293,9 @@ export function IOPreview({
           input={input}
           output={output}
           status={status}
+          attributes={attributes}
+          attributesAnchorTime={attributesAnchorTime}
+          modelParameters={modelParameters}
           metadata={metadata}
           outputCorrection={outputCorrection}
           parsedInput={parsedInput}
@@ -323,6 +334,9 @@ export function IOPreview({
           }
           observationName={observationName}
           showMetadata={showMetadata}
+          attributes={attributes}
+          attributesAnchorTime={attributesAnchorTime}
+          modelParameters={modelParameters}
           contentMode={contentMode}
           showSystemPrompt={showSystemPrompt}
         />
