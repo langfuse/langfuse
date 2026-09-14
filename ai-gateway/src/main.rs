@@ -1,4 +1,4 @@
-use std::{error::Error, process::ExitCode};
+use std::{error::Error, io, net::SocketAddr, process::ExitCode};
 
 use ai_gateway::{
     config::{Config, LogFormat},
@@ -27,7 +27,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
         LogFormat::Json => logging.json().init(),
     }
     let shutdown = shutdown_signal()?;
-    let listener = TcpListener::bind(config.listen_address).await?;
+    let listener = bind_listener(config.listen_address, config.auto_increment_listen_port).await?;
     tracing::info!(address = %listener.local_addr()?, "gateway listening");
     let state = AppState::default();
     server::serve(
@@ -40,6 +40,35 @@ async fn run() -> Result<(), Box<dyn Error>> {
     .await?;
     tracing::info!("gateway stopped");
     Ok(())
+}
+
+async fn bind_listener(
+    requested_address: SocketAddr,
+    auto_increment_port: bool,
+) -> io::Result<TcpListener> {
+    let mut address = requested_address;
+    loop {
+        match TcpListener::bind(address).await {
+            Ok(listener) => {
+                if address != requested_address {
+                    tracing::warn!(
+                        %requested_address,
+                        selected_address = %address,
+                        "gateway listen port unavailable; using next available port"
+                    );
+                }
+                return Ok(listener);
+            }
+            Err(error)
+                if auto_increment_port
+                    && error.kind() == io::ErrorKind::AddrInUse
+                    && address.port() < u16::MAX =>
+            {
+                address.set_port(address.port() + 1);
+            }
+            Err(error) => return Err(error),
+        }
+    }
 }
 
 #[cfg(unix)]
