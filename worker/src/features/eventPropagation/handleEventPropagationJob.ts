@@ -338,7 +338,7 @@ export const handleEventPropagationJob = async (
         ${excludeProjectIdsInClause ? `AND obs.project_id ${excludeProjectIdsInClause}` : ""}
       `,
       clickhouseConfigs: {
-        request_timeout: 600000, // 10 minutes timeout
+        request_timeout: 1_800_000, // 30 minutes timeout
       },
       clickhouseSettings: {
         parallel_view_processing: 1,
