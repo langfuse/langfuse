@@ -37,17 +37,17 @@ the repositories produce from ClickHouse rows. Returns `null` when no transcript
 - Threads may span multiple traces: Threads are built from shared input history, not from trace boundaries. A generation continues a thread if it's input contains all the current thread's messages.
 - Message references tracked: Within a thread, each message stores the generation and trace ID that first emitted it.
 - Reordered history: [A, B, C] → [B, C, A, New] adds only New; order-insensitive history reconciliation.
-- Truly repeated messages: drop exact duplicates within a thread.
+- Repeated messages: show input occurrences beyond the number already shown in the thread. Always show outputs and count them for subsequent input deduplication.
 - System messages:
   - Exclude system messages when deciding which thread matches. Compare the remaining conversation messages.
   - Once the thread is selected, include new system messages there. Keep their first-seen generation and trace IDs.
-  - Drop identical system messages within that thread, following your chosen exact-duplicate policy.
+  - Apply the same occurrence-count deduplication to system messages within that thread.
   - Preserve changed system messages as separate entries, rather than overwriting the earlier one or combining their contents in the underlying data.
 
 ### Edge cases:
 
 - Deduplication compares whole messages, not individual parts.
-- Intentionally repeated identical messages are removed
+- An identical new input without cumulative history can still be mistaken for replay; occurrence counts cannot distinguish intent.
 - System messages: transcript shows which distinct instructions appeared and where they first appeared
 
 ### Open questions the fixtures are meant to answer:
@@ -74,8 +74,14 @@ the repositories produce from ClickHouse rows. Returns `null` when no transcript
   `finishReason` are not part of the identity, so an output message that
   later reappears as replayed input history collapses onto its first
   sighting.
-- Within a thread a message is placed the first time it is seen and skipped
-  on every repeat.
+- Stable JSON keys are computed once per normalized message, sorting object
+  properties recursively while preserving array order. Keys exclude provenance.
+- Each thread tracks how many copies of a message have been shown. Each input
+  starts a temporary occurrence count: only occurrences beyond the shown count
+  are appended. Outputs are always appended and increment the shown count.
+  Replayed inputs retain the provenance of the previously emitted messages.
+- Thread selection remains order-insensitive and checks presence, not occurrence
+  counts. System messages do not select a thread. Counts are isolated per thread.
 
 ## Layout
 

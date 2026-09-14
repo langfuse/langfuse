@@ -46,7 +46,7 @@ export function getTranscript(
 
   const threads: Thread[] = [];
   const keysByMessage = new WeakMap<NormalizedMessage, string>();
-  const keysByThread = new Map<Thread, Set<string>>();
+  const countsByThread = new Map<Thread, Map<string, number>>();
 
   for (const generation of generations) {
     const { messages } = normalizeIO({
@@ -87,16 +87,22 @@ export function getTranscript(
     if (!thread) {
       thread = { messages: [], generationIds: [], traceIds: [] };
       threads.push(thread);
-      keysByThread.set(thread, new Set());
+      countsByThread.set(thread, new Map());
     }
     thread.generationIds.push(generation.id);
     if (!thread.traceIds.includes(generation.traceId)) {
       thread.traceIds.push(generation.traceId);
     }
-    const shownKeys = keysByThread.get(thread)!;
+    const shownCounts = countsByThread.get(thread)!;
+    const inputCounts = new Map<string, number>();
     for (const message of input.concat(output)) {
       const key = keysByMessage.get(message)!;
-      if (message.source === "input" && shownKeys.has(key)) continue;
+      const shownCount = shownCounts.get(key) ?? 0;
+      if (message.source === "input") {
+        const occurrence = (inputCounts.get(key) ?? 0) + 1;
+        inputCounts.set(key, occurrence);
+        if (occurrence <= shownCount) continue;
+      }
       const emitted = {
         ...message,
         generationId: generation.id,
@@ -104,7 +110,7 @@ export function getTranscript(
       };
       thread.messages.push(emitted);
       keysByMessage.set(emitted, key);
-      shownKeys.add(key);
+      shownCounts.set(key, shownCount + 1);
     }
   }
 
