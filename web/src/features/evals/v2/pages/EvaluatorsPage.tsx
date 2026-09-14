@@ -443,7 +443,6 @@ export default function EvaluatorsPage() {
         header: "Total cost (7d)",
         size: 140,
         enableHiding: true,
-        emptyValue: "—",
         formatter: (value) => usdFormatter(value, 2, 4),
         getValue: (value) => {
           if (costs.isPending && hasExecutionReadAccess) {

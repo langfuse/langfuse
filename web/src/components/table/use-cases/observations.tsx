@@ -57,6 +57,7 @@ import {
 } from "@/src/utils/observationCost";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
@@ -67,6 +68,7 @@ import {
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   BreakdownTooltip,
   calculateAggregatedUsage,
@@ -893,7 +895,11 @@ export default function ObservationsTable({
 
         return (
           <span>
-            {timeToFirstToken ? formatIntervalSeconds(timeToFirstToken) : "-"}
+            {timeToFirstToken ? (
+              formatIntervalSeconds(timeToFirstToken)
+            ) : (
+              <EmptyValue />
+            )}
           </span>
         );
       },
@@ -1141,7 +1147,6 @@ export default function ObservationsTable({
           id: "inputCost",
           header: "Input Cost",
           size: 120,
-          emptyValue: "-",
           formatter: (value, { row }) =>
             formatObservationCost(value, row.original.type),
           enableHiding: true,
@@ -1153,7 +1158,6 @@ export default function ObservationsTable({
           id: "outputCost",
           header: "Output Cost",
           size: 120,
-          emptyValue: "-",
           formatter: (value, { row }) =>
             formatObservationCost(value, row.original.type),
           enableHiding: true,
@@ -1529,6 +1533,10 @@ function ObservationsDataTableToolbar({
   totalCount,
   ...toolbarProps
 }: ObservationsDataTableToolbarProps) {
+  const hasBatchExportAccess = useHasProjectAccess({
+    projectId,
+    scope: "batchExports:create",
+  });
   const selectedObservationIds = useObservationsTableStore(
     (state) => state.selectedPageRowIds,
   );
@@ -1544,17 +1552,19 @@ function ObservationsDataTableToolbar({
       {...toolbarProps}
       orderByState={orderByState}
       actionButtons={[
-        <BatchExportTableButton
-          {...{
-            projectId,
-            filterState: backendFilterState,
-            orderByState,
-            searchQuery,
-            searchType,
-          }}
-          tableName={BatchExportTableName.Observations}
-          key="batchExport"
-        />,
+        hasBatchExportAccess ? (
+          <BatchExportTableButton
+            {...{
+              projectId,
+              filterState: backendFilterState,
+              orderByState,
+              searchQuery,
+              searchType,
+            }}
+            tableName={BatchExportTableName.Observations}
+            key="batchExport"
+          />
+        ) : null,
         selectedObservationIds.length > 0 || selectAll ? (
           <TableActionMenu
             key="observations-multi-select-actions"

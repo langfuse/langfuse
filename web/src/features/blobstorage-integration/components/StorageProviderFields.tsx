@@ -9,14 +9,8 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import { BlobStorageIntegrationType } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
@@ -44,20 +38,22 @@ export const StorageProviderFields = ({
           <FormItem>
             <FormLabel>Storage Provider</FormLabel>
             <FormControl>
-              <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select provider" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="S3">AWS S3</SelectItem>
-                  <SelectItem value="S3_COMPATIBLE">
-                    S3 Compatible Storage
-                  </SelectItem>
-                  <SelectItem value="AZURE_BLOB_STORAGE">
-                    Azure Blob Storage
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+              <SelectInput
+                value={field.value}
+                onValueChange={field.onChange}
+                placeholder="Select provider"
+                options={[
+                  { value: BlobStorageIntegrationType.S3, label: "AWS S3" },
+                  {
+                    value: BlobStorageIntegrationType.S3_COMPATIBLE,
+                    label: "S3 Compatible Storage",
+                  },
+                  {
+                    value: BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
+                    label: "Azure Blob Storage",
+                  },
+                ]}
+              />
             </FormControl>
             <FormDescription>
               Choose your cloud storage provider
