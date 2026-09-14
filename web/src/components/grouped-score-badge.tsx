@@ -11,6 +11,7 @@ import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 import { ScoreHoverList } from "@/src/components/ScoreBadge/ScoreHoverList";
 import {
   groupScoresForChips,
+  groupSummary,
   metricLabel,
   type ScoreChipGroup,
 } from "@/src/components/ScoreBadge/groupScoresForChips";
@@ -18,54 +19,10 @@ import { cn } from "@/src/utils/tailwind";
 
 type ChipScore = WithStringifiedMetadata<ScoreDomain> | LastUserScore;
 
-/**
- * One chip for one evaluator: the shared prefix and how many metrics it
- * emitted. Hover lists the metrics (suffix only, the prefix is the chip);
- * click goes where "+N" goes, the node's Scores tab, the only place twenty
- * metrics with their comments and metadata fit.
- */
-const groupMetricCount = <T extends ChipScore>(group: ScoreChipGroup<T>) =>
-  new Set(group.scores.map((score) => score.name)).size;
-
-/**
- * One number for a group and the count it stands for. Numeric and boolean
- * metrics average (booleans count 0 / 1, so the mean is the share that is
- * true); metrics without a numeric value are left out of the mean but still
- * count toward the group size. Categorical-only groups show the
- * majority value and its share. `text` is null when there is nothing to
- * summarise.
- */
-const groupSummary = <T extends ChipScore>(
-  group: ScoreChipGroup<T>,
-): { count: number; text: string | null } => {
-  const total = groupMetricCount(group);
-  const numericValues = group.scores.flatMap((score) =>
-    (score.dataType === "NUMERIC" || score.dataType === "BOOLEAN") &&
-    typeof score.value === "number"
-      ? [score.value]
-      : [],
-  );
-  if (numericValues.length > 0) {
-    const average =
-      numericValues.reduce((sum, value) => sum + value, 0) /
-      numericValues.length;
-    return { count: total, text: `Avg ${average.toFixed(2)}` };
-  }
-  const tally = new Map<string, number>();
-  for (const score of group.scores) {
-    if (score.stringValue) {
-      tally.set(score.stringValue, (tally.get(score.stringValue) ?? 0) + 1);
-    }
-  }
-  const [top] = [...tally.entries()].sort((a, b) => b[1] - a[1]);
-  return {
-    count: total,
-    text: top ? `Mostly ${top[0]} (${top[1]}/${total})` : null,
-  };
-};
-
 /** What the "+N" hover lists: one line per chip, so an evaluator group shows
- * as `Prefix(N)` with its average, exactly like its chip, not as N metrics. */
+ * as `Prefix(N)` with its summary, exactly like its chip, not as N metrics.
+ * No summary (mixed types): the value slot stays empty, the label has the
+ * count. */
 type OverflowHoverRow = {
   name: string;
   dataType: string;
@@ -84,11 +41,17 @@ const overflowHoverRows = <T extends ChipScore>(
         name: `${group.label}(${count})`,
         dataType: "CATEGORICAL",
         value: null,
-        stringValue: summary ?? `${count} metrics`,
+        stringValue: summary ?? "",
       },
     ];
   });
 
+/**
+ * One chip for one evaluator: the shared prefix, how many metrics it emitted
+ * and their summary (see groupSummary). Hover lists the metrics (suffix only,
+ * the prefix is the chip); click goes to the node's Scores tab, the only
+ * place twenty metrics with their comments and metadata fit.
+ */
 const EvaluatorGroupBadge = <T extends ChipScore>({
   group,
   compact,

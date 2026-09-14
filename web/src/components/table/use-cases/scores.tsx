@@ -51,6 +51,13 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { api } from "@/src/utils/api";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableCell, TableRow } from "@/src/components/ui/table";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import {
+  groupScoreRowsByEvaluator,
+  type GroupedScoreRows,
+  type ScoreRowGroup,
+} from "@/src/components/table/use-cases/groupScoreRows";
 
 import type { RouterOutput } from "@/src/utils/types";
 import TagList from "@/src/features/tag/components/TagList";
@@ -61,7 +68,11 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import React, { useState, useRef, useCallback, useMemo } from "react";
 import type { TableAction } from "@/src/features/table/types";
-import type { RowSelectionState, VisibilityState } from "@tanstack/react-table";
+import type {
+  Row,
+  RowSelectionState,
+  VisibilityState,
+} from "@tanstack/react-table";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
@@ -141,6 +152,13 @@ export type ScoresTableProps = {
   showControlsInPageHeader?: boolean;
   /** Skip the default exclusion of internal environments. */
   showAllEnvironments?: boolean;
+  /**
+   * Group rows by evaluator prefix under collapsible header rows, the rule
+   * the score chips use (groupScoresForChips): grouped rows first, ungrouped
+   * rows last under no header. For the trace / observation Scores tabs; the
+   * project-wide table keeps its flat rows.
+   */
+  groupByEvaluatorPrefix?: boolean;
 };
 
 function createFilterState(
@@ -171,6 +189,7 @@ export default function ScoresTable({
   disableUrlPersistence = false,
   showControlsInPageHeader = false,
   showAllEnvironments = false,
+  groupByEvaluatorPrefix = false,
 }: ScoresTableProps) {
   const peekContext = usePeekTableState();
 
@@ -1079,6 +1098,45 @@ export default function ScoresTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scores.data, scoreMetrics.data, isV4]);
 
+  // Evaluator groups: the page's rows reordered under headers. Client-side
+  // over the loaded page, like the chips over a node's scores.
+  const groupedRows = useMemo(
+    () =>
+      groupByEvaluatorPrefix && enrichedScores
+        ? groupScoreRowsByEvaluator(
+            enrichedScores,
+            // The table stringifies values (booleans as their "True" /
+            // "False" string); the summary wants them typed.
+            (row) => ({
+              name: row.name,
+              dataType: row.dataType,
+              value:
+                row.dataType === "BOOLEAN"
+                  ? row.value.toLowerCase() === "true"
+                    ? 1
+                    : 0
+                  : isNumericDataType(row.dataType) && row.value !== ""
+                    ? Number(row.value)
+                    : null,
+              stringValue: isNumericDataType(row.dataType) ? null : row.value,
+            }),
+          )
+        : null,
+    [groupByEvaluatorPrefix, enrichedScores],
+  );
+  const tableRows = groupedRows ? groupedRows.rows : enrichedScores;
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const toggleGroup = useCallback((prefix: string) => {
+    setCollapsedGroups((previous) => {
+      const next = new Set(previous);
+      if (next.has(prefix)) next.delete(prefix);
+      else next.add(prefix);
+      return next;
+    });
+  }, []);
+
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Scores,
     projectId,
@@ -1277,8 +1335,26 @@ export default function ScoresTable({
                       : {
                           isLoading: false,
                           isError: false,
-                          data: enrichedScores ?? [],
+                          data: tableRows ?? [],
                         }
+                }
+                // Group header above a group's first row; a collapsed
+                // group's rows are not rendered. Replaces the default row
+                // (no row click here: the trace and observation tabs never
+                // open a peek).
+                renderRow={
+                  groupedRows
+                    ? ({ row, children }) => (
+                        <GroupedScoreRow
+                          row={row}
+                          grouped={groupedRows}
+                          collapsedGroups={collapsedGroups}
+                          onToggleGroup={toggleGroup}
+                        >
+                          {children}
+                        </GroupedScoreRow>
+                      )
+                    : undefined
                 }
                 pagination={{
                   totalCount,
@@ -1341,5 +1417,84 @@ const ScoresMetadataCell = ({
 
   return (
     <ConnectedIOTableCell data={score.data?.metadata} singleLine={singleLine} />
+  );
+};
+
+const GroupedScoreRow = ({
+  row,
+  children,
+  grouped,
+  collapsedGroups,
+  onToggleGroup,
+}: {
+  row: Row<ScoresTableRow>;
+  children: React.ReactNode;
+  grouped: GroupedScoreRows<ScoresTableRow>;
+  collapsedGroups: Set<string>;
+  onToggleGroup: (prefix: string) => void;
+}) => {
+  const header = grouped.headerBefore.get(row.id);
+  const prefix = grouped.groupOf.get(row.id);
+  const collapsed = prefix !== undefined && collapsedGroups.has(prefix);
+  return (
+    <>
+      {header ? (
+        <ScoreGroupHeaderRow
+          group={header}
+          collapsed={collapsed}
+          colSpan={row.getVisibleCells().length}
+          onToggle={() => onToggleGroup(header.prefix)}
+        />
+      ) : null}
+      {collapsed ? null : (
+        <TableRow
+          className={cn(
+            "hover:bg-accent cursor-default",
+            row.getIsSelected() && "bg-muted/40 dark:bg-muted",
+          )}
+        >
+          {children}
+        </TableRow>
+      )}
+    </>
+  );
+};
+
+/** One row spanning the table: chevron, evaluator prefix, metric count and
+    the chip's summary text. */
+const ScoreGroupHeaderRow = ({
+  group,
+  collapsed,
+  colSpan,
+  onToggle,
+}: {
+  group: ScoreRowGroup;
+  collapsed: boolean;
+  colSpan: number;
+  onToggle: () => void;
+}) => {
+  const Chevron = collapsed ? ChevronRight : ChevronDown;
+  return (
+    <TableRow className="bg-muted/30 hover:bg-muted/30">
+      <TableCell colSpan={colSpan} className="border-b p-0">
+        <button
+          type="button"
+          aria-expanded={!collapsed}
+          aria-label={`${collapsed ? "Expand" : "Collapse"} group ${group.prefix}`}
+          className="flex h-7 w-full items-center gap-1.5 pl-2 text-left text-xs"
+          onClick={onToggle}
+        >
+          <Chevron className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+          <span className="font-bold">
+            {group.prefix}({group.count}){group.summary ? ":" : ""}
+          </span>
+          {group.summary ? (
+            <span className="text-muted-foreground tabular-nums">
+              {group.summary}
+            </span>
+          ) : null}
+        </button>
+      </TableCell>
+    </TableRow>
   );
 };

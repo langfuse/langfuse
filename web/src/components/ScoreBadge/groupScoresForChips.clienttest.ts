@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { groupScoresForChips } from "./groupScoresForChips";
+import { groupScoresForChips, groupSummary } from "./groupScoresForChips";
 
 const score = (name: string, value: number) => ({ name, value });
 
@@ -74,5 +74,33 @@ describe("groupScoresForChips", () => {
       },
       { kind: "name", label: "trailing.", names: ["trailing."] },
     ]);
+  });
+
+  it("summarises single-type groups, skipping unscored placeholders, and none for mixed", () => {
+    const numeric = (name: string, value: number) => ({
+      name,
+      dataType: "NUMERIC",
+      value,
+      stringValue: null,
+    });
+    const categorical = (name: string, stringValue: string) => ({
+      name,
+      dataType: "CATEGORICAL",
+      value: null,
+      stringValue,
+    });
+    const [placeholders] = groupScoresForChips([
+      numeric("Mod.toxicity", 0.5),
+      numeric("Mod.copyright", 1),
+      categorical("Mod.weapons", " N/A "),
+    ]);
+    // Placeholder counts as a metric, not toward the average or the type.
+    expect(groupSummary(placeholders!)).toEqual({ count: 3, text: "Avg 0.75" });
+
+    const [mixed] = groupScoresForChips([
+      numeric("Mod.toxicity", 0.5),
+      categorical("Mod.severity", "high"),
+    ]);
+    expect(groupSummary(mixed!)).toEqual({ count: 2, text: null });
   });
 });
