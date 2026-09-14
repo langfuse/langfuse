@@ -11,7 +11,11 @@ use tokio::{
     time::Instant,
 };
 
-use crate::{resolution::ResolvedRequestContext, transport};
+use crate::{
+    observation::{Observation, Outcome},
+    resolution::ResolvedRequestContext,
+    transport,
+};
 
 pub use crate::transport::ProviderError;
 
@@ -124,6 +128,7 @@ impl OpenAiProvider {
             HeaderValue::from_str(&format!("Bearer {}", context.connection().provider_token()))
                 .map_err(|_| ProviderError::Configuration)?;
         authorization.set_sensitive(true);
+        let mut observation = Observation::new(&context, headers, &body);
         let response = tokio::time::timeout_at(
             permit
                 .deadline
@@ -136,18 +141,33 @@ impl OpenAiProvider {
                 .send(),
         )
         .await
-        .map_err(|_| ProviderError::Timeout)?
-        .map_err(|error| {
-            if error.is_timeout() {
-                ProviderError::Timeout
-            } else {
-                ProviderError::Transport
+        .map_err(|_| ProviderError::Timeout)
+        .and_then(|result| {
+            result.map_err(|error| {
+                if error.is_timeout() {
+                    ProviderError::Timeout
+                } else {
+                    ProviderError::Transport
+                }
+            })
+        });
+        let response = match response {
+            Ok(response) => response,
+            Err(error) => {
+                observation.finish(if matches!(error, ProviderError::Timeout) {
+                    Outcome::Timeout
+                } else {
+                    Outcome::TransportError
+                });
+                return Err(error);
             }
-        })?;
+        };
+        observation.response(response.status().as_u16(), response.headers());
         let mut downstream = Response::new(Body::empty());
         *downstream.status_mut() = response.status();
         *downstream.headers_mut() = transport::response_headers(response.headers());
-        *downstream.body_mut() = transport::relay(response, permit.deadline, (permit, context));
+        *downstream.body_mut() =
+            transport::relay(response, permit.deadline, (permit, context), observation);
         Ok(downstream)
     }
 

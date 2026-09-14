@@ -2,7 +2,8 @@
 
 A standalone Rust gateway for `POST /openai/v1/responses`. Web resolves the gateway
 key to a trusted provider connection; Rust relays native JSON or SSE without
-parsing the request or rewriting provider bytes. Customer telemetry is not exported
+rewriting provider bytes. A bounded observer captures request/response facts and
+logs the finalized record at debug level. Customer telemetry is not exported
 yet. Building and testing need no real Web, database or provider credentials.
 
 ## Run locally
@@ -80,8 +81,10 @@ Both formats use the same log level and preserve event fields. For example:
 2026-09-10T13:20:00Z INFO gateway listening address=0.0.0.0:8080
 ```
 
-Invalid values fail startup without echoing their contents. Logs contain service
-lifecycle events, not request bodies or headers. For direct
+Invalid values fail startup without echoing their contents. At the default `info`
+level, logs contain service lifecycle events. Debug logging also includes the
+captured request and completed output when Web resolves `ingestion_mode: full`;
+see capture details below. For direct
 host-only development, set `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS=127.0.0.1:8080`.
 
 ## Call the gateway
@@ -121,7 +124,8 @@ print(response.output_text)
 ```
 
 The gateway forwards to the official OpenAI Responses endpoint only. It does not
-retry, follow redirects, parse `model`/`stream`, or accept client routing overrides.
+retry, follow redirects, or accept client routing overrides. Request parsing is
+best-effort observation only; Web still selects the provider connection.
 Provider errors retain their status and body. Gateway errors use an OpenAI-style
 `{"error":{"message":"...","type":"...","param":null,"code":"..."}}` envelope.
 
@@ -150,6 +154,46 @@ boundary, plus the resolved Bearer token. Response content type/encoding, cache
 control, retry-after, request ID and selected OpenAI timing/version/rate-limit
 headers are retained. Cookies, routing overrides, gateway/ingestion credentials,
 hop-by-hop headers and upstream framing are excluded.
+
+## Response capture
+
+Set `LANGFUSE_LOG_LEVEL=debug` to print one `gateway response captured` event at
+execution end. Its `capture` field is JSON with `input`, `output`, model,
+parameters, usage, attribution, timestamps, capture completeness and relay outcome.
+`LANGFUSE_LOG_FORMAT=json` also makes the surrounding log event JSON.
+
+Web's resolved ingestion mode controls content capture:
+
+- `full`: input contains a `messages` array (instructions become a system message),
+  tools and context references. Output is an ordered array of native completed
+  items. Debug logs intentionally contain this full captured content.
+- `usage`: input and output are null. Only model, scalar parameters, native token
+  counts, timing and trusted attribution are retained; schemas and content are omitted.
+
+For SSE, only `response.output_item.done` adds output. Terminal Responses events
+provide model, service tier, status and usage; their repeated output is not copied.
+Deltas are never stitched or retained. A disconnect midway through an item loses
+that unfinished item; already completed items remain in the partial record. Item
+completion alone is not response completion. JSON responses capture their native
+output array at EOF. Missing usage remains null, rather than invented zeros.
+
+`outcome` describes the relay (`eof`, `cancelled`, `timeout`, `transport_error`);
+`provider_status` is separate. For example, a completed provider response can
+still end with downstream cancellation. `first_byte_ms` measures the first body
+bytes observed by the gateway, not first-token latency. No completion-start time
+is fabricated from completed items.
+
+Capture is limited to 1 MiB request inspection, 1 MiB JSON/SSE event observation,
+1 MiB retained output and 256 output items per execution. The active-request limit
+bounds the number of observers. Oversized input is omitted; oversized output items
+are skipped and completeness is false. Malformed, truncated or compressed bodies
+do not interrupt the relay. Capture buffers are independent of forwarding, so
+these limits never cap the actual provider response. Media is not fetched/uploaded.
+
+Provider credentials, the gateway credential and ingestion tokens are not part of
+the capture record; raw headers are not logged. Full captured content and resolved
+key metadata may themselves be sensitive. Keep debug logging enabled only where
+that content is intended to be recorded. No data is posted to Langfuse yet.
 
 ## Process lifecycle
 

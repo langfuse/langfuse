@@ -89,10 +89,27 @@ pub(crate) fn resolution_response(provider_token: &str) -> Response<Body> {
 }
 
 pub(crate) async fn resolved_request_context(provider_token: &str) -> ResolvedRequestContext {
+    resolved_request_context_with_mode(provider_token, "usage").await
+}
+
+pub(crate) async fn resolved_request_context_with_mode(
+    provider_token: &str,
+    mode: &'static str,
+) -> ResolvedRequestContext {
     let token = provider_token.to_owned();
     let web = FakeServer::start(move |_| {
         let token = token.clone();
-        async move { resolution_response(&token) }
+        async move {
+            let bytes = axum::body::to_bytes(resolution_response(&token).into_body(), 4096)
+                .await
+                .unwrap();
+            let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            body["ingestion_mode"] = mode.into();
+            Response::builder()
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap()
+        }
     })
     .await;
     web.control_plane()
