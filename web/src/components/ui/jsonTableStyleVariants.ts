@@ -11,7 +11,7 @@ import { useSyncExternalStore } from "react";
  * picked the others are a deletion here: PrettyJsonView only reads
  * `JSON_TABLE_STYLES[variant]`.
  *
- * Three directions are finalists (`FINALIST_JSON_TABLE_STYLE_VARIANTS`);
+ * Four directions are finalists (`FINALIST_JSON_TABLE_STYLE_VARIANTS`);
  * the picker shows only those unless `lf-json-style-all` is set in
  * localStorage.
  */
@@ -19,6 +19,7 @@ export const JSON_TABLE_STYLE_VARIANTS = [
   "quiet",
   "quiet-dense",
   "dense-dotbreak",
+  "tree-plus",
   "tree",
   "tree-inline",
   "adaptive",
@@ -35,9 +36,9 @@ export type JsonTableStyleVariant = (typeof JSON_TABLE_STYLE_VARIANTS)[number];
 export const DEFAULT_JSON_TABLE_STYLE_VARIANT: JsonTableStyleVariant =
   "current";
 
-/** The three directions still under review, in picker order. */
+/** The four directions still under review, in picker order. */
 export const FINALIST_JSON_TABLE_STYLE_VARIANTS: readonly JsonTableStyleVariant[] =
-  ["current", "dense-dotbreak", "tree"];
+  ["current", "dense-dotbreak", "tree-plus", "tree"];
 
 /** Style the IO class takes when "Auto (Table or Tree by content)" is on. */
 export const LONG_CONTENT_JSON_TABLE_STYLE_VARIANT: JsonTableStyleVariant =
@@ -274,6 +275,21 @@ export const JSON_TABLE_STYLES: Record<JsonTableStyleVariant, JsonTableStyle> =
       indentBase: 16,
       key: QUIET_KEY,
       cell: "border-border/60 px-2 py-1 align-top whitespace-normal",
+      keyColumn: "content",
+      expandedParentSummary: true,
+      breakKeysAtDots: true,
+    },
+    "tree-plus": {
+      ...BASE_FLAGS,
+      label: "Tree+",
+      reference:
+        "Table without the row dividers: two columns, key column sized to the keys, dotted keys wrap at the dots, nested parents show N keys / N items",
+      layout: "columns",
+      headerUnderTitle: false,
+      boxUnderTitle: false,
+      indentBase: 16,
+      key: QUIET_KEY,
+      cell: "border-b-0 px-2 py-1 align-top whitespace-normal",
       keyColumn: "content",
       expandedParentSummary: true,
       breakKeysAtDots: true,
