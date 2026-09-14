@@ -2,6 +2,10 @@ import { StrictMode, useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { type VisibilityState } from "@tanstack/react-table";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { LAYER_ORDER } from "@/src/components/ui/layer";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 
@@ -132,6 +136,36 @@ function DefaultSettingsHarness({
   );
 }
 
+// The picker as the app wires it: both pieces of column state come from local
+// storage through their hooks, rather than from useState.
+function StoredStateHarness({
+  orderKey,
+  visibilityKey,
+}: {
+  orderKey: string;
+  visibilityKey: string;
+}) {
+  const [columnVisibility, setColumnVisibility] = useColumnVisibility<{
+    id: string;
+  }>(visibilityKey, groupedColumns);
+  const [columnOrder, setColumnOrder] = useColumnOrder<{ id: string }>(
+    orderKey,
+    groupedColumns,
+  );
+
+  return (
+    <DataTableColumnVisibilityFilter
+      columns={groupedColumns}
+      columnVisibility={columnVisibility}
+      setColumnVisibility={setColumnVisibility}
+      columnOrder={columnOrder}
+      setColumnOrder={setColumnOrder}
+      tableName="experiments"
+      isV4={true}
+    />
+  );
+}
+
 function installOverlayLayers() {
   const overlayRoot = document.createElement("div");
   overlayRoot.setAttribute("data-overlay-root", "");
@@ -171,6 +205,7 @@ describe("DataTableColumnVisibilityFilter", () => {
   });
 
   beforeEach(() => {
+    localStorage.clear();
     h.capture.mockClear();
     h.onColumnGroupToggle.mockClear();
     installOverlayLayers();
@@ -302,6 +337,24 @@ describe("DataTableColumnVisibilityFilter", () => {
     expect(
       screen.queryByRole("button", { name: "Restore Defaults" }),
     ).toBeNull();
+  });
+
+  // A visibility map under the order key — what a local storage key shared
+  // between the two hooks left behind — reached `columnIdsOrder.map` and threw
+  // "map is not a function" as the popover rendered.
+  it("renders with a stored column order that is not an array", () => {
+    localStorage.setItem("storedOrder", JSON.stringify({ name: true }));
+
+    render(
+      <StoredStateHarness
+        orderKey="storedOrder"
+        visibilityKey="storedVisibility"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Columns/ }));
+
+    expect(screen.getByRole("checkbox", { name: "Name" })).toBeChecked();
+    expect(screen.getByText("Trace Item Scores")).toBeVisible();
   });
 
   it("offers reset for comparison content settings even with default columns", () => {
