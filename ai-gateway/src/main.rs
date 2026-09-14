@@ -1,8 +1,10 @@
 use std::{error::Error, io, net::SocketAddr, process::ExitCode};
 
 use ai_gateway::{
-    config::{Config, LogFormat},
-    server::{self, AppState},
+    config::{GatewayConfig, LogFormat},
+    http,
+    inference::InferenceService,
+    server::{self, GatewayLifecycleState},
 };
 use tokio::net::TcpListener;
 
@@ -18,7 +20,7 @@ async fn main() -> ExitCode {
 }
 
 async fn run() -> Result<(), Box<dyn Error>> {
-    let config = Config::from_env()?;
+    let config = GatewayConfig::from_env()?;
     let logging = tracing_subscriber::fmt()
         .with_max_level(config.log_level)
         .with_target(false);
@@ -26,18 +28,27 @@ async fn run() -> Result<(), Box<dyn Error>> {
         LogFormat::Text => logging.compact().init(),
         LogFormat::Json => logging.json().init(),
     }
+    let inference = config
+        .control_plane
+        .map(|control_plane| {
+            InferenceService::new(
+                control_plane,
+                config.max_active_requests,
+                config.max_concurrent_resolutions,
+            )
+        })
+        .transpose()?;
+    let inference_enabled = inference.is_some();
+    let state = if inference_enabled {
+        GatewayLifecycleState::default()
+    } else {
+        GatewayLifecycleState::unconfigured()
+    };
+    let app = server::router(state.clone()).merge(http::router(inference, state.clone()));
     let shutdown = shutdown_signal()?;
     let listener = bind_listener(config.listen_address, config.auto_increment_listen_port).await?;
-    tracing::info!(address = %listener.local_addr()?, "gateway listening");
-    let state = AppState::default();
-    server::serve(
-        listener,
-        server::router(state.clone()),
-        state,
-        shutdown,
-        config.shutdown_timeout,
-    )
-    .await?;
+    tracing::info!(address = %listener.local_addr()?, inference_enabled, "gateway listening");
+    server::serve(listener, app, state, shutdown, config.shutdown_timeout).await?;
     tracing::info!("gateway stopped");
     Ok(())
 }
