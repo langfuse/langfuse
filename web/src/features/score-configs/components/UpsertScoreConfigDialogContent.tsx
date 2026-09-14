@@ -4,6 +4,7 @@ import { useState } from "react";
 import { type UseFormReturn, useFieldArray, useForm } from "react-hook-form";
 
 import { Button } from "@/src/components/ui/button";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
   DialogBody,
   DialogFooter,
@@ -19,13 +20,6 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import { Textarea } from "@/src/components/ui/textarea";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import {
@@ -131,48 +125,39 @@ export function UpsertScoreConfigDialogContent({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Data type</FormLabel>
-                  <Select
-                    disabled={mode === "edit"}
-                    defaultValue={field.value}
-                    onValueChange={(value) => {
-                      const nextDataType = value as ScoreConfigDataType;
-                      field.onChange(nextDataType);
-                      form.clearErrors();
-                      if (isNumericDataType(nextDataType)) {
-                        form.setValue("categories", undefined);
-                      } else if (isTextDataType(nextDataType)) {
-                        form.setValue("categories", undefined);
-                        form.setValue("minValue", undefined);
-                        form.setValue("maxValue", undefined);
-                      } else {
-                        form.setValue("minValue", undefined);
-                        form.setValue("maxValue", undefined);
-                        if (isBooleanDataType(nextDataType)) {
-                          replace([
-                            { label: "True", value: 1 },
-                            { label: "False", value: 0 },
-                          ]);
+                  <FormControl>
+                    <SelectInput
+                      disabled={mode === "edit"}
+                      value={field.value}
+                      onValueChange={(value) => {
+                        const nextDataType = value as ScoreConfigDataType;
+                        field.onChange(nextDataType);
+                        form.clearErrors();
+                        if (isNumericDataType(nextDataType)) {
+                          form.setValue("categories", undefined);
+                        } else if (isTextDataType(nextDataType)) {
+                          form.setValue("categories", undefined);
+                          form.setValue("minValue", undefined);
+                          form.setValue("maxValue", undefined);
                         } else {
-                          replace([{ label: "", value: 0 }]);
+                          form.setValue("minValue", undefined);
+                          form.setValue("maxValue", undefined);
+                          if (isBooleanDataType(nextDataType)) {
+                            replace([
+                              { label: "True", value: 1 },
+                              { label: "False", value: 0 },
+                            ]);
+                          } else {
+                            replace([{ label: "", value: 0 }]);
+                          }
                         }
-                      }
-                    }}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a data type" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {Object.values(ScoreDataTypeEnum)
+                      }}
+                      placeholder="Select a data type"
+                      options={Object.values(ScoreDataTypeEnum)
                         .filter((value) => value !== "CORRECTION")
-                        .map((value) => (
-                          <SelectItem value={value} key={value}>
-                            {value}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                        .map((value) => ({ value, label: value }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

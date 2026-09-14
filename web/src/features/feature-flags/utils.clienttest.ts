@@ -69,6 +69,7 @@ describe("parseFlags", () => {
     );
 
     expect(flags.modernSession).toBe(false);
+    expect(flags.sessionTimeline).toBe(false);
     // Scoped to its own flag: the opt-out is a STRING match, so a matcher that
     // is too loose would take neighbouring flags down with it. A non-preview
     // flag stands in for that here, which keeps the guard alive no matter how
@@ -88,6 +89,15 @@ describe("parseFlags", () => {
     expect(flags.modernSession).toBe(false);
   });
 
+  it("does not enable Session Timeline without Compact Session", () => {
+    const flags = parseFlags(["sessionTimeline"], {
+      email: "user@example.com",
+      v4BetaEnabled: true,
+    });
+
+    expect(flags.sessionTimeline).toBe(false);
+  });
+
   it("applies organization defaults without overriding a global opt-out", () => {
     const enabled = parseFlagsWithOrganizationDefaults([], ["modernSession"], {
       email: "user@example.com",
@@ -101,6 +111,15 @@ describe("parseFlags", () => {
 
     expect(enabled.modernSession).toBe(true);
     expect(optedOut.modernSession).toBe(false);
+  });
+
+  it("does not apply a Session Timeline organization default without Compact Session", () => {
+    const flags = parseFlagsWithOrganizationDefaults([], ["sessionTimeline"], {
+      email: "user@example.com",
+      v4BetaEnabled: true,
+    });
+
+    expect(flags.sessionTimeline).toBe(false);
   });
 
   it("selects flags from only the active project organization", () => {
