@@ -1,5 +1,5 @@
 import { type LastUserScore } from "@langfuse/shared";
-import { expect, fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../.storybook/preview";
 import { GroupedScoreBadges } from "./grouped-score-badge";
@@ -132,5 +132,36 @@ export const ScoreGroup = meta.story({
     await expect(
       canvasElement.querySelector('[aria-label="Open scores, 1 more score"]'),
     ).not.toBeNull();
+  },
+});
+
+// A grouped metric keeps its comment and metadata: the group chip's card
+// prints them the way the per-name chip card does, the others stay one line.
+const groupScoresWithDetail = [
+  ...groupScores.slice(1),
+  {
+    ...groupScores[0],
+    comment: "Flagged a slur in turn 3",
+    metadata: { judge: "claude-opus-5" },
+  },
+] satisfies LastUserScore[];
+
+export const ScoreGroupCardDetails = meta.story({
+  name: "(Test) Score Group Card Details",
+  args: { scores: groupScoresWithDetail },
+  play: async ({ canvasElement }) => {
+    const chip = canvasElement
+      .querySelector('[title="OutputModerationPrecision"]')
+      ?.closest("span");
+    await expect(chip).not.toBeNull();
+    await userEvent.hover(chip!);
+    // The card renders in a portal, so look at the whole document.
+    const body = within(document.body);
+    await expect(
+      await body.findByText("Flagged a slur in turn 3"),
+    ).toBeInTheDocument();
+    await expect(body.getByText("toxicity")).toBeInTheDocument();
+    await expect(body.getByText("pii")).toBeInTheDocument();
+    await expect(body.getByText(/claude-opus-5/)).toBeInTheDocument();
   },
 });

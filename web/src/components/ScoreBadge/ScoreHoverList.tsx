@@ -1,3 +1,5 @@
+import { MessageCircleMoreIcon } from "lucide-react";
+
 import { numberFormatter } from "@/src/utils/numbers";
 
 /**
@@ -10,6 +12,10 @@ type HoverListScore = {
   dataType: string;
   value?: number | null;
   stringValue?: string | null;
+  comment?: string | null;
+  /** A line standing for several scores (a group) sets this when any of
+      them carries a comment. */
+  hasComment?: boolean;
 };
 
 function formatScoreValue(score: Omit<HoverListScore, "name">): string {
@@ -45,10 +51,12 @@ export function ScoreHoverList({
   // Every value per name, comma separated, the way the chip shows them: two
   // annotators scoring "helpfulness" are two values, not one arbitrary pick.
   const valuesByName = new Map<string, string[]>();
+  const commentedNames = new Set<string>();
   for (const score of scores) {
     const list = valuesByName.get(score.name) ?? [];
     list.push(formatScoreValue(score));
     valuesByName.set(score.name, list);
+    if (score.hasComment || score.comment) commentedNames.add(score.name);
   }
 
   // The name column gives way, the value never does: a group's `Avg 0.76`
@@ -65,8 +73,16 @@ export function ScoreHoverList({
             <dt className="text-muted-foreground truncate" title={label}>
               {label}
             </dt>
-            <dd className="text-right whitespace-nowrap tabular-nums">
+            <dd className="flex items-center justify-end gap-1 text-right whitespace-nowrap tabular-nums">
               {value}
+              {/* The card cannot show the comment itself; the marker says
+                  the Scores tab has one to read. */}
+              {commentedNames.has(name) ? (
+                <MessageCircleMoreIcon
+                  className="text-muted-foreground size-3 shrink-0"
+                  aria-label="Has comment"
+                />
+              ) : null}
             </dd>
           </div>
         );

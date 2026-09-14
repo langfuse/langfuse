@@ -606,6 +606,8 @@ export function ConnectedObservationDetailView({
               >
                 <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
                   <ScoresTable
+                    // Remount per node: collapsed groups belong to one node.
+                    key={observation.id}
                     projectId={projectId}
                     traceId={traceId}
                     observationId={observation.id}

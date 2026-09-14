@@ -10,6 +10,11 @@ import { ScoreTag, scoreLevelFromScore } from "@/src/components/score-tag";
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 import { ScoreHoverList } from "@/src/components/ScoreBadge/ScoreHoverList";
 import {
+  ScoreDetail,
+  hasScoreDetail,
+} from "@/src/components/ScoreBadge/ScoreDetail";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import {
   groupScoresForChips,
   groupSummary,
   metricLabel,
@@ -28,6 +33,8 @@ type OverflowHoverRow = {
   dataType: string;
   value?: number | null;
   stringValue?: string | null;
+  comment?: string | null;
+  hasComment?: boolean;
 };
 
 const overflowHoverRows = <T extends ChipScore>(
@@ -42,6 +49,7 @@ const overflowHoverRows = <T extends ChipScore>(
         dataType: "CATEGORICAL",
         value: null,
         stringValue: summary ?? "",
+        hasComment: group.scores.some((score) => Boolean(score.comment)),
       },
     ];
   });
@@ -72,7 +80,12 @@ const ScoreGroupBadge = <T extends ChipScore>({
   preview: boolean;
   onClick?: () => void;
 }) => {
+  const projectId = useProjectIdFromURL();
   const { count: metricCount, text: summary } = groupSummary(group);
+  // Metrics with a comment, metadata or execution trace get the full block
+  // the per-name chip card shows; the rest stay one name/value line.
+  const detailed = group.scores.filter(hasScoreDetail);
+  const plain = group.scores.filter((score) => !hasScoreDetail(score));
   const levels = showLevels
     ? Array.from(
         new Set(group.scores.map((score) => scoreLevelFromScore(score))),
@@ -129,8 +142,18 @@ const ScoreGroupBadge = <T extends ChipScore>({
       {preview ? (
         <HoverCard openDelay={100}>
           <HoverCardTrigger asChild>{badge}</HoverCardTrigger>
-          <HoverCardContent className="w-max max-w-xs p-2.5 text-xs">
-            <ScoreHoverList scores={group.scores} formatName={metricLabel} />
+          <HoverCardContent className="flex max-h-[50dvh] w-max max-w-xs flex-col gap-3 overflow-y-auto p-2.5 text-xs break-normal whitespace-normal">
+            {plain.length > 0 ? (
+              <ScoreHoverList scores={plain} formatName={metricLabel} />
+            ) : null}
+            {detailed.map((score) => (
+              <div key={score.id} className="flex flex-col gap-1">
+                <p className="font-bold" title={score.name}>
+                  {metricLabel(score.name)}
+                </p>
+                <ScoreDetail score={score} showValue projectId={projectId} />
+              </div>
+            ))}
           </HoverCardContent>
         </HoverCard>
       ) : (
