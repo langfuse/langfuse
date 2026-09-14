@@ -31,6 +31,8 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 import { IngestionService } from "../../IngestionService";
 import {
   convertDateToClickhouseDateTime,
+  createObservation,
+  createTrace,
   createTraceScore,
   type ObservationEvent,
   type ScoreEventType,
@@ -1117,6 +1119,140 @@ describe("IngestionService unit tests", () => {
       ([table]) => table === TableName.Observations,
     )?.[1];
     expect(observationRecord?.trace_id).toBe("trace-id");
+    expect(
+      addToQueue.mock.calls.some(([table]) => table === TableName.Traces),
+    ).toBe(false);
+    // No trace-table existence read for explicitly linked observations.
+    expect((ingestionService as any).getClickhouseRecord).toHaveBeenCalledTimes(
+      1,
+    );
+  });
+
+  it("links mixed batches to the explicit traceId from a later update", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2026-09-14T00:00:00.000Z";
+    const observationEventList: ObservationEvent[] = [
+      {
+        id: "event-id",
+        timestamp,
+        type: "generation-create",
+        body: {
+          id: "observation-id",
+          startTime: timestamp,
+          name: "mixed-generation",
+          environment: "default",
+        },
+      },
+      {
+        id: "update-event-id",
+        timestamp: "2026-09-14T00:00:01.000Z",
+        type: "generation-update",
+        body: {
+          id: "observation-id",
+          traceId: "trace-id",
+          output: "done",
+        },
+      },
+    ];
+
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
+      null,
+    );
+    vi.spyOn(ingestionService as any, "getPrompt").mockResolvedValue(null);
+    vi.spyOn(ingestionService as any, "getGenerationUsage").mockResolvedValue(
+      {},
+    );
+
+    await (ingestionService as any).processObservationEventList({
+      projectId: "project-id",
+      entityId: "observation-id",
+      createdAtTimestamp: new Date(timestamp),
+      observationEventList,
+      writeToStagingTables: false,
+      attribution: {
+        ingestionApiKey: "pk-lf-unit-test",
+        ingestionSdkName: "langfuse-test",
+        ingestionSdkVersion: "0.0.0",
+      },
+    });
+
+    const observationRecord = addToQueue.mock.calls.find(
+      ([table]) => table === TableName.Observations,
+    )?.[1];
+
+    // The explicit traceId wins over the deterministic fallback even though
+    // the traceless create sorts first and trace_id is immutable.
+    expect(observationRecord?.trace_id).toBe("trace-id");
+    expect(
+      addToQueue.mock.calls.some(([table]) => table === TableName.Traces),
+    ).toBe(false);
+  });
+
+  it("never overwrites a real trace that shares the observation id", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2026-09-14T00:00:00.000Z";
+    const observationEventList: ObservationEvent[] = [
+      {
+        id: "update-event-id",
+        timestamp,
+        type: "generation-update",
+        body: {
+          id: "observation-id",
+          output: "done",
+        },
+      },
+    ];
+
+    // Observation explicitly linked with id === traceId, plus the real trace.
+    const getClickhouseRecord = vi
+      .spyOn(ingestionService as any, "getClickhouseRecord")
+      .mockResolvedValueOnce(
+        createObservation({
+          id: "observation-id",
+          project_id: "project-id",
+          trace_id: "observation-id",
+        }),
+      )
+      .mockResolvedValueOnce(
+        createTrace({ id: "observation-id", project_id: "project-id" }),
+      );
+    vi.spyOn(ingestionService as any, "getPrompt").mockResolvedValue(null);
+    vi.spyOn(ingestionService as any, "getGenerationUsage").mockResolvedValue(
+      {},
+    );
+
+    await (ingestionService as any).processObservationEventList({
+      projectId: "project-id",
+      entityId: "observation-id",
+      createdAtTimestamp: new Date(timestamp),
+      observationEventList,
+      writeToStagingTables: false,
+      attribution: {
+        ingestionApiKey: "pk-lf-unit-test",
+        ingestionSdkName: "langfuse-test",
+        ingestionSdkVersion: "0.0.0",
+      },
+    });
+
+    const observationRecord = addToQueue.mock.calls.find(
+      ([table]) => table === TableName.Observations,
+    )?.[1];
+    expect(observationRecord?.trace_id).toBe("observation-id");
+    // The stored explicit link is preserved and no sparse wrapper is queued
+    // over the existing real trace.
+    expect(getClickhouseRecord).toHaveBeenCalledTimes(2);
     expect(
       addToQueue.mock.calls.some(([table]) => table === TableName.Traces),
     ).toBe(false);

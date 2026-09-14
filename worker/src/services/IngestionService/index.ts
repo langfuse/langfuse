@@ -1079,44 +1079,41 @@ export class IngestionService {
       ...generationUsage,
     };
 
-    // Create a wrapper trace for observations ingested without a traceId
-    // (single generations/evals, SDK < 2.0.0). mapObservationEventsToRecords
-    // falls back to trace_id = observation id so the link is deterministic
-    // across events; ensure the matching trace row exists so the observation
-    // stays reachable from trace views and cost rollups.
-    const hasExplicitTraceId =
-      observationEventList.some(
-        (event) =>
-          "traceId" in event.body &&
-          event.body.traceId !== undefined &&
-          event.body.traceId !== null &&
-          event.body.traceId !== "",
-      ) ||
-      (clickhouseObservationRecord?.trace_id !== undefined &&
-        clickhouseObservationRecord?.trace_id !== null &&
-        clickhouseObservationRecord?.trace_id !== "" &&
-        clickhouseObservationRecord?.trace_id !== entityId);
+    // Observations ingested without a traceId (single generations/evals,
+    // SDK < 2.0.0) fall back to trace_id = observation id (see
+    // mapObservationEventsToRecords). Ensure the matching trace row exists so
+    // the observation stays reachable from trace views and cost rollups — but
+    // never overwrite a real trace that shares the id (e.g. an explicit
+    // id === traceId link). A trace arriving later via unordered ingestion
+    // supersedes this sparse row through its newer event_ts.
     if (
       !finalObservationRecord.trace_id ||
-      (!hasExplicitTraceId &&
-        finalObservationRecord.trace_id === finalObservationRecord.id)
+      finalObservationRecord.trace_id === finalObservationRecord.id
     ) {
-      const wrapperTraceRecord: TraceRecordInsertType = {
-        id: finalObservationRecord.id,
-        timestamp: finalObservationRecord.start_time,
-        project_id: projectId,
-        environment: finalObservationRecord.environment,
-        created_at: toClickhouseDateTime(),
-        updated_at: toClickhouseDateTime(),
-        metadata: {},
-        tags: [],
-        bookmarked: false,
-        public: false,
-        event_ts: toClickhouseDateTime(),
-        is_deleted: 0,
-      };
+      const existingTraceRecord = await this.getClickhouseRecord({
+        projectId,
+        entityId: finalObservationRecord.id,
+        table: TableName.Traces,
+        additionalFilters: { whereCondition: "", params: {} },
+      });
+      if (!existingTraceRecord) {
+        const wrapperTraceRecord: TraceRecordInsertType = {
+          id: finalObservationRecord.id,
+          timestamp: finalObservationRecord.start_time,
+          project_id: projectId,
+          environment: finalObservationRecord.environment,
+          created_at: toClickhouseDateTime(),
+          updated_at: toClickhouseDateTime(),
+          metadata: {},
+          tags: [],
+          bookmarked: false,
+          public: false,
+          event_ts: toClickhouseDateTime(),
+          is_deleted: 0,
+        };
 
-      this.clickHouseWriter.addToQueue(TableName.Traces, wrapperTraceRecord);
+        this.clickHouseWriter.addToQueue(TableName.Traces, wrapperTraceRecord);
+      }
       finalObservationRecord.trace_id = finalObservationRecord.id;
     }
 
@@ -1974,6 +1971,17 @@ export class IngestionService {
   }) {
     const { projectId, entityId, observationEventList, prompt } = params;
 
+    // An explicit traceId on any event in the batch wins over the
+    // deterministic fallback below, so mixed batches (e.g. a traceless
+    // create followed by an update carrying a traceId) still link to the
+    // supplied trace instead of an orphan wrapper.
+    const explicitTraceId = observationEventList
+      .map((obs) => obs.body.traceId)
+      .find(
+        (traceId) =>
+          traceId !== undefined && traceId !== null && traceId !== "",
+      );
+
     return observationEventList.map((obs) => {
       const observationType = this.getObservationType(obs);
 
@@ -2034,11 +2042,11 @@ export class IngestionService {
 
       const observationRecord: ObservationRecordInsertType = {
         id: entityId,
-        // Fall back to the observation id so orphan observations without a
-        // traceId deterministically link to their wrapper trace (created
-        // below with id = observation id) instead of a random UUID per event
-        // that would point to a non-existent trace.
-        trace_id: obs.body.traceId ?? entityId,
+        // Fall back to the observation id so observations without a traceId
+        // deterministically link to their wrapper trace (created below with
+        // id = observation id) instead of a random UUID per event that would
+        // point to a non-existent trace.
+        trace_id: obs.body.traceId ?? explicitTraceId ?? entityId,
         type: observationType,
         name: obs.body.name,
         environment:
