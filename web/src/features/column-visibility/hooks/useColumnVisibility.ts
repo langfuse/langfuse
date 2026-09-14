@@ -9,6 +9,16 @@ import {
   type OneTimeMigration,
 } from "@/src/features/column-visibility/lib/one-time-migration";
 
+// Stable identity for the fallback, so an unusable stored value does not make
+// a new object on every render (the value is a dependency of the effect below).
+const EMPTY_VISIBILITY_STATE: VisibilityState = {};
+
+// Local storage is hand-editable and keys get reused, so a parsed value can be
+// any shape — an array, null, a primitive — and every consumer here indexes it
+// or runs `in` against it.
+const isVisibilityState = (value: unknown): value is VisibilityState =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
 // returns deep copy of local storage object
 const readStoredVisibilityState = (
   localStorageKey: string,
@@ -18,7 +28,17 @@ const readStoredVisibilityState = (
   }
   try {
     const storedValue = localStorage.getItem(localStorageKey);
-    return storedValue ? JSON.parse(storedValue) : {};
+    if (!storedValue) return {};
+    const parsed: unknown = JSON.parse(storedValue);
+    if (!isVisibilityState(parsed)) return {};
+    // Values matter as much as the shape: entries whose value is not a boolean
+    // are not column visibility, and they outlive the object they came from
+    // (nothing else prunes them) until a saved view rejects them.
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        ([, visible]) => typeof visible === "boolean",
+      ),
+    ) as VisibilityState;
   } catch (error) {
     console.error("Error reading from local storage", error);
     return {};
@@ -57,8 +77,15 @@ function useColumnVisibility<TData>(
     return visibilityState;
   };
 
-  const [columnVisibility, setColumnVisibility] =
+  const [storedColumnVisibility, setColumnVisibility] =
     useLocalStorage<VisibilityState>(localStorageKey, initialVisibilityState());
+  // useLocalStorage hands back whatever the key holds — its cross-tab and
+  // same-tab listeners parse and set without checking — so coerce here: the
+  // value this hook exposes is always an object. The effect below rewrites the
+  // key, which heals a wrong-shaped one.
+  const columnVisibility = isVisibilityState(storedColumnVisibility)
+    ? storedColumnVisibility
+    : EMPTY_VISIBILITY_STATE;
 
   useEffect(() => {
     let initialColumnVisibility = initialVisibilityState();
