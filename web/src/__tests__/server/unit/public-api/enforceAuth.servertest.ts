@@ -56,11 +56,10 @@ describe("getOrgId", () => {
       orgId: ORG,
     });
   });
-  it("resolves a header disagreeing with the bound org, leaving the denial to the policy", () => {
-    expect(getOrgId(orgKey(), req({}, { [orgIdHeader]: "org_2" }))).toEqual({
-      success: true,
-      orgId: "org_2",
-    });
+  it("403s a header disagreeing with the bound org", () => {
+    expect(
+      getOrgId(orgKey(), req({}, { [orgIdHeader]: "org_2" })),
+    ).toMatchObject({ success: false, error: expect.any(ForbiddenError) });
   });
   it("403s a principal carrying no binding", () => {
     expect(getOrgId(adminKey(), req())).toMatchObject({

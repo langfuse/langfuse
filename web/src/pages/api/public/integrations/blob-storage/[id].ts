@@ -5,7 +5,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import type { BlobStorageIntegrationStatusResponseType } from "@/src/features/public-api/types/blob-storage-integrations";
 import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
-import { authorizeBlobStorageRequest } from "@/src/pages/api/public/integrations/blob-storage/authorizeBlobStorageRequest";
+import { authorizeBlobStorageRequest } from "@/src/features/blobstorage-integration/authorizeBlobStorageRequest";
 
 export default withMiddlewares({
   GET: handleGetBlobStorageIntegrationStatus,

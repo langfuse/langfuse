@@ -145,7 +145,6 @@ const denylistPrefixes = [
   "v2/prompts", // prompt list/name handlers, own auth path
   "mcp", // MCP server, own auth path
   "otel", // ingestion handlers read the raw request stream, not drivable via node-mocks-http
-  "integrations/blob-storage/authorizeBlobStorageRequest", // helper, not a route
   "slack", // Slack OAuth, own auth path
 ];
 

@@ -1,9 +1,9 @@
 import { type NextApiRequest } from "next";
 
 import {
-  ForbiddenError,
-  InternalServerError,
-  LangfuseNotFoundError,
+  type ForbiddenError,
+  type InternalServerError,
+  type LangfuseNotFoundError,
   type UnauthorizedError,
 } from "@langfuse/shared";
 import { type ApiAccessScope } from "@langfuse/shared/src/server";
@@ -13,11 +13,14 @@ import { authorize } from "@/src/features/auth/policy/authorize";
 import { authenticator } from "@/src/features/apiKey/authenticator";
 import { toApiAccessScope } from "@/src/features/public-api/server/toApiAccessScope";
 import {
+  forbiddenError,
+  internalServerError,
   isOrgAction,
+  notFoundError,
   type Action,
   type AuthorizationContext,
   type Decision,
-  type ErrorResult as ErrorResultOf,
+  type ErrorResult,
   type Principal,
   type Resource,
   type Success,
@@ -29,7 +32,7 @@ const orgIdHeader = "x-langfuse-organization-id";
 /** projectIdHeader selects the target project for keys without a bound project. */
 const projectIdHeader = "x-langfuse-project-id";
 
-/** enforceAuth authenticates the request, then routes it to the admin, organization, or project flow its principal and action select. */
+/** enforceAuth authenticates the request and authorizes the action for the given endpoint, or resolves context without a connection-level check when no action is given (combines authz and authn). */
 export async function enforceAuth({
   req,
   action,
@@ -43,16 +46,17 @@ export async function enforceAuth({
   });
   if (!auth.success) return auth;
 
-  const adminAuth = await enforceAdminAuth(auth.context, req, action);
-  if (adminAuth) return adminAuth;
-
-  const orgAuth = await enforceOrgAuth(auth.context, req, action);
-  if (orgAuth) return orgAuth;
-
-  const projectAuth = await enforceProjectAuth(auth.context, req, action);
-  if (projectAuth) return projectAuth;
-
-  return internalServerError(`unexpected principal on the public-API`);
+  const { context } = auth;
+  switch (context.principal.kind) {
+    case "admin":
+      return enforceAdminAuth(context, req, action);
+    case "apiKey":
+      return action !== undefined && isOrgAction(action)
+        ? enforceOrgAuth(context, req, action)
+        : enforceProjectAuth(context, req, action);
+    default:
+      return internalServerError(`Unexpected principal on the public api`);
+  }
 }
 
 /** enforceAdminAuth resolves, authorizes, and scopes a self-host admin-key request against its target project; the authenticator admits admin keys only on opted-in, non-Cloud routes. */
@@ -60,9 +64,7 @@ async function enforceAdminAuth(
   context: AuthorizationContext,
   req: NextApiRequest,
   action: Action | undefined,
-): Promise<EnforceAuthResult | null> {
-  if (context.principal.kind !== "admin") return null;
-
+): Promise<EnforceAuthResult> {
   const projectId = getHeaderProjectId(req);
   if (!projectId) return forbiddenError(`Missing '${projectIdHeader}' header`);
 
@@ -80,15 +82,7 @@ function enforceOrgAuth(
   context: AuthorizationContext,
   req: NextApiRequest,
   action: Action | undefined,
-): EnforceAuthResult | null {
-  if (
-    context.principal.kind !== "apiKey" ||
-    action === undefined ||
-    !isOrgAction(action)
-  ) {
-    return null;
-  }
-
+): EnforceAuthResult {
   const org = getOrgId(context, req);
   if (!org.success) return org;
 
@@ -103,14 +97,7 @@ function enforceProjectAuth(
   context: AuthorizationContext,
   req: NextApiRequest,
   action: Action | undefined,
-): EnforceAuthResult | null {
-  if (
-    context.principal.kind !== "apiKey" ||
-    (action !== undefined && isOrgAction(action))
-  ) {
-    return null;
-  }
-
+): EnforceAuthResult {
   const project = getProjectId(context, req);
   if (!project.success) return project;
 
@@ -123,11 +110,10 @@ function enforceProjectAuth(
   });
   if (!decision.success) return decision;
 
-  return access(
-    context,
-    context.principal.boundResource.orgId,
-    project.projectId,
-  );
+  const orgId = getBoundOrgId(context);
+  if (!orgId) return internalServerError(`Missing bound org on api-key`);
+
+  return access(context, orgId, project.projectId);
 }
 
 /** authorizeAction authorizes against a given action, or passes when the route asserts none and authorizes each item itself. */
@@ -140,14 +126,15 @@ function authorizeAction(
   return authorize(context, action, resource);
 }
 
-/** getOrgId resolves the target org from the header, falling back to the key's bound org; whether the key may act on it is the policy's call. */
+/** getOrgId resolves the target org the key's bound org and the header agree on. */
 function getOrgId(
   context: AuthorizationContext,
   req: NextApiRequest,
-): ResolvedOrg | ErrorResult {
-  const orgId = first([getHeaderOrgId(req), getBoundOrgId(context)]);
-  if (!orgId) {
-    return forbiddenError(`Missing '${orgIdHeader}' header`);
+): ResolvedOrg | ErrorResult<ForbiddenError> {
+  const requested = [getHeaderOrgId(req), getBoundOrgId(context)];
+  const orgId = first(requested);
+  if (!equal(requested) || !orgId) {
+    return forbiddenError();
   }
 
   return { success: true, orgId };
@@ -157,7 +144,7 @@ function getOrgId(
 function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
-): ResolvedProject | ErrorResult {
+): ResolvedProject | ErrorResult<ForbiddenError> {
   const requested = [
     getBoundProjectId(context),
     getUrlProjectId(req),
@@ -175,7 +162,7 @@ function getProjectId(
 /** lookupProjectOrgId reads a project's org from the database, 404ing when the project is absent. */
 async function lookupProjectOrgId(
   projectId: string,
-): Promise<ResolvedOrg | ErrorResult> {
+): Promise<ResolvedOrg | ErrorResult<LangfuseNotFoundError>> {
   const project = await prisma.project.findUnique({
     where: { id: projectId, deletedAt: null },
     select: { orgId: true },
@@ -240,23 +227,6 @@ function first(os: (string | undefined)[]): string | undefined {
   return os.find((o) => o !== undefined);
 }
 
-/** forbiddenError is a 403 ErrorResult carrying an optional message. */
-function forbiddenError(message?: string): ErrorResultOf<ForbiddenError> {
-  return { success: false, error: new ForbiddenError(message) };
-}
-
-/** notFoundError is a 404 ErrorResult carrying an optional message. */
-function notFoundError(message?: string): ErrorResultOf<LangfuseNotFoundError> {
-  return { success: false, error: new LangfuseNotFoundError(message) };
-}
-
-/** internalServerError is a 500 ErrorResult carrying an optional message. */
-function internalServerError(
-  message?: string,
-): ErrorResultOf<InternalServerError> {
-  return { success: false, error: new InternalServerError(message) };
-}
-
 /** access is returned when the enforceAuth grants access */
 function access(
   context: AuthorizationContext,
@@ -288,15 +258,14 @@ type AccessResult = Success & {
 };
 
 /** EnforceAuthResult is the authorized scope, or the typed error the route renders. */
-export type EnforceAuthResult = AccessResult | ErrorResult;
-
-/** ErrorResult is a failed enforceAuth outcome carrying any error the pipeline surfaces. */
-type ErrorResult = ErrorResultOf<
-  | UnauthorizedError
-  | InternalServerError
-  | ForbiddenError
-  | LangfuseNotFoundError
->;
+export type EnforceAuthResult =
+  | AccessResult
+  | ErrorResult<
+      | UnauthorizedError
+      | InternalServerError
+      | ForbiddenError
+      | LangfuseNotFoundError
+    >;
 
 /** ResolvedOrg is org target resolution's success outcome. */
 type ResolvedOrg = Success & { orgId: string };
