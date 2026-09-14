@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    providers::openai::{Limits, OpenAi},
+    providers::openai::{OpenAiProvider, ProviderLimits},
     test_support::{FakeServer, resolution_response},
 };
 use futures_util::{StreamExt, stream};
@@ -18,22 +18,22 @@ async fn invalid_credentials_are_rejected_before_admission_or_body_reads() {
     })
     .await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let provider_client = OpenAi::for_test(
+    let provider_client = OpenAiProvider::for_test(
         provider.url.clone(),
-        Limits {
+        ProviderLimits {
             active: 1,
-            ..Limits::default()
+            ..ProviderLimits::default()
         },
     );
-    let admission = provider_client.admit().unwrap();
-    let gateway = Gateway::start(Some(Execution::for_test(
-        web.resolver(),
+    let permit = provider_client.try_admit().unwrap();
+    let gateway = Gateway::start(Some(InferenceService::for_test(
+        web.control_plane(),
         provider_client,
         1,
     )))
     .await;
     // Exercise both an exhausted and an available execution pool.
-    for occupied in [Some(admission), None] {
+    for occupied in [Some(permit), None] {
         let body = Body::from_stream(stream::poll_fn(
             |_| -> Poll<Option<Result<&'static str, Infallible>>> {
                 panic!("an invalid credential must be rejected before polling the body");
@@ -87,9 +87,9 @@ async fn resolution_capacity_is_bounded_and_released_on_cancellation_and_failure
     })
     .await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let service = Execution::for_test(
-        web.resolver(),
-        OpenAi::for_test(provider.url.clone(), Limits::default()),
+    let service = InferenceService::for_test(
+        web.control_plane(),
+        OpenAiProvider::for_test(provider.url.clone(), ProviderLimits::default()),
         1,
     );
     let gateway = Gateway::start(Some(service)).await;
@@ -138,15 +138,15 @@ async fn resolution_capacity_is_bounded_and_released_on_cancellation_and_failure
 }
 
 impl Gateway {
-    async fn start(execution: Option<Execution>) -> Self {
+    async fn start(inference: Option<InferenceService>) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
-        let state = if execution.is_some() {
-            AppState::default()
+        let state = if inference.is_some() {
+            GatewayLifecycleState::default()
         } else {
-            AppState::unconfigured()
+            GatewayLifecycleState::unconfigured()
         };
-        let app = crate::server::router(state.clone()).merge(router(execution, state.clone()));
+        let app = crate::server::router(state.clone()).merge(router(inference, state.clone()));
         let (shutdown, signal) = oneshot::channel();
         let task = tokio::spawn(crate::server::serve(
             listener,
@@ -183,10 +183,13 @@ impl Drop for Gateway {
     }
 }
 
-fn execution(web: &FakeServer, provider: &FakeServer) -> Execution {
-    Execution::for_test(
-        web.resolver(),
-        OpenAi::for_test(format!("{}/v1/responses", provider.url), Limits::default()),
+fn inference(web: &FakeServer, provider: &FakeServer) -> InferenceService {
+    InferenceService::for_test(
+        web.control_plane(),
+        OpenAiProvider::for_test(
+            format!("{}/v1/responses", provider.url),
+            ProviderLimits::default(),
+        ),
         128,
     )
 }
@@ -247,7 +250,7 @@ async fn native_json_and_sse_traverse_resolution_and_relay() {
         }
     })
     .await;
-    let gateway = Gateway::start(Some(execution(&web, &provider))).await;
+    let gateway = Gateway::start(Some(inference(&web, &provider))).await;
     let json = gateway
         .post()
         .bearer_auth("gateway-json")
@@ -277,13 +280,13 @@ async fn native_json_and_sse_traverse_resolution_and_relay() {
 async fn malformed_credentials_skip_resolution_and_oversized_body_releases_capacity() {
     let web = FakeServer::start(|_| async { resolution_response("provider-secret") }).await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let service = Execution::for_test(
-        web.resolver(),
-        OpenAi::for_test(
+    let service = InferenceService::for_test(
+        web.control_plane(),
+        OpenAiProvider::for_test(
             provider.url.clone(),
-            Limits {
+            ProviderLimits {
                 active: 1,
-                ..Limits::default()
+                ..ProviderLimits::default()
             },
         ),
         1,
@@ -366,7 +369,7 @@ async fn resolution_failures_are_sanitized_and_never_call_provider() {
     })
     .await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let gateway = Gateway::start(Some(execution(&web, &provider))).await;
+    let gateway = Gateway::start(Some(inference(&web, &provider))).await;
     for (key, status) in [
         ("401", 401),
         ("403", 403),
@@ -402,7 +405,7 @@ async fn slow_request_body_and_resolution_have_bounded_waits() {
     })
     .await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let gateway = Gateway::start(Some(execution(&web, &provider))).await;
+    let gateway = Gateway::start(Some(inference(&web, &provider))).await;
     let slow_body = gateway
         .post()
         .bearer_auth("key")
@@ -474,13 +477,13 @@ async fn active_admission_is_held_through_stream_and_shutdown_drains_it() {
         }
     })
     .await;
-    let service = Execution::for_test(
-        web.resolver(),
-        OpenAi::for_test(
+    let service = InferenceService::for_test(
+        web.control_plane(),
+        OpenAiProvider::for_test(
             provider.url.clone(),
-            Limits {
+            ProviderLimits {
                 active: 1,
-                ..Limits::default()
+                ..ProviderLimits::default()
             },
         ),
         1,
@@ -530,13 +533,13 @@ async fn client_disconnect_releases_capacity_for_the_next_request() {
             .unwrap()
     })
     .await;
-    let service = Execution::for_test(
-        web.resolver(),
-        OpenAi::for_test(
+    let service = InferenceService::for_test(
+        web.control_plane(),
+        OpenAiProvider::for_test(
             provider.url.clone(),
-            Limits {
+            ProviderLimits {
                 active: 1,
-                ..Limits::default()
+                ..ProviderLimits::default()
             },
         ),
         1,

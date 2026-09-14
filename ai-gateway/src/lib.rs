@@ -1,6 +1,6 @@
 pub mod config;
-pub mod execution;
 pub mod http;
+pub mod inference;
 pub mod providers;
 pub mod resolution;
 pub mod server;

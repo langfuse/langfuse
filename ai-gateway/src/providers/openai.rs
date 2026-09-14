@@ -11,18 +11,18 @@ use tokio::{
     time::Instant,
 };
 
-use crate::{resolution::ResolvedExecution, transport};
+use crate::{resolution::ResolvedRequestContext, transport};
 
-pub use crate::transport::RelayError as Error;
+pub use crate::transport::ProviderError;
 
-pub(crate) struct Limits {
+pub(crate) struct ProviderLimits {
     pub active: usize,
     pub execution_timeout: Duration,
     pub headers_timeout: Duration,
     pub read_timeout: Duration,
 }
 
-impl Default for Limits {
+impl Default for ProviderLimits {
     fn default() -> Self {
         Self {
             active: 128,
@@ -34,35 +34,35 @@ impl Default for Limits {
 }
 
 /// An admitted execution. Dropping it releases capacity; there is no waiting queue.
-pub struct Admission {
+pub struct RequestPermit {
     _permit: OwnedSemaphorePermit,
     deadline: Instant,
 }
 
 /// A pooled client for the official `OpenAI` Responses endpoint.
-pub struct OpenAi {
+pub struct OpenAiProvider {
     client: Client,
     capacity: Arc<Semaphore>,
-    limits: Limits,
+    limits: ProviderLimits,
     #[cfg(test)]
     endpoint: String,
 }
 
-impl OpenAi {
+impl OpenAiProvider {
     /// Construct the provider transport with bounded admission and transport waits.
     ///
     /// # Errors
-    /// Returns [`Error::Configuration`] when the HTTPS client cannot be initialized.
-    pub fn new(max_active_requests: usize) -> Result<Self, Error> {
-        Self::with_limits(Limits {
+    /// Returns [`ProviderError::Configuration`] when the HTTPS client cannot be initialized.
+    pub fn new(max_active_requests: usize) -> Result<Self, ProviderError> {
+        Self::with_limits(ProviderLimits {
             active: max_active_requests,
-            ..Limits::default()
+            ..ProviderLimits::default()
         })
     }
 
-    fn with_limits(limits: Limits) -> Result<Self, Error> {
+    fn with_limits(limits: ProviderLimits) -> Result<Self, ProviderError> {
         if !(1..=Semaphore::MAX_PERMITS).contains(&limits.active) {
-            return Err(Error::Configuration);
+            return Err(ProviderError::Configuration);
         }
         let client = Client::builder()
             .redirect(reqwest::redirect::Policy::none())
@@ -76,7 +76,7 @@ impl OpenAi {
             .read_timeout(limits.read_timeout)
             .pool_max_idle_per_host(16)
             .build()
-            .map_err(|_| Error::Configuration)?;
+            .map_err(|_| ProviderError::Configuration)?;
         Ok(Self {
             client,
             capacity: Arc::new(Semaphore::new(limits.active)),
@@ -89,14 +89,14 @@ impl OpenAi {
     /// Reserve capacity for an authenticated request before reading its body.
     ///
     /// # Errors
-    /// Returns [`Error::Busy`] immediately when all execution slots are occupied.
-    pub fn admit(&self) -> Result<Admission, Error> {
+    /// Returns [`ProviderError::Busy`] immediately when all execution slots are occupied.
+    pub fn try_admit(&self) -> Result<RequestPermit, ProviderError> {
         let permit = self
             .capacity
             .clone()
             .try_acquire_owned()
-            .map_err(|_| Error::Busy)?;
-        Ok(Admission {
+            .map_err(|_| ProviderError::Busy)?;
+        Ok(RequestPermit {
             _permit: permit,
             deadline: Instant::now() + self.limits.execution_timeout,
         })
@@ -108,26 +108,24 @@ impl OpenAi {
     /// # Errors
     /// Returns a sanitized error for invalid credentials, transport failures or a
     /// deadline before response headers arrive. Later failures terminate the body.
-    pub async fn execute(
+    pub async fn forward(
         &self,
-        admission: Admission,
-        execution: ResolvedExecution,
+        permit: RequestPermit,
+        context: ResolvedRequestContext,
         headers: &HeaderMap,
         body: Bytes,
-    ) -> Result<Response<Body>, Error> {
+    ) -> Result<Response<Body>, ProviderError> {
         #[cfg(not(test))]
         let endpoint = "https://api.openai.com/v1/responses";
         #[cfg(test)]
         let endpoint = &self.endpoint;
 
-        let mut authorization = HeaderValue::from_str(&format!(
-            "Bearer {}",
-            execution.connection().provider_token()
-        ))
-        .map_err(|_| Error::Configuration)?;
+        let mut authorization =
+            HeaderValue::from_str(&format!("Bearer {}", context.connection().provider_token()))
+                .map_err(|_| ProviderError::Configuration)?;
         authorization.set_sensitive(true);
         let response = tokio::time::timeout_at(
-            admission
+            permit
                 .deadline
                 .min(Instant::now() + self.limits.headers_timeout),
             self.client
@@ -138,24 +136,23 @@ impl OpenAi {
                 .send(),
         )
         .await
-        .map_err(|_| Error::Timeout)?
+        .map_err(|_| ProviderError::Timeout)?
         .map_err(|error| {
             if error.is_timeout() {
-                Error::Timeout
+                ProviderError::Timeout
             } else {
-                Error::Transport
+                ProviderError::Transport
             }
         })?;
         let mut downstream = Response::new(Body::empty());
         *downstream.status_mut() = response.status();
         *downstream.headers_mut() = transport::response_headers(response.headers());
-        *downstream.body_mut() =
-            transport::relay(response, admission.deadline, (admission, execution));
+        *downstream.body_mut() = transport::relay(response, permit.deadline, (permit, context));
         Ok(downstream)
     }
 
     #[cfg(test)]
-    pub(crate) fn for_test(endpoint: String, limits: Limits) -> Self {
+    pub(crate) fn for_test(endpoint: String, limits: ProviderLimits) -> Self {
         let mut provider = Self::with_limits(limits).unwrap();
         provider.endpoint = endpoint;
         provider

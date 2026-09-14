@@ -12,79 +12,80 @@ use axum::{
 use serde::Serialize;
 
 use crate::{
-    execution::{Execution, ExecutionError},
-    providers::openai::Error as ProviderError,
-    resolution::ResolveError,
-    server::AppState,
+    inference::{InferenceService, RequestPreparationError},
+    providers::openai::ProviderError,
+    resolution::ResolutionError,
+    server::GatewayLifecycleState,
 };
 
 const MAX_REQUEST_BYTES: usize = 4 * 1024 * 1024;
 const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Clone)]
-struct HttpState {
-    execution: Option<Arc<Execution>>,
-    lifecycle: AppState,
+struct InferenceRouteState {
+    inference: Option<Arc<InferenceService>>,
+    lifecycle: GatewayLifecycleState,
 }
 
 /// Build inference routes. An unconfigured or draining service returns 503.
-pub fn router(execution: Option<Execution>, lifecycle: AppState) -> Router {
+pub fn router(inference: Option<InferenceService>, lifecycle: GatewayLifecycleState) -> Router {
     Router::new()
-        .route("/openai/v1/responses", post(responses))
-        .with_state(HttpState {
-            execution: execution.map(Arc::new),
+        .route("/openai/v1/responses", post(handle_responses))
+        .with_state(InferenceRouteState {
+            inference: inference.map(Arc::new),
             lifecycle,
         })
 }
 
-async fn responses(
-    State(state): State<HttpState>,
+async fn handle_responses(
+    State(state): State<InferenceRouteState>,
     request: Request,
-) -> Result<Response, GatewayError> {
-    let execution = state
-        .execution
+) -> Result<Response, InferenceHttpError> {
+    let inference = state
+        .inference
         .as_ref()
         .filter(|_| state.lifecycle.is_ready())
-        .ok_or(GatewayError::Unavailable)?;
+        .ok_or(InferenceHttpError::Unavailable)?;
     let gateway_key = gateway_key(request.headers())?.to_owned();
-    let (admission, resolved) =
-        execution
-            .prepare(&gateway_key)
-            .await
-            .map_err(|error| match error {
-                ExecutionError::Resolution(error) => GatewayError::Resolution(error),
-                ExecutionError::Provider(error) => GatewayError::Provider(error),
-            })?;
+    let (permit, context) = inference
+        .resolve_and_admit(&gateway_key)
+        .await
+        .map_err(|error| match error {
+            RequestPreparationError::Resolution(error) => InferenceHttpError::Resolution(error),
+            RequestPreparationError::Provider(error) => InferenceHttpError::Provider(error),
+        })?;
     let (parts, body) = request.into_parts();
     let bytes = tokio::time::timeout(REQUEST_READ_TIMEOUT, to_bytes(body, MAX_REQUEST_BYTES))
         .await
-        .map_err(|_| GatewayError::RequestTimeout)?
+        .map_err(|_| InferenceHttpError::RequestTimeout)?
         .map_err(|error| {
             if error
                 .source()
                 .is_some_and(<dyn Error + 'static>::is::<http_body_util::LengthLimitError>)
             {
-                GatewayError::TooLarge
+                InferenceHttpError::TooLarge
             } else {
-                GatewayError::InvalidBody
+                InferenceHttpError::InvalidBody
             }
         })?;
-    execution
-        .execute(admission, resolved, &parts.headers, bytes)
+    inference
+        .forward(permit, context, &parts.headers, bytes)
         .await
-        .map_err(GatewayError::Provider)
+        .map_err(InferenceHttpError::Provider)
 }
 
-fn gateway_key(headers: &HeaderMap) -> Result<&str, GatewayError> {
+fn gateway_key(headers: &HeaderMap) -> Result<&str, InferenceHttpError> {
     let mut values = headers.get_all(header::AUTHORIZATION).iter();
     let value = values
         .next()
         .and_then(|value| value.to_str().ok())
-        .ok_or(GatewayError::Credential)?;
+        .ok_or(InferenceHttpError::Credential)?;
     if values.next().is_some() {
-        return Err(GatewayError::Credential);
+        return Err(InferenceHttpError::Credential);
     }
-    let (scheme, token) = value.split_once(' ').ok_or(GatewayError::Credential)?;
+    let (scheme, token) = value
+        .split_once(' ')
+        .ok_or(InferenceHttpError::Credential)?;
     if !scheme.eq_ignore_ascii_case("Bearer")
         || token.is_empty()
         || token.len() > 8192
@@ -92,27 +93,27 @@ fn gateway_key(headers: &HeaderMap) -> Result<&str, GatewayError> {
             .bytes()
             .all(|byte| byte.is_ascii_graphic() && byte != b',')
     {
-        return Err(GatewayError::Credential);
+        return Err(InferenceHttpError::Credential);
     }
     Ok(token)
 }
 
-enum GatewayError {
+enum InferenceHttpError {
     Unavailable,
     Credential,
     TooLarge,
     RequestTimeout,
     InvalidBody,
-    Resolution(ResolveError),
+    Resolution(ResolutionError),
     Provider(ProviderError),
 }
 
 #[derive(Serialize)]
-struct ErrorEnvelope {
-    error: ErrorDetail,
+struct OpenAiErrorResponse {
+    error: OpenAiErrorDetail,
 }
 #[derive(Serialize)]
-struct ErrorDetail {
+struct OpenAiErrorDetail {
     message: &'static str,
     #[serde(rename = "type")]
     kind: &'static str,
@@ -120,9 +121,9 @@ struct ErrorDetail {
     code: &'static str,
 }
 
-impl IntoResponse for GatewayError {
+impl IntoResponse for InferenceHttpError {
     fn into_response(self) -> Response<Body> {
-        use ResolveError as R;
+        use ResolutionError as R;
         let (status, message, kind, code) = match self {
             Self::Credential | Self::Resolution(R::InvalidCredential | R::Authentication) => (
                 StatusCode::UNAUTHORIZED,
@@ -184,8 +185,8 @@ impl IntoResponse for GatewayError {
         };
         (
             status,
-            Json(ErrorEnvelope {
-                error: ErrorDetail {
+            Json(OpenAiErrorResponse {
+                error: OpenAiErrorDetail {
                     message,
                     kind,
                     param: None,

@@ -1,10 +1,10 @@
 use std::{error::Error, io, net::SocketAddr, process::ExitCode};
 
 use ai_gateway::{
-    config::{Config, LogFormat},
-    execution::Execution,
+    config::{GatewayConfig, LogFormat},
     http,
-    server::{self, AppState},
+    inference::InferenceService,
+    server::{self, GatewayLifecycleState},
 };
 use tokio::net::TcpListener;
 
@@ -20,7 +20,7 @@ async fn main() -> ExitCode {
 }
 
 async fn run() -> Result<(), Box<dyn Error>> {
-    let config = Config::from_env()?;
+    let config = GatewayConfig::from_env()?;
     let logging = tracing_subscriber::fmt()
         .with_max_level(config.log_level)
         .with_target(false);
@@ -28,23 +28,23 @@ async fn run() -> Result<(), Box<dyn Error>> {
         LogFormat::Text => logging.compact().init(),
         LogFormat::Json => logging.json().init(),
     }
-    let execution = config
-        .resolver
-        .map(|resolver| {
-            Execution::new(
-                resolver,
+    let inference = config
+        .control_plane
+        .map(|control_plane| {
+            InferenceService::new(
+                control_plane,
                 config.max_active_requests,
                 config.max_concurrent_resolutions,
             )
         })
         .transpose()?;
-    let inference_enabled = execution.is_some();
+    let inference_enabled = inference.is_some();
     let state = if inference_enabled {
-        AppState::default()
+        GatewayLifecycleState::default()
     } else {
-        AppState::unconfigured()
+        GatewayLifecycleState::unconfigured()
     };
-    let app = server::router(state.clone()).merge(http::router(execution, state.clone()));
+    let app = server::router(state.clone()).merge(http::router(inference, state.clone()));
     let shutdown = shutdown_signal()?;
     let listener = bind_listener(config.listen_address, config.auto_increment_listen_port).await?;
     tracing::info!(address = %listener.local_addr()?, inference_enabled, "gateway listening");

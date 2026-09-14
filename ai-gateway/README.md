@@ -188,23 +188,23 @@ probes, rejection of unauthenticated inference and a clean SIGTERM exit, then re
 
 ### Web resolution client
 
-`resolution::Resolver` resolves a gateway key through an operator-configured Web
+`resolution::ControlPlaneClient` resolves a gateway key through an operator-configured Web
 base URL. The binary initializes it when a Web URL is configured. The
 caller supplies the existing `LANGFUSE_AI_GATEWAY_SERVICE_KEY` and a trusted Web
-base URL to `ResolverConfig::new`. HTTPS is required except on loopback for local
+base URL to `ControlPlaneConfig::new`. HTTPS is required except on loopback for local
 development. URLs cannot contain credentials, a query or fragment. Include the
 Web deployment's `NEXT_PUBLIC_BASE_PATH`, if set: both `https://host/app` and
 `https://host/app/` resolve through `/app/api/internal/ai-gateway/v1/resolve`.
 
 ```rust,no_run
-use ai_gateway::resolution::{ApiFormat, ResolveError, Resolver, ResolverConfig};
+use ai_gateway::resolution::{ApiFormat, ResolutionError, ControlPlaneClient, ControlPlaneConfig};
 
 async fn example(web_base_url: &str, service_key: &str, gateway_key: &str)
-    -> Result<(), ResolveError>
+    -> Result<(), ResolutionError>
 {
-    let resolver = Resolver::new(ResolverConfig::new(web_base_url, service_key)?)?;
-    let execution = resolver.resolve(gateway_key, ApiFormat::OpenAiResponses).await?;
-    assert_eq!(execution.connection().base_url(), "https://api.openai.com/v1");
+    let control_plane = ControlPlaneClient::new(ControlPlaneConfig::new(web_base_url, service_key)?)?;
+    let context = control_plane.resolve(gateway_key, ApiFormat::OpenAiResponses).await?;
+    assert_eq!(context.connection().base_url(), "https://api.openai.com/v1");
     Ok(())
 }
 ```
@@ -256,7 +256,7 @@ cargo test --locked
   shutdown future are injected, so tests do not depend on fixed ports or signals.
 - `main.rs`: configuration, logging, signal registration and process exit.
 - `http.rs`: credential extraction, bounded body reads and gateway error envelopes.
-- `execution.rs`: resolve then execute orchestration with immutable trusted context.
+- `inference.rs`: `InferenceService` coordinates resolution, admission and forwarding.
 - `providers/openai.rs`: fixed destination, provider credentials and admission.
 - `transport/mod.rs`: header allowlists, bounded byte relay and response lifetime.
 - `resolution/mod.rs`: trusted base URL configuration and bounded Web HTTP client.

@@ -16,7 +16,9 @@ use axum::{
 use serde_json::json;
 use tokio::{net::TcpListener, task::JoinHandle};
 
-use crate::resolution::{ApiFormat, ResolvedExecution, Resolver, ResolverConfig};
+use crate::resolution::{
+    ApiFormat, ControlPlaneClient, ControlPlaneConfig, ResolvedRequestContext,
+};
 
 pub(crate) struct FakeServer {
     pub url: String,
@@ -48,8 +50,9 @@ impl FakeServer {
         self.calls.load(Ordering::SeqCst)
     }
 
-    pub fn resolver(&self) -> Resolver {
-        Resolver::new(ResolverConfig::new(&self.url, "test-service-key").unwrap()).unwrap()
+    pub fn control_plane(&self) -> ControlPlaneClient {
+        ControlPlaneClient::new(ControlPlaneConfig::new(&self.url, "test-service-key").unwrap())
+            .unwrap()
     }
 }
 
@@ -85,14 +88,14 @@ pub(crate) fn resolution_response(provider_token: &str) -> Response<Body> {
         .unwrap()
 }
 
-pub(crate) async fn resolved_execution(provider_token: &str) -> ResolvedExecution {
+pub(crate) async fn resolved_request_context(provider_token: &str) -> ResolvedRequestContext {
     let token = provider_token.to_owned();
     let web = FakeServer::start(move |_| {
         let token = token.clone();
         async move { resolution_response(&token) }
     })
     .await;
-    web.resolver()
+    web.control_plane()
         .resolve("gateway-secret", ApiFormat::OpenAiResponses)
         .await
         .unwrap()

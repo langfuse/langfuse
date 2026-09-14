@@ -1,16 +1,16 @@
 use super::*;
-use crate::test_support::{FakeServer, resolved_execution};
+use crate::test_support::{FakeServer, resolved_request_context};
 use axum::{body::to_bytes, http::StatusCode};
 use futures_util::{StreamExt, stream};
 use std::{convert::Infallible, future::pending};
 use tokio::sync::Notify;
 
-fn provider(server: &FakeServer, active: usize) -> OpenAi {
-    OpenAi::for_test(
+fn provider(server: &FakeServer, active: usize) -> OpenAiProvider {
+    OpenAiProvider::for_test(
         format!("{}/v1/responses", server.url),
-        Limits {
+        ProviderLimits {
             active,
-            ..Limits::default()
+            ..ProviderLimits::default()
         },
     )
 }
@@ -71,9 +71,9 @@ async fn preserves_opaque_bytes_and_isolates_request_and_response_headers() {
         );
     }
     let response = relay
-        .execute(
-            relay.admit().unwrap(),
-            resolved_execution("provider-secret").await,
+        .forward(
+            relay.try_admit().unwrap(),
+            resolved_request_context("provider-secret").await,
             &headers,
             Bytes::from_static(REQUEST),
         )
@@ -95,7 +95,7 @@ async fn preserves_opaque_bytes_and_isolates_request_and_response_headers() {
         to_bytes(response.into_body(), 1024).await.unwrap(),
         RESPONSE
     );
-    assert!(relay.admit().is_ok());
+    assert!(relay.try_admit().is_ok());
     assert_eq!(upstream.calls(), 1);
 }
 
@@ -118,9 +118,9 @@ async fn preserves_provider_failures_without_retries_or_redirects() {
         .await;
         let relay = provider(&upstream, 1);
         let response = relay
-            .execute(
-                relay.admit().unwrap(),
-                resolved_execution("provider-secret").await,
+            .forward(
+                relay.try_admit().unwrap(),
+                resolved_request_context("provider-secret").await,
                 &HeaderMap::new(),
                 Bytes::new(),
             )
@@ -160,9 +160,9 @@ async fn streams_sse_incrementally_and_holds_admission_until_eof() {
     .await;
     let relay = provider(&upstream, 1);
     let response = relay
-        .execute(
-            relay.admit().unwrap(),
-            resolved_execution("provider-secret").await,
+        .forward(
+            relay.try_admit().unwrap(),
+            resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             Bytes::new(),
         )
@@ -178,14 +178,14 @@ async fn streams_sse_incrementally_and_holds_admission_until_eof() {
             .unwrap(),
         "data: first\n\n"
     );
-    assert!(matches!(relay.admit(), Err(Error::Busy)));
+    assert!(matches!(relay.try_admit(), Err(ProviderError::Busy)));
     release.notify_one();
     let mut remaining = Vec::new();
     while let Some(chunk) = body.next().await {
         remaining.extend_from_slice(&chunk.unwrap());
     }
     assert_eq!(remaining, b"data: [DONE]\n\n");
-    assert!(relay.admit().is_ok());
+    assert!(relay.try_admit().is_ok());
 }
 
 #[tokio::test]
@@ -203,18 +203,18 @@ async fn simultaneous_requests_keep_provider_credentials_and_bodies_isolated() {
     })
     .await;
     let relay = provider(&upstream, 2);
-    let alice = resolved_execution("alice-secret").await;
-    let bob = resolved_execution("bob-secret").await;
+    let alice = resolved_request_context("alice-secret").await;
+    let bob = resolved_request_context("bob-secret").await;
     let headers = HeaderMap::new();
     let (alice, bob) = tokio::join!(
-        relay.execute(
-            relay.admit().unwrap(),
+        relay.forward(
+            relay.try_admit().unwrap(),
             alice,
             &headers,
             Bytes::from_static(b"alice-body")
         ),
-        relay.execute(
-            relay.admit().unwrap(),
+        relay.forward(
+            relay.try_admit().unwrap(),
             bob,
             &headers,
             Bytes::from_static(b"bob-body")
@@ -260,9 +260,9 @@ async fn dropping_downstream_cancels_upstream_and_releases_admission() {
     let upstream = stalled_provider(dropped.clone()).await;
     let relay = provider(&upstream, 1);
     let response = relay
-        .execute(
-            relay.admit().unwrap(),
-            resolved_execution("provider-secret").await,
+        .forward(
+            relay.try_admit().unwrap(),
+            resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             Bytes::new(),
         )
@@ -270,9 +270,9 @@ async fn dropping_downstream_cancels_upstream_and_releases_admission() {
         .unwrap();
     let mut body = response.into_body().into_data_stream();
     assert_eq!(body.next().await.unwrap().unwrap(), "first");
-    assert!(matches!(relay.admit(), Err(Error::Busy)));
+    assert!(matches!(relay.try_admit(), Err(ProviderError::Busy)));
     drop(body);
-    assert!(relay.admit().is_ok());
+    assert!(relay.try_admit().is_ok());
     tokio::time::timeout(Duration::from_secs(1), dropped.notified())
         .await
         .expect("upstream body should be dropped on cancellation");
@@ -285,38 +285,38 @@ async fn deadlines_bound_headers_and_stalled_bodies_without_exposing_transport_d
         Response::new(Body::empty())
     })
     .await;
-    let relay = OpenAi::for_test(
+    let relay = OpenAiProvider::for_test(
         upstream.url.clone(),
-        Limits {
+        ProviderLimits {
             headers_timeout: Duration::from_millis(30),
-            ..Limits::default()
+            ..ProviderLimits::default()
         },
     );
     let response = relay
-        .execute(
-            relay.admit().unwrap(),
-            resolved_execution("provider-secret").await,
+        .forward(
+            relay.try_admit().unwrap(),
+            resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             Bytes::new(),
         )
         .await;
-    assert!(matches!(response, Err(Error::Timeout)));
-    assert!(relay.admit().is_ok());
+    assert!(matches!(response, Err(ProviderError::Timeout)));
+    assert!(relay.try_admit().is_ok());
 
     let dropped = Arc::new(Notify::new());
     let upstream = stalled_provider(dropped.clone()).await;
-    let relay = OpenAi::for_test(
+    let relay = OpenAiProvider::for_test(
         upstream.url.clone(),
-        Limits {
+        ProviderLimits {
             execution_timeout: Duration::from_millis(100),
-            ..Limits::default()
+            ..ProviderLimits::default()
         },
     );
-    let execution = resolved_execution("provider-secret").await;
+    let context = resolved_request_context("provider-secret").await;
     let response = relay
-        .execute(
-            relay.admit().unwrap(),
-            execution,
+        .forward(
+            relay.try_admit().unwrap(),
+            context,
             &HeaderMap::new(),
             Bytes::new(),
         )
@@ -329,5 +329,5 @@ async fn deadlines_bound_headers_and_stalled_bodies_without_exposing_transport_d
     let error = to_bytes(response.into_body(), 1024).await.unwrap_err();
     assert!(!error.to_string().contains(&upstream.url));
     assert!(!error.to_string().contains("provider-secret"));
-    assert!(relay.admit().is_ok());
+    assert!(relay.try_admit().is_ok());
 }

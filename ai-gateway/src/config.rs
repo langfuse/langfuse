@@ -1,9 +1,9 @@
-use crate::resolution::ResolverConfig;
+use crate::resolution::ControlPlaneConfig;
 use std::{env, error::Error, fmt, net::SocketAddr, time::Duration};
 use tracing::level_filters::LevelFilter;
 
-pub struct Config {
-    pub resolver: Option<ResolverConfig>,
+pub struct GatewayConfig {
+    pub control_plane: Option<ControlPlaneConfig>,
     pub listen_address: SocketAddr,
     pub auto_increment_listen_port: bool,
     pub shutdown_timeout: Duration,
@@ -20,24 +20,24 @@ pub enum LogFormat {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct ConfigError(&'static str);
+pub struct GatewayConfigError(&'static str);
 
-impl fmt::Display for ConfigError {
+impl fmt::Display for GatewayConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.0)
     }
 }
 
-impl Error for ConfigError {}
+impl Error for GatewayConfigError {}
 
-impl Config {
+impl GatewayConfig {
     /// Read gateway configuration from the process environment, using defaults for absent values.
     ///
     /// # Errors
     /// Returns an error if a configured value is not Unicode or fails validation
     /// in [`Self::from_values`], or if a Web URL is configured with an invalid URL
     /// or missing/blank service key. Error messages never include supplied values.
-    pub fn from_env() -> Result<Self, ConfigError> {
+    pub fn from_env() -> Result<Self, GatewayConfigError> {
         let mut config = Self::from_values(
             read_env("LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS")?.as_deref(),
             read_env("LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT")?.as_deref(),
@@ -50,14 +50,16 @@ impl Config {
         if let Some(web_url) =
             read_env("LANGFUSE_AI_GATEWAY_WEB_URL")?.filter(|url| !url.is_empty())
         {
-            let service_key = read_env("LANGFUSE_AI_GATEWAY_SERVICE_KEY")?.ok_or(ConfigError(
+            let service_key = read_env("LANGFUSE_AI_GATEWAY_SERVICE_KEY")?.ok_or(GatewayConfigError(
                 "LANGFUSE_AI_GATEWAY_SERVICE_KEY is required when LANGFUSE_AI_GATEWAY_WEB_URL is set",
             ))?;
-            config.resolver = Some(ResolverConfig::new(&web_url, &service_key).map_err(|_| {
-                ConfigError(
-                    "invalid LANGFUSE_AI_GATEWAY_WEB_URL or LANGFUSE_AI_GATEWAY_SERVICE_KEY",
-                )
-            })?);
+            config.control_plane = Some(ControlPlaneConfig::new(&web_url, &service_key).map_err(
+                |_| {
+                    GatewayConfigError(
+                        "invalid LANGFUSE_AI_GATEWAY_WEB_URL or LANGFUSE_AI_GATEWAY_SERVICE_KEY",
+                    )
+                },
+            )?);
         }
         Ok(config)
     }
@@ -77,24 +79,28 @@ impl Config {
         log_format: Option<&str>,
         max_active_requests: Option<&str>,
         max_concurrent_resolutions: Option<&str>,
-    ) -> Result<Self, ConfigError> {
+    ) -> Result<Self, GatewayConfigError> {
         let listen_address = listen_address
             .unwrap_or("0.0.0.0:8080")
             .parse()
             .map_err(|_| {
-                ConfigError("LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS must be an IP address and port")
+                GatewayConfigError(
+                    "LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS must be an IP address and port",
+                )
             })?;
-        let auto_increment_listen_port =
-            parse_boolean(auto_increment_listen_port.unwrap_or("false")).ok_or(ConfigError(
-                "LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT must be true or false",
-            ))?;
+        let auto_increment_listen_port = parse_boolean(
+            auto_increment_listen_port.unwrap_or("false"),
+        )
+        .ok_or(GatewayConfigError(
+            "LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT must be true or false",
+        ))?;
         let seconds: u64 = shutdown_timeout.unwrap_or("10").parse().map_err(|_| {
-            ConfigError(
+            GatewayConfigError(
                 "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300",
             )
         })?;
         if !(1..=300).contains(&seconds) {
-            return Err(ConfigError(
+            return Err(GatewayConfigError(
                 "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300",
             ));
         }
@@ -106,7 +112,7 @@ impl Config {
             // Tracing has no separate fatal severity.
             "error" | "fatal" => LevelFilter::ERROR,
             _ => {
-                return Err(ConfigError(
+                return Err(GatewayConfigError(
                     "LANGFUSE_LOG_LEVEL must be trace, debug, info, warn, error or fatal",
                 ));
             }
@@ -114,10 +120,14 @@ impl Config {
         let log_format = match log_format.unwrap_or("text") {
             "text" => LogFormat::Text,
             "json" => LogFormat::Json,
-            _ => return Err(ConfigError("LANGFUSE_LOG_FORMAT must be text or json")),
+            _ => {
+                return Err(GatewayConfigError(
+                    "LANGFUSE_LOG_FORMAT must be text or json",
+                ));
+            }
         };
         Ok(Self {
-            resolver: None,
+            control_plane: None,
             listen_address,
             auto_increment_listen_port,
             shutdown_timeout: Duration::from_secs(seconds),
@@ -135,20 +145,23 @@ impl Config {
     }
 }
 
-fn concurrency_limit(value: Option<&str>, message: &'static str) -> Result<usize, ConfigError> {
+fn concurrency_limit(
+    value: Option<&str>,
+    message: &'static str,
+) -> Result<usize, GatewayConfigError> {
     value
         .unwrap_or("128")
         .parse::<usize>()
         .ok()
         .filter(|limit| (1..=tokio::sync::Semaphore::MAX_PERMITS).contains(limit))
-        .ok_or(ConfigError(message))
+        .ok_or(GatewayConfigError(message))
 }
 
-fn read_env(name: &'static str) -> Result<Option<String>, ConfigError> {
+fn read_env(name: &'static str) -> Result<Option<String>, GatewayConfigError> {
     match env::var(name) {
         Ok(value) => Ok(Some(value)),
         Err(env::VarError::NotPresent) => Ok(None),
-        Err(env::VarError::NotUnicode(_)) => Err(ConfigError(
+        Err(env::VarError::NotUnicode(_)) => Err(GatewayConfigError(
             "gateway configuration contains a non-Unicode environment value",
         )),
     }
@@ -168,7 +181,7 @@ mod tests {
 
     #[test]
     fn configuration_parses_defaults_and_overrides() {
-        let default = Config::from_values(None, None, None, None, None, None, None).unwrap();
+        let default = GatewayConfig::from_values(None, None, None, None, None, None, None).unwrap();
         assert_eq!(default.listen_address, "0.0.0.0:8080".parse().unwrap());
         assert!(!default.auto_increment_listen_port);
         assert_eq!(default.shutdown_timeout, Duration::from_secs(10));
@@ -176,7 +189,7 @@ mod tests {
         assert_eq!(default.log_format, LogFormat::Text);
         assert_eq!(default.max_active_requests, 128);
         assert_eq!(default.max_concurrent_resolutions, 128);
-        let custom = Config::from_values(
+        let custom = GatewayConfig::from_values(
             Some("[::1]:9000"),
             Some("true"),
             Some("30"),
@@ -199,14 +212,14 @@ mod tests {
     fn validates_shared_log_format() {
         for (value, expected) in [("text", LogFormat::Text), ("json", LogFormat::Json)] {
             assert_eq!(
-                Config::from_values(None, None, None, None, Some(value), None, None)
+                GatewayConfig::from_values(None, None, None, None, Some(value), None, None)
                     .unwrap()
                     .log_format,
                 expected
             );
         }
         for value in ["", "TEXT", "pretty", "0", "secret-that-must-not-appear"] {
-            let error = Config::from_values(None, None, None, None, Some(value), None, None)
+            let error = GatewayConfig::from_values(None, None, None, None, Some(value), None, None)
                 .err()
                 .unwrap();
             assert_eq!(
@@ -227,7 +240,8 @@ mod tests {
             ("fatal", LevelFilter::ERROR),
         ] {
             let config =
-                Config::from_values(None, None, None, Some(value), None, None, None).unwrap();
+                GatewayConfig::from_values(None, None, None, Some(value), None, None, None)
+                    .unwrap();
             assert_eq!(config.log_level, expected, "{value}");
         }
     }
@@ -248,14 +262,14 @@ mod tests {
             (None, Some("-1"), None),
             (Some("localhost:8080"), None, None),
         ] {
-            let error = Config::from_values(address, None, timeout, level, None, None, None)
+            let error = GatewayConfig::from_values(address, None, timeout, level, None, None, None)
                 .err()
                 .unwrap();
             assert!(!error.to_string().contains(sensitive_input));
             assert!(!format!("{error:?}").contains(sensitive_input));
         }
         for value in ["", "TRUE", "1", sensitive_input] {
-            let error = Config::from_values(None, Some(value), None, None, None, None, None)
+            let error = GatewayConfig::from_values(None, Some(value), None, None, None, None, None)
                 .err()
                 .unwrap();
             assert!(!error.to_string().contains(sensitive_input));
@@ -269,7 +283,7 @@ mod tests {
         let overflow = (tokio::sync::Semaphore::MAX_PERMITS + 1).to_string();
         for value in ["1", maximum.as_str()] {
             let config =
-                Config::from_values(None, None, None, None, None, Some(value), Some(value))
+                GatewayConfig::from_values(None, None, None, None, None, Some(value), Some(value))
                     .unwrap();
             assert_eq!(config.max_active_requests, value.parse::<usize>().unwrap());
             assert_eq!(
@@ -293,9 +307,10 @@ mod tests {
                     "LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS",
                 ),
             ] {
-                let error = Config::from_values(None, None, None, None, None, active, resolutions)
-                    .err()
-                    .unwrap();
+                let error =
+                    GatewayConfig::from_values(None, None, None, None, None, active, resolutions)
+                        .err()
+                        .unwrap();
                 assert!(error.to_string().contains(name));
                 assert!(!error.to_string().contains("secret-that-must-not-appear"));
             }

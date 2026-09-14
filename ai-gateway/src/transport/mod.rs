@@ -22,14 +22,14 @@ use tokio::{
 
 /// Sanitized failures; upstream URLs, bodies and credentials are never retained.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RelayError {
+pub enum ProviderError {
     Configuration,
     Busy,
     Timeout,
     Transport,
 }
 
-impl fmt::Display for RelayError {
+impl fmt::Display for ProviderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::Configuration => "invalid provider configuration",
@@ -39,10 +39,10 @@ impl fmt::Display for RelayError {
         })
     }
 }
-impl std::error::Error for RelayError {}
+impl std::error::Error for ProviderError {}
 
 // An allowlist prevents gateway credentials, tenant routing overrides and cookies
-// from crossing the boundary. Connection-nominated headers are never end-to-end.
+// from crossing the boundary. Headers nominated by `Connection` are never end-to-end.
 fn selected_headers(source: &HeaderMap, allowed: &[&'static str]) -> HeaderMap {
     let mut selected = HeaderMap::new();
     for &name in allowed {
@@ -103,7 +103,7 @@ pub(crate) fn relay<T: Send + 'static>(
     relay_stream(
         upstream
             .bytes_stream()
-            .map(|chunk| chunk.map_err(|_| RelayError::Transport)),
+            .map(|chunk| chunk.map_err(|_| ProviderError::Transport)),
         deadline,
         owner,
     )
@@ -111,17 +111,17 @@ pub(crate) fn relay<T: Send + 'static>(
 
 fn relay_stream<S, T>(upstream: S, deadline: Instant, owner: T) -> Body
 where
-    S: Stream<Item = Result<Bytes, RelayError>> + Send + 'static,
+    S: Stream<Item = Result<Bytes, ProviderError>> + Send + 'static,
     T: Send + 'static,
 {
     let (sender, receiver) = mpsc::channel(1);
     let failed = Arc::new(AtomicBool::new(false));
     let failure = failed.clone();
-    let lease = Arc::new(Lease {
+    let resources = Arc::new(StreamResources {
         owner: Mutex::new(Some(owner)),
         released: Notify::new(),
     });
-    let lifetime = lease.clone();
+    let pump_resources = resources.clone();
     let task = tokio::spawn(async move {
         let pump = async {
             tokio::pin!(upstream);
@@ -134,54 +134,54 @@ where
                     }
                 }
             }
-            Ok::<_, RelayError>(())
+            Ok::<_, ProviderError>(())
         };
         if !matches!(tokio::time::timeout_at(deadline, pump).await, Ok(Ok(()))) {
             failure.store(true, Ordering::Release);
-            lifetime.release();
+            pump_resources.release();
         }
         drop(sender);
         // Upstream EOF alone does not release admission: the downstream may still
         // have queued bytes. The deadline also covers an unpolled downstream body.
-        if tokio::time::timeout_at(deadline, lifetime.released.notified())
+        if tokio::time::timeout_at(deadline, pump_resources.released.notified())
             .await
             .is_err()
         {
             failure.store(true, Ordering::Release);
-            lifetime.release();
+            pump_resources.release();
         }
     });
-    Body::from_stream(Relay {
+    Body::from_stream(ResponseStream {
         receiver,
         task,
         failed,
-        lease,
+        resources,
         done: false,
     })
 }
 
-struct Lease<T> {
+struct StreamResources<T> {
     owner: Mutex<Option<T>>,
     released: Notify,
 }
 
-impl<T> Lease<T> {
+impl<T> StreamResources<T> {
     fn release(&self) {
         self.owner.lock().expect("relay owner lock poisoned").take();
         self.released.notify_one();
     }
 }
 
-struct Relay<T> {
+struct ResponseStream<T> {
     receiver: mpsc::Receiver<Bytes>,
     task: JoinHandle<()>,
     failed: Arc<AtomicBool>,
-    lease: Arc<Lease<T>>,
+    resources: Arc<StreamResources<T>>,
     done: bool,
 }
 
-impl<T> Stream for Relay<T> {
-    type Item = Result<Bytes, RelayError>;
+impl<T> Stream for ResponseStream<T> {
+    type Item = Result<Bytes, ProviderError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
@@ -191,12 +191,12 @@ impl<T> Stream for Relay<T> {
         match this.receiver.poll_recv(cx) {
             Poll::Ready(None) => {
                 this.done = true;
-                this.lease.release();
+                this.resources.release();
                 // The sender publishes a failure before closing its channel.
                 Poll::Ready(
                     this.failed
                         .load(Ordering::Acquire)
-                        .then_some(Err(RelayError::Transport)),
+                        .then_some(Err(ProviderError::Transport)),
                 )
             }
             other => other.map(|value| value.map(Ok)),
@@ -204,10 +204,10 @@ impl<T> Stream for Relay<T> {
     }
 }
 
-impl<T> Drop for Relay<T> {
+impl<T> Drop for ResponseStream<T> {
     fn drop(&mut self) {
         self.task.abort();
-        self.lease.release();
+        self.resources.release();
     }
 }
 
@@ -252,7 +252,7 @@ mod tests {
         let released = Arc::new(Notify::new());
         let bytes = Bytes::from_static(b"event: response.output_text.delta\ndata: hello\n\n");
         let body = relay_stream(
-            stream::iter([Ok(bytes.clone()), Err(RelayError::Transport)]),
+            stream::iter([Ok(bytes.clone()), Err(ProviderError::Transport)]),
             Instant::now() + Duration::from_secs(1),
             Owner(released.clone()),
         );
