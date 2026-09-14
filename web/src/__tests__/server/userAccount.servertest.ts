@@ -46,9 +46,7 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   });
 
   it("allows users to enable the session timeline preview", async () => {
-    const { caller, userId } = await createCaller({
-      featureFlags: ["modernSession"],
-    });
+    const { caller, userId } = await createCaller();
 
     await caller.userAccount.setFeaturePreviewEnabled({
       flag: "sessionTimeline",
@@ -59,7 +57,11 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
       where: { id: userId },
       select: { featureFlags: true },
     });
-    expect(user.featureFlags).toEqual(["modernSession", "sessionTimeline"]);
+    expect(user.featureFlags).toEqual([
+      "templateFlag",
+      "sessionTimeline",
+      "modernSession",
+    ]);
   });
 
   it("persists a global opt-out when disabling a preview", async () => {
@@ -85,6 +87,7 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     expect(user.featureFlags).toEqual([
       "templateFlag",
       getFeaturePreviewOptOutFlag("modernSession"),
+      getFeaturePreviewOptOutFlag("sessionTimeline"),
     ]);
   });
 
