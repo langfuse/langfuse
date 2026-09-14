@@ -105,6 +105,9 @@ export type ScoresTableRow = {
   level: ScoreLevel;
   dataType: ScoreDataTypeType;
   value: string;
+  /** The score's numeric value as stored (NUMERIC and BOOLEAN), for the
+      group summary; `value` is the display string. */
+  numericValue?: number | null;
   author: {
     userId?: string;
     image?: string;
@@ -211,10 +214,16 @@ export default function ScoresTable({
   const chartViewVersion: ViewVersion = isV4 ? "v2" : "v1";
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
-  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
-    page: "pageIndex",
-    limit: "pageSize",
-  });
+  // Grouped tabs read a whole node's scores at once (p99 trace ~50), so one
+  // page should hold them; the footer only shows when it does not.
+  const [paginationState, setPaginationState] = usePaginationState(
+    0,
+    groupByNamePrefix ? 100 : 50,
+    {
+      page: "pageIndex",
+      limit: "pageSize",
+    },
+  );
   const { selectAll, setSelectAll } = useSelectAll(projectId, "scores");
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
@@ -1030,6 +1039,7 @@ export default function ScoresTable({
         isNumericDataType(score.dataType) && isPresent(score.value)
           ? String(score.value)
           : (score.stringValue ?? ""),
+      numericValue: typeof score.value === "number" ? score.value : null,
       author: {
         userId: score.authorUserId ?? undefined,
         image: score.authorUserImage ?? undefined,
@@ -1076,6 +1086,7 @@ export default function ScoresTable({
           isNumericDataType(score.dataType) && isPresent(score.value)
             ? String(score.value)
             : (score.stringValue ?? ""),
+        numericValue: typeof score.value === "number" ? score.value : null,
         author: {
           userId: score.authorUserId ?? undefined,
           image: score.authorUserImage ?? undefined,
@@ -1105,19 +1116,12 @@ export default function ScoresTable({
       groupByNamePrefix && enrichedScores
         ? groupScoreRowsByPrefix(
             enrichedScores,
-            // The table stringifies values (booleans as their "True" /
-            // "False" string); the summary wants them typed.
+            // Same inputs the chip hands groupSummary: the stored numeric
+            // value, and the string value for categorical / boolean rows.
             (row) => ({
               name: row.name,
               dataType: row.dataType,
-              value:
-                row.dataType === "BOOLEAN"
-                  ? row.value.toLowerCase() === "true"
-                    ? 1
-                    : 0
-                  : isNumericDataType(row.dataType) && row.value !== ""
-                    ? Number(row.value)
-                    : null,
+              value: row.numericValue ?? null,
               stringValue: isNumericDataType(row.dataType) ? null : row.value,
             }),
           )
@@ -1361,6 +1365,12 @@ export default function ScoresTable({
                   onChange: setPaginationState,
                   state: paginationState,
                 }}
+                hidePagination={
+                  groupByNamePrefix &&
+                  paginationState.pageIndex === 0 &&
+                  totalCount !== null &&
+                  totalCount <= paginationState.pageSize
+                }
                 setOrderBy={handleOrderByChange}
                 orderBy={orderByState}
                 rowSelection={selectedRows}

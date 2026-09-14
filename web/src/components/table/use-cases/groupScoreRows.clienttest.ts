@@ -63,4 +63,23 @@ describe("groupScoreRowsByPrefix", () => {
     expect(groupOf.get("8")).toBeUndefined();
     expect(groupOf.get("5")).toBe("Moderation");
   });
+
+  it("gives the same summary as the chip whatever order the rows arrive in", () => {
+    // Ten two-decimal values whose mean sits on a rounding tie: summed in
+    // table order they read 0.75, in chip order 0.76, unless the sum is
+    // order-independent.
+    const values = [0.87, 0.55, 0.64, 0.78, 0.82, 0.73, 0.6, 0.96, 0.69, 0.91];
+    const tableOrder = values.map((value, index) =>
+      numeric(`t${index}`, `Quality.m${index}`, value),
+    );
+    const chipOrder = [...tableOrder].reverse();
+
+    const fromTable = groupScoreRowsByPrefix(tableOrder, (row) => row);
+    const fromChip = groupScoreRowsByPrefix(chipOrder, (row) => row);
+
+    const summaryOf = (grouped: typeof fromTable) =>
+      [...grouped.headerBefore.values()][0]!.summary;
+    expect(summaryOf(fromTable)).toBe("Avg 0.76");
+    expect(summaryOf(fromChip)).toBe(summaryOf(fromTable));
+  });
 });

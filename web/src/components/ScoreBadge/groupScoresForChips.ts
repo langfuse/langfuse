@@ -91,13 +91,13 @@ export type SummarizableScore = {
 };
 
 /** How many distinct metric names a group holds: the count the chip shows. */
-export const groupMetricCount = <T extends { name: string }>(
+const groupMetricCount = <T extends { name: string }>(
   group: ScoreChipGroup<T>,
 ): number => new Set(group.scores.map((score) => score.name)).size;
 
 /** Categorical values that mean "not scored". Such a metric counts toward
     the group size but not toward its data type or its summary. */
-export const UNSCORED_PLACEHOLDERS: ReadonlySet<string> = new Set([
+const UNSCORED_PLACEHOLDERS: ReadonlySet<string> = new Set([
   "n/a",
   "na",
   "none",
@@ -132,9 +132,13 @@ export function groupSummary<T extends SummarizableScore>(
   const [dataType] = dataTypes;
 
   if (dataType === "NUMERIC" || dataType === "BOOLEAN") {
-    const values = scored.flatMap((score) =>
-      typeof score.value === "number" ? [score.value] : [],
-    );
+    // Sorted before summing: a floating-point sum depends on order, and the
+    // chip and the table header get the same scores in different orders.
+    const values = scored
+      .flatMap((score) =>
+        typeof score.value === "number" ? [score.value] : [],
+      )
+      .sort((a, b) => a - b);
     if (values.length === 0) return { count: total, text: null };
     if (dataType === "BOOLEAN") {
       const trueCount = values.filter((value) => value === 1).length;
