@@ -345,6 +345,10 @@ export const handleEventPropagationJob = async (
         max_insert_threads: String(
           env.LANGFUSE_EVENT_PROPAGATION_MAX_INSERT_THREADS,
         ),
+        ...(env.LANGFUSE_EVENT_PROPAGATION_DEFER_NGRAM_INDEX === "true" && {
+          exclude_materialize_skip_indexes_on_insert:
+            "idx_ngram_metadata_values",
+        }),
         type_json_skip_duplicated_paths: true,
       },
     });

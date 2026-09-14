@@ -386,6 +386,11 @@ const EnvSchema = z.object({
     .positive()
     .default(8),
 
+  // Requires ClickHouse 25.10+ and merge-time materialization of the index.
+  LANGFUSE_EVENT_PROPAGATION_DEFER_NGRAM_INDEX: z
+    .enum(["true", "false"])
+    .default("false"),
+
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
