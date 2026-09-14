@@ -118,9 +118,9 @@ export const EvaluatorGroup = meta.story({
     );
     await expect(group).not.toBeNull();
     await expect(group?.parentElement?.textContent).toContain(
-      "OutputModerationPrecision(4)",
+      "OutputModerationPrecision(4):",
     );
-    await expect(group?.parentElement?.textContent).toContain("avg 0.50");
+    await expect(group?.parentElement?.textContent).toContain("Avg 0.50");
     await expect(
       canvasElement.querySelector('[title="OutputModerationPrecision.pii"]'),
     ).toBeNull();

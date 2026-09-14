@@ -65,11 +65,11 @@ const EvaluatorGroupBadge = <T extends ChipScore>({
         )}
         title={group.label}
       >
-        {group.label}({metricCount})
+        {group.label}({metricCount}){average !== null ? ":" : ""}
       </span>
       {average !== null ? (
         <span className="text-muted-foreground text-nowrap tabular-nums">
-          avg {average.toFixed(2)}
+          Avg {average.toFixed(2)}
         </span>
       ) : null}
     </>
