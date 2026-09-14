@@ -51,10 +51,11 @@ import {
   type SessionTraceObservation,
 } from "./SessionObservationIO";
 
+const observationStartTime = new Date("2026-07-15T10:00:00Z");
 const baseObservation = {
   id: "obs-1",
   name: "gpt-4o-completion",
-  startTime: new Date("2026-07-15T10:00:00Z"),
+  startTime: observationStartTime,
   input: '{"messages":[{"role":"user","content":"hi"}]}',
   output: "hello",
   metadata: "{}",
@@ -151,7 +152,7 @@ describe("SessionObservationIO", () => {
       sessionId: "s1",
       traceId: "t1",
       observationId: "obs-1",
-      startTime: baseObservation.startTime,
+      startTime: observationStartTime,
     });
     expect(downloadJsonFile).toHaveBeenCalledWith(
       expect.objectContaining({
