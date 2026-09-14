@@ -96,14 +96,20 @@ function dateRangeCovering(time: Date, now = new Date()): string {
   const ageMinutes = (now.getTime() - time.getTime()) / 60_000;
   for (const option of TABLE_AGGREGATION_OPTIONS) {
     const minutes = TIME_RANGES[option].minutes;
-    if (minutes != null && ageMinutes < minutes * 0.9) {
+    // A preset reaches back from now, so it only covers a row that is in the
+    // past: a future timestamp (skewed client clocks) would otherwise satisfy
+    // even the shortest preset and land on a window without it.
+    if (minutes != null && ageMinutes >= 0 && ageMinutes < minutes * 0.9) {
       return rangeToString({ range: option });
     }
   }
   const dayMs = 24 * 60 * 60_000;
   return rangeToString({
     from: new Date(time.getTime() - dayMs),
-    to: new Date(Math.min(now.getTime(), time.getTime() + dayMs)),
+    // Clamp the end to now only while that still includes the row itself.
+    to: new Date(
+      Math.max(time.getTime(), Math.min(now.getTime(), time.getTime() + dayMs)),
+    ),
   });
 }
 
@@ -112,7 +118,8 @@ function rangeCovers(encoded: string, time: Date, now = new Date()): boolean {
     (def) => def.abbreviation === encoded,
   );
   if (preset?.minutes != null) {
-    return now.getTime() - time.getTime() < preset.minutes * 60_000;
+    const age = now.getTime() - time.getTime();
+    return age >= 0 && age < preset.minutes * 60_000;
   }
   const [from, to] = encoded.split("-").map(Number);
   if (Number.isFinite(from) && Number.isFinite(to)) {
