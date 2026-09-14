@@ -98,11 +98,11 @@ export const BreakdownTooltip = ({
           {children}
         </TooltipTrigger>
         <TooltipContent
-          className="w-[30rem] max-w-[calc(100vw-2rem)] p-4"
+          className="w-fit max-w-[calc(100vw-2rem)] p-4"
           style={tooltipStyle}
         >
-          <div className="flex min-w-0 flex-col gap-4">
-            <div className="flex flex-col gap-1">
+          <div className="grid min-w-0 grid-cols-[max-content_7rem_var(--breakdown-value-width)] gap-x-3 gap-y-4 max-sm:w-full max-sm:grid-cols-[minmax(0,1fr)_6rem_var(--breakdown-value-width)]">
+            <div className="col-span-3 flex min-w-0 flex-col gap-1">
               <span className="font-bold">
                 {isCost ? "Cost breakdown" : "Usage breakdown"}
               </span>
@@ -169,7 +169,7 @@ export const BreakdownTooltip = ({
 
             {/* Other Section */}
             {otherEntries.length > 0 && (
-              <div className="flex min-w-0 flex-col gap-2">
+              <div className="col-span-3 grid min-w-0 grid-cols-subgrid gap-y-2">
                 <BreakdownRow
                   label={isCost ? "Other cost" : "Other usage"}
                   value={formatValue(otherTotal)}
@@ -200,12 +200,11 @@ export const BreakdownTooltip = ({
   );
 };
 
-const breakdownRowVariants = cva("min-w-0 items-center gap-3 text-xs", {
+const breakdownRowVariants = cva("min-w-0 items-center text-xs", {
   variants: {
     layout: {
-      default: "flex",
-      waterfall:
-        "grid grid-cols-[minmax(0,1fr)_7rem_var(--breakdown-value-width)] max-sm:grid-cols-[minmax(0,1fr)_6rem_var(--breakdown-value-width)]",
+      default: "col-span-3 flex gap-3",
+      waterfall: "col-span-3 grid grid-cols-subgrid",
     },
     variant: {
       item: "text-muted-foreground",
@@ -254,7 +253,7 @@ function BreakdownRow({
         variant,
       })}
     >
-      <span className="min-w-0 flex-1 truncate" title={label}>
+      <span className="max-w-52 min-w-0 flex-1 truncate" title={label}>
         {label}
       </span>
       {waterfallSegment ? (
@@ -303,7 +302,7 @@ const Section = ({
   );
 
   return (
-    <div className="flex min-w-0 flex-col gap-2">
+    <div className="col-span-3 grid min-w-0 grid-cols-subgrid gap-y-2">
       <BreakdownRow
         label={title}
         value={formatValue(sectionTotal)}
