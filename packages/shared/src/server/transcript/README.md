@@ -11,13 +11,8 @@ Status: generation-only builder. Tool observations do not contribute yet.
 
 ```ts
 getTranscript(
-  observations: Observation[],
-  config?: TranscriptConfig,
+  observations: Observation[]
 ): Transcript | null;
-
-type TranscriptConfig = {
-  includeSystemMessages?: boolean; // default true
-};
 
 type Transcript = { threads: Thread[] };
 
@@ -34,10 +29,41 @@ type ThreadMessage = NormalizedMessage & {
 ```
 
 The input is the domain `Observation` (see `domain/observations.ts`), which
-the repositories produce from ClickHouse rows. Returns `null` when no
-generation is present.
+the repositories produce from ClickHouse rows. Returns `null` when no transcript can be built.
 
 ## Semantics
+
+- Cumulative history: Show only the new question and answer; replayed messages disappear.
+- Threads may span multiple traces: Threads are built from shared input history, not from trace boundaries. A generation continues a thread if it's input contains all the current thread's messages.
+- Message references tracked: Within a thread, each message stores the generation and trace ID that first emitted it.
+- Reordered history: [A, B, C] → [B, C, A, New] adds only New; order-insensitive history reconciliation.
+- Truly repeated messages: drop exact duplicates within a thread.
+- System messages:
+  - Exclude system messages when deciding which thread matches. Compare the remaining conversation messages.
+  - Once the thread is selected, include new system messages there. Keep their first-seen generation and trace IDs.
+  - Drop identical system messages within that thread, following your chosen exact-duplicate policy.
+  - Preserve changed system messages as separate entries, rather than overwriting the earlier one or combining their contents in the underlying data.
+
+### Edge cases:
+
+- Deduplication compares whole messages, not individual parts.
+- Intentionally repeated identical messages are removed
+- System messages: transcript shows which distinct instructions appeared and where they first appeared
+
+### Open questions the fixtures are meant to answer:
+
+- Tool results often exist only on `TOOL` observations and are missing from
+  the generation I/O. How they join the thread, and whether hierarchy matters.
+- Whether status messages and error indications become transcript content.
+- If/How to pick the user question and the final assistant answer out of a
+  thread.
+
+## Working with the Interface
+
+- The consumer picks the main thread (first opened, most messages, ...).
+- The consumer is expected to handle multiple threads.
+
+## Implementation
 
 - Only `GENERATION` observations with a trace id contribute. Every other type
   is ignored.
@@ -48,27 +74,8 @@ generation is present.
   `finishReason` are not part of the identity, so an output message that
   later reappears as replayed input history collapses onto its first
   sighting.
-- Threads are built from shared input history, not from trace boundaries.
-  Every thread has an anchor: the key of its last non-system message. A
-  generation continues a thread when one of its non-system input messages is
-  that anchor. Exactly one matching thread continues it; zero or several
-  matches open a new thread. A later trace that replays the history of an
-  earlier one therefore extends the same thread.
 - Within a thread a message is placed the first time it is seen and skipped
-  on every repeat. Placing moves the anchor to the last non-system message.
-- System messages never anchor, since the same system prompt recurs across
-  unrelated generations. With `includeSystemMessages: false` they are dropped
-  before placement.
-- The consumer picks the main thread (first opened, most messages, ...).
-
-Open questions the fixtures are meant to answer:
-
-- Tool results often exist only on `TOOL` observations and are missing from
-  the generation I/O. How they join the thread, and whether hierarchy matters.
-- Compaction of long histories.
-- Whether status messages and error indications become transcript content.
-- How to pick the user question and the final assistant answer out of a
-  thread.
+  on every repeat.
 
 ## Layout
 
