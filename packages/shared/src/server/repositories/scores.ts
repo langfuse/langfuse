@@ -1578,8 +1578,10 @@ const getScoresUiGenericFromEvents = async <T>(props: {
 
   // Row reads use FINAL to dedup the ReplacingMergeTree. Count dedups via
   // GROUP BY + argMax(is_deleted) instead: a single aggregation pass keeps
-  // each score id's latest version and drops soft-deleted ids, matching FINAL
-  // semantics without its multi-part merge.
+  // each row's latest version and drops soft-deleted ones, matching FINAL
+  // semantics without its multi-part merge. The GROUP BY mirrors the table's
+  // full sorting key (project_id, toDate(timestamp), name, id) — the key FINAL
+  // collapses on — since the user-provided id is not unique on its own.
   const query =
     props.select === "count"
       ? `
@@ -1590,7 +1592,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         FROM scores s
         ${eventsJoin}
         ${whereClause}
-        GROUP BY s.id, s.project_id
+        GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
         HAVING argMax(s.is_deleted, s.event_ts) = 0
       )
     `
