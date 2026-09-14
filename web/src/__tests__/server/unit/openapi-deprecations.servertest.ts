@@ -33,6 +33,7 @@ type OpenApiOperation = {
 type OpenApiDocument = {
   paths: Record<string, Record<string, OpenApiOperation>>;
 };
+type FernUnion = Record<string, { docs?: string }>;
 
 const definitionDirectory = path.resolve(
   process.cwd(),
@@ -224,6 +225,29 @@ describe("OpenAPI deprecations", () => {
     expect(ingestion?.message).toContain("score events");
     expect(ingestion?.message).toContain("v4-only write mode");
     expect(ingestion?.message).toContain("not in dual or legacy mode");
+  });
+
+  it("warns every sunset ingestion event type in the request body", () => {
+    const ingestionDefinition = parse(
+      fs.readFileSync(path.join(definitionDirectory, "ingestion.yml"), "utf8"),
+    ) as {
+      types: { IngestionEvent: { union: FernUnion } };
+    };
+    const ingestionEvents = ingestionDefinition.types.IngestionEvent.union;
+    const supportedEventTypes = new Set(["score-create", "sdk-log"]);
+
+    for (const [eventType, event] of Object.entries(ingestionEvents)) {
+      if (supportedEventTypes.has(eventType)) {
+        expect(event.docs, eventType).not.toContain("Sunset warning");
+        continue;
+      }
+
+      expect(event.docs, eventType).toContain("Sunset warning");
+      expect(event.docs, eventType).toContain(V3_SUNSET_HUMAN);
+      expect(event.docs, eventType).toContain(
+        "POST /api/public/otel/v1/traces",
+      );
+    }
   });
 
   it("supports deprecated endpoints at a service base path", () => {

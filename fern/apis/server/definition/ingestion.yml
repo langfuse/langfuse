@@ -112,25 +112,25 @@ types:
     union:
       trace-create:
         type: TraceEvent
-        docs: Creates a new trace. Upserts on id for updates if trace with id exists.
+        docs: "Creates a new trace. Upserts on id for updates if trace with id exists. Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
       score-create:
         type: ScoreEvent
         docs: Creates a new score. Upserts on id for updates if score with id exists.
       span-create:
         type: CreateSpanEvent
-        docs: Creates a new span.
+        docs: "Creates a new span. Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
       span-update:
         type: UpdateSpanEvent
-        docs: Updates span based on id.
+        docs: "Updates span based on id. Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
       generation-create:
         type: CreateGenerationEvent
-        docs: Creates a new generation.
+        docs: "Creates a new generation. Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
       generation-update:
         type: UpdateGenerationEvent
-        docs: Updates a generation based on id.
+        docs: "Updates a generation based on id. Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
       event-create:
         type: CreateEventEvent
-        docs: Creates an event.
+        docs: "Creates an event. Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
 
       sdk-log:
         type: SDKLogEvent
@@ -139,10 +139,10 @@ types:
       # both are legacy
       observation-create:
         type: CreateObservationEvent
-        docs: Deprecated event type
+        docs: "Deprecated event type. Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
       observation-update:
         type: UpdateObservationEvent
-        docs: Deprecated event type
+        docs: "Deprecated event type. Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
 
   ObservationType:
     enum:
