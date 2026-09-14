@@ -294,22 +294,11 @@ const stringValueExpression = (expression: string) =>
   `toString(ifNull(${expression}, ''))`;
 
 const optionValuesArrayExpression = (
-  column: EventFilterOptionColumn,
+  definition: Extract<EventFilterOptionDefinition, { kind: "array" }>,
 ): string => {
-  const definition = EVENTS_FILTER_OPTION_DEFINITIONS[column];
-
-  if (definition.kind === "scalar" || definition.kind === "labeledScalar") {
-    return `if(${definition.includeWhen}, [${stringValueExpression(definition.expression)}], CAST([], 'Array(String)'))`;
-  }
-
-  if (definition.kind === "boolean") {
-    return `[if(${definition.expression}, 'true', 'false')]`;
-  }
-
-  const valuesExpression =
-    "distinct" in definition && definition.distinct
-      ? `arrayDistinct(${definition.expression})`
-      : definition.expression;
+  const valuesExpression = definition.distinct
+    ? `arrayDistinct(${definition.expression})`
+    : definition.expression;
 
   return `arrayMap(value -> toString(value), arrayFilter(value -> length(toString(value)) > 0, ${valuesExpression}))`;
 };
@@ -356,7 +345,7 @@ const optionTopKSelectExpression = (column: EventFilterOptionColumn) => {
     return `arrayFilter(option -> tupleElement(option, 2) > 0, [tuple('false', countIf(NOT (${definition.expression})), toUInt64(0)), tuple('true', countIf(${definition.expression}), toUInt64(0))]) AS ${optionTopAlias(column)}`;
   }
 
-  return `approx_top_kArray({optionLimit: UInt64})(${optionValuesArrayExpression(column)}) AS ${optionTopAlias(column)}`;
+  return `approx_top_kArray({optionLimit: UInt64})(${optionValuesArrayExpression(definition)}) AS ${optionTopAlias(column)}`;
 };
 
 const optionRowsArrayExpression = (column: EventFilterOptionColumn) => {
@@ -444,7 +433,7 @@ export const buildEventsFilterOptionColumnQuery = (params: {
       ? `toString(${definition.expression})`
       : definition.kind === "boolean"
         ? `if(${definition.expression}, 'true', 'false')`
-        : `arrayJoin(${optionValuesArrayExpression(column)})`;
+        : `arrayJoin(${optionValuesArrayExpression(definition)})`;
 
   const queryBuilder = new EventsAggQueryBuilder({
     projectId: params.projectId,
@@ -549,11 +538,19 @@ ORDER BY column ASC, tupleElement(option, 4) ASC, tupleElement(option, 2) ASC
   };
 };
 
-// Per-column exact aggregate state, computed in the single base scan.
-// Scalars/arrays aggregate an exact value→count Map (sumMap); booleans need
-// only two countIf branches. The full histogram is held in aggregate-function
-// state, so unlike a GROUP BY it does not spill to disk — scan cost is bounded
-// by the base scan's sampleRows.
+// Per-column exact aggregate state, computed in the single base scan. Every
+// kind resolves to the same alias shape — Array((key, count)) ranked and capped
+// to the top-N — so the rows builder below can map any facet uniformly.
+// Scalars/arrays aggregate an exact value→count Map (sumMap), then zip it into
+// (key, count) pairs; booleans build that pair array directly from two countIf
+// branches. The full histogram is held in aggregate-function state, so unlike a
+// GROUP BY it does not spill to disk — scan cost is bounded by the base scan's
+// sampleRows.
+//
+// countDesc ranks by (count DESC, value ASC): the value tie-breaker must be
+// applied before the optionLimit cap so the top-N stays deterministic at the
+// boundary, matching the single-column ORDER BY count() DESC, value ASC. Booleans
+// carry only two buckets, always under the cap, so they skip the rank/slice.
 const exactOptionAggSelectExpression = (
   column: EventFilterOptionColumn,
 ): string => {
@@ -564,21 +561,28 @@ const exactOptionAggSelectExpression = (
     return `arrayFilter(option -> tupleElement(option, 2) > 0, [tuple('false', countIf(NOT (${definition.expression})), toUInt64(0)), tuple('true', countIf(${definition.expression}), toUInt64(0))]) AS ${alias}`;
   }
 
-  if (definition.kind === "scalar") {
-    return `sumMapIf([${stringValueExpression(definition.expression)}], [toUInt64(1)], ${definition.includeWhen}) AS ${alias}`;
-  }
+  // sumMap returns (keys[], counts[]); zip into (key, count) pairs so the alias
+  // shape matches the boolean branch. The sumMap subexpression appears twice for
+  // the two tupleElement reads — ClickHouse dedupes identical aggregate states,
+  // so this stays a single aggregation pass.
+  const histogram =
+    definition.kind === "scalar"
+      ? `sumMapIf([${stringValueExpression(definition.expression)}], [toUInt64(1)], ${definition.includeWhen})`
+      : definition.kind === "labeledScalar"
+        ? `sumMapIf([tuple(${stringValueExpression(definition.expression)}, ${stringValueExpression(definition.labelExpression)})], [toUInt64(1)], ${definition.includeWhen})`
+        : (() => {
+            const values = optionValuesArrayExpression(definition);
+            return `sumMap(${values}, arrayMap(value -> toUInt64(1), ${values}))`;
+          })();
 
-  if (definition.kind === "labeledScalar") {
-    return `sumMapIf([tuple(${stringValueExpression(definition.expression)}, ${stringValueExpression(definition.labelExpression)})], [toUInt64(1)], ${definition.includeWhen}) AS ${alias}`;
-  }
-
-  const valuesExpression = optionValuesArrayExpression(column);
-  return `sumMap(${valuesExpression}, arrayMap(value -> toUInt64(1), ${valuesExpression})) AS ${alias}`;
+  const zipped = `arrayZip(tupleElement(${histogram}, 1), tupleElement(${histogram}, 2))`;
+  const ranked =
+    definition.sort === "countDesc"
+      ? `arraySort(pair -> tuple(-toInt64(tupleElement(pair, 2)), tupleElement(pair, 1)), ${zipped})`
+      : `arraySort(pair -> tupleElement(pair, 1), ${zipped})`;
+  return `arraySlice(${ranked}, 1, {optionLimit: UInt64}) AS ${alias}`;
 };
 
-// countDesc ranks by (count DESC, value ASC): the value tie-breaker must be
-// applied before the optionLimit cap so the top-N stays deterministic at the
-// boundary, matching the single-column ORDER BY count() DESC, value ASC.
 const exactOptionRowsArrayExpression = (
   column: EventFilterOptionColumn,
 ): string => {
@@ -586,6 +590,10 @@ const exactOptionRowsArrayExpression = (
   const alias = optionTopAlias(column);
   const isLabeled = definition.kind === "labeledScalar";
 
+  // alias = array of option tuples, option = (key, count)
+  // key = value              (scalar / array / boolean)
+  // key = (value, label)     (labeledScalar)
+  // Output row = (column, value, count, sortKey, displayValue).
   const sortKeyExpression =
     definition.sort === "countDesc"
       ? "-toInt64(tupleElement(option, 2))"
@@ -599,23 +607,11 @@ const exactOptionRowsArrayExpression = (
     ? "tupleElement(tupleElement(option, 1), 2)"
     : "''";
 
-  const mapped = (candidates: string) =>
-    `arrayMap(option -> tuple(${eventFilterOptionColumnSqlLiteral(column)}, ${valueExpression}, tupleElement(option, 2), ${sortKeyExpression}, ${displayValueExpression}), ${candidates})`;
-
-  if (definition.kind === "boolean") {
-    return mapped(alias);
-  }
-
-  const zipped = `arrayZip(tupleElement(${alias}, 1), tupleElement(${alias}, 2))`;
-  const ranked =
-    definition.sort === "countDesc"
-      ? `arraySort(pair -> tuple(-toInt64(tupleElement(pair, 2)), tupleElement(pair, 1)), ${zipped})`
-      : `arraySort(pair -> tupleElement(pair, 1), ${zipped})`;
-  return mapped(`arraySlice(${ranked}, 1, {optionLimit: UInt64})`);
+  return `arrayMap(option -> tuple(${eventFilterOptionColumnSqlLiteral(column)}, ${valueExpression}, tupleElement(option, 2), ${sortKeyExpression}, ${displayValueExpression}), ${alias})`;
 };
 
 /**
- * One events_core scan that materialises the given filter-option facets with
+ * One events_core scan that materializes the given filter-option facets with
  * exact value→count aggregation (sumMap / countIf), then fans the per-column
  * top-N out with arrayJoin. Used where facet values must stay exact
  * (scores-view facets) instead of the approx_top_k multi-column sketch, without
