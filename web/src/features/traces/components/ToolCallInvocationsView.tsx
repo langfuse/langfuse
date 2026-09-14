@@ -103,6 +103,7 @@ export function ToolCallInvocationsView({
                 json={parsedArguments}
                 currentView="pretty"
                 codeClassName="text-xs"
+                dataClass="io"
               />
             </div>
 
@@ -126,6 +127,7 @@ export function ToolCallInvocationsView({
                     json={parseIfJsonString(toolCall.response.output)}
                     currentView="pretty"
                     codeClassName="text-xs"
+                    dataClass="io"
                   />
                 )}
               </div>

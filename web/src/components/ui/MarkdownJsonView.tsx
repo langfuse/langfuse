@@ -5,6 +5,7 @@ import {
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { type JsonTableDataClass } from "@/src/components/ui/jsonTableStyleVariants";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { Check, ChevronDown, Copy } from "lucide-react";
@@ -159,6 +160,7 @@ export function MarkdownJsonView({
   controlButtons,
   afterHeader,
   isSystemPrompt,
+  dataClass,
 }: {
   content?: unknown;
   title?: string;
@@ -172,6 +174,8 @@ export function MarkdownJsonView({
   /** Collapse long content to a preview (from raw `role === "system"`, since
       the title can carry a message `name` instead of the role). */
   isSystemPrompt?: boolean;
+  /** Forwarded to PrettyJsonView when the content is not markdown. */
+  dataClass?: JsonTableDataClass;
 }) {
   const characterLimit = useMarkdownRenderCharacterLimit();
   // Boxed so a renderable `null` content stays distinguishable from
@@ -208,6 +212,7 @@ export function MarkdownJsonView({
           controlButtons={controlButtons}
           afterHeader={afterHeader}
           isSystemPrompt={isSystemPrompt}
+          dataClass={dataClass}
         />
       )}
     </>

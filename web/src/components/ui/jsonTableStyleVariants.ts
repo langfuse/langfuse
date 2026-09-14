@@ -2,8 +2,12 @@ import { useSyncExternalStore } from "react";
 
 /**
  * Style directions for the PrettyJsonView table view, compared live behind a
- * debug toggle (localStorage `lf-json-style`). Once one is picked the others
- * are a deletion here: PrettyJsonView only reads `JSON_TABLE_STYLES[variant]`.
+ * debug toggle. Tables are classed as facts (metadata, attributes, model
+ * parameters) or IO (input, output, messages, tool calls) and each class
+ * stores its own pick (localStorage `lf-json-style-facts` / `lf-json-style-io`;
+ * the legacy `lf-json-style` still applies to both). Once directions are
+ * picked the others are a deletion here: PrettyJsonView only reads
+ * `JSON_TABLE_STYLES[variant]`.
  */
 export const JSON_TABLE_STYLE_VARIANTS = [
   "quiet",
@@ -23,7 +27,27 @@ export type JsonTableStyleVariant = (typeof JSON_TABLE_STYLE_VARIANTS)[number];
 export const DEFAULT_JSON_TABLE_STYLE_VARIANT: JsonTableStyleVariant =
   "current";
 
-const JSON_TABLE_STYLE_STORAGE_KEY = "lf-json-style";
+/** Which kind of data a table shows; facts and IO tables can pick
+    different style directions. */
+export const JSON_TABLE_DATA_CLASSES = ["facts", "io"] as const;
+
+export type JsonTableDataClass = (typeof JSON_TABLE_DATA_CLASSES)[number];
+
+export const DEFAULT_JSON_TABLE_DATA_CLASS: JsonTableDataClass = "facts";
+
+export const JSON_TABLE_DATA_CLASS_LABELS: Record<JsonTableDataClass, string> =
+  {
+    facts: "Facts tables",
+    io: "IO tables",
+  };
+
+/** Pre-split key; a value here applies to both classes. */
+const LEGACY_JSON_TABLE_STYLE_STORAGE_KEY = "lf-json-style";
+
+const JSON_TABLE_STYLE_STORAGE_KEYS: Record<JsonTableDataClass, string> = {
+  facts: "lf-json-style-facts",
+  io: "lf-json-style-io",
+};
 
 export type JsonTableStyle = {
   label: string;
@@ -221,29 +245,51 @@ function isJsonTableStyleVariant(
   );
 }
 
-function readStoredVariant(): JsonTableStyleVariant | null {
+function readStoredVariant(storageKey: string): JsonTableStyleVariant | null {
   if (typeof window === "undefined") return null;
   try {
-    const value = window.localStorage.getItem(JSON_TABLE_STYLE_STORAGE_KEY);
+    const value = window.localStorage.getItem(storageKey);
     return isJsonTableStyleVariant(value) ? value : null;
   } catch {
     return null;
   }
 }
 
-export function writeStoredJsonTableStyleVariant(
+function writeStoredVariant(
+  storageKey: string,
   variant: JsonTableStyleVariant | null,
 ) {
   try {
     if (variant) {
-      window.localStorage.setItem(JSON_TABLE_STYLE_STORAGE_KEY, variant);
+      window.localStorage.setItem(storageKey, variant);
     } else {
-      window.localStorage.removeItem(JSON_TABLE_STYLE_STORAGE_KEY);
+      window.localStorage.removeItem(storageKey);
     }
   } catch {
     // Storage unavailable: the in-memory event below still updates this tab.
   }
+}
+
+function notifyChange() {
   window.dispatchEvent(new Event(CHANGE_EVENT));
+}
+
+/** Store the debug pick for one data class. */
+export function writeStoredJsonTableStyleVariant(
+  dataClass: JsonTableDataClass,
+  variant: JsonTableStyleVariant | null,
+) {
+  writeStoredVariant(JSON_TABLE_STYLE_STORAGE_KEYS[dataClass], variant);
+  notifyChange();
+}
+
+/** Clear every stored pick, including the legacy shared key. */
+export function clearStoredJsonTableStyleVariants() {
+  for (const dataClass of JSON_TABLE_DATA_CLASSES) {
+    writeStoredVariant(JSON_TABLE_STYLE_STORAGE_KEYS[dataClass], null);
+  }
+  writeStoredVariant(LEGACY_JSON_TABLE_STYLE_STORAGE_KEY, null);
+  notifyChange();
 }
 
 function subscribe(onChange: () => void) {
@@ -259,21 +305,41 @@ function getServerSnapshot(): JsonTableStyleVariant | null {
   return null;
 }
 
-/** The variant stored via the debug picker, or null when unset. */
-export function useStoredJsonTableStyleVariant(): JsonTableStyleVariant | null {
-  return useSyncExternalStore(subscribe, readStoredVariant, getServerSnapshot);
+function useStoredVariantForKey(
+  storageKey: string,
+): JsonTableStyleVariant | null {
+  return useSyncExternalStore(
+    subscribe,
+    () => readStoredVariant(storageKey),
+    getServerSnapshot,
+  );
 }
 
-/** Stored override > caller prop > default. */
+/** The variant stored via the debug picker for `dataClass` (falling back to
+    the legacy shared key), or null when unset. */
+export function useStoredJsonTableStyleVariant(
+  dataClass: JsonTableDataClass,
+): JsonTableStyleVariant | null {
+  const stored = useStoredVariantForKey(
+    JSON_TABLE_STYLE_STORAGE_KEYS[dataClass],
+  );
+  const legacy = useStoredVariantForKey(LEGACY_JSON_TABLE_STYLE_STORAGE_KEY);
+  return stored ?? legacy;
+}
+
+/** Stored pick for the class > legacy shared pick > caller prop > default. */
 export function useJsonTableStyleVariant(
+  dataClass: JsonTableDataClass,
   variant?: JsonTableStyleVariant,
 ): JsonTableStyleVariant {
-  const stored = useStoredJsonTableStyleVariant();
+  const stored = useStoredJsonTableStyleVariant(dataClass);
   return stored ?? variant ?? DEFAULT_JSON_TABLE_STYLE_VARIANT;
 }
 
-/** Dev builds always show the picker; production only once a variant is stored. */
+/** Dev builds always show the picker; production only once a pick is stored
+    for either class (or the legacy key). */
 export function useShowJsonTableStylePicker(): boolean {
-  const stored = useStoredJsonTableStyleVariant();
-  return stored !== null || process.env.NODE_ENV !== "production";
+  const facts = useStoredJsonTableStyleVariant("facts");
+  const io = useStoredJsonTableStyleVariant("io");
+  return facts !== null || io !== null || process.env.NODE_ENV !== "production";
 }

@@ -1,5 +1,13 @@
 /* eslint-disable @repo/no-style-props */
-import { useMemo, useState, useEffect, useRef, useCallback, memo } from "react";
+import {
+  Fragment,
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  memo,
+} from "react";
 import { cn } from "@/src/utils/tailwind";
 import { deepParseJson } from "@langfuse/shared";
 import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
@@ -28,9 +36,14 @@ import {
   DropdownMenuSeparator,
 } from "@/src/components/ui/dropdown-menu";
 import {
+  clearStoredJsonTableStyleVariants,
+  DEFAULT_JSON_TABLE_DATA_CLASS,
   DEFAULT_JSON_TABLE_STYLE_VARIANT,
+  JSON_TABLE_DATA_CLASS_LABELS,
+  JSON_TABLE_DATA_CLASSES,
   JSON_TABLE_STYLE_VARIANTS,
   JSON_TABLE_STYLES,
+  type JsonTableDataClass,
   type JsonTableStyle,
   type JsonTableStyleVariant,
   useJsonTableStyleVariant,
@@ -919,21 +932,26 @@ function JsonPrettyTable({
   );
 }
 
-/** Debug-only menu for the table style directions; writes `lf-json-style`
-    to localStorage so the pick applies app-wide and survives reloads. */
-function JsonTableStyleMenuContent({
-  active,
+/** One radio group of the debug menu: every style direction for `dataClass`. */
+function JsonTableStyleRadioGroup({
+  dataClass,
+  value,
 }: {
-  active: JsonTableStyleVariant;
+  dataClass: JsonTableDataClass;
+  value: JsonTableStyleVariant;
 }) {
-  const stored = useStoredJsonTableStyleVariant();
   return (
     <>
-      <DropdownMenuLabel>JSON table style (debug)</DropdownMenuLabel>
+      <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
+        {JSON_TABLE_DATA_CLASS_LABELS[dataClass]}
+      </DropdownMenuLabel>
       <DropdownMenuRadioGroup
-        value={active}
-        onValueChange={(value) =>
-          writeStoredJsonTableStyleVariant(value as JsonTableStyleVariant)
+        value={value}
+        onValueChange={(next) =>
+          writeStoredJsonTableStyleVariant(
+            dataClass,
+            next as JsonTableStyleVariant,
+          )
         }
       >
         {JSON_TABLE_STYLE_VARIANTS.map((variant) => (
@@ -945,18 +963,66 @@ function JsonTableStyleMenuContent({
           </DropdownMenuRadioItem>
         ))}
       </DropdownMenuRadioGroup>
-      {stored !== null && (
-        <>
+    </>
+  );
+}
+
+/** Debug-only menu for the table style directions. Facts and IO tables each
+    store their own pick in localStorage so the two classes can be compared
+    live in one panel; the pick applies app-wide and survives reloads. */
+function JsonTableStyleMenuContent({
+  dataClass,
+  active,
+}: {
+  /** Class of the table that opened the menu. */
+  dataClass: JsonTableDataClass;
+  /** Variant that table renders right now. */
+  active: JsonTableStyleVariant;
+}) {
+  const otherClass: JsonTableDataClass = dataClass === "facts" ? "io" : "facts";
+  const otherStored = useStoredJsonTableStyleVariant(otherClass);
+  const otherActive = otherStored ?? DEFAULT_JSON_TABLE_STYLE_VARIANT;
+  const hasStoredPick = useHasStoredJsonTableStylePick();
+  const valueFor = (group: JsonTableDataClass) =>
+    group === dataClass ? active : otherActive;
+  return (
+    <>
+      <DropdownMenuLabel>
+        JSON table style (debug)
+        <span className="text-muted-foreground ml-1 font-normal">
+          this table: {dataClass}
+        </span>
+      </DropdownMenuLabel>
+      {JSON_TABLE_DATA_CLASSES.map((group) => (
+        <Fragment key={group}>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={() => writeStoredJsonTableStyleVariant(null)}
-          >
-            Reset to default
-          </DropdownMenuItem>
-        </>
+          <JsonTableStyleRadioGroup dataClass={group} value={valueFor(group)} />
+        </Fragment>
+      ))}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        disabled={active === otherActive}
+        onSelect={() => writeStoredJsonTableStyleVariant(otherClass, active)}
+      >
+        Same for both
+        <span className="text-muted-foreground ml-1">
+          {JSON_TABLE_STYLES[active].label} for {otherClass} too
+        </span>
+      </DropdownMenuItem>
+      {hasStoredPick && (
+        <DropdownMenuItem onSelect={() => clearStoredJsonTableStyleVariants()}>
+          Reset to default
+        </DropdownMenuItem>
       )}
     </>
   );
+}
+
+/** True once any debug pick is stored (either class or the legacy key). */
+function useHasStoredJsonTableStylePick(): boolean {
+  const facts = useStoredJsonTableStyleVariant("facts");
+  const io = useStoredJsonTableStyleVariant("io");
+  return facts !== null || io !== null;
 }
 
 export function PrettyJsonView(props: {
@@ -986,8 +1052,13 @@ export function PrettyJsonView(props: {
       active style direction (hidden under a title for all but `current`);
       pass `false` to opt back in. */
   hideHeader?: boolean;
-  /** Table style direction. A stored debug pick (localStorage
-      `lf-json-style`) overrides this unless `lockStyleVariant` is set; see
+  /** What the table shows: facts (metadata, attributes, model parameters)
+      or IO (input, output, messages, tool calls). Each class has its own
+      stored debug pick; defaults to facts. */
+  dataClass?: JsonTableDataClass;
+  /** Table style direction. A stored debug pick for `dataClass` (localStorage
+      `lf-json-style-facts` / `lf-json-style-io`, or the legacy `lf-json-style`)
+      overrides this unless `lockStyleVariant` is set; see
       jsonTableStyleVariants.ts. */
   styleVariant?: JsonTableStyleVariant;
   /** Render exactly `styleVariant`, ignoring the stored debug pick, and hide
@@ -1006,7 +1077,11 @@ export function PrettyJsonView(props: {
     ? PRETTY_JSON_VIEW_TONE_CLASSES[props.tone]
     : undefined;
   const codeClassName = cn(props.codeClassName, toneClasses?.container);
-  const resolvedStyleVariant = useJsonTableStyleVariant(props.styleVariant);
+  const dataClass = props.dataClass ?? DEFAULT_JSON_TABLE_DATA_CLASS;
+  const resolvedStyleVariant = useJsonTableStyleVariant(
+    dataClass,
+    props.styleVariant,
+  );
   const styleVariant = props.lockStyleVariant
     ? (props.styleVariant ?? DEFAULT_JSON_TABLE_STYLE_VARIANT)
     : resolvedStyleVariant;
@@ -1692,8 +1767,12 @@ export function PrettyJsonView(props: {
               {shouldUseTableView && showStylePicker && (
                 <DropdownMenuController
                   align="end"
+                  maxHeight="var(--radix-dropdown-menu-content-available-height)"
                   renderMenu={() => (
-                    <JsonTableStyleMenuContent active={styleVariant} />
+                    <JsonTableStyleMenuContent
+                      dataClass={dataClass}
+                      active={styleVariant}
+                    />
                   )}
                 >
                   {({ Trigger }) => (
@@ -1702,7 +1781,7 @@ export function PrettyJsonView(props: {
                         variant="ghost"
                         size="icon-xs"
                         className="hover:bg-border -mr-2"
-                        title={`JSON table style: ${JSON_TABLE_STYLES[styleVariant].label}`}
+                        title={`JSON table style (${dataClass}): ${JSON_TABLE_STYLES[styleVariant].label}`}
                         aria-label="JSON table style"
                       >
                         <Palette className="h-3 w-3" />

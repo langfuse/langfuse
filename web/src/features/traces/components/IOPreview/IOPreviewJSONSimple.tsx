@@ -150,6 +150,7 @@ export function IOPreviewJSONSimple({
             title="Input"
             json={input}
             parsedJson={effectiveInput}
+            dataClass="io"
             isLoading={isLoading}
             isParsing={isParsing}
             media={media?.filter((m) => m.field === "input") ?? []}
@@ -177,6 +178,7 @@ export function IOPreviewJSONSimple({
             title="Output"
             json={output}
             parsedJson={effectiveOutput}
+            dataClass="io"
             isLoading={isLoading}
             isParsing={isParsing}
             media={media?.filter((m) => m.field === "output") ?? []}
@@ -219,6 +221,7 @@ export function IOPreviewJSONSimple({
             title="Metadata"
             json={metadata}
             parsedJson={effectiveMetadata}
+            dataClass="facts"
             isLoading={isLoading}
             isParsing={isParsing}
             media={media?.filter((m) => m.field === "metadata") ?? []}

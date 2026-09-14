@@ -58,6 +58,7 @@ function MappedValuePreview({ value }: { value: string }) {
         <PrettyJsonView
           json={parsed}
           currentView="pretty"
+          dataClass="io"
           isLoading={false}
           showNullValues={true}
           stickyTopLevelKey={false}

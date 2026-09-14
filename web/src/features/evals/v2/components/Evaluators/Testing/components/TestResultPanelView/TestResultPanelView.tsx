@@ -104,6 +104,7 @@ function RawOutputView({ rawOutput }: { rawOutput: unknown | null }) {
     <PrettyJsonView
       json={rawOutput}
       currentView="json"
+      dataClass="io"
       isLoading={false}
       showNullValues={true}
       stickyTopLevelKey={false}

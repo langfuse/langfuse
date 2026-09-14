@@ -3,6 +3,7 @@ import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { cn } from "@/src/utils/tailwind";
 import {
   JSON_TABLE_STYLE_VARIANTS,
+  type JsonTableDataClass,
   useShowJsonTableStylePicker,
 } from "@/src/components/ui/jsonTableStyleVariants";
 import {
@@ -28,6 +29,9 @@ type UseCase = {
   /** Share of production data this shape stands for (prod-eu 24h sample). */
   share: string;
   viewTitle: string;
+  /** facts (metadata, attributes, parameters) or io (input, output, messages);
+      the design review recommends different directions per class. */
+  dataClass: JsonTableDataClass;
   json: unknown;
   stress?: boolean;
 };
@@ -41,6 +45,7 @@ const USE_CASES: UseCase[] = [
     share:
       "metadata, 99.6% of observations look like this: 3 plain keys, one nested value (p50 3 keys, 620 chars)",
     viewTitle: "Metadata",
+    dataClass: "facts",
     json: typicalMetadataFixture,
   },
   {
@@ -49,6 +54,7 @@ const USE_CASES: UseCase[] = [
     share:
       "generation input, 61% are chat arrays: p50 2 messages, 8k chars (wrapped in an object; bare arrays use the chat renderer)",
     viewTitle: "Input",
+    dataClass: "io",
     json: { messages_in: chatInputFixture },
   },
   {
@@ -57,6 +63,7 @@ const USE_CASES: UseCase[] = [
     share:
       "generation output, 61% are objects: p50 3 keys, 69% with a nested value",
     viewTitle: "Output",
+    dataClass: "io",
     json: objectOutputFixture,
   },
   {
@@ -64,6 +71,7 @@ const USE_CASES: UseCase[] = [
     title: "Model parameters",
     share: "model parameters: p50 4 keys, p95 9, only 8% nested",
     viewTitle: "Model parameters",
+    dataClass: "facts",
     json: modelParametersFixture,
   },
   {
@@ -71,6 +79,7 @@ const USE_CASES: UseCase[] = [
     title: "Attributes",
     share: "trace attributes: six fixed keys",
     viewTitle: "Attributes",
+    dataClass: "facts",
     json: attributesFixture,
   },
   {
@@ -78,6 +87,7 @@ const USE_CASES: UseCase[] = [
     title: "Dataset item",
     share: "dataset item: input and expected output objects",
     viewTitle: "Dataset item",
+    dataClass: "io",
     json: datasetItemFixture,
   },
   {
@@ -86,6 +96,7 @@ const USE_CASES: UseCase[] = [
     share:
       "tool definitions: two OpenAI function tools with nested JSON schema",
     viewTitle: "Tools",
+    dataClass: "io",
     json: { tools: toolDefinitionsFixture },
   },
   {
@@ -94,6 +105,7 @@ const USE_CASES: UseCase[] = [
     share:
       "10% of inputs are raw text (p50 740 chars); 18% of outputs are null or raw text (wrapped in an object)",
     viewTitle: "Output",
+    dataClass: "io",
     json: {
       answer: longStringFixture,
       status: shortStringFixture,
@@ -105,6 +117,7 @@ const USE_CASES: UseCase[] = [
     title: "Chat input (54)",
     share: "stress: chat input at p95, 54 messages (wrapped in an object)",
     viewTitle: "Input",
+    dataClass: "io",
     json: { messages_in: chatInput54Fixture },
     stress: true,
   },
@@ -113,6 +126,7 @@ const USE_CASES: UseCase[] = [
     title: "Large array",
     share: "stress: retriever output, 20 documents",
     viewTitle: "Output",
+    dataClass: "io",
     json: retrieverOutputFixture,
     stress: true,
   },
@@ -121,6 +135,7 @@ const USE_CASES: UseCase[] = [
     title: "Deep nesting",
     share: "stress: agent state, five levels with mixed arrays",
     viewTitle: "Metadata",
+    dataClass: "facts",
     json: agentStateFixture,
     stress: true,
   },
@@ -130,6 +145,7 @@ const USE_CASES: UseCase[] = [
     share:
       "stress: all-dotted OTel metadata, 35 keys (0.3% of observations mix dotted keys; all-dotted is rare)",
     viewTitle: "Metadata",
+    dataClass: "facts",
     json: otelMetadataFixture,
     stress: true,
   },
@@ -173,6 +189,16 @@ export function JsonStyleReviewPage() {
           <div className="flex flex-col gap-0.5">
             <h2 className="text-sm font-bold">
               {useCase.title}
+              <span
+                className="bg-muted text-muted-foreground ml-2 rounded-sm px-1.5 py-0.5 font-mono text-xs font-normal"
+                title={
+                  useCase.dataClass === "facts"
+                    ? "Facts table: metadata, attributes, model parameters"
+                    : "IO table: input, output, messages, tool calls"
+                }
+              >
+                {useCase.dataClass}
+              </span>
               {useCase.stress ? (
                 <span className="text-muted-foreground ml-2 text-xs font-normal">
                   stress case
@@ -199,6 +225,7 @@ export function JsonStyleReviewPage() {
                     json={useCase.json}
                     title={useCase.viewTitle}
                     currentView="pretty"
+                    dataClass={useCase.dataClass}
                     styleVariant={variant}
                     lockStyleVariant
                   />

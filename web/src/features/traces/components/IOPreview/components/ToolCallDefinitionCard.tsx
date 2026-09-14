@@ -96,6 +96,7 @@ function ToolCallArgumentsList({
                 json={parseToolCallArguments(toolCall.arguments)}
                 currentView="pretty"
                 codeClassName="text-xs"
+                dataClass="io"
               />
             ) : (
               <div className="text-muted-foreground rounded-sm border px-2 py-1.5 text-xs">
@@ -406,6 +407,7 @@ function ToolDefinitionRow({
                     json={tool.parameters}
                     currentView="pretty"
                     codeClassName="text-xs"
+                    dataClass="io"
                   />
                 </div>
               )}
@@ -434,6 +436,7 @@ function ToolDefinitionRow({
               json={tool}
               currentView="json"
               codeClassName="text-xs"
+              dataClass="io"
             />
           )}
         </div>

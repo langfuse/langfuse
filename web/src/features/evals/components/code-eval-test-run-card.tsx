@@ -272,6 +272,7 @@ function CodeEvalTestRunInputCards({
       <PrettyJsonView
         json={inputPreviewJson}
         currentView="pretty"
+        dataClass="io"
         isLoading={false}
         showNullValues={true}
         stickyTopLevelKey={false}

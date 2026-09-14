@@ -24,6 +24,7 @@ export const ToolCallCard: React.FC<{ toolCall: LLMToolCall }> = ({
             json={toolCall.args}
             codeClassName="border-none p-1"
             currentView="pretty"
+            dataClass="io"
           />
         </div>
         <div className="flex w-[25%] flex-col overflow-hidden">

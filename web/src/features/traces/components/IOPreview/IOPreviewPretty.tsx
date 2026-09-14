@@ -63,6 +63,7 @@ function JsonInputOutputView({
         <PrettyJsonView
           title="Input"
           json={parsedInput ?? null}
+          dataClass="io"
           isLoading={isLoading}
           isParsing={isParsing}
           media={media?.filter((m) => m.field === "input") ?? []}
@@ -75,6 +76,7 @@ function JsonInputOutputView({
         <PrettyJsonView
           title="Output"
           json={parsedOutput}
+          dataClass="io"
           isLoading={isLoading}
           isParsing={isParsing}
           media={media?.filter((m) => m.field === "output") ?? []}
@@ -375,6 +377,7 @@ export function IOPreviewPretty({
           <PrettyJsonView
             title="Metadata"
             json={parsedMetadata}
+            dataClass="facts"
             isLoading={isLoading}
             isParsing={isParsing}
             media={media?.filter((m) => m.field === "metadata") ?? []}
