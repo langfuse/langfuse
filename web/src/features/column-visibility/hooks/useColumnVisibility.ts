@@ -81,17 +81,27 @@ function useColumnVisibility<TData>(
     useLocalStorage<VisibilityState>(localStorageKey, initialVisibilityState());
   // useLocalStorage hands back whatever the key holds — its cross-tab and
   // same-tab listeners parse and set without checking — so coerce here: the
-  // value this hook exposes is always an object. The effect below rewrites the
-  // key, which heals a wrong-shaped one.
-  const columnVisibility = isVisibilityState(storedColumnVisibility)
-    ? storedColumnVisibility
-    : EMPTY_VISIBILITY_STATE;
+  // value this hook exposes is always an object of boolean entries. The effect
+  // below rewrites the key, which heals a wrong-shaped or poisoned one.
+  const columnVisibility = (() => {
+    if (!isVisibilityState(storedColumnVisibility)) {
+      return EMPTY_VISIBILITY_STATE;
+    }
+    const booleanEntries = Object.entries(storedColumnVisibility).filter(
+      ([, visible]) => typeof visible === "boolean",
+    );
+    if (booleanEntries.length === Object.keys(storedColumnVisibility).length) {
+      return storedColumnVisibility;
+    }
+    return Object.fromEntries(booleanEntries) as VisibilityState;
+  })();
 
   useEffect(() => {
     let initialColumnVisibility = initialVisibilityState();
     Object.keys(initialColumnVisibility).forEach((key) => {
-      if (Object.hasOwn(columnVisibility, key)) {
-        initialColumnVisibility[key] = columnVisibility[key];
+      const stored = columnVisibility[key];
+      if (typeof stored === "boolean") {
+        initialColumnVisibility[key] = stored;
       }
     });
 

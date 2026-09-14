@@ -52,4 +52,25 @@ describe("useColumnVisibility", () => {
       },
     );
   });
+
+  // A known column whose stored value is not a boolean must not be copied back
+  // into the repaired state — only boolean preferences survive.
+  it("ignores non-boolean values for known columns when repairing", () => {
+    localStorage.setItem(
+      "visibilityKey",
+      JSON.stringify({ name: "name", input: false }),
+    );
+
+    const { result } = renderHook(() =>
+      useColumnVisibility("visibilityKey", columns),
+    );
+
+    expect(result.current[0]).toEqual({ name: true, input: false });
+    expect(JSON.parse(localStorage.getItem("visibilityKey") ?? "null")).toEqual(
+      {
+        name: true,
+        input: false,
+      },
+    );
+  });
 });
