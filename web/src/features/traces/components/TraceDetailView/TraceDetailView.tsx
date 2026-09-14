@@ -82,6 +82,10 @@ export function TraceDetailView({
   const router = useRouter();
   // Tab and view state from URL (via SelectionContext)
   const { selectedTab, setSelectedTab } = useSelection();
+  // Attributes is observation-only, but the tab value is shared with the
+  // observation panel: selecting the trace while it is active must land on
+  // Preview instead of an empty panel.
+  const activeTab = selectedTab === "attributes" ? "preview" : selectedTab;
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
@@ -267,7 +271,7 @@ export function TraceDetailView({
 
           {/* Tabs section */}
           <TabsBar
-            value={selectedTab}
+            value={activeTab}
             className="flex min-h-0 flex-1 flex-col overflow-hidden"
             onValueChange={handleTabChange}
           >
