@@ -15,7 +15,7 @@ export const JSON_TABLE_STYLE_VARIANTS = [
 
 export type JsonTableStyleVariant = (typeof JSON_TABLE_STYLE_VARIANTS)[number];
 
-const DEFAULT_JSON_TABLE_STYLE_VARIANT: JsonTableStyleVariant = "quiet";
+const DEFAULT_JSON_TABLE_STYLE_VARIANT: JsonTableStyleVariant = "current";
 
 const JSON_TABLE_STYLE_STORAGE_KEY = "lf-json-style";
 

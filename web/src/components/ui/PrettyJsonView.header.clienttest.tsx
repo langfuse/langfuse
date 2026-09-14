@@ -15,8 +15,15 @@ function renderPrettyJson(ui: ReactNode) {
 const json = { brand: "Acme", count: 2 };
 
 describe("PrettyJsonView table header visibility", () => {
-  it("hides the Path / Value header when a title frames the table (default style)", () => {
-    renderPrettyJson(<PrettyJsonView json={json} title="Metadata" />);
+  it("hides the Path / Value header when a title frames a quiet table", () => {
+    renderPrettyJson(
+      <PrettyJsonView
+        json={json}
+        title="Metadata"
+        styleVariant="quiet"
+        lockStyleVariant
+      />,
+    );
 
     expect(screen.queryByText("Path")).not.toBeInTheDocument();
     expect(screen.queryByText("Value")).not.toBeInTheDocument();
