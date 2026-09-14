@@ -7,7 +7,11 @@ import { DataGenerator } from "./data-generators";
 import { ClickHouseQueryBuilder } from "./clickhouse-builder";
 import { FrameworkTraceLoader } from "./framework-traces/framework-trace-loader";
 import { EVAL_TRACE_COUNT, SEED_DATASETS } from "./postgres-seed-constants";
-import { MEDIA_TEST_TRACE_IDS, getSeedMediaFixture } from "../seed-media";
+import {
+  MEDIA_TEST_TRACE_IDS,
+  getSeedMediaFixture,
+  seedMediaTraces,
+} from "../seed-media";
 import {
   clickhouseClient,
   createTrace,
@@ -484,6 +488,7 @@ export class SeederOrchestrator {
 
     for (const projectId of projectIds) {
       logger.info(`Processing media test traces for project ${projectId}`);
+      await seedMediaTraces(projectId);
 
       const traces: TraceRecordInsertType[] = [
         // Trace 1: Image only (in input)

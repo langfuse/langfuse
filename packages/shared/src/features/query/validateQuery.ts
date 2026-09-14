@@ -5,9 +5,26 @@ import { getViewDeclaration } from "./dataModel";
  * Result of query validation.
  * Either valid (query is safe to run) or invalid with a reason.
  */
+export type HighCardinalityValidationCode =
+  | "entity_dimension_unbounded"
+  | "time_dimension"
+  | "additional_entity_dimension"
+  | "missing_top_n"
+  | "invalid_order_by";
+
+export type HighCardinalityValidationError = {
+  code: HighCardinalityValidationCode;
+  /** Schema-owned dimension field names, never dimension values. */
+  dimensions: string[];
+};
+
 export type QueryValidationResult =
   | { valid: true }
-  | { valid: false; reason: string };
+  | {
+      valid: false;
+      reason: string;
+      highCardinality?: HighCardinalityValidationError;
+    };
 
 const MAX_ENTITY_DIMENSION_BOUND_VALUES = 50;
 
@@ -113,6 +130,10 @@ function validateEntityDimension(
     return {
       valid: false,
       reason: `High cardinality dimension '${field}' must be filtered with a finite positive filter.`,
+      highCardinality: {
+        code: "entity_dimension_unbounded",
+        dimensions: [field],
+      },
     };
   }
 
@@ -178,6 +199,10 @@ export function validateQuery(
     return {
       valid: false,
       reason: `High cardinality dimension(s) '${highCardDims.join(", ")}' cannot be used with timeDimension. Time series queries with high cardinality dimensions produce unbounded result sets.`,
+      highCardinality: {
+        code: "time_dimension",
+        dimensions: highCardDims,
+      },
     };
   }
 
@@ -186,6 +211,10 @@ export function validateQuery(
     return {
       valid: false,
       reason: `High cardinality dimension(s) '${highCardDims.join(", ")}' cannot be used with entityDimension. Entity-dimension queries with additional high cardinality dimensions produce unbounded result sets.`,
+      highCardinality: {
+        code: "additional_entity_dimension",
+        dimensions: highCardDims,
+      },
     };
   }
 
@@ -204,6 +233,10 @@ export function validateQuery(
     return {
       valid: false,
       reason: `High cardinality dimension(s) '${highCardDims.join(", ")}' require both 'config.row_limit' and 'orderBy' with direction 'desc' on a measure field.`,
+      highCardinality: {
+        code: "missing_top_n",
+        dimensions: highCardDims,
+      },
     };
   }
 
@@ -227,6 +260,10 @@ export function validateQuery(
       reason:
         `High cardinality dimension(s) '${highCardDims.join(", ")}' require 'orderBy' with direction 'desc' on a measure field. ` +
         `'${invalidOrderByFields.join(", ")}' ${invalidOrderByFields.length === 1 ? "is" : "are"} not a measure in this query.`,
+      highCardinality: {
+        code: "invalid_order_by",
+        dimensions: highCardDims,
+      },
     };
   }
 

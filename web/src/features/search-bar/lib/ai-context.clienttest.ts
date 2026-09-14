@@ -1,5 +1,8 @@
+// @vitest-environment node
+
 import { describe, expect, it } from "vitest";
 
+import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
 import { buildAiContext } from "./ai-context";
 
 describe("buildAiContext", () => {
@@ -80,6 +83,45 @@ describe("buildAiContext", () => {
     expect(ctx).toContain("metadata.routing.queue");
     expect(ctx).toContain("membership-support");
     expect(ctx).toContain("metadata.customer.plan");
+  });
+
+  it("lists observed score names per column and level", () => {
+    const ctx =
+      buildAiContext({
+        observed: {
+          scores_avg: [{ value: "helpfulness-rating" }, { value: "accuracy" }],
+          score_categories: [{ value: "sentiment" }],
+          trace_scores_avg: [{ value: "overall-quality" }],
+          trace_score_categories: [{ value: "Hallucination Check" }],
+        },
+        sampleMetadata: [],
+        resultCount: null,
+      }) ?? "";
+    expect(ctx).toContain(
+      "scores.<name> (numeric): helpfulness-rating, accuracy",
+    );
+    expect(ctx).toContain("scores.<name> (categorical): sentiment");
+    expect(ctx).toContain("traceScores.<name> (numeric): overall-quality");
+    expect(ctx).toContain(
+      "traceScores.<name> (categorical): Hallucination Check",
+    );
+  });
+
+  it("only grounds the model with columns supported by the selected registry", () => {
+    const ctx =
+      buildAiContext({
+        observed: {
+          traceTags: [{ value: "billing" }],
+          scores_avg: [{ value: "accuracy" }],
+        },
+        sampleMetadata: [],
+        resultCount: null,
+        registry: RULE_FIELD_REGISTRY,
+      }) ?? "";
+
+    expect(ctx).toContain("tags: billing");
+    expect(ctx).not.toContain("traceTags");
+    expect(ctx).not.toContain("scores.<name>");
   });
 
   it("caps observed value length and total context size", () => {

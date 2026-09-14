@@ -1,0 +1,281 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  errors: ./errors.yml
+  pagination: ../utils/pagination.yml
+  dashboardWidgets: ./dashboard-widgets.yml
+
+service:
+  auth: true
+  base-path: /api/public/unstable
+  endpoints:
+    list:
+      docs: |
+        List dashboards in the project, ordered by most recently updated
+        first.
+      method: GET
+      path: /dashboards
+      request:
+        name: ListDashboardsRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: 1-based page number. Defaults to `1`.
+          limit:
+            type: optional<integer>
+            docs: Maximum number of items per page. Defaults to `50`.
+      response: DashboardList
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    create:
+      docs: Create a dashboard.
+      method: POST
+      path: /dashboards
+      request: CreateDashboardRequest
+      response: Dashboard
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    get:
+      docs: Get a dashboard by id.
+      method: GET
+      path: /dashboards/{dashboardId}
+      path-parameters:
+        dashboardId: string
+      response: Dashboard
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    update:
+      docs: Update a dashboard's name, description, definition, or filters.
+      method: PATCH
+      path: /dashboards/{dashboardId}
+      path-parameters:
+        dashboardId: string
+      request: UpdateDashboardRequest
+      response: Dashboard
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    delete:
+      docs: Delete a dashboard.
+      method: DELETE
+      path: /dashboards/{dashboardId}
+      path-parameters:
+        dashboardId: string
+      response: DeleteDashboardResponse
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    addPlacement:
+      docs: |
+        Add a placement to a dashboard grid (see `DashboardPlacement` for
+        grid semantics).
+
+        `id` and the position fields are optional: when omitted, the
+        placement gets a server-generated id and is appended below all
+        existing tiles as a 6x6 tile. Returns the created placement.
+
+        The referenced widget must exist in the same project or be a
+        Langfuse-managed widget. The API returns `409` if a placement with
+        the same `id` already exists on the dashboard.
+      method: POST
+      path: /dashboards/{dashboardId}/placements
+      path-parameters:
+        dashboardId: string
+      request: CreateDashboardPlacementRequest
+      response: DashboardPlacement
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.ConflictError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    updatePlacement:
+      docs: |
+        Move or resize a placement. All fields are optional; at least one is
+        required. Omitted fields keep their current value. The placement's
+        content (widget/preset reference) and id cannot change — delete and
+        re-add the placement to swap content. Returns the updated placement.
+      method: PATCH
+      path: /dashboards/{dashboardId}/placements/{placementId}
+      path-parameters:
+        dashboardId: string
+        placementId: string
+      request: UpdateDashboardPlacementRequest
+      response: DashboardPlacement
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    deletePlacement:
+      docs: Remove a placement from a dashboard grid without deleting the referenced widget.
+      method: DELETE
+      path: /dashboards/{dashboardId}/placements/{placementId}
+      path-parameters:
+        dashboardId: string
+        placementId: string
+      response: DeleteDashboardPlacementResponse
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+types:
+  DashboardPlacement:
+    docs: |
+      A tile on the dashboard's 12-column grid. `x`/`y` are the tile's
+      top-left cell (0-based; `y` grows downward), `width`/`height` its size
+      in cells. The UI default tile is 6x6 (half width). Overlapping tiles
+      are not rejected; prefer appending below existing tiles (or omit the
+      position on create to let the server do it).
+    discriminant: type
+    union:
+      widget:
+        type: WidgetPlacement
+      preset:
+        type: PresetPlacement
+  WidgetPlacement:
+    properties:
+      id: string
+      widgetId: string
+      x: integer
+      y: integer
+      width: integer
+      height: integer
+  PresetPlacement:
+    properties:
+      id: string
+      presetId: string
+      x: integer
+      y: integer
+      width: integer
+      height: integer
+  CreateDashboardPlacementRequest:
+    discriminant: type
+    union:
+      widget:
+        type: CreateWidgetPlacement
+      preset:
+        type: CreatePresetPlacement
+  CreateWidgetPlacement:
+    properties:
+      id:
+        type: optional<string>
+        docs: Server-generated when omitted.
+      widgetId: string
+      x:
+        type: optional<integer>
+        docs: Grid column (12-column grid). Defaults to `0`.
+      y:
+        type: optional<integer>
+        docs: Grid row. Defaults to the first row below all existing tiles.
+      width:
+        type: optional<integer>
+        docs: Width in grid columns. Defaults to `6`.
+      height:
+        type: optional<integer>
+        docs: Height in grid rows. Defaults to `6`.
+  CreatePresetPlacement:
+    properties:
+      id:
+        type: optional<string>
+        docs: Server-generated when omitted.
+      presetId: string
+      x:
+        type: optional<integer>
+        docs: Grid column (12-column grid). Defaults to `0`.
+      y:
+        type: optional<integer>
+        docs: Grid row. Defaults to the first row below all existing tiles.
+      width:
+        type: optional<integer>
+        docs: Width in grid columns. Defaults to `6`.
+      height:
+        type: optional<integer>
+        docs: Height in grid rows. Defaults to `6`.
+  UpdateDashboardPlacementRequest:
+    properties:
+      x:
+        type: optional<integer>
+        docs: Grid column (12-column grid).
+      y:
+        type: optional<integer>
+        docs: Grid row.
+      width:
+        type: optional<integer>
+        docs: Width in grid columns.
+      height:
+        type: optional<integer>
+        docs: Height in grid rows.
+  DeleteDashboardPlacementResponse:
+    properties:
+      message: string
+  DashboardDefinition:
+    properties:
+      widgets: list<DashboardPlacement>
+  Dashboard:
+    properties:
+      id: string
+      createdAt: datetime
+      updatedAt: datetime
+      name: string
+      description: string
+      definition: DashboardDefinition
+      filters:
+        type: list<dashboardWidgets.DashboardWidgetFilter>
+        docs: Dashboard-level filters applied to all widgets on the dashboard.
+  DashboardList:
+    properties:
+      data: list<Dashboard>
+      meta: pagination.MetaResponse
+  CreateDashboardRequest:
+    properties:
+      name: string
+      description: optional<string>
+      definition: optional<DashboardDefinition>
+      filters: optional<list<dashboardWidgets.DashboardWidgetFilter>>
+  UpdateDashboardRequest:
+    properties:
+      name: optional<string>
+      description: optional<string>
+      definition: optional<DashboardDefinition>
+      filters: optional<list<dashboardWidgets.DashboardWidgetFilter>>
+  DeleteDashboardResponse:
+    properties:
+      message: string

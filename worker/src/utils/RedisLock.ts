@@ -49,6 +49,7 @@ export class RedisLock {
   private readonly ttlSeconds: number;
   private readonly name: string;
   private readonly onUnavailable: OnUnavailableBehavior;
+  private readonly onError?: (error: unknown) => void;
 
   // Lua script for atomic check-and-delete (only delete if we own the lock)
   private static readonly RELEASE_LOCK_SCRIPT = `
@@ -59,8 +60,60 @@ export class RedisLock {
     end
   `;
 
+  private static readonly EXTEND_LOCK_SCRIPT = `
+    if redis.call("get", KEYS[1]) == ARGV[1] then
+      return redis.call("expire", KEYS[1], ARGV[2])
+    else
+      return 0
+    end
+  `;
+
   public get key(): string {
     return this.lockKey;
+  }
+
+  public async isHeldByCurrentProcess(): Promise<boolean> {
+    if (!redis) {
+      return this.onUnavailable === "proceed";
+    }
+
+    try {
+      return (await redis.get(this.lockKey)) === this.lockValue;
+    } catch (error) {
+      logger.error(`[${this.name}] Failed to check lock ownership`, error);
+      return false;
+    }
+  }
+
+  public async extend(): Promise<boolean> {
+    if (!redis) {
+      return this.onUnavailable === "proceed";
+    }
+
+    try {
+      const result = await redis.eval(
+        RedisLock.EXTEND_LOCK_SCRIPT,
+        1,
+        this.lockKey,
+        this.lockValue,
+        String(this.ttlSeconds),
+      );
+
+      if (result === 1) {
+        logger.debug(
+          `[${this.name}] Extended lock with TTL ${this.ttlSeconds}s`,
+        );
+        return true;
+      }
+
+      logger.warn(
+        `[${this.name}] Lock was not extended (not owned or already expired)`,
+      );
+      return false;
+    } catch (error) {
+      logger.error(`[${this.name}] Failed to extend lock`, error);
+      return false;
+    }
   }
 
   constructor(
@@ -71,6 +124,7 @@ export class RedisLock {
       name?: string;
       /** Behavior when Redis is unavailable. Default: "proceed" */
       onUnavailable?: OnUnavailableBehavior;
+      onError?: (error: unknown) => void;
     },
   ) {
     this.lockKey = lockKey;
@@ -78,6 +132,7 @@ export class RedisLock {
     this.ttlSeconds = options.ttlSeconds;
     this.name = options.name ?? lockKey;
     this.onUnavailable = options.onUnavailable ?? "proceed";
+    this.onError = options.onError;
   }
 
   /**
@@ -117,6 +172,9 @@ export class RedisLock {
   public async acquire(): Promise<LockAcquireResult> {
     if (!redis) {
       logger.warn(`[${this.name}] Redis unavailable, allowing processing`);
+      if (this.onUnavailable === "fail") {
+        this.onError?.(new Error(`[${this.name}] Redis unavailable`));
+      }
       return "skipped";
     }
 
@@ -146,6 +204,7 @@ export class RedisLock {
         `[${this.name}] Failed to acquire lock due to an error`,
         error,
       );
+      this.onError?.(error);
       // On error, allow processing but don't claim to hold the lock
       return "skipped";
     }
@@ -158,6 +217,9 @@ export class RedisLock {
    */
   public async release(): Promise<boolean> {
     if (!redis) {
+      this.onError?.(
+        new Error(`[${this.name}] Redis unavailable during lock release`),
+      );
       return false;
     }
 
@@ -173,13 +235,16 @@ export class RedisLock {
         return true;
       }
 
-      logger.warn(
+      const error = new Error(
         `[${this.name}] Lock was not released (not owned or already expired)`,
       );
+      logger.warn(error.message);
+      this.onError?.(error);
       return false;
     } catch (error) {
       // Log but don't throw - lock will expire via TTL anyway
       logger.error(`[${this.name}] Failed to release lock`, error);
+      this.onError?.(error);
       return false;
     }
   }

@@ -18,8 +18,19 @@ export function validateOrderBy(
 ): OrderByState | null {
   if (!orderBy || !columns || columns.length === 0) return null;
 
+  // Flatten group columns: a sortable column can live inside a group def
+  // (e.g. the events table's totalTokens under "Usage"), and a flat lookup
+  // would silently drop a saved orderBy that references it.
+  const flatColumns = columns.flatMap(function flatten(
+    col: LangfuseColumnDef<any, any>,
+  ): LangfuseColumnDef<any, any>[] {
+    return [col, ...(col.columns?.flatMap(flatten) ?? [])];
+  });
+
   const isSortableColumn = (columnId: string) =>
-    columns.some((col) => col.id === columnId && col.enableSorting !== false);
+    flatColumns.some(
+      (col) => col.id === columnId && col.enableSorting !== false,
+    );
 
   // If the column already exists in the active table, keep it.
   if (isSortableColumn(orderBy.column)) {

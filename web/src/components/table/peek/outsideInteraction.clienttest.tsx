@@ -20,7 +20,7 @@ function targetWith(
   return el;
 }
 
-const IGNORED = ['[role="checkbox"]', "[data-bookmark-toggle]"];
+const IGNORED = ['[role="checkbox"]', "[aria-label='edit']"];
 
 describe("shouldKeepPeekOpenOnOutsideInteraction", () => {
   afterEach(() => {
@@ -48,6 +48,13 @@ describe("shouldKeepPeekOpenOnOutsideInteraction", () => {
     expect(shouldKeepPeekOpenOnOutsideInteraction(target, IGNORED)).toBe(true);
   });
 
+  it("keeps open when interacting with a toast overlay", () => {
+    // Version-update banner and Sonner toasts portal into the `toast` layer.
+    // Dismissing one must not count as a peek click-outside.
+    const target = targetWith({}, { "data-layer": "toast" });
+    expect(shouldKeepPeekOpenOnOutsideInteraction(target, IGNORED)).toBe(true);
+  });
+
   it("keeps open for a selection checkbox even outside any row", () => {
     expect(
       shouldKeepPeekOpenOnOutsideInteraction(
@@ -60,7 +67,7 @@ describe("shouldKeepPeekOpenOnOutsideInteraction", () => {
   it("keeps open for a table-configured ignoredSelector", () => {
     expect(
       shouldKeepPeekOpenOnOutsideInteraction(
-        targetWith({ "data-bookmark-toggle": "true" }),
+        targetWith({ "aria-label": "edit" }),
         IGNORED,
       ),
     ).toBe(true);

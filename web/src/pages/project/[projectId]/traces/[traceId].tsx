@@ -1,14 +1,17 @@
-import { TracePage } from "@/src/components/trace/TracePage";
+import { TracePage } from "@/src/features/traces/TracePage";
+import { parseTraceTimestampFromQuery } from "@/src/fns/parseTraceTimestampFromQuery/parseTraceTimestampFromQuery";
+import {
+  RouteParamsPendingFallback,
+  useReadyRouteParams,
+} from "@/src/hooks/useReadyRouteParams";
 import { useRouter } from "next/router";
 
 export default function Trace() {
   const router = useRouter();
-  const traceId = router.query.traceId as string;
+  const route = useReadyRouteParams(["projectId", "traceId"]);
+  const timestamp = parseTraceTimestampFromQuery(router.query.timestamp);
 
-  const timestamp =
-    router.query.timestamp && typeof router.query.timestamp === "string"
-      ? new Date(decodeURIComponent(router.query.timestamp))
-      : undefined;
+  if (!route.ready) return <RouteParamsPendingFallback />;
 
-  return <TracePage traceId={traceId} timestamp={timestamp} />;
+  return <TracePage traceId={route.params.traceId} timestamp={timestamp} />;
 }

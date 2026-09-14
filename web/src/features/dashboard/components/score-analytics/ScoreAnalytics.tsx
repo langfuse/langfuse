@@ -1,15 +1,18 @@
+/* eslint-disable @repo/no-style-props */
 import { api } from "@/src/utils/api";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { type ScoreDataTypeType, type FilterState } from "@langfuse/shared";
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
-import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import React, { useMemo } from "react";
-import { Separator } from "@/src/components/ui/separator";
 import {
+  convertScoreColumnsToAnalyticsData,
+  getScoreDataTypeIcon,
   isBooleanDataType,
   isCategoricalDataType,
   isNumericDataType,
-} from "@/src/features/scores/lib/helpers";
+  MultiSelectKeyValues,
+} from "@/src/features/scores";
+import React, { useMemo } from "react";
+import { Separator } from "@/src/components/ui/separator";
 import { NumericScoreTimeSeriesChart } from "@/src/features/dashboard/components/score-analytics/NumericScoreTimeSeriesChart";
 import { CategoricalScoreChart } from "@/src/features/dashboard/components/score-analytics/CategoricalScoreChart";
 import { NumericScoreHistogram } from "@/src/features/dashboard/components/score-analytics/NumericScoreHistogram";
@@ -17,10 +20,6 @@ import DocPopup from "@/src/components/layouts/doc-popup";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { type ViewVersion } from "@langfuse/shared/query";
-import {
-  convertScoreColumnsToAnalyticsData,
-  getScoreDataTypeIcon,
-} from "@/src/features/scores/lib/scoreColumns";
 
 export function ScoreAnalytics(props: {
   className?: string;
@@ -30,8 +29,10 @@ export function ScoreAnalytics(props: {
   toTimestamp: Date;
   projectId: string;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
+  /** Shared hover-sync group so the per-score line charts join the dashboard crosshair. */
+  syncId?: string;
 }) {
   // Stale score selections in localStorage are ignored as we only show scores that exist in scoreAnalyticsOptions
   const [selectedDashboardScoreKeys, setSelectedDashboardScoreKeys] =
@@ -67,7 +68,7 @@ export function ScoreAnalytics(props: {
       title="Scores Analytics"
       description="Aggregate scores and averages over time"
       isLoading={props.isLoading || scoreKeysAndProps.isPending}
-      headerClassName={"grid grid-cols-[1fr_auto_auto] items-center"}
+      headerClassName="grid grid-cols-[1fr_auto_auto] items-center"
       headerChildren={
         !scoreKeysAndProps.isPending &&
         !props.isLoading &&
@@ -185,6 +186,7 @@ export function ScoreAnalytics(props: {
                         toTimestamp={props.toTimestamp}
                         metricsVersion={props.metricsVersion}
                         schedulerId={props.schedulerId}
+                        syncId={props.syncId}
                       />
                     )}
                   </div>

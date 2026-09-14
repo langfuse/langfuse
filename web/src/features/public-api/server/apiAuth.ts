@@ -14,6 +14,7 @@ import {
   invalidateCachedOrgApiKeys as invalidateCachedOrgApiKeysShared,
   invalidateCachedProjectApiKeys as invalidateCachedProjectApiKeysShared,
   createApiKeyCacheKey,
+  API_KEY_NON_EXISTENT,
 } from "@langfuse/shared/src/server";
 import {
   type PrismaClient,
@@ -23,8 +24,7 @@ import {
 } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type Redis, type Cluster } from "ioredis";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
-import { API_KEY_NON_EXISTENT } from "@langfuse/shared/src/server";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import { type z } from "zod";
 import { CloudConfigSchema, isPlan } from "@langfuse/shared";
 
@@ -154,7 +154,6 @@ export class ApiAuthService {
               logger.info("No project id found for key", publicKey);
               throw new Error("Invalid credentials");
             }
-
             const plan = finalApiKey.plan;
 
             if (!isPlan(plan)) {
@@ -178,6 +177,15 @@ export class ApiAuthService {
                 ? ("organization" as const)
                 : ("project" as const);
 
+            // The API key is resolved via the hash of the secret key, so the
+            // submitted public key may not belong to it, e.g. after a partial
+            // credential rotation on the client.
+            if (publicKey !== finalApiKey.publicKey) {
+              logger.warn(
+                `Public key mismatch on basic auth: submitted public key ${publicKey} does not match public key ${finalApiKey.publicKey} of the API key resolved via the secret key (apiKeyId ${finalApiKey.id}, projectId ${finalApiKey.projectId}, orgId ${finalApiKey.orgId})`,
+              );
+            }
+
             const result = {
               validKey: true as const,
               scope: {
@@ -188,7 +196,7 @@ export class ApiAuthService {
                 rateLimitOverrides: finalApiKey.rateLimitOverrides ?? [],
                 apiKeyId: finalApiKey.id,
                 scope: finalApiKey.scope,
-                publicKey,
+                publicKey: finalApiKey.publicKey,
                 isIngestionSuspended: finalApiKey.isIngestionSuspended,
                 isInAppAgentKey: finalApiKey.isInAppAgentKey,
               },

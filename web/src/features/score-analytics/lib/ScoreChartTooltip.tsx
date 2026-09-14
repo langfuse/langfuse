@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import {
   type IntervalConfig,
   type TimeRange,
@@ -114,7 +115,7 @@ export function ScoreChartTooltip({
     <div className="border-border bg-background rounded-md border opacity-100 shadow-lg">
       {/* Header with timestamp/label */}
       <div className="border-border border-b px-3 py-1.5">
-        <p className="text-muted-foreground text-sm font-medium">
+        <p className="text-muted-foreground text-sm font-bold">
           {formattedLabel}
         </p>
       </div>
@@ -144,7 +145,7 @@ export function ScoreChartTooltip({
                 {seriesLabel?.toString() ?? ""}
               </span>
               {/* Formatted value */}
-              <span className="text-foreground text-sm font-medium">
+              <span className="text-foreground text-sm font-bold">
                 {valueFormatter(Number(entry.value ?? 0))}
               </span>
             </div>

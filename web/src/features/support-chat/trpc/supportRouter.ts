@@ -15,7 +15,6 @@ import {
   SeveritySchema,
   TopicSchema,
   TopicGroups,
-  highestSupportPlan,
 } from "../formConstants";
 
 import {
@@ -150,18 +149,13 @@ export const supportRouter = createTRPCRouter({
       }
 
       // When no specific org/project is in context (the support form is
-      // reachable from pages without org/project in the URL), fall back to the
-      // user's highest-tier org plan. This mirrors the client-side gating so a
-      // legitimate Team/Enterprise user is not silently downgraded.
-      if (!currentSupportRequestContext.plan) {
-        currentSupportRequestContext.plan = highestSupportPlan(
-          ctx.session.user.organizations.map((o) => o.plan),
-        );
-      }
+      // reachable from pages without org/project in the URL), the plan stays
+      // undefined and the request is capped to Sev-3. This mirrors the
+      // client-side gating.
 
-      // Resolve the Pylon case severity (Sev-1/2/3). Sev-1 is gated to
-      // high-tier plans inside mapToPylonCaseSeverity, so a Severity 1 selection
-      // from a non-high-tier plan is safely downgraded server-side.
+      // Resolve the Pylon case severity (Sev-1/2/3). Sev-1 and Sev-2 are
+      // gated to Enterprise plans inside mapToPylonCaseSeverity, so a
+      // selection from a non-Enterprise plan is safely downgraded server-side.
       const caseSeverity = mapToPylonCaseSeverity({
         severity: input.severity,
         plan: currentSupportRequestContext.plan,
@@ -229,10 +223,11 @@ export const supportRouter = createTRPCRouter({
                   ]
                 : []),
               { slug: "langfuse_metadata", value: pylonMetadata },
-              {
-                slug: "case_severity",
-                value: caseSeverity,
-              },
+              // Hobby/Core requests carry no case severity (undefined) — omit
+              // the field entirely instead of writing a default.
+              ...(caseSeverity
+                ? [{ slug: "case_severity", value: caseSeverity }]
+                : []),
             ],
           });
 

@@ -41,5 +41,3 @@ export const WIDGET_FILTER_PRESETS = {
     ],
   },
 } as const satisfies Record<string, WidgetFilterPreset>;
-
-export type WidgetFilterPresetKey = keyof typeof WIDGET_FILTER_PRESETS;

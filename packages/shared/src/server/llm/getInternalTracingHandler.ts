@@ -1,9 +1,12 @@
-import CallbackHandler from "langfuse-langchain";
+import { Langfuse } from "langfuse";
+import { env } from "../../env";
 import { ProcessedTraceEvent, TraceSinkParams } from "./types";
 import { buildInternalTraceEventInputs } from "./internalTraceEvents";
 import { processEventBatch } from "../ingestion/processEventBatch";
+import { createUnknownSdkIngestionAttribution } from "../ingestion/ingestionAttribution";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
+import { publishAiFeatureTraceViaOtelIngestion } from "../otel/internalAiFeatureOtelWriter";
 
 export function prepareInternalTraceEvents(params: {
   events: Array<{
@@ -72,17 +75,20 @@ export function prepareInternalTraceEvents(params: {
 }
 
 export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
-  handler: CallbackHandler;
+  handler: { langfuse: Langfuse };
   processTracedEvents: () => Promise<void>;
 } {
-  const { prompt, targetProjectId, environment, userId, eventsWriter } =
+  const { prompt, targetProjectId, environment, eventsWriter } =
     traceSinkParams;
-  const handler = new CallbackHandler({
-    _projectId: targetProjectId,
-    _isLocalEventExportEnabled: true,
-    environment: environment,
-    userId: userId,
-  });
+  const handler = {
+    langfuse: new Langfuse({
+      _projectId: targetProjectId,
+      _isLocalEventExportEnabled: true,
+      environment,
+      persistence: "memory",
+      sdkIntegration: "LANGCHAIN",
+    }),
+  };
 
   const processTracedEvents = async () => {
     try {
@@ -95,20 +101,58 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
         prompt,
       });
 
+      const useAiFeatureOtel =
+        Boolean(traceSinkParams.aiFeatureOtelIngestion) &&
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy";
+
+      if (useAiFeatureOtel) {
+        try {
+          const { eventInputs } = buildInternalTraceEventInputs({
+            processedEvents,
+            traceId: traceSinkParams.traceId,
+            projectId: targetProjectId,
+            userId: traceSinkParams.userId,
+            sessionId: traceSinkParams.sessionId,
+          });
+
+          if (eventInputs.length > 0) {
+            await publishAiFeatureTraceViaOtelIngestion({
+              eventInputs,
+              projectId: targetProjectId,
+            });
+          }
+        } catch (otelError) {
+          traceException(otelError);
+          logger.error(
+            "Failed to process AI-feature traces via OTel ingestion",
+            {
+              error: otelError,
+            },
+          );
+        }
+
+        return;
+      }
+
       // Legacy write to traces/observations tables
       try {
+        const auth = {
+          validKey: true as const,
+          scope: {
+            projectId: traceSinkParams.targetProjectId, // Important: this controls into what project traces are ingested.
+            accessLevel: "project",
+          } as any,
+        };
+
         await processEventBatch(
           JSON.parse(JSON.stringify(processedEvents)), // stringify to emulate network event batch from network call
-          {
-            validKey: true as const,
-            scope: {
-              projectId: traceSinkParams.targetProjectId, // Important: this controls into what project traces are ingested.
-              accessLevel: "project",
-            } as any,
-          },
+          auth,
           {
             isLangfuseInternal: true,
             forwardToEventsTable: eventsWriter ? false : undefined, // Do not dual write when we already direct event write
+            attribution: createUnknownSdkIngestionAttribution({
+              authCheck: auth,
+            }),
           },
         );
       } catch (processingError) {
@@ -125,6 +169,8 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
             processedEvents,
             traceId: traceSinkParams.traceId,
             projectId: targetProjectId,
+            userId: traceSinkParams.userId,
+            sessionId: traceSinkParams.sessionId,
             experimentContext: eventsWriter.experimentContext,
           });
 

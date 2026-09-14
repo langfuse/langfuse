@@ -10,8 +10,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
 
 type WebCalloutTarget = {
@@ -21,11 +20,12 @@ type WebCalloutTarget = {
   sessionId?: string | null;
 };
 
-function useWebCalloutAction(props: WebCalloutTarget) {
+export function useWebCalloutAction(props: WebCalloutTarget, enabled: boolean) {
   const endpoint = api.webCallouts.enabled.useQuery(
     { projectId: props.projectId },
     {
       staleTime: 60_000,
+      enabled,
     },
   );
   const invokeMutation = api.webCallouts.invoke.useMutation({
@@ -58,34 +58,26 @@ function useWebCalloutAction(props: WebCalloutTarget) {
     });
   };
 
+  if (!enabled || endpoint.data?.enabled !== true) {
+    return undefined;
+  }
+
   return {
     endpointName: endpoint.data?.name ?? "Web callout",
     isLoading: invokeMutation.isPending,
-    isVisible: endpoint.data?.enabled === true,
     invokeCallout,
   };
 }
 
+type WebCalloutAction = NonNullable<ReturnType<typeof useWebCalloutAction>>;
+
 export function WebCalloutMenuItem({
-  projectId,
-  traceId,
-  observationId,
-  sessionId,
+  action,
   withSeparator,
-}: WebCalloutTarget & {
+}: {
+  action: WebCalloutAction;
   withSeparator?: boolean;
 }) {
-  const action = useWebCalloutAction({
-    projectId,
-    traceId,
-    observationId,
-    sessionId,
-  });
-
-  if (!action.isVisible) {
-    return null;
-  }
-
   return (
     <>
       <DropdownMenuItem
@@ -102,7 +94,7 @@ export function WebCalloutMenuItem({
           title={action.endpointName}
         >
           <span>Call </span>
-          <span className="font-semibold">{action.endpointName}</span>
+          <span className="font-bold">{action.endpointName}</span>
         </span>
       </DropdownMenuItem>
       {withSeparator && <DropdownMenuSeparator />}
@@ -111,23 +103,39 @@ export function WebCalloutMenuItem({
 }
 
 export function WebCalloutButton({
-  projectId,
-  traceId,
-  observationId,
-  sessionId,
-}: WebCalloutTarget) {
-  const action = useWebCalloutAction({
-    projectId,
-    traceId,
-    observationId,
-    sessionId,
-  });
-
-  if (!action.isVisible) {
-    return null;
-  }
-
+  action,
+  layout = "toolbar",
+}: {
+  action: WebCalloutAction;
+  /**
+   * "toolbar" (default) is the inline icon button; "menu" renders the same
+   * action as a full-width labeled row for the mobile header overflow popover.
+   * (WebCalloutMenuItem is a Radix DropdownMenuItem and only works inside a
+   * DropdownMenu, so the plain-popover mobile menu uses this row instead.)
+   */
+  layout?: "toolbar" | "menu";
+}) {
   const label = `Call ${action.endpointName}`;
+
+  if (layout === "menu") {
+    return (
+      <Button
+        aria-label={label}
+        variant="ghost"
+        size="sm"
+        loading={action.isLoading}
+        className="w-full justify-start gap-2 font-normal"
+        onClick={() => {
+          action.invokeCallout().catch(() => undefined);
+        }}
+      >
+        <Webhook className="h-4 w-4 shrink-0" />
+        <span className="min-w-0 truncate text-sm" title={label}>
+          {label}
+        </span>
+      </Button>
+    );
+  }
 
   return (
     <Tooltip>

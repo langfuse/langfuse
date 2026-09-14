@@ -2,7 +2,7 @@ import { Button } from "@/src/components/ui/button";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { FlaskConical, List } from "lucide-react";
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import {
   Dialog,
@@ -41,8 +41,10 @@ import {
   getDatasetRunCompareTabs,
 } from "@/src/features/navigation/utils/dataset-run-compare-tabs";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { toExperimentsResultsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 
-export default function DatasetCompare() {
+function DatasetCompareChartsLegacy() {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
@@ -86,7 +88,7 @@ export default function DatasetCompare() {
   return (
     <Page
       headerProps={{
-        title: `Compare runs: ${dataset.data?.name ?? datasetId}`,
+        title: `Compare experiments: ${dataset.data?.name ?? datasetId}`,
         tabsProps: {
           tabs: getDatasetRunCompareTabs(projectId, datasetId),
           activeTab: DATASET_RUN_COMPARE_TABS.CHARTS,
@@ -100,9 +102,13 @@ export default function DatasetCompare() {
             name: dataset.data?.name ?? datasetId,
             href: `/project/${projectId}/datasets/${datasetId}`,
           },
+          {
+            name: "Experiments",
+            href: `/project/${projectId}/datasets/${datasetId}/experiments`,
+          },
         ],
         help: {
-          description: "Compare your dataset runs side by side",
+          description: "Compare your experiments side by side",
         },
         actionButtonsRight: (
           <>
@@ -205,7 +211,7 @@ export default function DatasetCompare() {
                         key={key}
                         className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
                       >
-                        <span className="shrink-0 text-sm font-medium">
+                        <span className="shrink-0 text-sm font-bold">
                           {title}
                         </span>
                         <NoDataOrLoading
@@ -232,7 +238,7 @@ export default function DatasetCompare() {
                       key={key}
                       className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
                     >
-                      <span className="shrink-0 text-sm font-medium">
+                      <span className="shrink-0 text-sm font-bold">
                         {title}
                       </span>
                       <div className="min-h-[200px] min-w-0 flex-1">
@@ -244,9 +250,9 @@ export default function DatasetCompare() {
                             type: chartType,
                             unit: getCompareViewChartUnit(key),
                           }}
-                          legendPosition={
-                            chartLabels.length > 1 ? "above" : "none"
-                          }
+                          // The x-axis is dataset-run names — long and cluttered;
+                          // show them on hover instead of on the axis.
+                          hideXAxisLabels
                         />
                       </div>
                     </div>
@@ -292,4 +298,35 @@ export default function DatasetCompare() {
       </div>
     </Page>
   );
+}
+
+function asArrayValue(value: string | string[] | undefined) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+export default function DatasetCompare() {
+  const router = useRouter();
+  const projectId = router.query.projectId as string;
+  const runsQuery = router.query.runs;
+  const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
+
+  useEffect(() => {
+    if (
+      !router.isReady ||
+      isInitializing ||
+      !isExperimentsBetaActive ||
+      !projectId
+    ) {
+      return;
+    }
+
+    router.replace(toExperimentsResultsUrl(projectId, asArrayValue(runsQuery)));
+  }, [isExperimentsBetaActive, isInitializing, projectId, router, runsQuery]);
+
+  if (!router.isReady || isInitializing || isExperimentsBetaActive) {
+    return <Skeleton className="h-full w-full" />;
+  }
+
+  return <DatasetCompareChartsLegacy />;
 }

@@ -17,8 +17,7 @@ import {
 import { api } from "@/src/utils/api";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { type BaselineDiff } from "@/src/features/datasets/lib/calculateBaselineDiff";
-import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
+import { type BaselineDiff, DiffLabel } from "@/src/features/datasets";
 
 const resolveScoreValue = (aggregate: AggregatedScoreData): string => {
   if (aggregate.type === "NUMERIC") {
@@ -35,7 +34,7 @@ const ScoreDetailRow = ({
   value: React.ReactNode;
 }) => (
   <div className="flex justify-between gap-2">
-    <span className="text-muted-foreground w-14 font-medium">{label}</span>
+    <span className="text-muted-foreground w-14 font-bold">{label}</span>
     <div className="min-w-0 flex-1 text-right">
       {typeof value === "string" ? (
         <span className="wrap-break-word">{value}</span>
@@ -57,8 +56,10 @@ const ScoreValueSection = ({
     <div className="flex shrink-0 items-center gap-1">
       {aggregate ? (
         <>
-          <span className="line-clamp-1 font-medium">
-            {resolveScoreValue(aggregate)}
+          <span className="line-clamp-1 font-bold">
+            {aggregate.type === "NUMERIC"
+              ? aggregate.average.toFixed(2)
+              : resolveScoreValue(aggregate)}
           </span>
           {diff && (
             <DiffLabel diff={diff} formatValue={(value) => value.toFixed(2)} />
@@ -111,7 +112,10 @@ export const ScoreRow = ({
   if (!aggregate) {
     return (
       <div className="flex h-6 w-full items-center gap-2">
-        <span className="text-muted-foreground w-32 shrink-0 truncate">
+        <span
+          className="text-muted-foreground w-32 shrink-0 truncate"
+          title={name}
+        >
           {name}
         </span>
         <ScoreValueSection aggregate={aggregate} diff={diff} />
@@ -122,7 +126,9 @@ export const ScoreRow = ({
   return (
     <HoverCard openDelay={700} closeDelay={100} onOpenChange={setIsHovered}>
       <div className="flex h-6 w-full items-center gap-2">
-        <span className="w-32 shrink-0 truncate font-medium">{name}</span>
+        <span className="w-32 shrink-0 truncate font-bold" title={name}>
+          {name}
+        </span>
         <HoverCardTrigger asChild>
           <div className="cursor-pointer">
             <ScoreValueSection aggregate={aggregate} diff={diff} />
@@ -135,7 +141,7 @@ export const ScoreRow = ({
         align="start"
       >
         <div className="cursor-pointer space-y-3">
-          <h4 className="text-sm font-medium">{name}</h4>
+          <h4 className="text-sm font-bold">{name}</h4>
 
           <div className="space-y-2 text-xs">
             <ScoreDetailRow

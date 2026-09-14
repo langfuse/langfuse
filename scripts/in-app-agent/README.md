@@ -1,10 +1,29 @@
-# In-App Agent Prompt Sync
+# In-App Agent Sync Scripts
+
+## Skill Sync
+
+The generic Langfuse skill catalog and its sync script live in the
+`@repo/langfuse-skills` package:
+
+`packages/langfuse-skills/src/generated/skills.ts`
+
+```sh
+pnpm --filter @repo/langfuse-skills run sync
+```
+
+To verify the checked-in generated skills match upstream without changing files:
+
+```sh
+pnpm --filter @repo/langfuse-skills run sync:check
+```
+
+## Prompt Sync
 
 The canonical system prompt for the in-app agent lives at:
 
-`web/src/ee/features/in-app-agent/prompts/in-app-agent-system-prompt.txt`
+`packages/shared/src/in-app-agent/server/systemPrompt.ts`
 
-The local Postgres seeder reads this file and creates the text prompt named
+The local Postgres seeder imports this module and creates the text prompt named
 `in-app-agent-system-prompt` in the seed project
 `7a88fb47-b4e2-43b8-a06c-a5ce950dc53a` with the `production` and `latest`
 labels.

@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { MappingModeSelector } from "./components/MappingModeSelector";
 import { CustomMappingEditor } from "./components/CustomMappingEditor";
 import { MappingPreviewPanel } from "./components/MappingPreviewPanel";
-import { DatasetSchemaHoverCard } from "@/src/features/datasets/components/DatasetSchemaHoverCard";
+import { DatasetSchemaHoverCard } from "@/src/features/datasets";
 import {
   extractSchemaFields,
   isObjectSchema,
@@ -117,7 +117,7 @@ export function MappingStep({
       <div className="min-w-0 space-y-6">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="grow text-lg font-semibold">
+            <h3 className="grow text-lg font-bold">
               Dataset Item {fieldLabel}
             </h3>
             {hasSchema && (

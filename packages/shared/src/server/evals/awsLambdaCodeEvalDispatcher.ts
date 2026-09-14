@@ -5,7 +5,11 @@ import {
 } from "@aws-sdk/client-lambda";
 import { SpanKind, type AttributeValue, type Span } from "@opentelemetry/api";
 import { z } from "zod";
-import { instrumentAsync, traceException } from "../instrumentation";
+import {
+  instrumentAsync,
+  recordDistribution,
+  traceException,
+} from "../instrumentation";
 import { logger } from "../logger";
 import {
   assertDispatchInputWithinLimits,
@@ -37,7 +41,6 @@ type CodeEvalDispatcherErrorClassification = {
 // this is only consulted if a future runner surfaces one of them via the
 // user-code-error envelope.
 const RETRYABLE_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
-  CodeEvalDispatcherErrorCodes.TIMEOUT,
   CodeEvalDispatcherErrorCodes.LAMBDA_CONCURRENCY_LIMIT,
   CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
 ]);
@@ -50,6 +53,7 @@ const USER_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
   CodeEvalDispatcherErrorCodes.PAYLOAD_TOO_LARGE,
   CodeEvalDispatcherErrorCodes.RESULT_TOO_LARGE,
   CodeEvalDispatcherErrorCodes.SOURCE_TOO_LARGE,
+  CodeEvalDispatcherErrorCodes.OUT_OF_MEMORY,
   CodeEvalDispatcherErrorCodes.USER_CODE_ERROR,
 ]);
 
@@ -171,7 +175,25 @@ export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
         traceScope: "code-eval-dispatcher",
         startNewTrace: true,
       },
-      async (span) => this.dispatchWithTracing(input, span),
+      async (span) => {
+        // Dispatch spans are ingestion-sampled, so fleet-slowness monitors
+        // (per-project p95 quorum) run on this unsampled distribution instead.
+        // Recorded on failures too: timeouts are the slow runs that matter most.
+        const startTime = Date.now();
+        try {
+          return await this.dispatchWithTracing(input, span);
+        } finally {
+          recordDistribution(
+            "langfuse.code_eval.dispatch_duration",
+            Date.now() - startTime,
+            {
+              project_id: input.scope.projectId,
+              language: input.runtime.language,
+              unit: "milliseconds",
+            },
+          );
+        }
+      },
     );
   }
 
@@ -399,15 +421,31 @@ function classifyLambdaFunctionError(params: {
   if (
     errorType === "Function.TimedOut" ||
     errorType === "Sandbox.Timedout" ||
-    (errorMessage && isTimeoutErrorMessage(errorMessage))
+    (errorMessage && isTimeoutErrorMessage(errorMessage)) ||
+    (errorType === "Runtime.ExitError" &&
+      errorMessage !== null &&
+      /runtime exited without providing a reason/i.test(errorMessage))
   ) {
     return new CodeEvalDispatcherError(
       composedMessage || "Lambda task timed out",
-      { code: CodeEvalDispatcherErrorCodes.TIMEOUT, retryable: true },
+      { code: CodeEvalDispatcherErrorCodes.TIMEOUT, retryable: false },
     );
   }
 
-  // Abnormal runtime exit (OOM kill, segfault, process.exit, SIGKILL).
+  const isOutOfMemoryError =
+    errorType === "Runtime.OutOfMemory" ||
+    (errorType === "Runtime.ExitError" &&
+      errorMessage !== null &&
+      /signal:\s*killed/i.test(errorMessage));
+
+  if (isOutOfMemoryError) {
+    return new CodeEvalDispatcherError(
+      composedMessage || "Evaluator exceeded the available memory",
+      { code: CodeEvalDispatcherErrorCodes.OUT_OF_MEMORY, retryable: false },
+    );
+  }
+
+  // Other abnormal runtime exits (segfault, process.exit, SIGKILL).
   // Retrying never recovers from these.
   if (errorType === "Runtime.ExitError") {
     return new CodeEvalDispatcherError(

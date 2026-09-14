@@ -1,0 +1,149 @@
+name: Preview auto-labels
+
+# Auto-apply preview labels to same-repo PRs on open or update. Including
+# synchronize recovers PRs that opened with merge conflicts: GitHub skips
+# pull_request workflows until the conflict is resolved. It also reactivates a
+# stale or manually removed preview when development resumes.
+#
+# Trust boundary is WRITE access, not a per-author allowlist: opening a
+# same-repo PR requires push access. Fork PRs are short-circuited because the
+# preview workflows do not expose deployment credentials to them.
+#
+# Uses the plain `pull_request` trigger (NOT pull_request_target): no cloud
+# credentials, no checkout, no PR-code execution - only GitHub API calls.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions: {}
+
+jobs:
+  aws-preview:
+    name: Auto-label AWS preview
+    runs-on: ubuntu-latest
+    # AWS_PREVIEW_ECR_PUSH_ROLE_ARN is the feature flag: unset => preview system
+    # off, so don't label.
+    if: vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != ''
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Label same-repo PRs
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const { owner, repo } = context.repo;
+
+            if (pr.head.repo.full_name !== `${owner}/${repo}`) {
+              core.info("Fork PR; auto-label is limited to same-repo branches.");
+              return;
+            }
+
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: pr.number,
+              labels: ["preview"],
+            });
+            core.info(`Applied 'preview' label to PR #${pr.number}.`);
+
+  related-previews:
+    name: Auto-label related previews
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      pull-requests: write
+    steps:
+      - name: Label related previews
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const { owner, repo } = context.repo;
+
+            if (pr.head.repo.full_name !== `${owner}/${repo}`) {
+              core.info("Fork PR; auto-label is limited to same-repo branches.");
+              return;
+            }
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number: pr.number,
+              per_page: 100,
+            });
+            const paths = files.map((file) => file.filename);
+            const existingLabels = new Set(
+              pr.labels.map((label) => label.name),
+            );
+            const labels = [];
+
+            const hasApiSpecChanges = paths.some(
+              (path) =>
+                path.startsWith("fern/apis/server/") ||
+                path === "fern/fern.config.json" ||
+                path.startsWith("web/scripts/openapi/") ||
+                path.startsWith("web/public/generated/api/") ||
+                path === ".github/workflows/api-spec-preview.yml",
+            );
+            if (hasApiSpecChanges) labels.push("api-spec");
+
+            const hasStorybookChanges = paths.some(
+              (path) =>
+                path.startsWith("web/.storybook/") ||
+                path.startsWith("web/src/components/") ||
+                (path.startsWith("web/src/features/") &&
+                  path.includes("/components/")) ||
+                path === "web/src/styles/globals.css" ||
+                /\.stories\.[^/]+$/.test(path) ||
+                path === ".github/workflows/storybook-preview.yml",
+            );
+            if (hasStorybookChanges) labels.push("storybook");
+
+            if (labels.length === 0) {
+              core.info("No API spec or Storybook preview changes detected.");
+              return;
+            }
+
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: pr.number,
+              labels,
+            });
+            core.info(`Applied ${labels.join(", ")} to PR #${pr.number}.`);
+
+            // Events created with GITHUB_TOKEN do not trigger workflows for
+            // newly added labels. workflow_dispatch is the supported exception,
+            // so start each newly enabled preview explicitly on the PR branch.
+            // Existing labels already make the pull_request event run the preview.
+            const dispatches = [];
+            if (hasApiSpecChanges && !existingLabels.has("api-spec")) {
+              dispatches.push({ workflow_id: "api-spec-preview.yml" });
+            }
+            if (hasStorybookChanges && !existingLabels.has("storybook")) {
+              dispatches.push({ workflow_id: "storybook-preview.yml" });
+            }
+
+            for (const dispatch of dispatches) {
+              try {
+                await github.rest.actions.createWorkflowDispatch({
+                  owner,
+                  repo,
+                  ref: pr.head.ref,
+                  ...dispatch,
+                });
+                core.info(`Dispatched ${dispatch.workflow_id} for PR #${pr.number}.`);
+              } catch (error) {
+                // A newly added workflow cannot be dispatched until it exists
+                // on the default branch. Its own pull_request run still tests
+                // the initial change; future PRs use this dispatch path.
+                if (error.status === 404) {
+                  core.warning(
+                    `${dispatch.workflow_id} is not available on the default branch yet.`,
+                  );
+                  continue;
+                }
+                throw error;
+              }
+            }

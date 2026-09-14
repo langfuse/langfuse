@@ -1,13 +1,40 @@
 import type { Session } from "next-auth";
+
+// Session fixture sub-object types; casts keep the runtime fixtures unchanged
+// while satisfying newer required fields on the session user type.
+type SessionUser = NonNullable<Session["user"]>;
+type SessionOrg = SessionUser["organizations"][number];
+type SessionFeatureFlags = SessionUser["featureFlags"];
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server";
+import { randomUUID } from "crypto";
 
 describe("organization API keys trpc", () => {
   const organizationId = "seed-org-id";
 
+  // The session user is persisted as the API key creator, so it must exist
+  // in the database (CI does not run the seeder that creates user-1).
+  // createMany + skipDuplicates is atomic, so concurrently running test
+  // files can ensure the user without racing each other.
+  beforeAll(async () => {
+    await prisma.user.createMany({
+      data: [
+        {
+          id: "user-1",
+          name: "Demo User",
+          email: "demo-user-1@langfuse.com",
+        },
+      ],
+      skipDuplicates: true,
+    });
+  });
+
+  // Instance admins bypass both RBAC and entitlement checks, so this session
+  // cannot cover plan gating. `entitledOwnerCaller` / `unentitledOwnerCaller`
+  // below are the non-admin owners used for that.
   const ownerSession: Session = {
     expires: "1",
     user: {
@@ -22,13 +49,13 @@ describe("organization API keys trpc", () => {
           plan: "cloud:hobby",
           cloudConfig: undefined,
           metadata: {},
-          projects: [],
-        },
+          projects: [] as SessionOrg["projects"],
+        } as SessionOrg,
       ],
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
-      },
+      } as SessionFeatureFlags,
       admin: true,
     },
     environment: {} as any,
@@ -48,13 +75,13 @@ describe("organization API keys trpc", () => {
           plan: "cloud:hobby",
           cloudConfig: undefined,
           metadata: {},
-          projects: [],
-        },
+          projects: [] as SessionOrg["projects"],
+        } as SessionOrg,
       ],
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
-      },
+      } as SessionFeatureFlags,
       admin: false,
     },
     environment: {} as any,
@@ -74,29 +101,80 @@ describe("organization API keys trpc", () => {
           plan: "cloud:hobby",
           cloudConfig: undefined,
           metadata: {},
-          projects: [],
-        },
+          projects: [] as SessionOrg["projects"],
+        } as SessionOrg,
       ],
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
-      },
+      } as SessionFeatureFlags,
       admin: false,
     },
     environment: {} as any,
   };
 
-  const ownerCtx = createInnerTRPCContext({ session: ownerSession });
+  const ownerCtx = createInnerTRPCContext({
+    session: ownerSession,
+    headers: {},
+  });
   const ownerCaller = appRouter.createCaller({ ...ownerCtx, prisma });
 
-  const memberCtx = createInnerTRPCContext({ session: memberSession });
+  const memberCtx = createInnerTRPCContext({
+    session: memberSession,
+    headers: {},
+  });
   const memberCaller = appRouter.createCaller({ ...memberCtx, prisma });
 
-  const adminCtx = createInnerTRPCContext({ session: adminSession });
+  const adminCtx = createInnerTRPCContext({
+    session: adminSession,
+    headers: {},
+  });
   const adminCaller = appRouter.createCaller({ ...adminCtx, prisma });
 
-  const unAuthedCtx = createInnerTRPCContext({ session: null });
+  const unAuthedCtx = createInnerTRPCContext({ session: null, headers: {} });
   const unAuthedCaller = appRouter.createCaller({ ...unAuthedCtx, prisma });
+
+  // Organization-scoped API keys are a paid feature (`admin-api` entitlement).
+  // These owners are deliberately not instance admins so the plan gate applies.
+  const ownerSessionOnPlan = (plan: SessionOrg["plan"]): Session => ({
+    expires: "1",
+    user: {
+      id: "user-1",
+      canCreateOrganizations: true,
+      name: "Demo User",
+      organizations: [
+        {
+          id: organizationId,
+          name: "Test Organization",
+          role: "OWNER",
+          plan,
+          cloudConfig: undefined,
+          metadata: {},
+          projects: [] as SessionOrg["projects"],
+        } as SessionOrg,
+      ],
+      featureFlags: {
+        excludeClickhouseRead: false,
+        templateFlag: true,
+      } as SessionFeatureFlags,
+      admin: false,
+    },
+    environment: {} as any,
+  });
+
+  const callerForSession = (session: Session) =>
+    appRouter.createCaller({
+      ...createInnerTRPCContext({ session, headers: {} }),
+      prisma,
+    });
+
+  // cloud:hobby lacks `admin-api`; cloud:team carries it.
+  const unentitledOwnerCaller = callerForSession(
+    ownerSessionOnPlan("cloud:hobby"),
+  );
+  const entitledOwnerCaller = callerForSession(
+    ownerSessionOnPlan("cloud:team"),
+  );
 
   describe("organizationApiKeys.byOrganizationId", () => {
     it("owner can fetch organization API keys", async () => {
@@ -179,6 +257,26 @@ describe("organization API keys trpc", () => {
       expect(apiKeyResult.note).toBe("Test API Key");
     });
 
+    it("stores the creating user and returns it in the list", async () => {
+      const apiKeyResult = await ownerCaller.organizationApiKeys.create({
+        orgId: organizationId,
+        note: "Key for creator attribution test",
+      });
+
+      const dbKey = await prisma.apiKey.findUniqueOrThrow({
+        where: { id: apiKeyResult.id },
+      });
+      expect(dbKey.createdByUserId).toBe("user-1");
+      expect(dbKey.createdByApiKeyId).toBeNull();
+
+      const apiKeys = await ownerCaller.organizationApiKeys.byOrganizationId({
+        orgId: organizationId,
+      });
+      const listedKey = apiKeys.find((key) => key.id === apiKeyResult.id);
+      expect(listedKey?.createdByUser?.id).toBe("user-1");
+      expect(listedKey?.createdByApiKey).toBeNull();
+    });
+
     it("regular member cannot create organization API keys", async () => {
       await expect(
         memberCaller.organizationApiKeys.create({
@@ -204,6 +302,42 @@ describe("organization API keys trpc", () => {
           note: "Test API Key",
         }),
       ).rejects.toThrow(TRPCError);
+    });
+
+    it("owner on a plan without admin-api cannot create organization API keys", async () => {
+      // Unique note so the persistence assertion stays independent of other
+      // tests and of keys left behind by earlier runs.
+      const note = `unentitled-create-${randomUUID()}`;
+
+      await expect(
+        unentitledOwnerCaller.organizationApiKeys.create({
+          orgId: organizationId,
+          note,
+        }),
+      ).rejects.toThrow(
+        expect.objectContaining({
+          code: "FORBIDDEN",
+          message: expect.stringContaining("admin-api"),
+        }),
+      );
+
+      // The rejection must happen before the key is persisted, otherwise the
+      // plan gate would only hide a key that already works.
+      await expect(
+        prisma.apiKey.findFirst({ where: { orgId: organizationId, note } }),
+      ).resolves.toBeNull();
+    });
+
+    it("owner on a plan with admin-api can create organization API keys", async () => {
+      const apiKeyResult = await entitledOwnerCaller.organizationApiKeys.create(
+        {
+          orgId: organizationId,
+          note: "Entitled plan key",
+        },
+      );
+
+      expect(apiKeyResult.secretKey).toBeDefined();
+      expect(apiKeyResult.publicKey).toBeDefined();
     });
   });
 
@@ -363,6 +497,33 @@ describe("organization API keys trpc", () => {
           id: apiKeyResult.id,
         }),
       ).rejects.toThrow(TRPCError);
+    });
+
+    it("owner on a plan without admin-api can still list and revoke existing keys", async () => {
+      // Only creation is plan-gated. A downgraded organization must keep the
+      // ability to see and revoke keys that were issued while entitled,
+      // otherwise a downgrade would strand live credentials.
+      const existingKey = await createAndAddApiKeysToDb({
+        prisma,
+        entityId: organizationId,
+        scope: "ORGANIZATION",
+        note: "Issued before downgrade",
+      });
+
+      const apiKeys =
+        await unentitledOwnerCaller.organizationApiKeys.byOrganizationId({
+          orgId: organizationId,
+        });
+      expect(apiKeys.map((key) => key.id)).toContain(existingKey.id);
+
+      await unentitledOwnerCaller.organizationApiKeys.delete({
+        orgId: organizationId,
+        id: existingKey.id,
+      });
+
+      await expect(
+        prisma.apiKey.findUnique({ where: { id: existingKey.id } }),
+      ).resolves.toBeNull();
     });
   });
 });

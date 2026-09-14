@@ -1,13 +1,9 @@
 ---
 name: weekly-production-review
 description: |
-  Prepare Langfuse weekly production reviews that audit what broke, what was
-  fixed, what remains open, and where Datadog, incident.io, or Linear tracking
-  needs cleanup. Use when asked for a production review, "what broke last week",
-  fixed/open production bugs, Datadog alerted monitors/pages, Datadog error log
-  patterns, incident.io incidents, incident.io alert load, pager load by
-  engineer or time of day, or a source-table engineering review across
-  incident.io, Linear bugs, Datadog alerts, and Datadog logs.
+  Prepare Langfuse weekly production reviews covering failures, fixes, open
+  issues, and tracking gaps. Use for "what broke last week," production bugs,
+  Datadog alerts or error patterns, incident.io activity, or pager load.
 ---
 
 # Weekly Production Review
@@ -22,10 +18,14 @@ audit from the linked source rows.
   timezone. State both local and UTC query windows in one short scope line.
 - Cover all production environments unless the user narrows scope:
   `prod-us`, `prod-eu`, `prod-hipaa`, and `prod-jp`.
-- Keep the first pass read-only. Do not create or update Linear issues,
-  comments, incident.io records, follow-ups, alerts, Datadog monitors, files,
-  Slack messages, or production systems unless the user explicitly asks after
-  reviewing the findings.
+- The review itself changes nothing outside the tracker. Do not touch incident.io
+  records, follow-ups, alerts, monitors, files, Slack messages, or production
+  systems unless the user explicitly asks after reviewing the findings.
+- Linear is the exception: evidence comments on existing issues and new
+  parentless filings both need a propose-then-write yes — show the set, take
+  one go-ahead, then write and label. [`linear-agent-writes`](../linear-agent-writes/SKILL.md)
+  is the authority; [`linear-bug-triage`](../linear-bug-triage/SKILL.md) applies
+  it to measured findings.
 - For chat-only reviews, avoid creating report artifacts or local analysis
   workspaces unless a required tool workflow explicitly does so or the user asks
   for a file. If incident.io analysis tooling requires a local playbook
@@ -38,8 +38,12 @@ audit from the linked source rows.
 
 - Use [`datadog-query-recipes`](../datadog-query-recipes/SKILL.md) for
   production Datadog query shapes and environment/site routing.
-- Use [`linear-bug-triage`](../linear-bug-triage/SKILL.md) only after a human
-  explicitly approves a Linear write-back.
+- Use [`linear-bug-triage`](../linear-bug-triage/SKILL.md) for the Linear
+  write-back: it proposes measured evidence comments and new filings, then
+  writes once you approve the set.
+- Use [`incident-alert-tickets`](../incident-alert-tickets/SKILL.md) to check
+  each alert cluster against the per-monitor knowledge base and record newly
+  root-caused clusters there as a labelled description edit.
 
 ## Workflow
 
@@ -69,7 +73,11 @@ audit from the linked source rows.
    Group repeated firings by monitor/page title or ID, environment, service/team,
    and trigger reason.
 6. For every Datadog alert/page cluster, perform the deep dive before writing the
-   final row. Do not stop at the monitor title or count. Inspect matching APM
+   final row. Do not stop at the monitor title or count. Check the monitor's
+   `incident-alert` ticket first (see
+   [`incident-alert-tickets`](../incident-alert-tickets/SKILL.md)); a
+   documented cause section may explain the cluster — cite the ticket in the
+   `incident.io / Linear Link` column. Inspect matching APM
    spans, representative traces, related logs, error records, exception details,
    failed job logs, dependency spans, queue backlog/delay context, and monitor
    time windows. Put the relevant trace/span evidence and relevant logs/errors
@@ -116,7 +124,8 @@ relationships instead of synthesizing a separate cross-source table.
 
 Use Linear as the source of truth for deduplication across weeks and workflows.
 Before reporting a bug, security finding, cost concern, or alert as new, search
-Linear for matching issue keys, titles, source URLs, and comments. If an
+Linear for matching issue keys, titles, source URLs, and comments — covering
+both the `bug` label set and the `incident-alert` label set. If an
 existing issue covers it, link to that issue and mark the row as already
 tracked instead of reporting it again as fresh work.
 

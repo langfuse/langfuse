@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { type RefObject, useRef, useState } from "react";
 import type { EditorView, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { type Extension } from "@codemirror/state";
@@ -55,6 +56,33 @@ export function collectMediaReferenceStrings(
   return [...byMediaId.values()];
 }
 
+type SliceableDoc = {
+  readonly length: number;
+  sliceString(from: number, to?: number): string;
+};
+
+export function getMediaReferenceInsertRange(
+  doc: SliceableDoc,
+  from: number,
+  to: number,
+) {
+  if (doc.sliceString(from, to) === '""') {
+    return { from, to };
+  }
+
+  if (
+    from === to &&
+    from > 0 &&
+    from < doc.length &&
+    doc.sliceString(from - 1, from) === '"' &&
+    doc.sliceString(from, from + 1) === '"'
+  ) {
+    return { from: from - 1, to: from + 1 };
+  }
+
+  return { from, to };
+}
+
 /**
  * Inserts a media reference as a JSON string literal. Wrapping in quotes makes
  * it a valid value when inserted in a value slot; the form's JSON validation
@@ -72,9 +100,10 @@ function insertMediaReferenceIntoView(
     anchor != null ? Math.min(anchor, view.state.doc.length) : undefined;
   const { from, to } =
     pos != null ? { from: pos, to: pos } : view.state.selection.main;
+  const range = getMediaReferenceInsertRange(view.state.doc, from, to);
   view.dispatch({
-    changes: { from, to, insert },
-    selection: { anchor: from + insert.length },
+    changes: { ...range, insert },
+    selection: { anchor: range.from + insert.length },
   });
   view.focus();
 }
@@ -136,7 +165,7 @@ export function createMediaDropPasteExtension({
  * Attach button for a dataset item field. Shows a spinner while its upload is
  * in flight; failures surface via toast from the upload hook.
  */
-export function DatasetItemMediaUploadButton({
+function DatasetItemMediaUploadButton({
   onSelectFile,
   disabled,
 }: {
@@ -272,8 +301,8 @@ function DatasetItemAttachments({
     return null;
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-sm font-medium">Attachments</span>
-      <div className="flex flex-wrap gap-2">
+      <span className="text-sm font-bold">Attachments</span>
+      <div className="ph-no-capture flex flex-wrap gap-2">
         {referenceStrings.map((referenceString) => (
           <LangfuseMediaView
             key={referenceString}

@@ -13,7 +13,9 @@ export default function Document() {
     // lang is set explicitly (not left to the i18n config, which is being
     // phased out in App Router) so screen readers always get the document
     // language — WCAG 2.1 SC 3.1.1.
-    <Html lang="en">
+    // next-themes mutates class/style on <html> before hydration; suppress the
+    // expected mismatch one level deep (React 19 logs it and can re-render).
+    <Html lang="en" suppressHydrationWarning>
       <Head />
       <body>
         <Main />

@@ -32,6 +32,7 @@ ruleTester.run("no-margin-on-root-elements", rule, {
     `function Card() { return <div className={cn({ flex: isActive })} />; }`,
     `function Card() { return <div className={cn({ flex: isActive, "gap-2": hasGap })} />; }`,
     `function Card() { return <div className={cn({ [className]: isActive })} />; }`,
+    `function Card() { return <div className={cn({ [condition ? "mt-2" : "flex"]: isActive })} />; }`,
     `function Card() { return <div className={cn({ ...styles, flex: isActive })} />; }`,
     `function Card() { return <div className={condition && styles.root} />; }`,
     `function Card() { return <div className={"flex"!} />; }`,
@@ -79,6 +80,18 @@ ruleTester.run("no-margin-on-root-elements", rule, {
     },
     {
       code: `const Card = () => <div className="m-2" />;`,
+      errors: [{ messageId: "unexpectedClassName", data: { utility: "m-2" } }],
+    },
+    {
+      code: `const Card = (() => <div className="m-2" />) as React.FC;`,
+      errors: [{ messageId: "unexpectedClassName", data: { utility: "m-2" } }],
+    },
+    {
+      code: `const Card = (() => <div className="m-2" />) satisfies React.FC;`,
+      errors: [{ messageId: "unexpectedClassName", data: { utility: "m-2" } }],
+    },
+    {
+      code: `export default (() => <div className="m-2" />) as React.FC;`,
       errors: [{ messageId: "unexpectedClassName", data: { utility: "m-2" } }],
     },
     {
@@ -221,6 +234,18 @@ ruleTester.run("no-margin-on-root-elements", rule, {
     },
     {
       code: `const Card = memo(() => <div className="mt-2" />);`,
+      errors: [{ messageId: "unexpectedClassName", data: { utility: "mt-2" } }],
+    },
+    {
+      code: `const Card = memo((() => <div className="mt-2" />) as React.FC);`,
+      errors: [{ messageId: "unexpectedClassName", data: { utility: "mt-2" } }],
+    },
+    {
+      code: `const Card = memo((() => <div className="mt-2" />) satisfies React.FC);`,
+      errors: [{ messageId: "unexpectedClassName", data: { utility: "mt-2" } }],
+    },
+    {
+      code: `export default memo(() => <div className="mt-2" />);`,
       errors: [{ messageId: "unexpectedClassName", data: { utility: "mt-2" } }],
     },
     {

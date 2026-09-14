@@ -19,8 +19,12 @@ import React from "react";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
 
+// Boolean scores render as `true`/`false`; the capitalised entries keep the same
+// treatment for categorical scores whose category happens to be True/False.
 const COLOR_MAP = new Map([
+  ["true", "bg-light-green p-0.5 text-dark-green"],
   ["True", "bg-light-green p-0.5 text-dark-green"],
+  ["false", "bg-light-red p-0.5 text-dark-red"],
   ["False", "bg-light-red p-0.5 text-dark-red"],
 ]);
 const COLLAPSE_CATEGORICAL_SCORES_AFTER = 2;
@@ -34,7 +38,9 @@ const ScoreValueCounts = ({
 }) => {
   return valueCounts.map(({ value, count }, index) => (
     <span key={value} className="inline-block">
-      <span className="truncate">{value}</span>
+      <span className="truncate" title={value}>
+        {value}
+      </span>
       <span>{`: ${numberFormatter(count, 0)}`}</span>
       {index < valueCounts.length - 1 && (
         <span className="mr-1">{wrap ? "" : "; "}</span>
@@ -48,11 +54,19 @@ export const ScoresTableCell = ({
   displayFormat,
   wrap = true,
   hasMetadata,
+  valueTitle,
 }: {
   aggregate: AggregatedScoreData;
   displayFormat: "smart" | "aggregate";
   wrap?: boolean;
   hasMetadata?: boolean;
+  /**
+   * What the value belongs to, prefixed onto its hover title — for a table
+   * where one column holds several rows' values and the value alone does not
+   * say whose it is (the experiment comparison). Omitted everywhere else, and
+   * the title is then the value, unchanged.
+   */
+  valueTitle?: string;
 }) => {
   const projectId = useProjectIdFromURL();
   const [copied, setCopied] = React.useState(false);
@@ -73,20 +87,34 @@ export const ScoresTableCell = ({
         : aggregate.values[0];
 
     return (
+      // The value and its icons are one line, so they are centred as one:
+      // `inline-flex` triggers keep each icon's box the size of the icon, which
+      // the row then centres. Left to stretch, a trigger's box grows with the
+      // row and pins the icon to its top, off the value's centre.
       <span
         className={cn(
-          "flex min-w-0 flex-row gap-0.5 rounded-sm",
+          "flex min-w-0 flex-row items-center gap-0.5 rounded-sm",
           COLOR_MAP.get(value),
         )}
       >
-        <span className="truncate">{value}</span>
+        <span
+          className="truncate"
+          title={valueTitle ? `${valueTitle}: ${value}` : value}
+        >
+          {aggregate.type === "NUMERIC" ? aggregate.average.toFixed(2) : value}
+        </span>
         {aggregate.comment && (
           <HoverCard>
-            <HoverCardTrigger className="inline-block shrink-0 cursor-pointer">
+            <HoverCardTrigger className="inline-flex shrink-0 cursor-pointer items-center">
               <MessageCircleMore size={12} />
             </HoverCardTrigger>
             <HoverCardContent className="flex flex-col p-0 text-xs break-normal whitespace-normal">
-              <div className="bg-popover sticky top-0 z-10 flex h-8 items-center justify-end px-1">
+              {/* Name what the icon opened: a bare block of text next to a
+                  score does not say it is the score's comment. */}
+              <div className="bg-popover sticky top-0 z-10 flex h-8 items-center justify-between px-1">
+                <span className="text-muted-foreground pl-1.5 text-[10px] font-bold uppercase">
+                  Score comment
+                </span>
                 <Button
                   onClick={handleCopy}
                   variant="ghost"
@@ -119,7 +147,9 @@ export const ScoresTableCell = ({
 
   if (aggregate.type === "NUMERIC") {
     return (
-      <span className="rounded-sm">{`Ø ${aggregate.average.toFixed(4)}`}</span>
+      <span className="rounded-sm" title={aggregate.average.toFixed(4)}>
+        {`Ø ${aggregate.average.toFixed(2)}`}
+      </span>
     );
   }
 
@@ -188,7 +218,7 @@ function AggregateScoreMetadataPeek({
 
   return (
     <HoverCard onOpenChange={setIsOpen}>
-      <HoverCardTrigger className="inline-block cursor-pointer">
+      <HoverCardTrigger className="inline-flex shrink-0 cursor-pointer items-center">
         <BracesIcon size={12} />
       </HoverCardTrigger>
       <HoverCardContent className="overflow-hidden rounded-md border-none p-0 text-xs break-normal whitespace-normal">

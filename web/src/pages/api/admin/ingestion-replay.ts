@@ -9,8 +9,10 @@ import {
   rawEventBucketPrefix,
   SecondaryIngestionQueue,
   OtelIngestionQueue,
+  UNKNOWN_INGESTION_SDK_VALUE,
+  type QueueName,
+  type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
-import type { QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 
 const IngestionReplayBody = z.object({
@@ -147,11 +149,13 @@ export default async function handler(
           timestamp: new Date(),
           id: randomUUID(),
           payload: {
-            data: { fileKey: key },
+            data: { fileKey: key, publicKey: "" },
             authCheck: {
               validKey: true,
               scope: { projectId: parsed.projectId, accessLevel: "project" },
             },
+            sdkName: UNKNOWN_INGESTION_SDK_VALUE,
+            sdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
           },
           name: QueueJobs.OtelIngestionJob,
         });
@@ -188,6 +192,9 @@ export default async function handler(
               eventBodyId,
               fileKey: eventId,
               bucketPrefix,
+              ingestionApiKey: "",
+              ingestionSdkName: UNKNOWN_INGESTION_SDK_VALUE,
+              ingestionSdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
             },
             authCheck: {
               validKey: true,

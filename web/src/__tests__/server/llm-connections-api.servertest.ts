@@ -239,7 +239,24 @@ describe("/api/public/llm-connections API Endpoints", () => {
     });
 
     it("should return 400 for invalid query parameters", async () => {
-      const [negativePageResponse, negativeLimitResponse] = await Promise.all([
+      const [
+        zeroPageResponse,
+        fractionalPageResponse,
+        negativePageResponse,
+        negativeLimitResponse,
+      ] = await Promise.all([
+        makeAPICall(
+          "GET",
+          "/api/public/llm-connections?page=0&limit=10",
+          undefined,
+          auth,
+        ),
+        makeAPICall(
+          "GET",
+          "/api/public/llm-connections?page=0.5&limit=10",
+          undefined,
+          auth,
+        ),
         makeAPICall(
           "GET",
           "/api/public/llm-connections?page=-1&limit=10",
@@ -254,6 +271,8 @@ describe("/api/public/llm-connections API Endpoints", () => {
         ),
       ]);
 
+      expect(zeroPageResponse.status).toBe(400);
+      expect(fractionalPageResponse.status).toBe(400);
       expect(negativePageResponse.status).toBe(400);
       expect(negativeLimitResponse.status).toBe(400);
     });
@@ -382,7 +401,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
     });
 
     it("should reject creating a connection with a localhost baseURL", async () => {
-      const response = await makeAPICall(
+      const response = await makeAPICall<{ message: string }>(
         "PUT",
         "/api/public/llm-connections",
         {

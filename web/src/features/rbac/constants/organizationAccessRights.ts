@@ -1,25 +1,21 @@
 import { type Role } from "@langfuse/shared/src/db";
 
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
 export const organizationScopes = [
   "projects:create",
   "projects:transfer_org",
   "organization:CRUD_apiKeys",
   "organization:update",
   "organization:delete",
+  "gateway:manage",
+  "gateway:invoke",
   "organizationMembers:read",
   "organizationMembers:CUD",
   "langfuseCloudBilling:CRUD",
-  "auditLogs:read",
-  "v4Migration:read",
+  "orgAuditLogs:read",
 ] as const;
 
 // type string of all Resource:Action, e.g. "organizationMembers:read"
 export type OrganizationScope = (typeof organizationScopes)[number];
-
-export const v4MigrationOrgScope =
-  "v4Migration:read" satisfies OrganizationScope;
 
 export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
   OWNER: [
@@ -28,22 +24,24 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
     "organization:CRUD_apiKeys",
     "organization:update",
     "organization:delete",
+    "gateway:manage",
+    "gateway:invoke",
     "organizationMembers:CUD",
     "organizationMembers:read",
     "langfuseCloudBilling:CRUD",
-    "auditLogs:read",
-    v4MigrationOrgScope,
+    "orgAuditLogs:read",
   ],
   ADMIN: [
     "projects:create",
     "projects:transfer_org",
     "organization:update",
+    "gateway:manage",
+    "gateway:invoke",
     "organizationMembers:CUD",
     "organizationMembers:read",
-    "auditLogs:read",
-    v4MigrationOrgScope,
+    "orgAuditLogs:read",
   ],
-  MEMBER: ["organizationMembers:read"],
+  MEMBER: ["gateway:invoke", "organizationMembers:read"],
   VIEWER: [],
   NONE: [],
 };

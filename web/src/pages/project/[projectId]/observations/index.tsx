@@ -7,14 +7,15 @@ import {
   getTracingTabs,
   TRACING_TABS,
 } from "@/src/features/navigation/utils/tracing-tabs";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export default function Generations() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const { isBetaEnabled, isInitializing } = useV4Beta();
+  const { isV4, isResolved } = useReadPath();
   const { project } = useQueryProject();
 
   // Check if the user has tracing configured
@@ -41,13 +42,18 @@ export default function Generations() {
     <Page
       headerProps={{
         title: "Tracing",
+        // Match traces/index.tsx: no delay badge while onboarding tells the
+        // user to set up tracing for the first time.
+        titleBadges: showOnboarding ? undefined : (
+          <V4MigrationDelayBadge page="observations" />
+        ),
         help: {
           description:
             "An observation captures a single function call in an application. See docs to learn more.",
           href: "https://langfuse.com/docs/observability/data-model",
         },
         tabsProps:
-          isBetaEnabled || isInitializing
+          isV4 || !isResolved
             ? undefined
             : {
                 tabs: getTracingTabs(projectId),
@@ -59,17 +65,21 @@ export default function Generations() {
       {/* Show onboarding screen if user has no traces */}
       {showOnboarding ? (
         <TracesOnboarding projectId={projectId} />
-      ) : isInitializing ? (
+      ) : !isResolved ? (
         <>
           {/* Wait for the beta flag before mounting either table. Otherwise the
               legacy table can briefly mount, restore a v3 saved view, and
               promote its viewId into the URL before the correct mode
               resolves. */}
         </>
-      ) : isBetaEnabled ? (
-        <ObservationsEventsTable projectId={projectId} />
+      ) : isV4 ? (
+        <ObservationsEventsTable
+          projectId={projectId}
+          showControlsInPageHeader
+          enableAppRootDefault
+        />
       ) : (
-        <ObservationsTable projectId={projectId} />
+        <ObservationsTable projectId={projectId} showControlsInPageHeader />
       )}
     </Page>
   );

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
-import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
+import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
   Command,
   CommandEmpty,
@@ -81,6 +81,7 @@ export function MentionAutocomplete({
                 {displayedUsers.map((user, index) => {
                   const displayName = user.name || user.email || "User";
                   const isSelected = index === selectedIndex;
+                  const userLabel = user.name || "Unknown";
                   return (
                     <CommandItem
                       key={user.id}
@@ -92,17 +93,20 @@ export function MentionAutocomplete({
                       aria-selected={isSelected}
                       id={user.id}
                     >
-                      <Avatar className="h-6 w-6" aria-hidden="true">
-                        <AvatarFallback className="text-xs">
-                          {user.name ? user.name[0] : user.email?.[0] || "U"}
-                        </AvatarFallback>
-                      </Avatar>
+                      <Avatar
+                        size="sm"
+                        aria-hidden="true"
+                        displayName={displayName}
+                      />
                       <div className="text-foreground flex-1 overflow-hidden">
-                        <div className="truncate font-medium">
-                          {user.name || "Unknown"}
+                        <div className="truncate font-bold" title={userLabel}>
+                          {userLabel}
                         </div>
                         {user.email && (
-                          <div className="text-muted-foreground truncate text-xs">
+                          <div
+                            className="text-muted-foreground truncate text-xs"
+                            title={user.email}
+                          >
                             {user.email}
                           </div>
                         )}

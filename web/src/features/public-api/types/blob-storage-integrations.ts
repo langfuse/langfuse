@@ -2,6 +2,8 @@ import { z } from "zod";
 import {
   AnalyticsIntegrationExportSource,
   OBSERVATION_FIELD_GROUPS_FULL,
+  BLOB_STORAGE_REGION_INVALID_MESSAGE,
+  BLOB_STORAGE_REGION_REGEX,
 } from "@langfuse/shared";
 import {
   validateAzureContainerName,
@@ -14,15 +16,29 @@ import {
  * Enums
  */
 
-export const BlobStorageIntegrationType = z.enum([
+const BlobStorageIntegrationType = z.enum([
   "S3",
   "S3_COMPATIBLE",
   "AZURE_BLOB_STORAGE",
 ]);
 
-export const BlobStorageIntegrationFileType = z.enum(["JSON", "CSV", "JSONL"]);
+const BlobStorageIntegrationFileType = z.enum([
+  "JSON",
+  "CSV",
+  "JSONL",
+  "PARQUET",
+]);
 
-export const BlobStorageExportMode = z.enum([
+// Kept as a separate export for the response type. Now identical to the request
+// enum since Parquet is generally available and settable via the API.
+const BlobStorageIntegrationFileTypeResponse = z.enum([
+  "JSON",
+  "CSV",
+  "JSONL",
+  "PARQUET",
+]);
+
+const BlobStorageExportMode = z.enum([
   "FULL_HISTORY",
   "FROM_TODAY",
   "FROM_CUSTOM_DATE",
@@ -73,9 +89,7 @@ export const toPublicExportSource = (
 ): z.infer<typeof BlobStorageExportSource> =>
   INTERNAL_TO_PUBLIC_EXPORT_SOURCE[internalValue];
 
-export const BlobStorageExportFieldGroup = z.enum(
-  OBSERVATION_FIELD_GROUPS_FULL,
-);
+const BlobStorageExportFieldGroup = z.enum(OBSERVATION_FIELD_GROUPS_FULL);
 
 /**
  * Request/Response Types
@@ -87,7 +101,9 @@ export const CreateBlobStorageIntegrationRequest = z
     type: BlobStorageIntegrationType,
     bucketName: z.string().min(1),
     endpoint: z.string().nullable().optional(),
-    region: z.string(),
+    region: z.string().trim().min(1).regex(BLOB_STORAGE_REGION_REGEX, {
+      message: BLOB_STORAGE_REGION_INVALID_MESSAGE,
+    }),
     accessKeyId: z.string().nullable().optional(),
     secretAccessKey: z.string().nullable().optional(),
     prefix: z
@@ -146,7 +162,8 @@ export const CreateBlobStorageIntegrationRequest = z
     }
   });
 
-export const BlobStorageIntegrationResponse = z
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
+const BlobStorageIntegrationResponse = z
   .object({
     id: z.string(),
     projectId: z.string(),
@@ -159,7 +176,7 @@ export const BlobStorageIntegrationResponse = z
     exportFrequency: z.string(),
     enabled: z.boolean(),
     forcePathStyle: z.boolean(),
-    fileType: BlobStorageIntegrationFileType,
+    fileType: BlobStorageIntegrationFileTypeResponse,
     exportMode: BlobStorageExportMode,
     exportStartDate: z.coerce.date().nullable(),
     compressed: z.boolean(),
@@ -178,7 +195,7 @@ export type BlobStorageIntegrationResponseType = z.infer<
   typeof BlobStorageIntegrationResponse
 >;
 
-export const BlobStorageSyncStatus = z.enum([
+const BlobStorageSyncStatus = z.enum([
   "idle",
   "running",
   "queued",
@@ -187,7 +204,8 @@ export const BlobStorageSyncStatus = z.enum([
   "error",
 ]);
 
-export const BlobStorageIntegrationStatusResponse = z
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
+const BlobStorageIntegrationStatusResponse = z
   .object({
     id: z.string(),
     projectId: z.string(),

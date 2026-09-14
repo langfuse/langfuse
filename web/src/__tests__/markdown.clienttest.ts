@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { containsAnyMarkdown } from "@/src/components/schemas/MarkdownSchema";
 
 describe("containsAnyMarkdown Function", () => {

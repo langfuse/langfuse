@@ -35,6 +35,8 @@ import {
   DatasetRunItemRecordInsertType,
   createDatasetRunItem,
   createDatasetRunScore,
+  UNKNOWN_INGESTION_SDK_VALUE,
+  toClickhouseDateTime,
 } from "../../../src/server";
 
 /**
@@ -92,6 +94,37 @@ export class DataGenerator {
       "flags.beta": index % 2 === 0 ? "true" : "false",
       ...overrides,
     };
+  }
+
+  private buildSeedIngestionAttribution(
+    projectId: string,
+    client: "python-sdk" | "javascript-sdk" | "raw-api",
+  ): Pick<
+    ScoreRecordInsertType,
+    "ingestion_api_key" | "ingestion_sdk_name" | "ingestion_sdk_version"
+  > {
+    const keySuffix = projectId.slice(-8);
+
+    switch (client) {
+      case "python-sdk":
+        return {
+          ingestion_api_key: `pk-lf-seed-${keySuffix}-python`,
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "4.2.1",
+        };
+      case "javascript-sdk":
+        return {
+          ingestion_api_key: `pk-lf-seed-${keySuffix}-javascript`,
+          ingestion_sdk_name: "javascript",
+          ingestion_sdk_version: "5.1.3",
+        };
+      case "raw-api":
+        return {
+          ingestion_api_key: `pk-lf-seed-${keySuffix}-raw-api`,
+          ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
+          ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
+        };
+    }
   }
 
   /**
@@ -217,7 +250,7 @@ export class DataGenerator {
       name: `dataset-generation-${input.itemIndex}-run-${input.runNumber}`,
       input: trace.input,
       output: trace.output,
-      provided_model_name: "gpt-3.5-turbo",
+      provided_model_name: "gpt-5.4-mini",
       model_parameters: JSON.stringify({ temperature: 0.7 }),
       usage_details: {
         input: inputTokens,
@@ -266,6 +299,7 @@ export class DataGenerator {
       data_type: "NUMERIC",
       source: "API",
       environment: "langfuse-prompt-experiment",
+      ...this.buildSeedIngestionAttribution(projectId, "python-sdk"),
     });
   }
 
@@ -294,6 +328,7 @@ export class DataGenerator {
       data_type: "NUMERIC",
       source: "API",
       environment: "langfuse-prompt-experiment",
+      ...this.buildSeedIngestionAttribution(projectId, "javascript-sdk"),
     });
   }
 
@@ -637,6 +672,10 @@ export class DataGenerator {
           source: "API",
           comment: "Generated score\ntest",
           environment: trace.environment,
+          ...this.buildSeedIngestionAttribution(
+            trace.project_id,
+            this.randomElement(["python-sdk", "javascript-sdk", "raw-api"]),
+          ),
         });
 
         scores.push(score);
@@ -735,7 +774,7 @@ export class DataGenerator {
         level: "DEFAULT",
         environment: trace.environment,
         metadata: {
-          embeddingModel: "text-embedding-ada-002",
+          embeddingModel: "text-embedding-3-small",
           dimensions: "1536",
         },
         usage_details: {
@@ -1068,7 +1107,7 @@ export class DataGenerator {
     const now = Date.now();
     const traces: TraceRecordInsertType[] = dialogues.map((d, index) => ({
       id: `support-chat-${index}-${projectId.slice(-8)}`,
-      timestamp: now + index * 1000,
+      timestamp: toClickhouseDateTime(now + index * 1000),
       name: "SupportChatSession",
       user_id: null,
       metadata: this.buildNestedSeedMetadata("support-chat", index, {
@@ -1099,9 +1138,9 @@ export class DataGenerator {
       ),
       output: JSON.stringify({ role: "assistant", content: d.assistant }),
       session_id: "support-chat-session",
-      created_at: now + index * 1000,
-      updated_at: now + index * 1000 + 500,
-      event_ts: now + index * 1000,
+      created_at: toClickhouseDateTime(now + index * 1000),
+      updated_at: toClickhouseDateTime(now + index * 1000 + 500),
+      event_ts: toClickhouseDateTime(now + index * 1000),
       is_deleted: 0,
     }));
 
@@ -1121,8 +1160,8 @@ export class DataGenerator {
           type: "GENERATION",
           parent_observation_id: null,
           environment: "default",
-          start_time: start,
-          end_time: end,
+          start_time: toClickhouseDateTime(start),
+          end_time: toClickhouseDateTime(end),
           name: "llm-generation",
           metadata: {},
           level: "DEFAULT",
@@ -1141,7 +1180,7 @@ export class DataGenerator {
             ].filter(Boolean),
           }),
           output: JSON.stringify({ role: "assistant", content: d.assistant }),
-          provided_model_name: "gpt-4o",
+          provided_model_name: "gpt-5.4-mini",
           internal_model_id: null,
           model_parameters: JSON.stringify({ temperature: 0.2 }),
           provided_usage_details: {
@@ -1165,13 +1204,13 @@ export class DataGenerator {
             total: Math.round(totalTokens * 5) / 1_000_000,
           },
           total_cost: Math.round(totalTokens * 5) / 1_000_000,
-          completion_start_time: start + 120,
+          completion_start_time: toClickhouseDateTime(start + 120),
           prompt_id: null,
           prompt_name: null,
           prompt_version: null,
-          created_at: start,
-          updated_at: end,
-          event_ts: start,
+          created_at: toClickhouseDateTime(start),
+          updated_at: toClickhouseDateTime(end),
+          event_ts: toClickhouseDateTime(start),
           is_deleted: 0,
           tool_definitions: d.tool
             ? {
@@ -1194,8 +1233,8 @@ export class DataGenerator {
           type: "TOOL",
           parent_observation_id: null,
           environment: "default",
-          start_time: start - 40,
-          end_time: start - 5,
+          start_time: toClickhouseDateTime(start - 40),
+          end_time: toClickhouseDateTime(start - 5),
           name: d.tool.name,
           metadata: {},
           level: "DEFAULT",
@@ -1215,9 +1254,9 @@ export class DataGenerator {
           prompt_id: null,
           prompt_name: null,
           prompt_version: null,
-          created_at: start - 40,
-          updated_at: start - 5,
-          event_ts: start - 40,
+          created_at: toClickhouseDateTime(start - 40),
+          updated_at: toClickhouseDateTime(start - 5),
+          event_ts: toClickhouseDateTime(start - 40),
           is_deleted: 0,
           tool_definitions: undefined,
           tool_calls: undefined,
@@ -1250,10 +1289,11 @@ export class DataGenerator {
           string_value: null,
           long_string_value: "",
           queue_id: null,
-          created_at: baseTs,
-          updated_at: baseTs,
-          timestamp: baseTs,
-          event_ts: baseTs,
+          ...this.buildSeedIngestionAttribution(projectId, "javascript-sdk"),
+          created_at: toClickhouseDateTime(baseTs),
+          updated_at: toClickhouseDateTime(baseTs),
+          timestamp: toClickhouseDateTime(baseTs),
+          event_ts: toClickhouseDateTime(baseTs),
           is_deleted: 0,
         };
 
@@ -1277,10 +1317,11 @@ export class DataGenerator {
           data_type: "BOOLEAN",
           string_value: safeVal === 1 ? "True" : "False",
           queue_id: null,
-          created_at: baseTs + 10,
-          updated_at: baseTs + 10,
-          timestamp: baseTs + 10,
-          event_ts: baseTs + 10,
+          ...this.buildSeedIngestionAttribution(projectId, "python-sdk"),
+          created_at: toClickhouseDateTime(baseTs + 10),
+          updated_at: toClickhouseDateTime(baseTs + 10),
+          timestamp: toClickhouseDateTime(baseTs + 10),
+          event_ts: toClickhouseDateTime(baseTs + 10),
           is_deleted: 0,
         };
 
@@ -1306,10 +1347,11 @@ export class DataGenerator {
               data_type: "BOOLEAN",
               string_value: "True",
               queue_id: null,
-              created_at: baseTs + 20,
-              updated_at: baseTs + 20,
-              timestamp: baseTs + 20,
-              event_ts: baseTs + 20,
+              ...this.buildSeedIngestionAttribution(projectId, "raw-api"),
+              created_at: toClickhouseDateTime(baseTs + 20),
+              updated_at: toClickhouseDateTime(baseTs + 20),
+              timestamp: toClickhouseDateTime(baseTs + 20),
+              event_ts: toClickhouseDateTime(baseTs + 20),
               is_deleted: 0,
             }
           : null;
@@ -1354,6 +1396,7 @@ export class DataGenerator {
           source: "EVAL",
           comment: "Evaluation trace score",
           environment: trace.environment,
+          ...this.buildSeedIngestionAttribution(projectId, "python-sdk"),
         });
 
         scores.push(score);

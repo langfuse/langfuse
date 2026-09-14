@@ -12,7 +12,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
   return {
     redirect: {
-      destination: `/project/${projectId}/evals`,
+      destination: `/project/${projectId}/evals/legacy`,
       permanent: false,
     },
   };

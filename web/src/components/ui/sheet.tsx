@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
@@ -14,14 +15,15 @@ const SheetTrigger = SheetPrimitive.Trigger;
 
 const SheetClose = SheetPrimitive.Close;
 
-// Route the portal into the `modal` overlay layer (null until mounted →
+// Route the portal into the `panel` overlay layer (null until mounted →
 // falls back to <body>, SSR-parity). Layer order, not z-index, stacks it.
-// The non-modal table peek (modal={false}) portals here too; the `toast`
-// layer is ordered after `modal`, so toasts paint above the peek by DOM order.
+// The non-modal table peek (modal={false}) portals here too; the `agent`,
+// `modal`, and `toast` layers are ordered after `panel`, so they paint above
+// panel surfaces by DOM order.
 const SheetPortal = ({
   ...props
 }: React.ComponentPropsWithoutRef<typeof SheetPrimitive.Portal>) => {
-  const container = useLayerContainer("modal");
+  const container = useLayerContainer("panel");
   return <SheetPrimitive.Portal container={container} {...props} />;
 };
 SheetPortal.displayName = "SheetPortal";
@@ -42,7 +44,7 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
-  "fixed gap-4 bg-background p-6 shadow-lg transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-100 data-[state=open]:duration-100",
+  "fixed gap-4 bg-modal p-6 shadow-lg transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-100 data-[state=open]:duration-100",
   {
     variants: {
       side: {
@@ -77,7 +79,7 @@ const SheetContent = React.forwardRef<
       {...props}
     >
       {children}
-      <SheetPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-4 right-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
+      <SheetPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-2 right-2 inline-flex size-8 items-center justify-center rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </SheetPrimitive.Close>
@@ -117,7 +119,7 @@ const SheetTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Title
     ref={ref}
-    className={cn("text-foreground text-lg font-semibold", className)}
+    className={cn("text-foreground text-lg font-bold", className)}
     {...props}
   />
 ));
@@ -138,12 +140,10 @@ SheetDescription.displayName = SheetPrimitive.Description.displayName;
 export {
   Sheet,
   SheetPortal,
-  SheetOverlay,
   SheetTrigger,
   SheetClose,
   SheetContent,
   SheetHeader,
-  SheetFooter,
   SheetTitle,
   SheetDescription,
 };

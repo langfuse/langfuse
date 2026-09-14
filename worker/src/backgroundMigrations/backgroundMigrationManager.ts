@@ -2,6 +2,9 @@ import { randomUUID } from "crypto";
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { instrumentAsync, logger } from "@langfuse/shared/src/server";
+import { env } from "../env";
+
+const ENV_GATE_PREFIX = "LANGFUSE_BACKGROUND_MIGRATION_";
 
 export class BackgroundMigrationManager {
   private static workerId = randomUUID();
@@ -37,16 +40,37 @@ export class BackgroundMigrationManager {
 
   public static async run(): Promise<void> {
     await instrumentAsync({ name: "background-migration-run" }, async () => {
+      // A migration row may declare `args.envGate = "<ENV_VAR>"` to remain dormant
+      // until the operator sets that env var to "true" (e.g. ship dormant on v3,
+      // activate on v4). We push the gate check into the findFirst predicate so
+      // dormant rows never get picked — otherwise the first dormant row in name
+      // order would head-of-line block every unrelated later migration.
+      //
+      // Gate names share the LANGFUSE_BACKGROUND_MIGRATION_ prefix so we can
+      // discover them via the validated env without scanning all of process.env.
+      const activeGates = Object.entries(env)
+        .filter(
+          ([key, value]) => key.startsWith(ENV_GATE_PREFIX) && value === "true",
+        )
+        .map(([key]) => key);
+
       let migrationToRun = true;
 
       while (migrationToRun) {
         await prisma.$transaction(
           async (tx) => {
-            // Read background migrations from database
+            // Read background migrations from database, ignoring any row whose
+            // envGate is set to an env var that is not currently "true".
             const migration = await tx.backgroundMigration.findFirst({
               where: {
                 finishedAt: null,
                 failedAt: null,
+                OR: [
+                  { args: { path: ["envGate"], equals: Prisma.AnyNull } },
+                  ...activeGates.map((gate) => ({
+                    args: { path: ["envGate"], equals: gate },
+                  })),
+                ],
               },
               orderBy: { name: "asc" },
             });
@@ -103,15 +127,18 @@ export class BackgroundMigrationManager {
         // Initiate heartbeats every couple seconds
         await BackgroundMigrationManager.heartBeat();
 
-        const { migration, args } = BackgroundMigrationManager.activeMigration;
+        // Capture a local reference so the catch handler stays type-safe even if
+        // close() concurrently nulls activeMigration during shutdown.
+        const active = BackgroundMigrationManager.activeMigration;
+        const { migration, args } = active;
         const { valid, invalidReason } = await migration.validate(args);
         if (!valid) {
           logger.error(
-            `[Background Migration] Validation failed for background migration ${BackgroundMigrationManager.activeMigration.name}: ${invalidReason}`,
+            `[Background Migration] Validation failed for background migration ${active.name}: ${invalidReason}`,
           );
           await prisma.backgroundMigration.update({
             where: {
-              id: BackgroundMigrationManager.activeMigration.id,
+              id: active.id,
               workerId: BackgroundMigrationManager.workerId,
             },
             data: {
@@ -130,7 +157,7 @@ export class BackgroundMigrationManager {
             // Only mark as complete if still active. Otherwise, it was aborted.
             await prisma.backgroundMigration.update({
               where: {
-                id: BackgroundMigrationManager.activeMigration.id,
+                id: active.id,
                 workerId: BackgroundMigrationManager.workerId,
               },
               data: {
@@ -139,16 +166,16 @@ export class BackgroundMigrationManager {
               },
             });
             logger.info(
-              `[Background Migration] Finished background migration ${BackgroundMigrationManager.activeMigration.name}`,
+              `[Background Migration] Finished background migration ${active.name}`,
             );
           }
         } catch (err) {
           logger.error(
-            `[Background Migration] Failed to run background migration ${BackgroundMigrationManager.activeMigration.name}: ${err}`,
+            `[Background Migration] Failed to run background migration ${active.name}: ${err}`,
           );
           await prisma.backgroundMigration.update({
             where: {
-              id: BackgroundMigrationManager.activeMigration.id,
+              id: active.id,
               workerId: BackgroundMigrationManager.workerId,
             },
             data: {

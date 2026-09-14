@@ -56,7 +56,7 @@ const meta = preview.meta({
     open: true,
     onOpenChange: fn(),
     state: {
-      searchBar: { enabled: false, onToggle: fn(), isToggling: false },
+      modernSession: { enabled: false, onToggle: fn(), isToggling: false },
     },
   },
   render: StatefulFeaturePreviewModal,
@@ -67,10 +67,10 @@ export const Default = meta.story({});
 export const Warning = meta.story({
   args: {
     state: {
-      searchBar: {
+      modernSession: {
         enabled: false,
         warningReason:
-          "The search bar appears on the new (v4) Observations and Traces tables. Turn on Fast (Preview) in the sidebar to use it after enabling this preview.",
+          "This preview is enabled globally, so a per-user opt-out does not disable it.",
         onToggle: fn(),
       },
     },
@@ -80,7 +80,7 @@ export const Warning = meta.story({
 export const Loading = meta.story({
   args: {
     state: {
-      searchBar: { enabled: false, onToggle: fn(), isToggling: false },
+      modernSession: { enabled: false, onToggle: fn(), isToggling: true },
     },
   },
 });

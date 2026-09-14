@@ -13,6 +13,12 @@ import type {
 } from "./BufferedStreamUploader";
 import { type S3SseConfig, buildS3SseParams } from "./StorageService";
 
+// S3 caps a multipart upload at 10,000 parts. lib-storage enforces this
+// client-side ("Exceeded 10000 parts"); the raw UploadPart calls below do not,
+// so guard it here with the same wording. Without it, S3 rejects part 10,001
+// with a differently-worded error the export's terminal-failure detector misses.
+export const S3_MAX_MULTIPART_PARTS = 10_000;
+
 export interface S3ChunkedUploadStrategyParams {
   client: S3Client;
   bucket: string;
@@ -47,6 +53,12 @@ export class S3ChunkedUploadStrategy implements ChunkedUploadStrategy {
   }
 
   async uploadPart(data: Buffer, partNumber: number): Promise<CompletedPart> {
+    if (partNumber > S3_MAX_MULTIPART_PARTS) {
+      throw new Error(
+        `Exceeded ${S3_MAX_MULTIPART_PARTS} parts in multipart upload to ${this.params.key}`,
+      );
+    }
+
     const response = await this.params.client.send(
       new UploadPartCommand({
         Bucket: this.params.bucket,

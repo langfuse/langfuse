@@ -75,7 +75,9 @@ export class CodeEvalExecutionQueue {
             attempts: 3,
             backoff: {
               type: "exponential",
-              delay: 1000,
+              // Spaced for transient Lambda failures (e.g. regional capacity):
+              // retries fire ~30s and ~60s after the failed attempt.
+              delay: 30_000,
             },
           },
         })

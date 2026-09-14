@@ -16,10 +16,12 @@ export function useTableDateRange(
   _projectId: string,
   options: {
     defaultRelativeAggregation?: TableDateRangeAggregationOption;
+    persistAsDefault?: boolean;
   } = {},
 ): UseTableDateRangeOutput {
   return useGlobalDateRange({
     allowedRanges: TABLE_AGGREGATION_OPTIONS,
     fallback: options.defaultRelativeAggregation ?? "last1Day",
+    persistAsDefault: options.persistAsDefault,
   });
 }

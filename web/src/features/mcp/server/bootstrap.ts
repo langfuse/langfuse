@@ -5,25 +5,50 @@
  * This file is imported once when the server starts to initialize the tool registry.
  *
  * To add a new MCP feature:
- * 1. Create feature module in /features/[feature-name]/
+ * 1. Create feature module in /server/[feature-name]/
  * 2. Import feature module here
  * 3. Call toolRegistry.register(featureModule)
  */
 
-import { toolRegistry } from "./registry";
-import { promptsFeature } from "../features/prompts";
-import { observationsFeature } from "../features/observations";
-import { annotationQueuesFeature } from "../features/annotationQueues";
-import { commentsFeature } from "../features/comments";
-import { datasetsFeature } from "../features/datasets";
-import { healthFeature } from "../features/health";
-import { scoresFeature } from "../features/scores";
-import { metricsFeature } from "../features/metrics";
-import { modelsFeature } from "../features/models";
-import { mediaFeature } from "../features/media";
-import { evalsFeature } from "../features/evals";
-// Import future features as they're added:
-// import { tracesFeature } from "../features/traces";
+import { toolRegistry, type McpFeatureModule } from "./registry";
+import { promptsFeature } from "./prompts";
+import { observationsFeature } from "./observations";
+import { annotationQueuesFeature } from "./annotationQueues";
+import { commentsFeature } from "./comments";
+import { datasetsFeature } from "./datasets";
+import { healthFeature } from "./health";
+import { scoresFeature } from "./scores";
+import { metricsFeature } from "./metrics";
+import { modelsFeature } from "./models";
+import { mediaFeature } from "./media";
+import { evalsFeature } from "./evals";
+import { dashboardWidgetsFeature } from "./dashboardWidgets";
+import { feedbackFeature } from "./feedback";
+import { experimentsFeature } from "./experiments";
+import { monitorsFeature } from "./monitors";
+import { v4MigrationFeature } from "./v4Migration";
+
+const MCP_FEATURES = [
+  promptsFeature,
+  observationsFeature,
+  annotationQueuesFeature,
+  commentsFeature,
+  datasetsFeature,
+  healthFeature,
+  scoresFeature,
+  metricsFeature,
+  modelsFeature,
+  mediaFeature,
+  evalsFeature,
+  dashboardWidgetsFeature,
+  feedbackFeature,
+  experimentsFeature,
+  monitorsFeature,
+  v4MigrationFeature,
+] as const satisfies readonly McpFeatureModule[];
+
+type McpFeature = (typeof MCP_FEATURES)[number];
+export type McpToolName = McpFeature["tools"][number]["definition"]["name"];
 
 /**
  * Bootstrap all MCP features
@@ -33,20 +58,9 @@ import { evalsFeature } from "../features/evals";
  */
 export function bootstrapMcpFeatures(): void {
   // Register all feature modules
-  toolRegistry.register(promptsFeature);
-  toolRegistry.register(observationsFeature);
-  toolRegistry.register(annotationQueuesFeature);
-  toolRegistry.register(commentsFeature);
-  toolRegistry.register(datasetsFeature);
-  toolRegistry.register(healthFeature);
-  toolRegistry.register(scoresFeature);
-  toolRegistry.register(metricsFeature);
-  toolRegistry.register(modelsFeature);
-  toolRegistry.register(mediaFeature);
-  toolRegistry.register(evalsFeature);
-
-  // Add future features here:
-  // toolRegistry.register(tracesFeature);
+  for (const feature of MCP_FEATURES) {
+    toolRegistry.register(feature);
+  }
 }
 
 /**

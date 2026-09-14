@@ -69,6 +69,9 @@ maybe("sessions trpc (events_only write mode)", () => {
           role: "OWNER",
           plan: "cloud:hobby",
           cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
           projects: [
             {
               id: projectId,
@@ -76,6 +79,9 @@ maybe("sessions trpc (events_only write mode)", () => {
               retentionDays: 30,
               deletedAt: null,
               name: "Test Project",
+              hasTraces: false,
+              metadata: {},
+              createdAt: new Date().toISOString(),
             },
           ],
         },
@@ -83,13 +89,17 @@ maybe("sessions trpc (events_only write mode)", () => {
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
+        searchBar: false,
+        v4BetaToggleVisible: false,
+        observationEvals: false,
+        experimentsV4Enabled: false,
       },
       admin: true,
     },
     environment: {} as any,
   };
 
-  const ctx = createInnerTRPCContext({ session });
+  const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
   // Seed a single root event for a session into the events table and wait until
@@ -207,5 +217,15 @@ maybe("sessions trpc (events_only write mode)", () => {
     });
     expect(read.public).toBe(true);
     expect(read.bookmarked).toBe(false);
+  });
+
+  it("rejects publishing an empty session id", async () => {
+    await expect(
+      caller.sessions.publish({
+        projectId,
+        sessionId: "",
+        public: true,
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });

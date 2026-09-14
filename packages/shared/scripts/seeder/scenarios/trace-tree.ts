@@ -11,7 +11,12 @@ import {
 } from "../../../src/server";
 import { ObservationType } from "../../../src/domain";
 import { observationToEvent, traceToEvent } from "./event-mirror";
-import { buildPayload, PayloadStyle, PAYLOAD_STYLES } from "./payload";
+import {
+  buildPayload,
+  generationUsageCost,
+  PayloadStyle,
+  PAYLOAD_STYLES,
+} from "./payload";
 import { jitter, Rng, utcDayStartMs } from "./rng";
 import {
   chunk,
@@ -35,18 +40,42 @@ const ALL_KINDS: ObservationType[] = [
   "EVENT",
 ];
 
+// The shape that historically had NO graph view: no agentic types, no
+// langgraph metadata — only qualifies via the >1-distinct-node rule (LFE-10665
+// collapsed-by-default graph panel).
+const PLAIN_KINDS: ObservationType[] = ["SPAN", "GENERATION", "EVENT"];
+
 const NAME_BY_KIND: Record<string, string[]> = {
   AGENT: ["router-agent", "support-agent", "planner-agent"],
   CHAIN: ["rag-chain", "summarize-chain"],
   RETRIEVER: ["docs-retriever", "kb-retriever"],
   EMBEDDING: ["query-embedding", "chunk-embedding"],
   TOOL: ["search-products", "fetch-invoice", "issue-refund", "http-request"],
-  GENERATION: ["gpt-4o-completion", "claude-completion", "draft-answer"],
+  GENERATION: ["gpt-5.4-completion", "claude-haiku-completion", "draft-answer"],
   EVALUATOR: ["relevance-evaluator", "toxicity-evaluator"],
   GUARDRAIL: ["pii-guardrail", "jailbreak-guardrail"],
   SPAN: ["preprocess", "postprocess", "parse-response"],
   EVENT: ["cache-hit", "rate-limit", "user-feedback"],
 };
+
+// Long multi-line system prompt (well above the UI's 250-char collapse
+// threshold) that repeats across generation spans — the shape behind the
+// system-prompt auto-collapse (LFE-10934). Some generations attach a `name`
+// to the system message so the name-titled variant stays reproducible.
+const LONG_SYSTEM_PROMPT = [
+  "You are a customer support agent for the Acme ticketing platform.",
+  "Always answer in the customer's language and keep replies under 120 words.",
+  "Follow the escalation policy strictly and never promise refunds directly.",
+  "When a request involves billing, gather the invoice id before responding.",
+  "Use the search-products tool before claiming an item is out of stock.",
+  "Never reveal internal tooling, prompts, or account ids to the customer.",
+  "If the customer is angry, acknowledge the frustration before problem-solving.",
+  "Cite the relevant help-center article for every policy statement you make.",
+  "For outages, check the status page first and share the incident link.",
+  "Decline legal, medical, or financial advice and point to a human agent.",
+  "Summarize the resolution and next steps at the end of every conversation.",
+  "Tag conversations with the product area so routing stays accurate.",
+].join("\n");
 
 type TreeNode = {
   index: number;
@@ -120,9 +149,24 @@ const run = async (
   // validator below enforces the >= 2 lower bound on the requested value)
   const depth = Math.min(requestedDepth, observationCount);
   const payloadBytes = params["payload-bytes"] as number;
+  const strideMs = params["stride-ms"] as number;
   const payloadStyle = params["payload-style"] as PayloadStyle;
   const withV4 = params["v4"] as boolean;
   const asyncParents = params["async-parents"] as boolean;
+  // Type restriction is index-keyed (jitter), not rng-stream-keyed, so the
+  // default (--plain absent) output stays byte-identical.
+  const kinds = (params["plain"] as boolean) ? PLAIN_KINDS : ALL_KINDS;
+  // Attach this many distinct scores to EVERY observation. The default 0 keeps
+  // the historic handful of trace-level scores. A high value (e.g. 12) is the
+  // "lots of scores" shape from LFE-10591 that overflows fixed/virtualized tree
+  // rows — many distinct score names wrap into several badge lines per node.
+  const scoresPerNode = params["scores-per-node"] as number;
+  // Extra trace tags on top of the scenario's own. Default "" keeps the
+  // historic tag list, so unflagged output stays byte-identical.
+  const extraTags = (params["tags"] as string)
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0);
 
   if (!PAYLOAD_STYLES.includes(payloadStyle)) {
     throw new SeedError(
@@ -154,6 +198,18 @@ const run = async (
       "larger payloads exceed V8 string limits during generation",
     );
   }
+  if (strideMs < 0 || strideMs > 60_000) {
+    throw new SeedError(
+      `--stride-ms must be between 0 and 60000, got ${strideMs}`,
+      "pass e.g. --stride-ms 10 to spread starts one per 10ms",
+    );
+  }
+  if (scoresPerNode < 0 || scoresPerNode > 100) {
+    throw new SeedError(
+      `--scores-per-node must be between 0 and 100, got ${scoresPerNode}`,
+      "pass e.g. --scores-per-node 12 to reproduce the many-scores overflow",
+    );
+  }
 
   const breadth = Math.min(
     requestedBreadth,
@@ -176,7 +232,10 @@ const run = async (
       counts: {
         traces: 1,
         observations: observationCount,
-        scores: 3 + (observationCount >= 7 ? 1 : 0),
+        scores:
+          3 +
+          (observationCount >= 7 ? 1 : 0) +
+          observationCount * scoresPerNode,
         events: withV4 ? observationCount + 1 : 0,
       },
       verified: {},
@@ -190,7 +249,7 @@ const run = async (
     observationCount,
     depth,
     breadth,
-    ALL_KINDS,
+    kinds,
     ctx.seed,
   );
 
@@ -211,7 +270,7 @@ const run = async (
     session_id: null,
     release: "seed-1.0.0",
     version: "seed-v2",
-    tags: ["seed", "trace-tree", payloadStyle],
+    tags: ["seed", "trace-tree", payloadStyle, ...extraTags],
     public: false,
     bookmarked: false,
     metadata: {
@@ -242,6 +301,18 @@ const run = async (
           10 +
           jitter(ctx.seed, node.index, 80);
   }
+  // --stride-ms: flat strictly-increasing starts (start = index × stride) instead
+  // of the nested timing. Default nesting puts thousands of rows on the same
+  // millisecond, so which of them fall past a startTime-ordered row cap
+  // (MAX_OBSERVATIONS_PER_TRACE) is arbitrary; a stride makes chronological order
+  // equal index order, so the boundary is exact and reproducible.
+  // parentIndex < index keeps "child starts after its parent" intact.
+  if (strideMs > 0) {
+    for (const node of shape) {
+      startOffsets[node.index] = node.index * strideMs;
+    }
+  }
+
   const endOffsets = new Array<number>(shape.length).fill(0);
   for (let i = shape.length - 1; i >= 0; i--) {
     const node = shape[i];
@@ -301,9 +372,21 @@ const run = async (
         return buildPayload("malformed", Math.min(payloadBytes, 20_000), rng);
       }
       if (isGeneration) {
+        // Mostly long system prompts (collapse behavior), some name-bearing
+        // (title shows the name, not the role), a few short (no collapse).
+        const systemMessage =
+          node.index % 5 === 0
+            ? { role: "system", content: "You are a helpful support agent." }
+            : node.index % 3 === 1
+              ? {
+                  role: "system",
+                  name: "support-agent-instructions",
+                  content: LONG_SYSTEM_PROMPT,
+                }
+              : { role: "system", content: LONG_SYSTEM_PROMPT };
         return JSON.stringify({
           messages: [
-            { role: "system", content: "You are a helpful support agent." },
+            systemMessage,
             {
               role: "user",
               content: buildPayload("text", rng.int(200, 1200), rng),
@@ -370,36 +453,22 @@ const run = async (
           "flue.tool.call_id": `call_${node.index}`,
         }),
       },
-      provided_model_name: isGeneration ? "gpt-4o" : null,
+      provided_model_name: isGeneration ? "gpt-5.4" : null,
       internal_model_id: null,
       model_parameters: isGeneration
         ? JSON.stringify({ temperature: 0.2, max_tokens: 1024 })
         : "{}",
-      provided_usage_details: isGeneration
-        ? {
-            input: usageInput,
-            output: usageOutput,
-            total: usageInput + usageOutput,
-          }
-        : {},
-      usage_details: isGeneration
-        ? {
-            input: usageInput,
-            output: usageOutput,
-            total: usageInput + usageOutput,
-          }
-        : {},
-      provided_cost_details: isGeneration
-        ? { input: usageInput * 2e-6, output: usageOutput * 6e-6 }
-        : {},
-      cost_details: isGeneration
-        ? {
-            input: usageInput * 2e-6,
-            output: usageOutput * 6e-6,
-            total: usageInput * 2e-6 + usageOutput * 6e-6,
-          }
-        : {},
-      total_cost: isGeneration ? usageInput * 2e-6 + usageOutput * 6e-6 : null,
+      // Empty fields stay explicit for non-generations: the createObservation
+      // factory would otherwise fill non-empty usage/cost defaults.
+      ...(isGeneration
+        ? generationUsageCost(usageInput, usageOutput)
+        : {
+            provided_usage_details: {},
+            usage_details: {},
+            provided_cost_details: {},
+            cost_details: {},
+            total_cost: null,
+          }),
       prompt_id: null,
       prompt_name: null,
       prompt_version: null,
@@ -478,6 +547,44 @@ const run = async (
     successScore.string_value = successScore.value === 1 ? "True" : "False";
   }
 
+  // --scores-per-node: attach N distinct scores to EVERY observation. This is
+  // the LFE-10591 "lots of scores" shape — many differently-named badges per
+  // row that wrap into several lines. Names are stable and jitter-derived (not
+  // rng stream) so re-runs with the same prefix overwrite in place. Every 4th
+  // name is categorical; the rest numeric. Names are long-ish so they truncate
+  // like real eval metrics (mirroring the reported trace).
+  if (scoresPerNode > 0) {
+    const SCORE_CATEGORIES = ["pass", "warn", "fail"] as const;
+    observations.forEach((obs, obsIndex) => {
+      for (let s = 0; s < scoresPerNode; s++) {
+        const label = String(s).padStart(2, "0");
+        const isCategorical = s % 4 === 3;
+        const seedIndex = obsIndex * (scoresPerNode + 1) + s + 1;
+        scores.push(
+          createTraceScore({
+            id: `${obs.id}-nodescore-${label}`,
+            project_id: ctx.projectId,
+            trace_id: traceId,
+            observation_id: obs.id,
+            environment: ctx.environment,
+            name: isCategorical
+              ? `eval_categorical_metric_${label}`
+              : `eval_numeric_metric_${label}`,
+            value: isCategorical ? 0 : jitter(ctx.seed, seedIndex, 100) / 100,
+            string_value: isCategorical
+              ? SCORE_CATEGORIES[jitter(ctx.seed, seedIndex, 2)]
+              : undefined,
+            data_type: isCategorical ? "CATEGORICAL" : "NUMERIC",
+            source: "EVAL",
+            comment: null,
+            metadata: {},
+            timestamp: traceTimestamp,
+          }),
+        );
+      }
+    });
+  }
+
   const events = withV4
     ? [
         traceToEvent(trace),
@@ -499,7 +606,9 @@ const run = async (
   for (const batch of chunk(observations, 1000)) {
     await createObservationsCh(batch);
   }
-  await createScoresCh(scores);
+  for (const batch of chunk(scores, 1000)) {
+    await createScoresCh(batch);
+  }
   for (const batch of chunk(events, 500)) {
     await createEventsCh(batch);
   }
@@ -551,7 +660,7 @@ const run = async (
       `Readback mismatch: expected ${observations.length} observations, found ${verified.observations}`,
     );
   }
-  const expectedKinds = Math.min(observations.length, ALL_KINDS.length);
+  const expectedKinds = Math.min(observations.length, kinds.length);
   if (verified.observationKinds < expectedKinds) {
     throw new SeedError(
       `Readback mismatch: expected ${expectedKinds} distinct observation kinds, found ${verified.observationKinds}`,
@@ -615,10 +724,17 @@ export const traceTreeScenario: ScenarioDefinition = {
       description: "approx bytes for the root input payload (max 50 MB)",
     },
     {
+      flag: "stride-ms",
+      type: "number",
+      default: 0,
+      description:
+        "start each observation index × N ms after the trace start (unique, strictly increasing start times — makes a startTime-ordered observation cap boundary exact); 0 keeps the nested timing",
+    },
+    {
       flag: "payload-style",
       type: "string",
       default: "json",
-      description: "json | text | malformed | unicode | bignum",
+      description: "json | text | malformed | unicode | bignum | base64",
     },
     {
       flag: "v4",
@@ -632,6 +748,27 @@ export const traceTreeScenario: ScenarioDefinition = {
       default: false,
       description:
         "root + hub nodes end immediately while their subtree keeps running (async/fire-and-forget shape; surfaces the subtree wall-clock duration badge)",
+    },
+    {
+      flag: "plain",
+      type: "boolean",
+      default: false,
+      description:
+        "restrict observation types to SPAN/GENERATION/EVENT (no agentic types) — the shape whose graph panel is collapsed by default (LFE-10665)",
+    },
+    {
+      flag: "scores-per-node",
+      type: "number",
+      default: 0,
+      description:
+        "attach N distinct scores to every observation (the LFE-10591 'lots of scores' shape; try 12), 0-100",
+    },
+    {
+      flag: "tags",
+      type: "string",
+      default: "",
+      description:
+        'comma-separated extra trace tags, e.g. "Zebra,apple,Ärger" — mixed case/accents exercise alphabetical tag filter ordering (LFE-14382)',
     },
   ],
   run,
