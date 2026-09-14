@@ -14,7 +14,7 @@ import {
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { authorizeBlobStorageRequest } from "@/src/pages/api/public/integrations/blob-storage/authorizeBlobStorageRequest";
+import { authorizeBlobStorageRequest } from "@/src/features/blobstorage-integration/authorizeBlobStorageRequest";
 
 export default withMiddlewares({
   GET: handleGetBlobStorageIntegrations,
