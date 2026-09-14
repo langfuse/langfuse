@@ -65,8 +65,6 @@ const RUNTIME_TYPE: Record<ChColumnType, ColumnDataType> = {
  *  - `final` — the existing `FROM <table> FINAL` idiom. Declaring it
  *    without an emitter is a compile error (fail-closed).
  */
-export type DedupStrategy = "none" | "limitBy" | "final";
-
 export type DedupSpec =
   | { strategy: "none" }
   | { strategy: "limitBy"; key: readonly string[]; version: string }
