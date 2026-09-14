@@ -24,6 +24,45 @@ type ChipScore = WithStringifiedMetadata<ScoreDomain> | LastUserScore;
  * click goes where "+N" goes, the node's Scores tab, the only place twenty
  * metrics with their comments and metadata fit.
  */
+const groupMetricCount = <T extends ChipScore>(group: ScoreChipGroup<T>) =>
+  new Set(group.scores.map((score) => score.name)).size;
+
+/** Average over the numeric metrics only; categorical and boolean values have
+ * no mean. Null when the group has no numeric value at all. */
+const groupAverage = <T extends ChipScore>(
+  group: ScoreChipGroup<T>,
+): number | null => {
+  const numericValues = group.scores.flatMap((score) =>
+    score.dataType === "NUMERIC" && typeof score.value === "number"
+      ? [score.value]
+      : [],
+  );
+  return numericValues.length > 0
+    ? numericValues.reduce((sum, value) => sum + value, 0) /
+        numericValues.length
+    : null;
+};
+
+/** What the "+N" hover lists: one line per chip, so an evaluator group shows
+ * as `Prefix(N)` with its average, exactly like its chip, not as N metrics. */
+const overflowHoverRows = <T extends ChipScore>(
+  groups: ReadonlyArray<ScoreChipGroup<T>>,
+) =>
+  groups.flatMap((group) => {
+    if (group.kind !== "evaluator") return group.scores;
+    const count = groupMetricCount(group);
+    const average = groupAverage(group);
+    return [
+      {
+        name: `${group.label}(${count})`,
+        dataType: "CATEGORICAL",
+        value: null,
+        stringValue:
+          average !== null ? `Avg ${average.toFixed(2)}` : `${count} metrics`,
+      },
+    ];
+  });
+
 const EvaluatorGroupBadge = <T extends ChipScore>({
   group,
   compact,
@@ -38,19 +77,8 @@ const EvaluatorGroupBadge = <T extends ChipScore>({
   preview: boolean;
   onClick?: () => void;
 }) => {
-  const metricCount = new Set(group.scores.map((score) => score.name)).size;
-  // Average over the numeric metrics only; categorical and boolean values
-  // have no mean. Absent when the group has no numeric value at all.
-  const numericValues = group.scores.flatMap((score) =>
-    score.dataType === "NUMERIC" && typeof score.value === "number"
-      ? [score.value]
-      : [],
-  );
-  const average =
-    numericValues.length > 0
-      ? numericValues.reduce((sum, value) => sum + value, 0) /
-        numericValues.length
-      : null;
+  const metricCount = groupMetricCount(group);
+  const average = groupAverage(group);
   const levels = showLevels
     ? Array.from(
         new Set(group.scores.map((score) => scoreLevelFromScore(score))),
@@ -222,10 +250,10 @@ export const GroupedScoreBadges = <T extends ChipScore>({
               {overflowPill}
             </BadgeShell>
           </HoverCardTrigger>
-          {/* Same score list as the tree row hover card, and ALL of the group's
-              scores, not just the hidden ones: the reader wants one list. */}
+          {/* One line per chip, ALL of them, not just the hidden ones: the
+              reader wants one list, and a group reads as its chip does. */}
           <HoverCardContent className="w-60 p-2.5 text-xs">
-            <ScoreHoverList scores={scores} />
+            <ScoreHoverList scores={overflowHoverRows(groups)} />
           </HoverCardContent>
         </HoverCard>
       )}
