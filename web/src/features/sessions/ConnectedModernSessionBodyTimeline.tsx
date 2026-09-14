@@ -73,20 +73,28 @@ export function ConnectedModernSessionBodyTimeline({
     new Set(),
   );
   const [visibleTraceIds, setVisibleTraceIds] = useState<string[]>([]);
-  // Seeded from the trace -> session link context (`?focusObservationId=`) so
-  // a focused observation inside a collapsed group is revealed, as a sidebar
-  // click would. Scrolling to it is useScrollToFocusedSessionTrace's job.
   const [scrollTarget, setScrollTarget] =
-    useState<SessionConversationTimelineScrollTarget | null>(() =>
-      focusTarget?.observationId
-        ? {
-            traceId: focusTarget.traceId,
-            observationId: focusTarget.observationId,
-            requestId: 1,
-          }
-        : null,
-    );
-  const scrollRequestIdRef = useRef(scrollTarget ? 1 : 0);
+    useState<SessionConversationTimelineScrollTarget | null>(null);
+  const scrollRequestIdRef = useRef(0);
+  // Follows the trace -> session link context (`?focusObservationId=`), which
+  // can also change or land after mount, so a focused observation inside a
+  // collapsed group is revealed, as a sidebar click would. Scrolling to it is
+  // useScrollToFocusedSessionTrace's job.
+  const focusTraceId = focusTarget?.traceId ?? null;
+  const focusObservationId = focusTarget?.observationId ?? null;
+  const appliedFocusKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusTraceId || !focusObservationId) return;
+    const focusKey = `${focusTraceId}:${focusObservationId}`;
+    if (appliedFocusKeyRef.current === focusKey) return;
+    appliedFocusKeyRef.current = focusKey;
+    scrollRequestIdRef.current += 1;
+    setScrollTarget({
+      traceId: focusTraceId,
+      observationId: focusObservationId,
+      requestId: scrollRequestIdRef.current,
+    });
+  }, [focusTraceId, focusObservationId]);
   const [loadedTracePrefix, setLoadedTracePrefix] = useState({
     sessionId,
     chunkIndex: -1,
