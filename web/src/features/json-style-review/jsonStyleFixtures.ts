@@ -201,12 +201,12 @@ export const chatInput54Fixture = [
   },
   {
     role: "user",
-    content: "Wie entferne ich den Hintergrund von einem Bild?",
+    content: "How do I remove the background from a photo?",
   },
   {
     role: "assistant",
     content:
-      "Mit dem **Hintergrund-Entferner** geht das mit einem Mausklick.\n\n1. Lade dein Bild hoch und ziehe es in das Design.\n2. Wähle das Bild aus und klicke in der oberen Leiste auf **Bild bearbeiten**.\n3. Wähle **Hintergrund-Entferner** und warte einen Moment, bis der Hintergrund erkannt und entfernt ist.\n4. Wurde eine Stelle übersehen, nutze im selben Bereich **Radieren** oder **Wiederherstellen** und male darüber.\n\nDas Ergebnis ist ein transparentes PNG, das du auf jede Farbe oder jedes Bild legen kannst. Der Hintergrund-Entferner ist in Pro und Teams enthalten; im kostenlosen Plan siehst du eine Vorschau und kannst eine Testphase starten.",
+      "The **Background Remover** does this in one click.\n\n1. Upload your photo and drag it into the design.\n2. Select the photo and click **Edit image** in the top bar.\n3. Choose **Background Remover** and wait a moment while the background is detected and removed.\n4. If a spot was missed, use **Erase** or **Restore** in the same panel and paint over it.\n\nThe result is a transparent PNG you can place on any colour or image. Background Remover is included in Pro and Teams; on the free plan you see a preview and can start a trial.",
   },
   {
     role: "user",
@@ -254,12 +254,12 @@ export const chatInput54Fixture = [
   },
   {
     role: "user",
-    content: "Wie entferne ich den Hintergrund von einem Bild?",
+    content: "How do I remove the background from a photo?",
   },
   {
     role: "assistant",
     content:
-      "Mit dem **Hintergrund-Entferner** geht das mit einem Mausklick.\n\n1. Lade dein Bild hoch und ziehe es in das Design.\n2. Wähle das Bild aus und klicke in der oberen Leiste auf **Bild bearbeiten**.\n3. Wähle **Hintergrund-Entferner** und warte einen Moment, bis der Hintergrund erkannt und entfernt ist.\n4. Wurde eine Stelle übersehen, nutze im selben Bereich **Radieren** oder **Wiederherstellen** und male darüber.\n\nDas Ergebnis ist ein transparentes PNG, das du auf jede Farbe oder jedes Bild legen kannst. Der Hintergrund-Entferner ist in Pro und Teams enthalten; im kostenlosen Plan siehst du eine Vorschau und kannst eine Testphase starten.",
+      "The **Background Remover** does this in one click.\n\n1. Upload your photo and drag it into the design.\n2. Select the photo and click **Edit image** in the top bar.\n3. Choose **Background Remover** and wait a moment while the background is detected and removed.\n4. If a spot was missed, use **Erase** or **Restore** in the same panel and paint over it.\n\nThe result is a transparent PNG you can place on any colour or image. Background Remover is included in Pro and Teams; on the free plan you see a preview and can start a trial.",
   },
   {
     role: "user",
@@ -307,12 +307,12 @@ export const chatInput54Fixture = [
   },
   {
     role: "user",
-    content: "Wie entferne ich den Hintergrund von einem Bild?",
+    content: "How do I remove the background from a photo?",
   },
   {
     role: "assistant",
     content:
-      "Mit dem **Hintergrund-Entferner** geht das mit einem Mausklick.\n\n1. Lade dein Bild hoch und ziehe es in das Design.\n2. Wähle das Bild aus und klicke in der oberen Leiste auf **Bild bearbeiten**.\n3. Wähle **Hintergrund-Entferner** und warte einen Moment, bis der Hintergrund erkannt und entfernt ist.\n4. Wurde eine Stelle übersehen, nutze im selben Bereich **Radieren** oder **Wiederherstellen** und male darüber.\n\nDas Ergebnis ist ein transparentes PNG, das du auf jede Farbe oder jedes Bild legen kannst. Der Hintergrund-Entferner ist in Pro und Teams enthalten; im kostenlosen Plan siehst du eine Vorschau und kannst eine Testphase starten.",
+      "The **Background Remover** does this in one click.\n\n1. Upload your photo and drag it into the design.\n2. Select the photo and click **Edit image** in the top bar.\n3. Choose **Background Remover** and wait a moment while the background is detected and removed.\n4. If a spot was missed, use **Erase** or **Restore** in the same panel and paint over it.\n\nThe result is a transparent PNG you can place on any colour or image. Background Remover is included in Pro and Teams; on the free plan you see a preview and can start a trial.",
   },
   {
     role: "user",
@@ -360,12 +360,12 @@ export const chatInput54Fixture = [
   },
   {
     role: "user",
-    content: "Wie entferne ich den Hintergrund von einem Bild?",
+    content: "How do I remove the background from a photo?",
   },
   {
     role: "assistant",
     content:
-      "Mit dem **Hintergrund-Entferner** geht das mit einem Mausklick.\n\n1. Lade dein Bild hoch und ziehe es in das Design.\n2. Wähle das Bild aus und klicke in der oberen Leiste auf **Bild bearbeiten**.\n3. Wähle **Hintergrund-Entferner** und warte einen Moment, bis der Hintergrund erkannt und entfernt ist.\n4. Wurde eine Stelle übersehen, nutze im selben Bereich **Radieren** oder **Wiederherstellen** und male darüber.\n\nDas Ergebnis ist ein transparentes PNG, das du auf jede Farbe oder jedes Bild legen kannst. Der Hintergrund-Entferner ist in Pro und Teams enthalten; im kostenlosen Plan siehst du eine Vorschau und kannst eine Testphase starten.",
+      "The **Background Remover** does this in one click.\n\n1. Upload your photo and drag it into the design.\n2. Select the photo and click **Edit image** in the top bar.\n3. Choose **Background Remover** and wait a moment while the background is detected and removed.\n4. If a spot was missed, use **Erase** or **Restore** in the same panel and paint over it.\n\nThe result is a transparent PNG you can place on any colour or image. Background Remover is included in Pro and Teams; on the free plan you see a preview and can start a trial.",
   },
   {
     role: "user",
