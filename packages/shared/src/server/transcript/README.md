@@ -1,11 +1,12 @@
 # Transcript
 
 Builds a conversation transcript from the observations of one trace, or of
-every trace in one session. `normalized-io` interprets a single observation;
-this module decides which observations contribute and how their normalized
-messages combine into threads.
+every trace in one session.
 
-Status: generation-only builder. Tool observations do not contribute yet.
+Status: generation-only builder.
+
+- Other observation types do not contribute yet.
+- Root span I/O and standalone tool observations are excluded.
 
 ## Interface
 
@@ -29,60 +30,87 @@ type ThreadMessage = NormalizedMessage & {
 ```
 
 The input is the domain `Observation` (see `domain/observations.ts`), which
-the repositories produce from ClickHouse rows. Returns `null` when no transcript can be built.
+the repositories produce from ClickHouse rows. Returns `null` when there are
+no eligible generations produce messages.
 
-## Semantics
+A **transcript** contains the conversation threads inferred from the supplied
+observations. A **thread** is a sequence of messages connected by shared input
+history; it can span multiple traces. The consumer handles multiple threads
+and decides which, if any, is the main conversation.
 
-- Cumulative history: Show only the new question and answer; replayed messages disappear.
-- Threads may span multiple traces: Threads are built from shared input history, not from trace boundaries. A generation continues a thread if it's input contains all the current thread's messages.
-- Message references tracked: Within a thread, each message stores the generation and trace ID that first emitted it.
-- Reordered history: [A, B, C] → [B, C, A, New] adds only New; order-insensitive history reconciliation.
-- Repeated messages: show input occurrences beyond the number already shown in the thread. Always show outputs and count them for subsequent input deduplication.
-- System messages:
-  - Exclude system messages when deciding which thread matches. Compare the remaining conversation messages.
-  - Once the thread is selected, include new system messages there. Keep their first-seen generation and trace IDs.
-  - Apply the same occurrence-count deduplication to system messages within that thread.
-  - Preserve changed system messages as separate entries, rather than overwriting the earlier one or combining their contents in the underlying data.
+## Which observations contribute?
 
-### Edge cases:
+- Only `GENERATION` observations with a non-null trace ID contribute.
+- The caller supplies observations from one trace or session. The builder
+  orders generations by start time across the supplied traces.
+- Each generation runs through `normalizeIO`; input messages are processed
+  before output messages.
+- Generations producing no messages are skipped and do not create empty threads.
+- Root spans, standalone tool observations and other observation types do not
+  contribute, even when they contain I/O. Tool content within generation I/O
+  can contribute through normalization.
 
-- Deduplication compares whole messages, not individual parts.
-- An identical new input without cumulative history can still be mistaken for replay; occurrence counts cannot distinguish intent.
-- System messages: transcript shows which distinct instructions appeared and where they first appeared
+## How does deduplication work?
 
-### Open questions the fixtures are meant to answer:
+### 1. Select a thread
 
-- Tool results often exist only on `TOOL` observations and are missing from
-  the generation I/O. How they join the thread, and whether hierarchy matters.
-- Whether status messages and error indications become transcript content.
-- If/How to pick the user question and the final assistant answer out of a
-  thread.
-- Consideration if we should include root observation output?
+Continue a thread when it has at least one non-system message and all its
+non-system messages appear in the incoming input, regardless of order.
+Otherwise create a new thread. Matching checks presence, not occurrence counts.
+When several threads match, the most recently created matching thread wins.
 
-## Working with the Interface
+### 2. Append messages
 
-- The consumer picks the main thread (first opened, most messages, ...).
-- The consumer is expected to handle multiple threads.
+A message is identified by stable JSON of **role + parts**. Object-property
+order is ignored; array order matters. `senderName`, `source`, `finishReason`
+and observation provenance are excluded. All fields inside parts are included.
 
-## Implementation
+- **Inputs:** append only occurrences beyond the number already shown in the
+  thread, so replayed history disappears but additional identical copies survive (eg user responds "Thank you" twice).
+- **Outputs:** always append, then count them so subsequent inputs do not repeat them.
+- **References:** each message has a reference to the trace and generation ID of the object that emitted it. Replayed inputs never overwrite references on earlier occurrences.
 
-- Only `GENERATION` observations with a trace id contribute. Every other type
-  is ignored.
-- Generations are walked in start order across all traces in the input. Each
-  one runs through `normalizeIO`; its messages are considered input first,
-  then output.
-- A message is identified by role and parts. `senderName`, `source`, and
-  `finishReason` are not part of the identity, so an output message that
-  later reappears as replayed input history collapses onto its first
-  sighting.
-- Stable JSON keys are computed once per normalized message, sorting object
-  properties recursively while preserving array order. Keys exclude provenance.
-- Each thread tracks how many copies of a message have been shown. Each input
-  starts a temporary occurrence count: only occurrences beyond the shown count
-  are appended. Outputs are always appended and increment the shown count.
-  Replayed inputs retain the provenance of the previously emitted messages.
-- Thread selection remains order-insensitive and checks presence, not occurrence
-  counts. System messages do not select a thread. Counts are isolated per thread.
+### System messages
+
+- Exclude system messages when deciding which thread matches. Compare the
+  remaining conversation messages.
+- Once the thread is selected, include new system messages there. Keep their
+  first-seen generation and trace IDs.
+- Apply the same occurrence-count deduplication to system messages within that thread.
+- Preserve changed system messages as separate entries, rather than overwriting
+  earlier instructions or combining their contents.
+
+## Supported cases
+
+- Cumulative history across generations and traces, including previous outputs
+  replayed as inputs.
+- Reordered history: an existing `[A, B, C]` matched against input
+  `[B, C, A, New]` adds only `New`. Existing display order stays `[A, B, C]`.
+- Additional identical input occurrences and always-visible outputs.
+- New system instructions within a continuing conversation.
+- Multiple threads when their histories distinguish them.
+
+## Current limitations
+
+- **Compaction or missing history:** can split a conversation into multiple threads.
+- **Embedded history:** a conversation inside one string or object is not matched
+  against separate messages.
+- **Identical conversations:** unrelated conversations with matching history can join.
+- **Whole-message matching:** equivalent content split into different messages
+  or parts may not match. Reordering parts within a message also changes identity.
+- **Performance:** replayed history is normalized and serialized for each
+  generation.
+
+## Open questions
+
+- Should root-span I/O and standalone tool observations contribute? How do we
+  avoid duplicating generation content, and does hierarchy matter?
+- How should compacted histories and branches reconnect to existing threads?
+- Should status messages and errors become transcript content?
+- How should consumers select the user question and final assistant answer
+  rather than all intermediate generations?
+- Should differences in part-level `providerMetadata` prevent deduplication
+  when the visible message content is otherwise identical? They currently do.
 
 ## Layout
 
@@ -101,10 +129,14 @@ transcript/
     └── session/           one file per session-scoped fixture
 ```
 
-Each fixture ships a full observation tree, an optional `config`, and an
-`expected` transcript. Expectations are written by hand once the semantics
-for a case are decided; until then they stay `undefined` and the test only
-prints the transcript. Run with console output enabled to see it:
+## Fixtures and verification
+
+Fixtures contain observation trees and an optional expected transcript.
+**Fixtures with `expected: undefined` exercise parsing and structural checks,
+but do not verify transcript correctness.** Their printed output is for manual
+review; expectations are authored by hand once the desired behavior is decided.
+
+Run with console output enabled to see it:
 
 ```bash
 pnpm --filter @langfuse/shared run test src/server/transcript --disableConsoleIntercept
