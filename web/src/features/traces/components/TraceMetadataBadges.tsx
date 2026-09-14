@@ -1,56 +1,86 @@
 /* eslint-disable @repo/no-null-render */
 /**
- * TraceMetadataBadges - Extracted badge components for trace metadata
- *
- * Following the pattern from ObservationDetailView/ObservationMetadataBadgesSimple.tsx
- * Each badge handles its own null check and returns null when data is unavailable.
+ * Trace-level reference links for the trace summary strip and detail
+ * headers. Styled like the quiet metric text (muted mono, no border/box) and
+ * distinguished only by link affordance — hover color, underline, and the
+ * trailing arrow icon. Pills are reserved for tags. Each element handles its
+ * own null check and returns null when the underlying value is unavailable.
  */
 
+import { type ComponentPropsWithoutRef, forwardRef } from "react";
+import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
-import { ExternalLinkIcon } from "lucide-react";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { buildSessionDetailHref } from "@/src/features/sessions/sessionFocusTarget";
 
-export function SessionBadge({
-  sessionId,
-  projectId,
-}: {
-  sessionId: string | null;
-  projectId: string;
-}) {
+// Same scale as the metrics tier; link affordance (hover color + underline)
+// is the only thing that sets a reference apart from a plain metric.
+const REFERENCE_LINK_CLASS =
+  "text-muted-foreground hover:text-link inline-flex min-w-0 max-w-[280px] shrink-0 items-center gap-0.5 text-xs whitespace-nowrap hover:underline";
+
+type ReferenceLinkProps = Omit<
+  ComponentPropsWithoutRef<typeof Link>,
+  "href" | "children" | "className"
+>;
+
+/** Extra props and the ref go to the anchor so a Radix `asChild` trigger
+ * (the session / user hover cards) can attach to the link itself.
+ * `traceId` / `observationId` carry the current selection into the session
+ * page (`?focusTraceId=&focusObservationId=`) so it opens on this trace. */
+export const SessionBadge = forwardRef<
+  HTMLAnchorElement,
+  {
+    sessionId: string | null;
+    projectId: string;
+    traceId?: string;
+    observationId?: string | null;
+  } & ReferenceLinkProps
+>(function SessionBadge(
+  { sessionId, projectId, traceId, observationId, ...props },
+  ref,
+) {
   if (!sessionId) return null;
 
-  const text = `Session: ${sessionId}`;
-
   return (
     <Link
-      href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
-      className="ph-no-capture inline-flex"
+      ref={ref}
+      href={buildSessionDetailHref({
+        projectId,
+        sessionId,
+        traceId,
+        observationId,
+      })}
+      // Underlined at rest: it owns a hover card, like the token count.
+      className={`ph-no-capture ${REFERENCE_LINK_CLASS}`}
+      title={`Session ${sessionId}`}
+      {...props}
     >
-      <Badge color="primary" text={text} trailingIcon={ExternalLinkIcon} />
+      Session
+      <ArrowUpRight className="h-3 w-3 shrink-0" />
     </Link>
   );
-}
+});
 
-export function UserIdBadge({
-  userId,
-  projectId,
-}: {
-  userId: string | null;
-  projectId: string;
-}) {
+export const UserIdBadge = forwardRef<
+  HTMLAnchorElement,
+  { userId: string | null; projectId: string } & ReferenceLinkProps
+>(function UserIdBadge({ userId, projectId, ...props }, ref) {
   if (!userId) return null;
 
-  const text = `User ID: ${userId}`;
-
   return (
     <Link
+      ref={ref}
       href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
-      className="ph-no-capture inline-flex"
+      className={`ph-no-capture ${REFERENCE_LINK_CLASS}`}
+      {...props}
     >
-      <Badge color="primary" text={text} trailingIcon={ExternalLinkIcon} />
+      User{" "}
+      <span className="truncate" title={userId}>
+        {userId}
+      </span>
+      <ArrowUpRight className="h-3 w-3 shrink-0" />
     </Link>
   );
-}
+});
 
 export function TargetTraceBadge({
   targetTraceId,
@@ -61,33 +91,16 @@ export function TargetTraceBadge({
 }) {
   if (!targetTraceId) return null;
 
-  const text = `Target Trace: ${targetTraceId}`;
-
   return (
     <Link
       href={`/project/${projectId}/traces/${encodeURIComponent(targetTraceId)}`}
-      className="ph-no-capture inline-flex"
+      className={`ph-no-capture ${REFERENCE_LINK_CLASS}`}
     >
-      <Badge color="primary" text={text} trailingIcon={ExternalLinkIcon} />
+      target trace{" "}
+      <span className="truncate" title={targetTraceId}>
+        {targetTraceId}
+      </span>
+      <ArrowUpRight className="h-3 w-3 shrink-0" />
     </Link>
   );
-}
-
-export function EnvironmentBadge({
-  environment,
-}: {
-  environment: string | null;
-}) {
-  if (!environment) return null;
-  return <Badge text={`Env: ${environment}`} />;
-}
-
-export function ReleaseBadge({ release }: { release: string | null }) {
-  if (!release) return null;
-  return <Badge text={`Release: ${release}`} />;
-}
-
-export function VersionBadge({ version }: { version: string | null }) {
-  if (!version) return null;
-  return <Badge text={`Version: ${version}`} />;
 }

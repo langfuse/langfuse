@@ -20,6 +20,7 @@ import {
   isOnlyJsonMessage,
   useChatMLParser,
 } from "@/src/features/traces";
+import { cn } from "@/src/utils/tailwind";
 
 export type TraceEventsSurface = "card" | "modern";
 
@@ -36,6 +37,7 @@ const ModernSessionObservation = ({
   contentMode,
   showSystemPrompt,
   onOpenInTraceView,
+  isFocused = false,
 }: {
   observation: SessionObservation;
   projectId: string;
@@ -46,6 +48,7 @@ const ModernSessionObservation = ({
   contentMode: IOPreviewContentMode;
   showSystemPrompt?: boolean;
   onOpenInTraceView: (observationId: string) => void;
+  isFocused?: boolean;
 }) => {
   const parsed = React.useMemo(
     () => ({
@@ -85,11 +88,12 @@ const ModernSessionObservation = ({
   return (
     <div
       data-session-observation-id={observation.id}
-      className={
+      className={cn(
         isConversation
           ? "flex flex-col gap-2"
-          : "bg-muted/20 flex flex-col gap-2 rounded-md border p-3"
-      }
+          : "bg-muted/20 flex flex-col gap-2 rounded-md border p-3",
+        isFocused && FOCUSED_OBSERVATION_CLASS,
+      )}
     >
       {!isConversation ? <ObservationHeader observation={observation} /> : null}
       <SessionObservationIO
@@ -111,6 +115,10 @@ const ModernSessionObservation = ({
     </div>
   );
 };
+
+/** Outline for the observation the user arrived from (`?focusObservationId=`). */
+const FOCUSED_OBSERVATION_CLASS =
+  "ring-primary-accent/50 ring-offset-background rounded-md ring-2 ring-offset-2";
 
 const ObservationHeader = ({
   observation,
@@ -201,6 +209,10 @@ type LazyTraceEventsRowProps = {
   surface?: TraceEventsSurface;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
+  /** The trace the user arrived from (`?focusTraceId=`): outlined card. */
+  isFocused?: boolean;
+  /** Its selected observation (`?focusObservationId=`): outlined. */
+  focusedObservationId?: string | null;
 };
 
 const areLazyTraceEventsRowPropsEqual = (
@@ -219,7 +231,9 @@ const areLazyTraceEventsRowPropsEqual = (
   previous.hideTracePanel === next.hideTracePanel &&
   previous.surface === next.surface &&
   previous.contentMode === next.contentMode &&
-  previous.showSystemPrompt === next.showSystemPrompt;
+  previous.showSystemPrompt === next.showSystemPrompt &&
+  previous.isFocused === next.isFocused &&
+  previous.focusedObservationId === next.focusedObservationId;
 
 export const TraceEventsRow = React.memo(
   ({
@@ -235,6 +249,8 @@ export const TraceEventsRow = React.memo(
     surface = "card",
     contentMode = "all",
     showSystemPrompt,
+    isFocused = false,
+    focusedObservationId = null,
   }: {
     trace: RouterOutputs["sessions"]["tracesFromEvents"][number];
     projectId: string;
@@ -248,6 +264,8 @@ export const TraceEventsRow = React.memo(
     surface?: TraceEventsSurface;
     contentMode?: IOPreviewContentMode;
     showSystemPrompt?: boolean;
+    isFocused?: boolean;
+    focusedObservationId?: string | null;
   }) => {
     const observationsQuery =
       api.sessions.observationsForTraceFromEvents.useQuery(
@@ -311,9 +329,12 @@ export const TraceEventsRow = React.memo(
 
     return (
       <Frame
-        className={
-          surface === "card" ? "border-border shadow-none" : "bg-background"
-        }
+        className={cn(
+          surface === "card" ? "border-border shadow-none" : "bg-background",
+          isFocused &&
+            surface === "card" &&
+            "border-primary-accent ring-primary-accent/50 ring-1",
+        )}
       >
         <div
           className={
@@ -382,12 +403,21 @@ export const TraceEventsRow = React.memo(
                         contentMode={contentMode}
                         showSystemPrompt={showSystemPrompt}
                         onOpenInTraceView={openObservationInTraceView}
+                        isFocused={observation.id === focusedObservationId}
                       />
                     );
                   }
 
                   return (
-                    <div key={observation.id} className="flex flex-col gap-2">
+                    <div
+                      key={observation.id}
+                      data-session-observation-id={observation.id}
+                      className={cn(
+                        "flex flex-col gap-2",
+                        observation.id === focusedObservationId &&
+                          FOCUSED_OBSERVATION_CLASS,
+                      )}
+                    >
                       <ObservationHeader observation={observation} />
                       <SessionObservationIO
                         observation={observation}

@@ -27,7 +27,6 @@ const events = {
     "observation_tree_toggle_metrics",
     "io_mode_switch",
     "io_parser_comparison",
-    "io_pretty_format_toggle_group",
     "test_in_playground_button_click",
     "display_mode_switch",
     "download_button_click",
@@ -61,6 +60,10 @@ const events = {
     // target tab, `target` is trace vs observation. Answers whether the Log
     // View and Scores tabs earn their place.
     "detail_tab_switch",
+    // Row actions on the Attributes, Model parameters and Metadata tables in
+    // the detail panel: `table` is which of the three, `action` is copy,
+    // include_filter or exclude_filter. Never the key or value text.
+    "attribute_table_action",
     // Controls used *inside* the Log View tab, so a removal decision can weigh
     // what people actually do there. `target` is trace vs observation;
     // `action` is one of (see `LogViewAction` in TraceLogView.tsx):
@@ -73,6 +76,10 @@ const events = {
     // The JSON-view Beta switch (legacy JSON <-> virtualized json-beta).
     // `enabled` is the new value. Decides whether json-beta graduates.
     "json_beta_toggle",
+    // Whole-section collapse chevrons on Input/Output/Metadata/Corrected
+    // Output. `section` is a fixed enum (never content), `collapsed` the new
+    // state. Informs future default-collapsed decisions.
+    "io_section_collapse_toggle",
   ],
   // The shared table peek panel (opened via the `peek` URL param). Props carry
   // `routePattern` (the Next.js route pattern, never a concrete URL) so opens
@@ -167,7 +174,6 @@ const events = {
     "inline_tools_toggled",
     "system_prompt_toggled",
     "metadata_jsonpath_config_changed",
-    "header_detail_visibility_changed",
   ],
   eval_config: [
     "new_form_submit",

@@ -6,20 +6,25 @@
  * and uses data from GraphDataContext.
  */
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { TraceGraphView as TraceGraphViewComponent } from "@/src/features/trace-graph-view/components/TraceGraphView";
 import { type GraphViewMode } from "@/src/features/trace-graph-view/types";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
-import { useActiveObservationIds } from "@/src/features/traces/contexts/PlayheadContext";
+import {
+  useActiveObservationIds,
+  usePlayhead,
+} from "@/src/features/traces/contexts/PlayheadContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useTraceSearchMatches } from "@/src/features/traces/hooks/useTraceSearchMatches";
 import { useMobileLayoutContextOptional } from "../TraceLayoutMobile";
+import { PlaybackControls } from "../PlaybackControls";
 
 export function TraceGraphView() {
   const { agentGraphData, isLoading } = useTraceGraphData();
   const activeObservationIds = useActiveObservationIds();
+  const { stop: stopPlayback } = usePlayhead();
   const { graphViewMode, setGraphViewMode } = useViewPreferences();
   // The trace panel's search box, resolved by the same hook the Timeline reads.
   // The graph projects these observation ids onto its own nodes, which is
@@ -56,6 +61,13 @@ export function TraceGraphView() {
     [capture, graphViewMode, setGraphViewMode, analyticsDimensions],
   );
 
+  // Playback is a Graph-only feature (its controls mount below via
+  // `transport`), but the playhead store outlives this component — it is
+  // owned by PlayheadProvider one level up, so it keeps sweeping in the
+  // background if left running when the user switches away from Graph.
+  // Stop and reset it here so playback never outlives the view it belongs to.
+  useEffect(() => () => stopPlayback(), [stopPlayback]);
+
   if (isLoading) {
     return (
       <div className="flex h-full w-full items-center justify-center">
@@ -75,6 +87,7 @@ export function TraceGraphView() {
       viewMode={graphViewMode}
       onViewModeChange={handleViewModeChange}
       onObservationSelect={handleObservationSelect}
+      transport={<PlaybackControls />}
       search={
         search
           ? { matchedObservationIds: search.matchedIds, label: search.label }

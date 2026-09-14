@@ -79,6 +79,10 @@ import {
   readPersistedSidebarFilterQuery,
 } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
 import { StringParam, useQueryParam } from "use-query-params";
+import {
+  useScrollToFocusedSessionTrace,
+  useSessionFocusTarget,
+} from "@/src/features/sessions/sessionFocusTarget";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
@@ -503,6 +507,13 @@ export const SessionPage: React.FC<{
     getItemKey: (index) => session.data?.traces[index]?.id ?? index,
   });
   const virtualItems = virtualizer.getVirtualItems();
+  // Trace -> session link context: open on the trace the user came from.
+  const focusTarget = useSessionFocusTarget();
+  const traceIds = React.useMemo(
+    () => session.data?.traces.map((trace: LegacySessionTrace) => trace.id),
+    [session.data],
+  );
+  useScrollToFocusedSessionTrace({ focusTarget, traceIds, virtualizer });
 
   if (session.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this session." />;
@@ -873,6 +884,7 @@ export const SessionPage: React.FC<{
                         traceCommentCounts.data,
                       )}
                       index={virtualItem.index}
+                      isFocused={trace.id === focusTarget?.traceId}
                     />
                   </SessionVirtualizedRow>
                 );
@@ -1564,6 +1576,19 @@ const LoadedSessionEventsPage: React.FC<{
     getItemKey: (index) => traces?.[index]?.id ?? index,
   });
   const virtualItems = virtualizer.getVirtualItems();
+  // Trace -> session link context: open on the trace the user came from. The
+  // card list scrolls here; ModernSession routes it through its own feed.
+  const focusTarget = useSessionFocusTarget();
+  const traceIds = React.useMemo(
+    () => traces?.map((trace) => trace.id),
+    [traces],
+  );
+  useScrollToFocusedSessionTrace({
+    enabled: !isModernSessionEnabled,
+    focusTarget,
+    traceIds,
+    virtualizer,
+  });
   return (
     <SessionDetailStoreProvider store={sessionDetailStore}>
       <Page
@@ -2013,6 +2038,12 @@ const LoadedSessionEventsPage: React.FC<{
                         index={virtualItem.index}
                         filterState={visibleFilterState}
                         viewLabel={viewLabel}
+                        isFocused={trace.id === focusTarget?.traceId}
+                        focusedObservationId={
+                          trace.id === focusTarget?.traceId
+                            ? focusTarget.observationId
+                            : null
+                        }
                       />
                     </SessionVirtualizedRow>
                   );
@@ -2037,6 +2068,7 @@ const LoadedSessionEventsPage: React.FC<{
               viewLabel={viewLabel}
               showInlineToolCalls={showInlineToolCalls}
               showSystemPrompt={showSystemPrompt}
+              focusTarget={focusTarget}
               filterControlsProps={{
                 projectId,
                 filterState: visibleFilterState,

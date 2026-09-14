@@ -2,14 +2,14 @@
  * TraceDetailViewHeader - Extracted header component for TraceDetailView
  *
  * Contains:
- * - Title row with ItemBadge, trace name, options menu
+ * - Title row with trace name and options menu
  * - Action buttons (Dataset, Annotate, Queue, Comments)
- * - Metadata badges (timestamp, latency, session, user, environment, release, version, cost, usage)
+ * - Metadata badges (timestamp, target-trace link)
  *
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
 
-import { memo, useMemo } from "react";
+import { memo } from "react";
 import {
   type TraceDomain,
   type ScoreDomain,
@@ -17,8 +17,6 @@ import {
   LangfuseInternalTraceEnvironment,
 } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { ItemBadge } from "@/src/components/ItemBadge";
 import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import {
   ExistingDatasetItemsDropdownMenuController,
@@ -29,17 +27,12 @@ import { AnnotateDrawerController } from "@/src/features/scores";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
+import { TargetTraceBadge } from "../../TraceMetadataBadges";
 import {
-  SessionBadge,
-  UserIdBadge,
   EnvironmentBadge,
   ReleaseBadge,
   VersionBadge,
-  TargetTraceBadge,
-} from "../../TraceMetadataBadges";
-import { LatencyBadge } from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
-import { CostBadge, UsageBadge } from "../../ObservationMetadataBadgesTooltip";
-import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
+} from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { resolveEvalExecutionMetadata } from "@/src/features/traces/fns/resolveMetadata";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
@@ -70,7 +63,6 @@ export interface TraceDetailViewHeaderProps {
     input: string | null;
     output: string | null;
   };
-  observations: ObservationReturnTypeWithMetadata[];
   parsedMetadata: unknown;
   projectId: string;
   traceScores: WithStringifiedMetadata<ScoreDomain>[];
@@ -83,7 +75,6 @@ export interface TraceDetailViewHeaderProps {
 
 export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   trace,
-  observations,
   parsedMetadata,
   projectId,
   traceScores,
@@ -92,10 +83,6 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
 }: TraceDetailViewHeaderProps) {
   const { isAnnotationMode } = useViewPreferences();
   const isMobile = useIsMobile();
-  const aggregatedMetrics = useMemo(
-    () => aggregateTraceMetrics(observations),
-    [observations],
-  );
   const {
     existingDatasetItems,
     hasAccess: hasDatasetAccess,
@@ -118,13 +105,15 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   });
 
   return (
-    <div className="@container shrink-0 space-y-2 border-b p-2">
+    <div className="@container shrink-0 space-y-2 p-3">
       {/* Title row with actions */}
-      <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
-        <div className="flex w-full min-w-0 flex-row items-center gap-1">
-          <ItemBadge type="TRACE" isSmall />
+      <div className="flex w-full flex-wrap items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-auto flex-row items-center gap-1">
           <span
-            className={cn("min-w-0 truncate font-bold", isMobile && "flex-1")}
+            className={cn(
+              "min-w-0 truncate text-base font-bold",
+              isMobile && "flex-1",
+            )}
             title={trace.name || trace.id}
           >
             {trace.name || trace.id}
@@ -313,7 +302,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                   ) : (
                     <MessageSquare className="h-4 w-4" />
                   )}
-                  <span className="text-sm">Add comment</span>
+                  <span className="text-sm">Comment</span>
                   {!commentDrawerControl.disabled && commentCount ? (
                     <ActionButtonCountBadge count={commentCount} />
                   ) : null}
@@ -324,7 +313,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
         </div>
         {/* Action buttons (desktop inline cluster) */}
         {!isMobile && (
-          <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
+          <div className="flex flex-wrap content-start items-start gap-0.5">
             <NewDatasetItemFromExistingObjectDialogController
               projectId={projectId}
               key={trace.id}
@@ -434,9 +423,9 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                       variant="secondary"
                       size="sm"
                       disabled={disabled !== undefined}
-                      className="rounded-l-none rounded-r-md border-l-2"
+                      className="rounded-l-none rounded-r-md border-l px-1.5"
                     >
-                      <span className="relative mr-1 text-xs">
+                      <span className="relative text-xs">
                         <ChevronDown className="h-3 w-3" />
                         {totalCount > 0 && (
                           <AnnotationQueueItemCountBadge
@@ -463,7 +452,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
               ) : (
                 <>
                   <MessageSquare className="h-3.5 w-3.5" />
-                  <span>Add comment</span>
+                  <span>Comment</span>
                   {!!commentCount ? (
                     <ActionButtonCountBadge count={commentCount} />
                   ) : null}
@@ -474,45 +463,37 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
         )}
       </div>
 
-      {/* Metadata badges */}
-      <div className="flex flex-col gap-2">
-        {/* Timestamp */}
-        {preparedDate ? (
-          <div className="flex flex-wrap items-center gap-1 text-sm">
-            <span title={preparedDate.title}>{preparedDate.display}</span>
-          </div>
-        ) : null}
+      {/* Timestamp on its own line: sharing the title row broke with long
+          trace names. */}
+      {preparedDate ? (
+        <div
+          title={preparedDate.title}
+          className="text-muted-foreground text-xs"
+        >
+          {preparedDate.display}
+        </div>
+      ) : null}
 
-        {/* Other badges */}
+      <div className="flex flex-col gap-2">
+        {/* Trace-level totals (latency, session, user, cost, usage, tags)
+            live in the TraceSummaryStrip, not here — its compact usage badge
+            already carries the breakdown tooltip. This header adds the
+            target-trace link plus a quiet attribute line for the trace's
+            own env/release/version. */}
         {!isAnnotationMode && (
-          <CollapsibleBadgeRow>
-            <LatencyBadge latencySeconds={trace.latency ?? null} />
-            <SessionBadge sessionId={trace.sessionId} projectId={projectId} />
-            <UserIdBadge userId={trace.userId} projectId={projectId} />
-            <TargetTraceBadge
-              targetTraceId={targetTraceId}
-              projectId={projectId}
-            />
-            <EnvironmentBadge environment={trace.environment} />
-            <ReleaseBadge release={trace.release} />
-            <VersionBadge version={trace.version} />
-            {aggregatedMetrics.totalCost != null &&
-              aggregatedMetrics.costDetails && (
-                <CostBadge
-                  totalCost={aggregatedMetrics.totalCost}
-                  costDetails={aggregatedMetrics.costDetails}
-                />
-              )}
-            {aggregatedMetrics.hasGenerationLike &&
-              aggregatedMetrics.usageDetails && (
-                <UsageBadge
-                  inputUsage={aggregatedMetrics.inputUsage}
-                  outputUsage={aggregatedMetrics.outputUsage}
-                  totalUsage={aggregatedMetrics.totalUsage}
-                  usageDetails={aggregatedMetrics.usageDetails}
-                />
-              )}
-          </CollapsibleBadgeRow>
+          <>
+            <CollapsibleBadgeRow>
+              <TargetTraceBadge
+                targetTraceId={targetTraceId}
+                projectId={projectId}
+              />
+            </CollapsibleBadgeRow>
+            <CollapsibleBadgeRow>
+              <EnvironmentBadge environment={trace.environment} />
+              <ReleaseBadge release={trace.release} />
+              <VersionBadge version={trace.version} />
+            </CollapsibleBadgeRow>
+          </>
         )}
       </div>
     </div>

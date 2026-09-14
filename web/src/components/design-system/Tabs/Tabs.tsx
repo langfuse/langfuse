@@ -72,6 +72,13 @@ const tabsTriggerVariants = cva(
         sm: "h-5 px-1 text-xs",
       },
     },
+    compoundVariants: [
+      // Inside a boxed list the trigger fills the list's inner height, so the
+      // list's padding is the inset on every side and the smaller radius
+      // nests inside the list's. A fixed height overflowed once the list had
+      // a border (outline) and left uneven top/bottom vs side spacing.
+      { variant: "default", class: "h-full" },
+    ],
     defaultVariants: {
       variant: "default",
       size: "default",

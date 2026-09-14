@@ -371,6 +371,7 @@ function buildTreeNodesBottomUp(
       calculatedTotalCost: obs.totalCost,
       parentObservationId: obs.parentObservationId,
       traceId: obs.traceId,
+      model: obs.model,
       totalCost,
       subtreeWallClockDurationMs,
       startTimeSinceTrace,
