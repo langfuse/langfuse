@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { cn } from "@/src/utils/tailwind";
 import {
-  classifyJsonShape,
+  describeJsonShape,
   FINALIST_JSON_TABLE_STYLE_VARIANTS,
   JSON_TABLE_STYLES,
   type JsonTableDataClass,
@@ -232,16 +232,17 @@ function verdictFor(
   return undefined;
 }
 
-/** What the optional split renders for this fixture and why. */
+/** What Auto renders for this fixture and the shape rule that decided it. */
 function splitFor(json: unknown): {
   variant: JsonTableStyleVariant;
   chose: string;
 } {
-  return classifyJsonShape(json) === "facts"
-    ? { variant: SPLIT_FACTS_VARIANT, chose: `chose ${TABLE}: flat facts` }
+  const shape = describeJsonShape(json);
+  return shape.dataClass === "facts"
+    ? { variant: SPLIT_FACTS_VARIANT, chose: `chose ${TABLE}: ${shape.reason}` }
     : {
         variant: LONG_CONTENT_JSON_TABLE_STYLE_VARIANT,
-        chose: `chose ${TREE}: long content`,
+        chose: `chose ${TREE}: ${shape.reason}`,
       };
 }
 
@@ -300,7 +301,7 @@ function StyleColumn({
 }
 
 /** Dev-only pick between the three finalist JSON table directions, plus the
-    optional split as a fourth column. `?wide=1` sizes each column like a wide
+    Auto split as a fourth column. `?wide=1` sizes each column like a wide
     (1000px) panel instead of the default ~620px side panel. */
 export function JsonStylePickPage() {
   const available = useShowJsonTableStylePicker();
@@ -369,8 +370,8 @@ export function JsonStylePickPage() {
                 />
               ))}
               <StyleColumn
-                heading={`${TABLE} + ${TREE} for long content`}
-                description={`${TABLE} for flat facts, ${TREE} where the data reads as content (arrays, long strings, deep or wide objects)`}
+                heading={`Auto (${TABLE} or ${TREE} by content)`}
+                description={`Picks per table: ${TABLE} for fact sheets (flat, short values), ${TREE} for content (lists, long text, deep nesting)`}
                 note={split.chose}
                 useCase={useCase}
                 variant={split.variant}

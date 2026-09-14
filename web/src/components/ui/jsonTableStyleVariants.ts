@@ -39,7 +39,7 @@ export const DEFAULT_JSON_TABLE_STYLE_VARIANT: JsonTableStyleVariant =
 export const FINALIST_JSON_TABLE_STYLE_VARIANTS: readonly JsonTableStyleVariant[] =
   ["current", "dense-dotbreak", "tree"];
 
-/** Style the IO class takes when "Tree for long content" is on. */
+/** Style the IO class takes when "Auto (Table or Tree by content)" is on. */
 export const LONG_CONTENT_JSON_TABLE_STYLE_VARIANT: JsonTableStyleVariant =
   "tree";
 
@@ -123,23 +123,42 @@ function firstChildren(value: object): unknown[] {
 }
 
 /**
- * Data class by shape, not by field. A flat object with short values is a
- * fact sheet and wants a key / value column layout, whatever field it sits in
- * (the production p50 output is one). Anything that reads as content wants
- * the IO layout: a root array (chat messages, documents), a top-level string
- * over 80 chars or with a line break, three or more container levels, or
- * more than 20 top-level keys. Only the top level is inspected.
+ * Data class by shape, not by field, with the rule that decided it. A flat
+ * object with short values is a fact sheet and wants a key / value column
+ * layout, whatever field it sits in (the production p50 output is one).
+ * Anything that reads as content wants the IO layout: a root array (chat
+ * messages, documents), a top-level string over 80 chars or with a line
+ * break, three or more container levels, or more than 20 top-level keys.
+ * Only the top level is inspected.
  */
-export function classifyJsonShape(value: unknown): JsonTableDataClass {
-  if (Array.isArray(value)) return "io";
+export function describeJsonShape(value: unknown): {
+  dataClass: JsonTableDataClass;
+  reason: string;
+} {
+  if (Array.isArray(value)) {
+    return { dataClass: "io", reason: "root is a list" };
+  }
   if (value === null || typeof value !== "object") {
-    return isLongOrMultiline(value) ? "io" : "facts";
+    return isLongOrMultiline(value)
+      ? { dataClass: "io", reason: "long text" }
+      : { dataClass: "facts", reason: "flat, short values" };
   }
   const entries = Object.values(value);
-  if (entries.length > SHAPE_WIDE_KEYS) return "io";
-  if (entries.some(isLongOrMultiline)) return "io";
-  if (nestsAtLeast(value, SHAPE_DEEP_LEVELS)) return "io";
-  return "facts";
+  if (entries.length > SHAPE_WIDE_KEYS) {
+    return { dataClass: "io", reason: `over ${SHAPE_WIDE_KEYS} keys` };
+  }
+  if (entries.some(isLongOrMultiline)) {
+    return { dataClass: "io", reason: "long text" };
+  }
+  if (nestsAtLeast(value, SHAPE_DEEP_LEVELS)) {
+    return { dataClass: "io", reason: "deep nesting" };
+  }
+  return { dataClass: "facts", reason: "flat, short values" };
+}
+
+/** `describeJsonShape` without the reason. */
+export function classifyJsonShape(value: unknown): JsonTableDataClass {
+  return describeJsonShape(value).dataClass;
 }
 
 /** Pre-split key; a value here applies to both classes. */
@@ -468,19 +487,19 @@ export function writeStoredJsonTableStyleVariant(
 }
 
 /** Store the simple picker's state: `style` for facts tables and, when
-    `treeForLongContent` is on, the tree direction for IO tables with the
-    class derived from the data (shape). Off puts `style` on both classes and
-    the class back to the caller's field. */
+    `auto` is on, the tree direction for IO tables with the class derived
+    from the data (shape). Off puts `style` on both classes and the class
+    back to the caller's field. */
 export function writeStoredJsonTableStylePick(
   style: JsonTableStyleVariant,
-  treeForLongContent: boolean,
+  auto: boolean,
 ) {
   writeStoredVariant(JSON_TABLE_STYLE_STORAGE_KEYS.facts, style);
   writeStoredVariant(
     JSON_TABLE_STYLE_STORAGE_KEYS.io,
-    treeForLongContent ? LONG_CONTENT_JSON_TABLE_STYLE_VARIANT : style,
+    auto ? LONG_CONTENT_JSON_TABLE_STYLE_VARIANT : style,
   );
-  writeStoredClassMode(treeForLongContent ? "shape" : "field");
+  writeStoredClassMode(auto ? "shape" : "field");
   notifyChange();
 }
 

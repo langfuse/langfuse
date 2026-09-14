@@ -989,9 +989,9 @@ function JsonTableStyleRadioGroup({
 }
 
 /** Debug-only menu for the three finalist directions: one "Style" radio
-    group (applies to both classes) and one "Tree for long content" switch
-    that puts IO tables on the tree direction with the class derived from the
-    data. The full twelve-direction menu is behind localStorage
+    group (applies to both classes) and one "Auto (Table or Tree by content)"
+    switch that puts IO tables on the tree direction with the class derived
+    from the data. The full twelve-direction menu is behind localStorage
     `lf-json-style-all`. */
 function JsonTableStyleFinalistMenuContent({
   active,
@@ -1003,7 +1003,7 @@ function JsonTableStyleFinalistMenuContent({
   const ioStored = useStoredJsonTableStyleVariant("io");
   const classMode = useJsonTableClassMode();
   const style = factsStored ?? DEFAULT_JSON_TABLE_STYLE_VARIANT;
-  const treeForLongContent =
+  const auto =
     classMode === "shape" && ioStored === LONG_CONTENT_JSON_TABLE_STYLE_VARIANT;
   const hasStoredPick = useHasStoredJsonTableStylePick();
   return (
@@ -1021,10 +1021,7 @@ function JsonTableStyleFinalistMenuContent({
       <DropdownMenuRadioGroup
         value={style}
         onValueChange={(next) =>
-          writeStoredJsonTableStylePick(
-            next as JsonTableStyleVariant,
-            treeForLongContent,
-          )
+          writeStoredJsonTableStylePick(next as JsonTableStyleVariant, auto)
         }
       >
         {FINALIST_JSON_TABLE_STYLE_VARIANTS.map((variant) => (
@@ -1040,16 +1037,16 @@ function JsonTableStyleFinalistMenuContent({
       </DropdownMenuRadioGroup>
       <DropdownMenuSeparator />
       <DropdownMenuCheckboxItem
-        checked={treeForLongContent}
+        checked={auto}
         onCheckedChange={(checked) =>
           writeStoredJsonTableStylePick(style, checked === true)
         }
       >
         <span className="flex flex-col gap-0.5">
-          <span>Tree for long content</span>
+          <span>Auto (Table or Tree by content)</span>
           <span className="text-muted-foreground text-xs">
-            Chat, arrays, long or deep values switch to Tree; flat facts keep
-            the style above
+            Fact sheets (flat, short values) keep the style above; content
+            (lists, long text, deep nesting) uses Tree
           </span>
         </span>
       </DropdownMenuCheckboxItem>
