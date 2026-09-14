@@ -6,13 +6,7 @@ import {
 } from "@/src/ee/features/billing/constants";
 import { stripeProducts } from "@/src/ee/features/billing/utils/stripeCatalogue";
 
-export const PLAN_TIERS = [
-  "hobby",
-  "core",
-  "pro",
-  "team",
-  "enterprise",
-] as const;
+const PLAN_TIERS = ["hobby", "core", "pro", "team", "enterprise"] as const;
 
 export type PlanTier = (typeof PLAN_TIERS)[number];
 
@@ -25,14 +19,14 @@ export const DISPLAY_PLAN_TIERS = [
 
 export type DisplayPlanTier = (typeof DISPLAY_PLAN_TIERS)[number];
 
-export type ComparisonPolarity = "plus" | "minus" | "neutral";
+type ComparisonPolarity = "plus" | "minus" | "neutral";
 
-export type PlanComparisonLine = {
+type PlanComparisonLine = {
   polarity: ComparisonPolarity;
   text: string;
 };
 
-export type PlanComparison = {
+type PlanComparison = {
   heading: string;
   lines: PlanComparisonLine[];
 };
@@ -246,10 +240,7 @@ export const planTierLabel = (tier: PlanTier) => TIER_LABEL[tier];
 export const planTierFromPlan = (plan: Plan | undefined): PlanTier =>
   (plan && PLAN_TO_TIER[plan]) || "hobby";
 
-export const mappedPlanForTier = (tier: Exclude<PlanTier, "hobby">): Plan =>
-  TIER_TO_PLAN[tier];
-
-export const comparePlanTiers = (left: PlanTier, right: PlanTier) =>
+const comparePlanTiers = (left: PlanTier, right: PlanTier) =>
   PLAN_TIERS.indexOf(left) - PLAN_TIERS.indexOf(right);
 
 export const suggestedUpgradeTier = (current: PlanTier): PlanTier | null => {
