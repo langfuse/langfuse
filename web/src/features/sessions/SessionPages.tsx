@@ -1543,12 +1543,15 @@ const LoadedSessionEventsPage: React.FC<{
     const presetToApply = getSessionDetailPresetToApply({
       selectedViewId: null,
       hasFilters: visibleFilterState.length > 0,
+      isTimelineEnabled: isSessionTimelineEnabled && isModernSessionEnabled,
     });
     if (!presetToApply) return;
     applySystemPreset(presetToApply);
   }, [
     applySystemPreset,
     arrivedOnVisitedHistoryEntry,
+    isModernSessionEnabled,
+    isSessionTimelineEnabled,
     isViewLoading,
     selectedViewId,
     sessionId,
