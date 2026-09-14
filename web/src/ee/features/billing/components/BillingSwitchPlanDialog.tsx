@@ -112,6 +112,7 @@ function BillingSwitchPlanDialogContent() {
     {
       enabled: Boolean(organization?.id),
       trpc: { context: { skipBatch: true } },
+      meta: { silentAllErrors: true },
     },
   );
 
