@@ -4,13 +4,137 @@ use crate::{
     test_support::{FakeServer, resolution_response},
 };
 use futures_util::{StreamExt, stream};
-use std::convert::Infallible;
+use std::{convert::Infallible, task::Poll};
 use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle};
+use tower::ServiceExt;
+
+#[tokio::test]
+async fn invalid_credentials_are_rejected_before_admission_or_body_reads() {
+    let web = FakeServer::start(|_| async {
+        Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .body(Body::empty())
+            .unwrap()
+    })
+    .await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let provider_client = OpenAi::for_test(
+        provider.url.clone(),
+        Limits {
+            active: 1,
+            ..Limits::default()
+        },
+    );
+    let admission = provider_client.admit().unwrap();
+    let gateway = Gateway::start(Some(Execution::for_test(
+        web.resolver(),
+        provider_client,
+        1,
+    )))
+    .await;
+    // Exercise both an exhausted and an available execution pool.
+    for occupied in [Some(admission), None] {
+        let body = Body::from_stream(stream::poll_fn(
+            |_| -> Poll<Option<Result<&'static str, Infallible>>> {
+                panic!("an invalid credential must be rejected before polling the body");
+            },
+        ));
+        let response = tokio::time::timeout(
+            Duration::from_secs(2),
+            gateway.app.clone().oneshot(
+                Request::post("/openai/v1/responses")
+                    .header(header::AUTHORIZATION, "Bearer invalid-key")
+                    .body(body)
+                    .unwrap(),
+            ),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        drop(occupied);
+    }
+    assert_eq!(web.calls(), 2);
+    assert_eq!(provider.calls(), 0);
+}
 
 struct Gateway {
     url: String,
     shutdown: Option<oneshot::Sender<()>>,
     task: JoinHandle<std::io::Result<()>>,
+    app: Router,
+}
+
+#[tokio::test]
+async fn resolution_capacity_is_bounded_and_released_on_cancellation_and_failure() {
+    let entered = Arc::new(tokio::sync::Notify::new());
+    let started = entered.clone();
+    let web = FakeServer::start(move |request| {
+        let started = started.clone();
+        async move {
+            match request.headers()[header::AUTHORIZATION].to_str().unwrap() {
+                "Bearer stalled" => {
+                    started.notify_one();
+                    std::future::pending().await
+                }
+                "Bearer invalid" => Response::builder()
+                    .status(StatusCode::UNAUTHORIZED)
+                    .body(Body::empty())
+                    .unwrap(),
+                _ => resolution_response("provider"),
+            }
+        }
+    })
+    .await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let service = Execution::for_test(
+        web.resolver(),
+        OpenAi::for_test(provider.url.clone(), Limits::default()),
+        1,
+    );
+    let gateway = Gateway::start(Some(service)).await;
+    let request = |key| {
+        Request::post("/openai/v1/responses")
+            .header(header::AUTHORIZATION, key)
+            .body(Body::from("{}"))
+            .unwrap()
+    };
+    let mut stalled = Box::pin(gateway.app.clone().oneshot(request("Bearer stalled")));
+    tokio::time::timeout(Duration::from_secs(2), async {
+        tokio::select! {
+            () = entered.notified() => {},
+            _ = &mut stalled => panic!("resolution should be pending"),
+        }
+    })
+    .await
+    .unwrap();
+    let busy = tokio::time::timeout(
+        Duration::from_secs(2),
+        gateway.app.clone().oneshot(request("Bearer valid")),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(busy.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(web.calls(), 1);
+    assert_eq!(provider.calls(), 0);
+
+    drop(stalled);
+    for (key, status) in [
+        ("Bearer invalid", StatusCode::UNAUTHORIZED),
+        ("Bearer valid", StatusCode::OK),
+    ] {
+        let response = tokio::time::timeout(
+            Duration::from_secs(2),
+            gateway.app.clone().oneshot(request(key)),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(response.status(), status);
+    }
+    assert_eq!(web.calls(), 3);
+    assert_eq!(provider.calls(), 1);
 }
 
 impl Gateway {
@@ -26,7 +150,7 @@ impl Gateway {
         let (shutdown, signal) = oneshot::channel();
         let task = tokio::spawn(crate::server::serve(
             listener,
-            app,
+            app.clone(),
             state,
             async {
                 let _ = signal.await;
@@ -40,6 +164,7 @@ impl Gateway {
                     url,
                     shutdown: Some(shutdown),
                     task,
+                    app,
                 };
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -62,6 +187,7 @@ fn execution(web: &FakeServer, provider: &FakeServer) -> Execution {
     Execution::for_test(
         web.resolver(),
         OpenAi::for_test(format!("{}/v1/responses", provider.url), Limits::default()),
+        128,
     )
 }
 
@@ -148,10 +274,21 @@ async fn native_json_and_sse_traverse_resolution_and_relay() {
 }
 
 #[tokio::test]
-async fn malformed_credentials_and_oversized_body_never_resolve_or_execute() {
+async fn malformed_credentials_skip_resolution_and_oversized_body_releases_capacity() {
     let web = FakeServer::start(|_| async { resolution_response("provider-secret") }).await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let gateway = Gateway::start(Some(execution(&web, &provider))).await;
+    let service = Execution::for_test(
+        web.resolver(),
+        OpenAi::for_test(
+            provider.url.clone(),
+            Limits {
+                active: 1,
+                ..Limits::default()
+            },
+        ),
+        1,
+    );
+    let gateway = Gateway::start(Some(service)).await;
     for authorization in [
         None,
         Some("Basic abc"),
@@ -182,6 +319,7 @@ async fn malformed_credentials_and_oversized_body_never_resolve_or_execute() {
             .status(),
         StatusCode::UNAUTHORIZED
     );
+    assert_eq!(web.calls(), 0);
     let response = gateway
         .post()
         .bearer_auth("valid-key")
@@ -190,8 +328,17 @@ async fn malformed_credentials_and_oversized_body_never_resolve_or_execute() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
-    assert_eq!(web.calls(), 0);
+    assert_eq!(web.calls(), 1);
     assert_eq!(provider.calls(), 0);
+    let next = gateway
+        .post()
+        .bearer_auth("valid-key")
+        .body("{}")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(next.status(), StatusCode::OK);
+    assert_eq!(provider.calls(), 1);
 }
 
 #[tokio::test]
@@ -245,7 +392,10 @@ async fn resolution_failures_are_sanitized_and_never_call_provider() {
 
 #[tokio::test]
 async fn slow_request_body_and_resolution_have_bounded_waits() {
-    let web = FakeServer::start(|_| async {
+    let web = FakeServer::start(|request| async move {
+        if request.headers()[header::AUTHORIZATION] != "Bearer slow-resolution" {
+            return resolution_response("provider");
+        }
         Response::new(Body::from_stream(stream::pending::<
             Result<&'static str, Infallible>,
         >()))
@@ -260,7 +410,11 @@ async fn slow_request_body_and_resolution_have_bounded_waits() {
             Result<&'static str, Infallible>,
         >()))
         .send();
-    let slow_resolution = gateway.post().bearer_auth("key").body("{}").send();
+    let slow_resolution = gateway
+        .post()
+        .bearer_auth("slow-resolution")
+        .body("{}")
+        .send();
     let (body, resolution) = tokio::time::timeout(Duration::from_secs(12), async {
         tokio::join!(slow_body, slow_resolution)
     })
@@ -268,7 +422,7 @@ async fn slow_request_body_and_resolution_have_bounded_waits() {
     .unwrap();
     assert_eq!(body.unwrap().status(), StatusCode::REQUEST_TIMEOUT);
     assert_eq!(resolution.unwrap().status(), StatusCode::GATEWAY_TIMEOUT);
-    assert_eq!(web.calls(), 1);
+    assert_eq!(web.calls(), 2);
     assert_eq!(provider.calls(), 0);
 }
 
@@ -329,6 +483,7 @@ async fn active_admission_is_held_through_stream_and_shutdown_drains_it() {
                 ..Limits::default()
             },
         ),
+        1,
     );
     let mut gateway = Gateway::start(Some(service)).await;
     let mut response = gateway
@@ -350,7 +505,7 @@ async fn active_admission_is_held_through_stream_and_shutdown_drains_it() {
             .status(),
         StatusCode::SERVICE_UNAVAILABLE
     );
-    assert_eq!(web.calls(), 1);
+    assert_eq!(web.calls(), 2);
     assert_eq!(provider.calls(), 1);
     gateway.shutdown.take().unwrap().send(()).unwrap();
     assert!(!gateway.task.is_finished());
@@ -384,6 +539,7 @@ async fn client_disconnect_releases_capacity_for_the_next_request() {
                 ..Limits::default()
             },
         ),
+        1,
     );
     let gateway = Gateway::start(Some(service)).await;
     let mut first = gateway
@@ -414,6 +570,6 @@ async fn client_disconnect_releases_capacity_for_the_next_request() {
     .await
     .unwrap();
     assert_eq!(next.chunk().await.unwrap().unwrap(), "data: first\n\n");
-    assert_eq!(web.calls(), 2);
+    assert!(web.calls() >= 2);
     assert_eq!(provider.calls(), 2);
 }

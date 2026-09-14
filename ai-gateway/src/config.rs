@@ -8,6 +8,8 @@ pub struct Config {
     pub shutdown_timeout: Duration,
     pub log_level: LevelFilter,
     pub log_format: LogFormat,
+    pub max_active_requests: usize,
+    pub max_concurrent_resolutions: usize,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -40,6 +42,8 @@ impl Config {
             read_env("LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS")?.as_deref(),
             read_env("LANGFUSE_LOG_LEVEL")?.as_deref(),
             read_env("LANGFUSE_LOG_FORMAT")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS")?.as_deref(),
         )?;
         if let Some(web_url) =
             read_env("LANGFUSE_AI_GATEWAY_WEB_URL")?.filter(|url| !url.is_empty())
@@ -60,12 +64,15 @@ impl Config {
     ///
     /// # Errors
     /// Returns an error for an invalid IP address and port, a shutdown timeout outside
-    /// 1–300 integer seconds, or an unsupported log level or format.
+    /// 1–300 integer seconds, an unsupported log level or format, or concurrency
+    /// limits outside 1 through [`tokio::sync::Semaphore::MAX_PERMITS`].
     pub fn from_values(
         listen_address: Option<&str>,
         shutdown_timeout: Option<&str>,
         log_level: Option<&str>,
         log_format: Option<&str>,
+        max_active_requests: Option<&str>,
+        max_concurrent_resolutions: Option<&str>,
     ) -> Result<Self, ConfigError> {
         let listen_address = listen_address
             .unwrap_or("0.0.0.0:8080")
@@ -107,8 +114,25 @@ impl Config {
             shutdown_timeout: Duration::from_secs(seconds),
             log_level,
             log_format,
+            max_active_requests: concurrency_limit(
+                max_active_requests,
+                "LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS must be a positive integer within the semaphore capacity",
+            )?,
+            max_concurrent_resolutions: concurrency_limit(
+                max_concurrent_resolutions,
+                "LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS must be a positive integer within the semaphore capacity",
+            )?,
         })
     }
+}
+
+fn concurrency_limit(value: Option<&str>, message: &'static str) -> Result<usize, ConfigError> {
+    value
+        .unwrap_or("128")
+        .parse::<usize>()
+        .ok()
+        .filter(|limit| (1..=tokio::sync::Semaphore::MAX_PERMITS).contains(limit))
+        .ok_or(ConfigError(message))
 }
 
 fn read_env(name: &'static str) -> Result<Option<String>, ConfigError> {
@@ -127,32 +151,42 @@ mod tests {
 
     #[test]
     fn configuration_parses_defaults_and_overrides() {
-        let default = Config::from_values(None, None, None, None).unwrap();
+        let default = Config::from_values(None, None, None, None, None, None).unwrap();
         assert_eq!(default.listen_address, "0.0.0.0:8080".parse().unwrap());
         assert_eq!(default.shutdown_timeout, Duration::from_secs(10));
         assert_eq!(default.log_level, LevelFilter::INFO);
         assert_eq!(default.log_format, LogFormat::Text);
-        let custom =
-            Config::from_values(Some("[::1]:9000"), Some("30"), Some("debug"), Some("json"))
-                .unwrap();
+        assert_eq!(default.max_active_requests, 128);
+        assert_eq!(default.max_concurrent_resolutions, 128);
+        let custom = Config::from_values(
+            Some("[::1]:9000"),
+            Some("30"),
+            Some("debug"),
+            Some("json"),
+            Some("256"),
+            Some("32"),
+        )
+        .unwrap();
         assert_eq!(custom.listen_address, "[::1]:9000".parse().unwrap());
         assert_eq!(custom.shutdown_timeout, Duration::from_secs(30));
         assert_eq!(custom.log_level, LevelFilter::DEBUG);
         assert_eq!(custom.log_format, LogFormat::Json);
+        assert_eq!(custom.max_active_requests, 256);
+        assert_eq!(custom.max_concurrent_resolutions, 32);
     }
 
     #[test]
     fn validates_shared_log_format() {
         for (value, expected) in [("text", LogFormat::Text), ("json", LogFormat::Json)] {
             assert_eq!(
-                Config::from_values(None, None, None, Some(value))
+                Config::from_values(None, None, None, Some(value), None, None)
                     .unwrap()
                     .log_format,
                 expected
             );
         }
         for value in ["", "TEXT", "pretty", "0", "secret-that-must-not-appear"] {
-            let error = Config::from_values(None, None, None, Some(value))
+            let error = Config::from_values(None, None, None, Some(value), None, None)
                 .err()
                 .unwrap();
             assert_eq!(
@@ -172,7 +206,7 @@ mod tests {
             ("error", LevelFilter::ERROR),
             ("fatal", LevelFilter::ERROR),
         ] {
-            let config = Config::from_values(None, None, Some(value), None).unwrap();
+            let config = Config::from_values(None, None, Some(value), None, None, None).unwrap();
             assert_eq!(config.log_level, expected, "{value}");
         }
     }
@@ -193,11 +227,49 @@ mod tests {
             (None, Some("-1"), None),
             (Some("localhost:8080"), None, None),
         ] {
-            let error = Config::from_values(address, timeout, level, None)
+            let error = Config::from_values(address, timeout, level, None, None, None)
                 .err()
                 .unwrap();
             assert!(!error.to_string().contains(sensitive_input));
             assert!(!format!("{error:?}").contains(sensitive_input));
+        }
+    }
+
+    #[test]
+    fn concurrency_limits_reject_invalid_values_and_accept_boundaries() {
+        let maximum = tokio::sync::Semaphore::MAX_PERMITS.to_string();
+        let overflow = (tokio::sync::Semaphore::MAX_PERMITS + 1).to_string();
+        for value in ["1", maximum.as_str()] {
+            let config =
+                Config::from_values(None, None, None, None, Some(value), Some(value)).unwrap();
+            assert_eq!(config.max_active_requests, value.parse::<usize>().unwrap());
+            assert_eq!(
+                config.max_concurrent_resolutions,
+                value.parse::<usize>().unwrap()
+            );
+        }
+        for value in [
+            "0",
+            "-1",
+            "1.5",
+            "",
+            "secret-that-must-not-appear",
+            overflow.as_str(),
+        ] {
+            for (active, resolutions, name) in [
+                (Some(value), None, "LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS"),
+                (
+                    None,
+                    Some(value),
+                    "LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS",
+                ),
+            ] {
+                let error = Config::from_values(None, None, None, None, active, resolutions)
+                    .err()
+                    .unwrap();
+                assert!(error.to_string().contains(name));
+                assert!(!error.to_string().contains("secret-that-must-not-appear"));
+            }
         }
     }
 }

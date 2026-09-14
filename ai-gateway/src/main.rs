@@ -28,7 +28,16 @@ async fn run() -> Result<(), Box<dyn Error>> {
         LogFormat::Text => logging.compact().init(),
         LogFormat::Json => logging.json().init(),
     }
-    let execution = config.resolver.map(Execution::new).transpose()?;
+    let execution = config
+        .resolver
+        .map(|resolver| {
+            Execution::new(
+                resolver,
+                config.max_active_requests,
+                config.max_concurrent_resolutions,
+            )
+        })
+        .transpose()?;
     let inference_enabled = execution.is_some();
     let state = if inference_enabled {
         AppState::default()

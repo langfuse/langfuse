@@ -47,7 +47,14 @@ async fn responses(
         .filter(|_| state.lifecycle.is_ready())
         .ok_or(GatewayError::Unavailable)?;
     let gateway_key = gateway_key(request.headers())?.to_owned();
-    let admission = execution.admit().map_err(GatewayError::Provider)?;
+    let (admission, resolved) =
+        execution
+            .prepare(&gateway_key)
+            .await
+            .map_err(|error| match error {
+                ExecutionError::Resolution(error) => GatewayError::Resolution(error),
+                ExecutionError::Provider(error) => GatewayError::Provider(error),
+            })?;
     let (parts, body) = request.into_parts();
     let bytes = tokio::time::timeout(REQUEST_READ_TIMEOUT, to_bytes(body, MAX_REQUEST_BYTES))
         .await
@@ -63,12 +70,9 @@ async fn responses(
             }
         })?;
     execution
-        .execute(admission, &gateway_key, &parts.headers, bytes)
+        .execute(admission, resolved, &parts.headers, bytes)
         .await
-        .map_err(|error| match error {
-            ExecutionError::Resolution(error) => GatewayError::Resolution(error),
-            ExecutionError::Provider(error) => GatewayError::Provider(error),
-        })
+        .map_err(GatewayError::Provider)
 }
 
 fn gateway_key(headers: &HeaderMap) -> Result<&str, GatewayError> {

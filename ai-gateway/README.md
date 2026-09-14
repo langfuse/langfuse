@@ -63,6 +63,8 @@ do not load dotenv files:
 | `LANGFUSE_LOG_FORMAT`                          | `text`         | `text`, `json`                                     |
 | `LANGFUSE_LOG_LEVEL`                           | `info`         | `trace`, `debug`, `info`, `warn`, `error`, `fatal` |
 | `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300                              |
+| `LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS` | `128` | Positive integer up to Tokio's semaphore capacity; authenticated requests per instance |
+| `LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS` | `128` | Positive integer up to Tokio's semaphore capacity; concurrent Web resolutions per instance |
 
 The gateway shares `LANGFUSE_LOG_LEVEL` with Web and worker. Values are lowercase;
 `fatal` maps to Rust's `error` level and therefore includes ordinary error logs.
@@ -120,14 +122,25 @@ retry, follow redirects, parse `model`/`stream`, or accept client routing overri
 Provider errors retain their status and body. Gateway errors use an OpenAI-style
 `{"error":{"message":"...","type":"...","param":null,"code":"..."}}` envelope.
 
-Internal limits are 128 admitted executions, 4 MiB request bodies, 10 seconds to
-read a request, 5 seconds to connect, 120 seconds for provider response headers or
-an individual upstream read, and 600 seconds overall from admission. Full capacity
-returns 503 immediately. Response size is not capped: a single task pumps chunks
+The gateway authenticates through Web before reserving execution capacity or
+reading the request body. Web resolution uses a separate concurrency budget,
+released after resolution finishes; authenticated requests then reserve execution
+capacity through body reading and response completion. Either budget returns 503
+immediately when full, without a waiting queue. Both defaults of 128 are provisional
+guardrails, not measured capacity: tune them independently using load tests for the
+instance resources, request sizes and stream durations. These limits bound work;
+they do not guarantee fairness between clients or tenants.
+
+Other limits are 4 MiB request bodies, 10 seconds to read a request, 5 seconds to
+connect, 120 seconds for provider response headers or an individual upstream read,
+and 600 seconds overall from execution admission. Response size is not capped: a single task pumps chunks
 through a one-slot channel, with chunks at most 64 KiB. It stops reading when that
 channel fills. Completion, disconnect and deadline release admission and context;
 the deadline runs even when the downstream stops polling. A failure after headers
 terminates the response body without adding an error event or retrying.
+There is no separate downstream stall timeout; a client that stops reading can
+retain execution capacity until the overall deadline. A progress-based downstream
+stall policy is deferred to a separate change.
 
 Only request content type/encoding and accept/accept-encoding cross the provider
 boundary, plus the resolved Bearer token. Response content type/encoding, cache

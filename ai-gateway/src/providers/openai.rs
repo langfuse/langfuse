@@ -53,11 +53,17 @@ impl OpenAi {
     ///
     /// # Errors
     /// Returns [`Error::Configuration`] when the HTTPS client cannot be initialized.
-    pub fn new() -> Result<Self, Error> {
-        Self::with_limits(Limits::default())
+    pub fn new(max_active_requests: usize) -> Result<Self, Error> {
+        Self::with_limits(Limits {
+            active: max_active_requests,
+            ..Limits::default()
+        })
     }
 
     fn with_limits(limits: Limits) -> Result<Self, Error> {
+        if !(1..=Semaphore::MAX_PERMITS).contains(&limits.active) {
+            return Err(Error::Configuration);
+        }
         let client = Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .retry(reqwest::retry::never())
@@ -80,7 +86,7 @@ impl OpenAi {
         })
     }
 
-    /// Reserve capacity before reading a request or resolving its credential.
+    /// Reserve capacity for an authenticated request before reading its body.
     ///
     /// # Errors
     /// Returns [`Error::Busy`] immediately when all execution slots are occupied.

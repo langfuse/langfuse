@@ -9,6 +9,8 @@ fn invalid_configuration_exits_without_disclosing_the_value() {
         "LANGFUSE_LOG_LEVEL",
         "LANGFUSE_LOG_FORMAT",
         "LANGFUSE_AI_GATEWAY_WEB_URL",
+        "LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS",
+        "LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS",
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_ai-gateway"))
             .env_clear()
