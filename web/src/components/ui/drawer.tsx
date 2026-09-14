@@ -237,6 +237,8 @@ type DrawerControllerProps<State = void> = Pick<
   | "modal"
   | "shouldScaleBackground"
 > & {
+  // Evaluated only when the controller mounts; later callback or dependency changes do not update the drawer.
+  initialState?: () => State | undefined;
   onOpenChange?: (open: boolean) => boolean | void;
   children: (control: {
     isOpen: boolean;
@@ -250,6 +252,7 @@ type DrawerControllerProps<State = void> = Pick<
 };
 
 const DrawerController = <State = void,>({
+  initialState,
   children,
   onOpenChange,
   renderContent,
@@ -257,7 +260,10 @@ const DrawerController = <State = void,>({
 }: DrawerControllerProps<State>) => {
   const [controllerState, setControllerState] = React.useState<
     { active: false } | { active: boolean; state: State }
-  >({ active: false });
+  >(() => {
+    const state = initialState?.();
+    return state === undefined ? { active: false } : { active: true, state };
+  });
   const closeDrawer = () =>
     setControllerState((currentState) =>
       "state" in currentState

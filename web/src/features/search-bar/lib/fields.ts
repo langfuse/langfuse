@@ -19,7 +19,9 @@
 import {
   eventsTableCols,
   type ColumnDefinition,
+  type FilterState,
   type SingleValueOption,
+  type TracingSearchType,
 } from "@langfuse/shared";
 
 import type { CompareOp } from "./ast";
@@ -69,6 +71,12 @@ export type FieldDef = {
   directFilter?: boolean;
 };
 
+export type SearchScope = {
+  searchType: readonly TracingSearchType[];
+  label: string;
+  description: string;
+};
+
 export type FieldRegistry = {
   id:
     | "events"
@@ -78,10 +86,25 @@ export type FieldRegistry = {
     | "sessions"
     | "scores"
     | "experiments"
-    | "users";
+    | "users"
+    | "traces"
+    | "observations"
+    | "evaluatorsList"
+    | "evaluationRulesList"
+    | "legacyEvaluators"
+    | "evalLogs"
+    | "prompts"
+    | "monitors"
+    | "gatewayModels"
+    | "experimentItems"
+    | "datasetItems";
+  defaultSearchType: readonly TracingSearchType[];
+  searchScopes: Readonly<Record<string, SearchScope>>;
   fields: readonly FieldDef[];
   columns: readonly ColumnDefinition[];
   allowFreeText: boolean;
+  /** View-specific backend constraints beyond individual column operators. */
+  filterStateErrors?: (filters: FilterState) => readonly string[];
   metadata: boolean;
   scores: boolean;
   /** Trace-level `traceScores.<name>` paths. Views whose backend has no
@@ -159,6 +182,9 @@ export function fieldRegistryFromColumns(
     /** Defaults to `scores`. */
     traceScores?: boolean;
     allowFreeText?: boolean;
+    defaultSearchType?: readonly TracingSearchType[];
+    searchScopes?: Readonly<Record<string, SearchScope>>;
+    filterStateErrors?: (filters: FilterState) => readonly string[];
     defaultTextField?: string;
     freeTextScopeLabel?: string;
     searchExamples?: readonly string[];
@@ -222,6 +248,9 @@ export function fieldRegistryFromColumns(
     scores,
     traceScores: overlay.traceScores ?? scores,
     allowFreeText: overlay.allowFreeText ?? true,
+    defaultSearchType: overlay.defaultSearchType,
+    searchScopes: overlay.searchScopes,
+    filterStateErrors: overlay.filterStateErrors,
     defaultTextField: overlay.defaultTextField ?? null,
     freeTextScopeLabel: overlay.freeTextScopeLabel ?? null,
     searchExamples: overlay.searchExamples ?? [],
@@ -250,6 +279,9 @@ export function extendFieldRegistryWithColumns(
     scores: registry.scores,
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
+    defaultSearchType: registry.defaultSearchType,
+    searchScopes: registry.searchScopes,
+    filterStateErrors: registry.filterStateErrors,
     defaultTextField: registry.defaultTextField,
     freeTextScopeLabel: registry.freeTextScopeLabel,
     searchExamples: registry.searchExamples,
@@ -293,6 +325,9 @@ export function withFieldOptions(
     scores: registry.scores,
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
+    defaultSearchType: registry.defaultSearchType,
+    searchScopes: registry.searchScopes,
+    filterStateErrors: registry.filterStateErrors,
     defaultTextField: registry.defaultTextField,
     freeTextScopeLabel: registry.freeTextScopeLabel,
     searchExamples: registry.searchExamples,
@@ -364,9 +399,8 @@ const METADATA_PREFIX = "metadata.";
 const SCORE_PREFIXES = ["scores.", "score."];
 const TRACE_SCORE_PREFIXES = ["tracescores.", "trace_scores.", "tracescore."];
 
-// Pseudo-fields: not columns — `has:<field>` lowers to a null filter. (The
-// former `content:` pseudo-field has been removed: a bare query now searches
-// input + output by default, and `input:`/`output:` narrow to one column.)
+// Presence checks lower to null filters. Compatibility `in:` and declared
+// search scopes select the backend search lane without adding column filters.
 const HAS_KEY = "has";
 
 /** Langfuse score filter columns (filter by score NAME via key-value ops). */
@@ -394,9 +428,10 @@ function isKeyedScoreColumn(column: string): boolean {
 
 export type FieldRef =
   | { type: "field"; field: FieldDef }
+  | { type: "searchScope"; id: string; scope: SearchScope }
   | { type: "metadata"; key: string }
   | { type: "scores"; key: string; level: "observation" | "trace" }
-  | { type: "pseudo"; id: typeof HAS_KEY };
+  | { type: "pseudo"; id: typeof HAS_KEY | "in" };
 
 /**
  * Assembles a registry from field defs that already exist. `fieldRegistryFromColumns`
@@ -414,6 +449,9 @@ export function createFieldRegistry({
   scores,
   traceScores,
   allowFreeText,
+  defaultSearchType = ["id", "content"],
+  searchScopes = {},
+  filterStateErrors,
   defaultTextField,
   freeTextScopeLabel,
   searchExamples,
@@ -429,6 +467,10 @@ export function createFieldRegistry({
   scores: boolean;
   traceScores: boolean;
   allowFreeText: boolean;
+  defaultSearchType?: readonly TracingSearchType[];
+  searchScopes?: Readonly<Record<string, SearchScope>>;
+  /** View-specific backend constraints beyond individual column operators. */
+  filterStateErrors?: (filters: FilterState) => readonly string[];
   defaultTextField: string | null;
   freeTextScopeLabel: string | null;
   searchExamples: readonly string[];
@@ -462,6 +504,9 @@ export function createFieldRegistry({
     fields,
     columns,
     allowFreeText,
+    defaultSearchType,
+    searchScopes,
+    filterStateErrors,
     metadata,
     scores,
     traceScores,
@@ -496,6 +541,18 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
   scores: true,
   traceScores: true,
   allowFreeText: true,
+  searchScopes: {
+    content: {
+      searchType: ["content"],
+      label: "Content",
+      description: "search only input and output",
+    },
+    all: {
+      searchType: ["id", "content"],
+      label: "All fields",
+      description: "search IDs, names, input and output",
+    },
+  },
   defaultTextField: null,
   freeTextScopeLabel: "ids, names, input & output",
   searchExamples: [
@@ -575,6 +632,17 @@ function resolveFromRegistry(
     }
   }
   if (lower === HAS_KEY) return { type: "pseudo", id: lower };
+  if (
+    registry.allowFreeText &&
+    Object.keys(registry.searchScopes).length > 0 &&
+    lower === "in"
+  )
+    return { type: "pseudo", id: "in" };
+  const scope = Object.hasOwn(registry.searchScopes, lower)
+    ? registry.searchScopes[lower]
+    : undefined;
+  if (registry.allowFreeText && scope)
+    return { type: "searchScope", id: lower, scope };
   const field = byName.get(lower);
   return field ? { type: "field", field } : null;
 }
@@ -648,10 +716,13 @@ export function operatorIssue(
   }
 
   switch (ref.type) {
+    case "searchScope":
+      return op === "="
+        ? null
+        : `${ref.id}: searches one phrase — ${label(op)} is not supported`;
     case "pseudo":
-      // `has` is the only pseudo-field.
       if (op !== "=") {
-        return `has: lists fields that have a value — it does not support ${label(op)}`;
+        return `${ref.id}: lists ${ref.id === "has" ? "fields that have a value" : "search scopes"} — it does not support ${label(op)}`;
       }
       return null;
     case "metadata":
@@ -716,12 +787,18 @@ export function negationIssue(
   op: CompareOp,
   valueOp: "or" | "and" = "or",
 ): string | null {
+  if (
+    ref.type === "searchScope" ||
+    (ref.type === "pseudo" && ref.id === "in")
+  ) {
+    return `Search scopes cannot be negated — search text is global`;
+  }
   if (valueOp === "and") {
     // NOT(all of) would mean "missing at least one" — no such array operator.
     return `negated all-of groups on "${refName(ref)}" are not representable — negate single values instead`;
   }
   if (ref.type === "pseudo") {
-    return null; // `has` is the only pseudo; -has: is valid (missing value)
+    return null; // -has: is valid (missing value); in: was rejected above.
   }
   if (op === "^" || op === "$") {
     return `negation of ${label(op)} is not representable in the Langfuse filter contract`;
@@ -764,6 +841,7 @@ function refName(ref: FieldRef): string {
         ? `traceScores.${quoteIfNeeded(ref.key)}`
         : `scores.${quoteIfNeeded(ref.key)}`;
     case "pseudo":
+    case "searchScope":
       return ref.id;
   }
 }

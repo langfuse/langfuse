@@ -16,6 +16,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
   Dialog,
   DialogBody,
@@ -35,13 +36,6 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import {
   Table,
   TableBody,
@@ -426,21 +420,15 @@ function SsoConfigDialog({
                     <FormItem>
                       <FormLabel>Provider</FormLabel>
                       <FormControl>
-                        <Select
+                        <SelectInput
                           value={field.value}
                           onValueChange={field.onChange}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select an SSO provider" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {SSO_PROVIDERS.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          placeholder="Select an SSO provider"
+                          options={SSO_PROVIDERS.map((provider) => ({
+                            value: provider.id,
+                            label: provider.label,
+                          }))}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

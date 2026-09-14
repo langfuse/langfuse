@@ -126,6 +126,27 @@ describe("Drawer", () => {
     expect(screen.getByText("open")).toBeInTheDocument();
   });
 
+  it("opens from initialState without reacting to later changes", () => {
+    const renderController = (initialState: string | undefined) => (
+      <DrawerController<string>
+        initialState={() => initialState}
+        forceDirection="bottom"
+        renderContent={({ state }) => (
+          <DrawerContent>
+            <DrawerTitle>{state}</DrawerTitle>
+          </DrawerContent>
+        )}
+      >
+        {() => null}
+      </DrawerController>
+    );
+    const { rerender } = render(renderController("first"));
+
+    expect(screen.getByText("first")).toBeInTheDocument();
+    rerender(renderController("second"));
+    expect(screen.queryByText("second")).not.toBeInTheDocument();
+  });
+
   it("ignores stale state replacements after closing", () => {
     let replaceStateAfterClose: (() => void) | undefined;
 

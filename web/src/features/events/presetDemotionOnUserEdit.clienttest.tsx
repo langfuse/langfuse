@@ -12,6 +12,8 @@ import {
   type TableViewPresetState,
 } from "@langfuse/shared";
 import { useCallback, useRef } from "react";
+import { useStore } from "zustand";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import {
   type FilterConfig,
   useSidebarFilterState,
@@ -207,6 +209,9 @@ const storedViewId = () => {
 function Harness({ projectId = PROJECT_ID }: { projectId?: string }) {
   const viewControllersRef = useRef<ViewDemotionControllers | null>(null);
   const [orderBy, setOrderBy] = useOrderByState(null);
+  const resetSearchDraftRef = useRef<((filters: FilterState) => void) | null>(
+    null,
+  );
 
   const queryFilter = useSidebarFilterState(
     TEST_FILTER_CONFIG,
@@ -214,8 +219,12 @@ function Harness({ projectId = PROJECT_ID }: { projectId?: string }) {
     {
       stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId,
-      onExplicitFilterStateChange: (change) =>
-        demoteViewOnUserFilterEdit(change, viewControllersRef.current),
+      onExplicitFilterStateChange: (change) => {
+        demoteViewOnUserFilterEdit(change, viewControllersRef.current);
+        if (change.origin === "user" && change.action === "clear") {
+          resetSearchDraftRef.current?.(change.nextFilters);
+        }
+      },
     },
   );
 
@@ -226,6 +235,25 @@ function Harness({ projectId = PROJECT_ID }: { projectId?: string }) {
       queryFilterRef.current.setFilterState(filters, { origin: "saved_view" }),
     [],
   );
+  const searchBar = useEventsSearchBar({
+    projectId,
+    tableName: "observations-events",
+    enabled: true,
+    filterState: queryFilter.searchBarFilterState,
+    searchQuery: null,
+    searchType: ["id", "content"],
+    observed: undefined,
+    setFilterState: queryFilter.setFilterState,
+    setSearchQuery: () => {},
+    setSearchType: () => {},
+  });
+  const searchDraft = useStore(searchBar.store, (state) => state.draft);
+  resetSearchDraftRef.current = (filters) =>
+    searchBar.resetDraft({
+      filters: queryFilter.projectFiltersForSearchBar(filters),
+      searchQuery: null,
+      searchType: ["id", "content"],
+    });
 
   const {
     selectedViewId,
@@ -250,6 +278,12 @@ function Harness({ projectId = PROJECT_ID }: { projectId?: string }) {
     },
     currentFilterState: queryFilter.explicitFilterState,
     allowBackendSystemPresets: true,
+    onViewApplied: (viewState) =>
+      searchBar.resetDraft({
+        filters: queryFilter.projectFiltersForSearchBar(viewState.filters),
+        searchQuery: viewState.searchQuery ?? null,
+        searchType: ["id", "content"],
+      }),
   });
   viewControllersRef.current = {
     selectedViewId,
@@ -271,6 +305,13 @@ function Harness({ projectId = PROJECT_ID }: { projectId?: string }) {
       <pre data-testid="explicit-state">
         {JSON.stringify(queryFilter.explicitFilterState)}
       </pre>
+      <textarea
+        aria-label="Search draft"
+        value={searchDraft}
+        onChange={(event) =>
+          searchBar.store.getState().actions.setDraft(event.target.value)
+        }
+      />
       <KeyValueFilterBuilder
         key={filterEditorResetKey}
         mode="string"
@@ -304,6 +345,15 @@ function Harness({ projectId = PROJECT_ID }: { projectId?: string }) {
       <button onClick={() => queryFilter.setFilterState([])}>
         user-clear-filters
       </button>
+      <button
+        onClick={() => {
+          handleSetViewId(USER_VIEW_ID);
+          applyViewState({ ...USER_VIEW_STATE, filters: [] });
+        }}
+      >
+        apply-empty-view
+      </button>
+      <button onClick={queryFilter.clearAll}>clear-all</button>
       <button onClick={() => queryFilter.setFilterState(EXTRA_FILTERS)}>
         user-add-filter
       </button>
@@ -473,6 +523,55 @@ describe("saved-view demotion on user filter edits", () => {
     });
     expect(screen.getByTestId("selected-view-id").textContent).toBe(PRESET_ID);
     expect(storedViewId()).toBe(PRESET_ID);
+  });
+
+  it("discards an invalid search draft when explicitly reapplying the same empty view", async () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "apply-empty-view" }));
+    const draft = screen.getByRole("textbox", { name: "Search draft" });
+    fireEvent.change(draft, { target: { value: "level:(" } });
+    expect(draft).toHaveValue("level:(");
+    fireEvent.click(screen.getByRole("button", { name: "apply-empty-view" }));
+    expect(draft).toHaveValue("");
+  });
+
+  it("discards an invalid search draft when clearing an already-empty applied filter state", async () => {
+    render(<Harness />);
+    const draft = screen.getByRole("textbox", { name: "Search draft" });
+    fireEvent.change(draft, { target: { value: "level:(" } });
+    fireEvent.click(screen.getByRole("button", { name: "clear-all" }));
+    expect(draft).toHaveValue("");
+  });
+
+  it("preserves a search draft while a sorting edit deselects its view", async () => {
+    render(<Harness />);
+    await applyPresetAndAssertActive();
+    const draft = screen.getByRole("textbox", { name: "Search draft" });
+    fireEvent.change(draft, { target: { value: "level:(" } });
+    fireEvent.click(screen.getByRole("button", { name: "user-sort" }));
+    expect(draft).toHaveValue("level:(");
+    expect(screen.getByTestId("selected-view-id")).toHaveTextContent("null");
+  });
+
+  it("leaves an empty saved view on Clear all and retains its update destination", async () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "apply-empty-view" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe(
+        USER_VIEW_ID,
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "clear-all" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
+    });
+    expect(storedViewId()).toBe(null);
+    expect(queryParamStore.has("viewId")).toBe(false);
+    expect(screen.getByTestId("view-update-target").textContent).toContain(
+      USER_VIEW_ID,
+    );
   });
 
   it("clears a user-saved view from shared state, URL and session on an actual filter edit", async () => {

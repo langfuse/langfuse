@@ -311,7 +311,7 @@ export function SearchComposer({
   freeTextReason,
   registry = EVENTS_FIELD_REGISTRY,
 }: {
-  projectId: string;
+  projectId?: string;
   /** Observed facet values for value suggestions; undefined = loading. */
   observed: ObservedOptions | undefined;
   /** Columns whose lazy fetch terminally errored — settle the value-stage
@@ -384,7 +384,7 @@ export function SearchComposer({
   // so the plan memo doesn't churn).
   const recents = React.useMemo(
     () =>
-      autocompleteOpen && draft.trim().length === 0
+      projectId && autocompleteOpen && draft.trim().length === 0
         ? getRecentSearches(projectId)
         : NO_RECENTS,
     [autocompleteOpen, draft, projectId],
@@ -1241,7 +1241,9 @@ export function SearchComposer({
           : null;
   const explainTargetId = explainTarget?.id ?? null;
   const explanation =
-    explainTarget === null ? null : explainSegment(explainTarget, registry);
+    explainTarget === null
+      ? null
+      : explainSegment(explainTarget, registry, draft);
   const explainDeactivatedReason =
     explainTarget === null
       ? null
@@ -1250,7 +1252,9 @@ export function SearchComposer({
   // description regardless of the popover — including the "not applied" note,
   // which the visible tooltip also carries.
   const caretExplanation =
-    caretSegment === null ? null : explainSegment(caretSegment, registry);
+    caretSegment === null
+      ? null
+      : explainSegment(caretSegment, registry, draft);
   const caretDeactivatedReason =
     caretSegment === null
       ? null
@@ -1359,7 +1363,7 @@ export function SearchComposer({
       ref={containerRef}
       data-testid="search-bar"
       role="search"
-      className="relative w-full"
+      className="ph-no-capture relative w-full"
     >
       <div
         data-testid="search-bar-surface"
@@ -1575,7 +1579,7 @@ export function SearchComposer({
                     }
               }
               className={cn(
-                "pointer-events-none fixed max-w-[min(360px,calc(100vw-32px))]",
+                "ph-no-capture pointer-events-none fixed max-w-[min(360px,calc(100vw-32px))]",
                 "bg-popover rounded-md border",
                 "px-2 py-1 font-sans text-xs leading-snug shadow-md",
                 errorTarget !== null

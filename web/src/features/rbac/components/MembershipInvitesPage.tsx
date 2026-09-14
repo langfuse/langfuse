@@ -118,7 +118,6 @@ export function MembershipInvitesPage({
       accessorKey: "invitedByUser",
       header: "Invited By",
       variant: "avatar",
-      emptyValue: "-",
     }),
     {
       accessorKey: "meta",

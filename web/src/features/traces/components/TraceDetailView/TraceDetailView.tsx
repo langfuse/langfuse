@@ -14,8 +14,12 @@ import {
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useCallback, useMemo, useState } from "react";
-import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
+import {
+  CommentDrawerController,
+  getCommentDrawerInitialStateFromUrl,
+} from "@/src/features/comments/CommentDrawerController";
 import { api } from "@/src/utils/api";
+import { useRouter } from "next/router";
 import {
   Tooltip,
   TooltipContent,
@@ -39,6 +43,8 @@ import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -70,9 +76,12 @@ export function TraceDetailView({
   corrections,
   projectId,
 }: TraceDetailViewProps) {
+  const router = useRouter();
   // Tab and view state from URL (via SelectionContext)
   const { selectedTab, setSelectedTab } = useSelection();
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
+  const analyticsDimensions = useTraceAnalyticsDimensions();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
   const [isJSONBetaVirtualized, setIsJSONBetaVirtualized] = useState(false);
 
@@ -96,21 +105,40 @@ export function TraceDetailView({
 
   const handleViewTabChange = useCallback(
     (tab: string) => {
+      if (selectedTab === "log") {
+        capture("trace_detail:log_view_interaction", {
+          action: "view_mode_switch",
+          target: "trace",
+          mode: tab,
+          ...analyticsDimensions,
+        });
+      }
       if (tab === "pretty") {
         setJsonViewPreference(tab);
       } else {
         setJsonViewPreference(jsonBetaEnabled ? "json-beta" : "json");
       }
     },
-    [jsonBetaEnabled, setJsonViewPreference],
+    [
+      jsonBetaEnabled,
+      setJsonViewPreference,
+      selectedTab,
+      capture,
+      analyticsDimensions,
+    ],
   );
 
   const handleBetaToggle = useCallback(
     (enabled: boolean) => {
+      capture("trace_detail:json_beta_toggle", {
+        enabled,
+        target: "trace",
+        ...analyticsDimensions,
+      });
       setJsonBetaEnabled(enabled);
       setJsonViewPreference(enabled ? "json-beta" : "json");
     },
-    [setJsonBetaEnabled, setJsonViewPreference],
+    [setJsonBetaEnabled, setJsonViewPreference, capture, analyticsDimensions],
   );
 
   // Context hooks
@@ -200,14 +228,20 @@ export function TraceDetailView({
     if (value === "scores") {
       refreshTraceScores();
     }
+    if (value !== selectedTab) {
+      capture("trace_detail:detail_tab_switch", {
+        tab: value,
+        target: "trace",
+        ...analyticsDimensions,
+      });
+    }
     setSelectedTab(value as "preview" | "log" | "scores");
   };
 
   return (
     <CommentDrawerController
       projectId={projectId}
-      objectId={trace.id}
-      objectType="TRACE"
+      initialState={() => getCommentDrawerInitialStateFromUrl(router.query)}
       count={comments.get(trace.id)}
     >
       {({ disabled, openDrawer }) => (
@@ -222,7 +256,12 @@ export function TraceDetailView({
             commentCount={comments.get(trace.id)}
             commentDrawerControl={{
               disabled,
-              openDrawer: () => openDrawer({ type: "comments" }),
+              openDrawer: () =>
+                openDrawer({
+                  type: "comments",
+                  objectId: trace.id,
+                  objectType: "TRACE",
+                }),
             }}
           />
 
@@ -422,7 +461,12 @@ export function TraceDetailView({
                   }
                   enableInlineComments={true}
                   onAddInlineComment={(selection) =>
-                    openDrawer({ type: "inline-comment", selection })
+                    openDrawer({
+                      type: "inline-comment",
+                      selection,
+                      objectId: trace.id,
+                      objectType: "TRACE",
+                    })
                   }
                   commentedPathsByField={commentedPathsByField}
                   showMetadata
@@ -443,6 +487,7 @@ export function TraceDetailView({
                 traceId={trace.id}
                 projectId={projectId}
                 currentView={isLogViewVirtualized ? "pretty" : currentView}
+                target="trace"
               />
             </TabsBarContent>
 

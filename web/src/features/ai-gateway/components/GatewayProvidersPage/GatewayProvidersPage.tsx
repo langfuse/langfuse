@@ -9,6 +9,7 @@ import { DeleteProviderDialog } from "@/src/features/ai-gateway/components/Gatew
 import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/ProviderDialogController/ProviderDialogController";
 import { GatewayProvidersView } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/GatewayProvidersView/GatewayProvidersView";
 import { RetryProviderButton } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/RetryProviderButton";
+import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
 export function GatewayProvidersPage({
@@ -74,6 +75,9 @@ export function GatewayProvidersPage({
     <GatewayProvidersView
       connections={connections}
       modelCounts={modelCounts}
+      getModelsUrl={(connection) =>
+        buildGatewayModelsUrl(organizationId, connection.id)
+      }
       hasMore={Boolean(connectionsQuery.hasNextPage)}
       isLoadingMore={connectionsQuery.isFetchingNextPage}
       onLoadMore={() => connectionsQuery.fetchNextPage()}

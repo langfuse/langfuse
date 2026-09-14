@@ -86,6 +86,9 @@ const defaultProps = {
     viewControllers: {
       selectedViewId: null,
       appliedViewId: null,
+      viewUpdateTarget: null,
+      filterEditorResetKey: 0,
+      handleUserStateChange: vi.fn(),
       handleSetViewId: vi.fn(),
       applyViewState: vi.fn(),
     },

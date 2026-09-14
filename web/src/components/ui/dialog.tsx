@@ -175,6 +175,8 @@ DialogContent.displayName = DialogPrimitive.Content.displayName;
  * Owns dialog open state while callers retain trigger and content presentation.
  */
 type DialogControllerProps<State = void> = {
+  // Evaluated only when the controller mounts; later callback or dependency changes do not update the dialog.
+  initialState?: () => State | undefined;
   children: (control: {
     isOpen: boolean;
     openDialog: (...args: [State] extends [void] ? [] : [state: State]) => void;
@@ -190,6 +192,7 @@ type DialogControllerProps<State = void> = {
 };
 
 const DialogController = <State = void,>({
+  initialState,
   children,
   closeOnInteractionOutside,
   onBeforeClose,
@@ -199,7 +202,10 @@ const DialogController = <State = void,>({
 }: DialogControllerProps<State>) => {
   const [controllerState, setControllerState] = React.useState<
     { active: false } | { active: boolean; state: State }
-  >({ active: false });
+  >(() => {
+    const state = initialState?.();
+    return state === undefined ? { active: false } : { active: true, state };
+  });
   const closeDialog = () => {
     if (onBeforeClose?.() === false) return false;
     setControllerState((currentState) =>

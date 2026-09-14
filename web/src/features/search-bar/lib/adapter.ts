@@ -13,7 +13,8 @@
 // Rules:
 // - Top-level AND chain: bare text nodes become searchQuery terms (the default
 //   scope searches ids+names+input+output); everything else lowers into one or
-//   more single filters. The bar emits no scope token, so searchType is null.
+//   more single filters. Declared search scopes select the one backend phrase;
+//   absent a scope token, the registry supplies the host's default.
 // - A top-level OR of same-field `key:v` equalities collapses to one any-of
 //   filter (`level:ERROR OR level:WARNING` === `level:(ERROR OR WARNING)`).
 //   Any other OR/nested group is not representable.
@@ -49,10 +50,8 @@ export type AstToFilterStateResult = {
   filters: FilterState;
   searchQuery: string | null;
   /**
-   * Full-text scope. Always null today: the bar has no scope tokens — bare free
-   * text uses the caller's default (ids+names+input+output), and `input:`/
-   * `output:`/`name:`/`id:` are column filters, not scopes. Kept as the seam for
-   * caller-default resolution (commit.ts) and any future scope token.
+   * Selected backend search lanes, or null for the registry's default.
+   * Real column filters remain separate from this global search phrase.
    */
   searchType: TracingSearchType[] | null;
   errors: string[];
@@ -141,6 +140,8 @@ type LowerContext = {
   errors: string[];
   scoreTypes?: ScoreTypeContext;
   registry: FieldRegistry;
+  scopedSearch?: { query: string; searchType: readonly TracingSearchType[] };
+  compatibilitySearchType?: TracingSearchType[];
 };
 
 export function astToFilterState(
@@ -161,15 +162,33 @@ export function astToFilterState(
   }
 
   const defaultTextFilter = lowerDefaultTextField(ctx);
+  if (
+    ctx.scopedSearch &&
+    (ctx.searchTerms.length > 0 || ctx.compatibilitySearchType)
+  ) {
+    ctx.errors.push(
+      "Only one search phrase is supported — use either bare text or one scoped search",
+    );
+  }
+  if (
+    ctx.compatibilitySearchType &&
+    ctx.searchTerms.length === 0 &&
+    !ctx.scopedSearch
+  ) {
+    ctx.errors.push("Add search text after in:");
+  }
+  ctx.errors.push(...(registry.filterStateErrors?.(ctx.filters) ?? []));
 
   return {
     filters: ctx.filters,
     searchQuery:
-      defaultTextFilter || ctx.searchTerms.length === 0
+      ctx.scopedSearch?.query ??
+      (defaultTextFilter || ctx.searchTerms.length === 0
         ? null
-        : ctx.searchTerms.join(" "),
-    // The bar has no scope tokens; the caller (commit.ts) applies the default.
-    searchType: null,
+        : ctx.searchTerms.join(" ")),
+    searchType: ctx.scopedSearch
+      ? [...ctx.scopedSearch.searchType]
+      : (ctx.compatibilitySearchType ?? null),
     errors: ctx.errors,
   };
 }
@@ -278,6 +297,63 @@ function lowerFilterNode(
   negated: boolean,
   ctx: LowerContext,
 ): void {
+  const ref = ctx.registry.resolveField(node.key);
+  if (
+    ref?.type === "searchScope" ||
+    (ref?.type === "pseudo" && ref.id === "in")
+  ) {
+    if (node.values.length === 0) return;
+    const issue =
+      operatorIssue(ref, node.op, node.valueOp ?? "or") ??
+      (negated ? negationIssue(ref, node.op, node.valueOp ?? "or") : null);
+    if (issue) {
+      ctx.errors.push(issue);
+      return;
+    }
+    if (ref.type === "searchScope") {
+      if (node.values.length !== 1) {
+        ctx.errors.push(
+          `${ref.id}: accepts one search phrase, not grouped values`,
+        );
+        return;
+      }
+      if (node.values[0]!.trim().length === 0) {
+        ctx.errors.push(`Enter a search phrase after ${ref.id}:`);
+        return;
+      }
+      if (ctx.scopedSearch) {
+        ctx.errors.push("Only one scoped search phrase is supported");
+        return;
+      }
+      ctx.scopedSearch = {
+        query: node.values[0]!,
+        searchType: ref.scope.searchType,
+      };
+    } else {
+      if (ctx.compatibilitySearchType) {
+        ctx.errors.push("Only one in: scope selection is supported");
+        return;
+      }
+      const supported = new Set<string>([
+        ...ctx.registry.defaultSearchType,
+        ...Object.values(ctx.registry.searchScopes).flatMap(
+          (scope) => scope.searchType,
+        ),
+        ...["input", "output"].filter(
+          (field) => ctx.registry.resolveField(field)?.type === "field",
+        ),
+      ]);
+      const types = node.values.map((value) => value.toLowerCase());
+      if (types.some((type) => !supported.has(type))) {
+        ctx.errors.push(
+          `Unsupported search scope — choose ${[...supported].join(", ")}`,
+        );
+        return;
+      }
+      ctx.compatibilitySearchType = [...new Set(types)] as TracingSearchType[];
+    }
+    return;
+  }
   lowerFilter(
     node,
     negated,
@@ -326,7 +402,7 @@ function lowerFilter(
 
   switch (ref.type) {
     case "pseudo":
-      // `has` is the only pseudo-field.
+      // Global search scopes are handled by lowerFilterNode.
       lowerHas(node, negated, out, errors, registry);
       return;
     case "metadata":

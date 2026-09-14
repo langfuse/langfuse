@@ -1,4 +1,5 @@
 import { Job, Processor } from "bullmq";
+import { z } from "zod";
 import {
   clickhouseClient,
   createIngestionEventSchema,
@@ -560,22 +561,39 @@ export const otelIngestionQueueProcessorBuilder = (
       );
       // We need to parse each incoming observation through our ingestion schema to make use of its included transformations.
       const ingestionSchema = createIngestionEventSchema(isLangfuseInternal);
-      const observations = events
-        .filter((e) => getClickhouseEntityType(e.type) === "observation")
+      const candidateObservations = events.filter(
+        (e) => getClickhouseEntityType(e.type) === "observation",
+      );
+      let firstParseError: z.ZodError | undefined;
+      const observations = candidateObservations
         .map((o) => ingestionSchema.safeParse(o))
         .flatMap((o) => {
           if (!o.success) {
-            logger.warn(
-              `Failed to parse otel observation for project ${projectId} in ${fileKey}: ${o.error}`,
-              {
-                error: o.error,
-                fileKey,
-              },
-            );
+            firstParseError ??= o.error;
             return [];
           }
           return [o.data];
         });
+
+      // Per-observation parse failures are near-pure noise (customer-sent data
+      // that fails our schema). Aggregate to one metric + one sample warn per
+      // file instead of one line per observation.
+      const parseFailureCount =
+        candidateObservations.length - observations.length;
+      if (parseFailureCount > 0) {
+        recordIncrement(
+          "langfuse.ingestion.otel.observation_parse_failure",
+          parseFailureCount,
+        );
+        logger.warn(
+          `Failed to parse ${parseFailureCount}/${candidateObservations.length} otel observations for project ${projectId} in ${fileKey}: ${firstParseError}`,
+          {
+            error: firstParseError,
+            fileKey,
+            parseFailureCount,
+          },
+        );
+      }
 
       // In the next row, we only consider observations. The traces will be recorded in processEventBatch.
       recordIncrement("langfuse.ingestion.event", observations.length, {
