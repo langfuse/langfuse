@@ -1,10 +1,6 @@
 import { type NextApiRequest } from "next";
 
-import {
-  ApiError,
-  type BaseError,
-  ServiceUnavailableError,
-} from "@langfuse/shared";
+import { ApiError, type BaseError } from "@langfuse/shared";
 import {
   type ApiAccessLevel,
   type ApiAccessScope,
@@ -26,14 +22,14 @@ import {
 } from "@/src/features/public-api/server/enforceAuth";
 import { shadowAuthDiff } from "@/src/features/public-api/server/shadowAuthDiff";
 import {
+  forbiddenError,
+  serviceUnavailableError,
+  unauthorizedError,
   type AuthorizationContext,
   type ErrorResult,
   type Success,
 } from "@/src/features/auth/policy/types";
 import { isPrismaException } from "@/src/utils/exceptions";
-
-/** scopeDeniedCode is the status for a key with the wrong access level. */
-const scopeDeniedCode = 403;
 
 /** shadowAuth authorizes a public-API request under the active migration mode, returning the scope or the error to render. */
 export async function shadowAuth(
@@ -55,8 +51,10 @@ async function legacyWithShadow(
 ): Promise<ShadowAuthResult> {
   const legacyAuth = await runLegacyAuth(params);
   const newAuth = await runNewAuth(params);
-  shadowAuthDiff(newAuth, legacyAuth, params.action ?? "authenticate");
-  return legacyResult(legacyAuth);
+  shadowAuthDiff(newAuth, legacyAuth, params.action ?? "none");
+  const result = legacyResult(legacyAuth);
+  if (result.success && newAuth.success) return { ...result, ctx: newAuth.ctx };
+  return result;
 }
 
 /** legacyOnly authorizes solely with the legacy verify. */
@@ -72,34 +70,26 @@ function runNewAuth(params: ShadowAuthParams): Promise<EnforceAuthResult> {
 /** runLegacyAuth dispatches to the legacy verify the route's access levels select. */
 function runLegacyAuth(params: ShadowAuthParams): Promise<LegacyDecision> {
   return isOrgFamily(params.allowedAccessLevels)
-    ? runLegacyOrgScope(params.req)
+    ? runLegacyOrgAuth(params.req)
     : runLegacyProjectAuth(params);
 }
 
-/** runLegacyOrgScope verifies the credential and its organization access level, capturing every outcome as a value. */
-async function runLegacyOrgScope(req: NextApiRequest): Promise<LegacyDecision> {
+/** runLegacyOrgAuth verifies the credential and its organization access level, capturing every outcome as a value. */
+async function runLegacyOrgAuth(req: NextApiRequest): Promise<LegacyDecision> {
   const authCheck = await new ApiAuthService(
     prisma,
     redis,
   ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
   if (!authCheck.validKey) {
-    return {
-      success: false,
-      status: 401,
-      error: new ApiError(authCheck.error, 401),
-    };
+    return unauthorizedError(authCheck.error);
   }
   if (
     authCheck.scope.accessLevel !== "organization" ||
     !authCheck.scope.orgId
   ) {
-    return {
-      success: false,
-      status: scopeDeniedCode,
-      error: new ApiError("", scopeDeniedCode),
-    };
+    return forbiddenError();
   }
-  return { success: true, status: 200, scope: authCheck.scope };
+  return { success: true, scope: authCheck.scope };
 }
 
 /** runLegacyProjectAuth runs the legacy project verify and captures its throw as a value: an infra 503, or the status and message it reported. */
@@ -113,22 +103,17 @@ async function runLegacyProjectAuth(
       params.allowedAccessLevels as RouteAccessLevel[],
       params.allowInAppAgentKey ?? false,
     );
-    return { success: true, status: 200, scope: auth.scope };
+    return { success: true, scope: auth.scope };
   } catch (error) {
     if (isPrismaException(error)) {
       traceException(error);
-      return {
-        success: false,
-        status: 503,
-        error: new ServiceUnavailableError("Service Unavailable"),
-      };
+      return serviceUnavailableError("Service Unavailable");
     }
     const status = (error as { status?: unknown }).status;
     const message = (error as { message?: unknown }).message;
     const httpCode = typeof status === "number" ? status : 401;
     return {
       success: false,
-      status: httpCode,
       error: new ApiError(
         typeof message === "string" ? message : "Authentication failed",
         httpCode,
@@ -151,8 +136,10 @@ function isOrgFamily(allowedAccessLevels: ApiAccessLevel[]): boolean {
   );
 }
 
-/** ShadowAuthParams is enforceAuth's params; the legacy verify reads the same access levels. */
-export type ShadowAuthParams = EnforceAuthParams;
+/** ShadowAuthParams is enforceAuth's params plus the access levels the legacy verify gates on. */
+export type ShadowAuthParams = EnforceAuthParams & {
+  allowedAccessLevels: ApiAccessLevel[];
+};
 
 /** ShadowAuthAccessResult is a verified scope; the authorizing context rides along only when the new pipeline produced it. */
 export type ShadowAuthAccessResult = Success & {
@@ -163,7 +150,7 @@ export type ShadowAuthAccessResult = Success & {
 /** ShadowAuthResult is the verified project or organization scope, or the error the route renders. */
 export type ShadowAuthResult = ShadowAuthAccessResult | ErrorResult<BaseError>;
 
-/** LegacyDecision is the legacy verify captured as a value: the verified scope, or the status + error to render. */
+/** LegacyDecision is the legacy verify captured as a value: the verified scope, or the error to render. */
 type LegacyDecision =
-  | { success: true; status: 200; scope: ApiAccessScope }
-  | { success: false; status: number; error: BaseError };
+  | { success: true; scope: ApiAccessScope }
+  | { success: false; error: BaseError };

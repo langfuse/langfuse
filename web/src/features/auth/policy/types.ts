@@ -1,10 +1,14 @@
 import { type z } from "zod";
 
 import {
+  ForbiddenError,
+  InternalServerError,
+  LangfuseNotFoundError,
   projectScopes,
+  ServiceUnavailableError,
+  UnauthorizedError,
   type ApiKeyScope,
   type CloudConfigRateLimit,
-  type ForbiddenError,
   type Plan,
   type ProjectScope,
 } from "@langfuse/shared";
@@ -121,3 +125,43 @@ export type ErrorResult<E> = { success: false; error: E };
 
 /** Decision is a PDP outcome: a boolean success, or a typed 403. */
 export type Decision = Success | ErrorResult<ForbiddenError>;
+
+/** unauthorizedError is a 401 ErrorResult carrying an optional message. */
+export const unauthorizedError = (
+  message?: string,
+): ErrorResult<UnauthorizedError> => ({
+  success: false,
+  error: new UnauthorizedError(message),
+});
+
+/** forbiddenError is a 403 ErrorResult carrying an optional message. */
+export const forbiddenError = (
+  message?: string,
+): ErrorResult<ForbiddenError> => ({
+  success: false,
+  error: new ForbiddenError(message),
+});
+
+/** notFoundError is a 404 ErrorResult carrying an optional message. */
+export const notFoundError = (
+  message?: string,
+): ErrorResult<LangfuseNotFoundError> => ({
+  success: false,
+  error: new LangfuseNotFoundError(message),
+});
+
+/** internalServerError is a 500 ErrorResult carrying an optional message. */
+export const internalServerError = (
+  message?: string,
+): ErrorResult<InternalServerError> => ({
+  success: false,
+  error: new InternalServerError(message),
+});
+
+/** serviceUnavailableError is a 503 ErrorResult carrying an optional message. */
+export const serviceUnavailableError = (
+  message?: string,
+): ErrorResult<ServiceUnavailableError> => ({
+  success: false,
+  error: new ServiceUnavailableError(message),
+});

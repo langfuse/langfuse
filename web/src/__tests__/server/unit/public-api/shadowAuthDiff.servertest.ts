@@ -23,7 +23,10 @@ const legacyAllow = {
   success: true,
   scope: { accessLevel: "project" },
 } as LegacyDecision;
-const legacyDeny = { success: false, status: 403 } as LegacyDecision;
+const legacyDeny = {
+  success: false,
+  error: { httpCode: 403 },
+} as LegacyDecision;
 
 describe("shadowAuthDiff — the ship-gate signal", () => {
   it.each([
@@ -32,9 +35,11 @@ describe("shadowAuthDiff — the ship-gate signal", () => {
     ["new denies what legacy allows", deny, legacyAllow, "new_denies"],
     ["new allows what legacy denies", allow, legacyDeny, "new_allows"],
     ["legacy has no gate", deny, { absent: true } as LegacyDecision, "net_new"],
-  ] as const)("%s", (_name, neu, legacy, result) => {
+  ] as const)("%s", (_name, newVerdict, legacyVerdict, result) => {
     const { calls, telemetry } = capture();
-    expect(shadowAuthDiff(neu, legacy, "traces:read", telemetry)).toBe(result);
+    expect(
+      shadowAuthDiff(newVerdict, legacyVerdict, "traces:read", telemetry),
+    ).toBe(result);
     expect(calls[0].tags.result).toBe(result);
   });
 });

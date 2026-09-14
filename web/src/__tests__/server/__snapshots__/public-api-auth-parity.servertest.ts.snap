@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`public-route auth parity > legacy matches the main-captured baseline 1`] = `
+exports[`public-api auth parity > legacy matches the main-captured baseline 1`] = `
 {
   "DELETE annotation-queues/[queueId]/assignments | admin/admin": 401,
   "DELETE annotation-queues/[queueId]/assignments | agent/basic": 401,

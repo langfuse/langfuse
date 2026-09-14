@@ -113,7 +113,7 @@ describe("org-family dispatch (allowedAccessLevels ['organization'])", () => {
       legacyProjectKey();
       expect(await call()).toMatchObject({
         success: false,
-        error: { httpCode: 403, message: "" },
+        error: { httpCode: 403, message: "Forbidden" },
       });
     });
   });
@@ -144,7 +144,7 @@ describe("org-family dispatch (allowedAccessLevels ['organization'])", () => {
       await call();
       expect(mockShadowAuthDiff).toHaveBeenCalledWith(
         { success: false, error: expect.any(ForbiddenError) },
-        { success: true, status: 200, scope: orgScope },
+        { success: true, scope: orgScope },
         "projects:read",
       );
     });
@@ -318,9 +318,23 @@ describe("project-family dispatch (allowedAccessLevels ['project'])", () => {
       await call();
       expect(mockShadowAuthDiff).toHaveBeenCalledWith(
         { success: false, error: expect.any(ForbiddenError) },
-        { success: true, status: 200, scope: legacyScope.scope },
+        { success: true, scope: legacyScope.scope },
         "traces:read",
       );
+    });
+
+    it("threads the new pipeline's context to shadow the per-item check", async () => {
+      legacyAllows();
+      mockEnforceAuth.mockResolvedValue({
+        success: true,
+        scope: projectScope("privateKey"),
+        ctx: { principal: {}, policies: [] },
+      });
+      expect(await call()).toMatchObject({
+        success: true,
+        scope: legacyScope.scope,
+        ctx: { policies: [] },
+      });
     });
   });
 

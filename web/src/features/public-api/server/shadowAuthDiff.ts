@@ -51,14 +51,18 @@ function legacyVerdict(decision: LegacyDecision): {
     return { verdict: "absent", code: 0, accessLevel: "unknown" };
   return decision.success
     ? { verdict: "allow", code: 200, accessLevel: decision.scope.accessLevel }
-    : { verdict: "deny", code: decision.status, accessLevel: "unknown" };
+    : {
+        verdict: "deny",
+        code: decision.error.httpCode,
+        accessLevel: "unknown",
+      };
 }
 
 /** classify names the disagreement: legacy without a gate is `net_new`, agreement is `match`, else which path is stricter. */
-function classify(legacy: Verdict, neu: Verdict): ParityResult {
-  if (legacy === "absent") return "net_new";
-  if (legacy === neu) return "match";
-  return neu === "deny" ? "new_denies" : "new_allows";
+function classify(legacyVerdict: Verdict, newVerdict: Verdict): ParityResult {
+  if (legacyVerdict === "absent") return "net_new";
+  if (legacyVerdict === newVerdict) return "match";
+  return newVerdict === "deny" ? "new_denies" : "new_allows";
 }
 
 /** Verdict is one path's decision at one enforcement point; legacy is `absent` only where it runs no gate. */
@@ -67,10 +71,10 @@ type Verdict = "allow" | "deny" | "absent";
 /** ParityResult is the signal: agreement, which path is stricter, or net-new enforcement legacy never gated. */
 export type ParityResult = "match" | "new_denies" | "new_allows" | "net_new";
 
-/** LegacyDecision is the legacy path's outcome: it allowed with a resolved scope, denied with an http status, or ran no gate. */
+/** LegacyDecision is the legacy path's outcome: it allowed with a resolved scope, denied with a typed error, or ran no gate. */
 export type LegacyDecision =
   | { success: true; scope: { accessLevel: ApiAccessLevel } }
-  | { success: false; status: number }
+  | { success: false; error: { httpCode: number } }
   | { absent: true };
 
 /** Telemetry is the emit surface, injectable so tests capture without a collector. */
