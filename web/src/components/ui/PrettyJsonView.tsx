@@ -412,6 +412,7 @@ const JsonTableRowComponent = memo(
         {...rowClickProps}
         className={cn(
           isExpandable ? "cursor-pointer" : "",
+          style.row,
           row.original.level === 0 && stickyTopLevelKey
             ? "bg-background sticky z-10 shadow-xs"
             : "",
@@ -618,7 +619,15 @@ function JsonPrettyTable({
           ) : null}
         </div>
         <span
-          className={cn("ml-1 cursor-text", style.key, contentPadY)}
+          className={cn(
+            "ml-1 cursor-text",
+            style.key,
+            contentPadY,
+            // A flex item cannot shrink below its min-content width, and an
+            // undotted key is one unbreakable word: without min-w-0 a key
+            // longer than the column cap overflows the cell into the value.
+            contentSizedKeys && "min-w-0",
+          )}
           style={constrainWidth ? { maxWidth: availableTextWidth } : undefined}
         >
           {style.connector && row.original.level > 0 && (
@@ -1746,7 +1755,27 @@ export function PrettyJsonView(props: {
     >
       {props.title ? (
         <MarkdownJsonViewHeader
-          title={props.title}
+          title={
+            tableStyle.titleCount &&
+            shouldUseTableView &&
+            tableData.length > 0 ? (
+              <>
+                {props.title}
+                <span className="text-muted-foreground text-xs font-normal normal-case">
+                  {tableData.length}{" "}
+                  {Array.isArray(parsedJson)
+                    ? tableData.length === 1
+                      ? "item"
+                      : "items"
+                    : tableData.length === 1
+                      ? "key"
+                      : "keys"}
+                </span>
+              </>
+            ) : (
+              props.title
+            )
+          }
           titleIcon={props.titleIcon}
           canEnableMarkdown={false}
           handleOnValueChange={() => {}} // No-op, parent handles state

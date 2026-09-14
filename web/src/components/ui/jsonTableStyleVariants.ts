@@ -20,6 +20,8 @@ export const JSON_TABLE_STYLE_VARIANTS = [
   "zebra",
   "current",
   "current-noheader",
+  "sectioned",
+  "inline-ruled",
 ] as const;
 
 export type JsonTableStyleVariant = (typeof JSON_TABLE_STYLE_VARIANTS)[number];
@@ -89,6 +91,11 @@ export type JsonTableStyle = {
   /** Keys get a soft break opportunity after every "." so dotted OTel keys
       wrap at segment boundaries instead of mid-word. */
   breakKeysAtDots: boolean;
+  /** The section title carries a muted "N keys" / "N items" count of the
+      top-level rows (title-owned tables only). */
+  titleCount: boolean;
+  /** Row classes (dividers drawn on the row instead of the cells). */
+  row: string;
 };
 
 const MONO_KEY = "font-mono text-xs wrap-break-word";
@@ -105,6 +112,8 @@ const BASE_FLAGS = {
   indentGuides: false,
   longValuesBelowKey: false,
   breakKeysAtDots: false,
+  titleCount: false,
+  row: "",
 } satisfies Partial<JsonTableStyle>;
 
 export const JSON_TABLE_STYLES: Record<JsonTableStyleVariant, JsonTableStyle> =
@@ -231,6 +240,36 @@ export const JSON_TABLE_STYLES: Record<JsonTableStyleVariant, JsonTableStyle> =
       indentBase: 8,
       key: MONO_KEY,
       cell: "px-2 py-1 align-top whitespace-normal",
+    },
+    sectioned: {
+      ...BASE_FLAGS,
+      label: "Sectioned",
+      reference: "one card per panel: title + key count, inset hairlines",
+      layout: "columns",
+      headerUnderTitle: false,
+      boxUnderTitle: false,
+      indentBase: 16,
+      key: QUIET_KEY,
+      cell: "border-b-0 px-2 py-1 align-top whitespace-normal",
+      // Hairlines stop at the cell padding instead of running edge to edge,
+      // and the last row of a section has none.
+      row: "relative after:absolute after:inset-x-2 after:bottom-0 after:h-px after:bg-border last:after:hidden",
+      keyColumn: "content",
+      expandedParentSummary: true,
+      titleCount: true,
+    },
+    "inline-ruled": {
+      ...BASE_FLAGS,
+      label: "Inline, ruled",
+      reference: "tree inline with hairlines, every row key then value",
+      layout: "inline",
+      headerUnderTitle: false,
+      boxUnderTitle: false,
+      indentBase: 16,
+      key: QUIET_KEY,
+      cell: "px-2 py-1 align-top whitespace-normal",
+      inlineSeparator: false,
+      expandedParentSummary: true,
     },
   };
 
