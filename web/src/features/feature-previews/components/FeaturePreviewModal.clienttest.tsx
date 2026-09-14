@@ -2,6 +2,10 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 import { FeaturePreviewModal } from "./FeaturePreviewModal";
 
+vi.mock("next/image", () => ({
+  default: ({ alt }: { alt: string }) => <span role="img" aria-label={alt} />,
+}));
+
 describe("FeaturePreviewModal", () => {
   it("renders the session timeline toggle inside Compact Session View", () => {
     const onTimelineToggle = vi.fn();
@@ -20,7 +24,7 @@ describe("FeaturePreviewModal", () => {
       />,
     );
 
-    const timelineToggle = screen.getByRole("checkbox", {
+    const timelineToggle = screen.getByRole("switch", {
       name: "Toggle Session Timeline",
     });
     fireEvent.click(timelineToggle);
