@@ -130,6 +130,19 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
   );
 }
 
+/** `{N items}` / `[N items]` preview used by the tree style direction. */
+function renderBracesPreview(value: unknown[] | Record<string, unknown>) {
+  const isArray = Array.isArray(value);
+  const count = isArray ? value.length : Object.keys(value).length;
+  const [open, close] = isArray ? ["[", "]"] : ["{", "}"];
+  return (
+    <span className={PREVIEW_TEXT_CLASSES}>
+      {open}
+      {count} items{close}
+    </span>
+  );
+}
+
 function formatPreviewPrimitive(value: unknown): string {
   if (typeof value === "string") return JSON.stringify(value);
   if (value === null) return "null";
@@ -350,12 +363,15 @@ export const ValueCell = memo(
     toggleCellExpansion,
     preserveStringWhitespace = false,
     metadataActions,
+    collapsedPreview = "default",
   }: {
     row: Row<JsonTableRow>;
     expandedCells: Set<string>;
     toggleCellExpansion: (cellId: string) => void;
     preserveStringWhitespace?: boolean;
     metadataActions?: MetadataFilterActions;
+    /** Collapsed object / array preview format (style directions). */
+    collapsedPreview?: "default" | "braces";
   }) => {
     const { value, type } = row.original;
     const cellId = `${row.id}-value`;
@@ -463,7 +479,10 @@ export const ValueCell = memo(
           const arrayValue = value as unknown[];
           // Arrays always show previews, never truncate
           return {
-            content: renderArrayValue(arrayValue),
+            content:
+              collapsedPreview === "braces"
+                ? renderBracesPreview(arrayValue)
+                : renderArrayValue(arrayValue),
             needsTruncation: false,
           };
         }
@@ -479,7 +498,10 @@ export const ValueCell = memo(
           const objectValue = value as Record<string, unknown>;
           // Objects always show previews, never truncate
           return {
-            content: renderObjectValue(objectValue),
+            content:
+              collapsedPreview === "braces"
+                ? renderBracesPreview(objectValue)
+                : renderObjectValue(objectValue),
             needsTruncation: false,
           };
         }

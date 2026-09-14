@@ -17,7 +17,26 @@ import {
   ChevronRight,
   UnfoldVertical,
   FoldVertical,
+  Palette,
 } from "lucide-react";
+import {
+  DropdownMenuController,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+} from "@/src/components/ui/dropdown-menu";
+import {
+  JSON_TABLE_STYLE_VARIANTS,
+  JSON_TABLE_STYLES,
+  type JsonTableStyle,
+  type JsonTableStyleVariant,
+  useJsonTableStyleVariant,
+  useShowJsonTableStylePicker,
+  useStoredJsonTableStyleVariant,
+  writeStoredJsonTableStyleVariant,
+} from "@/src/components/ui/jsonTableStyleVariants";
 import {
   useReactTable,
   getCoreRowModel,
@@ -65,12 +84,10 @@ import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { isLargeRenderString } from "@/src/components/ui/largeStringGate";
 import { LargeStringFallback } from "@/src/components/ui/LargeStringFallback";
 
-// Constants for table layout
+// Constants for table layout (the level-0 chevron column width comes from the
+// active style direction, see jsonTableStyleVariants.ts)
 const INDENTATION_PER_LEVEL = 16;
 const BUTTON_WIDTH = 16;
-// Reserve a full chevron column at level 0 so the chevron sits inside the cell
-// and keys with and without children start on the same x.
-const INDENTATION_BASE = BUTTON_WIDTH;
 const MARGIN_LEFT_1 = 4;
 const CELL_PADDING_X = 8; // px-2
 
@@ -86,11 +103,6 @@ const MAX_CELL_DISPLAY_CHARS = 2000;
 const ASSISTANT_TITLES = ["assistant", "Output", "model"];
 const SYSTEM_TITLES = ["system", "Input"];
 
-// Key column: quiet sans text; values keep their mono classes (ValueCell).
-const KEY_TEXT_CLASSES = "text-muted-foreground text-xs wrap-break-word";
-// Row chrome: airy rows with a hairline divider, no zebra.
-const ROW_CELL_CLASSES =
-  "border-border/60 px-2 py-2.5 align-top whitespace-normal";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
 
 type PrettyJsonViewTone = "danger" | "warning" | "muted" | "neutral";
@@ -342,6 +354,7 @@ interface JsonTableRowProps {
   stickyTopLevelKey: boolean;
   stickyOffsets: { header: number; row: number };
   toneClasses?: (typeof PRETTY_JSON_VIEW_TONE_CLASSES)[PrettyJsonViewTone];
+  style: JsonTableStyle;
 }
 
 const JsonTableRowComponent = memo(
@@ -355,6 +368,7 @@ const JsonTableRowComponent = memo(
     stickyTopLevelKey,
     stickyOffsets,
     toneClasses,
+    style,
   }: JsonTableRowProps) => {
     // Hook is now at top level of this component ✅
     const isExpandable =
@@ -398,7 +412,13 @@ const JsonTableRowComponent = memo(
         {row.getVisibleCells().map((cell) => (
           <TableCell
             key={cell.id}
-            className={cn(ROW_CELL_CLASSES, toneClasses?.cell)}
+            className={cn(
+              style.cell,
+              style.zebra &&
+                rowIndex % 2 === 1 &&
+                "bg-muted/40 first:rounded-l-md last:rounded-r-md",
+              toneClasses?.cell,
+            )}
             style={{ width: `${cell.column.columnDef.size}%` }}
           >
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -428,6 +448,7 @@ function JsonPrettyTable({
   showObservationTypeBadge = false,
   metadataActions,
   toneClasses,
+  style,
 }: {
   data: JsonTableRow[];
   expandAllRef?: React.RefObject<(() => void) | null>;
@@ -447,6 +468,7 @@ function JsonPrettyTable({
   showObservationTypeBadge?: boolean;
   metadataActions?: MetadataFilterActions;
   toneClasses?: (typeof PRETTY_JSON_VIEW_TONE_CLASSES)[PrettyJsonViewTone];
+  style: JsonTableStyle;
 }) {
   const headerRef = useRef<HTMLTableRowElement>(null);
   const topLevelRowRef = useRef<HTMLTableRowElement>(null);
@@ -471,116 +493,175 @@ function JsonPrettyTable({
     }
   }, [stickyTopLevelKey, hideHeader, data, expanded]);
 
-  const columns: LangfuseColumnDef<JsonTableRow, unknown>[] = [
-    {
-      accessorKey: "key",
-      header: "Path",
-      size: 35,
-      cell: ({ row }) => {
-        // we need to calculate the indentation here for a good line break
-        // because of the padding, we don't know when to break the line otherwise
-        const indentationWidth =
-          row.original.level * INDENTATION_PER_LEVEL + INDENTATION_BASE;
-        const buttonWidth = row.original.hasChildren ? BUTTON_WIDTH : 0;
-        const availableTextWidth = `calc(100% - ${indentationWidth + buttonWidth + CELL_PADDING_X + MARGIN_LEFT_1}px)`;
+  const indentationWidthFor = (row: Row<JsonTableRow>) =>
+    row.original.level * INDENTATION_PER_LEVEL + style.indentBase;
 
-        const valueLength = getValueStringLength(row.original.value);
-        const isLongValue = valueLength > MAX_CELL_DISPLAY_CHARS / 3; // already long if we don't truncate
+  const renderKey = (row: Row<JsonTableRow>, constrainWidth: boolean) => {
+    // we need to calculate the indentation here for a good line break
+    // because of the padding, we don't know when to break the line otherwise
+    const indentationWidth = indentationWidthFor(row);
+    const buttonWidth = row.original.hasChildren ? BUTTON_WIDTH : 0;
+    const availableTextWidth = `calc(100% - ${indentationWidth + buttonWidth + CELL_PADDING_X + MARGIN_LEFT_1}px)`;
 
-        const itemBadgeType =
-          showObservationTypeBadge &&
-          row.original.level === 0 &&
-          row.original.value &&
-          typeof row.original.value === "object" &&
-          !Array.isArray(row.original.value) &&
-          "type" in row.original.value &&
-          typeof (row.original.value as any).type === "string" &&
-          (row.original.value as any).type
-            ? ((row.original.value as any).type as LangfuseItemType)
-            : null;
+    const itemBadgeType =
+      showObservationTypeBadge &&
+      row.original.level === 0 &&
+      row.original.value &&
+      typeof row.original.value === "object" &&
+      !Array.isArray(row.original.value) &&
+      "type" in row.original.value &&
+      typeof (row.original.value as any).type === "string" &&
+      (row.original.value as any).type
+        ? ((row.original.value as any).type as LangfuseItemType)
+        : null;
 
-        const content = (
-          <div className="flex items-start wrap-break-word">
-            <div
-              className="flex shrink-0 items-center justify-end"
-              style={{ width: `${indentationWidth}px` }}
+    return (
+      <div className="flex items-start wrap-break-word">
+        <div
+          className="flex shrink-0 items-center justify-end"
+          style={{ width: `${indentationWidth}px` }}
+        >
+          {row.original.hasChildren ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRowExpansion(
+                  row,
+                  onLazyLoadChildren,
+                  expandedCells,
+                  toggleCellExpansion,
+                );
+              }}
+              className="h-4 w-4 p-0"
             >
-              {row.original.hasChildren && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRowExpansion(
-                      row,
-                      onLazyLoadChildren,
-                      expandedCells,
-                      toggleCellExpansion,
-                    );
-                  }}
-                  className="h-4 w-4 p-0"
-                >
-                  {row.getIsExpanded() ? (
-                    <ChevronDown className="h-3 w-3" />
-                  ) : (
-                    <ChevronRight className="h-3 w-3" />
-                  )}
-                </Button>
+              {row.getIsExpanded() ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronRight className="h-3 w-3" />
               )}
-            </div>
-            <span
-              className={`ml-1 ${KEY_TEXT_CLASSES} cursor-text`}
-              style={{ maxWidth: availableTextWidth }}
-            >
-              {itemBadgeType && (
-                <span className="mr-1 inline-block align-middle">
-                  <ItemBadge type={itemBadgeType} isSmall={true} />
-                </span>
-              )}
-              {row.original.key}
+            </Button>
+          ) : style.leafDot ? (
+            <span className="flex h-4 w-4 items-center justify-center">
+              <span
+                aria-hidden
+                className="bg-muted-foreground/50 h-1 w-1 rounded-full"
+              />
             </span>
-          </div>
-        );
+          ) : null}
+        </div>
+        <span
+          className={`ml-1 ${style.key} cursor-text`}
+          style={constrainWidth ? { maxWidth: availableTextWidth } : undefined}
+        >
+          {style.connector && row.original.level > 0 && (
+            <span aria-hidden className="text-muted-foreground mr-1">
+              └
+            </span>
+          )}
+          {itemBadgeType && (
+            <span className="mr-1 inline-block align-middle">
+              <ItemBadge type={itemBadgeType} isSmall={true} />
+            </span>
+          )}
+          {row.original.key}
+        </span>
+      </div>
+    );
+  };
 
-        if (isLongValue) {
-          // calculate sticky position based on level and stickyTopLevelKey setting
-          let topPosition = "0";
-          if (stickyTopLevelKey) {
-            // Level 0: position below header
-            // Level > 0: position below header + one top-level row
-            topPosition =
-              row.original.level === 0
-                ? `${stickyOffsets.header}px`
-                : `${stickyOffsets.header + stickyOffsets.row}px`;
-          }
+  const renderValue = (row: Row<JsonTableRow>) => (
+    <ValueCell
+      row={row}
+      expandedCells={expandedCells}
+      toggleCellExpansion={toggleCellExpansion}
+      preserveStringWhitespace={row.original.key === "code_eval_source_code"}
+      metadataActions={metadataActions}
+      collapsedPreview={style.collapsedPreview}
+    />
+  );
 
-          return (
-            <div className="sticky z-5 py-1" style={{ top: topPosition }}>
-              {content}
-            </div>
-          );
+  const keyColumn: LangfuseColumnDef<JsonTableRow, unknown> = {
+    accessorKey: "key",
+    header: "Path",
+    size: 35,
+    cell: ({ row }) => {
+      const content = renderKey(row, true);
+      const valueLength = getValueStringLength(row.original.value);
+      const isLongValue = valueLength > MAX_CELL_DISPLAY_CHARS / 3; // already long if we don't truncate
+
+      if (isLongValue) {
+        // calculate sticky position based on level and stickyTopLevelKey setting
+        let topPosition = "0";
+        if (stickyTopLevelKey) {
+          // Level 0: position below header
+          // Level > 0: position below header + one top-level row
+          topPosition =
+            row.original.level === 0
+              ? `${stickyOffsets.header}px`
+              : `${stickyOffsets.header + stickyOffsets.row}px`;
         }
 
-        return content;
-      },
+        return (
+          <div className="sticky z-5 py-1" style={{ top: topPosition }}>
+            {content}
+          </div>
+        );
+      }
+
+      return content;
     },
-    {
-      accessorKey: "value",
-      header: "Value",
-      size: 65,
-      cell: ({ row }) => (
-        <ValueCell
-          row={row}
-          expandedCells={expandedCells}
-          toggleCellExpansion={toggleCellExpansion}
-          preserveStringWhitespace={
-            row.original.key === "code_eval_source_code"
-          }
-          metadataActions={metadataActions}
-        />
-      ),
-    },
-  ];
+  };
+
+  const valueColumn: LangfuseColumnDef<JsonTableRow, unknown> = {
+    accessorKey: "value",
+    header: "Value",
+    size: 65,
+    cell: ({ row }) => renderValue(row),
+  };
+
+  // tree: `key: value` on one line, no columns.
+  const inlineColumn: LangfuseColumnDef<JsonTableRow, unknown> = {
+    accessorKey: "key",
+    header: "Field",
+    size: 100,
+    cell: ({ row }) => (
+      <div className="flex items-start wrap-break-word">
+        {renderKey(row, false)}
+        <span className="text-muted-foreground mr-1.5 text-xs">:</span>
+        <div className="min-w-0 flex-1">{renderValue(row)}</div>
+      </div>
+    ),
+  };
+
+  // stacked: key above value, value indented to the key.
+  const stackedColumn: LangfuseColumnDef<JsonTableRow, unknown> = {
+    accessorKey: "key",
+    header: "Field",
+    size: 100,
+    cell: ({ row }) => (
+      <div className="flex flex-col gap-1 wrap-break-word">
+        {renderKey(row, false)}
+        {row.getIsExpanded() && row.subRows.length > 0 ? null : (
+          <div
+            style={{
+              paddingLeft: `${indentationWidthFor(row) + MARGIN_LEFT_1}px`,
+            }}
+          >
+            {renderValue(row)}
+          </div>
+        )}
+      </div>
+    ),
+  };
+
+  const columns: LangfuseColumnDef<JsonTableRow, unknown>[] =
+    style.layout === "columns"
+      ? [keyColumn, valueColumn]
+      : style.layout === "inline"
+        ? [inlineColumn]
+        : [stackedColumn];
 
   const table = useReactTable({
     data,
@@ -746,11 +827,52 @@ function JsonPrettyTable({
               stickyTopLevelKey={stickyTopLevelKey}
               stickyOffsets={stickyOffsets}
               toneClasses={toneClasses}
+              style={style}
             />
           ))}
         </TableBody>
       </Table>
     </div>
+  );
+}
+
+/** Debug-only menu for the table style directions; writes `lf-json-style`
+    to localStorage so the pick applies app-wide and survives reloads. */
+function JsonTableStyleMenuContent({
+  active,
+}: {
+  active: JsonTableStyleVariant;
+}) {
+  const stored = useStoredJsonTableStyleVariant();
+  return (
+    <>
+      <DropdownMenuLabel>JSON table style (debug)</DropdownMenuLabel>
+      <DropdownMenuRadioGroup
+        value={active}
+        onValueChange={(value) =>
+          writeStoredJsonTableStyleVariant(value as JsonTableStyleVariant)
+        }
+      >
+        {JSON_TABLE_STYLE_VARIANTS.map((variant) => (
+          <DropdownMenuRadioItem key={variant} value={variant}>
+            {JSON_TABLE_STYLES[variant].label}
+            <span className="text-muted-foreground ml-1">
+              {JSON_TABLE_STYLES[variant].reference}
+            </span>
+          </DropdownMenuRadioItem>
+        ))}
+      </DropdownMenuRadioGroup>
+      {stored !== null && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => writeStoredJsonTableStyleVariant(null)}
+          >
+            Reset to default
+          </DropdownMenuItem>
+        </>
+      )}
+    </>
   );
 }
 
@@ -777,9 +899,17 @@ export function PrettyJsonView(props: {
   showObservationTypeBadge?: boolean;
   tone?: PrettyJsonViewTone;
   inset?: boolean;
-  /** Hide the Path / Value header row of the table view. Defaults to hidden
-      when a `title` is rendered above the table; pass `false` to opt back in. */
+  /** Hide the Path / Value header row of the table view. Defaults to the
+      active style direction (hidden under a title for all but `current`);
+      pass `false` to opt back in. */
   hideHeader?: boolean;
+  /** Table style direction. A stored debug pick (localStorage
+      `lf-json-style`) overrides this unless `lockStyleVariant` is set; see
+      jsonTableStyleVariants.ts. */
+  styleVariant?: JsonTableStyleVariant;
+  /** Render exactly `styleVariant`, ignoring the stored debug pick, and hide
+      the picker (review page). */
+  lockStyleVariant?: boolean;
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
   /** When set, rows show an actions menu with copy + add-to-filter shortcuts
@@ -793,11 +923,23 @@ export function PrettyJsonView(props: {
     ? PRETTY_JSON_VIEW_TONE_CLASSES[props.tone]
     : undefined;
   const codeClassName = cn(props.codeClassName, toneClasses?.container);
+  const resolvedStyleVariant = useJsonTableStyleVariant(props.styleVariant);
+  const styleVariant =
+    props.lockStyleVariant && props.styleVariant
+      ? props.styleVariant
+      : resolvedStyleVariant;
+  const tableStyle = JSON_TABLE_STYLES[styleVariant];
+  const showStylePicker =
+    useShowJsonTableStylePicker() && !props.lockStyleVariant;
   const hasTitle = Boolean(props.title);
-  // Title-owned tables drop the Path / Value header and the outer box; the
-  // section title is the frame. Toned containers keep their tinted border.
-  const hideTableHeader = props.hideHeader ?? hasTitle;
-  const tableBorderless = hasTitle && !props.tone;
+  // Title-owned tables drop the Path / Value header and the outer box (the
+  // section title is the frame) unless the style keeps them. Single-column
+  // layouts never show the header. Toned containers keep their tinted border.
+  const hideTableHeader =
+    props.hideHeader ??
+    (tableStyle.layout !== "columns" ||
+      (hasTitle && !tableStyle.headerUnderTitle));
+  const tableBorderless = hasTitle && !tableStyle.boxUnderTitle && !props.tone;
   // Large plain-string gate (LFE-10991): a multi-MB top-level string skips
   // deepParseJson's object-only `maxSize` guard, so without this it would run
   // several full-length main-thread passes (parse, the markdown-probe
@@ -1359,6 +1501,7 @@ export function PrettyJsonView(props: {
                   showObservationTypeBadge={props.showObservationTypeBadge}
                   metadataActions={props.metadataActions}
                   toneClasses={toneClasses}
+                  style={tableStyle}
                 />
               )}
             </div>
@@ -1456,6 +1599,28 @@ export function PrettyJsonView(props: {
           inset={props.inset}
           controlButtons={
             <>
+              {shouldUseTableView && showStylePicker && (
+                <DropdownMenuController
+                  align="end"
+                  renderMenu={() => (
+                    <JsonTableStyleMenuContent active={styleVariant} />
+                  )}
+                >
+                  {({ Trigger }) => (
+                    <Trigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        className="hover:bg-border -mr-2"
+                        title={`JSON table style: ${JSON_TABLE_STYLES[styleVariant].label}`}
+                        aria-label="JSON table style"
+                      >
+                        <Palette className="h-3 w-3" />
+                      </Button>
+                    </Trigger>
+                  )}
+                </DropdownMenuController>
+              )}
               {shouldUseTableView && (
                 <Button
                   variant="ghost"
