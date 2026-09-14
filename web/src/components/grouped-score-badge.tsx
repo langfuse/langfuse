@@ -142,7 +142,7 @@ const EvaluatorGroupBadge = <T extends ChipScore>({
       {preview ? (
         <HoverCard openDelay={100}>
           <HoverCardTrigger asChild>{badge}</HoverCardTrigger>
-          <HoverCardContent className="w-60 p-2.5 text-xs">
+          <HoverCardContent className="w-max max-w-xs p-2.5 text-xs">
             <ScoreHoverList scores={group.scores} formatName={metricLabel} />
           </HoverCardContent>
         </HoverCard>
@@ -259,7 +259,7 @@ export const GroupedScoreBadges = <T extends ChipScore>({
           </HoverCardTrigger>
           {/* One line per chip, ALL of them, not just the hidden ones: the
               reader wants one list, and a group reads as its chip does. */}
-          <HoverCardContent className="w-60 p-2.5 text-xs">
+          <HoverCardContent className="w-max max-w-xs p-2.5 text-xs">
             <ScoreHoverList scores={overflowHoverRows(groups)} />
           </HoverCardContent>
         </HoverCard>
