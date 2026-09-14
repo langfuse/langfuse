@@ -1616,9 +1616,12 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   // score's latest version — matching FINAL without its multi-part merge. The
   // GROUP BY mirrors the table sorting key (project_id, toDate(timestamp), name,
   // id) — the key FINAL collapses on; the user-provided id is not unique alone.
-  // All filters (value, comment, timestamp, ...) are applied AFTER dedup, on the
-  // reconstructed latest values, so the count matches the row list; the inner
-  // query carries only a coarse toDate(timestamp) prune (see above).
+  // All filters (value, comment, timestamp, ...) and the trace-level join are
+  // applied AFTER dedup, on the reconstructed latest values, so the count
+  // matches the row list; the inner query carries only a coarse
+  // toDate(timestamp) prune (see above). The join uses the argMax'd trace_id,
+  // so a stale version's trace_id can neither drop nor resurrect a score —
+  // matching the FINAL row path, which joins after dedup too.
   const query =
     props.select === "count"
       ? `
@@ -1644,11 +1647,11 @@ const getScoresUiGenericFromEvents = async <T>(props: {
           argMax(s.string_value, s.event_ts) AS string_value,
           argMax(s.metadata, s.event_ts) AS metadata
         FROM scores s
-        ${eventsJoin}
         WHERE s.project_id = {projectId: String}
         ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}
         GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
       ) s
+      ${eventsJoin}
       WHERE s.data_type IN ({dataTypes: Array(String)})
       ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}
     `
