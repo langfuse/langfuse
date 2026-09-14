@@ -206,7 +206,7 @@ export const executionReceiptInputSchema = z
     environment: jsonValueSchema.optional(),
     executor: executionReceiptExecutorSchema,
     toolCalls: z.array(executionReceiptToolCallSchema).min(1),
-    langfuseTraceUrl: z.string().url().optional(),
+    langfuseTraceUrl: z.url().optional(),
     capturedAt: z.string().min(1).optional(),
   })
   .strict();
@@ -239,7 +239,7 @@ export const executionReceiptSchema = z
       .object({
         capturedAt: z.string().min(1),
         collector: z.string().min(1),
-        langfuseTraceUrl: z.string().url().optional(),
+        langfuseTraceUrl: z.url().optional(),
         redactionPolicy: z.string().min(1),
       })
       .strict(),
