@@ -25,13 +25,16 @@ import {
   PAID_PLAN_INCLUDED_UNITS,
 } from "@/src/ee/features/billing/constants";
 import {
+  additiveUpgradeFrom,
   checkoutProductForTier,
   DISPLAY_PLAN_TIERS,
   getPlanComparison,
+  includingTeamsPriceLabel,
   planTierFromPlan,
   planTierLabel,
   suggestedUpgradeReason,
   suggestedUpgradeTier,
+  teamsAddonBenefitLines,
   teamsAddonPriceLabel,
   type DisplayPlanTier,
   type PlanTier,
@@ -93,7 +96,7 @@ function BillingSwitchPlanDialogContent() {
     isLegacySubscription,
     hasValidPaymentMethod,
     currentProductId,
-  } = useBillingInformation();
+  } = useBillingInformation({ silentQueryErrors: true });
 
   const currentTier = planTierFromPlan(organization?.plan);
   const [teamsAddonOn, setTeamsAddonOn] = useState(currentTier === "team");
@@ -166,6 +169,7 @@ function BillingSwitchPlanDialogContent() {
                 includedUnits={includedUnits}
                 usage={usage.data ?? undefined}
                 usageLoading={usage.isLoading}
+                usageError={usage.isError}
               />
             </div>
           </div>
@@ -243,11 +247,19 @@ function PlanCard({
 }) {
   const targetTier: PlanTier =
     displayTier === "pro" && teamsAddonOn ? "team" : displayTier;
-  const comparison = getPlanComparison({
-    currentTier,
-    targetTier,
-    memberCount,
-  });
+  const listTier: PlanTier = displayTier === "pro" ? "pro" : displayTier;
+  const comparison =
+    currentTier === targetTier
+      ? getPlanComparison({
+          currentTier: listTier,
+          targetTier: listTier,
+        })
+      : getPlanComparison({
+          currentTier,
+          targetTier: listTier,
+          memberCount,
+          upgradeFrom: additiveUpgradeFrom(displayTier) ?? undefined,
+        });
   const product =
     targetTier === "hobby" ? undefined : checkoutProductForTier(targetTier);
   const isCurrentDisplay =
@@ -270,7 +282,7 @@ function PlanCard({
     displayTier === "hobby"
       ? "Free"
       : displayTier === "pro" && teamsAddonOn
-        ? (checkoutProductForTier("team")?.checkout?.price ?? "$499 / month")
+        ? includingTeamsPriceLabel()
         : (product?.checkout?.price ?? "");
 
   const usageLabel =
@@ -305,22 +317,27 @@ function PlanCard({
           </Badge>
         ) : null}
       </div>
-      {upgradeReason ? <p className="mt-1 text-sm">{upgradeReason}</p> : null}
       <p className="mt-2 text-2xl font-bold">{priceLabel}</p>
       <p className="text-muted-foreground mt-1 text-sm">{usageLabel}</p>
       <p className="text-muted-foreground text-sm">{usageDetail}</p>
+      {upgradeReason ? <p className="mt-2 text-sm">{upgradeReason}</p> : null}
       {displayTier === "pro" ? (
-        <label className="mt-3 flex items-center gap-2">
+        <label className="mt-3 flex items-start gap-2">
           <Switch
             size="sm"
             checked={teamsAddonOn}
             onCheckedChange={onTeamsAddonChange}
           />
-          <span className="text-sm whitespace-nowrap">
-            <span className="font-bold">Teams add-on</span>
-            <span className="text-muted-foreground">
-              {" "}
-              · {teamsAddonPriceLabel()}
+          <span className="text-sm">
+            <span className="whitespace-nowrap">
+              <span className="font-bold">Teams add-on</span>
+              <span className="text-muted-foreground">
+                {" "}
+                · {teamsAddonPriceLabel()}
+              </span>
+            </span>
+            <span className="text-muted-foreground mt-0.5 block">
+              {teamsAddonBenefitLines().join(". ")}.
             </span>
           </span>
         </label>

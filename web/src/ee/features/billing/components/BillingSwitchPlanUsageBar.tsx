@@ -12,11 +12,13 @@ export function BillingSwitchPlanUsageBar({
   includedUnits,
   usage,
   usageLoading = false,
+  usageError = false,
 }: {
   currentTier: PlanTier;
   includedUnits: number;
   usage: Exclude<RouterOutput["cloudBilling"]["getUsage"], null> | undefined;
   usageLoading?: boolean;
+  usageError?: boolean;
 }) {
   const usageCount = usage?.usageCount;
   const usageType = usage?.usageType ?? "units";
@@ -26,23 +28,18 @@ export function BillingSwitchPlanUsageBar({
     ? Math.min((usageCount / Math.max(includedUnits, 1)) * 100, 100)
     : 0;
 
-  const usedLabel = usageLoading
-    ? "…"
-    : hasUsage
-      ? `${numberFormatter(usageCount, 0)} ${usageType}`
-      : "unavailable";
-
   return (
     <div className="flex flex-col gap-1.5">
       <p className="text-muted-foreground text-sm">
-        {`Current plan: ${planTierLabel(currentTier)} · Used this billing period: ${usedLabel}`}
+        {`Current plan: ${planTierLabel(currentTier)}`}
       </p>
-      {hasUsage ? (
+      {usageLoading ? (
+        <p className="text-muted-foreground text-xs">Loading usage…</p>
+      ) : hasUsage ? (
         <>
           <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs">
             <span className="text-foreground font-bold">
-              {numberFormatter(usageCount, 0)} of{" "}
-              {compactNumberFormatter(includedUnits)} included
+              {`Used this billing period: ${numberFormatter(usageCount, 0)} of ${compactNumberFormatter(includedUnits)} ${usageType}`}
             </span>
             {periodEnd ? (
               <span className="text-muted-foreground">
@@ -64,6 +61,8 @@ export function BillingSwitchPlanUsageBar({
             />
           </div>
         </>
+      ) : usageError || !usage ? (
+        <p className="text-muted-foreground text-xs">Usage unavailable</p>
       ) : null}
     </div>
   );

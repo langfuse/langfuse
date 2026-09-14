@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   getPlanComparison,
+  includingTeamsPriceLabel,
   planTierFromPlan,
   suggestedUpgradeReason,
   suggestedUpgradeTier,
+  teamsAddonBenefitLines,
   teamsAddonPriceLabel,
 } from "./planComparison";
 
@@ -34,6 +36,11 @@ describe("planComparison", () => {
 
   it("derives the Teams add-on price from catalogue list prices", () => {
     expect(teamsAddonPriceLabel()).toBe("+$300/mo");
+    expect(includingTeamsPriceLabel()).toBe("$499/month including Teams");
+    expect(teamsAddonBenefitLines()).toEqual([
+      "Private Slack channel, 24h response",
+      "Enterprise SSO and fine-grained RBAC",
+    ]);
   });
 
   it("lists current-plan rows in a shared comparison order", () => {
@@ -79,7 +86,7 @@ describe("planComparison", () => {
       targetTier: "core",
     });
 
-    expect(comparison.heading).toBe("What you gain over Hobby");
+    expect(comparison.heading).toBe("Everything in Hobby, plus");
     expect(comparison.lines.map((line) => line.text)).toEqual([
       "90 days of history",
       "Unlimited users",
@@ -112,13 +119,14 @@ describe("planComparison", () => {
     );
   });
 
-  it("describes Pro gains over Core from public plan limits", () => {
+  it("describes Pro additions over Core without restating Core entitlements", () => {
     const comparison = getPlanComparison({
-      currentTier: "core",
+      currentTier: "hobby",
       targetTier: "pro",
+      upgradeFrom: "core",
     });
 
-    expect(comparison.heading).toBe("What you gain over Core");
+    expect(comparison.heading).toBe("Everything in Core, plus");
     expect(comparison.lines.every((line) => line.polarity === "plus")).toBe(
       true,
     );
@@ -131,6 +139,9 @@ describe("planComparison", () => {
       "Data retention management",
       "SOC2 Type II & ISO27001 reports, HIPAA-ready region",
     ]);
+    expect(comparison.lines.map((line) => line.text)).not.toContain(
+      "Unlimited users",
+    );
   });
 
   it("adds Teams-only controls when comparing Core to Pro + Teams", () => {
@@ -165,7 +176,7 @@ describe("planComparison", () => {
     });
     const texts = comparison.lines.map((line) => line.text);
 
-    expect(comparison.heading).toBe("What you gain over Pro + Teams");
+    expect(comparison.heading).toBe("Everything in Pro + Teams, plus");
     expect(texts).toEqual([
       "Negotiated usage on yearly terms",
       "Custom rate limits",
@@ -178,19 +189,26 @@ describe("planComparison", () => {
     expect(new Set(texts).size).toBe(texts.length);
   });
 
-  it("does not duplicate Enterprise extras when comparing from Hobby", () => {
-    const texts = getPlanComparison({
+  it("lists only Enterprise extras over Pro + Teams when the org is on Hobby", () => {
+    const comparison = getPlanComparison({
       currentTier: "hobby",
       targetTier: "enterprise",
-    }).lines.map((line) => line.text);
+      upgradeFrom: "team",
+    });
+    const texts = comparison.lines.map((line) => line.text);
 
-    expect(texts.filter((text) => text === "Custom rate limits")).toHaveLength(
-      1,
-    );
-    expect(
-      texts.filter((text) => text === "Named lead support engineer"),
-    ).toHaveLength(1);
-    expect(texts.filter((text) => text === "Support SLA")).toHaveLength(1);
-    expect(new Set(texts).size).toBe(texts.length);
+    expect(comparison.heading).toBe("Everything in Pro + Teams, plus");
+    expect(texts).toEqual([
+      "Negotiated usage on yearly terms",
+      "Custom rate limits",
+      "100 alerts",
+      "Support SLA",
+      "Audit logs and SCIM provisioning",
+      "Uptime SLA",
+      "Named lead support engineer",
+    ]);
+    expect(texts).not.toContain("3 years of history");
+    expect(texts).not.toContain("Unlimited users");
+    expect(texts).not.toContain("Data retention management");
   });
 });

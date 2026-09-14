@@ -44,14 +44,19 @@ export type UseBillingInformationResult = {
   currentProductId: string | null;
 };
 
-export const useBillingInformation = (): UseBillingInformationResult => {
+export const useBillingInformation = (
+  options: { silentQueryErrors?: boolean } = {},
+): UseBillingInformationResult => {
   // Project routes have no organizationId. Resolve through the current project
   // so sidebar checkout and usage keep an org.
   const { organization } = useQueryProjectOrOrganization();
   const { data: subscriptionInfo, isLoading: isLoadingSubscriptionInfo } =
     api.cloudBilling.getSubscriptionInfo.useQuery(
       { orgId: organization?.id ?? "" },
-      { enabled: Boolean(organization?.id) },
+      {
+        enabled: Boolean(organization?.id),
+        meta: options.silentQueryErrors ? { silentAllErrors: true } : undefined,
+      },
     );
 
   const planLabel = useMemo(() => {

@@ -501,14 +501,40 @@ const capabilityDiff = (
   return lines;
 };
 
+export const additiveUpgradeFrom = (
+  displayTier: DisplayPlanTier,
+): PlanTier | null => {
+  switch (displayTier) {
+    case "hobby":
+      return null;
+    case "core":
+      return "hobby";
+    case "pro":
+      return "core";
+    case "enterprise":
+      return "team";
+  }
+};
+
+export const teamsAddonBenefitLines = () =>
+  capabilityDiff(LIMITS.pro, LIMITS.team, "plus").map((line) => line.text);
+
+export const includingTeamsPriceLabel = () => {
+  const team =
+    checkoutProductForTier("team")?.checkout?.price ?? "$499 / month";
+  return `${team.replace(" / month", "/month")} including Teams`;
+};
+
 export const getPlanComparison = ({
   currentTier,
   targetTier,
   memberCount,
+  upgradeFrom,
 }: {
   currentTier: PlanTier;
   targetTier: PlanTier;
   memberCount?: number;
+  upgradeFrom?: PlanTier;
 }): PlanComparison => {
   if (currentTier === targetTier) {
     return {
@@ -529,9 +555,10 @@ export const getPlanComparison = ({
   }
 
   if (isUpgrade) {
+    const from = upgradeFrom ?? currentTier;
     return {
-      heading: `What you gain over ${planTierLabel(currentTier)}`,
-      lines: capabilityDiff(currentLimits, targetLimits, "plus", memberCount),
+      heading: `Everything in ${planTierLabel(from)}, plus`,
+      lines: capabilityDiff(LIMITS[from], targetLimits, "plus", memberCount),
     };
   }
 
