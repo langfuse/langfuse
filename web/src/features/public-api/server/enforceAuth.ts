@@ -44,16 +44,17 @@ export async function enforceAuth({
   });
   if (!auth.success) return auth;
 
-  const adminAuth = await enforceAdminAuth(auth.context, req, action);
-  if (adminAuth) return adminAuth;
-
-  const orgAuth = await enforceOrgAuth(auth.context, req, action);
-  if (orgAuth) return orgAuth;
-
-  const projectAuth = await enforceProjectAuth(auth.context, req, action);
-  if (projectAuth) return projectAuth;
-
-  return internalServerError(`unexpected principal on the public-API`);
+  const { context } = auth;
+  switch (context.principal.kind) {
+    case "admin":
+      return enforceAdminAuth(context, req, action);
+    case "apiKey":
+      return isOrgAction(action)
+        ? enforceOrgAuth(context, req, action)
+        : enforceProjectAuth(context, req, action);
+    default:
+      return internalServerError(`Unexpected principal on the public api`);
+  }
 }
 
 /** enforceAdminAuth resolves, authorizes, and scopes a self-host admin-key request against its target project; the authenticator admits admin keys only on opted-in, non-Cloud routes. */
@@ -61,9 +62,7 @@ async function enforceAdminAuth(
   context: AuthorizationContext,
   req: NextApiRequest,
   action: Action,
-): Promise<EnforceAuthResult | null> {
-  if (context.principal.kind !== "admin") return null;
-
+): Promise<EnforceAuthResult> {
   const projectId = getHeaderProjectId(req);
   if (!projectId) return forbiddenError(`Missing '${projectIdHeader}' header`);
 
@@ -81,9 +80,7 @@ function enforceOrgAuth(
   context: AuthorizationContext,
   req: NextApiRequest,
   action: Action,
-): EnforceAuthResult | null {
-  if (context.principal.kind !== "apiKey" || !isOrgAction(action)) return null;
-
+): EnforceAuthResult {
   const org = getOrgId(context, req);
   if (!org.success) return org;
 
@@ -98,9 +95,7 @@ function enforceProjectAuth(
   context: AuthorizationContext,
   req: NextApiRequest,
   action: Action,
-): EnforceAuthResult | null {
-  if (context.principal.kind !== "apiKey" || isOrgAction(action)) return null;
-
+): EnforceAuthResult {
   const project = getProjectId(context, req);
   if (!project.success) return project;
 
@@ -113,11 +108,10 @@ function enforceProjectAuth(
   });
   if (!decision.success) return decision;
 
-  return access(
-    context,
-    context.principal.boundResource.orgId,
-    project.projectId,
-  );
+  const orgId = getBoundOrgId(context);
+  if (!orgId) return internalServerError(`Missing bound org on api-key`);
+
+  return access(context, orgId, project.projectId);
 }
 
 /** getOrgId resolves the target org from the header, falling back to the key's bound org; whether the key may act on it is the policy's call. */
