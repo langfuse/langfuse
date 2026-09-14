@@ -28,15 +28,16 @@ const groupMetricCount = <T extends ChipScore>(group: ScoreChipGroup<T>) =>
   new Set(group.scores.map((score) => score.name)).size;
 
 /**
- * One number for a group. Numeric and boolean metrics average (booleans count
- * 0 / 1, so the mean is the share that is true); when some metrics have no
- * numeric value the label says how many counted, like "18/20 scored".
- * Categorical-only groups show the majority value and its share. Null when
- * there is nothing to summarise.
+ * One number for a group and the count it stands for. Numeric and boolean
+ * metrics average (booleans count 0 / 1, so the mean is the share that is
+ * true) and the count is the metrics that went into it, so metrics without a
+ * numeric value are simply not counted. Categorical-only groups show the
+ * majority value and its share. `text` is null when there is nothing to
+ * summarise.
  */
 const groupSummary = <T extends ChipScore>(
   group: ScoreChipGroup<T>,
-): string | null => {
+): { count: number; text: string | null } => {
   const total = groupMetricCount(group);
   const numericValues = group.scores.flatMap((score) =>
     (score.dataType === "NUMERIC" || score.dataType === "BOOLEAN") &&
@@ -48,9 +49,7 @@ const groupSummary = <T extends ChipScore>(
     const average =
       numericValues.reduce((sum, value) => sum + value, 0) /
       numericValues.length;
-    const scored =
-      numericValues.length < total ? ` (${numericValues.length}/${total})` : "";
-    return `Avg ${average.toFixed(2)}${scored}`;
+    return { count: numericValues.length, text: `Avg ${average.toFixed(2)}` };
   }
   const tally = new Map<string, number>();
   for (const score of group.scores) {
@@ -59,7 +58,10 @@ const groupSummary = <T extends ChipScore>(
     }
   }
   const [top] = [...tally.entries()].sort((a, b) => b[1] - a[1]);
-  return top ? `Mostly ${top[0]} (${top[1]}/${total})` : null;
+  return {
+    count: total,
+    text: top ? `Mostly ${top[0]} (${top[1]}/${total})` : null,
+  };
 };
 
 /** What the "+N" hover lists: one line per chip, so an evaluator group shows
@@ -76,8 +78,7 @@ const overflowHoverRows = <T extends ChipScore>(
 ): OverflowHoverRow[] =>
   groups.flatMap((group): OverflowHoverRow[] => {
     if (group.kind !== "evaluator") return [...group.scores];
-    const count = groupMetricCount(group);
-    const summary = groupSummary(group);
+    const { count, text: summary } = groupSummary(group);
     return [
       {
         name: `${group.label}(${count})`,
@@ -102,8 +103,7 @@ const EvaluatorGroupBadge = <T extends ChipScore>({
   preview: boolean;
   onClick?: () => void;
 }) => {
-  const metricCount = groupMetricCount(group);
-  const summary = groupSummary(group);
+  const { count: metricCount, text: summary } = groupSummary(group);
   const levels = showLevels
     ? Array.from(
         new Set(group.scores.map((score) => scoreLevelFromScore(score))),
