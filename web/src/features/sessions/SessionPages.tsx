@@ -2065,6 +2065,7 @@ const LoadedSessionEventsPage: React.FC<{
           tableName="session-events"
           isV4={true}
           projectId={projectId}
+          layout={isModernSessionEnabled ? "observation-focused" : "default"}
         />
       </Page>
     </SessionDetailStoreProvider>

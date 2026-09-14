@@ -1,4 +1,4 @@
-import { Trace } from "@/src/features/traces/components/Trace";
+import { Trace, type TraceProps } from "@/src/features/traces/components/Trace";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 
@@ -17,10 +17,12 @@ export function TraceDetailBody({
   context,
   keySuffix,
   truncatedAtObservations,
+  layout,
 }: {
   trace: TraceDetailData | undefined;
   context: "peek" | "fullscreen" | "annotation";
   keySuffix?: string;
+  layout?: TraceProps["layout"];
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
 }) {
@@ -34,6 +36,7 @@ export function TraceDetailBody({
       projectId={trace.projectId}
       observations={trace.observations}
       context={context}
+      layout={layout}
       truncatedAtObservations={truncatedAtObservations}
     />
   );
