@@ -53,7 +53,10 @@ import {
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
-import { CostUsageBadge } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import {
+  CostUsageBadge,
+  hasCostOrUsage,
+} from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import {
   type WithStringifiedMetadata,
   type MetadataDomainClient,
@@ -762,14 +765,23 @@ export const ObservationDetailViewHeader = memo(
               <TimeToFirstTokenBadge
                 timeToFirstToken={observation.timeToFirstToken}
               />
-              <CostUsageBadge
-                totalCost={displayedTotalCost}
-                costDetails={displayedCostDetails}
-                inputUsage={displayedInputUsage}
-                outputUsage={displayedOutputUsage}
-                totalUsage={displayedTotalUsage}
-                usageDetails={displayedUsageDetails}
-              />
+              {hasCostOrUsage({
+                totalCost: displayedTotalCost,
+                costDetails: displayedCostDetails,
+                inputUsage: displayedInputUsage,
+                outputUsage: displayedOutputUsage,
+                totalUsage: displayedTotalUsage,
+                usageDetails: displayedUsageDetails,
+              }) ? (
+                <CostUsageBadge
+                  totalCost={displayedTotalCost}
+                  costDetails={displayedCostDetails}
+                  inputUsage={displayedInputUsage}
+                  outputUsage={displayedOutputUsage}
+                  totalUsage={displayedTotalUsage}
+                  usageDetails={displayedUsageDetails}
+                />
+              ) : null}
               {/* Model as quiet text, like the tree row: the attributes table
                   below has it too, but that can be a scroll away. */}
               {observation.model ? (
