@@ -106,11 +106,15 @@ export function ItemBadge({
   type,
   showLabel = false,
   isSmall = false,
+  hideIcon = false,
   className,
 }: {
   type: LangfuseItemType;
   showLabel?: boolean;
   isSmall?: boolean;
+  /** Label-only chip (page headers): the label names the type, so the icon
+      repeats it. */
+  hideIcon?: boolean;
   className?: string;
 }) {
   const Icon = iconMap[type] || ListTree; // Default to ListTree if unknown type
@@ -133,7 +137,11 @@ export function ItemBadge({
       variant="outline"
       title={label}
       className={cn(
-        "bg-background flex max-w-fit items-center gap-1 overflow-hidden border-2 whitespace-nowrap",
+        hideIcon
+          ? // Label-only mode (page/peek headers): quiet chip — no fill, muted
+            // text — so the type label doesn't compete with the title.
+            "text-muted-foreground border-border flex max-w-fit items-center gap-1 overflow-hidden border bg-transparent whitespace-nowrap"
+          : "bg-background flex max-w-fit items-center gap-1 overflow-hidden border-2 whitespace-nowrap",
         // With a label the horizontal padding is what separates the icon from the
         // text. Without one there is nothing to separate, and the padding only
         // made a square icon sit in a rectangle. `max-w-none` is what lets it be
@@ -145,7 +153,7 @@ export function ItemBadge({
         isSmall && showLabel && "h-4",
       )}
     >
-      <Icon className={iconClass} />
+      {!hideIcon && <Icon className={iconClass} />}
       {showLabel && (
         <span className="truncate" title={displayLabel}>
           {displayLabel}
