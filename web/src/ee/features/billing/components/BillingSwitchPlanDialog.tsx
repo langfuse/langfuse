@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { BillingSwitchPlanUsageBar } from "@/src/ee/features/billing/components/BillingSwitchPlanUsageBar";
 import { StripeCancellationButton } from "@/src/ee/features/billing/components/StripeCancellationButton";
 import { StripeKeepPlanButton } from "@/src/ee/features/billing/components/StripeKeepPlanButton";
 import { StripeSwitchPlanButton } from "@/src/ee/features/billing/components/StripeSwitchPlanButton";
@@ -39,7 +40,6 @@ import { isUpgrade } from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
-import { numberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 
 const PRICING_COMPARISON_HREF = "https://langfuse.com/pricing";
@@ -130,14 +130,10 @@ function BillingSwitchPlanDialogContent() {
       },
     });
 
-  const usageSummary = [
-    `Current plan: ${planTierLabel(currentTier)}`,
-    usage.data
-      ? `Used this billing period: ${numberFormatter(usage.data.usageCount, 0)} ${usage.data.usageType ?? "units"}`
-      : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const hobbyPlanLimit =
+    organization?.cloudConfig?.monthlyObservationLimit ?? MAX_EVENTS_FREE_PLAN;
+  const includedUnits =
+    currentTier === "hobby" ? hobbyPlanLimit : PAID_PLAN_INCLUDED_UNITS;
 
   const startCheckout = (stripeProductId: string) => {
     if (!organization) return;
@@ -164,7 +160,14 @@ function BillingSwitchPlanDialogContent() {
               Compare included usage, history, limits, support, and enterprise
               features.
             </DialogDescription>
-            <p className="text-muted-foreground mt-1 text-sm">{usageSummary}</p>
+            <div className="mt-2">
+              <BillingSwitchPlanUsageBar
+                currentTier={currentTier}
+                includedUnits={includedUnits}
+                usage={usage.data ?? undefined}
+                usageLoading={usage.isLoading}
+              />
+            </div>
           </div>
           <ActionButton variant="secondary" href={PRICING_COMPARISON_HREF}>
             Full comparison of plans
@@ -178,10 +181,7 @@ function BillingSwitchPlanDialogContent() {
               key={displayTier}
               displayTier={displayTier}
               currentTier={currentTier}
-              hobbyPlanLimit={
-                organization?.cloudConfig?.monthlyObservationLimit ??
-                MAX_EVENTS_FREE_PLAN
-              }
+              hobbyPlanLimit={hobbyPlanLimit}
               teamsAddonOn={teamsAddonOn}
               onTeamsAddonChange={(enabled) => {
                 setTeamsAddonOn(enabled);
