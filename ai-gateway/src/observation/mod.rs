@@ -251,7 +251,7 @@ impl Observation {
         }
         // Full mode explicitly includes prompts and completed output in this
         // debug-only diagnostic. No raw headers or auth context are serialized.
-        tracing::debug!(capture = %json!(capture.record), "gateway response captured");
+        tracing::debug!(capture = %format_args!("{:#}", json!(capture.record)), "gateway response captured");
     }
 }
 

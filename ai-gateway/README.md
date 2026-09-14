@@ -162,7 +162,9 @@ hop-by-hop headers and upstream framing are excluded.
 Set `LANGFUSE_LOG_LEVEL=debug` to print one `gateway response captured` event at
 execution end. Its `capture` field is JSON with `input`, `output`, model,
 parameters, usage, attribution, timestamps, capture completeness and relay outcome.
-`LANGFUSE_LOG_FORMAT=json` also makes the surrounding log event JSON.
+Text logs pretty-print the captured JSON across multiple lines.
+`LANGFUSE_LOG_FORMAT=json` keeps each surrounding log event on one line, with
+newlines escaped inside the `capture` string.
 
 Web's resolved ingestion mode controls content capture:
 
