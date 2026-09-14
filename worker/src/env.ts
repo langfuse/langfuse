@@ -386,6 +386,23 @@ const EnvSchema = z.object({
     .positive()
     .default(8),
 
+  // Optional propagation-only overrides; unset values use ClickHouse profile settings.
+  LANGFUSE_EVENT_PROPAGATION_MAX_BLOCK_SIZE: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional(),
+  LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_ROWS: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .optional(),
+  LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_BYTES: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .optional(),
+
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
