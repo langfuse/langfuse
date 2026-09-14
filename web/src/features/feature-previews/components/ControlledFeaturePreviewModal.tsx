@@ -44,11 +44,13 @@ export function ControlledFeaturePreviewModal({
   const onToggle = (flag: PreviewFlag) => (enabled: boolean) =>
     setFeaturePreviewEnabled.mutate({ flag, enabled });
 
+  const isModernSessionEnabled =
+    authSession.data?.user?.featureFlags.modernSession === true ||
+    authSession.data?.environment.enableExperimentalFeatures === true;
+
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
     modernSession: {
-      enabled:
-        authSession.data?.user?.featureFlags.modernSession === true ||
-        authSession.data?.environment.enableExperimentalFeatures === true,
+      enabled: isModernSessionEnabled,
       disabled:
         !isV4 ||
         authSession.data?.environment.enableExperimentalFeatures === true,
@@ -58,6 +60,22 @@ export function ControlledFeaturePreviewModal({
           ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
           : undefined,
       onToggle: onToggle("modernSession"),
+      isToggling: setFeaturePreviewEnabled.isPending,
+    },
+    sessionTimeline: {
+      enabled:
+        authSession.data?.user?.featureFlags.sessionTimeline === true ||
+        authSession.data?.environment.enableExperimentalFeatures === true,
+      disabled:
+        !isV4 ||
+        !isModernSessionEnabled ||
+        authSession.data?.environment.enableExperimentalFeatures === true,
+      warningReason: !isModernSessionEnabled
+        ? "Enable Compact Session View before enabling the Session Timeline."
+        : authSession.data?.environment.enableExperimentalFeatures === true
+          ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
+          : undefined,
+      onToggle: onToggle("sessionTimeline"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
     normalizedIoPreview: {

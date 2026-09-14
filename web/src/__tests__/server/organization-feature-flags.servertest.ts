@@ -209,6 +209,7 @@ describe("organization feature preview defaults", () => {
       // here. Asserting that two REGISTERED defaults resolve differently needs
       // a second preview; add that half back with the next one.
       modernSession: false,
+      sessionTimeline: false,
       normalizedIoPreview: false,
     });
   });
@@ -442,6 +443,7 @@ describe("organization member feature preview overrides", () => {
     // hidden, which is what this guards.
     expect(row?.featurePreviews).toEqual({
       modernSession: true,
+      sessionTimeline: false,
       normalizedIoPreview: false,
     });
     expect(row?.user).not.toHaveProperty("featureFlags");

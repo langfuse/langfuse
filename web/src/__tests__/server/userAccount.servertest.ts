@@ -45,6 +45,23 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     expect(user.featureFlags).toEqual(["templateFlag", "modernSession"]);
   });
 
+  it("allows users to enable the session timeline preview", async () => {
+    const { caller, userId } = await createCaller({
+      featureFlags: ["modernSession"],
+    });
+
+    await caller.userAccount.setFeaturePreviewEnabled({
+      flag: "sessionTimeline",
+      enabled: true,
+    });
+
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { featureFlags: true },
+    });
+    expect(user.featureFlags).toEqual(["modernSession", "sessionTimeline"]);
+  });
+
   it("persists a global opt-out when disabling a preview", async () => {
     const { caller, userId } = await createCaller({
       featureFlags: ["templateFlag", "modernSession"],
@@ -207,6 +224,7 @@ async function createCaller({
       ],
       featureFlags: {
         modernSession: featureFlags.includes("modernSession"),
+        sessionTimeline: featureFlags.includes("sessionTimeline"),
         searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
         excludeClickhouseRead: false,

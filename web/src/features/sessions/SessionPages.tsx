@@ -995,6 +995,7 @@ const LoadedSessionEventsPage: React.FC<{
     projectId,
   });
   const isSessionTimelineEnabled = useIsFeatureEnabled("sessionTimeline", {
+    enableForAdmins: false,
     projectId,
   });
   const isMobile = useIsMobile();
