@@ -53,7 +53,12 @@ export type SessionObservation = Omit<
 type SessionConversationTimelineTraceState =
   | { type: "loading" }
   | { type: "error" }
-  | { type: "empty"; message: string }
+  | { type: "empty" }
+  | {
+      type: "filtered-empty";
+      viewLabel: string | null;
+      onClearFilters: () => void;
+    }
   | {
       type: "loaded";
       observations: readonly SessionObservation[];
@@ -1095,9 +1100,26 @@ export function SessionConversationTimelineTrace({
         <div className="border-destructive/40 bg-destructive/5 text-foreground rounded-lg border p-4 text-xs">
           Failed to load observations.
         </div>
-      ) : state.type === "empty" ? (
-        <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-xs">
-          {state.message}
+      ) : state.type === "empty" || state.type === "filtered-empty" ? (
+        <div className="text-muted-foreground flex items-center justify-between gap-4 rounded-lg border border-dashed p-4 text-xs">
+          <span>
+            {state.type === "empty"
+              ? "This trace has no observations."
+              : state.viewLabel
+                ? `No observation matches the “${state.viewLabel}” view in this trace.`
+                : "No observation matches the current filters in this trace."}
+          </span>
+          {state.type === "filtered-empty" ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={state.onClearFilters}
+            >
+              Clear filters
+            </Button>
+          ) : null}
         </div>
       ) : (
         <LoadedSessionConversationTimeline
