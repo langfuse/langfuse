@@ -21,7 +21,7 @@ const cloudAuthPages: Record<string, PageMetadata> = {
   "/auth/sign-in": {
     title: "Sign in | Langfuse Cloud",
     description:
-      "Sign in to Langfuse Cloud, the open-source LLM engineering platform for tracing, evaluation, and prompt management. EU, US, Japan, and HIPAA data regions.",
+      "Sign in to Langfuse Cloud, the Open Source Agent Evals & Observability platform. EU, US, Japan, and HIPAA data regions.",
   },
   "/auth/sign-up": {
     title: "Sign up | Langfuse Cloud",
@@ -38,7 +38,7 @@ const selfHostedAuthPages: Record<string, PageMetadata> = {
   "/auth/sign-in": {
     title: "Sign in | Langfuse",
     description:
-      "Sign in to Langfuse, the open-source LLM engineering platform for tracing, evaluation, and prompt management.",
+      "Sign in to Langfuse, the Open Source Agent Evals & Observability platform.",
   },
   "/auth/sign-up": {
     title: "Sign up | Langfuse",
