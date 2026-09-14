@@ -39,8 +39,8 @@ const RESIZABLE_PANEL_PREVIEW_ID = "trace-layout-panel-preview";
 // measure first, which on a peek is a transient mid-open value — so the
 // resolved ratio (and thus what gets persisted) was non-deterministic. A
 // percentage is width-independent, so the default is stable across opens.
-const INFO_COMFORTABLE_TARGET_PX = 560; // info wants ~this to read JSON/scores
-const NAV_COMFORTABLE_MIN_PX = 340; // tree's comfortable floor (> the 260 hard min)
+const INFO_COMFORTABLE_TARGET_PX = 620; // info wants ~this to read JSON/scores
+const NAV_COMFORTABLE_MIN_PX = 320; // tree's comfortable floor (> the 260 hard min)
 const NAV_COMFORTABLE_MAX_PX = 460; // never default the tree wider than this
 
 // Tree/info split (as a nav-panel percentage) for a container of
@@ -139,7 +139,6 @@ interface TraceLayoutDesktopContext {
   setIsNavigationPanelCollapsed: (collapsed: boolean) => void;
   panelRef: React.RefObject<PanelImperativeHandle | null>;
   handleTogglePanel: () => void;
-  shouldPulseToggle: boolean;
   // Detail (info/preview) panel — collapsible like the navigation panel.
   detailPanelRef: React.RefObject<PanelImperativeHandle | null>;
   isDetailPanelCollapsed: boolean;
@@ -181,10 +180,6 @@ export function TraceLayoutDesktop({
   defaultNavigationCollapsed: boolean;
   expandDetailOnMount: boolean;
 }) {
-  // Get current view mode from URL
-  const [viewMode] = useQueryParam("view", StringParam);
-  const isTimelineView = viewMode === "timeline";
-
   // Peek sizing depends on the drawer width; persistence scope is caller-owned.
   const { isPeekMode } = useViewPreferences();
 
@@ -435,27 +430,11 @@ export function TraceLayoutDesktop({
     }
   };
 
-  // Pulse animation: hint to user that panel can be collapsed when switching to timeline
-  const [shouldPulseToggle, setShouldPulseToggle] = useState(false);
-
-  useEffect(() => {
-    if (isTimelineView) {
-      setShouldPulseToggle(true);
-      const timeout = setTimeout(() => {
-        setShouldPulseToggle(false);
-      }, 12000); // Stop pulse after 12 seconds
-      return () => clearTimeout(timeout);
-    }
-    // Reset pulse when leaving timeline view
-    setShouldPulseToggle(false);
-  }, [isTimelineView]);
-
   const contextValue: TraceLayoutDesktopContext = {
     isNavigationPanelCollapsed,
     setIsNavigationPanelCollapsed,
     panelRef,
     handleTogglePanel,
-    shouldPulseToggle,
     detailPanelRef,
     isDetailPanelCollapsed,
     setIsDetailPanelCollapsed,

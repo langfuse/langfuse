@@ -10,9 +10,14 @@ export const heatMapTextColor = (p: {
   const maxDecimal = new Decimal(max);
   const valueDecimal = new Decimal(value);
 
+  // A soft tint behind the number rather than coloured text: the metric stays
+  // legible in the row's own grey and does not collide with the error red used
+  // for observation levels.
+  // Emphasis, not alarm: the dominant number steps up to foreground colour and
+  // medium weight; everything else stays in the row's muted grey.
   const cutOffs: [number, string][] = [
-    [0.75, "text-dark-red"], // 75%
-    [0.5, "text-dark-yellow"], // 50%
+    // eslint-disable-next-line @repo/no-raw-font-weight -- approved: medium is the tree's emphasis weight
+    [0.75, "text-foreground font-medium"], // 75%+
   ];
   const standardizedValueOnStartEndScale = valueDecimal
     .sub(minDecimal)

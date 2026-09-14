@@ -12,6 +12,8 @@ import { api } from "@/src/utils/api";
 import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
 import { useReadPath } from "@/src/features/events";
 
+/** Size cap for visualizations that lay out every observation instead of a
+ *  scrollable list. */
 const MAX_NODES_FOR_GRAPH_UI = 5000;
 
 interface TraceGraphDataContextValue {
