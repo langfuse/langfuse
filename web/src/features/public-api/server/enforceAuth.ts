@@ -19,7 +19,7 @@ import {
   notFoundError,
   type Action,
   type AuthorizationContext,
-  type ErrorResult as ErrorResultOf,
+  type ErrorResult,
   type Principal,
   type Success,
 } from "@/src/features/auth/policy/types";
@@ -114,14 +114,15 @@ function enforceProjectAuth(
   return access(context, orgId, project.projectId);
 }
 
-/** getOrgId resolves the target org from the header, falling back to the key's bound org; whether the key may act on it is the policy's call. */
+/** getOrgId resolves the target org the key's bound org and the header agree on. */
 function getOrgId(
   context: AuthorizationContext,
   req: NextApiRequest,
-): ResolvedOrg | ErrorResult {
-  const orgId = first([getHeaderOrgId(req), getBoundOrgId(context)]);
-  if (!orgId) {
-    return forbiddenError(`Missing '${orgIdHeader}' header`);
+): ResolvedOrg | ErrorResult<ForbiddenError> {
+  const requested = [getHeaderOrgId(req), getBoundOrgId(context)];
+  const orgId = first(requested);
+  if (!equal(requested) || !orgId) {
+    return forbiddenError();
   }
 
   return { success: true, orgId };
@@ -131,7 +132,7 @@ function getOrgId(
 function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
-): ResolvedProject | ErrorResult {
+): ResolvedProject | ErrorResult<ForbiddenError> {
   const requested = [
     getBoundProjectId(context),
     getUrlProjectId(req),
@@ -149,7 +150,7 @@ function getProjectId(
 /** lookupProjectOrgId reads a project's org from the database, 404ing when the project is absent. */
 async function lookupProjectOrgId(
   projectId: string,
-): Promise<ResolvedOrg | ErrorResult> {
+): Promise<ResolvedOrg | ErrorResult<LangfuseNotFoundError>> {
   const project = await prisma.project.findUnique({
     where: { id: projectId, deletedAt: null },
     select: { orgId: true },
@@ -245,15 +246,14 @@ type AccessResult = Success & {
 };
 
 /** EnforceAuthResult is the authorized scope, or the typed error the route renders. */
-export type EnforceAuthResult = AccessResult | ErrorResult;
-
-/** ErrorResult is a failed enforceAuth outcome carrying any error the pipeline surfaces. */
-type ErrorResult = ErrorResultOf<
-  | UnauthorizedError
-  | InternalServerError
-  | ForbiddenError
-  | LangfuseNotFoundError
->;
+export type EnforceAuthResult =
+  | AccessResult
+  | ErrorResult<
+      | UnauthorizedError
+      | InternalServerError
+      | ForbiddenError
+      | LangfuseNotFoundError
+    >;
 
 /** ResolvedOrg is org target resolution's success outcome. */
 type ResolvedOrg = Success & { orgId: string };
