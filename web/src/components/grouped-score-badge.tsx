@@ -46,6 +46,12 @@ const overflowHoverRows = <T extends ChipScore>(
     ];
   });
 
+/** What any score hover lists for a node's scores: one line per chip, so
+ * the tree row card and the "+N" hover read exactly like the chips. */
+export const scoreHoverRows = <T extends ChipScore>(
+  scores: ReadonlyArray<T>,
+): OverflowHoverRow[] => overflowHoverRows(groupScoresForChips(scores));
+
 /**
  * One chip for one score group: the shared prefix, how many metrics it holds
  * and their summary (see groupSummary). Hover lists the metrics (suffix only,

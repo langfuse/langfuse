@@ -114,13 +114,16 @@ const isUnscoredPlaceholder = (score: SummarizableScore): boolean =>
 /**
  * One number for a group and the count it stands for. Only a group of ONE
  * data type is summarised: all numeric -> `Avg X.XX`; all boolean ->
- * `k/total true` (stored 1 = true); all categorical -> the majority value
- * and its share. A group mixing data types gets no text: the chip reads
- * `Prefix(N)` and the table header shows only the count. Categorical
- * placeholders for "not scored" (UNSCORED_PLACEHOLDERS) are left out of the
- * type check and the tallies, so a numeric group with "n/a" on two metrics
- * still averages the rest. `count` is always the number of
- * metrics.
+ * `k/n true` (stored 1 = true); all categorical -> the majority value and
+ * its share, ties broken alphabetically. A group mixing data types gets no
+ * text: the chip reads `Prefix(N)` and the table header shows only the
+ * count. Categorical placeholders for "not scored" (UNSCORED_PLACEHOLDERS)
+ * are left out of the type check and the tallies, so a numeric group with
+ * "n/a" on two metrics still averages the rest.
+ *
+ * `count` is the number of distinct metric NAMES (what the chip shows); the
+ * summary's k and n count score RECORDS, so a metric scored twice weighs
+ * twice in the average and on both sides of a share.
  */
 export function groupSummary<T extends SummarizableScore>(
   group: ScoreChipGroup<T>,
@@ -142,7 +145,7 @@ export function groupSummary<T extends SummarizableScore>(
     if (values.length === 0) return { count: total, text: null };
     if (dataType === "BOOLEAN") {
       const trueCount = values.filter((value) => value === 1).length;
-      return { count: total, text: `${trueCount}/${total} true` };
+      return { count: total, text: `${trueCount}/${values.length} true` };
     }
     const average =
       values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -155,9 +158,11 @@ export function groupSummary<T extends SummarizableScore>(
       tally.set(score.stringValue, (tally.get(score.stringValue) ?? 0) + 1);
     }
   }
-  const [top] = [...tally.entries()].sort((a, b) => b[1] - a[1]);
+  const [top] = [...tally.entries()].sort(
+    (a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0),
+  );
   return {
     count: total,
-    text: top ? `Mostly ${top[0]} (${top[1]}/${total})` : null,
+    text: top ? `Mostly ${top[0]} (${top[1]}/${scored.length})` : null,
   };
 }

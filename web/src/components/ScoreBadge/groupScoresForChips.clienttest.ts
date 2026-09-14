@@ -103,4 +103,37 @@ describe("groupScoresForChips", () => {
     ]);
     expect(groupSummary(mixed!)).toEqual({ count: 2, text: null });
   });
+
+  it("counts records in the summary but metric names in the count, ties alphabetical", () => {
+    const boolean = (name: string, value: 0 | 1) => ({
+      name,
+      dataType: "BOOLEAN",
+      value,
+      stringValue: value ? "True" : "False",
+    });
+    const categorical = (name: string, stringValue: string) => ({
+      name,
+      dataType: "CATEGORICAL",
+      value: null,
+      stringValue,
+    });
+    // Two annotators on Gate.has_pii: the chip says 2 metrics, the share
+    // says 2 of 3 records are true, never "3/2".
+    const [repeated] = groupScoresForChips([
+      boolean("Gate.has_pii", 1),
+      boolean("Gate.has_pii", 0),
+      boolean("Gate.in_scope", 1),
+    ]);
+    expect(groupSummary(repeated!)).toEqual({ count: 2, text: "2/3 true" });
+
+    const [tied] = groupScoresForChips([
+      categorical("Risk.fraud", "low"),
+      categorical("Risk.abuse", "high"),
+      categorical("Risk.churn", "n/a"),
+    ]);
+    expect(groupSummary(tied!)).toEqual({
+      count: 3,
+      text: "Mostly high (1/2)",
+    });
+  });
 });

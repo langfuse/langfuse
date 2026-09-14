@@ -1109,11 +1109,17 @@ export default function ScoresTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scores.data, scoreMetrics.data, isV4]);
 
-  // Score groups: the page's rows reordered under headers. Client-side
-  // over the loaded page, like the chips over a node's scores.
+  // Score groups: the page's rows reordered under headers, only while one
+  // page holds the whole node (the server caps a page at 100); a node with
+  // more scores lists flat rows with the normal pager rather than grouping a
+  // partial page. Grouped until the count says otherwise, so the common case
+  // never flickers.
+  const fitsOnePage =
+    totalCount === null || totalCount <= paginationState.pageSize;
+  const groupingActive = groupByNamePrefix && fitsOnePage;
   const groupedRows = useMemo(
     () =>
-      groupByNamePrefix && enrichedScores
+      groupingActive && enrichedScores
         ? groupScoreRowsByPrefix(
             enrichedScores,
             // Same inputs the chip hands groupSummary: the stored numeric
@@ -1126,7 +1132,7 @@ export default function ScoresTable({
             }),
           )
         : null,
-    [groupByNamePrefix, enrichedScores],
+    [groupingActive, enrichedScores],
   );
   const tableRows = groupedRows ? groupedRows.rows : enrichedScores;
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
@@ -1300,6 +1306,11 @@ export default function ScoresTable({
                 viewVersion={chartViewVersion}
               />
             )}
+            {groupByNamePrefix && !fitsOnePage ? (
+              <p className="text-muted-foreground border-b px-2 py-1.5 text-xs">
+                Grouping is off above {paginationState.pageSize} scores
+              </p>
+            ) : null}
             {chartActive && chartTimeRange ? (
               <ScoresChartView
                 projectId={projectId}
@@ -1366,10 +1377,9 @@ export default function ScoresTable({
                   state: paginationState,
                 }}
                 hidePagination={
-                  groupByNamePrefix &&
+                  groupingActive &&
                   paginationState.pageIndex === 0 &&
-                  totalCount !== null &&
-                  totalCount <= paginationState.pageSize
+                  totalCount !== null
                 }
                 setOrderBy={handleOrderByChange}
                 orderBy={orderByState}
