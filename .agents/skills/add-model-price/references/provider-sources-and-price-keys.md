@@ -66,7 +66,8 @@ Always fetch pricing from the provider's official docs before editing.
   `googleAIStudioModels` while keeping the pricing JSON entries intact.
 - **Gemini cache-read ratio** — Google Gemini models consistently price cached input at
   10% of the base input price (e.g. Gemini 2.5 Flash: $0.30/MTok input → $0.03/MTok
-  cached). If a cache-read price in the file diverges from this ratio, treat it as
+  cached). Priority tables can round this differently (3.5 Flash-Lite: $0.05 cache
+  read on $0.54 input); use the published rate. If a cache-read price in the file diverges from this ratio, treat it as
   suspicious and verify against the official page before correcting.
 - **`ai.google.dev/pricing` has separate Free-tier and Paid-tier columns — do not confuse
   them (resolved July 31 2026)** — The official Gemini pricing table has both a "Free of
@@ -594,38 +595,46 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   add even if the scope exclusion were lifted. Treat the whole Daybreak cyber
   family (currently three members) as one standing scope exclusion rather than
   re-investigating each member separately in future audits.
-- **September 14 2026 audit: full re-fetch found no price or catalog drift; Gemini
-  3.x "Priority" processing tier found and confirmed out of scope** — Re-fetched
-  the full Anthropic pricing table plus the models-overview table, the OpenAI
-  aggregate Standard/Fast-mode/Flex pricing tables plus the full model catalog,
-  and both Gemini pricing pages (`ai.google.dev/pricing` for the 2.5 family,
-  `ai.google.dev/gemini-api/docs/pricing` for the 3.x family) plus the Gemini
-  models catalog page. Every price already in the file matched verbatim,
-  including a re-confirmation via `gpt-5-chat-latest`'s own dedicated model page
-  that its price is still $1.25/$0.125/$10.00 — the aggregate OpenAI pricing
-  table's summarized row for this alias again showed a stale $5.00/$0.50/$30.00
-  artifact (the same pre-August-24 `gpt-5.6-sol` figures bleeding into an
-  unrelated row), reconfirming the existing lesson to always trust the
-  dedicated model page over the aggregate table for this specific alias. New
-  finding: `ai.google.dev/gemini-api/docs/pricing` now lists a "Priority"
-  pricing column (in addition to Standard/Batch/Flex) for every Gemini 3.x
-  model (`gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.6-flash`,
-  `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`,
-  `gemini-3.1-pro-preview`, `gemini-3-flash-preview`) at roughly 1.8x the
-  Standard input/output price. A targeted follow-up fetch asking specifically
-  how a developer selects Priority processing (a request parameter or header,
-  analogous to OpenAI's `service_tier` or Anthropic's `speed`) found **no
-  documented mechanism at all** — the pricing page shows the column with no
-  accompanying API reference, and it is unclear whether Priority is reachable
-  via the direct Gemini API (`generativelanguage.googleapis.com`) versus only
-  through Vertex AI provisioned/dedicated capacity (a capacity-reservation
-  billing model, not a per-request condition Langfuse could ever observe in
-  ingested usage). Per the same reasoning already applied to the OpenAI Batch
-  tier (documented price, no observed request-shape to condition a pricing
-  tier on), this was **not added** to any Gemini 3.x pricing entry. Re-investigate
-  only if a future Gemini API reference documents an actual request
-  parameter/header for Priority processing that would appear in normal
-  ingested usage payloads.
+- **Gemini Priority inference (verified September 14 2026)** — The
+  [Priority guide](https://ai.google.dev/gemini-api/docs/priority-inference)
+  documents `service_tier: "priority"` on the Interactions API. The
+  [OpenAI-compatible API](https://ai.google.dev/gemini-api/docs/openai#flex-and-priority-inference)
+  supports the same parameter. This is per-request Gemini Developer API
+  processing, not a Vertex capacity reservation.
+  Use the existing `model_parameters` condition on `service_tier`, with
+  `operator: "in"` and `values: ["priority"]`. Do not include OpenAI's `fast`
+  alias. For Pro models, evaluate Priority + >200K before plain Priority and
+  standard Large Context (ascending priorities 1, 2, 3).
+  Read the actual tier from the response's `x-gemini-service-tier` header:
+  requests can be downgraded to Standard and billed at Standard rates. Record
+  that actual value in Langfuse `modelParameters.service_tier`; the catalog
+  matcher cannot read HTTP headers. Generic OTEL `gen_ai.request.service_tier`
+  captures only the requested tier, and native Gemini response-header capture
+  is not automatic. Missing tier data falls back to ordinary context pricing.
+  The [paid pricing tables](https://ai.google.dev/gemini-api/docs/pricing)
+  supply the following Priority USD/MTok rates (input / output / cache read):
+
+  | Model | Input | Output, including thinking | Cache read |
+  | --- | --- | --- | --- |
+  | gemini-3.6-flash / 3.7-flash / 3.8-flash | 1.35 | 6.75 | 0.135 |
+  | gemini-3.5-flash | 2.70 | 16.20 | 0.27 |
+  | gemini-3.5-flash-lite | 0.54 | 4.50 | 0.05 |
+  | gemini-3.1-flash-lite | 0.45 | 2.70 | 0.045 |
+  | gemini-3-flash-preview | 0.90 | 5.40 | 0.09 |
+  | gemini-3.1-pro-preview, <=200K / >200K | 3.60 / 7.20 | 21.60 / 32.40 | 0.36 / 0.72 |
+  | gemini-2.5-pro, <=200K / >200K | 2.25 / 4.50 | 18 / 27 | 0.225 / 0.45 |
+  | gemini-2.5-flash | 0.54 | 4.50 | 0.054 |
+  | gemini-2.5-flash-lite | 0.18 | 0.72 | 0.018 |
+
+  Preserve all existing input, cache-read (including `input_cache_read`), output,
+  and reasoning aliases in each new tier. Existing audio-input keys use
+  $0.90/MTok for 3.1 Flash-Lite, $1.80 for 2.5 Flash, and $0.54 for 2.5 Flash-Lite.
+  Keep existing grounding rates unchanged. Do not infer a universal multiplier:
+  3.5 Flash-Lite explicitly lists a $0.05 cache rate. The 3.6/3.7/3.8 Flash rates
+  are introductory through December 31, 2026; recheck their January 1 increase.
+  These are Developer API rates; do not infer Vertex regional or reserved-capacity
+  pricing from them. Retired previews, media models, Flex, cache storage, and new
+  modality buckets require separate evidence and are outside this change.
 
 Capture:
 

@@ -20,11 +20,12 @@ The 2026-09-14 run re-fetched the full Anthropic pricing table (plus the
 models-overview table), the full OpenAI standard/Fast-mode/Flex pricing tables plus
 the full model catalog page, both Gemini pricing pages (2.5-family and 3.x-family)
 plus the Gemini models catalog, and a dedicated re-fetch of `gpt-5-chat-latest`'s own
-model page. Every price already in the file matched verbatim; no pricing or catalog
-changes were made. This run found one new durable finding — a Gemini 3.x "Priority"
-processing pricing column with no documented request-parameter mechanism, confirmed
-out of scope for the same reason as OpenAI's Batch tier — recorded as unresolved
-finding #12 below and in `provider-sources-and-price-keys.md`'s 2026-09-14 entry.
+model page. The original audit left prices unchanged, but its claim that Gemini
+Priority had no request-time selector was incorrect. The focused follow-up verified
+the documented `service_tier` parameter and added 13 Priority tiers across 11 Gemini
+text models, including the two Pro large-context variants. Existing Standard prices
+are unchanged. See the resolved Priority finding below and
+`provider-sources-and-price-keys.md` for rates, selectors, and downgrade handling.
 The 2026-09-10 run before it re-fetched the same set of official pages and also found
 no drift beyond confirming `gpt-6-astra` (added 2026-09-03, not yet reflected in the
 prior 2026-09-02 snapshot below) and ran the deterministic validator's
@@ -228,17 +229,17 @@ to have siblings `gpt-5.5-cyber`/`gpt-5.4-cyber`, see provider-sources-and-price
     "backfill legacy alias coverage" should address it deliberately, entry by entry,
     rather than as an audit side-effect.
 
-12. **Gemini 3.x "Priority" processing pricing tier — documented but not
-    representable (found 2026-09-14)** — `ai.google.dev/gemini-api/docs/pricing`
-    now shows a "Priority" price column (roughly 1.8x Standard) alongside
-    Standard/Batch/Flex for every Gemini 3.x model. A targeted fetch asking how a
-    developer selects Priority processing found no documented request
-    parameter, header, or API field — unlike OpenAI's `service_tier` or
-    Anthropic's `speed`, there is no known mechanism that would appear in
-    Langfuse's ingested usage payloads, and it is unclear whether this is even
-    reachable via the direct Gemini API versus only Vertex AI provisioned/
-    dedicated capacity (a reservation-based billing model, not a per-request
-    condition). Not added to any pricing entry, same treatment as the
-    long-standing OpenAI Batch-tier exclusion. Re-investigate only if a future
-    Gemini API reference documents an actual request-time parameter for this
-    tier.
+## Resolved Priority finding (September 14 2026)
+
+Gemini Priority is representable through `modelParameters.service_tier: "priority"`.
+The [Priority guide](https://ai.google.dev/gemini-api/docs/priority-inference) and
+[OpenAI compatibility guide](https://ai.google.dev/gemini-api/docs/openai#flex-and-priority-inference)
+document the selector. The catalog includes all 11 text models listed in the
+Priority guide, with combined Priority/context tiers for both Pro models.
+The older snapshot rows above describe Standard prices; the current Priority rates
+and exact model list are in `provider-sources-and-price-keys.md`.
+
+Record the actual response tier from `x-gemini-service-tier` in model parameters:
+Google can downgrade requests and bill Standard. Native Gemini response-header
+capture is not automatic in Langfuse. This catalog update does not implement SDK
+instrumentation, Vertex-specific billing, Flex, storage costs, or historical repricing.
