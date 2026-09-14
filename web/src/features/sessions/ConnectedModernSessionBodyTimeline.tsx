@@ -447,6 +447,7 @@ export function ConnectedModernSessionBodyTimeline({
           openPeek={openPeek}
           controller={timelineController}
           scrollTarget={scrollTarget}
+          onClearFilters={sidebarFilterControls.onClearFilters}
           onFilterObservationByName={onFilterObservationByName}
           onLoadMoreObservations={
             hasMoreObservations && !isLoadingMoreObservations

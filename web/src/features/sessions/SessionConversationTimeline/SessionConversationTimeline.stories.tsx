@@ -1810,7 +1810,7 @@ const observationActions = {
 const loadedArgs = {
   traces: [{ trace, turnNumber: 1, observations }],
   filterMeasurementKey: "default",
-  emptyMessage: "This trace has no observations.",
+  emptyState: { type: "empty" },
   onOpenTrace: fn(),
   onOpenObservation: fn(),
   observationActions,
@@ -2040,11 +2040,23 @@ export const Empty = meta.story({
 });
 
 export const FilteredEmpty = meta.story({
+  name: "(Test) Filtered Empty",
   args: {
     ...loadedArgs,
     traces: [{ trace, turnNumber: 1, observations: [] }],
-    emptyMessage:
-      "No observation matches the “Generations” view in this trace.",
+    emptyState: {
+      type: "filtered-empty",
+      viewLabel: "Generations",
+      onClearFilters: fn(),
+    },
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Clear filters" }),
+    );
+    if (args.emptyState.type !== "filtered-empty") throw new globalThis.Error();
+    await expect(args.emptyState.onClearFilters).toHaveBeenCalledOnce();
   },
 });
 
