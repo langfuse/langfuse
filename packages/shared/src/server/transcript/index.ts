@@ -19,7 +19,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 /** Object property order and observation provenance do not define identity. */
 function messageKey(message: NormalizedMessage): string {
   return JSON.stringify(
-    [message.role, message.senderName, message.parts],
+    [message.role, message.parts],
     (_key, value: unknown) =>
       isRecord(value)
         ? Object.fromEntries(

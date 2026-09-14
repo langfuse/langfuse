@@ -57,6 +57,7 @@ the repositories produce from ClickHouse rows. Returns `null` when no transcript
 - Whether status messages and error indications become transcript content.
 - If/How to pick the user question and the final assistant answer out of a
   thread.
+- Consideration if we should include root observation output?
 
 ## Working with the Interface
 
@@ -70,7 +71,7 @@ the repositories produce from ClickHouse rows. Returns `null` when no transcript
 - Generations are walked in start order across all traces in the input. Each
   one runs through `normalizeIO`; its messages are considered input first,
   then output.
-- A message is identified by role, sender name, and parts. `source` and
+- A message is identified by role and parts. `senderName`, `source`, and
   `finishReason` are not part of the identity, so an output message that
   later reappears as replayed input history collapses onto its first
   sighting.
