@@ -207,6 +207,15 @@ const breakdownRowVariants = cva("min-w-0 items-center text-xs", {
   },
 });
 
+const breakdownLabelVariants = cva("min-w-0 truncate", {
+  variants: {
+    layout: {
+      default: "flex-1",
+      waterfall: "max-w-52",
+    },
+  },
+});
+
 const waterfallSegmentVariants = cva("bg-primary/60 absolute h-full", {
   variants: {
     edge: {
@@ -235,14 +244,16 @@ function BreakdownRow({
   variant: NonNullable<VariantProps<typeof breakdownRowVariants>["variant"]>;
   waterfallSegment?: WaterfallSegment;
 }) {
+  const layout = waterfallSegment ? "waterfall" : "default";
+
   return (
     <div
       className={breakdownRowVariants({
-        layout: waterfallSegment ? "waterfall" : "default",
+        layout,
         variant,
       })}
     >
-      <span className="max-w-52 min-w-0 flex-1 truncate" title={label}>
+      <span className={breakdownLabelVariants({ layout })} title={label}>
         {label}
       </span>
       {waterfallSegment ? (
