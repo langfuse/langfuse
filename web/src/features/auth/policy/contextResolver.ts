@@ -1,5 +1,5 @@
 import { type ApiKey } from "@langfuse/shared/src/db";
-import { CloudConfigSchema, InternalServerError } from "@langfuse/shared";
+import { CloudConfigSchema, type InternalServerError } from "@langfuse/shared";
 
 import { apiKeyAccessRights } from "@/src/features/rbac/constants/apiKeyAccessRights";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
@@ -9,6 +9,7 @@ import {
   type OrganizationWithProjects,
 } from "./organizationRepository";
 import {
+  internalServerError,
   wildcard,
   type AuthorizationContext,
   type BoundResource,
@@ -53,12 +54,9 @@ export class ContextResolver {
     const found = await this.loadOrganization(apiKey);
     if (!found.success) return found;
     if (!found.organization) {
-      return {
-        success: false,
-        error: new InternalServerError(
-          `verified key ${apiKey.id} resolved to no organization`,
-        ),
-      };
+      return internalServerError(
+        `verified key ${apiKey.id} resolved to no organization`,
+      );
     }
     return {
       success: true,
@@ -72,20 +70,12 @@ export class ContextResolver {
   ): Promise<GetOrganizationResult> {
     if (apiKey.scope === "ORGANIZATION") {
       if (apiKey.orgId === null) {
-        return {
-          success: false,
-          error: new InternalServerError(`org key ${apiKey.id} has no orgId`),
-        };
+        return internalServerError(`org key ${apiKey.id} has no orgId`);
       }
       return this.orgs.getOrganizationByOrgId(apiKey.orgId);
     }
     if (apiKey.projectId === null) {
-      return {
-        success: false,
-        error: new InternalServerError(
-          `project key ${apiKey.id} has no projectId`,
-        ),
-      };
+      return internalServerError(`project key ${apiKey.id} has no projectId`);
     }
     return this.orgs.getOrganizationByProjectId(apiKey.projectId);
   }

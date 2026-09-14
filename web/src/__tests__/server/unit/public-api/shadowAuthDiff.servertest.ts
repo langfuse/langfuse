@@ -23,7 +23,10 @@ const legacyAllow = {
   success: true,
   scope: { accessLevel: "project" },
 } as LegacyDecision;
-const legacyDeny = { success: false, status: 403 } as LegacyDecision;
+const legacyDeny = {
+  success: false,
+  error: { httpCode: 403 },
+} as LegacyDecision;
 
 describe("shadowAuthDiff — the ship-gate signal", () => {
   it.each([

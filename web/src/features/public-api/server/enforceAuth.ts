@@ -1,9 +1,9 @@
 import { type NextApiRequest } from "next";
 
 import {
-  ForbiddenError,
-  InternalServerError,
-  LangfuseNotFoundError,
+  type ForbiddenError,
+  type InternalServerError,
+  type LangfuseNotFoundError,
   type UnauthorizedError,
 } from "@langfuse/shared";
 import { type ApiAccessScope } from "@langfuse/shared/src/server";
@@ -13,7 +13,10 @@ import { authorize } from "@/src/features/auth/policy/authorize";
 import { authenticator } from "@/src/features/apiKey/authenticator";
 import { toApiAccessScope } from "@/src/features/public-api/server/toApiAccessScope";
 import {
+  forbiddenError,
+  internalServerError,
   isOrgAction,
+  notFoundError,
   type Action,
   type AuthorizationContext,
   type ErrorResult as ErrorResultOf,
@@ -215,23 +218,6 @@ function equal(os: (string | undefined)[]): boolean {
 /** first returns the first defined value. */
 function first(os: (string | undefined)[]): string | undefined {
   return os.find((o) => o !== undefined);
-}
-
-/** forbiddenError is a 403 ErrorResult carrying an optional message. */
-function forbiddenError(message?: string): ErrorResultOf<ForbiddenError> {
-  return { success: false, error: new ForbiddenError(message) };
-}
-
-/** notFoundError is a 404 ErrorResult carrying an optional message. */
-function notFoundError(message?: string): ErrorResultOf<LangfuseNotFoundError> {
-  return { success: false, error: new LangfuseNotFoundError(message) };
-}
-
-/** internalServerError is a 500 ErrorResult carrying an optional message. */
-function internalServerError(
-  message?: string,
-): ErrorResultOf<InternalServerError> {
-  return { success: false, error: new InternalServerError(message) };
 }
 
 /** access is returned when the enforceAuth grants access */

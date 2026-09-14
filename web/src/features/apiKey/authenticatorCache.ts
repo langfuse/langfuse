@@ -15,6 +15,7 @@ import {
   type Authenticated,
 } from "@/src/features/apiKey/authenticator";
 import {
+  unauthorizedError,
   type AuthorizationContext,
   type ErrorResult,
 } from "@/src/features/auth/policy/types";
@@ -97,7 +98,7 @@ function toEntry(result: ApiKeyAuthResults): CachedEntry | null {
 /** deserialize reconstructs a cache hit from its stored row. */
 function deserialize(entry: CachedEntry): ResolveContextResult {
   if ("context" in entry) return { success: true, context: entry.context };
-  return { success: false, error: new UnauthorizedError(entry.unauthorized) };
+  return unauthorizedError(entry.unauthorized);
 }
 
 /** ResolveContextResult is a cache hit: a resolved context or a replayed 401, never a 500. */
