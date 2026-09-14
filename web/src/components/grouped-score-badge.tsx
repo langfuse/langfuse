@@ -30,8 +30,8 @@ const groupMetricCount = <T extends ChipScore>(group: ScoreChipGroup<T>) =>
 /**
  * One number for a group and the count it stands for. Numeric and boolean
  * metrics average (booleans count 0 / 1, so the mean is the share that is
- * true) and the count is the metrics that went into it, so metrics without a
- * numeric value are simply not counted. Categorical-only groups show the
+ * true); metrics without a numeric value are left out of the mean but still
+ * count toward the group size. Categorical-only groups show the
  * majority value and its share. `text` is null when there is nothing to
  * summarise.
  */
@@ -49,7 +49,7 @@ const groupSummary = <T extends ChipScore>(
     const average =
       numericValues.reduce((sum, value) => sum + value, 0) /
       numericValues.length;
-    return { count: numericValues.length, text: `Avg ${average.toFixed(2)}` };
+    return { count: total, text: `Avg ${average.toFixed(2)}` };
   }
   const tally = new Map<string, number>();
   for (const score of group.scores) {
