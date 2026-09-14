@@ -219,9 +219,21 @@ const breakdownRowVariants = cva("min-w-0 items-center gap-3 text-xs", {
   },
 });
 
+const waterfallSegmentVariants = cva("bg-primary/60 absolute h-full", {
+  variants: {
+    edge: {
+      only: "rounded-sm",
+      first: "rounded-l-sm",
+      middle: "",
+      last: "rounded-r-sm",
+    },
+  },
+});
+
 interface WaterfallSegment {
   left: number;
   width: number;
+  edge: NonNullable<VariantProps<typeof waterfallSegmentVariants>["edge"]>;
 }
 
 function BreakdownRow({
@@ -251,7 +263,9 @@ function BreakdownRow({
           aria-hidden="true"
         >
           <span
-            className="bg-primary/60 absolute h-full rounded-sm"
+            className={waterfallSegmentVariants({
+              edge: waterfallSegment.edge,
+            })}
             style={{
               left: `${waterfallSegment.left}%`,
               width: `${waterfallSegment.width}%`,
@@ -319,18 +333,33 @@ function createWaterfallSegments(
     (sum, [, value]) => sum + Math.max(value ?? 0, 0),
     0,
   );
+  const contributionCount = entries.reduce(
+    (count, [, value]) => count + ((value ?? 0) > 0 ? 1 : 0),
+    0,
+  );
 
   if (total === 0) return new Map();
 
   let cumulative = 0;
+  let contributionIndex = 0;
   return new Map(
     entries.map(([key, value]) => {
       const contribution = Math.max(value ?? 0, 0);
+      const edge: WaterfallSegment["edge"] =
+        contributionCount === 1
+          ? "only"
+          : contributionIndex === 0
+            ? "first"
+            : contributionIndex === contributionCount - 1
+              ? "last"
+              : "middle";
       const segment = {
         left: (cumulative / total) * 100,
         width: (contribution / total) * 100,
+        edge,
       };
       cumulative += contribution;
+      if (contribution > 0) contributionIndex += 1;
       return [key, segment];
     }),
   );
