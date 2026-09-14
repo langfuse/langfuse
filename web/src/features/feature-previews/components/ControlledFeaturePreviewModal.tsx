@@ -70,11 +70,13 @@ export function ControlledFeaturePreviewModal({
         !isV4 ||
         !isModernSessionEnabled ||
         authSession.data?.environment.enableExperimentalFeatures === true,
-      warningReason: !isModernSessionEnabled
-        ? "Enable Compact Session View before enabling the Session Timeline."
-        : authSession.data?.environment.enableExperimentalFeatures === true
-          ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
-          : undefined,
+      warningReason: !isV4
+        ? `Compact Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
+        : !isModernSessionEnabled
+          ? "Enable Compact Session View before enabling the Session Timeline."
+          : authSession.data?.environment.enableExperimentalFeatures === true
+            ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
+            : undefined,
       onToggle: onToggle("sessionTimeline"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
