@@ -32,6 +32,28 @@ describe("PrettyJsonView table header visibility", () => {
     ).toBeInTheDocument();
   });
 
+  it("hides the header on an untitled table but keeps copy and expand all", () => {
+    renderPrettyJson(
+      <PrettyJsonView
+        json={json}
+        styleVariant="dense-dotbreak"
+        lockStyleVariant
+      />,
+    );
+
+    expect(screen.queryByText("Path")).not.toBeInTheDocument();
+    expect(screen.queryByText("Value")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Copy to clipboard" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Expand all rows" }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("table")).getByText("brand"),
+    ).toBeInTheDocument();
+  });
+
   it("keeps the header for standalone tables, the current style, and explicit opt-in", () => {
     const standalone = renderPrettyJson(<PrettyJsonView json={json} />);
     expect(screen.getByText("Path")).toBeInTheDocument();

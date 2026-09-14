@@ -21,8 +21,10 @@ import { Button } from "@/src/components/ui/button";
 import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import {
+  Check,
   ChevronDown,
   ChevronRight,
+  Copy,
   UnfoldVertical,
   FoldVertical,
   Palette,
@@ -954,6 +956,62 @@ function JsonPrettyTable({
   );
 }
 
+/** Copy and expand all for a table that renders without a header to host
+    them: no section title (MarkdownJsonViewHeader) and no Path / Value row.
+    Anchored to the table's top right corner, revealed on hover and on
+    keyboard focus. */
+function JsonTableHoverControls({
+  allRowsExpanded,
+  onToggleExpandAll,
+  onCopy,
+}: {
+  allRowsExpanded: boolean;
+  onToggleExpandAll: () => void;
+  onCopy: (event?: React.MouseEvent<HTMLButtonElement>) => void;
+}) {
+  const [isCopied, setIsCopied] = useState(false);
+  const expandLabel = allRowsExpanded ? "Collapse all rows" : "Expand all rows";
+
+  return (
+    <div className="bg-background absolute top-0.5 right-0.5 z-10 flex items-center gap-0.5 rounded-sm opacity-0 transition-opacity group-hover/json-table:opacity-100 focus-within:opacity-100">
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        type="button"
+        onClick={onToggleExpandAll}
+        className="hover:bg-border"
+        title={expandLabel}
+        aria-label={expandLabel}
+      >
+        {allRowsExpanded ? (
+          <FoldVertical className="h-3 w-3" />
+        ) : (
+          <UnfoldVertical className="h-3 w-3" />
+        )}
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        type="button"
+        onClick={(event) => {
+          setIsCopied(true);
+          onCopy(event);
+          setTimeout(() => setIsCopied(false), 1000);
+        }}
+        className="hover:bg-border"
+        title="Copy to clipboard"
+        aria-label="Copy to clipboard"
+      >
+        {isCopied ? (
+          <Check className="h-3 w-3" />
+        ) : (
+          <Copy className="h-3 w-3" />
+        )}
+      </Button>
+    </div>
+  );
+}
+
 /** One radio group of the debug menu: every style direction for `dataClass`. */
 function JsonTableStyleRadioGroup({
   dataClass,
@@ -1290,13 +1348,18 @@ export function PrettyJsonView(props: {
   const showStylePicker = useShowJsonTableStylePicker() && !styleVariantLocked;
   const showAllStyles = useShowAllJsonTableStyles();
   const hasTitle = Boolean(props.title);
+  // Untitled tables have no section header to hang copy and expand all on,
+  // so styles that drop the Path / Value row there get them as hover-revealed
+  // controls anchored to the table instead.
+  const untitledHeaderDropped = !hasTitle && !tableStyle.headerWhenUntitled;
   // Title-owned tables drop the Path / Value header and the outer box (the
   // section title is the frame) unless the style keeps them. Single-column
   // layouts never show the header. Toned containers keep their tinted border.
   const hideTableHeader =
     props.hideHeader ??
     (tableStyle.layout !== "columns" ||
-      (hasTitle && !tableStyle.headerUnderTitle));
+      (hasTitle && !tableStyle.headerUnderTitle) ||
+      untitledHeaderDropped);
   const tableBorderless = hasTitle && !tableStyle.boxUnderTitle && !props.tone;
 
   // JSONView internally calls deepParseJson (with maxDepth:3) which mutates
@@ -1703,6 +1766,9 @@ export function PrettyJsonView(props: {
     !isChatML &&
     !isMarkdown &&
     !emptyValueDisplay;
+  // The table is the only frame left: neither header can carry the controls.
+  const showTableHoverControls =
+    shouldUseTableView && untitledHeaderDropped && hideTableHeader;
 
   const getBackgroundColorClass = () =>
     cn(
@@ -1785,8 +1851,16 @@ export function PrettyJsonView(props: {
                 // containment zeroes this flex item's intrinsic width, so it
                 // takes the row width explicitly.
                 tableHasContentSizedKeys && "@container w-full",
+                showTableHoverControls && "group/json-table relative",
               )}
             >
+              {showTableHoverControls ? (
+                <JsonTableHoverControls
+                  allRowsExpanded={allRowsExpanded}
+                  onToggleExpandAll={() => expandAllRef.current?.()}
+                  onCopy={handleOnCopy}
+                />
+              ) : null}
               {props.isLoading ? (
                 <Skeleton className="m-3 h-3 w-3/4" />
               ) : (

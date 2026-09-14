@@ -180,6 +180,10 @@ export type JsonTableStyle = {
   layout: "columns" | "inline" | "stacked";
   /** Keep the Path / Value header row when a title frames the table. */
   headerUnderTitle: boolean;
+  /** Keep the Path / Value header row when nothing frames the table (no
+      title). False moves copy and expand all onto the table itself, revealed
+      on hover. */
+  headerWhenUntitled: boolean;
   /** Keep the outer rounded box when a title frames the table. */
   boxUnderTitle: boolean;
   /** Width in px reserved for the chevron column at level 0. */
@@ -224,6 +228,7 @@ const MONO_KEY = "font-mono text-xs wrap-break-word";
 const QUIET_KEY = "text-muted-foreground text-xs wrap-break-word";
 
 const BASE_FLAGS = {
+  headerWhenUntitled: true,
   zebra: false,
   leafDot: false,
   connector: false,
@@ -271,6 +276,7 @@ export const JSON_TABLE_STYLES: Record<JsonTableStyleVariant, JsonTableStyle> =
         "Two columns, key column sized to the keys, hairline per row, dotted keys wrap at the dots, nested parents show N keys / N items",
       layout: "columns",
       headerUnderTitle: false,
+      headerWhenUntitled: false,
       boxUnderTitle: false,
       indentBase: 16,
       key: QUIET_KEY,
@@ -286,6 +292,7 @@ export const JSON_TABLE_STYLES: Record<JsonTableStyleVariant, JsonTableStyle> =
         "Table without the row dividers: two columns, key column sized to the keys, dotted keys wrap at the dots, nested parents show N keys / N items",
       layout: "columns",
       headerUnderTitle: false,
+      headerWhenUntitled: false,
       boxUnderTitle: false,
       indentBase: 16,
       key: QUIET_KEY,
