@@ -2,6 +2,11 @@ import { useMemo, useState, type ReactNode } from "react";
 import { TriangleAlert } from "lucide-react";
 
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
+import {
+  classifyMediaValue,
+  splitStringByMediaReferences,
+} from "@/src/components/ui/media/mediaUtils";
 import type {
   ActiveVariableMapping,
   VariableFieldState,
@@ -22,7 +27,7 @@ import {
   deepParseJsonIterative,
   experimentTargetEvalVariableColumns,
 } from "@langfuse/shared";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 const TOOL_CALLS_COLUMN_ID = "toolCalls";
 
@@ -39,6 +44,13 @@ const focusEditingSurface = (element: HTMLDivElement | null) => {
 function MappedValuePreview({ value }: { value: string }) {
   const parsed = useMemo(() => deepParseJsonIterative(value), [value]);
   const isJson = parsed !== null && typeof parsed === "object";
+  const mediaSegments = useMemo(() => {
+    const descriptor = classifyMediaValue(value);
+    return descriptor
+      ? [{ type: "media" as const, descriptor }]
+      : splitStringByMediaReferences(value);
+  }, [value]);
+  const hasMedia = mediaSegments.some((segment) => segment.type === "media");
 
   return (
     <div>
@@ -53,6 +65,21 @@ function MappedValuePreview({ value }: { value: string }) {
           scrollable={true}
           className="max-h-96 [&_.border]:border-0 [&_.rounded-sm]:rounded-none"
         />
+      ) : hasMedia ? (
+        <div
+          data-testid="mapped-media-preview"
+          className="flex max-h-96 flex-wrap items-center gap-1 overflow-y-auto p-3 text-sm"
+        >
+          {mediaSegments.map((segment, index) =>
+            segment.type === "media" ? (
+              <MediaReferenceTag key={index} descriptor={segment.descriptor} />
+            ) : (
+              <span key={index} className="break-words whitespace-pre-wrap">
+                {segment.value}
+              </span>
+            ),
+          )}
+        </div>
       ) : (
         <pre className="max-h-96 overflow-y-auto p-3 font-sans text-sm break-words whitespace-pre-wrap">
           {value}
@@ -78,8 +105,22 @@ function MappingPreviewSurface({
       aria-label={`Change mapping for {{${variable}}}`}
       title={`Change mapping for {{${variable}}}`}
       className="hover:bg-muted/50 focus-visible:ring-ring cursor-pointer rounded-b-md transition-colors focus-visible:ring-2 focus-visible:outline-hidden focus-visible:ring-inset"
-      onClick={onEdit}
+      onClick={(event) => {
+        if (
+          event.target instanceof Element &&
+          event.target.closest("[data-media-tag]")
+        ) {
+          return;
+        }
+        onEdit();
+      }}
       onKeyDown={(event) => {
+        if (
+          event.target instanceof Element &&
+          event.target.closest("[data-media-tag]")
+        ) {
+          return;
+        }
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           onEdit();

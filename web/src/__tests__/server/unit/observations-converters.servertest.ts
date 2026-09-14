@@ -169,5 +169,25 @@ describe("convertEventsObservation", () => {
       expect(result).toHaveProperty("release", null);
       expect(result).toHaveProperty("tags", null);
     });
+
+    it("keeps missing cost as null and preserves an explicit zero", () => {
+      const missing = convertEventsObservation(
+        makeRecord({ cost_details: {} }),
+        DEFAULT_RENDERING_PROPS,
+        true,
+      );
+      expect(missing.totalCost).toBeNull();
+      expect(missing.inputCost).toBeNull();
+      expect(missing.outputCost).toBeNull();
+
+      const explicitZero = convertEventsObservation(
+        makeRecord({ cost_details: { total: 0, input: 0, output: 0 } }),
+        DEFAULT_RENDERING_PROPS,
+        true,
+      );
+      expect(explicitZero.totalCost).toBe(0);
+      expect(explicitZero.inputCost).toBe(0);
+      expect(explicitZero.outputCost).toBe(0);
+    });
   });
 });

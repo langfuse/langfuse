@@ -6,6 +6,7 @@ import {
   StorageServiceFactory,
   type StorageService,
 } from "@langfuse/shared/src/server";
+import { metricAggregations, viewDeclarations } from "@langfuse/shared/query";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
 
@@ -82,6 +83,108 @@ export const mapEvaluationRuleToCoreDataRow = ({
   ...evaluationRule,
   sampling: sampling.toNumber(),
 });
+
+// Widget dimensions/metrics/chart config are persisted as free-form strings
+// (DimensionSchema/MetricSchema accept any z.string()), so an API client can
+// smuggle arbitrary text into them. The export therefore allowlists every
+// string against the query-model declarations and replaces unknown values
+// with a sentinel instead of forwarding them.
+const KNOWN_WIDGET_MEASURES = new Set(
+  Object.values(viewDeclarations).flatMap((versionViews) =>
+    Object.values(versionViews).flatMap((view) => Object.keys(view.measures)),
+  ),
+);
+const KNOWN_WIDGET_DIMENSIONS = new Set(
+  Object.values(viewDeclarations).flatMap((versionViews) =>
+    Object.values(versionViews).flatMap((view) => Object.keys(view.dimensions)),
+  ),
+);
+const KNOWN_WIDGET_AGGREGATIONS = new Set<string>(metricAggregations.options);
+const INVALID_SENTINEL = "__invalid__";
+
+const allowlisted = (value: unknown, allowlist: Set<string>): string | null =>
+  value == null
+    ? null
+    : typeof value === "string" && allowlist.has(value)
+      ? value
+      : INVALID_SENTINEL;
+
+type DashboardWidgetCoreDataInput = {
+  dimensions: unknown;
+  metrics: unknown;
+  filters: unknown;
+  chartConfig: unknown;
+} & Record<string, unknown>;
+
+// Widget filters carry customer-entered values (user ids, metadata values,
+// tool names, ...). Analytics only needs which columns/operators are used, so
+// the values (and metadata keys) are stripped before export; every other
+// string field is allowlisted (see above).
+export const mapDashboardWidgetToCoreDataRow = ({
+  dimensions,
+  metrics,
+  filters,
+  chartConfig,
+  ...widget
+}: DashboardWidgetCoreDataInput) => {
+  const config = (chartConfig ?? {}) as Record<string, unknown>;
+  return {
+    ...widget,
+    dimensions: Array.isArray(dimensions)
+      ? dimensions.map((dimension: Record<string, unknown>) => ({
+          field: allowlisted(dimension.field, KNOWN_WIDGET_DIMENSIONS),
+        }))
+      : [],
+    metrics: Array.isArray(metrics)
+      ? metrics.map((metric: Record<string, unknown>) => ({
+          measure: allowlisted(metric.measure, KNOWN_WIDGET_MEASURES),
+          agg: allowlisted(metric.agg, KNOWN_WIDGET_AGGREGATIONS),
+        }))
+      : [],
+    filters: Array.isArray(filters)
+      ? filters.map((filter: Record<string, unknown>) => ({
+          column: filter.column ?? null,
+          operator: filter.operator ?? null,
+          type: filter.type ?? null,
+        }))
+      : [],
+    // Explicit safe scalars only; defaultSort.column is a free string and is
+    // deliberately not exported.
+    chartConfig: {
+      type: typeof config.type === "string" ? config.type : null,
+      row_limit: typeof config.row_limit === "number" ? config.row_limit : null,
+      bins: typeof config.bins === "number" ? config.bins : null,
+    },
+  };
+};
+
+type DashboardCoreDataInput = {
+  definition: unknown;
+} & Record<string, unknown>;
+
+// Dashboard definitions hold widget placements; explicit field picks keep any
+// unexpected persisted keys out of the export.
+export const mapDashboardToCoreDataRow = ({
+  definition,
+  ...dashboard
+}: DashboardCoreDataInput) => {
+  const widgets = (definition as { widgets?: unknown })?.widgets;
+  return {
+    ...dashboard,
+    definition: {
+      widgets: Array.isArray(widgets)
+        ? widgets.map((placement: Record<string, unknown>) => ({
+            type: placement.type ?? null,
+            widgetId: placement.widgetId ?? null,
+            x: placement.x ?? null,
+            y: placement.y ?? null,
+            x_size: placement.x_size ?? null,
+            y_size: placement.y_size ?? null,
+          }))
+        : [],
+    },
+  };
+};
 
 type TablePageArgs<TCursor> = {
   lastRow: TCursor | null;
@@ -622,6 +725,60 @@ export const coreDataTableExports: Array<
             updatedAt: true,
           },
         }),
+    }),
+  (args) =>
+    uploadTableCoreDataJsonl({
+      ...args,
+      tableName: "dashboards",
+      // Customer-authored name/description are free text and intentionally
+      // excluded; the definition JSON holds only widget placements (ids,
+      // positions, sizes). projectId NULL marks Langfuse-owned templates.
+      fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
+        prisma.dashboard.findMany({
+          take,
+          ...(lastRow ? { cursor: { id: lastRow.id }, skip: 1 } : {}),
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            projectId: true,
+            createdBy: true,
+            definition: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+      mapRow: mapDashboardToCoreDataRow,
+    }),
+  (args) =>
+    uploadTableCoreDataJsonl({
+      ...args,
+      tableName: "dashboardWidgets",
+      // Customer-authored name/description are free text and intentionally
+      // excluded; filter values are stripped in the mapper. The remaining
+      // shape (view, metrics, dimensions, chart type) is what dashboard
+      // product decisions need (e.g. which aggregation users pair with a
+      // measure). projectId NULL marks Langfuse-owned template widgets.
+      fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
+        prisma.dashboardWidget.findMany({
+          take,
+          ...(lastRow ? { cursor: { id: lastRow.id }, skip: 1 } : {}),
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            projectId: true,
+            createdBy: true,
+            view: true,
+            dimensions: true,
+            metrics: true,
+            filters: true,
+            chartType: true,
+            chartConfig: true,
+            minVersion: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+      mapRow: mapDashboardWidgetToCoreDataRow,
     }),
 ];
 

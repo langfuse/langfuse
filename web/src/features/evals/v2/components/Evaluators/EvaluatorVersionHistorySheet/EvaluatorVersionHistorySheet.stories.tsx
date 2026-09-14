@@ -12,9 +12,12 @@ const version = {
   type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
   sourceCode: null,
   sourceCodeLanguage: null,
-  prompt: "Judge this response.",
+  promptMessages: [{ role: "user" as const, content: "Judge this response." }],
   provider: "openai",
   model: "gpt-4.1-mini",
+  modelParams: null,
+  vars: [],
+  variableMapping: null,
   outputDefinition: null,
   createdByUser: { name: "Ada Lovelace", email: "ada@example.com" },
 } satisfies EvaluatorVersion;
@@ -28,8 +31,8 @@ const defaultArgs = {
   versions: [version, { ...version, id: "version-1", version: 1 }],
   currentVersionId: version.id,
   defaultModel: { provider: "OpenAI", model: "gpt-4.1-mini" },
-  expandedVersionId: null,
-  onExpandedVersionChange: fn(),
+  onVersionExpansionChange: fn(),
+  onRestoreVersion: fn(),
   isLoading: false,
   hasMore: false,
   isLoadingMore: false,
@@ -41,5 +44,5 @@ export const VersionList = meta.story({
 });
 
 export const ExpandedVersion = meta.story({
-  args: { ...defaultArgs, expandedVersionId: version.id },
+  args: { ...defaultArgs, defaultExpandedVersionId: version.id },
 });

@@ -1,4 +1,5 @@
 import type { Session } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import { randomUUID } from "crypto";
 
 import type { Plan } from "@langfuse/shared";
@@ -6,10 +7,9 @@ import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import {
-  getFeaturePreviewOptOutFlag,
-  parseFlags,
-} from "@/src/features/feature-flags/utils";
+import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils";
+import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
+import { getAuthOptions } from "@/src/server/auth";
 
 describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -22,7 +22,7 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
-  it("enables the Modern Session preview, leaving other flags intact", async () => {
+  it("enables a preview, leaving other flags intact", async () => {
     const { caller, userId } = await createCaller({
       featureFlags: ["templateFlag"],
     });
@@ -45,7 +45,26 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     expect(user.featureFlags).toEqual(["templateFlag", "modernSession"]);
   });
 
-  it("disables a preview flag without touching the others", async () => {
+  it("allows users to enable the session timeline preview", async () => {
+    const { caller, userId } = await createCaller();
+
+    await caller.userAccount.setFeaturePreviewEnabled({
+      flag: "sessionTimeline",
+      enabled: true,
+    });
+
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { featureFlags: true },
+    });
+    expect(user.featureFlags).toEqual([
+      "templateFlag",
+      "sessionTimeline",
+      "modernSession",
+    ]);
+  });
+
+  it("persists a global opt-out when disabling a preview", async () => {
     const { caller, userId } = await createCaller({
       featureFlags: ["templateFlag", "modernSession"],
     });
@@ -65,38 +84,12 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
       where: { id: userId },
       select: { featureFlags: true },
     });
-    expect(user.featureFlags).toEqual(["templateFlag"]);
+    expect(user.featureFlags).toEqual([
+      "templateFlag",
+      getFeaturePreviewOptOutFlag("modernSession"),
+      getFeaturePreviewOptOutFlag("sessionTimeline"),
+    ]);
   });
-
-  it.each(["langfuse.com", "clickhouse.com"])(
-    "persists an opt-out when a team member on %s disables a preview",
-    async (emailDomain) => {
-      const { caller, userId } = await createCaller({
-        emailDomain,
-        featureFlags: ["templateFlag"],
-      });
-
-      await caller.userAccount.setFeaturePreviewEnabled({
-        flag: "modernSession",
-        enabled: false,
-      });
-
-      const user = await prisma.user.findUniqueOrThrow({
-        where: { id: userId },
-        select: { featureFlags: true, email: true },
-      });
-      expect(user.featureFlags).toEqual([
-        "templateFlag",
-        getFeaturePreviewOptOutFlag("modernSession"),
-      ]);
-      expect(
-        parseFlags(user.featureFlags, {
-          email: user.email,
-          v4BetaEnabled: true,
-        }).modernSession,
-      ).toBe(false);
-    },
-  );
 
   it("rejects enabling in self-hosted deployments", async () => {
     const { caller } = await createCaller();
@@ -108,6 +101,51 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
         enabled: true,
       }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+});
+
+describe("userAccountRouter.signOutAllSessions", () => {
+  it("advances the user's session revocation timestamp", async () => {
+    const { caller, userId } = await createCaller();
+    const beforeRevocation = new Date();
+
+    await expect(caller.userAccount.signOutAllSessions()).resolves.toEqual({
+      success: true,
+    });
+
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { sessionsExpiredAt: true },
+    });
+    expect(user.sessionsExpiredAt?.getTime()).toBeGreaterThanOrEqual(
+      beforeRevocation.getTime(),
+    );
+  });
+
+  it("evicts an older session and admits a later one", async () => {
+    const { caller, email, session } = await createCaller();
+    const revokedLoginAt = (await getSessionLoginAt(email, prisma)).getTime();
+
+    await caller.userAccount.signOutAllSessions();
+
+    const sessionCallback = (await getAuthOptions()).callbacks
+      ?.session as (params: {
+      session: Session;
+      token: JWT;
+    }) => Promise<Session>;
+
+    const revoked = await sessionCallback({
+      session,
+      token: { email, loginAt: revokedLoginAt },
+    });
+    expect(revoked.user).toBeNull();
+
+    const reLoginAt = (await getSessionLoginAt(email, prisma)).getTime();
+    const admitted = await sessionCallback({
+      session,
+      token: { email, loginAt: reLoginAt },
+    });
+    expect(admitted.user).not.toBeNull();
   });
 });
 
@@ -189,6 +227,7 @@ async function createCaller({
       ],
       featureFlags: {
         modernSession: featureFlags.includes("modernSession"),
+        sessionTimeline: featureFlags.includes("sessionTimeline"),
         searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
         excludeClickhouseRead: false,
@@ -210,6 +249,8 @@ async function createCaller({
     orgId,
     projectId,
     userId,
+    email: user.email!,
+    session,
     caller: appRouter.createCaller({ ...ctx, prisma }),
   };
 }

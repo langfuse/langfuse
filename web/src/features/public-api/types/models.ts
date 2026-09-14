@@ -181,7 +181,10 @@ export const PostModelsV1Body = z
 
     // Validation 2: If using flat prices, validate totalPrice constraint
     if (hasFlatPrices) {
-      if ((data.inputPrice || data.outputPrice) && data.totalPrice) {
+      if (
+        (data.inputPrice != null || data.outputPrice != null) &&
+        data.totalPrice != null
+      ) {
         ctx.addIssue({
           code: "custom",
           path: ["totalPrice"],
@@ -210,6 +213,9 @@ export const GetModelV1Query = z.object({
   modelId: z.string(),
 });
 export const GetModelV1Response = APIModelDefinition.strict();
+
+// PUT /models/{modelId}
+export const PutModelV1Response = APIModelDefinition.strict();
 
 // DELETE /models/{modelId}
 export const DeleteModelV1Query = z.object({

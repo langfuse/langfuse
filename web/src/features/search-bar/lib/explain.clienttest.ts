@@ -3,17 +3,59 @@
 import { deriveComposerSegments } from "@/src/features/search-bar/lib/composer-segments";
 import { explainSegment } from "@/src/features/search-bar/lib/explain";
 import { FIELDS } from "@/src/features/search-bar/lib/fields";
+import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
+import { SCORES_FIELD_REGISTRY } from "@/src/features/scores/constants/scoresSearchRegistry";
 
 /** Explain the nth token of `query` as the tooltip reads it. */
 function explain(query: string, index = 0): string | null {
   const segment = deriveComposerSegments(query)[index];
-  const explanation = segment === undefined ? null : explainSegment(segment);
+  const explanation =
+    segment === undefined ? null : explainSegment(segment, undefined, query);
   return explanation === null
     ? null
     : `${explanation.subject} ${explanation.predicate}`.trim();
 }
 
 describe("explainSegment", () => {
+  it.each([
+    ["Session ID", SESSIONS_FIELD_REGISTRY],
+    ["Score name", SCORES_FIELD_REGISTRY],
+  ] as const)("explains the default field %s", (subject, registry) => {
+    const segment = deriveComposerSegments(
+      '"refund policy"',
+      undefined,
+      registry,
+    )[0]!;
+    expect(explainSegment(segment, registry)).toEqual({
+      subject,
+      predicate: 'contains "refund policy".',
+    });
+  });
+
+  it("explains search scopes separately from column filters", () => {
+    expect(explain('content:"refund policy"')).toBe(
+      'Content — search only input and output for "refund policy".',
+    );
+    expect(explain('all:"refund policy"')).toBe(
+      'All fields — search IDs, names, input and output for "refund policy".',
+    );
+    expect(explain('input:"refund policy"')).toBe(
+      'Input contains "refund policy".',
+    );
+  });
+
+  it("explains a restored search scope as a scope selection", () => {
+    expect(explain('in:(id OR input) "refund policy"')).toBe(
+      "Search scope uses id or input.",
+    );
+    expect(explain('in:(id OR input) "refund policy"', 1)).toBe(
+      'Full-text search for "refund policy" — uses the scope selected by in:.',
+    );
+    expect(explain('"refund policy"')).toBe(
+      'Full-text search for "refund policy" — matches ids, names, input & output.',
+    );
+  });
+
   it("explains the shapes users misread", () => {
     // The reported confusion: what does a leading dash mean, and what is `env`?
     expect(explain("-env:langfuse-experiments")).toBe(
@@ -31,7 +73,7 @@ describe("explainSegment", () => {
     expect(explain("metadata.region:eu")).toBe(
       'Metadata "region" is exactly "eu".',
     );
-    expect(explain("level:ERROR")).toBe('Level is "ERROR".');
+    expect(explain("level:ERROR")).toBe('Status is "ERROR".');
     expect(explain("statusMessage:chat*")).toBe(
       'Status message starts with "chat".',
     );
@@ -54,7 +96,7 @@ describe("explainSegment", () => {
       "Start time is after 2026-06-01.",
     );
     expect(explain("-level:(ERROR OR WARNING)")).toBe(
-      'Level is none of "ERROR", "WARNING".',
+      'Status is none of "ERROR", "WARNING".',
     );
   });
 
@@ -72,7 +114,7 @@ describe("explainSegment", () => {
     // The label already says "per second" — don't spell the unit out twice.
     expect(explain("tps:>=50")).toBe("Tokens per second is 50 or more.");
     expect(explain("refund policy")).toBe(
-      'Full-text search for "refund policy" — matches id, name, input and output.',
+      'Full-text search for "refund policy" — matches ids, names, input & output.',
     );
     expect(explain("level:ERROR AND latency:>2", 1)).toBe(
       "AND — every filter has to match.",
@@ -95,7 +137,8 @@ describe("explainSegment", () => {
       }
       // Only array fields get a plural verb ("Trace tags include"); everything
       // else is followed by "is", so a plural label would read "… tokens is".
-      if (field.syncMode !== "arrayOption") {
+      // "Status" is a singular noun that happens to end in s.
+      if (field.syncMode !== "arrayOption" && field.label !== "Status") {
         expect(field.label, field.id).not.toMatch(/s$/);
       }
     }

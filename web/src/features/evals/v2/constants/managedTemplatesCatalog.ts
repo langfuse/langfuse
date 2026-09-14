@@ -75,7 +75,10 @@ export const MANAGED_TEMPLATES_CATALOG = {
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
-        prompt: `You are an expert intent-classification evaluator for AI conversations.
+        promptMessages: [
+          {
+            role: "user",
+            content: `You are an expert intent-classification evaluator for AI conversations.
 You will receive a user message.
 Your job is to classify the user's primary request into exactly one intent category.
 
@@ -105,9 +108,10 @@ Replace these examples with your own taxonomy before use:
 - "Can you add SAML support?" → feature_request
 
 User message: {{input}}`,
+          },
+        ],
         variables: [{ name: "input", defaultMapping: { field: "input" } }],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Predicted category.",
@@ -139,7 +143,10 @@ User message: {{input}}`,
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
-        prompt: `You are an Out-of-Scope Request Judge evaluating an LLM-based chat assistant.
+        promptMessages: [
+          {
+            role: "user",
+            content: `You are an Out-of-Scope Request Judge evaluating an LLM-based chat assistant.
 You will be provided with the agent's system prompt and the last user message.
 Your job is to decide whether the last user message contains a request that falls outside the defined scope of the assistant, as established by the system prompt.
 
@@ -188,12 +195,13 @@ System prompt: {{system_prompt}}
 Last user message: {{last_user_message}}
 
 Think step by step and return the structured result.`,
+          },
+        ],
         variables: [
           { name: "system_prompt", defaultMapping: { field: "input" } },
           { name: "last_user_message", defaultMapping: { field: "input" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "BOOLEAN",
           score: {
             description: "Boolean verdict.",
@@ -212,7 +220,10 @@ Think step by step and return the structured result.`,
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
-        prompt: `You are an expert user-disagreement evaluator for AI conversations.
+        promptMessages: [
+          {
+            role: "user",
+            content: `You are an expert user-disagreement evaluator for AI conversations.
 You will receive the conversation history and the last user message.
 Your job is to decide whether the last user message shows that the user perceives the assistant to have made an unjustified mistake or taken the wrong approach.
 
@@ -252,12 +263,13 @@ Return true only when the user clearly rejects, corrects, challenges, or repeate
 True if the user perceives an assistant error or wrong direction, false otherwise.
 Conversation history: {{conversation_history}}
 Last user message: {{last_user_message}}`,
+          },
+        ],
         variables: [
           { name: "conversation_history", defaultMapping: { field: "input" } },
           { name: "last_user_message", defaultMapping: { field: "input" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "BOOLEAN",
           score: {
             description: "Boolean verdict.",
@@ -279,8 +291,84 @@ Last user message: {{last_user_message}}`,
       evaluator: {
         type: "CODE",
         language: "TYPESCRIPT",
-        source:
-          'function evaluate(ctx: EvaluationContext): EvaluationResult {\n  const extractText = (value: unknown): string => {\n    if (typeof value === "string") return value;\n\n    if (Array.isArray(value)) {\n      return value.map((item) => extractText(item)).filter(Boolean).join("\\n");\n    }\n\n    if (value !== null && typeof value === "object") {\n      const record = value as Record<string, unknown>;\n      if ("content" in record) return extractText(record.content);\n      if ("text" in record) return extractText(record.text);\n      if ("parts" in record) return extractText(record.parts);\n    }\n\n    return "";\n  };\n\n  const input = ctx.observation.input;\n  const inputRecord =\n    input !== null && typeof input === "object" && !Array.isArray(input)\n      ? (input as Record<string, unknown>)\n      : null;\n  const messages = Array.isArray(input)\n    ? input\n    : Array.isArray(inputRecord?.messages)\n      ? inputRecord.messages\n      : [];\n\n  let message = messages[messages.length - 1];\n  for (let index = messages.length - 1; index >= 0; index -= 1) {\n    const candidate = messages[index];\n    if (candidate === null || typeof candidate !== "object") continue;\n\n    const record = candidate as Record<string, unknown>;\n    const role = record.role ?? record.type;\n    if (role === "user" || role === "human") {\n      message = candidate;\n      break;\n    }\n  }\n\n  const text = typeof input === "string" ? input : extractText(message ?? input);\n  const letters = text.match(/[A-Za-z]/g) ?? [];\n  const uppercaseLetters = text.match(/[A-Z]/g) ?? [];\n  const uppercaseRatio = letters.length === 0 ? 0 : uppercaseLetters.length / letters.length;\n  const isAllCaps = letters.length >= 4 && uppercaseRatio >= 0.8;\n\n  return {\n    scores: [\n      {\n        name: "All CAPS",\n        value: isAllCaps,\n        dataType: "BOOLEAN",\n      },\n    ],\n  };\n}',
+        source: `function evaluate(ctx: EvaluationContext): EvaluationResult {
+  /**
+   * "All CAPS" — true when the latest user message has >= 4 letters and
+   * >= 70% of them are uppercase. Counts ASCII letters only, so digits,
+   * punctuation, and emoji don't affect the ratio.
+   */
+  const extractText = (value: unknown): string => {
+    if (typeof value === "string") return value;
+    if (Array.isArray(value)) {
+      return value.map((item) => extractText(item)).filter(Boolean).join("\\n");
+    }
+    if (value !== null && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      if ("content" in record) return extractText(record.content);
+      if ("text" in record) return extractText(record.text);
+      if ("parts" in record) return extractText(record.parts);
+    }
+    return "";
+  };
+
+  // Accept all three input shapes: string, message array, { messages: [...] }.
+  const input = ctx.observation.input;
+  const inputRecord =
+    input !== null && typeof input === "object" && !Array.isArray(input)
+      ? (input as Record<string, unknown>)
+      : null;
+  const messages = Array.isArray(input)
+    ? input
+    : Array.isArray(inputRecord?.messages)
+      ? inputRecord.messages
+      : [];
+
+  // Default to the last message, then walk backwards for the latest user turn.
+  let message = messages[messages.length - 1];
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const candidate = messages[index];
+    if (candidate === null || typeof candidate !== "object") continue;
+    const record = candidate as Record<string, unknown>;
+    const role = record.role ?? record.type; // some SDKs use \`type\` for role
+    if (role === "user" || role === "human") {
+      message = candidate;
+      break;
+    }
+  }
+
+  // No messages at all: fall back to the whole input object.
+  const text = typeof input === "string" ? input : extractText(message ?? input);
+
+  const letters = text.match(/[A-Za-z]/g) ?? [];
+  const uppercaseLetters = text.match(/[A-Z]/g) ?? [];
+  const uppercaseRatio = letters.length === 0 ? 0 : uppercaseLetters.length / letters.length;
+  // 4-letter floor keeps "OK" and "WTF" out; 0.7 allows one lowercase word.
+  const isAllCaps = letters.length >= 4 && uppercaseRatio >= 0.7;
+
+  const reasoning =
+    letters.length < 4
+      ? \`\${letters.length} letters, too short\`
+      : \`\${Math.round(uppercaseRatio * 100)}% uppercase of \${letters.length} letters\`;
+
+  return {
+    scores: [
+      {
+        name: "All CAPS",
+        value: isAllCaps,
+        dataType: "BOOLEAN",
+        comment: reasoning,
+        metadata: {
+          rule: "all_caps",
+          letterCount: letters.length,
+          uppercaseCount: uppercaseLetters.length,
+          uppercaseRatio,
+          minLetters: 4,
+          ratioThreshold: 0.7,
+        },
+      },
+    ],
+  };
+}`,
       },
     },
     {
@@ -293,7 +381,10 @@ Last user message: {{last_user_message}}`,
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
-        prompt: `You are an expert user-distress evaluator for AI conversations.
+        promptMessages: [
+          {
+            role: "user",
+            content: `You are an expert user-distress evaluator for AI conversations.
 You will receive the conversation history and the last user message.
 Your job is to decide whether the last user message expresses meaningful user distress.
 
@@ -331,12 +422,13 @@ Score true only when the last user message clearly conveys a strong negative emo
 
 Conversation history: {{conversation_history}}
 Last user message: {{last_user_message}}`,
+          },
+        ],
         variables: [
           { name: "conversation_history", defaultMapping: { field: "input" } },
           { name: "last_user_message", defaultMapping: { field: "input" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "BOOLEAN",
           score: {
             description: "True if distress is present, false otherwise.",
@@ -358,7 +450,10 @@ Last user message: {{last_user_message}}`,
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
-        prompt: `You are an expert semantic-equivalence evaluator for AI systems.
+        promptMessages: [
+          {
+            role: "user",
+            content: `You are an expert semantic-equivalence evaluator for AI systems.
 You will receive an actual assistant output and an expected output.
 Your job is to decide whether the actual output preserves the expected output's material meaning.
 
@@ -393,6 +488,8 @@ True only when the actual output preserves every material semantic requirement i
 
 Actual assistant output: {{assistant_output}}
 Expected output: {{expected_output}}`,
+          },
+        ],
         variables: [
           { name: "assistant_output", defaultMapping: { field: "output" } },
           {
@@ -401,7 +498,6 @@ Expected output: {{expected_output}}`,
           },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "BOOLEAN",
           score: {
             description: "Boolean verdict.",
@@ -424,32 +520,70 @@ Expected output: {{expected_output}}`,
         type: "CODE",
         language: "TYPESCRIPT",
         source: `function evaluate(ctx: EvaluationContext): EvaluationResult {
-  const expected = ctx.experiment?.itemExpectedOutput;
-  const output = ctx.observation.output;
+  /**
+   * "Exact match" on one graded field.
+   *
+   * Compares only \`expected_result\` from the dataset item's expected output;
+   * sibling keys ride along for other evaluators and are ignored here. Falls
+   * back to comparing the whole value if the key is absent. Object keys are
+   * sorted before comparing, so key order doesn't matter; array order does.
+   *
+   * Example expected output shape:
+   *   {
+   *     "expected_result": "defer_question",     // graded
+   *     "sample_reply": "I cannot give financial advice...",   // ignored
+   *     "keyword_overlap": ["financial advice", "stock picks"]  // ignored
+   *   }
+   * \`expected_result\` can be any JSON value — string, number, array, object.
+   */
+  const RESULT_KEY = "expected_result";
 
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    value !== null && typeof value === "object" && !Array.isArray(value);
+
+  // Unwrap the graded field when present, otherwise grade the whole value.
+  const pick = (value: unknown) =>
+    isRecord(value) && RESULT_KEY in value
+      ? { value: value[RESULT_KEY], unwrapped: true }
+      : { value, unwrapped: false };
+
+  // Sort keys recursively so {a,b} and {b,a} stringify identically.
   const normalize = (value: unknown): unknown => {
-    if (Array.isArray(value)) {
-      return value.map((item) => normalize(item));
-    }
-
-    if (value !== null && typeof value === "object") {
-      const record = value as Record<string, unknown>;
-      return Object.keys(record)
+    if (Array.isArray(value)) return value.map((item) => normalize(item));
+    if (isRecord(value)) {
+      return Object.keys(value)
         .sort()
         .reduce((acc, key) => {
-          acc[key] = normalize(record[key]);
+          acc[key] = normalize(value[key]);
           return acc;
         }, {} as Record<string, unknown>);
     }
-
     return value;
   };
 
-  const valuesMatch = (left: unknown, right: unknown) =>
-    JSON.stringify(normalize(left)) === JSON.stringify(normalize(right));
+  const preview = (value: unknown) => {
+    const serialized = JSON.stringify(normalize(value)) ?? "undefined";
+    return serialized.length > 80 ? \`\${serialized.slice(0, 77)}...\` : serialized;
+  };
 
-  const hasExpected = expected !== undefined && expected !== null;
-  const matches = hasExpected && valuesMatch(output, expected);
+  const expectedPick = pick(ctx.experiment?.itemExpectedOutput);
+  // The task may return the bare value or an object carrying the same key.
+  const actualPick = pick(ctx.observation.output);
+
+  const hasExpected = expectedPick.value !== undefined && expectedPick.value !== null;
+  const matches =
+    hasExpected &&
+    JSON.stringify(normalize(actualPick.value)) === JSON.stringify(normalize(expectedPick.value));
+
+  // Comment records both the verdict and which field was actually compared.
+  const scope = expectedPick.unwrapped
+    ? \`compared \${RESULT_KEY} only, other expected keys ignored\`
+    : \`no \${RESULT_KEY} key, compared the whole expected output\`;
+  const verdict = !hasExpected
+    ? \`nothing to compare (\${RESULT_KEY} is null or missing)\`
+    : matches
+      ? \`match: \${preview(expectedPick.value)}\`
+      : \`mismatch: expected \${preview(expectedPick.value)}, got \${preview(actualPick.value)}\`;
 
   return {
     scores: [
@@ -457,6 +591,13 @@ Expected output: {{expected_output}}`,
         name: "Exact match",
         value: matches,
         dataType: "BOOLEAN",
+        comment: \`\${verdict} — \${scope}\`,
+        metadata: {
+          rule: "exact_match_on_expected_result",
+          resultKey: RESULT_KEY,
+          expectedUnwrapped: expectedPick.unwrapped,
+          outputUnwrapped: actualPick.unwrapped,
+        },
       },
     ],
   };
@@ -465,53 +606,99 @@ Expected output: {{expected_output}}`,
     },
     {
       key: "keyword-match",
-      name: "Validate Keyword Match",
+      name: "Validate Keyword Overlap",
       categories: ["quality"],
       icon: "list-checks",
       description:
-        "Checks whether required keywords, phrases, or entities appear in the output.",
+        "Scores what fraction of expected keywords from keyword_overlap appear in the output.",
       maintainer: "langfuse",
       evaluator: {
         type: "CODE",
         language: "TYPESCRIPT",
         source: `function evaluate(ctx: EvaluationContext): EvaluationResult {
-  const outputText = typeof ctx.observation.output === "string"
-    ? ctx.observation.output
-    : JSON.stringify(ctx.observation.output ?? "");
+  /**
+   * "Keyword overlap" — fraction of expected keywords present in the output.
+   *
+   * Keywords come from \`keyword_overlap\` in the dataset item's expected output
+   * (a bare array is also accepted). Matching is case-insensitive substring
+   * matching, so multi-word phrases work. Score is 0-1; the comment shows the
+   * percentage and names whatever is missing. Emits no score when the item
+   * defines no keywords, so those items don't drag the average down.
+   *
+   * Example expected output shape:
+   *   {
+   *     "keyword_overlap": ["financial advice", "stock picks", "Langfuse"],  // graded
+   *     "expected_result": "defer_question"                                  // ignored
+   *   }
+   */
+  const KEYWORDS_KEY = "keyword_overlap";
 
-  const expectedRaw = ctx.experiment?.itemExpectedOutput;
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    value !== null && typeof value === "object" && !Array.isArray(value);
 
-  let expectedObject: Record<string, unknown> | null = null;
-  if (expectedRaw !== undefined && expectedRaw !== null) {
-    if (typeof expectedRaw === "string") {
-      try {
-        const parsed = JSON.parse(expectedRaw);
-        if (parsed && typeof parsed === "object") {
-          expectedObject = parsed as Record<string, unknown>;
-        }
-      } catch {
-        expectedObject = null;
-      }
-    } else if (typeof expectedRaw === "object") {
-      expectedObject = expectedRaw as Record<string, unknown>;
+  // Collapse the output into one searchable string, whatever shape it has.
+  const flatten = (value: unknown): string => {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string") return value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    if (Array.isArray(value)) return value.map((item) => flatten(item)).filter(Boolean).join("\\n");
+    if (isRecord(value)) {
+      if ("content" in value) return flatten(value.content);
+      if ("text" in value) return flatten(value.text);
+      if ("parts" in value) return flatten(value.parts);
+      return Object.values(value).map((item) => flatten(item)).filter(Boolean).join("\\n");
     }
-  }
+    return "";
+  };
 
-  const expectedKeywords = Array.isArray(expectedObject?.expected_keywords)
-    ? expectedObject.expected_keywords.filter((keyword): keyword is string => typeof keyword === "string")
-    : [];
+  const expected = ctx.experiment?.itemExpectedOutput;
+  const raw =
+    isRecord(expected) && KEYWORDS_KEY in expected
+      ? expected[KEYWORDS_KEY]
+      : Array.isArray(expected)
+        ? expected
+        : undefined;
 
-  const normalizedOutput = outputText.toLowerCase();
-  const matches = expectedKeywords.length > 0 && expectedKeywords.every((keyword) =>
-    normalizedOutput.includes(keyword.toLowerCase()),
-  );
+  // Keep non-empty strings only, then drop case-insensitive duplicates.
+  const keywords = (Array.isArray(raw) ? raw : [])
+    .filter((keyword): keyword is string => typeof keyword === "string")
+    .map((keyword) => keyword.trim())
+    .filter(Boolean)
+    .filter(
+      (keyword, index, all) =>
+        all.findIndex((other) => other.toLowerCase() === keyword.toLowerCase()) === index,
+    );
+
+  // Nothing to grade: return no score rather than a misleading 0.
+  if (keywords.length === 0) return { scores: [] };
+
+  const haystack = flatten(ctx.observation.output).toLowerCase();
+  const found = keywords.filter((keyword) => haystack.includes(keyword.toLowerCase()));
+  const missing = keywords.filter((keyword) => !found.includes(keyword));
+
+  const ratio = found.length / keywords.length;
+  const percent = Math.round(ratio * 100);
+  const label = keywords.length === 1 ? "keyword" : "keywords";
+  const comment =
+    missing.length === 0
+      ? \`\${percent}% — all \${keywords.length} \${label} found\`
+      : \`\${percent}% — \${found.length}/\${keywords.length} \${label} found, missing: \${missing.join(", ")}\`;
 
   return {
     scores: [
       {
-        name: "Keyword match",
-        value: matches,
-        dataType: "BOOLEAN",
+        name: "Keyword overlap",
+        value: ratio, // 0-1; use \`percent\` here if you'd rather store 0-100
+        dataType: "NUMERIC",
+        comment,
+        metadata: {
+          rule: "keyword_overlap",
+          keywordsKey: KEYWORDS_KEY,
+          keywordCount: keywords.length,
+          foundCount: found.length,
+          found,
+          missing,
+        },
       },
     ],
   };
@@ -528,7 +715,10 @@ Expected output: {{expected_output}}`,
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
-        prompt: `You are an expert answer-relevance evaluator for AI conversations.
+        promptMessages: [
+          {
+            role: "user",
+            content: `You are an expert answer-relevance evaluator for AI conversations.
 You will receive a user request and an assistant output.
 Classify how well the assistant output addresses the user request.
 
@@ -558,12 +748,13 @@ Select Relevant only when the output directly addresses the user's primary reque
 
 User request: {{user_input}}
 Assistant output: {{assistant_output}}`,
+          },
+        ],
         variables: [
           { name: "user_input", defaultMapping: { field: "input" } },
           { name: "assistant_output", defaultMapping: { field: "output" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Relevance label.",
@@ -586,7 +777,10 @@ Assistant output: {{assistant_output}}`,
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
-        prompt: `You are an expert criterion-adherence evaluator for AI outputs.
+        promptMessages: [
+          {
+            role: "user",
+            content: `You are an expert criterion-adherence evaluator for AI outputs.
 You will receive one quality criterion and an assistant output.
 Decide whether the output satisfies the criterion.
 
@@ -611,11 +805,12 @@ True if criterion is met, false otherwise.
 
 Criterion: <YOUR_CRITERION>
 Assistant output: {{assistant_output}}`,
+          },
+        ],
         variables: [
           { name: "assistant_output", defaultMapping: { field: "output" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "BOOLEAN",
           score: { description: "Boolean verdict." },
           reasoning: {
@@ -634,7 +829,10 @@ Assistant output: {{assistant_output}}`,
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
-        prompt: `You are an expert topic-classification evaluator for user messages.
+        promptMessages: [
+          {
+            role: "user",
+            content: `You are an expert topic-classification evaluator for user messages.
 You will receive one input and must assign exactly one topic from the predefined taxonomy.
 
 ## Scope
@@ -665,9 +863,10 @@ Replace these example definitions with your own taxonomy before use:
 - "Can I book a demo for my team?" → sales
 
 Input: {{input}}`,
+          },
+        ],
         variables: [{ name: "input", defaultMapping: { field: "input" } }],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Predicted category label.",
@@ -697,7 +896,10 @@ Input: {{input}}`,
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
-        prompt: `You are an expert language-classification evaluator.
+        promptMessages: [
+          {
+            role: "user",
+            content: `You are an expert language-classification evaluator.
 You will receive an input and must assign exactly one primary language category.
 
 ## Scope
@@ -712,9 +914,10 @@ You will receive an input and must assign exactly one primary language category.
 4. Use only the predefined language categories; do not create a mixed-language category.
 
 Input: {{input}}`,
+          },
+        ],
         variables: [{ name: "input", defaultMapping: { field: "input" } }],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Predicted category.",
@@ -750,7 +953,10 @@ Input: {{input}}`,
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
-        prompt: `You are an expert groundedness evaluator for context-backed AI outputs.
+        promptMessages: [
+          {
+            role: "user",
+            content: `You are an expert groundedness evaluator for context-backed AI outputs.
 You will receive a user input, an assistant output, and supporting context.
 Classify how well the output is supported by the supplied context.
 
@@ -777,13 +983,14 @@ Select Grounded only when every material factual claim in the output is directly
 User input: {{input}}
 Assistant output: {{output}}
 Context: {{context}}`,
+          },
+        ],
         variables: [
           { name: "input", defaultMapping: { field: "input" } },
           { name: "output", defaultMapping: { field: "output" } },
           { name: "context", defaultMapping: { field: "input" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Groundedness label.",
@@ -806,7 +1013,10 @@ Context: {{context}}`,
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
-        prompt: `You are an expert context-relevance evaluator for retrieval-augmented systems.
+        promptMessages: [
+          {
+            role: "user",
+            content: `You are an expert context-relevance evaluator for retrieval-augmented systems.
 You will receive a user input and retrieved context.
 Classify how useful the context is for answering the input.
 
@@ -831,12 +1041,13 @@ Select Precise context only when the context is directly useful for resolving th
 
 User input: {{input}}
 Context: {{context}}`,
+          },
+        ],
         variables: [
           { name: "input", defaultMapping: { field: "input" } },
           { name: "context", defaultMapping: { field: "input" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Context precision label.",
@@ -863,7 +1074,10 @@ Context: {{context}}`,
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
-        prompt: `You are an expert context-coverage evaluator for retrieval-augmented systems.
+        promptMessages: [
+          {
+            role: "user",
+            content: `You are an expert context-coverage evaluator for retrieval-augmented systems.
 You will receive a user input, an assistant output, and retrieved context.
 Classify whether the context contains the information needed to support the requested output.
 
@@ -889,13 +1103,14 @@ Select Good coverage only when the context contains all material information nee
 User input: {{input}}
 Assistant output: {{output}}
 Context: {{context}}`,
+          },
+        ],
         variables: [
           { name: "input", defaultMapping: { field: "input" } },
           { name: "output", defaultMapping: { field: "output" } },
           { name: "context", defaultMapping: { field: "input" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Context recall label.",
@@ -922,7 +1137,10 @@ Context: {{context}}`,
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
-        prompt: `You are an expert privacy evaluator for AI outputs.
+        promptMessages: [
+          {
+            role: "user",
+            content: `You are an expert privacy evaluator for AI outputs.
 Inspect the assistant output for sensitive personal information that could identify or harm a private individual.
 
 ## Scope
@@ -958,9 +1176,10 @@ True if sensitive, identifying personal information appears in the output, false
 
 
 Assistant output: {{output}}`,
+          },
+        ],
         variables: [{ name: "output", defaultMapping: { field: "output" } }],
         outputDefinition: {
-          version: 2,
           dataType: "BOOLEAN",
           score: {
             description: "Boolean verdict.",
@@ -981,7 +1200,10 @@ Assistant output: {{output}}`,
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
-        prompt: `You are an expert rule-adherence evaluator for AI outputs.
+        promptMessages: [
+          {
+            role: "user",
+            content: `You are an expert rule-adherence evaluator for AI outputs.
 You will receive a rule or policy and an assistant output.
 Decide whether the output follows the rule.
 
@@ -1003,11 +1225,12 @@ True if rule-adherent, false otherwise
 
 Rule or policy: <RULE_OR_POLICY>
 Assistant output: {{assistant_output}}`,
+          },
+        ],
         variables: [
           { name: "assistant_output", defaultMapping: { field: "output" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "BOOLEAN",
           score: { description: "Boolean verdict." },
           reasoning: {
@@ -1026,7 +1249,10 @@ Assistant output: {{assistant_output}}`,
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
-        prompt: `You are an expert prompt-injection detector.
+        promptMessages: [
+          {
+            role: "user",
+            content: `You are an expert prompt-injection detector.
 Decide whether the input contains a credible attempt to manipulate an AI system outside its intended instructions or permissions.
 
 ## Scope
@@ -1056,9 +1282,10 @@ Return true only when the input contains a credible attempt to manipulate the as
 True if prompt injection is detected, false otherwise.
 
 Input text: {{input_text}}`,
+          },
+        ],
         variables: [{ name: "input_text", defaultMapping: { field: "input" } }],
         outputDefinition: {
-          version: 2,
           dataType: "BOOLEAN",
           score: {
             description: "Boolean verdict.",
@@ -1078,7 +1305,10 @@ Input text: {{input_text}}`,
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
-        prompt: `You are an expert task-type classifier for AI coding-agent requests.
+        promptMessages: [
+          {
+            role: "user",
+            content: `You are an expert task-type classifier for AI coding-agent requests.
 Classify the user's primary requested outcome into exactly one engineering task type.
 
 ## Scope
@@ -1110,9 +1340,10 @@ Classify the user's primary requested outcome into exactly one engineering task 
 5. Choose exactly one label. Use Other only when no category reasonably applies.
 
 Task text: {{task_text}}`,
+          },
+        ],
         variables: [{ name: "task_text", defaultMapping: { field: "input" } }],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Engineering task-type label.",
@@ -1149,7 +1380,10 @@ Task text: {{task_text}}`,
       maintainer: "langfuse",
       evaluator: {
         type: "LLM_AS_JUDGE",
-        prompt: `You are an expert business-function classifier for AI coding-agent usage.
+        promptMessages: [
+          {
+            role: "user",
+            content: `You are an expert business-function classifier for AI coding-agent usage.
 Classify the task into the one department it most likely serves.
 
 ## Scope
@@ -1175,9 +1409,10 @@ Classify the task into the one department it most likely serves.
 5. Choose exactly one label.
 
 Task text: {{task_text}}`,
+          },
+        ],
         variables: [{ name: "task_text", defaultMapping: { field: "input" } }],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Department usage label.",

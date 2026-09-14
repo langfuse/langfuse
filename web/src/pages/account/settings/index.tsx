@@ -25,7 +25,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { signOutCleanly } from "@/src/features/auth/lib/signOut";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { useRouter } from "next/router";
@@ -154,7 +155,7 @@ function DeleteAccountButton() {
         description: "Your account has been successfully deleted.",
       });
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      await signOut();
+      await signOutCleanly();
     } catch (error) {
       reportNonTrpcError(error, "account");
       showErrorToast(
@@ -239,6 +240,67 @@ function DeleteAccountButton() {
   );
 }
 
+function SignOutAllSessionsButton() {
+  const signOutAllSessions = api.userAccount.signOutAllSessions.useMutation();
+
+  const onConfirm = async () => {
+    try {
+      await signOutAllSessions.mutateAsync();
+      showSuccessToast({
+        title: "Signed Out of All Sessions",
+        description: "All sessions have been invalidated.",
+      });
+    } catch (error) {
+      reportNonTrpcError(error, "account");
+      showErrorToast(
+        "Failed to Sign Out of All Sessions",
+        error instanceof Error ? error.message : "An unexpected error occurred",
+      );
+      return;
+    }
+
+    // Sessions are already revoked server-side at this point, so a failure to
+    // clear local state must not be reported as a failed revocation.
+    try {
+      await signOutCleanly();
+    } catch (error) {
+      reportNonTrpcError(error, "account");
+    }
+  };
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="destructive-secondary">
+          Sign Out of All Sessions
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle className="text-lg font-bold">
+            Sign Out of All Sessions
+          </DialogTitle>
+          <DialogDescription>
+            This will sign you out on this device and every other device where
+            you are currently signed in. You will need to sign in again.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="destructive"
+            loading={signOutAllSessions.isPending}
+            onClick={onConfirm}
+            className="w-full"
+          >
+            Sign Out of All Sessions
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 type AccountSettingsPage = {
   title: string;
   slug: string;
@@ -290,9 +352,8 @@ const getAccountSettingsPages = ({
           <Header title="Password" />
           <Card className="p-3">
             <p className="text-primary mb-4 text-sm">
-              To change your password, we will send you a secure link to your
-              email address. Click the button below to start the password reset
-              process.
+              To change your password, we will email a one-time code to your
+              address. Enter the code together with your new password.
             </p>
             <Button asChild variant="secondary">
               <Link href="/auth/reset-password">Change Password</Link>
@@ -301,6 +362,12 @@ const getAccountSettingsPages = ({
         </div>
         <SettingsDangerZone
           items={[
+            {
+              title: "Sign out of all sessions",
+              description:
+                "Invalidate every active session for your account, including this device. You will need to sign in again.",
+              button: <SignOutAllSessionsButton />,
+            },
             {
               title: "Delete your account",
               description:

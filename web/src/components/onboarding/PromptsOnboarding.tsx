@@ -1,4 +1,3 @@
-import React from "react";
 import {
   SplashScreen,
   type ValueProposition,
@@ -11,25 +10,25 @@ export function PromptsOnboarding({ projectId }: { projectId: string }) {
       title: "Decoupled from code",
       description:
         "Deploy new prompts without application redeployment, making updates faster and easier",
-      icon: <FileText className="h-4 w-4" />,
+      icon: FileText,
     },
     {
       title: "Edit in UI or programmatically",
       description:
         "Non-technical users can easily edit prompts in the UI. Developers can optionally update prompts programmatically via the API and SDKs",
-      icon: <GitBranch className="h-4 w-4" />,
+      icon: GitBranch,
     },
     {
       title: "Performance optimized",
       description:
         "Client-side caching prevents latency or availability issues for your applications",
-      icon: <Zap className="h-4 w-4" />,
+      icon: Zap,
     },
     {
       title: "Compare metrics",
       description:
         "Track latency, cost, and evaluation metrics across different prompt versions",
-      icon: <BarChart4 className="h-4 w-4" />,
+      icon: BarChart4,
     },
   ];
 

@@ -128,6 +128,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   QueueName: { MixpanelIntegrationProcessingQueue: "mixpanel" },
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
   recordIncrement: vi.fn(),
+  recordDistribution: vi.fn(),
   getCurrentSpan: vi.fn(() => undefined),
   getTracesForAnalyticsIntegrations: vi.fn(() => h.fakeStream("traces")),
   getGenerationsForAnalyticsIntegrations: vi.fn(() =>
@@ -145,7 +146,10 @@ import {
 import {
   getScoresForAnalyticsIntegrations,
   recordIncrement,
+  recordDistribution,
 } from "@langfuse/shared/src/server";
+import { decrypt } from "@langfuse/shared/encryption";
+import { EXPORT_FRESHNESS_LAG_METRIC } from "../services/exportFreshnessLagMetric";
 import { env } from "../env";
 
 // Mirrors the real queue's defaultJobOptions (mixpanelIntegrationProcessingQueue.ts).
@@ -361,5 +365,27 @@ describe("handleMixpanelIntegrationProjectJob customer-fault observability", () 
     );
 
     expect(recordIncrement).not.toHaveBeenCalled();
+  });
+
+  it("emits freshness failure when decrypt throws before export work starts", async () => {
+    vi.mocked(decrypt).mockImplementationOnce(() => {
+      throw new Error("bad token");
+    });
+    vi.mocked(recordDistribution).mockClear();
+
+    await expect(
+      handleMixpanelIntegrationProjectJob(makeJob()),
+    ).rejects.toThrow(/bad token/);
+
+    expect(recordDistribution).toHaveBeenCalledWith(
+      EXPORT_FRESHNESS_LAG_METRIC,
+      expect.any(Number),
+      expect.objectContaining({
+        integration: "mixpanel",
+        window: "1h",
+        status: "failure",
+      }),
+    );
+    expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
   });
 });

@@ -1,35 +1,25 @@
 # Search Bar
 
-Grammar-based query bar shared by the observations (v4 events) table and
-evaluation-rule observation filters. On the events table it does NOT replace
-the facet sidebar — it is an ADDITIONAL keyboard-driven editor that coexists
-with the sidebar and stays in sync with it. The facet sidebar's `FilterState`
-(+ the table's full-text search) remains the single source of truth; the bar
-reads from and writes to it. Only the legacy toolbar search field is replaced
-(full-text search goes inline in the bar). Generally available on the v4 events
-tables (no opt-in). Based on the `langfuse-search-bar` prototype.
+Grammar-based query editor for tables with a facet sidebar, including legacy
+and embedded read paths. The sidebar's `FilterState` and the host's search
+state remain canonical; both editors update the same state.
 
 ## Enablement
 
-- **Generally available on the v4 events tables** — every user gets the bar; it
-  is no longer a per-user Feature Preview opt-in. `hooks/useSearchBarEnabled.ts`
-  now returns `true` for everyone, so the bar renders wherever the v4 events
-  table does.
-- `EventsTable` activates the bar when the table is a full-page surface
-  (`!hideControls && !externalFilterState && !peekContext && !userId && !sessionId`).
-  The **v4 beta** gate is implicit: `EventsTable` only mounts on the v4
-  Observations/Traces tables, so call sites still read as
-  `isBetaEnabled && useSearchBarEnabled()`.
-- **Rollout/rollback (temporary).** GA was shipped by force-on shim, not by
-  deleting the opt-in: `useSearchBarEnabled` hard-returns `true` and the
-  "Filter Search Bar" tile was removed from the Feature Preview modal, but the
-  `searchBar` flag plumbing is intentionally **left as dead code** for a day or
-  two so a rollback is a one-line revert. The pieces still present and marked
-  `TODO(remove ~2026-06-19)`: the `searchBar` entry in
-  `features/feature-flags/available-flags.ts`, the
-  `userAccount.setFeaturePreviewEnabled` allowlist, and the modal's
-  `PreviewFlag`/registry entry (`features/feature-previews/`). Once the rollout
-  is confirmed stable, delete those and inline `true` at the call site.
+- Each sidebar host supplies a registry derived from its exposed facets. Settings
+  lists and other tables without a sidebar retain their existing controls.
+- `EventsTable` enables the bar when its controls are visible and filters are
+  internally owned. Embedded tables exclude fields locked by their parent.
+- `TableSearchBar` wraps the shared store, commit hook, and row for other hosts.
+  Pass the host's existing search query and scope without changing their meaning.
+  Tables without a backend text-search lane use a registry default field or
+  disable free text. Organization catalogs omit `projectId`, which disables
+  project recent searches and AI filtering.
+- Key the wrapper by the saved-view `filterEditorResetKey` and sidebar
+  `draftResetKey`. Applying a view or clearing filters resets unfinished drafts;
+  deselecting a view after a user edit preserves them.
+- There is no search-bar feature toggle. A registry enables AI only when its
+  backend has a matching prompt and the organization enables AI features.
 
 ## Query language
 
@@ -54,51 +44,52 @@ tables (no opt-in). Based on the `langfuse-search-bar` prototype.
   to the real key when lowering; the reverse adapter and completions re-quote
   them — so they round-trip)
 - `has:endTime` / `-has:endTime` null checks
-- full-text search (see below): bare text, or `input:`/`output:`/`name:`/`id:`
+- text search (see below): bare text, declared `content:`/`all:` scopes, and
+  supported `input:`/`output:`/`name:`/`id:` fields
 
 Cross-field OR, negated groups, and other shapes the flat contract cannot
 represent are commit-blocking diagnostics, not silent drops. There is no
 FTS `*` operator: the events tRPC filter contract has none.
 
-**Full-text search.** It matches as a **contiguous substring** server-side
-(`clickhouse-sql/search.ts`, `ILIKE %query%`) and is expressed field-style:
+**Full-text search.** Each registry declares `defaultSearchType` and
+`searchScopes`. The adapter writes the existing `searchQuery` / `searchType`
+contract; it does not introduce backend filter columns or change matching rules.
 
-- **bare text** (`refund policy`) → `searchQuery`, default scope:
-  `searchType=['id','content']` — i.e. `id` + `user_id` + `name` (the `id`
-  lane) **and** `input` + `output` (the `content` lane). Typing plain text
-  searches all of them. The adapter emits a `null` searchType (no scope token);
-  `commit.ts`'s `DEFAULT_SEARCH_TYPE` supplies `['id','content']`.
-- **`input:"refund"` / `output:"refund"`** → real `string` "contains" **column
-  filters** on `e.input`/`e.output` (not `searchType`). Use them to narrow the
-  search to one payload channel. They round-trip as `FilterState` like any
-  other column filter, and support operators (`:=`, `*`/glob, `-` negation).
-- **`name:"checkout"` / `id:"abc"`** → `string` "contains" column filters on
-  `name`/`id`. Use them to narrow to that column. They are `textSearch` fields
-  (bare = contains, `:=` = exact) but keep their observed-value autocomplete.
+- **Bare text** (`refund policy`) is one phrase in the registry's default
+  scope. Full Events uses `['id', 'content']`; metadata-first hosts use `['id']`.
+- **`content:"refund policy"`** searches only the declared content lane.
+  For Events this is input/output; for Prompts it is the prompt body; for
+  Dataset Items it includes input, expected output, and metadata.
+- **`all:"refund policy"`** uses `['id', 'content']`, including the host's
+  IDs/names lane. This preserves the additive Full Text dropdown choice.
+- **`input:` / `output:`** remain real string column filters on V4 Events,
+  supporting comparisons such as exact/glob matches and negation. On legacy
+  tracing and Dataset Items, registries instead declare them as search scopes
+  backed by the existing `searchType` lane. Prompts does not support them.
+- **`name:` / `id:`** remain ordinary column filters where the registry exposes
+  them; they do not select the metadata search lane.
 
-Typing bare text offers the scope rewrites (`input:`/`output:`) with hover
-explanations. Scope is global per query (`searchType` is one value), so
-multi-word free text is a **phrase**, not token-AND — `test media` matches
-"Test Media" but not "Media — Test run" (open Decision A below).
+Scope tokens accept one positive phrase with the plain `:` operator. Multiple
+scope phrases, a scope phrase mixed with bare text, negation, comparison/glob
+operators, and grouped scope phrases are rejected: one backend search string
+cannot express those independent predicates. Ordinary facet filters can still
+combine with a scoped search, for example `content:"refund policy" env:prod`.
+The same constraint is checked in validation and lowering. V4 Events column
+filters remain independent, so `input:refund output:policy` continues to work.
 
-Historical note: the old `in:<scope>` token and the `content:` pseudo-field are
-both **gone**. `content:` searched input + output combined; that is now simply
-the default (a bare query already searches both), so the token was removed (the
-one capability it uniquely had — "payloads but NOT ids/names" — is dropped,
-pending feedback). The reverse adapter canonicalizes a legacy
-`searchType=input|output` to the `input:`/`output:` **column filter** on the
-next commit (the chosen normalization), and treats any `id`/`content` searchType
-as the default — rendered as bare text, no token.
+The reverse adapter emits bare text only for the exact default scope, then
+prefers a declared scope token. Unnamed legacy combinations use compatibility
+syntax such as `in:(id OR input) "refund policy"`. This preserves every channel
+without converting the search into a different column filter. `in:` accepts
+only search types supported by that host, applies to the global bare phrase,
+and is never offered in normal autocomplete. It cannot combine with a second
+`in:` or another scope token.
 
-**Known limitation (multi-scope legacy state).** The bar's scope is a single
-value per query; the legacy toolbar's `searchType` was a _set_. `['id','content']`
-now round-trips losslessly — it **is** the default, rendered as bare text. The
-two remaining multi-scope states still drop their id channel on the next commit:
-`['id','input']` / `['id','output']` canonicalize to `input:"…"` / `output:"…"`
-**column filters** (per the historical note above) and drop the id-scope
-`searchType`/`searchQuery`. There's no lossless single-token projection of those
-two without a real per-column "all fields" scope — deferred past beta. Trigger is
-narrow (a legacy URL from the old dropdown + the bar enabled + a commit).
+Autocomplete offers only the registry's search scopes and supported V4 payload
+column rewrites, with host-specific descriptions. SQL search remains one
+`ILIKE %query%` phrase across an OR union of selected columns; V4's existing
+fast IO search also applies its token prefilter. Search operators are not
+silently translated between these backend search lanes and column filters.
 
 Operator-looking tokens that aren't supported yet are **reserved** — they emit
 an explicit "not supported yet" diagnostic instead of silently becoming free
@@ -162,13 +153,19 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
   on a `textSearch` field — `-name:=v` — is representable: it lowers to a
   `stringOptions none of`, the exact-inequality form the facet emits when one
   value is unchecked. It is NOT `does not contain`.)
-- **User-authored filters are never auto-removed.** The bar reads the sidebar's
-  **explicit** `FilterState`, so the managed-environment implicit default
-  (`environment none of [hidden internal envs]`, derived into _effective_ state
-  by `features/filters/lib/managedEnvironmentPolicy.ts`) never shows as a token.
-  That policy strips exactly one shape from explicit state — that same implicit
-  `none of [hidden]` default (which the facet also re-creates on "clear back to
-  default"). A user-authored positive selection (`environment:default`, typed or
+- **User-authored filters are never auto-removed.** The bar reads a display
+  projection of the sidebar's **explicit** `FilterState`, so the
+  managed-environment implicit default (`environment none of [hidden internal
+envs]`, derived into _effective_ state by
+  `features/filters/lib/managedEnvironmentPolicy.ts`) never shows as a token.
+  That policy strips the implicit `none of [hidden]` default (which the facet
+  also re-creates on "clear back to default") and keeps
+  `none of [hidden ∪ extras]` in persisted/effective state so queries still
+  exclude the hidden set. The search-bar projection shows only extras
+  (`-environment:production`). A bar commit of that extras-only chip expands
+  back to the full exclusion set. Enabling any hidden environment stores a
+  positive `any of [checked]` instead, so it cannot be remasked as extras-only
+  none-of. A user-authored positive selection (`environment:default`, typed or
   saved) is kept explicit even when it equals the current default set; the user
   returns to the default by removing the filter, never by us inferring it.
 
@@ -265,6 +262,21 @@ encode/decode round-trip. The flat URL contract (`FilterState` + `searchQuery`
   and pressing Enter re-renders the bar as `level:ERROR refund`. The typed
   interleave is preserved only in the recent-searches entry (`planCommit`'s
   `canonical`), not in the live bar.
+
+## Host-provided query presets
+
+Views can inject complete-query sections through `EventsSearchBarRow`'s
+`presetSections` prop. These are data, not grammar: the shared planner renders
+them at every blank top-level term, including after existing filters, and a pick
+replaces and commits the complete draft. The host owns fetching, ranking,
+registry compatibility, labels, and optional pick analytics.
+
+Evaluation setup uses this seam for **Reuse rule filters**. It groups equivalent
+modern event/experiment rule filters, ranks them only by distinct attached
+evaluator count (latest rule update breaks ties), and excludes legacy
+trace/dataset rules. Rule `FilterState` is serialized with the rule registry and
+validated against the receiving registry before it is offered, so aliases such
+as rule `tags` can safely lower to the events table's `traceTags` column.
 
 ## AI filter mode (the "Ask AI" button)
 
@@ -389,15 +401,37 @@ registry + grammar + value validation. Keep it that way.
 adapter, serializer, completion planner, token projection, store, and AI prompt
 all take an injected `FieldRegistry`. `EVENTS_FIELD_REGISTRY` remains the default
 for existing call sites; evaluation rules pass `RULE_FIELD_REGISTRY`, which is
-derived from the same `eventsEvalFilterColumns` used by backend validation.
+derived from the same `eventsEvalFilterColumns` used by backend validation, and
+the v4 sessions table passes `SESSIONS_FIELD_REGISTRY`
+(`features/filters/config/sessionsSearchRegistry.ts`).
+
+**Use `TableSearchBar` for table hosts.** It passes one registry to the hook and
+row. A specialized host that uses `useEventsSearchBar` and `EventsSearchBarRow`
+directly must pass the same registry to both, so autocomplete and commits agree.
+
+Registries with a backend search lane also declare `defaultSearchType` and
+`searchScopes: Record<string, { searchType, label, description }>`. Scope
+entries describe existing backend search types, not `FilterState` columns;
+unsupported host lanes must not be declared. Preserve both declarations when
+projecting or extending a registry. Hosts pass their actual query and scope
+setters so a commit can change the scope and the phrase together. Views with
+`allowFreeText: false` keep their existing `defaultTextField` behavior.
 
 **Recipe to add the bar to a view:**
 
-1. **Derive the field registry from that view's `ColumnDefinition[]`** — do NOT
-   hand-author a second 47-entry list. ~70% is mechanical: `type → kind`
-   (`number`/`datetime`/`boolean` map directly, everything else → `text`),
-   `nullable`, `options → observed values`, `unit`. Use the existing
-   `fieldRegistryFromColumns(cols, overlay)` helper.
+1. **Derive the field registry from the view's FACETS, not its raw columns.** Use
+   `fieldRegistryFromColumns(cols, overlay)` — never hand-author a second
+   47-entry list; ~70% is mechanical (`type → kind`, `nullable`,
+   `options → observed values`, `unit`). But feed it the columns the _facet
+   sidebar_ exposes, as `sessionsSearchRegistry.ts` does, not the whole
+   `ColumnDefinition[]`. A view's column list also carries internals the sidebar
+   deliberately never offers — a duplicate (`usage` = `totalTokens`), a column
+   owned by another control (`createdAt`, the time-range picker), a retired one
+   (`bookmarked`). Deriving from facets keeps the bar a strict SUBSET of the
+   sidebar by construction: no bar-authored filter the sidebar cannot display or
+   clear, and adding a facet gives the bar the field for free. Anything outside
+   that set resolves to null, so an old saved view's filter on it lands in
+   `skippedFilters` (preserved) instead of becoming an unparsable token.
 2. **Add a thin per-view grammar overlay** for what `ColumnDefinition`
    deliberately does not carry (it is a UI/SQL contract, not a grammar):
    user-facing **field aliases** (`env`, `tags`, `ttft`), **inline filter
@@ -405,9 +439,33 @@ derived from the same `eventsEvalFilterColumns` used by backend validation.
    (`metadata.`, `scores.`/`traceScores.` and their score columns), and
    **value-parse hints** (datetime ISO, numeric, boolean). Keep it small and
    declarative.
+   A field's `syncMode` can override the column-derived default: Scores uses
+   `textSearch` plus `suggestObservedValues` for option-backed score names, so
+   bare text searches within names while selected exact values still round-trip.
+   The derived `exactMatchUsesOptions` flag keeps singleton exact selections in
+   a categorical facet's `stringOptions` shape, so its checkbox stays selected.
+   Three flags are per-view capabilities, not cosmetics:
+   - `metadata` / `scores` / `traceScores` — the keyed dot-path roots. Set them
+     from the columns the view's BACKEND has, not from what reads well: sessions
+     aggregates scores at session level and has no `trace_scores_*` columns, so
+     it keeps `scores.` and closes `traceScores.`. A dot path the backend cannot
+     answer is worse than an unknown-field diagnostic. `fieldRegistryFromColumns`
+     drops the keyed score columns from the field list when `scores` is on
+     (`score_categories` is `categoryOptions`, not `*Object`, so the `*Object`
+     filter alone would leave a bogus keyless `score_categories:` field).
+   - `allowFreeText` + `defaultTextField` — see "Bare text on a view with no
+     full-text lane" below.
+   - `searchExamples` — the placeholder, **written per view, never derived from
+     field ids**. The events examples (`level:ERROR`, `latency:>2`) advertised
+     fields that do not exist on either of the other two surfaces.
 3. **Reuse the view's `filterOptions` tRPC** for observed values —
    `observed-options.ts` already maps that payload to per-column observed
    values; point it at the new view's procedure (do not invent a parallel one).
+   When a field displays labels but persists stable values, declare its
+   canonical `filterColumn` in the registry overlay and hydrate it with
+   `withFieldOptions([{ value, displayValue }])`. The shared adapter then emits
+   the canonical column/value while the reverse adapter renders the label.
+   Do not add a host-specific post-lowering conversion.
 4. **Keep the adapter targeting the shared `FilterState`.** Reuse the
    already-registry-driven `operatorIssue`/`negationIssue` and the existing
    per-kind lowering. Never add a second lowering path — that breaks the
@@ -418,6 +476,27 @@ derived from the same `eventsEvalFilterColumns` used by backend validation.
    that owns both, so the two cannot drift.
 6. **Add the round-trip property test for the new registry** (see Hardening) —
    run it per registry. This is the universal safety net across views.
+
+**Bare text on a view with no full-text lane.** Sessions has no `searchQuery`
+at all — `sessions.all*` takes none. Two registry options cover that:
+
+- `allowFreeText: false` alone — bare words are a commit-blocking diagnostic
+  (evaluation rules).
+- `allowFreeText: false` + `defaultTextField: "<field>"` — bare words become a
+  `contains` filter on that field (sessions uses `id`: it is that view's
+  most-applied filter by an order of magnitude, and every application of it is
+  `contains`). Two properties make this safe rather than magic: the rewrite is
+  **offered before Enter** (it joins the matching-filter suggestions, so the user
+  sees `id:"…"` while typing), and it is **visible and terminal after** — the bar
+  re-renders the word as an `id:` pill which commits to the identical filter. It
+  lowers through the normal field path; there is no second lowering path.
+- A multi-word run is ONE phrase, coalesced exactly like `searchQuery` is. Per
+  word it would AND `id contains test` with `id contains 123` — matching neither
+  the input nor the suggestion.
+
+**`createFieldRegistry` stays unexported.** Both derived views (rules, sessions)
+are fully expressed by `fieldRegistryFromColumns` + overlay; nothing has yet
+needed to hand-assemble a registry. Do not export it speculatively.
 
 **What stays grammar-global — do not make per-view:** tokenizing, quoting
 (`serializeValue` ↔ `reservedTokenIssue` is a **mirror invariant**: add a
@@ -452,11 +531,19 @@ real consumer and validate it against that view's backend filter contract.
   The harness is **pure and registry-shaped**: it generates the matrix from the
   passed `view.registry`, so it auto-covers added/changed fields. Each
   filterable view gets the same coverage by adding one block to the
-  `.clienttest.ts` with its registry — see "Extending to other views".
+  `.clienttest.ts` with its registry — see "Extending to other views". It only
+  exercises free text through `freeTextValues` (INV-3, serialize↔parse), so a
+  `defaultTextField` view must also pin its phrase/round-trip behaviour
+  explicitly, as the sessions block does.
 
 - **`SearchComposer` (~1.3k LOC) has no unit tests** — the contenteditable
   controller is browser-reviewed only. Extracting the selection/`beforeinput`
   machinery into a hook (below) is the prerequisite to testing it.
+- **Client integration coverage** in `web/src/components/table/data-table-controls.clienttest.tsx`
+  exercises real sidebar inputs, filter state, and bar commits: delayed string
+  and numeric edits preserve newly committed bar filters, and clearing a facet
+  cancels its pending edit. This does not cover the table's network request or
+  rendered result rows.
 - **No e2e** for bar↔sidebar sync or the embedded-vs-full-page mount matrix
   (the bar leaking onto user/session detail was a review find, not caught by a
   test).

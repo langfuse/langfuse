@@ -3,6 +3,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
   protectedGetEventsTraceProcedure,
+  protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
 import {
   type OrderByState,
@@ -45,6 +46,10 @@ import type * as opentelemetry from "@opentelemetry/api";
 
 const GetAllEventsInput = EventsTableOptions.safeExtend({
   ...paginationZod,
+});
+
+const GetSessionEventsInput = GetAllEventsInput.safeExtend({
+  sessionId: zodSchema.string().min(1),
 });
 
 const GetEventsCursorInput = EventsCursorTableOptions.safeExtend({
@@ -92,7 +97,7 @@ const GetEventMetadataValuesInput = zodSchema.object({
   startTimeFilter: zodSchema.array(timeFilter).optional(),
 });
 
-export const BatchIOInput = zodSchema.object({
+const BatchIOInput = zodSchema.object({
   projectId: zodSchema.string(),
   observations: zodSchema
     .array(
@@ -115,8 +120,11 @@ export const BatchIOInput = zodSchema.object({
   // Opts into trace-level auth (public traces) in protectedGetEventsTraceProcedure
   traceId: zodSchema.string().optional(),
 });
+const SessionBatchIOInput = BatchIOInput.omit({ traceId: true }).extend({
+  sessionId: zodSchema.string().min(1),
+});
 
-export type BatchIOInput = z.infer<typeof BatchIOInput>;
+type BatchIOInput = z.infer<typeof BatchIOInput>;
 
 export const eventsRouter = createTRPCRouter({
   all: protectedProjectProcedure
@@ -155,6 +163,50 @@ export const eventsRouter = createTRPCRouter({
           });
         },
       );
+    }),
+  sessionAll: protectedGetSessionProcedure
+    .input(GetSessionEventsInput)
+    .query(async ({ input, ctx }) => {
+      const filter = ctx.session.projectRole
+        ? (input.filter ?? [])
+        : (input.filter ?? []).filter(
+            ({ column }) =>
+              column !== "commentContent" && column !== "commentCount",
+          );
+
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: filter,
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        objectType: "OBSERVATION",
+      });
+
+      if (hasNoMatches) {
+        return { observations: [], hasMore: false };
+      }
+
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "startTime",
+      });
+
+      return getEventList({
+        projectId: input.projectId,
+        filter: [
+          ...filterState,
+          {
+            column: "sessionId",
+            type: "string",
+            operator: "=",
+            value: input.sessionId,
+          },
+        ],
+        searchQuery: input.searchQuery ?? undefined,
+        searchType: input.searchType,
+        orderBy: normalizedOrderBy,
+        page: input.page,
+        limit: input.limit,
+      });
     }),
   listCursor: protectedProjectProcedure
     .input(GetEventsCursorInput)
@@ -286,6 +338,31 @@ export const eventsRouter = createTRPCRouter({
           const batchIO = await getEventBatchIO({
             projectId: input.projectId,
             observations,
+            minStartTime: input.minStartTime,
+            maxStartTime: input.maxStartTime,
+            truncated: input.truncated,
+            ioCharLimit: input.ioCharLimit,
+            includeToolCallFields: input.includeToolCalls,
+          });
+
+          return batchIO.map(toDomainWithStringifiedMetadata);
+        },
+      );
+    }),
+  sessionBatchIO: protectedGetSessionProcedure
+    .input(SessionBatchIOInput)
+    .query(async ({ input }) => {
+      return instrumentAsync(
+        { name: "get-event-session-batch-io-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          span.setAttribute("session_id", input.sessionId);
+          span.setAttribute("observation_count", input.observations.length);
+
+          const batchIO = await getEventBatchIO({
+            projectId: input.projectId,
+            sessionId: input.sessionId,
+            observations: input.observations,
             minStartTime: input.minStartTime,
             maxStartTime: input.maxStartTime,
             truncated: input.truncated,
@@ -492,7 +569,7 @@ export const eventsRouter = createTRPCRouter({
     }),
 });
 
-export const addAttributesToSpan = ({
+const addAttributesToSpan = ({
   span,
   input,
   orderBy,
@@ -534,6 +611,6 @@ export const addAttributesToSpan = ({
   }
 };
 
-export const dateDiff = (date1: Date, date2: Date) => {
+const dateDiff = (date1: Date, date2: Date) => {
   return Math.abs(date2.getTime() - date1.getTime());
 };

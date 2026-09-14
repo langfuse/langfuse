@@ -610,13 +610,13 @@ describe("processThresholds", () => {
   });
 
   describe("CHB-billed orgs", () => {
-    it("skips enforcement for orgs with a CHB bundle (paid gate covers clickhouse.bundleId)", async () => {
+    it("skips enforcement for orgs with a CHB attached plan (paid gate covers clickhouse.attachedPlanId)", async () => {
       const org = createMockOrg({
         cloudCurrentCycleUsage: 0,
         cloudConfig: {
           clickhouse: {
             organizationId: "0d5e6f7a-1b2c-4d3e-8f9a-0b1c2d3e4f5a",
-            bundleId: "bdl_123",
+            attachedPlanId: "ap_123",
             planCode: "core",
           },
         },

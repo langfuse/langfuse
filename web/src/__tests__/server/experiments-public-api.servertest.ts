@@ -104,6 +104,42 @@ describe("GET /api/public/experiments", () => {
   });
 
   maybeEventTables(
+    "keeps a Hobby caller's fromStartTime when it is inside the access window",
+    async () => {
+      const { auth, projectId } = await createOrgProjectAndApiKey({
+        plan: "Hobby",
+      });
+      const beforeRequestedFrom = `exp-${randomUUID()}`;
+      const insideRequestedWindow = `exp-${randomUUID()}`;
+
+      await createEventsCh([
+        createExperimentRootEvent({
+          projectId,
+          experimentId: beforeRequestedFrom,
+          startTimeMs: Date.now() - 10 * 24 * 60 * 60 * 1000,
+        }),
+        createExperimentRootEvent({
+          projectId,
+          experimentId: insideRequestedWindow,
+          startTimeMs: Date.now() - 24 * 60 * 60 * 1000,
+        }),
+      ]);
+
+      const fromStartTime = new Date(
+        Date.now() - 7 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const res = await getExperiments(
+        `/api/public/experiments?fromStartTime=${encodeURIComponent(fromStartTime)}`,
+        auth,
+      );
+
+      const ids = res.body.data.map((experiment) => experiment.id);
+      expect(ids).toContain(insideRequestedWindow);
+      expect(ids).not.toContain(beforeRequestedFrom);
+    },
+  );
+
+  maybeEventTables(
     "lists experiment summaries with core fields by default",
     async () => {
       const { auth, projectId } = await createOrgProjectAndApiKey();

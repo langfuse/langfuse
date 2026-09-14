@@ -3,6 +3,7 @@ import {
   queryClickhouse,
   redis,
   convertDateToClickhouseDateTime,
+  toClickhouseDateTime,
   flattenJsonToPathArrays,
   recordGauge,
   UNKNOWN_INGESTION_SDK_VALUE,
@@ -118,7 +119,7 @@ export interface TraceProperties {
  * Fetch dataset run items created within a time window.
  * Deduplicates by (project_id, trace_id, observation_id) taking the most recent.
  */
-export async function getDatasetRunItemsSinceLastRun(
+async function getDatasetRunItemsSinceLastRun(
   lastRun: Date,
   upperBound: Date,
 ): Promise<DatasetRunItem[]> {
@@ -178,7 +179,7 @@ export async function getDatasetRunItemsSinceLastRun(
 /**
  * Fetch observations that belong to traces referenced by dataset run items.
  */
-export async function getRelevantObservations(
+async function getRelevantObservations(
   projectIds: string[],
   traceIds: string[],
   minTime: Date,
@@ -260,7 +261,7 @@ export async function getRelevantObservations(
 /**
  * Fetch traces that are referenced by dataset run items.
  */
-export async function getRelevantTraces(
+async function getRelevantTraces(
   projectIds: string[],
   traceIds: string[],
   minTime: Date,
@@ -536,7 +537,7 @@ export function convertEnrichedSpansToEventRecords(
   opts: { plainEventTsFromSource?: boolean } = {},
 ): EventRecordInsertType[] {
   const records: EventRecordInsertType[] = [];
-  const now = Date.now() * 1000; // microseconds
+  const now = toClickhouseDateTime();
 
   for (const span of spans) {
     // Flatten metadata for ClickHouse Array(String) columns
@@ -557,7 +558,7 @@ export function convertEnrichedSpansToEventRecords(
     const isPlain = !span.experiment_id;
     const eventTs =
       opts.plainEventTsFromSource && isPlain && span.event_ts
-        ? new Date(span.event_ts).getTime() * 1000
+        ? toClickhouseDateTime(span.event_ts)
         : now;
 
     const eventRecord: EventRecordInsertType = {
@@ -585,10 +586,10 @@ export function convertEnrichedSpansToEventRecords(
       level: span.level || "DEFAULT",
       status_message: span.status_message || undefined,
 
-      start_time: new Date(span.start_time).getTime() * 1000,
-      end_time: span.end_time ? new Date(span.end_time).getTime() * 1000 : null,
+      start_time: toClickhouseDateTime(span.start_time),
+      end_time: span.end_time ? toClickhouseDateTime(span.end_time) : null,
       completion_start_time: span.completion_start_time
-        ? new Date(span.completion_start_time).getTime() * 1000
+        ? toClickhouseDateTime(span.completion_start_time)
         : null,
 
       prompt_id: span.prompt_id || "",
@@ -661,7 +662,7 @@ export function convertEnrichedSpansToEventRecords(
  * Write enriched spans to the events_full table via the ClickhouseWriter
  * queue (buffered; flushed by the writer's interval).
  */
-export function writeEnrichedSpans(spans: EnrichedSpan[]): void {
+function writeEnrichedSpans(spans: EnrichedSpan[]): void {
   if (spans.length === 0) {
     return;
   }
@@ -682,7 +683,7 @@ export function writeEnrichedSpans(spans: EnrichedSpan[]): void {
  *
  * @returns The cutoff timestamp to use for backfill queries
  */
-export async function initializeBackfillCutoff(): Promise<Date> {
+async function initializeBackfillCutoff(): Promise<Date> {
   if (!redis) {
     logger.error(
       "[EXPERIMENT BACKFILL] Redis not available, using current time as cutoff",
@@ -741,7 +742,7 @@ export async function initializeBackfillCutoff(): Promise<Date> {
  *
  * @returns true if backfill should run (time threshold passed AND lock acquired), false otherwise
  */
-export async function shouldRunBackfill(lastRun: Date): Promise<boolean> {
+async function shouldRunBackfill(lastRun: Date): Promise<boolean> {
   // First check time-based throttle
   const now = new Date();
   const timeSinceLastRun = now.getTime() - lastRun.getTime();
@@ -798,7 +799,7 @@ export async function shouldRunBackfill(lastRun: Date): Promise<boolean> {
  * Update the experiment backfill timestamp after successful execution.
  * @param timestamp The timestamp to set (should be the upper bound used for the backfill)
  */
-export async function updateBackfillTimestamp(timestamp: Date): Promise<void> {
+async function updateBackfillTimestamp(timestamp: Date): Promise<void> {
   if (!redis) {
     logger.warn(
       "[EXPERIMENT BACKFILL] Redis not available, cannot update timestamp",

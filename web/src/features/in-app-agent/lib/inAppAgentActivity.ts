@@ -37,7 +37,7 @@ export type InAppAgentActivityAcknowledgement = {
   activityKey: string;
 };
 
-export type InAppAgentActivityEntry = {
+type InAppAgentActivityEntry = {
   activityKey: string;
   runId: string;
   title: string | null;
@@ -52,8 +52,8 @@ export type InAppAgentActivityByConversationId = Map<
   InAppAgentActivityEntry
 >;
 
-export const IN_APP_AGENT_ACTIVITY_RECEIPTS_VERSION = 1;
-export const IN_APP_AGENT_DELIVERED_RECEIPTS_VERSION = 1;
+const IN_APP_AGENT_ACTIVITY_RECEIPTS_VERSION = 1;
+const IN_APP_AGENT_DELIVERED_RECEIPTS_VERSION = 1;
 
 /**
  * Activity polls the newest N conversations only (same page as the drawer list
@@ -136,7 +136,7 @@ function getActivityEntry(params: {
 }
 
 /** Drop ledger keys for conversations no longer in the activity window. */
-export function pruneInAppAgentReceiptRecord(
+function pruneInAppAgentReceiptRecord(
   record: Record<string, string>,
   liveConversationIds: ReadonlySet<string>,
 ): { record: Record<string, string>; changed: boolean } {
@@ -375,6 +375,8 @@ export function getInAppAgentPendingNotificationCards(params: {
  * run on its own. Parked approvals wait on the user; `refetchOnWindowFocus`
  * is enough if another tab decides them.
  */
+export const IN_APP_AGENT_ACTIVITY_POLL_INTERVAL_MS = 4_000;
+
 export function hasInFlightInAppAgentActivity(
   conversations: readonly InAppAgentActivityConversation[],
 ): boolean {
@@ -385,4 +387,27 @@ export function hasInFlightInAppAgentActivity(
       status === InAppAgentRunStatus.RUNNING
     );
   });
+}
+
+/**
+ * Interval for `useQuery({ refetchInterval })`. React Query invokes this
+ * during observer construction (first render), so a throw becomes a
+ * client-side exception and takes down the tree. Unknown snapshots and
+ * unexpected read failures disable polling instead of crashing the page.
+ */
+export function getInAppAgentActivityRefetchInterval(
+  conversations: unknown,
+): number | false {
+  try {
+    if (!Array.isArray(conversations)) {
+      return false;
+    }
+    return hasInFlightInAppAgentActivity(
+      conversations as InAppAgentActivityConversation[],
+    )
+      ? IN_APP_AGENT_ACTIVITY_POLL_INTERVAL_MS
+      : false;
+  } catch {
+    return false;
+  }
 }

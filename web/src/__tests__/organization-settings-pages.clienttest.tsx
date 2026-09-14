@@ -1,6 +1,7 @@
 import { renderHook } from "@testing-library/react";
 
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
@@ -36,9 +37,9 @@ vi.mock("@/src/components/SettingsDangerZone", () => ({
 }));
 
 vi.mock(
-  "@/src/features/organizations/components/DeleteOrganizationButton",
+  "@/src/features/organizations/components/DeleteOrganizationDialogController",
   () => ({
-    DeleteOrganizationButton: () => null,
+    DeleteOrganizationDialogController: () => null,
   }),
 );
 
@@ -91,17 +92,30 @@ vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
   useV4UpgradeUiFlag: vi.fn(),
 }));
 
+vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
+  default: vi.fn(),
+}));
+
+vi.mock("@/src/features/ai-gateway", () => ({
+  GatewayApiKeysPage: () => null,
+  GatewayConfigurationPage: () => null,
+  GatewayModelsPage: () => null,
+  GatewayProvidersPage: () => null,
+}));
+
 const organization = {
   id: "org-1",
   name: "Org 1",
   metadata: {},
+  projects: [],
 };
 
 describe("useOrganizationSettingsPages", () => {
   beforeEach(() => {
     vi.mocked(useQueryProjectOrOrganization).mockReturnValue({
       organization,
-    } as ReturnType<typeof useQueryProjectOrOrganization>);
+      project: null,
+    } as unknown as ReturnType<typeof useQueryProjectOrOrganization>);
     vi.mocked(useHasEntitlement).mockImplementation(
       (entitlement) => entitlement === "admin-api",
     );
@@ -109,6 +123,7 @@ describe("useOrganizationSettingsPages", () => {
     vi.mocked(usePlan).mockReturnValue("oss");
     vi.mocked(useIsCloudBillingAvailable).mockReturnValue(false);
     vi.mocked(useV4UpgradeUiFlag).mockReturnValue(false);
+    vi.mocked(useIsFeatureEnabled).mockReturnValue(false);
   });
 
   it("hides organization API key settings without organization api key access", () => {
@@ -160,5 +175,52 @@ describe("useOrganizationSettingsPages", () => {
     expect(
       enabled.current.find((page) => page.slug === "v4-migration")?.show,
     ).toBe(true);
+  });
+
+  it("hides all AI Gateway settings without gateway management access", () => {
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+
+    expect(useHasOrganizationAccess).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      scope: "gateway:manage",
+    });
+    expect(
+      result.current
+        .filter((page) => page.slug.startsWith("ai-gateway"))
+        .every((page) => page.show === false),
+    ).toBe(true);
+  });
+
+  it("hides all AI Gateway settings when the internal flag is disabled", () => {
+    vi.mocked(useHasOrganizationAccess).mockImplementation(
+      ({ scope }) => scope === "gateway:manage",
+    );
+
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+    const gatewayPages = result.current.filter((page) =>
+      page.slug.startsWith("ai-gateway"),
+    );
+
+    expect(gatewayPages.every((page) => page.show === false)).toBe(true);
+  });
+
+  it("shows all AI Gateway settings when the internal flag and gateway management access are enabled", () => {
+    vi.mocked(useHasOrganizationAccess).mockImplementation(
+      ({ scope }) => scope === "gateway:manage",
+    );
+    vi.mocked(useIsFeatureEnabled).mockReturnValue(true);
+
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+    const gatewayPages = result.current.filter((page) =>
+      page.slug.startsWith("ai-gateway"),
+    );
+
+    expect(gatewayPages.map((page) => page.slug)).toEqual([
+      "ai-gateway",
+      "ai-gateway-providers",
+      "ai-gateway-models",
+      "ai-gateway-api-keys",
+    ]);
+    expect(gatewayPages.every((page) => page.show === true)).toBe(true);
   });
 });

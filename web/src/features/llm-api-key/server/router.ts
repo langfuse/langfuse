@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   AuthMethod,
   CreateLlmApiKey,
@@ -7,7 +7,7 @@ import {
   SafeLlmApiKeySchema,
   type BedrockAuthMethod,
 } from "@/src/features/llm-api-key/types";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -59,7 +59,7 @@ export function getDisplaySecretKey(secretKey: string) {
     : "..." + secretKey.slice(-4);
 }
 
-export function validateBedrockSecretKey(secretKey: string) {
+function validateBedrockSecretKey(secretKey: string) {
   if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
     return;
   }

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useMemo, useState, useRef } from "react";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { File, Image as ImageIcon, Volume2, Video } from "lucide-react";

@@ -85,11 +85,17 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   }
 
   // next-auth rejects malformed callbackUrl values (query param or cookie)
-  // with a hardcoded 500, so vulnerability scanners probing auth routes page
-  // our server-error monitors. Falsy values are treated as absent because
-  // next-auth's assertConfig checks truthiness. For GET requests to next-auth's
-  // HTML page actions, remove malformed inputs and let next-auth render its
-  // normal flow; other actions retain the 400 boundary.
+  // with a hardcoded 500 (`{ message }` JSON, no `url`). Vulnerability
+  // scanners probing auth routes would page our server-error monitors, and
+  // next-auth's client `signIn({ redirect: false })` then throws
+  // `new URL(undefined)` on that body. Falsy values are treated as absent
+  // because next-auth's assertConfig checks truthiness.
+  //
+  // Always strip an invalid callback-url COOKIE (stale browser state; the
+  // credentials POST sends callbackUrl in the body). For GET HTML page
+  // actions, also strip an invalid query param and let next-auth render.
+  // Other actions keep the 400 boundary for an invalid QUERY callbackUrl
+  // (scanner probes).
   const rendersHtmlErrorPage =
     req.method === "GET" &&
     ["signin", "signout", "error", "verify-request"].includes(
@@ -120,6 +126,11 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   }
   if (invalidCallbackUrlCookie) {
     logInvalidCallbackUrl("cookie", callbackUrlCookie);
+    const {
+      [callbackUrlCookieName]: _invalidCallbackUrl,
+      ...sanitizedCookies
+    } = req.cookies;
+    req.cookies = sanitizedCookies;
   }
 
   if (rendersHtmlErrorPage) {
@@ -127,14 +138,7 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
       const { callbackUrl: _invalidCallbackUrl, ...sanitizedQuery } = req.query;
       req.query = sanitizedQuery;
     }
-    if (invalidCallbackUrlCookie) {
-      const {
-        [callbackUrlCookieName]: _invalidCallbackUrl,
-        ...sanitizedCookies
-      } = req.cookies;
-      req.cookies = sanitizedCookies;
-    }
-  } else if (invalidCallbackUrlParam || invalidCallbackUrlCookie) {
+  } else if (invalidCallbackUrlParam) {
     return res.status(400).json({ message: "Invalid callback URL" });
   }
 

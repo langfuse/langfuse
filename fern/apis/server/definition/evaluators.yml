@@ -1,0 +1,535 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  evals: ./evaluation-commons.yml
+  errors: ./evaluation-errors.yml
+
+service:
+  auth: true
+  base-path: /api/public/v2/evaluators
+  endpoints:
+    create:
+      docs: |
+        Create an evaluator in the authenticated project.
+
+        An evaluator defines **how** Langfuse should score data. LLM-as-a-judge evaluators define a prompt, expected structured output, and optional model configuration. Code evaluators define source code and a runtime language.
+
+        This always creates a new evaluator with version `1`. Names are not identifiers and do not need to be unique.
+      method: POST
+      path: ""
+      request: CreateEvaluatorRequest
+      response:
+        status-code: 201
+        type: Evaluator
+      errors:
+        - errors.BadRequestError
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationMethodNotAllowedError
+        - errors.PreconditionFailedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+    list:
+      docs: |
+        List evaluators in newest-first creation order.
+
+        Every evaluator includes its latest definition and version metadata flattened into the evaluator object, plus associated evaluation rules. Treat the cursor as opaque and return it unchanged.
+      method: GET
+      path: ""
+      request:
+        name: ListEvaluatorsRequest
+        query-parameters:
+          limit:
+            type: optional<integer>
+            docs: Maximum number of items to return. Defaults to `50` and cannot exceed `100`.
+          cursor:
+            type: optional<string>
+            docs: Opaque cursor returned by the previous page.
+      response: EvaluatorsPage
+      errors:
+        - errors.BadRequestError
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationMethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+    get:
+      docs: |
+        Get one evaluator by its stable identifier.
+
+        The response includes the evaluator's latest definition and version metadata flattened into the evaluator object, plus associated evaluation rules. Use the version-history endpoint when older definitions are needed.
+      method: GET
+      path: /{evaluatorId}
+      path-parameters:
+        evaluatorId:
+          type: string
+          docs: Stable evaluator identifier returned by the evaluator endpoints.
+      response: Evaluator
+      errors:
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationNotFoundError
+        - errors.EvaluationMethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+    update:
+      docs: |
+        Update an evaluator by its stable identifier.
+
+        Provide only the top-level fields to change. Metadata-only changes do not create a version. Evaluator type cannot change.
+
+        Definition fields are flattened into the request. To replace a definition, include `type` and every definition field for that type. Definition fields are replaced as a complete unit rather than merged. For LLM-as-a-judge evaluators, omitting or setting `modelConfig` to `null` selects the project's default evaluation model.
+
+        Replacing a definition automatically returns an evaluator paused by an invalid or missing model configuration to `active`, while preserving its id and evaluation-rule assignments. Pauses caused by provider authentication, billing, connectivity, account state, or an unknown legacy reason remain paused until the explicit reactivation check succeeds.
+      method: PATCH
+      path: /{evaluatorId}
+      path-parameters:
+        evaluatorId:
+          type: string
+          docs: Stable evaluator identifier returned by the evaluator endpoints.
+      request: UpdateEvaluatorRequest
+      response: Evaluator
+      errors:
+        - errors.BadRequestError
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationNotFoundError
+        - errors.EvaluationMethodNotAllowedError
+        - errors.ConflictError
+        - errors.PreconditionFailedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+    delete:
+      docs: |
+        Delete an evaluator and all of its stored versions.
+
+        Associated evaluation-rule assignments are also removed. Scores already produced by the evaluator are preserved.
+      method: DELETE
+      path: /{evaluatorId}
+      path-parameters:
+        evaluatorId:
+          type: string
+          docs: Stable evaluator identifier returned by the evaluator endpoints.
+      response: DeletedEvaluator
+      errors:
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationNotFoundError
+        - errors.EvaluationMethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+    listVersions:
+      docs: |
+        List an evaluator's version history in newest-first order.
+
+        This endpoint is intended for history and audit use cases. Ordinary clients can use the flattened `version` and definition fields on the evaluator response.
+      method: GET
+      path: /{evaluatorId}/versions
+      path-parameters:
+        evaluatorId:
+          type: string
+          docs: Stable evaluator identifier returned by the evaluator endpoints.
+      request:
+        name: ListEvaluatorVersionsRequest
+        query-parameters:
+          limit:
+            type: optional<integer>
+            docs: Maximum number of versions to return. Defaults to `50` and cannot exceed `100`.
+          cursor:
+            type: optional<string>
+            docs: Opaque cursor returned by the previous page.
+      response: EvaluatorVersionsPage
+      errors:
+        - errors.BadRequestError
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationNotFoundError
+        - errors.EvaluationMethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+types:
+  Creator:
+    docs: User who created the resource, or `null` when no user can be resolved.
+    properties:
+      id:
+        type: string
+        docs: User identifier.
+      name:
+        type: nullable<string>
+        docs: User name, or `null` when unavailable.
+
+  EvaluatorModelConfig:
+    docs: |
+      Explicit model configuration for an evaluator.
+
+      If the complete `modelConfig` is `null`, Langfuse uses the project's default evaluation model.
+      If provided, the model must be available to the project when the evaluator or evaluation rule is enabled.
+    properties:
+      provider:
+        type: string
+        docs: |
+          Provider identifier, for example `openai` or `anthropic`.
+
+          To discover valid values for the current project, call `GET /api/public/llm-connections` and use one of the returned `provider` values.
+      model:
+        type: string
+        docs: Model identifier exposed by the provider, for example `gpt-4.1-mini`.
+    examples:
+      - value:
+          provider: openai
+          model: gpt-4.1-mini
+
+  EvaluatorChatMessageRole:
+    docs: Role of an evaluator prompt message.
+    enum:
+      - system
+      - user
+      - assistant
+
+  EvaluatorChatMessage:
+    docs: One chat message in an evaluator prompt.
+    properties:
+      role:
+        type: EvaluatorChatMessageRole
+      content:
+        type: string
+        docs: Message content. Evaluator variables use `{{variable}}` syntax.
+
+  EvaluatorChatPrompt:
+    docs: An ordered list of chat messages. A system message is only allowed as the first message.
+    type: list<EvaluatorChatMessage>
+    validation:
+      minItems: 1
+
+  EvaluatorChatPromptInput:
+    docs: A user prompt string shortcut, or an ordered list of chat messages.
+    discriminated: false
+    union:
+      - string
+      - EvaluatorChatPrompt
+
+  EvaluatorVersionBase:
+    properties:
+      id:
+        type: string
+        docs: Stable identifier of this evaluator version.
+      version:
+        type: integer
+        docs: Monotonically increasing evaluator version number.
+      createdAt:
+        type: datetime
+        docs: Timestamp when this evaluator version was created.
+      createdBy:
+        type: nullable<Creator>
+        docs: User who created this version, or `null` when no user can be resolved.
+
+  LlmAsJudgeEvaluatorVersion:
+    extends: EvaluatorVersionBase
+    properties:
+      type:
+        type: literal<"llm_as_judge">
+        docs: Evaluator type.
+      prompt:
+        type: EvaluatorChatPrompt
+        docs: Ordered chat messages used during evaluation.
+      variables:
+        type: list<string>
+        docs: |
+          Variables extracted from the prompt and available for evaluation-rule mappings.
+
+          Every variable must be mapped exactly once when a rule provides an explicit mapping.
+      variableMapping:
+        type: nullable<list<evals.PromptVariableMappingRead>>
+        docs: Default variable mapping for this evaluator version, or `null` when no default is configured.
+      modelConfig:
+        type: nullable<EvaluatorModelConfig>
+        docs: Explicit model configuration, or `null` when the project's default evaluation model is used.
+      outputDefinition:
+        type: evals.PublicEvaluatorOutputDefinition
+        docs: |
+          Structured output schema returned by this evaluator.
+
+          Responses include `dataType` and omit the internal output-definition persistence version.
+
+  CodeEvaluatorVersion:
+    extends: EvaluatorVersionBase
+    properties:
+      type:
+        type: literal<"code">
+        docs: Evaluator type.
+      sourceCode:
+        type: string
+        docs: Source code executed for each matched observation.
+      sourceCodeLanguage:
+        type: evals.CodeEvaluatorSourceCodeLanguage
+        docs: Runtime language used to execute the source code.
+
+  EvaluatorVersion:
+    discriminant: type
+    union:
+      llm_as_judge:
+        type: LlmAsJudgeEvaluatorVersion
+      code:
+        type: CodeEvaluatorVersion
+
+  EvaluationRuleAssignment:
+    docs: Evaluation-rule assignment associated with this evaluator.
+    properties:
+      evaluationRuleId:
+        type: string
+        docs: Stable identifier of the assigned evaluation rule.
+      variableMappingOverride:
+        type: optional<list<evals.PromptVariableMapping>>
+        docs: Rule-specific variable mapping override. Omitted when the evaluator's latest default mapping is inherited. Legacy mappings use the explicit `legacy` variant.
+
+  EvaluatorBase:
+    properties:
+      id:
+        type: string
+        docs: Stable identifier of this evaluator across all versions.
+      name:
+        type: string
+        docs: Human-readable evaluator name. Names are not identifiers and do not need to be unique.
+      description:
+        type: nullable<string>
+        docs: Optional human-readable evaluator description.
+      createdBy:
+        type: nullable<Creator>
+        docs: User who created this evaluator, or `null` when no user can be resolved.
+      status:
+        type: EvaluatorStatus
+        docs: Effective evaluator status after Langfuse validates its runtime configuration.
+      pausedAt:
+        type: nullable<datetime>
+        docs: Timestamp when the evaluator was paused, otherwise `null`.
+      pausedReason:
+        type: nullable<string>
+        docs: Machine-readable reason when `status=paused`, otherwise `null`.
+      pausedMessage:
+        type: nullable<string>
+        docs: Human-readable explanation when `status=paused`, otherwise `null`.
+      evaluationRuleAssignments:
+        type: list<EvaluationRuleAssignment>
+        docs: All modern and legacy evaluation-rule assignments in newest-assignment-first order. Rule-specific mappings are exposed as `variableMappingOverride`; inherited defaults are omitted.
+      createdAt:
+        type: datetime
+        docs: Timestamp when the evaluator was created.
+      updatedAt:
+        type: datetime
+        docs: Timestamp when the evaluator was last updated.
+      versionId:
+        type: string
+        docs: Stable identifier of the latest evaluator version.
+      version:
+        type: integer
+        docs: Monotonically increasing latest evaluator version number.
+      versionCreatedAt:
+        type: datetime
+        docs: Timestamp when the latest evaluator version was created.
+      versionCreatedBy:
+        type: nullable<Creator>
+        docs: User who created the latest evaluator version, or `null` when no user can be resolved.
+
+  LlmAsJudgeEvaluator:
+    extends: EvaluatorBase
+    properties:
+      type:
+        type: literal<"llm_as_judge">
+        docs: Evaluator type.
+      prompt:
+        type: EvaluatorChatPrompt
+        docs: Ordered chat messages used by the latest evaluator version.
+      variables:
+        type: list<string>
+        docs: Variables extracted from the latest prompt and available for evaluation-rule mappings.
+      variableMapping:
+        type: nullable<list<evals.PromptVariableMappingRead>>
+        docs: Default variable mapping for the latest version, or `null` when no default is configured.
+      modelConfig:
+        type: nullable<EvaluatorModelConfig>
+        docs: Explicit model configuration for the latest version, or `null` when the project's default evaluation model is used.
+      outputDefinition:
+        type: evals.PublicEvaluatorOutputDefinition
+        docs: Structured output schema returned by the latest evaluator version.
+
+  CodeEvaluator:
+    extends: EvaluatorBase
+    properties:
+      type:
+        type: literal<"code">
+        docs: Evaluator type.
+      sourceCode:
+        type: string
+        docs: Source code executed by the latest evaluator version.
+      sourceCodeLanguage:
+        type: evals.CodeEvaluatorSourceCodeLanguage
+        docs: Runtime language used to execute the latest source code.
+
+  Evaluator:
+    docs: |
+      One evaluator that can be used for scoring.
+
+      An evaluator describes **how** to score data. Associated evaluation rules describe **which** live objects should be evaluated.
+    discriminant: type
+    union:
+      llm_as_judge:
+        type: LlmAsJudgeEvaluator
+      code:
+        type: CodeEvaluator
+
+  EvaluatorStatus:
+    docs: |
+      Effective evaluator runtime status.
+
+      - `active`: the evaluator can run.
+      - `paused`: Langfuse paused execution until the underlying issue is resolved.
+    enum:
+      - active
+      - paused
+
+  CreateLlmAsJudgeEvaluatorRequest:
+    properties:
+      name:
+        type: string
+        docs: Human-readable evaluator name. Names are not identifiers and do not need to be unique.
+      description:
+        type: optional<nullable<string>>
+        docs: Optional human-readable evaluator description.
+      type:
+        type: literal<"llm_as_judge">
+        docs: Evaluator type.
+      prompt:
+        type: EvaluatorChatPromptInput
+        docs: User prompt string shortcut or an ordered list of chat messages.
+      modelConfig:
+        type: optional<nullable<EvaluatorModelConfig>>
+        docs: Explicit model configuration. Set to `null` or omit to use the project's default evaluation model.
+      variableMapping:
+        type: optional<nullable<list<evals.PromptVariableMappingInput>>>
+        docs: Default prompt-variable mapping, or `null` when no default is configured.
+      outputDefinition:
+        type: evals.EvaluatorOutputDefinition
+        docs: Structured output schema returned by this evaluator. Do not include an internal persistence version.
+
+  CreateCodeEvaluatorRequest:
+    properties:
+      name:
+        type: string
+        docs: Human-readable evaluator name. Names are not identifiers and do not need to be unique.
+      description:
+        type: optional<nullable<string>>
+        docs: Optional human-readable evaluator description.
+      type:
+        type: literal<"code">
+        docs: Evaluator type.
+      sourceCode:
+        type: string
+        docs: Source code executed for each matched observation.
+      sourceCodeLanguage:
+        type: evals.CodeEvaluatorSourceCodeLanguage
+        docs: Runtime language used to execute the source code.
+
+  CreateEvaluatorRequest:
+    docs: Initial evaluator definition with metadata and definition fields at the same level. The returned evaluator starts at version `1`.
+    discriminant: type
+    union:
+      llm_as_judge:
+        type: CreateLlmAsJudgeEvaluatorRequest
+      code:
+        type: CreateCodeEvaluatorRequest
+
+  UpdateEvaluatorMetadataRequest:
+    docs: Metadata-only update. At least one field must be provided.
+    properties:
+      name:
+        type: optional<string>
+        docs: New human-readable evaluator name.
+      description:
+        type: optional<nullable<string>>
+        docs: New description. Set to `null` to clear it.
+
+  UpdateLlmAsJudgeEvaluatorRequest:
+    properties:
+      name:
+        type: optional<string>
+        docs: New human-readable evaluator name.
+      description:
+        type: optional<nullable<string>>
+        docs: New description. Set to `null` to clear it.
+      type:
+        type: literal<"llm_as_judge">
+        docs: Evaluator type. The type of an existing evaluator cannot change.
+      prompt:
+        type: EvaluatorChatPromptInput
+        docs: Complete replacement user prompt string or an ordered list of chat messages.
+      modelConfig:
+        type: optional<nullable<EvaluatorModelConfig>>
+        docs: Explicit model configuration. Set to `null` or omit to use the project's default evaluation model.
+      variableMapping:
+        type: optional<nullable<list<evals.PromptVariableMappingInput>>>
+        docs: Complete replacement default variable mapping, or `null` when no default is configured.
+      outputDefinition:
+        type: evals.EvaluatorOutputDefinition
+        docs: Complete replacement output schema. Do not include an internal persistence version.
+
+  UpdateCodeEvaluatorRequest:
+    properties:
+      name:
+        type: optional<string>
+        docs: New human-readable evaluator name.
+      description:
+        type: optional<nullable<string>>
+        docs: New description. Set to `null` to clear it.
+      type:
+        type: literal<"code">
+        docs: Evaluator type. The type of an existing evaluator cannot change.
+      sourceCode:
+        type: string
+        docs: Complete replacement source code.
+      sourceCodeLanguage:
+        type: evals.CodeEvaluatorSourceCodeLanguage
+        docs: Runtime language used to execute the source code.
+
+  UpdateEvaluatorRequest:
+    docs: Metadata-only update or complete flattened definition replacement. At least one field must be provided.
+    discriminated: false
+    union:
+      - UpdateEvaluatorMetadataRequest
+      - UpdateLlmAsJudgeEvaluatorRequest
+      - UpdateCodeEvaluatorRequest
+
+  EvaluatorsPage:
+    properties:
+      data:
+        type: list<Evaluator>
+        docs: Evaluators for this page.
+      meta:
+        type: CursorMeta
+        docs: Cursor pagination metadata.
+
+  EvaluatorVersionsPage:
+    properties:
+      data:
+        type: list<EvaluatorVersion>
+        docs: Evaluator versions for this page in newest-first order.
+      meta:
+        type: CursorMeta
+        docs: Cursor pagination metadata.
+
+  CursorMeta:
+    properties:
+      cursor:
+        type: optional<string>
+        docs: Opaque cursor for the next page. Omitted when there is no next page.
+
+  DeletedEvaluator:
+    docs: Confirmation returned after successful evaluator deletion.
+    properties:
+      id:
+        type: string
+        docs: Identifier of the deleted evaluator.

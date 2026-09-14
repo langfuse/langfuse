@@ -7,6 +7,7 @@ import type { AgUiEvent } from "@langfuse/shared/in-app-agent";
 import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
   IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
 } from "@langfuse/shared/in-app-agent";
 import { createInAppAgentToolPolicy } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
@@ -102,6 +103,8 @@ const readAgentInstructions = (agentConfig: MockedAgentConfig | undefined) => {
 
 const adapterEvents = vi.hoisted(() => ({
   items: [] as AgUiEvent[],
+  /** Runs after the mocked adapter emits `items`, before it completes. */
+  beforeComplete: undefined as (() => void) | undefined,
   cleanup: vi.fn().mockResolvedValue(undefined),
   inputs: [] as unknown[],
   createScoreConfigExecute: vi.fn().mockResolvedValue({
@@ -262,6 +265,7 @@ vi.mock("@ag-ui/mastra", () => ({
           for (const event of adapterEvents.items) {
             subscriber.next(event);
           }
+          adapterEvents.beforeComplete?.();
           subscriber.complete();
           return { unsubscribe: vi.fn() };
         },
@@ -556,6 +560,7 @@ describe("createAgUiStream", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     bedrockMocks.streamParts = [];
+    adapterEvents.beforeComplete = undefined;
     promptMocks.getPrompt.mockResolvedValue({
       name: "in-app-agent-system-prompt",
       version: 2,
@@ -566,6 +571,7 @@ describe("createAgUiStream", () => {
   const initializeBasicTracedAgent = async (
     runId: string,
     model = testBedrockModel("test-model"),
+    onComplete?: (outcome?: unknown) => void,
   ) => {
     const { createAgUiStream } = await import("./agent");
     const input = {
@@ -601,6 +607,7 @@ describe("createAgUiStream", () => {
       signal: new AbortController().signal,
       options: {
         model,
+        onComplete,
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -616,6 +623,17 @@ describe("createAgUiStream", () => {
       },
     });
     await readStream(stream);
+  };
+
+  const completeIterationWith = (finishReason: string, iteration = 1) => {
+    adapterEvents.beforeComplete = () => {
+      getLastAgentConfig()?.defaultOptions?.onIterationComplete?.({
+        iteration,
+        maxIterations: IN_APP_AGENT_MAX_STEPS,
+        isFinal: true,
+        finishReason,
+      });
+    };
   };
 
   it("uses the shared Bedrock default-credential auth", async () => {
@@ -926,6 +944,62 @@ describe("createAgUiStream", () => {
     );
   });
 
+  it.each([
+    {
+      iteration: 1,
+      finishReason: "stop",
+      byStepLimit: false,
+      byOutputLimit: false,
+    },
+    {
+      iteration: 1,
+      finishReason: "length",
+      byStepLimit: false,
+      byOutputLimit: true,
+    },
+    {
+      iteration: IN_APP_AGENT_MAX_STEPS,
+      finishReason: "tool-calls",
+      byStepLimit: true,
+      byOutputLimit: false,
+    },
+    {
+      iteration: IN_APP_AGENT_MAX_STEPS,
+      finishReason: "length",
+      byStepLimit: false,
+      byOutputLimit: true,
+    },
+  ])(
+    "reports truncation for a $finishReason finish on step $iteration",
+    async ({ iteration, finishReason, byStepLimit, byOutputLimit }) => {
+      const onComplete = vi.fn();
+      completeIterationWith(finishReason, iteration);
+
+      await initializeBasicTracedAgent(
+        `run-finish-${finishReason}-${iteration}`,
+        undefined,
+        onComplete,
+      );
+
+      expect(onComplete).toHaveBeenCalledWith({
+        reachedStepLimit: false,
+        truncatedByStepLimit: byStepLimit,
+        truncatedByOutputLimit: byOutputLimit,
+      });
+      expect(instrumentationMocks.instrumentation.end).toHaveBeenCalledWith(
+        byStepLimit || byOutputLimit
+          ? {
+              result: {
+                truncatedByStepLimit: byStepLimit,
+                truncatedByOutputLimit: byOutputLimit,
+                finishReason,
+              },
+            }
+          : {},
+      );
+    },
+  );
+
   it("serializes valid events including adapter snapshots and reasoning messages", async () => {
     const { createAgUiStream } = await import("./agent");
     const input = {
@@ -1184,6 +1258,27 @@ describe("createAgUiStream", () => {
       href: "/project/project-1/widgets/widget-1",
     });
 
+    // Destinations without params receive {}; required params still reject it.
+    await expect(
+      redirectTool?.execute?.({
+        label: "Open alerts",
+        destination: "alerts",
+        params: {},
+      }),
+    ).resolves.toEqual({
+      type: "redirectAction",
+      label: "Open alerts",
+      href: "/project/project-1/alerts",
+    });
+
+    await expect(
+      redirectTool?.execute?.({
+        label: "Open session",
+        destination: "session",
+        params: {},
+      }),
+    ).resolves.toMatchObject({ error: true });
+
     expect(promptMocks.getPrompt).toHaveBeenCalledWith(
       "in-app-agent-system-prompt",
       undefined,
@@ -1195,20 +1290,15 @@ describe("createAgUiStream", () => {
         redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
         sandboxFilesystem: expect.stringContaining("<sandbox_filesystem>"),
         screenContext: "",
-        userContext: expect.stringContaining("<user_context>"),
+        userContext: "",
         sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
           (environment) => `"${environment}"`,
         ).join(", "),
       }),
     );
-    expect(promptMocks.compile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userContext: expect.stringContaining('"user_name": "Ada Lovelace"'),
-      }),
-    );
-    expect(promptMocks.compile.mock.calls[0]?.[0].userContext).not.toContain(
-      '"current_url"',
-    );
+    expect(
+      promptMocks.compile.mock.calls[0]?.[0].sandboxFilesystem,
+    ).not.toContain("tool_calls");
 
     const processor = getLastAgentConfig()?.inputProcessors?.find(
       (item) => item.id === "current-time",
@@ -1223,11 +1313,13 @@ describe("createAgUiStream", () => {
       .at(-1)
       ?.content.find((part) => part.text)?.text;
 
+    expect(laterStepText).toContain("<current_time");
+    expect(laterStepText).toContain("<user_context>");
+    expect(laterStepText).toContain('"user_name": "Ada Lovelace"');
     expect(laterStepText).toContain("<screen_context>");
     expect(laterStepText).toContain(
       '"current_url": "https://cloud.langfuse.com/project/project-1/traces"',
     );
-    expect(laterStepText).not.toContain('"user_name"');
     const baseInstructions = vi.mocked(Agent).mock.calls[0]?.[0].instructions;
     expect(baseInstructions).toEqual(expect.any(Function));
     expect((baseInstructions as () => string)()).toBe(
@@ -1303,6 +1395,71 @@ describe("createAgUiStream", () => {
     ]);
     expect(instrumentationMocks.instrumentation.end).toHaveBeenCalledWith({});
     expect(instrumentationMocks.instrumentation.flush).toHaveBeenCalled();
+  });
+
+  it("waits for tracing flush before finishing an aborted agent stream", async () => {
+    const { createAgUiStream } = await import("./agent");
+    let resolveFlush: (() => void) | undefined;
+    instrumentationMocks.instrumentation.flush.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveFlush = resolve;
+      }),
+    );
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-flush-abort",
+      messages: [
+        {
+          id: "user-message-1",
+          role: "user" as const,
+          content: "hello",
+        },
+      ],
+      tools: [],
+      context: [],
+      state: {
+        type: "existingConversation" as const,
+        projectId: "project-1",
+        conversationId: "conversation-1",
+      },
+      forwardedProps: {},
+    };
+    adapterEvents.items = [];
+    const onAbort = vi.fn();
+    const abortController = new AbortController();
+    abortController.abort("worker_shutdown");
+
+    const stream = await createAgUiStream({
+      input,
+      signal: abortController.signal,
+      options: {
+        onAbort,
+        model: testBedrockModel("test-model"),
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          toolPolicy: defaultInAppAgentToolPolicy,
+        },
+        redirectAction: { projectId: "project-1", isV4Enabled: false },
+        langfuseClient: {
+          getPrompt: promptMocks.getPrompt,
+        } as unknown as Langfuse,
+        useLocalPrompt: false,
+        langfuseTracing: createTestTracingConfig(),
+      },
+    });
+
+    const streamDone = readStream(stream);
+    await vi.waitFor(() => {
+      expect(instrumentationMocks.instrumentation.flush).toHaveBeenCalled();
+    });
+    expect(onAbort).not.toHaveBeenCalled();
+
+    resolveFlush?.();
+    await streamDone;
+
+    expect(onAbort).toHaveBeenCalledOnce();
   });
 
   it("does not enable Bedrock reasoning for non-Claude models", async () => {
@@ -1440,8 +1597,11 @@ describe("createAgUiStream", () => {
     const agentConfig = vi.mocked(Agent).mock.calls.at(-1)?.[0];
     const runInstruction = (agentConfig?.defaultOptions as { system?: string })
       ?.system;
-    expect(runInstruction).toContain("has been replaced with an empty one");
-    expect(runInstruction).toContain("restored in full");
+    expect(runInstruction).toContain("has expired and been replaced");
+    expect(runInstruction).toContain(
+      "Persisted tool-output files explicitly named in tool results remain available",
+    );
+    expect(runInstruction).not.toContain("/workspace/tool_calls");
     expect(
       promptMocks.compile.mock.calls.at(-1)?.[0]?.sandboxFilesystem,
     ).not.toContain("has been replaced with an empty one");
@@ -1893,6 +2053,8 @@ describe("createAgUiStream", () => {
     const input = createToolApprovalResumeInput(true, { silent: true });
     adapterEvents.createScoreConfigExecute.mockResolvedValueOnce({
       type: "silent-mcp-output",
+      toolCallId: "tool-call-1",
+      toolName: "langfuse_createScoreConfig",
       output: {
         id: "score-config-1",
         name: "readiness",
@@ -1900,7 +2062,8 @@ describe("createAgUiStream", () => {
       },
     });
     adapterEvents.createScoreConfigToModelOutput.mockImplementationOnce(
-      async () => "Output saved to /workspace/tool_calls",
+      async () =>
+        "Output saved to /workspace/tool_calls/langfuse_createScoreConfig_tool-call-1.json",
     );
     adapterEvents.inputs = [];
     adapterEvents.items = [
@@ -1950,15 +2113,20 @@ describe("createAgUiStream", () => {
 
     expect(resumedToolMessage).toMatchObject({
       role: "tool",
-      content: "Output saved to /workspace/tool_calls",
+      content:
+        "Output saved to /workspace/tool_calls/langfuse_createScoreConfig_tool-call-1.json",
     });
-    expect(streamedText).toContain("Output saved to /workspace/tool_calls");
+    expect(streamedText).toContain(
+      "Output saved to /workspace/tool_calls/langfuse_createScoreConfig_tool-call-1.json",
+    );
     expect(streamedText).not.toContain("full-tool-output");
     expect(persistedEvents).toContainEqual(
       expect.objectContaining({
         type: EventType.TOOL_CALL_RESULT,
         content: JSON.stringify({
           type: "silent-mcp-output",
+          toolCallId: "tool-call-1",
+          toolName: "langfuse_createScoreConfig",
           output: {
             id: "score-config-1",
             name: "readiness",
@@ -2376,6 +2544,22 @@ describe("createAgUiStream", () => {
       toolCallId: "tool-call-1",
       status: "rejected",
     });
+    expect(
+      instrumentationMocks.instrumentation.recordEvents.mock.calls.flatMap(
+        ([events]) => events,
+      ),
+    ).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: EventType.CUSTOM,
+          name: IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
+          value: expect.objectContaining({
+            toolCallId: "tool-call-1",
+            source: "human",
+          }),
+        }),
+      ]),
+    );
     expect(onComplete).toHaveBeenCalledOnce();
   });
 

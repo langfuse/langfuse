@@ -41,6 +41,11 @@ import { getSupportedCodeEvalTemplateLanguages } from "@/src/features/evals/serv
 import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";
 import type { ManagedTemplate } from "@/src/features/evals/v2/types/templateGallery";
 import type { EvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+import {
+  getLegacyEvaluatorPrompt,
+  reconcileEvaluatorPromptMessages,
+  toEvaluatorDefinition,
+} from "@/src/features/evals/v2/server/evaluators/evaluatorService";
 
 const MANAGED_TEMPLATE_ID_PREFIX = "managed:";
 
@@ -116,7 +121,7 @@ function toLegacyManagedTemplate(template: ManagedTemplate) {
     projectId: null,
     name: template.name,
     version: 1,
-    prompt: template.evaluator.prompt,
+    prompt: getLegacyEvaluatorPrompt(template.evaluator.promptMessages),
     type: EvalTemplateType.LLM_AS_JUDGE,
     partner: null,
     model: null,
@@ -140,7 +145,15 @@ function toLegacyEvaluatorTemplate(evaluator: StableEvaluator) {
     projectId: evaluator.projectId,
     name: evaluator.name,
     version: version.version,
-    prompt: version.prompt,
+    prompt:
+      evaluator.type === EvalTemplateType.LLM_AS_JUDGE
+        ? getLegacyEvaluatorPrompt(
+            reconcileEvaluatorPromptMessages({
+              prompt: version.prompt,
+              promptMessages: version.promptMessages,
+            }),
+          )
+        : null,
     type: evaluator.type,
     partner: version.partner,
     model: version.model,
@@ -203,7 +216,7 @@ function definitionFromManagedTemplate(
 
   return {
     type: EvalTemplateType.LLM_AS_JUDGE,
-    prompt: template.evaluator.prompt,
+    promptMessages: template.evaluator.promptMessages,
     provider: null,
     model: null,
     modelParams: null,
@@ -227,17 +240,11 @@ function definitionFromEvaluator(
       sourceCodeLanguage: version.sourceCodeLanguage,
     };
   }
-  if (!version.prompt || !version.outputDefinition) return null;
-  return {
-    type: EvalTemplateType.LLM_AS_JUDGE,
-    prompt: version.prompt,
-    provider: version.provider,
-    model: version.model,
-    modelParams: version.modelParams,
-    vars: version.vars,
-    variableMapping,
-    outputDefinition: version.outputDefinition,
-  } as EvaluatorDefinition;
+  if (!version.outputDefinition) return null;
+  const definition = toEvaluatorDefinition(evaluator.type, version);
+  return definition.type === EvalTemplateType.LLM_AS_JUDGE
+    ? { ...definition, variableMapping }
+    : null;
 }
 
 function evaluatorVersionData(
@@ -260,7 +267,8 @@ function evaluatorVersionData(
           definition.variableMapping === null
             ? Prisma.DbNull
             : (definition.variableMapping as Prisma.InputJsonValue),
-        prompt: definition.prompt,
+        prompt: getLegacyEvaluatorPrompt(definition.promptMessages),
+        promptMessages: definition.promptMessages as Prisma.InputJsonValue,
         provider: definition.provider,
         model: definition.model,
         modelParams:
@@ -289,7 +297,7 @@ function definitionsMatch(a: EvaluatorDefinition, b: EvaluatorDefinition) {
     b.type === EvalTemplateType.LLM_AS_JUDGE
   ) {
     return (
-      a.prompt === b.prompt &&
+      isEqual(a.promptMessages, b.promptMessages) &&
       a.provider === b.provider &&
       a.model === b.model &&
       isEqual(a.modelParams, b.modelParams) &&

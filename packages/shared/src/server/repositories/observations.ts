@@ -333,6 +333,7 @@ export const getObservationByIdFromObservationsTable = async ({
   projectId,
   fetchWithInputOutput = false,
   startTime,
+  startTimeLowerBound,
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
@@ -342,6 +343,7 @@ export const getObservationByIdFromObservationsTable = async ({
   projectId: string;
   fetchWithInputOutput?: boolean;
   startTime?: Date;
+  startTimeLowerBound?: Date;
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
@@ -352,6 +354,7 @@ export const getObservationByIdFromObservationsTable = async ({
     projectId,
     fetchWithInputOutput,
     startTime,
+    startTimeLowerBound,
     type,
     traceId,
     renderingProps,
@@ -442,6 +445,7 @@ const getObservationByIdInternal = async ({
   projectId,
   fetchWithInputOutput = false,
   startTime,
+  startTimeLowerBound,
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
@@ -451,6 +455,7 @@ const getObservationByIdInternal = async ({
   projectId: string;
   fetchWithInputOutput?: boolean;
   startTime?: Date;
+  startTimeLowerBound?: Date;
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
@@ -495,7 +500,9 @@ const getObservationByIdInternal = async ({
   FROM observations
   WHERE id = {id: String}
   AND project_id = {projectId: String}
-  ${startTime ? `AND toDate(start_time) = toDate({startTime: DateTime64(3)})` : ""}
+  ${/* Matched at minute resolution: minute is the finest the primary key can prune on, and flooring absorbs sub-minute precision differences in the caller-supplied start time. */ ""}
+  ${startTime ? `AND toStartOfMinute(start_time) = toStartOfMinute({startTime: DateTime64(3)})` : ""}
+  ${startTimeLowerBound ? `AND start_time >= {startTimeLowerBound: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
   ${type ? `AND type = {type: String}` : ""}
   ${traceId ? `AND trace_id = {traceId: String}` : ""}
   ORDER BY event_ts desc
@@ -507,6 +514,12 @@ const getObservationByIdInternal = async ({
       projectId,
       ...(startTime
         ? { startTime: convertDateToClickhouseDateTime(startTime) }
+        : {}),
+      ...(startTimeLowerBound
+        ? {
+            startTimeLowerBound:
+              convertDateToClickhouseDateTime(startTimeLowerBound),
+          }
         : {}),
       ...(traceId ? { traceId } : {}),
     },
@@ -1755,7 +1768,7 @@ const buildObservationsForBlobStorageExportQuery = (
     FROM observations
     WHERE project_id = {projectId: String}
     AND start_time >= {minTimestamp: DateTime64(3)}
-    AND start_time <= {maxTimestamp: DateTime64(3)}
+    AND start_time < {maxTimestamp: DateTime64(3)}
     ${
       skipDedup
         ? ""
@@ -1875,9 +1888,9 @@ export const getGenerationsForAnalyticsIntegrations = async function* (
       o.id as id,
       o.total_cost as total_cost,
       if(isNull(completion_start_time), NULL, date_diff('millisecond', start_time, completion_start_time)) as time_to_first_token,
-      o.usage_details['total'] as input_tokens,
+      o.usage_details['input'] as input_tokens,
       o.usage_details['output'] as output_tokens,
-      o.cost_details['total'] as total_tokens,
+      o.usage_details['total'] as total_tokens,
       o.project_id as project_id,
       if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time) / 1000) as latency,
       o.provided_model_name as model,

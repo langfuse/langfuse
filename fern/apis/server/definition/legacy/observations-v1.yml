@@ -17,6 +17,12 @@ service:
         observationId:
           type: string
           docs: The unique langfuse identifier of an observation, can be an event, span or generation
+      request:
+        name: GetObservationRequest
+        query-parameters:
+          startTime:
+            type: optional<datetime>
+            docs: The start time of the observation (ISO 8601 with offset, e.g. 2024-01-01T00:00:00Z). Optional performance hint - when provided, Langfuse narrows the lookup to make the request substantially faster. It only affects speed - an incorrect or omitted value never changes the result.
       response: commons.ObservationsViewSingle
     getMany:
       availability:

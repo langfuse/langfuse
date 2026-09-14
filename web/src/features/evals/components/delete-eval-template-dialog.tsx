@@ -5,8 +5,7 @@ import { useState } from "react";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
 
 type ReferencingEvaluator = {

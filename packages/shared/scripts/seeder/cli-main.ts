@@ -64,6 +64,16 @@ const baseUrl = (process.env.NEXTAUTH_URL ?? "http://localhost:3000").replace(
   "",
 );
 
+const truncateDescription = (text: string, maxLen = 100): string => {
+  if (text.length <= maxLen) return text;
+  const cut = text.slice(0, maxLen);
+  const lastSpace = cut.lastIndexOf(" ");
+  // Keep at least 60% of the budget before bailing on the word boundary, so
+  // we don't return a useless 3-character stub if a single word is huge.
+  const wordEnd = lastSpace > maxLen * 0.6 ? lastSpace : maxLen;
+  return `${cut.slice(0, wordEnd).trimEnd()}…`;
+};
+
 const usage = (): string => {
   const lines = [
     "Langfuse seed CLI — one-shot local test data.",
@@ -230,7 +240,9 @@ const main = async (): Promise<number> => {
     } else {
       for (const scenario of listed) {
         const v4Marker = scenario.supportsV4 ? "  [v4]" : "";
-        console.log(`${scenario.name}${v4Marker}\n  ${scenario.description}`);
+        console.log(
+          `${scenario.name}${v4Marker}\n  ${truncateDescription(scenario.description)}`,
+        );
         for (const flag of scenario.flags) {
           console.log(
             `    --${flag.flag.padEnd(24)} default: ${String(flag.default) || '""'}  ${flag.description}`,
@@ -282,7 +294,7 @@ const main = async (): Promise<number> => {
     },
   };
 
-  if (!ctx.dryRun) {
+  if (!ctx.dryRun && scenario.target !== "api") {
     await preflight({
       projectId: ctx.projectId,
       needV4: scenario.supportsV4 && params["v4"] === true,

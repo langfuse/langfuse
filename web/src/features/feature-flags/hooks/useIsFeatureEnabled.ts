@@ -1,9 +1,19 @@
 import { useSession } from "next-auth/react";
+import { isRestrictedFlag } from "../available-flags";
 import type { Flag } from "../types";
+import { getContextualFeatureFlags } from "../utils";
 
 export default function useIsFeatureEnabled(
   feature: Flag,
-  { enableForAdmins = true }: { enableForAdmins?: boolean } = {},
+  {
+    enableForAdmins = true,
+    projectId,
+    organizationId,
+  }: {
+    enableForAdmins?: boolean;
+    projectId?: string;
+    organizationId?: string;
+  } = {},
 ): boolean {
   const session = useSession();
 
@@ -13,7 +23,14 @@ export default function useIsFeatureEnabled(
     session.data?.environment.enableExperimentalFeatures ?? false;
 
   const isFeatureEnabledOnUser =
-    session.data?.user?.featureFlags[feature] ?? false;
+    getContextualFeatureFlags(session.data?.user, {
+      projectId,
+      organizationId,
+    })?.[feature] ?? false;
+
+  if (isRestrictedFlag(feature)) {
+    return isFeatureEnabledOnUser;
+  }
 
   return (
     isExperimentalFeaturesEnabled ||

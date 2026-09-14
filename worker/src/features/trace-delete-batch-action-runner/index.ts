@@ -16,7 +16,7 @@ import { processTraceDeleteBatchAction } from "../batchAction/processTraceDelete
 
 const METRIC_PREFIX = "langfuse.trace_delete_batch_action_runner";
 
-export const TRACE_DELETE_BATCH_ACTION_RUNNER_LOCK_KEY =
+const TRACE_DELETE_BATCH_ACTION_RUNNER_LOCK_KEY =
   "langfuse:trace-delete-batch-action-runner";
 
 const ACTIVE_BATCH_ACTION_STATUSES = [

@@ -5,11 +5,11 @@ import {
 import { tags as t } from "@lezer/highlight";
 import { createTheme, type CreateThemeOptions } from "@uiw/codemirror-themes";
 
-export const defaultSettingsLightTheme: CreateThemeOptions["settings"] = {
+const defaultSettingsLightTheme: CreateThemeOptions["settings"] = {
   ...defaultSettingsBothThemes,
 };
 
-export const lightThemeStyle: CreateThemeOptions["styles"] = [
+const lightThemeStyle: CreateThemeOptions["styles"] = [
   ...bothThemeStyles,
   {
     tag: [
@@ -62,7 +62,7 @@ export const lightThemeStyle: CreateThemeOptions["styles"] = [
   { tag: t.link, color: "#4078f2", textDecoration: "underline" },
 ];
 
-export function lightThemeInit(options?: Partial<CreateThemeOptions>) {
+function lightThemeInit(options?: Partial<CreateThemeOptions>) {
   const { theme = "light", settings = {}, styles = [] } = options || {};
   return createTheme({
     theme: theme,

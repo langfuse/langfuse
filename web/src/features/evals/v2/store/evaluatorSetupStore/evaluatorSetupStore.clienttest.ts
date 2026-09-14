@@ -2,8 +2,10 @@ import type { FilterState } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 
 import { getDefaultCodeEvalSource } from "@/src/features/evals/utils/code-eval-template-starter-examples";
-import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
-import { createEvaluatorSetupStore } from "./evaluatorSetupStore";
+import {
+  createEvaluatorSetupStore,
+  selectHasValidModel,
+} from "./evaluatorSetupStore";
 
 describe("createEvaluatorSetupStore", () => {
   it("starts new evaluator descriptions empty", () => {
@@ -18,21 +20,49 @@ describe("createEvaluatorSetupStore", () => {
     });
   });
 
-  it("keeps prompt and code drafts when switching evaluator type", () => {
+  it("reorders prompt messages and keeps the final message", () => {
     const store = createEvaluatorSetupStore({
       initialEvaluator: null,
       mode: "create",
     });
     const { actions } = store.getState();
 
-    actions.setPrompt("Judge {{output}}");
+    actions.setPromptMessage(0, { role: "system", content: "Rubric" });
+    actions.addPromptMessage();
+    actions.setPromptMessage(1, { role: "user", content: "Case" });
+    actions.reorderPromptMessage(1, 0);
+
+    expect(store.getState().promptMessages).toEqual([
+      { role: "user", content: "Case" },
+      { role: "system", content: "Rubric" },
+    ]);
+    expect(store.getState().promptMessageIds).toHaveLength(2);
+
+    actions.removePromptMessage(0);
+    actions.removePromptMessage(0);
+    expect(store.getState().promptMessages).toEqual([
+      { role: "system", content: "Rubric" },
+    ]);
+  });
+
+  it("keeps prompt messages and code drafts when switching evaluator type", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
+    const { actions } = store.getState();
+
+    actions.setPromptMessage(0, {
+      role: "user",
+      content: "Judge {{output}}",
+    });
     actions.setSourceCode("return { score: 1 };");
     actions.setType("CODE");
     actions.setType("LLM_AS_JUDGE");
 
     expect(store.getState()).toMatchObject({
       type: "LLM_AS_JUDGE",
-      prompt: "Judge {{output}}",
+      promptMessages: [{ role: "user", content: "Judge {{output}}" }],
       sourceCode: "return { score: 1 };",
     });
   });
@@ -64,7 +94,6 @@ describe("createEvaluatorSetupStore", () => {
           operator: "=",
           value: true,
         },
-        ...EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS,
       ],
     });
   });
@@ -182,8 +211,30 @@ describe("createEvaluatorSetupStore", () => {
         operator: "=",
         value: true,
       },
-      ...EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS,
     ]);
+  });
+
+  it("derives whether any usable model is available", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
+
+    expect(selectHasValidModel(store.getState())).toBe(false);
+
+    store
+      .getState()
+      .actions.setDefaultModel({ provider: "OpenAI", model: "gpt-4.1-mini" });
+    expect(selectHasValidModel(store.getState())).toBe(true);
+
+    store.getState().actions.setDefaultModel(null);
+    store
+      .getState()
+      .actions.selectModel({ provider: "OpenAI", model: "gpt-4.1" });
+    expect(selectHasValidModel(store.getState())).toBe(true);
+
+    store.getState().actions.setType("CODE");
+    expect(selectHasValidModel(store.getState())).toBe(true);
   });
 
   it("keeps configured parameters for the selected model and resets them when the model changes", () => {
@@ -202,5 +253,82 @@ describe("createEvaluatorSetupStore", () => {
 
     actions.selectModel({ provider: "OpenAI", model: "gpt-4.1" });
     expect(store.getState().modelParams).toBeNull();
+  });
+
+  it("loads an old LLM definition without replacing evaluator metadata", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: {
+        name: "Answer quality",
+        description: "Checks answer quality",
+        definition: {
+          type: "CODE",
+          sourceCode: "return { score: 1 };",
+          sourceCodeLanguage: "TYPESCRIPT",
+        },
+      },
+      mode: "edit",
+    });
+    const sampleFilter = store.getState().sampleFilter;
+
+    store.getState().actions.applyDefinition({
+      type: "LLM_AS_JUDGE",
+      promptMessages: [{ role: "user", content: "Judge {{output}}" }],
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      modelParams: { temperature: 0.2 },
+      vars: ["output"],
+      variableMapping: [
+        {
+          templateVariable: "output",
+          selectedColumnId: "output",
+          jsonSelector: null,
+        },
+      ],
+      outputDefinition: {
+        dataType: "NUMERIC",
+        score: {
+          description: "Answer quality",
+          minValue: 0,
+          maxValue: 1,
+        },
+        reasoning: { description: "Explain the score" },
+      },
+    });
+
+    expect(store.getState()).toMatchObject({
+      type: "LLM_AS_JUDGE",
+      name: "Answer quality",
+      description: "Checks answer quality",
+      promptMessages: [{ role: "user", content: "Judge {{output}}" }],
+      modelMode: "custom",
+      selectedModel: { provider: "openai", model: "gpt-4.1-mini" },
+      modelParams: { temperature: 0.2 },
+      variableFields: {
+        output: { selectedColumnId: "output", jsonSelector: null },
+      },
+    });
+    expect(store.getState().sampleFilter).toBe(sampleFilter);
+  });
+
+  it("loads an old code definition", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
+
+    store.getState().actions.applyDefinition({
+      type: "CODE",
+      sourceCode: "def evaluate(ctx):\n  return []",
+      sourceCodeLanguage: "PYTHON",
+    });
+
+    expect(store.getState()).toMatchObject({
+      type: "CODE",
+      sourceCode: "def evaluate(ctx):\n  return []",
+      sourceCodeLanguage: "PYTHON",
+      sourceCodeDrafts: {
+        PYTHON: "def evaluate(ctx):\n  return []",
+      },
+    });
   });
 });

@@ -15,14 +15,202 @@ import {
   type ReadableSpan,
 } from "@opentelemetry/sdk-trace-base";
 
+import { ObservationTypeDomain } from "../../domain/observations";
 import type { InternalTraceEventInput } from "../llm/internalTraceEvents";
 import { logger } from "../logger";
-import { LangfuseOtelSpanAttributes } from "./attributes";
-import { OtelIngestionProcessor } from "./OtelIngestionProcessor";
+import {
+  buildEvaluationAttributes,
+  LangfuseOtelSpanAttributes,
+} from "./attributes";
+import {
+  OtelIngestionProcessor,
+  type ResourceSpan,
+} from "./OtelIngestionProcessor";
 
 const INTERNAL_TRACE_WRITER_SDK_NAME = "langfuse-internal-otel-writer";
 const INTERNAL_TRACE_WRITER_SCOPE = "langfuse-internal-trace-writer";
 const W3C_TRACE_ID_PATTERN = /^[0-9a-f]{32}$/;
+
+function asOtelAttributeString(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+function observationTypeToOtelAttribute(
+  type: string | undefined,
+): string | undefined {
+  const parsed = ObservationTypeDomain.safeParse(type?.toUpperCase());
+  return parsed.success ? parsed.data.toLowerCase() : undefined;
+}
+
+/**
+ * Maps an internal trace event onto the Langfuse OTel attribute names the
+ * ingestion processor already understands (`langfuse.observation.type`,
+ * generation fields, trace I/O on the root). Shared so type matching is not
+ * re-implemented per caller.
+ */
+export function internalTraceEventToOtelAttributes(
+  eventInput: Pick<
+    InternalTraceEventInput,
+    | "environment"
+    | "level"
+    | "statusMessage"
+    | "input"
+    | "output"
+    | "metadata"
+    | "type"
+    | "modelName"
+    | "modelParameters"
+    | "providedUsageDetails"
+    | "providedCostDetails"
+    | "promptName"
+    | "promptVersion"
+    | "completionStartTime"
+    | "userId"
+    | "sessionId"
+    | "tags"
+    | "public"
+    | "release"
+    | "traceName"
+    | "evaluationContext"
+  >,
+  options: { isRoot: boolean },
+): Attributes {
+  const observationType = observationTypeToOtelAttribute(eventInput.type);
+  const metadataJson = asOtelAttributeString(eventInput.metadata);
+  const evaluationAttributes = eventInput.evaluationContext
+    ? buildEvaluationAttributes(eventInput.evaluationContext)
+    : undefined;
+  const { isRoot } = options;
+
+  return {
+    ...(eventInput.environment !== undefined
+      ? { [LangfuseOtelSpanAttributes.ENVIRONMENT]: eventInput.environment }
+      : {}),
+    ...(observationType
+      ? { [LangfuseOtelSpanAttributes.OBSERVATION_TYPE]: observationType }
+      : {}),
+    ...(eventInput.level !== undefined
+      ? { [LangfuseOtelSpanAttributes.OBSERVATION_LEVEL]: eventInput.level }
+      : {}),
+    ...(eventInput.statusMessage !== undefined
+      ? {
+          [LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE]:
+            eventInput.statusMessage,
+        }
+      : {}),
+    ...(eventInput.input !== undefined
+      ? { [LangfuseOtelSpanAttributes.OBSERVATION_INPUT]: eventInput.input }
+      : {}),
+    ...(eventInput.output !== undefined
+      ? { [LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT]: eventInput.output }
+      : {}),
+    ...(metadataJson !== undefined
+      ? { [LangfuseOtelSpanAttributes.OBSERVATION_METADATA]: metadataJson }
+      : {}),
+    ...(evaluationAttributes ?? {}),
+    ...(eventInput.modelName !== undefined
+      ? { [LangfuseOtelSpanAttributes.OBSERVATION_MODEL]: eventInput.modelName }
+      : {}),
+    ...(eventInput.modelParameters !== undefined
+      ? {
+          [LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS]:
+            JSON.stringify(eventInput.modelParameters),
+        }
+      : {}),
+    ...(eventInput.providedUsageDetails !== undefined
+      ? {
+          [LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS]:
+            JSON.stringify(eventInput.providedUsageDetails),
+        }
+      : {}),
+    ...(eventInput.providedCostDetails !== undefined
+      ? {
+          [LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS]: JSON.stringify(
+            eventInput.providedCostDetails,
+          ),
+        }
+      : {}),
+    ...(eventInput.promptName !== undefined
+      ? {
+          [LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME]:
+            eventInput.promptName,
+        }
+      : {}),
+    ...(eventInput.promptVersion !== undefined
+      ? {
+          [LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION]:
+            eventInput.promptVersion,
+        }
+      : {}),
+    ...(eventInput.completionStartTime !== undefined
+      ? {
+          [LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME]:
+            eventInput.completionStartTime,
+        }
+      : {}),
+    ...(eventInput.userId !== undefined
+      ? { [LangfuseOtelSpanAttributes.TRACE_USER_ID]: eventInput.userId }
+      : {}),
+    ...(eventInput.sessionId !== undefined
+      ? { [LangfuseOtelSpanAttributes.TRACE_SESSION_ID]: eventInput.sessionId }
+      : {}),
+    ...(eventInput.tags !== undefined
+      ? {
+          [LangfuseOtelSpanAttributes.TRACE_TAGS]: JSON.stringify(
+            eventInput.tags,
+          ),
+        }
+      : {}),
+    ...(eventInput.public !== undefined
+      ? {
+          [LangfuseOtelSpanAttributes.TRACE_PUBLIC]: String(eventInput.public),
+        }
+      : {}),
+    ...(eventInput.release !== undefined
+      ? { [LangfuseOtelSpanAttributes.RELEASE]: eventInput.release }
+      : {}),
+    ...(isRoot ? { [LangfuseOtelSpanAttributes.IS_APP_ROOT]: "true" } : {}),
+    ...(isRoot && eventInput.traceName !== undefined
+      ? { [LangfuseOtelSpanAttributes.TRACE_NAME]: eventInput.traceName }
+      : {}),
+    ...(isRoot && eventInput.input !== undefined
+      ? { [LangfuseOtelSpanAttributes.TRACE_INPUT]: eventInput.input }
+      : {}),
+    ...(isRoot && eventInput.output !== undefined
+      ? { [LangfuseOtelSpanAttributes.TRACE_OUTPUT]: eventInput.output }
+      : {}),
+    ...(isRoot && metadataJson !== undefined
+      ? { [LangfuseOtelSpanAttributes.TRACE_METADATA]: metadataJson }
+      : {}),
+  };
+}
+
+/**
+ * Enqueues already-built OTLP resource spans on the regular OTel ingestion
+ * path. Callers choose `isLangfuseInternal` and `sdkName`; judge/code-eval
+ * stay internal, AI-feature product traces do not.
+ */
+export async function publishOtelResourceSpans(params: {
+  resourceSpans: ResourceSpan[];
+  projectId: string;
+  sdkName: string;
+  ingestionVersion?: string;
+  isLangfuseInternal: boolean;
+}): Promise<void> {
+  if (params.resourceSpans.length === 0) return;
+
+  const processor = new OtelIngestionProcessor({
+    projectId: params.projectId,
+    publicKey: "", // internal ingestion has no API key; mirrors internal event writes
+    sdkName: params.sdkName,
+    sdkVersion: "unknown",
+    ingestionVersion: params.ingestionVersion,
+    isLangfuseInternal: params.isLangfuseInternal,
+  });
+
+  await processor.publishToOtelIngestionQueue(params.resourceSpans);
+}
 
 /**
  * Publishes internally captured OTel spans through the regular OTel ingestion
@@ -36,6 +224,12 @@ export async function publishInternalOtelSpans(params: {
   spans: ReadableSpan[];
   projectId: string;
   sdkName: string;
+  /**
+   * Judge/code-eval traces stay internal (`true`, the default). AI-feature
+   * product traces (Ask AI, titles) pass `false` so observation evals can
+   * match them.
+   */
+  isLangfuseInternal?: boolean;
 }): Promise<void> {
   const serialized = JsonTraceSerializer.serializeRequest(params.spans);
   if (!serialized) return;
@@ -44,11 +238,10 @@ export async function publishInternalOtelSpans(params: {
 
   if (!resourceSpans || resourceSpans.length === 0) return;
 
-  const processor = new OtelIngestionProcessor({
+  await publishOtelResourceSpans({
+    resourceSpans,
     projectId: params.projectId,
-    publicKey: "", // internal ingestion has no API key; mirrors internal event writes
     sdkName: params.sdkName,
-    sdkVersion: "unknown",
     // Opt into the v4-native direct events write like a modern SDK batch:
     // only that path runs processToEvent -> createEventRecord, which is
     // the sole extractor of langfuse.experiment.* into experiment_*
@@ -61,10 +254,8 @@ export async function publishInternalOtelSpans(params: {
     // schema; the public schema strips the "langfuse-" environment prefix,
     // exposing internal traces as user environments and bypassing the
     // trace-upsert eval-loop guard.
-    isLangfuseInternal: true,
+    isLangfuseInternal: params.isLangfuseInternal ?? true,
   });
-
-  await processor.publishToOtelIngestionQueue(resourceSpans);
 }
 
 /**
@@ -88,6 +279,7 @@ export type InternalOtelSpanInput = Pick<
   | "input"
   | "output"
   | "metadata"
+  | "evaluationContext"
 >;
 
 /**
@@ -153,38 +345,9 @@ export async function writeInternalTraceViaOtelIngestion(trace: {
     for (const eventInput of eventInputs) {
       currentTraceId = eventInput.traceId.toLowerCase();
       const isRoot = !eventInput.parentSpanId;
-      const metadataJson = JSON.stringify(eventInput.metadata);
-
-      const attributes: Attributes = {
-        ...(eventInput.environment !== undefined
-          ? { [LangfuseOtelSpanAttributes.ENVIRONMENT]: eventInput.environment }
-          : {}),
-        ...(eventInput.level !== undefined
-          ? { [LangfuseOtelSpanAttributes.OBSERVATION_LEVEL]: eventInput.level }
-          : {}),
-        ...(eventInput.statusMessage !== undefined
-          ? {
-              [LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE]:
-                eventInput.statusMessage,
-            }
-          : {}),
-        ...(eventInput.input !== undefined
-          ? { [LangfuseOtelSpanAttributes.OBSERVATION_INPUT]: eventInput.input }
-          : {}),
-        ...(eventInput.output !== undefined
-          ? {
-              [LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT]:
-                eventInput.output,
-            }
-          : {}),
-        [LangfuseOtelSpanAttributes.OBSERVATION_METADATA]: metadataJson,
-        ...(isRoot && eventInput.traceName !== undefined
-          ? { [LangfuseOtelSpanAttributes.TRACE_NAME]: eventInput.traceName }
-          : {}),
-        ...(isRoot
-          ? { [LangfuseOtelSpanAttributes.TRACE_METADATA]: metadataJson }
-          : {}),
-      };
+      const attributes = internalTraceEventToOtelAttributes(eventInput, {
+        isRoot,
+      });
 
       let context = ROOT_CONTEXT;
       if (eventInput.parentSpanId) {
