@@ -1483,25 +1483,23 @@ export function PrettyJsonView(props: {
           }
         />
       ) : null}
-      <div>
-        {props.afterHeader}
-        {props.scrollable ? (
-          <div
-            className={cn(
-              "flex h-full min-h-0 overflow-hidden",
-              isMarkdownMode ? getBackgroundColorClass() : "rounded-sm border",
-            )}
-          >
-            <div className="max-h-full min-h-0 w-full overflow-y-auto">
-              {body}
-            </div>
+      {props.afterHeader}
+      {props.scrollable ? (
+        <div
+          className={cn(
+            "flex h-full min-h-0 overflow-hidden",
+            isMarkdownMode ? getBackgroundColorClass() : "rounded-sm border",
+          )}
+        >
+          <div className="max-h-full min-h-0 w-full overflow-y-auto">
+            {body}
           </div>
-        ) : isMarkdownMode ? (
-          <div className={getBackgroundColorClass()}>{body}</div>
-        ) : (
-          body
-        )}
-      </div>
+        </div>
+      ) : isMarkdownMode ? (
+        <div className={getBackgroundColorClass()}>{body}</div>
+      ) : (
+        body
+      )}
     </div>
   );
 }
