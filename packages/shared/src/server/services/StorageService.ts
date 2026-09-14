@@ -860,14 +860,19 @@ class S3StorageService implements StorageService {
     stats,
   }: UploadFileBuffered): Promise<UploadPartStats | undefined> {
     if (env.LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED !== "true") {
-      // Raise the multipart part size above lib-storage's 5 MiB default so the
-      // 10,000-part limit no longer caps a single object at ~48.83 GiB. Leaving
-      // queueSize at its default keeps the concurrency (and memory) bounded.
+      // Forward the caller's own part size and concurrency instead of a global
+      // default. lib-storage otherwise falls back to 5 MiB parts, capping a
+      // single object at ~48.83 GiB (5 MiB × 10,000 parts) and silently
+      // truncating larger exports; and leaving queueSize undefined lets it
+      // buffer partSize × 4 per upload, unbounded across concurrent callers.
+      // Peak memory is now partSize × queueSize, both caller-controlled.
       await this.uploadFile({
         fileName,
         fileType,
         data,
-        partSize: env.LANGFUSE_S3_UPLOAD_PART_SIZE_BYTES,
+        partSize: partSizeBytes,
+        queueSize:
+          maxConcurrentParts ?? env.LANGFUSE_S3_UPLOAD_MAX_CONCURRENT_PARTS,
       });
       return undefined;
     }
