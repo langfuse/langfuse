@@ -1,8 +1,5 @@
 import z from "zod";
-import {
-  coerceLegacyEmptyMetadataFilters,
-  singleFilter,
-} from "../../interfaces/filters";
+import { singleFilterList } from "../../interfaces/filters";
 import { orderBy } from "../../interfaces/orderBy";
 import { BatchTableNames } from "../../interfaces/tableNames";
 import {
@@ -40,9 +37,7 @@ const ActionIdSchema = z.enum(ActionId);
 
 export const BatchActionQuerySchema = z
   .object({
-    filter: z
-      .preprocess(coerceLegacyEmptyMetadataFilters, z.array(singleFilter))
-      .nullable(),
+    filter: singleFilterList.nullable(),
     orderBy,
     searchQuery: z.string().optional(),
     searchType: z.array(TracingSearchType).optional(),

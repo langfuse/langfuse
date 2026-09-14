@@ -16,7 +16,8 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Badge } from "@/src/components/ui/badge";
 import {
   tracesTableColsWithOptions,
-  singleFilter,
+  type singleFilter,
+  singleFilterList,
   availableTraceEvalVariables,
   datasetFormFilterColsWithOptions,
   observationEvalFilterColsWithOptions,
@@ -32,7 +33,6 @@ import {
   EvalTargetObject,
   EvalTargetObjectSchema,
   getCodeEvalVariableMapping,
-  coerceLegacyEmptyMetadataFilters,
 } from "@langfuse/shared";
 import { z } from "zod";
 import { useEffect, useMemo, useState, memo, Suspense, lazy } from "react";
@@ -455,11 +455,7 @@ export const InnerEvaluatorForm = (props: {
         props.existingEvaluator?.scoreName ?? `${props.evalTemplate.name}`,
       target: defaultTarget,
       filter: props.existingEvaluator?.filter
-        ? z
-            .array(singleFilter)
-            .parse(
-              coerceLegacyEmptyMetadataFilters(props.existingEvaluator.filter),
-            )
+        ? singleFilterList.parse(props.existingEvaluator.filter)
         : defaultTarget === EvalTargetObject.TRACE
           ? // For new trace evaluators, exclude internal environments by default
             DEFAULT_TRACE_FILTER
@@ -608,7 +604,7 @@ export const InnerEvaluatorForm = (props: {
       values = props.preprocessFormValues(values);
     }
 
-    const validatedFilter = z.array(singleFilter).safeParse(values.filter);
+    const validatedFilter = singleFilterList.safeParse(values.filter);
 
     if (
       props.existingEvaluator?.timeScope.includes("EXISTING") &&

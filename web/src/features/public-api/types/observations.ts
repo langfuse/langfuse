@@ -10,7 +10,7 @@ import {
   optionalJsonParam,
   paginationMetaResponseZod,
   publicApiPaginationZod,
-  singleFilter,
+  singleFilterList,
   InvalidRequestError,
 } from "@langfuse/shared";
 import {
@@ -226,7 +226,7 @@ export const GetObservationsV1Query = z.object({
   fromStartTime: stringDateTime,
   toStartTime: stringDateTime,
   useEventsTable: useEventsTableSchema,
-  filter: optionalJsonParam(z.array(singleFilter), "filter"),
+  filter: optionalJsonParam(singleFilterList, "filter"),
 });
 export const GetObservationsV1Response = z
   .object({

@@ -45,8 +45,7 @@ import {
 } from "./traceFilterUtils";
 import {
   Prisma,
-  coerceLegacyEmptyMetadataFilters,
-  singleFilter,
+  singleFilterList,
   variableMappingList,
   evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
@@ -398,9 +397,7 @@ export const createEvalJobs = async ({
         if (config.targetObject !== EvalTargetObject.TRACE) {
           return false;
         }
-        const parsedFilter = z
-          .array(singleFilter)
-          .safeParse(coerceLegacyEmptyMetadataFilters(config.filter));
+        const parsedFilter = singleFilterList.safeParse(config.filter);
         return (
           !parsedFilter.success ||
           inMemoryFilterRequiresMetadata(parsedFilter.data)
@@ -556,9 +553,7 @@ export const createEvalJobs = async ({
     }
 
     logger.debug("Creating eval job for config", config.id);
-    const validatedFilter = z
-      .array(singleFilter)
-      .parse(coerceLegacyEmptyMetadataFilters(config.filter));
+    const validatedFilter = singleFilterList.parse(config.filter);
 
     const maxTimeStamp =
       "timestamp" in event &&

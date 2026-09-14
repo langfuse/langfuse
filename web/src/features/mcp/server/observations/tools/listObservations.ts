@@ -4,16 +4,16 @@ import {
   booleanFilter,
   eventsTableSingleFilter,
   eventsTableStringFilter,
-  eventsTableStringObjectFilterBase,
+  eventsTableStringObjectFilter,
   eventsTableCols,
+  coerceLegacyEmptyMetadataFilters,
   filterOperators,
   FTS_MATCH_OPERATOR,
-  guardStringObjectValue,
   numberFilter,
   ObservationLevelDomain,
   ObservationTypeDomain,
   stringFilter,
-  stringObjectFilterBase,
+  stringObjectFilter,
   stringOptionsFilter,
   timeFilter,
   type ColumnDefinition,
@@ -129,17 +129,15 @@ const OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE = {
     }),
   stringObject: (column: string, requireType = false) => {
     const filterSchemaBase = OBSERVATION_MCP_FTS_COLUMNS.has(column)
-      ? eventsTableStringObjectFilterBase
-      : stringObjectFilterBase;
+      ? eventsTableStringObjectFilter
+      : stringObjectFilter;
 
-    return guardStringObjectValue(
-      filterSchemaBase.omit({ type: true, column: true }).extend({
-        type: requireType
-          ? z.literal("stringObject")
-          : z.literal("stringObject").optional(),
-        column: z.literal(column),
-      }),
-    );
+    return filterSchemaBase.omit({ type: true, column: true }).extend({
+      type: requireType
+        ? z.literal("stringObject")
+        : z.literal("stringObject").optional(),
+      column: z.literal(column),
+    });
   },
   boolean: (column: string, requireType = false) =>
     booleanFilter.omit({ type: true, column: true }).extend({
@@ -248,11 +246,16 @@ const ObservationMcpFilterSchema = z.preprocess(
       const type =
         filter.type ?? OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
 
-      return eventsTableSingleFilter.parse(
+      const reshaped =
         filter.column === "tags"
           ? { ...filter, type, column: "traceTags" }
-          : { ...filter, type },
-      );
+          : { ...filter, type };
+      // Legacy `contains ""` presence spelling → `is set` before validation.
+      const [coerced] = coerceLegacyEmptyMetadataFilters([
+        reshaped,
+      ]) as unknown[];
+
+      return eventsTableSingleFilter.parse(coerced);
     }),
 );
 

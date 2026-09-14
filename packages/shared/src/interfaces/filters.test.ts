@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   singleFilter,
+  singleFilterList,
   eventsTableSingleFilter,
   coerceLegacyEmptyMetadataFilters,
 } from "./filters";
@@ -14,16 +15,16 @@ const metadataFilter = (operator: string, value: string) => ({
   value,
 });
 
-describe("stringObject empty-value guard", () => {
+describe("stringObject empty substring handling", () => {
   it.each(["contains", "starts with", "ends with"])(
-    "rejects an empty value for the substring operator %s",
+    "no longer rejects an empty value for the substring operator %s at the single-filter schema",
     (operator) => {
       expect(singleFilter.safeParse(metadataFilter(operator, "")).success).toBe(
-        false,
+        true,
       );
       expect(
         eventsTableSingleFilter.safeParse(metadataFilter(operator, "")).success,
-      ).toBe(false);
+      ).toBe(true);
     },
   );
 
@@ -50,6 +51,29 @@ describe("stringObject empty-value guard", () => {
     expect(
       singleFilter.safeParse(metadataFilter("does not contain", "")).success,
     ).toBe(true);
+  });
+});
+
+describe("singleFilterList", () => {
+  it.each(["contains", "starts with", "ends with"])(
+    "coerces a legacy empty-value %s metadata filter to `is set`",
+    (operator) => {
+      const result = singleFilterList.safeParse([metadataFilter(operator, "")]);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data[0].operator).toBe("is set");
+      }
+    },
+  );
+
+  it("leaves a non-empty substring filter untouched", () => {
+    const result = singleFilterList.safeParse([
+      metadataFilter("contains", "x"),
+    ]);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data[0].operator).toBe("contains");
+    }
   });
 });
 

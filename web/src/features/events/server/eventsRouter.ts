@@ -9,7 +9,7 @@ import {
   type OrderByState,
   normalizeOrderByForTable,
   paginationZod,
-  singleFilter,
+  singleFilterList,
   timeFilter,
 } from "@langfuse/shared";
 import {
@@ -70,7 +70,7 @@ export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 
 const GetEventFilterOptionsInput = zodSchema.object({
   projectId: zodSchema.string(),
-  filter: zodSchema.array(singleFilter).optional(),
+  filter: singleFilterList.optional(),
   startTimeFilter: zodSchema.array(timeFilter).optional(),
   isRootObservation: zodSchema.boolean().optional(),
   hasParentObservation: zodSchema.boolean().optional(),

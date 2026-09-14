@@ -1,9 +1,7 @@
-import { z } from "zod";
 import {
   type JobConfiguration,
   JobConfigState,
-  coerceLegacyEmptyMetadataFilters,
-  singleFilter,
+  singleFilterList,
 } from "@langfuse/shared";
 
 export const resetEvalConfigBlockFields = {
@@ -30,9 +28,7 @@ const evaluatorTargetsDataset = ({
 }: Pick<JobConfiguration, "filter"> & {
   datasetId: string;
 }) => {
-  const parsedFilter = z
-    .array(singleFilter)
-    .safeParse(coerceLegacyEmptyMetadataFilters(filter));
+  const parsedFilter = singleFilterList.safeParse(filter);
 
   if (!parsedFilter.success) {
     return false;

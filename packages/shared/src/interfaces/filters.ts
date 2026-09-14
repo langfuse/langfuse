@@ -76,48 +76,30 @@ export const arrayOptionsFilter = z
         "Value array must not be empty unless operator is 'all of' or 'none of' (which represent waiting for selection)",
     },
   );
-// Substring operators with an empty value skip the ngram prefilter and degrade
-// to a full-scan key-existence check over the whole time window; reject them so
-// callers use the `is set` / `is not set` presence operators instead. Applied as
-// a wrapper (not a fixed schema) because Zod v4 forbids `.omit()` on a refined
-// object, and some callers reshape the base before the guard can apply.
-const EMPTY_VALUE_REJECTED_STRING_OBJECT_OPERATORS = new Set<string>([
+// A substring operator with an empty value skips the ngram prefilter and
+// degrades to a full-scan key-existence check over the whole time window — the
+// same semantics the `is set` presence operator now expresses cleanly. Empty
+// substrings are the legacy spelling of presence, so callers coerce them to
+// `is set` (see `coerceLegacyEmptyMetadataFilters`) rather than reject them.
+const LEGACY_EMPTY_SUBSTRING_STRING_OBJECT_OPERATORS = new Set<string>([
   "contains",
   "starts with",
   "ends with",
 ]);
-export const guardStringObjectValue = <T extends z.ZodObject<any>>(schema: T) =>
-  schema.superRefine((data, ctx) => {
-    const { operator, value } = data as { operator: string; value: string };
-    if (
-      EMPTY_VALUE_REJECTED_STRING_OBJECT_OPERATORS.has(operator) &&
-      value.length === 0
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        message:
-          "Empty value is not allowed for 'contains', 'starts with', or 'ends with'. Use 'is set' / 'is not set' to filter on key presence.",
-        path: ["value"],
-      });
-    }
-  });
 
-export const stringObjectFilterBase = z.object({
+export const stringObjectFilter = z.object({
   type: z.literal("stringObject"),
   column: z.string(),
   key: z.string(), // eg metadata --> "environment"
   operator: z.enum(filterOperators.stringObject),
   value: z.string(),
 });
-export const stringObjectFilter = guardStringObjectValue(
-  stringObjectFilterBase,
-);
 
 // Metadata `contains ""` / `starts with ""` / `ends with ""` was the historical
-// way to express key presence before `is set` / `is not set` existed. The value
-// guard now rejects it, so rewrite persisted filter state (eval configs, saved
-// views) to the equivalent `is set` when reading it back, keeping legacy filters
-// working instead of throwing on parse.
+// way to express key presence before `is set` / `is not set` existed. Rewrite
+// that shape to the equivalent `is set` at every parse boundary — fresh API
+// input and persisted reads alike — so it never reaches the SQL layer as an
+// empty substring and never throws on parse.
 export const coerceLegacyEmptyMetadataFilters = (filters: unknown): unknown => {
   if (!Array.isArray(filters)) return filters;
   return filters.map((filter) => {
@@ -126,7 +108,7 @@ export const coerceLegacyEmptyMetadataFilters = (filters: unknown): unknown => {
       typeof filter === "object" &&
       (filter as { type?: unknown }).type === "stringObject" &&
       (filter as { value?: unknown }).value === "" &&
-      EMPTY_VALUE_REJECTED_STRING_OBJECT_OPERATORS.has(
+      LEGACY_EMPTY_SUBSTRING_STRING_OBJECT_OPERATORS.has(
         (filter as { operator?: unknown }).operator as string,
       )
     ) {
@@ -201,6 +183,20 @@ export const singleFilter = z.discriminatedUnion("type", [
   positionInTraceFilter,
 ]);
 
+// Single choke point for parsing arrays of filters. `z.preprocess` runs the
+// legacy-empty-substring coercion before validation, so both fresh API/tRPC
+// input and persisted reads route through one place instead of remembering to
+// wrap each call site. Prefer this over a bare `z.array(singleFilter)`.
+// The cast pins the input type to `SingleFilter[]`. Without it `z.preprocess`
+// infers `unknown` input (the coercer takes `unknown`), which would surface as
+// `unknown` on tRPC mutation variables and form values that consume `z.input`.
+// A legacy `contains ""` filter is itself a valid `singleFilter`, so the coerced
+// shape is fully within this input type.
+export const singleFilterList = z.preprocess(
+  coerceLegacyEmptyMetadataFilters,
+  z.array(singleFilter),
+) as z.ZodType<z.output<typeof singleFilter>[], z.input<typeof singleFilter>[]>;
+
 const eventsTableStringOperator = z.union([
   z.enum(filterOperators.string),
   z.literal(FTS_MATCH_OPERATOR),
@@ -215,12 +211,9 @@ export const eventsTableStringFilter = stringFilter.extend({
   operator: eventsTableStringOperator,
 });
 
-export const eventsTableStringObjectFilterBase = stringObjectFilterBase.extend({
+export const eventsTableStringObjectFilter = stringObjectFilter.extend({
   operator: eventsTableStringObjectOperator,
 });
-export const eventsTableStringObjectFilter = guardStringObjectValue(
-  eventsTableStringObjectFilterBase,
-);
 
 export const eventsTableSingleFilter = z.discriminatedUnion("type", [
   timeFilter,
