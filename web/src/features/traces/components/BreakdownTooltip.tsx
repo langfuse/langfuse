@@ -4,7 +4,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useState, type CSSProperties } from "react";
+import { useState } from "react";
 import Decimal from "decimal.js";
 import Link from "next/link";
 import { type Details } from "@/src/features/traces/fns/calculateAggregatedUsage";
@@ -76,14 +76,6 @@ export const BreakdownTooltip = ({
   }, 0);
   const contributionEntries = inputEntries.concat(outputEntries, otherEntries);
   const waterfallSegments = createWaterfallSegments(contributionEntries);
-  const maxFormattedValueLength = contributionEntries.reduce(
-    (maxLength, [, value]) =>
-      Math.max(maxLength, formatValue(value ?? 0).length),
-    0,
-  );
-  const tooltipStyle = {
-    "--breakdown-value-width": `clamp(3ch, ${maxFormattedValueLength}ch, 7rem)`,
-  } as CSSProperties;
 
   const resolvedCostSource =
     costSource ?? (isCost && priceSource ? "calculated" : undefined);
@@ -97,11 +89,8 @@ export const BreakdownTooltip = ({
         >
           {children}
         </TooltipTrigger>
-        <TooltipContent
-          className="w-fit max-w-[calc(100vw-2rem)] p-4"
-          style={tooltipStyle}
-        >
-          <div className="grid min-w-0 grid-cols-[max-content_7rem_var(--breakdown-value-width)] gap-x-3 gap-y-4 max-sm:w-full max-sm:grid-cols-[minmax(0,1fr)_6rem_var(--breakdown-value-width)]">
+        <TooltipContent className="w-fit max-w-[calc(100vw-2rem)] p-4">
+          <div className="grid min-w-0 grid-cols-[max-content_7rem_max-content] gap-x-3 gap-y-4 max-sm:w-full max-sm:grid-cols-[minmax(0,1fr)_6rem_max-content]">
             <div className="col-span-3 flex min-w-0 flex-col gap-1">
               <span className="font-bold">
                 {isCost ? "Cost breakdown" : "Usage breakdown"}
@@ -273,7 +262,7 @@ function BreakdownRow({
         </span>
       ) : null}
       <span
-        className="min-w-0 truncate text-right font-mono tabular-nums"
+        className="text-right font-mono whitespace-nowrap tabular-nums"
         title={value}
       >
         {value}
