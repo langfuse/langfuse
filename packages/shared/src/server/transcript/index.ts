@@ -16,22 +16,20 @@ const isRelevantObservation = (
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
-/** Compare JSON values without serializing or retaining content keys. */
-function equal(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (Array.isArray(a) && Array.isArray(b)) {
-    return a.length === b.length && a.every((value, i) => equal(value, b[i]));
-  }
-  if (!isRecord(a) || !isRecord(b)) return false;
-  const keys = Object.keys(a);
-  return (
-    keys.length === Object.keys(b).length &&
-    keys.every((key) => Object.hasOwn(b, key) && equal(a[key], b[key]))
+/** Object property order and observation provenance do not define identity. */
+function messageKey(message: NormalizedMessage): string {
+  return JSON.stringify(
+    [message.role, message.senderName, message.parts],
+    (_key, value: unknown) =>
+      isRecord(value)
+        ? Object.fromEntries(
+            Object.keys(value)
+              .sort()
+              .map((key) => [key, value[key]]),
+          )
+        : value,
   );
 }
-
-const sameMessage = (a: NormalizedMessage, b: NormalizedMessage) =>
-  a.role === b.role && a.senderName === b.senderName && equal(a.parts, b.parts);
 
 /**
  * Normalize every generation and append only the input messages not already
@@ -47,6 +45,8 @@ export function getTranscript(
   if (generations.length === 0) return null;
 
   const threads: Thread[] = [];
+  const keysByMessage = new WeakMap<NormalizedMessage, string>();
+  const keysByThread = new Map<Thread, Set<string>>();
 
   for (const generation of generations) {
     const { messages } = normalizeIO({
@@ -62,31 +62,24 @@ export function getTranscript(
       (message) => message.source === "input",
     );
 
+    for (const message of messages)
+      keysByMessage.set(message, messageKey(message));
+    const inputKeys = new Set(
+      input.map((message) => keysByMessage.get(message)!),
+    );
     let thread: Thread | undefined;
-    let newInput = input;
     // Try the most recent thread first, then earlier conversations.
     for (let i = threads.length - 1; i >= 0; i--) {
       const candidate = threads[i];
-      const matched = new Set<number>();
-      const additions: NormalizedMessage[] = [];
-      for (const incoming of input) {
-        let found = false;
-        candidate.messages.forEach((existing, index) => {
-          if (sameMessage(existing, incoming)) {
-            matched.add(index);
-            found = true;
-          }
-        });
-        if (!found) additions.push(incoming);
-      }
       if (
         candidate.messages.some((message) => message.role !== "system") &&
         candidate.messages.every(
-          (message, index) => message.role === "system" || matched.has(index),
+          (message) =>
+            message.role === "system" ||
+            inputKeys.has(keysByMessage.get(message)!),
         )
       ) {
         thread = candidate;
-        newInput = additions;
         break;
       }
     }
@@ -94,17 +87,24 @@ export function getTranscript(
     if (!thread) {
       thread = { messages: [], generationIds: [], traceIds: [] };
       threads.push(thread);
+      keysByThread.set(thread, new Set());
     }
     thread.generationIds.push(generation.id);
     if (!thread.traceIds.includes(generation.traceId)) {
       thread.traceIds.push(generation.traceId);
     }
-    for (const message of newInput.concat(output)) {
-      thread.messages.push({
+    const shownKeys = keysByThread.get(thread)!;
+    for (const message of input.concat(output)) {
+      const key = keysByMessage.get(message)!;
+      if (message.source === "input" && shownKeys.has(key)) continue;
+      const emitted = {
         ...message,
         generationId: generation.id,
         traceId: generation.traceId,
-      });
+      };
+      thread.messages.push(emitted);
+      keysByMessage.set(emitted, key);
+      shownKeys.add(key);
     }
   }
 
