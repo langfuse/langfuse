@@ -53,11 +53,9 @@ export function TraceDetailActions({
   size?: "icon" | "icon-xs";
   /**
    * - "toolbar": Share visible + delete behind a "…" popover (full page header)
-   * - "menu": Share + Delete as labeled rows (mobile overflow)
-   * - "share-only": just the Share switch (peek header, inline)
-   * - "delete-only": just the Delete row (peek header's "…" menu)
+   * - "menu": Share + Delete as labeled rows (mobile overflow, peek "…" menu)
    */
-  layout?: "toolbar" | "menu" | "share-only" | "delete-only";
+  layout?: "toolbar" | "menu";
 }) {
   const utils = api.useUtils();
   const isMenu = layout === "menu";
@@ -71,37 +69,6 @@ export function TraceDetailActions({
     utils.invalidate();
     onAfterDelete?.(traceId);
   };
-
-  if (layout === "share-only") {
-    return (
-      <PublishTraceSwitch
-        projectId={projectId}
-        traceId={traceId}
-        timestamp={timestamp}
-        isPublic={isPublic}
-        shareUrl={shareUrl}
-        size={size}
-        tooltip={isPublic ? "Shared (public)" : "Share"}
-      />
-    );
-  }
-
-  if (layout === "delete-only") {
-    return (
-      <DeleteTraceButton
-        itemId={traceId}
-        projectId={projectId}
-        redirectUrl={deleteRedirectUrl}
-        invalidateFunc={onDeleteInvalidate}
-        deleteConfirmation={name ?? ""}
-        variant="ghost"
-        size="sm"
-        // Same box as the peek menu's other rows (py-1.5, pl-1.5, 8px icon
-        // gap from the icon's own mr-2), so the three items line up.
-        className="h-auto w-full justify-start rounded-sm py-1.5 pr-2 pl-1.5 font-normal"
-      />
-    );
-  }
 
   if (isMenu) {
     return (

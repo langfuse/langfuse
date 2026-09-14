@@ -81,8 +81,6 @@ type TablePeekViewProps = Pick<
   | "isV4"
 > & {
   title?: string;
-  /** Always-visible item action (share) rendered inline in the header. */
-  actions?: React.ReactNode;
   /**
    * Item-specific header actions (delete …) as labeled menu rows — always
    * shown in the header's "…" menu.
@@ -267,7 +265,6 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
       itemId={itemId}
       detailNavigationKey={props.detailNavigationKey}
       resolveDetailNavigationPath={props.resolveDetailNavigationPath}
-      actions={props.actions}
       actionsMenu={props.actionsMenu}
       expand={
         isHandheld

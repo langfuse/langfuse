@@ -1,4 +1,3 @@
-import { useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   Popover,
@@ -24,11 +23,6 @@ import {
   MoreHorizontal,
   X,
 } from "lucide-react";
-import { useElementSize } from "@/src/hooks/useElementSize";
-import {
-  planPeekHeaderLayout,
-  type PeekHeaderPlan,
-} from "@/src/components/table/peek/peekHeaderOverflow";
 
 type PeekHeaderProps = {
   itemType: LangfuseItemType;
@@ -36,8 +30,6 @@ type PeekHeaderProps = {
   itemId: string;
   detailNavigationKey?: string;
   resolveDetailNavigationPath?: (entry: ListEntry) => string;
-  /** Always-visible item action (share) rendered inline before the menu. */
-  actions?: React.ReactNode;
   /** Item actions (delete …) as labeled rows for the "…" menu. */
   actionsMenu?: React.ReactNode;
   /** Expand-to-max-width toggle. Desktop only; hidden on mobile. */
@@ -45,27 +37,6 @@ type PeekHeaderProps = {
   /** Open the standalone detail page in a new browser tab. Optional. */
   openInNewTab?: () => void;
   onClose: () => void;
-};
-
-// The title keeps at least this much width before anything else collapses;
-// the "…" trigger is an icon-xs button. Tuned by eye — planner `safety`
-// covers inter-control gaps.
-const MIN_TITLE_PX = 240;
-const BADGE_LABEL_FALLBACK_PX = 72;
-const NAV_FULL_FALLBACK_PX = 92;
-const NAV_COMPACT_FALLBACK_PX = 52;
-
-const samePlan = (a: PeekHeaderPlan, b: PeekHeaderPlan) =>
-  a.foldActions === b.foldActions &&
-  a.foldOpenInTab === b.foldOpenInTab &&
-  a.badgeShowLabel === b.badgeShowLabel &&
-  a.navCompact === b.navCompact;
-
-const FULL: PeekHeaderPlan = {
-  foldActions: false,
-  foldOpenInTab: false,
-  badgeShowLabel: true,
-  navCompact: false,
 };
 
 // Header tooltips appear quickly and share one style (Radix Tooltip, not the
@@ -103,10 +74,10 @@ function HeaderIconButton({
  * accessible dialog title is provided (visually hidden) by each shell, so this
  * stays a plain view component that works inside either primitive.
  *
- * The header adapts to the PEEK's own width (measured, not screen breakpoints):
- * it keeps the title readable and, as the peek narrows, folds the trace actions
- * into a labeled "…" menu, shrinks the type badge to icon-only, compacts the
- * prev/next nav, then folds open-in-tab — see {@link planPeekHeaderLayout}.
+ * The layout is fixed at every peek width: a label-only type badge and the
+ * truncating title on the left, and a compact control cluster on the right
+ * ("…" menu, open-in-tab, prev/next nav, close). Item actions always live in
+ * the "…" menu, so nothing needs to fold as the peek narrows.
  */
 export function PeekHeader({
   itemType,
@@ -114,82 +85,23 @@ export function PeekHeader({
   itemId,
   detailNavigationKey,
   resolveDetailNavigationPath,
-  actions,
   actionsMenu,
   expand,
   openInNewTab,
   onClose,
 }: PeekHeaderProps) {
-  const [headerRef, headerSize] = useElementSize<HTMLDivElement>();
-  // The header width equals the peek width and so doesn't change when the
-  // controls settle (or data loads) after the first measurement — observe the
-  // control cluster too, whose width does change, to re-trigger the plan.
-  const [clusterRef, clusterSize] = useElementSize<HTMLDivElement>();
-  const badgeRef = useRef<HTMLDivElement>(null);
-  const navRef = useRef<HTMLDivElement>(null);
-  const pinnedRef = useRef<HTMLDivElement>(null);
-  // Cached widths survive a part being collapsed (it can't be re-measured
-  // while hidden or in the other nav mode).
-  const widthsRef = useRef<{
-    badgeLabel?: number;
-    navFull?: number;
-    navCompact?: number;
-    otherPinned?: number;
-  }>({});
-  const [plan, setPlan] = useState<PeekHeaderPlan>(FULL);
-
   // Actions and open-in-tab ALWAYS live in the "…" menu — the header shows
   // only nav / expand / close inline (usage data: nav dwarfs everything else).
   const hasMenu = Boolean(actionsMenu || expand);
   const hasNav = Boolean(detailNavigationKey && resolveDetailNavigationPath);
 
-  // Measure + plan in a layout effect (before paint), reading width from the
-  // ref directly — useElementSize's state lands post-paint, which would flash
-  // the un-adapted header for a frame.
-  useLayoutEffect(() => {
-    const width =
-      headerRef.current?.getBoundingClientRect().width ?? headerSize?.width;
-    if (!width) return;
-
-    if (plan.badgeShowLabel && badgeRef.current) {
-      widthsRef.current.badgeLabel = badgeRef.current.offsetWidth;
-    }
-    if (pinnedRef.current) {
-      const navW = hasNav && navRef.current ? navRef.current.offsetWidth : 0;
-      if (hasNav) {
-        if (plan.navCompact) widthsRef.current.navCompact = navW;
-        else widthsRef.current.navFull = navW;
-      }
-      widthsRef.current.otherPinned = pinnedRef.current.offsetWidth - navW;
-    }
-
-    const next = planPeekHeaderLayout({
-      headerWidth: width,
-      minTitle: MIN_TITLE_PX,
-      badgeLabelWidth: widthsRef.current.badgeLabel ?? BADGE_LABEL_FALLBACK_PX,
-      badgeIconWidth: widthsRef.current.badgeLabel ?? BADGE_LABEL_FALLBACK_PX,
-      navFullWidth: hasNav
-        ? (widthsRef.current.navFull ?? NAV_FULL_FALLBACK_PX)
-        : 0,
-      navCompactWidth: hasNav
-        ? (widthsRef.current.navCompact ?? NAV_COMPACT_FALLBACK_PX)
-        : 0,
-      otherPinnedWidth: widthsRef.current.otherPinned ?? 0,
-      moreWidth: 0,
-    });
-    setPlan((prev) => (samePlan(prev, next) ? prev : next));
-  }, [headerRef, headerSize?.width, clusterSize?.width, hasNav, plan]);
-
   return (
     <TooltipProvider delayDuration={TOOLTIP_DELAY_MS}>
-      <div
-        ref={headerRef}
-        className="bg-muted flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
-      >
+      <div className="bg-muted flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1">
         <div className="flex min-w-0 flex-row items-center gap-2">
           {/* Label-only chip, matching the full-page header (the label names
               the type; short enough to keep on any width). */}
-          <div ref={badgeRef} className="shrink-0">
+          <div className="shrink-0">
             <ItemTypeChip type={itemType} />
           </div>
           <span
@@ -200,16 +112,10 @@ export function PeekHeader({
             {title}
           </span>
         </div>
-        <div
-          ref={clusterRef}
-          className="flex shrink-0 flex-row items-center gap-1"
-        >
+        <div className="flex shrink-0 flex-row items-center gap-1">
           {/* Pinned block, in order: "…" menu (share / delete / expand),
               open in new tab, nav (keeps K/J live), close. */}
-          <div
-            ref={pinnedRef}
-            className="flex h-full flex-row items-center gap-1"
-          >
+          <div className="flex h-full flex-row items-center gap-1">
             {hasMenu && (
               <Popover>
                 <Tooltip>
@@ -267,9 +173,8 @@ export function PeekHeader({
                 <TooltipContent>Open in new tab</TooltipContent>
               </Tooltip>
             ) : null}
-            {actions}
             {hasNav && (
-              <div ref={navRef} className="flex flex-row items-center">
+              <div className="flex flex-row items-center">
                 {/* Always compact so the arrows match the icon-xs neighbors. */}
                 <DetailPageNav
                   currentId={itemId}
