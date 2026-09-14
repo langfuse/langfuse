@@ -345,6 +345,21 @@ export const handleEventPropagationJob = async (
         max_insert_threads: String(
           env.LANGFUSE_EVENT_PROPAGATION_MAX_INSERT_THREADS,
         ),
+        ...(env.LANGFUSE_EVENT_PROPAGATION_MAX_BLOCK_SIZE !== undefined && {
+          max_block_size: String(env.LANGFUSE_EVENT_PROPAGATION_MAX_BLOCK_SIZE),
+        }),
+        ...(env.LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_ROWS !==
+          undefined && {
+          min_insert_block_size_rows: String(
+            env.LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_ROWS,
+          ),
+        }),
+        ...(env.LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_BYTES !==
+          undefined && {
+          min_insert_block_size_bytes: String(
+            env.LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_BYTES,
+          ),
+        }),
         type_json_skip_duplicated_paths: true,
       },
     });
