@@ -1,4 +1,6 @@
+import { useRouter } from "next/router";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { cn } from "@/src/utils/tailwind";
 import {
   JSON_TABLE_STYLE_VARIANTS,
   useShowJsonTableStylePicker,
@@ -133,9 +135,13 @@ const USE_CASES: UseCase[] = [
   },
 ];
 
-/** Dev-only side-by-side review of the JSON table style directions. */
+/** Dev-only side-by-side review of the JSON table style directions.
+    `?wide=1` sizes each column like a wide (1000px) panel instead of the
+    default ~620px side panel. */
 export function JsonStyleReviewPage() {
   const available = useShowJsonTableStylePicker();
+  const router = useRouter();
+  const wide = router.query.wide === "1";
   if (!available) {
     return (
       <div className="text-muted-foreground p-6 text-sm">
@@ -175,7 +181,14 @@ export function JsonStyleReviewPage() {
             </h2>
             <p className="text-muted-foreground text-xs">{useCase.share}</p>
           </div>
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
+          <div
+            className={cn(
+              "grid gap-4",
+              wide
+                ? "grid-cols-[repeat(auto-fill,minmax(960px,1fr))]"
+                : "grid-cols-[repeat(auto-fill,minmax(560px,1fr))]",
+            )}
+          >
             {JSON_TABLE_STYLE_VARIANTS.map((variant) => (
               <div key={variant} className="flex min-w-0 flex-col gap-1">
                 <div className="text-muted-foreground font-mono text-xs">

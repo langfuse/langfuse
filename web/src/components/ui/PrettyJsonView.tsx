@@ -28,6 +28,7 @@ import {
   DropdownMenuSeparator,
 } from "@/src/components/ui/dropdown-menu";
 import {
+  DEFAULT_JSON_TABLE_STYLE_VARIANT,
   JSON_TABLE_STYLE_VARIANTS,
   JSON_TABLE_STYLES,
   type JsonTableStyle,
@@ -417,6 +418,12 @@ const JsonTableRowComponent = memo(
               style.zebra &&
                 rowIndex % 2 === 1 &&
                 "bg-muted/40 first:rounded-l-md last:rounded-r-md",
+              // Auto table layout sizes the key column to content; unbreakable
+              // value tokens (URLs, paths) must not push the table wider.
+              style.layout === "columns" &&
+                style.keyColumn === "content" &&
+                cell.column.id === "value" &&
+                "[&>div]:wrap-anywhere",
               toneClasses?.cell,
             )}
             style={{ width: `${cell.column.columnDef.size}%` }}
@@ -496,6 +503,30 @@ function JsonPrettyTable({
   const indentationWidthFor = (row: Row<JsonTableRow>) =>
     row.original.level * INDENTATION_PER_LEVEL + style.indentBase;
 
+  // Content-sized key column: the table switches to auto layout and the key
+  // cell shrinks to its longest key, capped at 40 % of the table (`cqw`
+  // resolves against the `@container` set by PrettyJsonView).
+  const contentSizedKeys =
+    style.layout === "columns" && style.keyColumn === "content";
+
+  // Guide-line variants move the row's vertical padding from the cell onto
+  // the key / value content so the guides run edge to edge between rows.
+  const contentPadY = style.indentGuides ? "py-1" : "";
+
+  const renderKeyText = (key: string) =>
+    style.breakKeysAtDots && key.includes(".")
+      ? key.split(".").map((segment, index, segments) => (
+          <span key={index}>
+            {segment}
+            {index < segments.length - 1 && (
+              <>
+                .<wbr />
+              </>
+            )}
+          </span>
+        ))
+      : key;
+
   const renderKey = (row: Row<JsonTableRow>, constrainWidth: boolean) => {
     // we need to calculate the indentation here for a good line break
     // because of the padding, we don't know when to break the line otherwise
@@ -516,11 +547,33 @@ function JsonPrettyTable({
         : null;
 
     return (
-      <div className="flex items-start wrap-break-word">
+      <div
+        className={cn(
+          "flex wrap-break-word",
+          style.indentGuides ? "items-stretch" : "items-start",
+          // w-max keeps the column at the longest key (up to the cap) instead
+          // of letting long values squeeze it to its narrowest wrap.
+          contentSizedKeys && "w-max max-w-[40cqw]",
+        )}
+      >
         <div
-          className="flex shrink-0 items-center justify-end"
+          className={cn(
+            "relative flex shrink-0 justify-end",
+            style.indentGuides ? "items-start pt-1" : "items-center",
+          )}
           style={{ width: `${indentationWidth}px` }}
         >
+          {style.indentGuides &&
+            Array.from({ length: row.original.level }, (_, level) => (
+              <span
+                key={level}
+                aria-hidden
+                className="bg-border absolute inset-y-0 w-px"
+                style={{
+                  left: `${style.indentBase + level * INDENTATION_PER_LEVEL - BUTTON_WIDTH / 2}px`,
+                }}
+              />
+            ))}
           {row.original.hasChildren ? (
             <Button
               variant="ghost"
@@ -552,7 +605,7 @@ function JsonPrettyTable({
           ) : null}
         </div>
         <span
-          className={`ml-1 ${style.key} cursor-text`}
+          className={cn("ml-1 cursor-text", style.key, contentPadY)}
           style={constrainWidth ? { maxWidth: availableTextWidth } : undefined}
         >
           {style.connector && row.original.level > 0 && (
@@ -565,7 +618,7 @@ function JsonPrettyTable({
               <ItemBadge type={itemBadgeType} isSmall={true} />
             </span>
           )}
-          {row.original.key}
+          {renderKeyText(row.original.key)}
         </span>
       </div>
     );
@@ -579,15 +632,36 @@ function JsonPrettyTable({
       preserveStringWhitespace={row.original.key === "code_eval_source_code"}
       metadataActions={metadataActions}
       collapsedPreview={style.collapsedPreview}
+      expandedParentSummary={style.expandedParentSummary}
     />
   );
+
+  // key above value, value indented to the key.
+  const renderStackedCell = (row: Row<JsonTableRow>) => (
+    <div className="flex flex-col gap-1 wrap-break-word">
+      {renderKey(row, false)}
+      {row.getIsExpanded() && row.subRows.length > 0 ? null : (
+        <div
+          style={{
+            paddingLeft: `${indentationWidthFor(row) + MARGIN_LEFT_1}px`,
+          }}
+        >
+          {renderValue(row)}
+        </div>
+      )}
+    </div>
+  );
+
+  const isLongString = (row: Row<JsonTableRow>) =>
+    typeof row.original.value === "string" &&
+    (row.original.value.length > 80 || row.original.value.includes("\n"));
 
   const keyColumn: LangfuseColumnDef<JsonTableRow, unknown> = {
     accessorKey: "key",
     header: "Path",
-    size: 35,
+    size: contentSizedKeys ? 1 : 35,
     cell: ({ row }) => {
-      const content = renderKey(row, true);
+      const content = renderKey(row, !contentSizedKeys);
       const valueLength = getValueStringLength(row.original.value);
       const isLongValue = valueLength > MAX_CELL_DISPLAY_CHARS / 3; // already long if we don't truncate
 
@@ -617,7 +691,7 @@ function JsonPrettyTable({
   const valueColumn: LangfuseColumnDef<JsonTableRow, unknown> = {
     accessorKey: "value",
     header: "Value",
-    size: 65,
+    size: contentSizedKeys ? 99 : 65,
     cell: ({ row }) => renderValue(row),
   };
 
@@ -626,34 +700,43 @@ function JsonPrettyTable({
     accessorKey: "key",
     header: "Field",
     size: 100,
-    cell: ({ row }) => (
-      <div className="flex items-start wrap-break-word">
-        {renderKey(row, false)}
-        <span className="text-muted-foreground mr-1.5 text-xs">:</span>
-        <div className="min-w-0 flex-1">{renderValue(row)}</div>
-      </div>
-    ),
+    cell: ({ row }) => {
+      if (style.longValuesBelowKey && isLongString(row)) {
+        return renderStackedCell(row);
+      }
+      return (
+        <div
+          className={cn(
+            "flex wrap-break-word",
+            style.indentGuides ? "items-stretch" : "items-start",
+          )}
+        >
+          {renderKey(row, false)}
+          {style.inlineSeparator ? (
+            <span
+              className={cn(
+                "text-muted-foreground mr-1.5 text-xs",
+                contentPadY,
+              )}
+            >
+              :
+            </span>
+          ) : (
+            <span className="w-2 shrink-0" />
+          )}
+          <div className={cn("min-w-0 flex-1", contentPadY)}>
+            {renderValue(row)}
+          </div>
+        </div>
+      );
+    },
   };
 
-  // stacked: key above value, value indented to the key.
   const stackedColumn: LangfuseColumnDef<JsonTableRow, unknown> = {
     accessorKey: "key",
     header: "Field",
     size: 100,
-    cell: ({ row }) => (
-      <div className="flex flex-col gap-1 wrap-break-word">
-        {renderKey(row, false)}
-        {row.getIsExpanded() && row.subRows.length > 0 ? null : (
-          <div
-            style={{
-              paddingLeft: `${indentationWidthFor(row) + MARGIN_LEFT_1}px`,
-            }}
-          >
-            {renderValue(row)}
-          </div>
-        )}
-      </div>
-    ),
+    cell: ({ row }) => renderStackedCell(row),
   };
 
   const columns: LangfuseColumnDef<JsonTableRow, unknown>[] =
@@ -776,7 +859,7 @@ function JsonPrettyTable({
 
   return (
     <div className={cn("w-full", !noBorder && "rounded-sm border")}>
-      <Table>
+      <Table className={cn(contentSizedKeys && "table-auto")}>
         {hideHeader ? null : (
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup, index) => (
@@ -924,11 +1007,12 @@ export function PrettyJsonView(props: {
     : undefined;
   const codeClassName = cn(props.codeClassName, toneClasses?.container);
   const resolvedStyleVariant = useJsonTableStyleVariant(props.styleVariant);
-  const styleVariant =
-    props.lockStyleVariant && props.styleVariant
-      ? props.styleVariant
-      : resolvedStyleVariant;
+  const styleVariant = props.lockStyleVariant
+    ? (props.styleVariant ?? DEFAULT_JSON_TABLE_STYLE_VARIANT)
+    : resolvedStyleVariant;
   const tableStyle = JSON_TABLE_STYLES[styleVariant];
+  const tableHasContentSizedKeys =
+    tableStyle.layout === "columns" && tableStyle.keyColumn === "content";
   const showStylePicker =
     useShowJsonTableStylePicker() && !props.lockStyleVariant;
   const hasTitle = Boolean(props.title);
@@ -1471,12 +1555,18 @@ export function PrettyJsonView(props: {
             style={{ display: shouldUseTableView ? "flex" : "none" }}
           >
             <div
-              className={getContainerClasses(
-                props.title,
-                props.scrollable,
-                codeClassName,
-                "flex text-xs wrap-break-word whitespace-pre-wrap",
-                tableBorderless,
+              className={cn(
+                getContainerClasses(
+                  props.title,
+                  props.scrollable,
+                  codeClassName,
+                  "flex text-xs wrap-break-word whitespace-pre-wrap",
+                  tableBorderless,
+                ),
+                // Container for the key column's 40cqw cap. Inline-size
+                // containment zeroes this flex item's intrinsic width, so it
+                // takes the row width explicitly.
+                tableHasContentSizedKeys && "@container w-full",
               )}
             >
               {props.isLoading ? (

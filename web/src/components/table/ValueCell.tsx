@@ -143,6 +143,15 @@ function renderBracesPreview(value: unknown[] | Record<string, unknown>) {
   );
 }
 
+/** Muted "N keys" / "N items" shown by style directions on expanded parents. */
+function renderCountSummary(count: number, noun: "keys" | "items") {
+  return (
+    <span className="text-muted-foreground text-xs">
+      {count} {count === 1 ? noun.slice(0, -1) : noun}
+    </span>
+  );
+}
+
 function formatPreviewPrimitive(value: unknown): string {
   if (typeof value === "string") return JSON.stringify(value);
   if (value === null) return "null";
@@ -364,6 +373,7 @@ export const ValueCell = memo(
     preserveStringWhitespace = false,
     metadataActions,
     collapsedPreview = "default",
+    expandedParentSummary = false,
   }: {
     row: Row<JsonTableRow>;
     expandedCells: Set<string>;
@@ -372,6 +382,9 @@ export const ValueCell = memo(
     metadataActions?: MetadataFilterActions;
     /** Collapsed object / array preview format (style directions). */
     collapsedPreview?: "default" | "braces";
+    /** Expanded parents show a muted "N keys" / "N items" instead of an
+        empty cell (style directions). */
+    expandedParentSummary?: boolean;
   }) => {
     const { value, type } = row.original;
     const cellId = `${row.id}-value`;
@@ -472,7 +485,9 @@ export const ValueCell = memo(
             row.getIsExpanded() && row.subRows.length > 0;
           if (hasVisibleChildRows) {
             return {
-              content: null,
+              content: expandedParentSummary
+                ? renderCountSummary((value as unknown[]).length, "items")
+                : null,
               needsTruncation: false,
             };
           }
@@ -491,7 +506,12 @@ export const ValueCell = memo(
             row.getIsExpanded() && row.subRows.length > 0;
           if (hasVisibleChildRows) {
             return {
-              content: null,
+              content: expandedParentSummary
+                ? renderCountSummary(
+                    Object.keys(value as Record<string, unknown>).length,
+                    "keys",
+                  )
+                : null,
               needsTruncation: false,
             };
           }

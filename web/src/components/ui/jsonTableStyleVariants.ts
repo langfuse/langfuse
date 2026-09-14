@@ -7,15 +7,21 @@ import { useSyncExternalStore } from "react";
  */
 export const JSON_TABLE_STYLE_VARIANTS = [
   "quiet",
+  "quiet-dense",
+  "dense-dotbreak",
   "tree",
+  "tree-inline",
+  "adaptive",
   "stacked",
   "zebra",
   "current",
+  "current-noheader",
 ] as const;
 
 export type JsonTableStyleVariant = (typeof JSON_TABLE_STYLE_VARIANTS)[number];
 
-const DEFAULT_JSON_TABLE_STYLE_VARIANT: JsonTableStyleVariant = "current";
+export const DEFAULT_JSON_TABLE_STYLE_VARIANT: JsonTableStyleVariant =
+  "current";
 
 const JSON_TABLE_STYLE_STORAGE_KEY = "lf-json-style";
 
@@ -34,7 +40,7 @@ export type JsonTableStyle = {
   key: string;
   /** Cell padding + divider classes. */
   cell: string;
-  /** Alternate row backgrounds (bg-muted/40 on even rows). */
+  /** Alternate row backgrounds (bg-muted/40 on every second rendered row). */
   zebra: boolean;
   /** Leaf rows carry a small muted dot in the chevron column. */
   leafDot: boolean;
@@ -42,27 +48,83 @@ export type JsonTableStyle = {
   connector: boolean;
   /** Collapsed object / array preview format. */
   collapsedPreview: "default" | "braces";
+  /** `columns` layout only: fixed 35 % key column, or sized to the longest
+      key with a 40 % cap. */
+  keyColumn: "fixed" | "content";
+  /** Expanded parent rows show a muted "N keys" / "N items" in the value cell
+      instead of an empty cell. */
+  expandedParentSummary: boolean;
+  /** `inline` layout only: render a ":" between key and value. */
+  inlineSeparator: boolean;
+  /** `inline` layout only: vertical guide lines through the indentation of
+      nested rows (cell padding moves onto the content so the lines join). */
+  indentGuides: boolean;
+  /** `inline` layout only: strings over 80 chars or with line breaks drop
+      below the key at full width; everything else stays inline. */
+  longValuesBelowKey: boolean;
+  /** Keys get a soft break opportunity after every "." so dotted OTel keys
+      wrap at segment boundaries instead of mid-word. */
+  breakKeysAtDots: boolean;
 };
 
 const MONO_KEY = "font-mono text-xs wrap-break-word";
+const QUIET_KEY = "text-muted-foreground text-xs wrap-break-word";
+
+const BASE_FLAGS = {
+  zebra: false,
+  leafDot: false,
+  connector: false,
+  collapsedPreview: "default",
+  keyColumn: "fixed",
+  expandedParentSummary: false,
+  inlineSeparator: true,
+  indentGuides: false,
+  longValuesBelowKey: false,
+  breakKeysAtDots: false,
+} satisfies Partial<JsonTableStyle>;
 
 export const JSON_TABLE_STYLES: Record<JsonTableStyleVariant, JsonTableStyle> =
   {
     quiet: {
+      ...BASE_FLAGS,
       label: "Quiet",
       reference: "LangSmith attributes",
       layout: "columns",
       headerUnderTitle: false,
       boxUnderTitle: false,
       indentBase: 16,
-      key: "text-muted-foreground text-xs wrap-break-word",
+      key: QUIET_KEY,
       cell: "border-border/60 px-2 py-2.5 align-top whitespace-normal",
-      zebra: false,
-      leafDot: false,
-      connector: false,
-      collapsedPreview: "default",
+    },
+    "quiet-dense": {
+      ...BASE_FLAGS,
+      label: "Quiet dense",
+      reference: "quiet at today's row height, key column fits content",
+      layout: "columns",
+      headerUnderTitle: false,
+      boxUnderTitle: false,
+      indentBase: 16,
+      key: QUIET_KEY,
+      cell: "border-border/60 px-2 py-1 align-top whitespace-normal",
+      keyColumn: "content",
+      expandedParentSummary: true,
+    },
+    "dense-dotbreak": {
+      ...BASE_FLAGS,
+      label: "Dense, dot-break keys",
+      reference: "quiet dense, dotted keys wrap at segments",
+      layout: "columns",
+      headerUnderTitle: false,
+      boxUnderTitle: false,
+      indentBase: 16,
+      key: QUIET_KEY,
+      cell: "border-border/60 px-2 py-1 align-top whitespace-normal",
+      keyColumn: "content",
+      expandedParentSummary: true,
+      breakKeysAtDots: true,
     },
     tree: {
+      ...BASE_FLAGS,
       label: "Tree",
       reference: "LangSmith fields",
       layout: "inline",
@@ -71,12 +133,37 @@ export const JSON_TABLE_STYLES: Record<JsonTableStyleVariant, JsonTableStyle> =
       indentBase: 16,
       key: "text-foreground text-xs wrap-break-word",
       cell: "border-b-0 px-2 py-1.5 align-top whitespace-normal",
-      zebra: false,
       leafDot: true,
-      connector: false,
       collapsedPreview: "braces",
     },
+    "tree-inline": {
+      ...BASE_FLAGS,
+      label: "Tree inline",
+      reference: "muted key label, value inline, indent guides (IO)",
+      layout: "inline",
+      headerUnderTitle: false,
+      boxUnderTitle: false,
+      indentBase: 16,
+      key: QUIET_KEY,
+      cell: "border-b-0 px-2 py-0 align-top whitespace-normal",
+      inlineSeparator: false,
+      indentGuides: true,
+    },
+    adaptive: {
+      ...BASE_FLAGS,
+      label: "Adaptive",
+      reference: "inline; long strings drop below the key at full width",
+      layout: "inline",
+      headerUnderTitle: false,
+      boxUnderTitle: false,
+      indentBase: 16,
+      key: QUIET_KEY,
+      cell: "border-border/60 px-2 py-1 align-top whitespace-normal",
+      inlineSeparator: false,
+      longValuesBelowKey: true,
+    },
     stacked: {
+      ...BASE_FLAGS,
       label: "Stacked",
       reference: "Braintrust",
       layout: "stacked",
@@ -85,12 +172,9 @@ export const JSON_TABLE_STYLES: Record<JsonTableStyleVariant, JsonTableStyle> =
       indentBase: 16,
       key: `text-primary-accent ${MONO_KEY}`,
       cell: "border-b-0 px-2 py-3 align-top whitespace-normal",
-      zebra: false,
-      leafDot: false,
-      connector: false,
-      collapsedPreview: "default",
     },
     zebra: {
+      ...BASE_FLAGS,
       label: "Zebra",
       reference: "Sentry tags",
       layout: "columns",
@@ -100,11 +184,10 @@ export const JSON_TABLE_STYLES: Record<JsonTableStyleVariant, JsonTableStyle> =
       key: MONO_KEY,
       cell: "border-b-0 px-2 py-2 align-top whitespace-normal",
       zebra: true,
-      leafDot: false,
       connector: true,
-      collapsedPreview: "default",
     },
     current: {
+      ...BASE_FLAGS,
       label: "Current",
       reference: "today's rendering",
       layout: "columns",
@@ -113,10 +196,17 @@ export const JSON_TABLE_STYLES: Record<JsonTableStyleVariant, JsonTableStyle> =
       indentBase: 8,
       key: MONO_KEY,
       cell: "px-2 py-1 align-top whitespace-normal",
-      zebra: false,
-      leafDot: false,
-      connector: false,
-      collapsedPreview: "default",
+    },
+    "current-noheader": {
+      ...BASE_FLAGS,
+      label: "Current, no header",
+      reference: "today's rows without the Path / Value header and inner box",
+      layout: "columns",
+      headerUnderTitle: false,
+      boxUnderTitle: false,
+      indentBase: 8,
+      key: MONO_KEY,
+      cell: "px-2 py-1 align-top whitespace-normal",
     },
   };
 
