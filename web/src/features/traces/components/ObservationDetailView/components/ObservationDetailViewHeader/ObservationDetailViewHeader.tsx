@@ -749,6 +749,12 @@ export const ObservationDetailViewHeader = memo(
               evaluator, prompt) that stay next to them. Session/user render
               once in the TraceSummaryStrip — in v4 every observation carries
               the trace's values. */}
+          {/* Annotation mode drops the metrics row, but when the observation
+              happened is context an annotator still needs, and the trace
+              header keeps its timestamp unconditionally too. */}
+          {isAnnotationMode && (
+            <StartTimeBadge startTime={observation.startTime} />
+          )}
           {!isAnnotationMode && (
             <CollapsibleBadgeRow>
               <StartTimeBadge startTime={observation.startTime} />
