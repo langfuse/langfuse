@@ -1485,6 +1485,24 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   );
   const scoreOnlyFilterRes = scoreOnlyFilters.apply();
 
+  // Timestamp-only fragment for the count path: it prunes partitions inside the
+  // pre-dedup subquery. Timestamp is part of the table sorting key, so it is
+  // safe to apply before dedup; mutable-column filters must not be (see count
+  // query below). Separate FilterList → independent random param names.
+  const timestampColumn = scoresTableUiColumnDefinitionsFromEvents.find(
+    (c) => c.uiTableId === "timestamp",
+  );
+  const timestampFilterState = timestampColumn
+    ? filter.filter((f) => matchesUiColumnMapping(timestampColumn, f.column))
+    : [];
+  const innerTimestampFilterRes = new FilterList(
+    createFilterFromFilterState(
+      timestampFilterState,
+      scoresTableUiColumnDefinitionsFromEvents,
+      scoresTableCols,
+    ),
+  ).apply();
+
   // Trace-level filter entries from the frontend filter state
   const traceFilterState = filter.filter((filterEntry) =>
     scoresTraceFilterEventsMapping.some((col) =>
@@ -1576,25 +1594,48 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       AND s.data_type IN ({dataTypes: Array(String)})
       ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}`;
 
-  // Row reads use FINAL to dedup the ReplacingMergeTree. Count dedups via
-  // GROUP BY + argMax(is_deleted) instead: a single aggregation pass keeps
-  // each row's latest version and drops soft-deleted ones, matching FINAL
-  // semantics without its multi-part merge. The GROUP BY mirrors the table's
-  // full sorting key (project_id, toDate(timestamp), name, id) — the key FINAL
-  // collapses on — since the user-provided id is not unique on its own.
+  // Row reads use FINAL to dedup the ReplacingMergeTree. Count dedups with a
+  // single argMax(col, event_ts) aggregation pass instead, reconstructing each
+  // score's latest version — matching FINAL without its multi-part merge. The
+  // GROUP BY mirrors the table sorting key (project_id, toDate(timestamp), name,
+  // id) — the key FINAL collapses on; the user-provided id is not unique alone.
+  // Mutable score columns (value, comment, ...) are filtered AFTER dedup, on the
+  // reconstructed latest values, so the count matches the row list; only the
+  // timestamp bound stays in the inner query, to prune partitions.
   const query =
     props.select === "count"
       ? `
       ${tracesCTEClause}
       SELECT count(*) AS count
       FROM (
-        SELECT s.id
+        SELECT
+          s.id,
+          s.project_id,
+          s.name,
+          argMax(s.timestamp, s.event_ts) AS timestamp,
+          argMax(s.environment, s.event_ts) AS environment,
+          argMax(s.trace_id, s.event_ts) AS trace_id,
+          argMax(s.observation_id, s.event_ts) AS observation_id,
+          argMax(s.session_id, s.event_ts) AS session_id,
+          argMax(s.evaluator_id, s.event_ts) AS evaluator_id,
+          argMax(s.evaluation_rule_id, s.event_ts) AS evaluation_rule_id,
+          argMax(s.value, s.event_ts) AS value,
+          argMax(s.source, s.event_ts) AS source,
+          argMax(s.comment, s.event_ts) AS comment,
+          argMax(s.author_user_id, s.event_ts) AS author_user_id,
+          argMax(s.data_type, s.event_ts) AS data_type,
+          argMax(s.string_value, s.event_ts) AS string_value,
+          argMax(s.metadata, s.event_ts) AS metadata,
+          argMax(s.is_deleted, s.event_ts) AS is_deleted
         FROM scores s
         ${eventsJoin}
-        ${whereClause}
+        WHERE s.project_id = {projectId: String}
+        ${innerTimestampFilterRes?.query ? `AND ${innerTimestampFilterRes.query}` : ""}
         GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
-        HAVING argMax(s.is_deleted, s.event_ts) = 0
-      )
+      ) s
+      WHERE s.data_type IN ({dataTypes: Array(String)})
+      AND s.is_deleted = 0
+      ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}
     `
       : `
       ${tracesCTEClause}
@@ -1612,6 +1653,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       projectId,
       dataTypes: LISTABLE_SCORE_TYPES,
       ...(scoreOnlyFilterRes ? scoreOnlyFilterRes.params : {}),
+      ...innerTimestampFilterRes.params,
       ...tracesCTEParams,
       limit,
       offset,
