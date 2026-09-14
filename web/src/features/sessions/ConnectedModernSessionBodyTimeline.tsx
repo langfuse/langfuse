@@ -88,12 +88,6 @@ export function ConnectedModernSessionBodyTimeline({
   const baseFilters: FilterState = [
     ...filterState,
     {
-      column: "sessionId",
-      type: "string",
-      operator: "=",
-      value: sessionId,
-    },
-    {
       column: "startTime",
       type: "datetime",
       operator: ">=",
@@ -163,9 +157,10 @@ export function ConnectedModernSessionBodyTimeline({
 
   const observationQueries = api.useQueries((t) =>
     queryDescriptors.map((descriptor) =>
-      t.events.all(
+      t.events.sessionAll(
         {
           projectId,
+          sessionId,
           filter: descriptor.traceIds
             ? [
                 ...baseFilters,
@@ -197,7 +192,7 @@ export function ConnectedModernSessionBodyTimeline({
   >();
   const timelineObservationsByTraceId = new Map<
     string,
-    RouterOutputs["events"]["all"]["observations"]
+    RouterOutputs["events"]["sessionAll"]["observations"]
   >();
   const observationIdsByTraceId = new Map<string, Set<string>>();
   const traceIdsWithMatchingTraceLevelIO = new Set<string>();

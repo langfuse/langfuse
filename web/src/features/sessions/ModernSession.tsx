@@ -6,7 +6,6 @@ import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/Conn
 import { ModernSessionFilterControls } from "@/src/features/sessions/ModernSessionFilterControls";
 import { ModernSessionHeader } from "@/src/features/sessions/ModernSessionHeader";
 import { SessionMetadataJsonPathControl } from "@/src/features/sessions/SessionMetadataJsonPathControl";
-import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import {
   type EventSession,
   type EventSessionTrace,
@@ -65,9 +64,6 @@ export function ModernSession({
   filterControlsProps,
   onFilterObservationByName,
 }: ModernSessionProps) {
-  const isProjectMember = useIsAuthenticatedAndProjectMember(projectId);
-  // Public session authorization must support timeline event queries before removing the sessionTimeline flag.
-  const shouldRenderTimeline = isTimelineEnabled && isProjectMember;
   const headerTraces =
     tracesState.type === "loaded"
       ? ({ state: "loaded", data: tracesState.traces } as const)
@@ -112,7 +108,7 @@ export function ModernSession({
       </SessionMetadataJsonPathControl>
       <ModernSessionFilterControls {...filterControlsProps}>
         {(sidebarFilterControls) =>
-          shouldRenderTimeline ? (
+          isTimelineEnabled ? (
             <ConnectedModernSessionBodyTimeline
               {...sharedBodyProps}
               sidebarFilterControls={sidebarFilterControls}

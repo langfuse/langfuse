@@ -17,7 +17,8 @@ import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 
 const BATCH_IO_SIZE = 50;
 
-type EventObservation = RouterOutputs["events"]["all"]["observations"][number];
+type EventObservation =
+  RouterOutputs["events"]["sessionAll"]["observations"][number];
 type SessionBatchIOQueryResult = {
   data: RouterOutputs["events"]["sessionBatchIO"] | undefined;
   isError: boolean;
