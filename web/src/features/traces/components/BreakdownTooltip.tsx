@@ -4,7 +4,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import Decimal from "decimal.js";
 import Link from "next/link";
 import { type Details } from "@/src/features/traces/fns/calculateAggregatedUsage";
@@ -76,6 +76,14 @@ export const BreakdownTooltip = ({
   }, 0);
   const contributionEntries = inputEntries.concat(outputEntries, otherEntries);
   const waterfallSegments = createWaterfallSegments(contributionEntries);
+  const maxFormattedValueLength = contributionEntries.reduce(
+    (maxLength, [, value]) =>
+      Math.max(maxLength, formatValue(value ?? 0).length),
+    0,
+  );
+  const tooltipStyle = {
+    "--breakdown-value-width": `clamp(3ch, ${maxFormattedValueLength}ch, 7rem)`,
+  } as CSSProperties;
 
   const resolvedCostSource =
     costSource ?? (isCost && priceSource ? "calculated" : undefined);
@@ -89,7 +97,10 @@ export const BreakdownTooltip = ({
         >
           {children}
         </TooltipTrigger>
-        <TooltipContent className="w-[30rem] max-w-[calc(100vw-2rem)] p-4">
+        <TooltipContent
+          className="w-[30rem] max-w-[calc(100vw-2rem)] p-4"
+          style={tooltipStyle}
+        >
           <div className="flex min-w-0 flex-col gap-4">
             <div className="flex flex-col gap-1">
               <span className="font-bold">
@@ -194,7 +205,7 @@ const breakdownRowVariants = cva("min-w-0 items-center gap-3 text-xs", {
     layout: {
       default: "flex",
       waterfall:
-        "grid grid-cols-[minmax(0,1fr)_7rem_7rem] max-sm:grid-cols-[minmax(0,1fr)_6rem_6rem]",
+        "grid grid-cols-[minmax(0,1fr)_7rem_var(--breakdown-value-width)] max-sm:grid-cols-[minmax(0,1fr)_6rem_var(--breakdown-value-width)]",
     },
     variant: {
       item: "text-muted-foreground",
