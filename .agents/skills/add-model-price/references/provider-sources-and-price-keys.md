@@ -594,6 +594,38 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   add even if the scope exclusion were lifted. Treat the whole Daybreak cyber
   family (currently three members) as one standing scope exclusion rather than
   re-investigating each member separately in future audits.
+- **September 14 2026 audit: full re-fetch found no price or catalog drift; Gemini
+  3.x "Priority" processing tier found and confirmed out of scope** — Re-fetched
+  the full Anthropic pricing table plus the models-overview table, the OpenAI
+  aggregate Standard/Fast-mode/Flex pricing tables plus the full model catalog,
+  and both Gemini pricing pages (`ai.google.dev/pricing` for the 2.5 family,
+  `ai.google.dev/gemini-api/docs/pricing` for the 3.x family) plus the Gemini
+  models catalog page. Every price already in the file matched verbatim,
+  including a re-confirmation via `gpt-5-chat-latest`'s own dedicated model page
+  that its price is still $1.25/$0.125/$10.00 — the aggregate OpenAI pricing
+  table's summarized row for this alias again showed a stale $5.00/$0.50/$30.00
+  artifact (the same pre-August-24 `gpt-5.6-sol` figures bleeding into an
+  unrelated row), reconfirming the existing lesson to always trust the
+  dedicated model page over the aggregate table for this specific alias. New
+  finding: `ai.google.dev/gemini-api/docs/pricing` now lists a "Priority"
+  pricing column (in addition to Standard/Batch/Flex) for every Gemini 3.x
+  model (`gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.6-flash`,
+  `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`,
+  `gemini-3.1-pro-preview`, `gemini-3-flash-preview`) at roughly 1.8x the
+  Standard input/output price. A targeted follow-up fetch asking specifically
+  how a developer selects Priority processing (a request parameter or header,
+  analogous to OpenAI's `service_tier` or Anthropic's `speed`) found **no
+  documented mechanism at all** — the pricing page shows the column with no
+  accompanying API reference, and it is unclear whether Priority is reachable
+  via the direct Gemini API (`generativelanguage.googleapis.com`) versus only
+  through Vertex AI provisioned/dedicated capacity (a capacity-reservation
+  billing model, not a per-request condition Langfuse could ever observe in
+  ingested usage). Per the same reasoning already applied to the OpenAI Batch
+  tier (documented price, no observed request-shape to condition a pricing
+  tier on), this was **not added** to any Gemini 3.x pricing entry. Re-investigate
+  only if a future Gemini API reference documents an actual request
+  parameter/header for Priority processing that would appear in normal
+  ingested usage payloads.
 
 Capture:
 
