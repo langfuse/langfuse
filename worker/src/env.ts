@@ -618,7 +618,7 @@ const EnvSchema = z.object({
   // slot is wedged. The heartbeat is refreshed at the top of every invocation and
   // per-chunk during the experiment backfill, so the threshold only needs to
   // exceed the longest un-heartbeated step — a single CH INSERT (request_timeout
-  // 10 min). 15 min leaves headroom.
+  // 30 min). 35 min leaves headroom.
   //
   // Probes using this flag MUST set initialDelaySeconds >= 60s (one cron cycle):
   // the heartbeat is only refreshed when the minute-boundary cron next runs, so a
@@ -628,7 +628,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .int()
-    .default(15),
+    .default(35),
 
   // Liveness threshold for the opt-in ?failIfQueueConsumptionStuck=true health
   // check: fail once this container's BullMQ workers have neither picked up nor
