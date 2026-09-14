@@ -1501,7 +1501,9 @@ const ScoreGroupHeaderRow = ({
           type="button"
           aria-expanded={!collapsed}
           aria-label={`${collapsed ? "Expand" : "Collapse"} group ${group.prefix}`}
-          className="flex h-7 w-full items-center gap-1.5 pl-2 text-left text-xs"
+          // Sticky so the label stays in view when the wide table scrolls
+          // sideways; the header cell spans every column.
+          className="sticky left-0 flex h-7 w-max max-w-full items-center gap-1.5 pr-3 pl-2 text-left text-xs"
           onClick={onToggle}
         >
           <Chevron className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
