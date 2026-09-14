@@ -171,6 +171,8 @@ function BillingSwitchPlanDialogContent() {
           priceLabel={currentPriceLabel}
           memberCount={memberCount}
           usage={usage.data ?? undefined}
+          usageLoading={usage.isLoading}
+          usageError={usage.isError}
           hobbyPlanLimit={
             organization?.cloudConfig?.monthlyObservationLimit ??
             MAX_EVENTS_FREE_PLAN

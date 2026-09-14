@@ -16,12 +16,16 @@ export function BillingSwitchPlanUsageBar({
   priceLabel,
   memberCount,
   usage,
+  usageLoading = false,
+  usageError = false,
   hobbyPlanLimit = MAX_EVENTS_FREE_PLAN,
 }: {
   currentTier: PlanTier;
   priceLabel: string;
   memberCount?: number;
   usage: Exclude<RouterOutput["cloudBilling"]["getUsage"], null> | undefined;
+  usageLoading?: boolean;
+  usageError?: boolean;
   hobbyPlanLimit?: number;
 }) {
   const includedUnits =
@@ -55,7 +59,9 @@ export function BillingSwitchPlanUsageBar({
           </p>
         ) : null}
       </div>
-      {usage ? (
+      {usageLoading ? (
+        <p className="text-muted-foreground text-sm">Loading usage…</p>
+      ) : usage ? (
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
             <span className="text-muted-foreground">
@@ -90,9 +96,11 @@ export function BillingSwitchPlanUsageBar({
             </p>
           ) : null}
         </div>
-      ) : (
-        <p className="text-muted-foreground text-sm">Loading usage…</p>
-      )}
+      ) : usageError ? (
+        <p className="text-muted-foreground text-sm">
+          Usage for this period is unavailable
+        </p>
+      ) : null}
     </div>
   );
 }

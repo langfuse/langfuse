@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { useQueryOrganization } from "@/src/features/organizations/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { formatLocalIsoDate } from "@/src/utils/dates";
 import { type BillingProvider, type Plan, planLabels } from "@langfuse/shared";
 import { stripeProducts } from "@/src/ee/features/billing/utils/stripeCatalogue";
@@ -25,7 +25,9 @@ type BillingScheduledSwitchInfo = {
 
 export type UseBillingInformationResult = {
   isLoading: boolean;
-  organization: ReturnType<typeof useQueryOrganization>;
+  organization: ReturnType<
+    typeof useQueryProjectOrOrganization
+  >["organization"];
   planLabel: string;
   cancellation: BillingCancellationInfo | null;
   scheduledPlanSwitch: BillingScheduledSwitchInfo | null;
@@ -43,7 +45,9 @@ export type UseBillingInformationResult = {
 };
 
 export const useBillingInformation = (): UseBillingInformationResult => {
-  const organization = useQueryOrganization();
+  // Project routes have no organizationId. Resolve through the current project
+  // so sidebar checkout and usage keep an org.
+  const { organization } = useQueryProjectOrOrganization();
   const { data: subscriptionInfo, isLoading: isLoadingSubscriptionInfo } =
     api.cloudBilling.getSubscriptionInfo.useQuery(
       { orgId: organization?.id ?? "" },
