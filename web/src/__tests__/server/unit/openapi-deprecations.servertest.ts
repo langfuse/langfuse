@@ -269,7 +269,7 @@ describe("OpenAPI deprecations", () => {
 
       if (supportedEventTypes.has(eventType)) {
         expect(event.docs, eventType).not.toContain("Sunset warning");
-        expect(generatedSchema.description, eventType).not.toContain(
+        expect(generatedSchema.description ?? "", eventType).not.toContain(
           "Sunset warning",
         );
         continue;
