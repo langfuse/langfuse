@@ -54,7 +54,7 @@ import { TableHeaderControls } from "@/src/components/table/table-header-control
 import { TableCell, TableRow } from "@/src/components/ui/table";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import {
-  groupScoreRowsByEvaluator,
+  groupScoreRowsByPrefix,
   type GroupedScoreRows,
   type ScoreRowGroup,
 } from "@/src/components/table/use-cases/groupScoreRows";
@@ -153,12 +153,12 @@ export type ScoresTableProps = {
   /** Skip the default exclusion of internal environments. */
   showAllEnvironments?: boolean;
   /**
-   * Group rows by evaluator prefix under collapsible header rows, the rule
+   * Group rows by name prefix under collapsible header rows, the rule
    * the score chips use (groupScoresForChips): grouped rows first, ungrouped
    * rows last under no header. For the trace / observation Scores tabs; the
    * project-wide table keeps its flat rows.
    */
-  groupByEvaluatorPrefix?: boolean;
+  groupByNamePrefix?: boolean;
 };
 
 function createFilterState(
@@ -189,7 +189,7 @@ export default function ScoresTable({
   disableUrlPersistence = false,
   showControlsInPageHeader = false,
   showAllEnvironments = false,
-  groupByEvaluatorPrefix = false,
+  groupByNamePrefix = false,
 }: ScoresTableProps) {
   const peekContext = usePeekTableState();
 
@@ -1098,12 +1098,12 @@ export default function ScoresTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scores.data, scoreMetrics.data, isV4]);
 
-  // Evaluator groups: the page's rows reordered under headers. Client-side
+  // Score groups: the page's rows reordered under headers. Client-side
   // over the loaded page, like the chips over a node's scores.
   const groupedRows = useMemo(
     () =>
-      groupByEvaluatorPrefix && enrichedScores
-        ? groupScoreRowsByEvaluator(
+      groupByNamePrefix && enrichedScores
+        ? groupScoreRowsByPrefix(
             enrichedScores,
             // The table stringifies values (booleans as their "True" /
             // "False" string); the summary wants them typed.
@@ -1122,7 +1122,7 @@ export default function ScoresTable({
             }),
           )
         : null,
-    [groupByEvaluatorPrefix, enrichedScores],
+    [groupByNamePrefix, enrichedScores],
   );
   const tableRows = groupedRows ? groupedRows.rows : enrichedScores;
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
@@ -1460,7 +1460,7 @@ const GroupedScoreRow = ({
   );
 };
 
-/** One row spanning the table: chevron, evaluator prefix, metric count and
+/** One row spanning the table: chevron, group prefix, metric count and
     the chip's summary text. */
 const ScoreGroupHeaderRow = ({
   group,

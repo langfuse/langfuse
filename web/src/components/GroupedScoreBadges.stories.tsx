@@ -91,10 +91,10 @@ export const DetailsInsideBadge = meta.story({
   },
 });
 
-// One evaluator emitting several metrics under a shared `Evaluator.metric`
+// Several metrics under a shared `Group.metric`
 // name: the chips show it as ONE chip (prefix plus metric count), and that
 // chip counts once toward `maxVisible`.
-const evaluatorScores = ["toxicity", "pii", "hate", "violence"].map(
+const groupScores = ["toxicity", "pii", "hate", "violence"].map(
   (metric, index) => ({
     ...scores[0],
     id: `moderation-${metric}`,
@@ -103,10 +103,10 @@ const evaluatorScores = ["toxicity", "pii", "hate", "violence"].map(
   }),
 ) satisfies LastUserScore[];
 
-export const EvaluatorGroup = meta.story({
-  name: "(Test) Evaluator Group",
+export const ScoreGroup = meta.story({
+  name: "(Test) Score Group",
   args: {
-    scores: [...evaluatorScores, ...scores],
+    scores: [...groupScores, ...scores],
     maxVisible: 2,
     onOverflowClick: fn(),
   },

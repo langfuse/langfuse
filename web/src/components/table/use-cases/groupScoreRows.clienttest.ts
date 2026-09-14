@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { groupScoreRowsByEvaluator } from "./groupScoreRows";
+import { groupScoreRowsByPrefix } from "./groupScoreRows";
 
 const numeric = (id: string, name: string, value: number) => ({
   id,
@@ -36,13 +36,13 @@ const rows = [
   numeric("8", "gpt-4.1", 0.3),
 ];
 
-describe("groupScoreRowsByEvaluator", () => {
+describe("groupScoreRowsByPrefix", () => {
   it("orders grouped rows first, metric name within, then ungrouped rows in table order", () => {
     const {
       rows: ordered,
       headerBefore,
       groupOf,
-    } = groupScoreRowsByEvaluator(rows, (row) => row);
+    } = groupScoreRowsByPrefix(rows, (row) => row);
 
     expect(ordered.map((row) => row.name)).toEqual([
       "Gate.has_pii",

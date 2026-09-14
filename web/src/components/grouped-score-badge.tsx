@@ -19,7 +19,7 @@ import { cn } from "@/src/utils/tailwind";
 
 type ChipScore = WithStringifiedMetadata<ScoreDomain> | LastUserScore;
 
-/** What the "+N" hover lists: one line per chip, so an evaluator group shows
+/** What the "+N" hover lists: one line per chip, so a score group shows
  * as `Prefix(N)` with its summary, exactly like its chip, not as N metrics.
  * No summary (mixed types): the value slot stays empty, the label has the
  * count. */
@@ -34,7 +34,7 @@ const overflowHoverRows = <T extends ChipScore>(
   groups: ReadonlyArray<ScoreChipGroup<T>>,
 ): OverflowHoverRow[] =>
   groups.flatMap((group): OverflowHoverRow[] => {
-    if (group.kind !== "evaluator") return [...group.scores];
+    if (group.kind !== "group") return [...group.scores];
     const { count, text: summary } = groupSummary(group);
     return [
       {
@@ -47,12 +47,12 @@ const overflowHoverRows = <T extends ChipScore>(
   });
 
 /**
- * One chip for one evaluator: the shared prefix, how many metrics it emitted
+ * One chip for one score group: the shared prefix, how many metrics it holds
  * and their summary (see groupSummary). Hover lists the metrics (suffix only,
  * the prefix is the chip); click goes to the node's Scores tab, the only
  * place twenty metrics with their comments and metadata fit.
  */
-const EvaluatorGroupBadge = <T extends ChipScore>({
+const ScoreGroupBadge = <T extends ChipScore>({
   group,
   compact,
   showLevels,
@@ -146,21 +146,21 @@ export const GroupedScoreBadges = <T extends ChipScore>({
   maxVisible?: number;
   compact?: boolean;
   /**
-   * Whether hovering "+N" or an evaluator group chip lists the scores. Off
+   * Whether hovering "+N" or a score group chip lists the scores. Off
    * inside tree rows: the row's own hover card already lists them, and a
    * second card opens underneath it.
    */
   overflowPreview?: boolean;
-  /** Click on "+N" or on an evaluator group chip. Callers open the node's
+  /** Click on "+N" or on a score group chip. Callers open the node's
       Scores tab; without it both are inert. */
   onOverflowClick?: () => void;
   /** Suppress the level tag even on mixed rows — for dense surfaces (tree
       rows) where the level lives in the detail panel instead. */
   hideLevels?: boolean;
 }) => {
-  // One chip per group (see groupScoresForChips): an evaluator's metrics
-  // count as ONE chip toward `maxVisible`, so a node scored by two evaluators
-  // and a human still fits inline.
+  // One chip per group (see groupScoresForChips): a score group's metrics
+  // count as ONE chip toward `maxVisible`, so a node with two groups and a
+  // plain human score still fits inline.
   const groups = groupScoresForChips(scores);
 
   // Level tags only when this selection MIXES levels (LFE-10596): a row whose
@@ -203,9 +203,9 @@ export const GroupedScoreBadges = <T extends ChipScore>({
   return (
     <>
       {visibleGroups.map((group) =>
-        group.kind === "evaluator" ? (
-          <EvaluatorGroupBadge
-            key={`evaluator:${group.label}`}
+        group.kind === "group" ? (
+          <ScoreGroupBadge
+            key={`group:${group.label}`}
             group={group}
             compact={compact}
             showLevels={showLevels}

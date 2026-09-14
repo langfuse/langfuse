@@ -1,5 +1,5 @@
 /**
- * Row order and group headers for a Scores table that groups by evaluator
+ * Row order and group headers for a Scores table that groups by name
  * prefix (trace / observation Scores tabs). Same rule as the chips
  * (groupScoresForChips): names sharing the prefix before the first `.`, `:`
  * or `/` form a group once two distinct names share it. Grouped rows come
@@ -30,9 +30,7 @@ export type GroupedScoreRows<T> = {
   groupOf: Map<string, string>;
 };
 
-export function groupScoreRowsByEvaluator<
-  T extends { id: string; name: string },
->(
+export function groupScoreRowsByPrefix<T extends { id: string; name: string }>(
   rows: ReadonlyArray<T>,
   /** The typed value behind a row, for the summary; table rows stringify it. */
   asScore: (row: T) => SummarizableScore,
@@ -43,7 +41,7 @@ export function groupScoreRowsByEvaluator<
   const ungrouped: T[] = [];
 
   for (const group of groupScoresForChips(rows)) {
-    if (group.kind !== "evaluator") {
+    if (group.kind !== "group") {
       ungrouped.push(...group.scores);
       continue;
     }

@@ -30,7 +30,7 @@ export function ScoreHoverList({
   formatName = (name) => name,
 }: {
   scores: ReadonlyArray<HoverListScore>;
-  /** What to print for a score name. An evaluator group's chip already
+  /** What to print for a score name. A score group's chip already
       shows the shared prefix, so its card lists the metric behind it. */
   formatName?: (name: string) => string;
 }) {

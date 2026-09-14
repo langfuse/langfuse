@@ -14,7 +14,7 @@ const summarize = <T extends { name: string }>(
   }));
 
 describe("groupScoresForChips", () => {
-  it("collapses names sharing a prefix into one evaluator group", () => {
+  it("collapses names sharing a prefix into one score group", () => {
     const groups = groupScoresForChips([
       score("OutputModerationPrecision.toxicity", 0.1),
       score("helpfulness", 0.9),
@@ -24,7 +24,7 @@ describe("groupScoresForChips", () => {
 
     expect(summarize(groups)).toEqual([
       {
-        kind: "evaluator",
+        kind: "group",
         label: "OutputModerationPrecision",
         names: [
           "OutputModerationPrecision.toxicity",
@@ -48,7 +48,7 @@ describe("groupScoresForChips", () => {
     ]);
   });
 
-  it("mixes evaluator groups, lone prefixed names and repeated plain names", () => {
+  it("mixes score groups, lone prefixed names and repeated plain names", () => {
     const groups = groupScoresForChips([
       score("helpfulness", 0.9),
       score("Eval:relevance", 0.7),
@@ -62,7 +62,7 @@ describe("groupScoresForChips", () => {
     expect(summarize(groups)).toEqual([
       { kind: "name", label: ".leading", names: [".leading"] },
       {
-        kind: "evaluator",
+        kind: "group",
         label: "Eval",
         names: ["Eval:relevance", "Eval:faithfulness"],
       },

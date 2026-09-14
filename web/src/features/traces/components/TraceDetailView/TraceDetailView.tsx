@@ -504,8 +504,8 @@ export function TraceDetailView({
                       "jobConfigurationId",
                       "userId",
                     ]}
-                    // Rows under the same evaluator headers the chips use.
-                    groupByEvaluatorPrefix
+                    // Rows under the same score group headers the chips use.
+                    groupByNamePrefix
                     localStorageSuffix="TracePreview"
                     disableUrlPersistence={isPeekMode || isAnnotationMode}
                   />

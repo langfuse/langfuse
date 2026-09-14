@@ -613,8 +613,8 @@ export function ConnectedObservationDetailView({
                     // An evaluator's per-metric details (judge, sample size)
                     // live in metadata; this table is where they are read.
                     metadataVisibleByDefault
-                    // Rows under the same evaluator headers the chips use.
-                    groupByEvaluatorPrefix
+                    // Rows under the same score group headers the chips use.
+                    groupByNamePrefix
                     hiddenColumns={[
                       "traceId",
                       "observationId",

@@ -2,43 +2,43 @@
  * How the score chips bucket a node's scores.
  *
  * Default: one chip per score NAME (two annotators scoring "helpfulness" are
- * one chip with two values). On top of that, an EVALUATOR group: scores whose
+ * one chip with two values). On top of that, a score GROUP: scores whose
  * names share the text before the first `.`, `:` or `/` collapse into one chip
  * labelled with that prefix, once at least two distinct metric names share
- * it. One evaluator emitting `OutputModerationPrecision.toxicity`,
- * `OutputModerationPrecision.pii`, ... twenty times over is then one chip,
- * not twenty; the hover card lists the metrics.
+ * it. `OutputModerationPrecision.toxicity`, `OutputModerationPrecision.pii`,
+ * ... twenty times over is then one chip, not twenty; the hover card lists
+ * the metrics. Prefixes seen in production: `judge.`, `rubric.`,
+ * `assertion.<id>`, `cost_channel.<id>`.
  *
- * Assumption: the evaluator is encoded in the name by convention. Score
- * metadata is not consulted, so a project that keeps the evaluator in
- * metadata (or uses another separator) sees per-name chips as before. A
- * single prefixed name never groups: `gpt-4.1` or `v1.2` alone is a name,
- * not an evaluator.
+ * Assumption: the group is encoded in the name by convention. Score metadata
+ * is not consulted, so a project that keeps the grouping key in metadata (or
+ * uses another separator) sees per-name chips as before. A single prefixed
+ * name never groups: `gpt-4.1` or `v1.2` alone is a name, not a group.
  */
 
-const EVALUATOR_SEPARATOR = /[.:/]/;
+const GROUP_SEPARATOR = /[.:/]/;
 
 export type ScoreChipGroup<T> = {
-  /** Chip text: the score name, or the evaluator prefix the names share. */
+  /** Chip text: the score name, or the prefix the group's names share. */
   label: string;
-  kind: "name" | "evaluator";
+  kind: "name" | "group";
   scores: T[];
 };
 
-/** `Evaluator.metric` -> { evaluator, metric }; null when the name has no
-    prefix (no separator, or a separator at either end). */
-function splitEvaluatorPrefix(
+/** `Group.metric` -> { group, metric }; null when the name has no prefix
+    (no separator, or a separator at either end). */
+function splitGroupPrefix(
   name: string,
-): { evaluator: string; metric: string } | null {
-  const index = name.search(EVALUATOR_SEPARATOR);
+): { group: string; metric: string } | null {
+  const index = name.search(GROUP_SEPARATOR);
   if (index <= 0 || index === name.length - 1) return null;
-  return { evaluator: name.slice(0, index), metric: name.slice(index + 1) };
+  return { group: name.slice(0, index), metric: name.slice(index + 1) };
 }
 
 /** The part of the name a group chip's hover lists: the metric behind the
     prefix, or the whole name when there is none. */
 export const metricLabel = (name: string): string =>
-  splitEvaluatorPrefix(name)?.metric ?? name;
+  splitGroupPrefix(name)?.metric ?? name;
 
 export function groupScoresForChips<T extends { name: string }>(
   scores: ReadonlyArray<T>,
@@ -50,22 +50,22 @@ export function groupScoresForChips<T extends { name: string }>(
     else byName.set(score.name, [score]);
   }
 
-  const namesByEvaluator = new Map<string, string[]>();
+  const namesByGroup = new Map<string, string[]>();
   for (const name of byName.keys()) {
-    const split = splitEvaluatorPrefix(name);
+    const split = splitGroupPrefix(name);
     if (!split) continue;
-    const names = namesByEvaluator.get(split.evaluator);
+    const names = namesByGroup.get(split.group);
     if (names) names.push(name);
-    else namesByEvaluator.set(split.evaluator, [name]);
+    else namesByGroup.set(split.group, [name]);
   }
 
   const groups: ScoreChipGroup<T>[] = [];
   const grouped = new Set<string>();
-  for (const [evaluator, names] of namesByEvaluator) {
+  for (const [prefix, names] of namesByGroup) {
     if (names.length < 2) continue;
     groups.push({
-      kind: "evaluator",
-      label: evaluator,
+      kind: "group",
+      label: prefix,
       scores: names.flatMap((name) => byName.get(name) ?? []),
     });
     for (const name of names) grouped.add(name);
@@ -118,8 +118,8 @@ const isUnscoredPlaceholder = (score: SummarizableScore): boolean =>
  * and its share. A group mixing data types gets no text: the chip reads
  * `Prefix(N)` and the table header shows only the count. Categorical
  * placeholders for "not scored" (UNSCORED_PLACEHOLDERS) are left out of the
- * type check and the tallies, so a numeric evaluator that emits "n/a" for
- * two metrics still averages the rest. `count` is always the number of
+ * type check and the tallies, so a numeric group with "n/a" on two metrics
+ * still averages the rest. `count` is always the number of
  * metrics.
  */
 export function groupSummary<T extends SummarizableScore>(
