@@ -28,6 +28,7 @@ import {
   Palette,
 } from "lucide-react";
 import {
+  DropdownMenuCheckboxItem,
   DropdownMenuController,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -40,6 +41,7 @@ import {
   clearStoredJsonTableStyleVariants,
   DEFAULT_JSON_TABLE_DATA_CLASS,
   DEFAULT_JSON_TABLE_STYLE_VARIANT,
+  FINALIST_JSON_TABLE_STYLE_VARIANTS,
   JSON_TABLE_CLASS_MODE_LABELS,
   JSON_TABLE_CLASS_MODES,
   JSON_TABLE_DATA_CLASS_LABELS,
@@ -50,12 +52,15 @@ import {
   type JsonTableDataClass,
   type JsonTableStyle,
   type JsonTableStyleVariant,
+  LONG_CONTENT_JSON_TABLE_STYLE_VARIANT,
   useJsonTableClassMode,
   useJsonTableStyleVariant,
+  useShowAllJsonTableStyles,
   useShowJsonTableStylePicker,
   useStoredJsonTableClassMode,
   useStoredJsonTableStyleVariant,
   writeStoredJsonTableClassMode,
+  writeStoredJsonTableStylePick,
   writeStoredJsonTableStyleVariant,
 } from "@/src/components/ui/jsonTableStyleVariants";
 import {
@@ -983,11 +988,90 @@ function JsonTableStyleRadioGroup({
   );
 }
 
-/** Debug-only menu for the table style directions. Facts and IO tables each
-    store their own pick in localStorage so the two classes can be compared
-    live in one panel; the pick applies app-wide and survives reloads. "Class
-    by" switches between the caller's class (field) and one derived from the
-    data (shape). */
+/** Debug-only menu for the three finalist directions: one "Style" radio
+    group (applies to both classes) and one "Tree for long content" switch
+    that puts IO tables on the tree direction with the class derived from the
+    data. The full twelve-direction menu is behind localStorage
+    `lf-json-style-all`. */
+function JsonTableStyleFinalistMenuContent({
+  active,
+}: {
+  /** Variant the table that opened the menu renders right now. */
+  active: JsonTableStyleVariant;
+}) {
+  const factsStored = useStoredJsonTableStyleVariant("facts");
+  const ioStored = useStoredJsonTableStyleVariant("io");
+  const classMode = useJsonTableClassMode();
+  const style = factsStored ?? DEFAULT_JSON_TABLE_STYLE_VARIANT;
+  const treeForLongContent =
+    classMode === "shape" && ioStored === LONG_CONTENT_JSON_TABLE_STYLE_VARIANT;
+  const hasStoredPick = useHasStoredJsonTableStylePick();
+  return (
+    <>
+      <DropdownMenuLabel>
+        JSON table style (debug)
+        <span className="text-muted-foreground ml-1 font-normal">
+          this table: {JSON_TABLE_STYLES[active].label}
+        </span>
+      </DropdownMenuLabel>
+      <DropdownMenuSeparator />
+      <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
+        Style
+      </DropdownMenuLabel>
+      <DropdownMenuRadioGroup
+        value={style}
+        onValueChange={(next) =>
+          writeStoredJsonTableStylePick(
+            next as JsonTableStyleVariant,
+            treeForLongContent,
+          )
+        }
+      >
+        {FINALIST_JSON_TABLE_STYLE_VARIANTS.map((variant) => (
+          <DropdownMenuRadioItem key={variant} value={variant}>
+            <span className="flex flex-col gap-0.5">
+              <span>{JSON_TABLE_STYLES[variant].label}</span>
+              <span className="text-muted-foreground text-xs">
+                {JSON_TABLE_STYLES[variant].reference}
+              </span>
+            </span>
+          </DropdownMenuRadioItem>
+        ))}
+      </DropdownMenuRadioGroup>
+      <DropdownMenuSeparator />
+      <DropdownMenuCheckboxItem
+        checked={treeForLongContent}
+        onCheckedChange={(checked) =>
+          writeStoredJsonTableStylePick(style, checked === true)
+        }
+      >
+        <span className="flex flex-col gap-0.5">
+          <span>Tree for long content</span>
+          <span className="text-muted-foreground text-xs">
+            Chat, arrays, long or deep values switch to Tree; flat facts keep
+            the style above
+          </span>
+        </span>
+      </DropdownMenuCheckboxItem>
+      {hasStoredPick && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => clearStoredJsonTableStyleVariants()}
+          >
+            Reset to default
+          </DropdownMenuItem>
+        </>
+      )}
+    </>
+  );
+}
+
+/** Debug-only menu for every table style direction (`lf-json-style-all`).
+    Facts and IO tables each store their own pick in localStorage so the two
+    classes can be compared live in one panel; the pick applies app-wide and
+    survives reloads. "Class by" switches between the caller's class (field)
+    and one derived from the data (shape). */
 function JsonTableStyleMenuContent({
   dataClass,
   fieldDataClass,
@@ -1201,6 +1285,7 @@ export function PrettyJsonView(props: {
     tableStyle.layout === "columns" && tableStyle.keyColumn === "content";
   const showStylePicker =
     useShowJsonTableStylePicker() && !props.lockStyleVariant;
+  const showAllStyles = useShowAllJsonTableStyles();
   const hasTitle = Boolean(props.title);
   // Title-owned tables drop the Path / Value header and the outer box (the
   // section title is the frame) unless the style keeps them. Single-column
@@ -1842,15 +1927,22 @@ export function PrettyJsonView(props: {
               {shouldUseTableView && showStylePicker && (
                 <DropdownMenuController
                   align="end"
+                  maxWidth={showAllStyles ? undefined : 360}
                   maxHeight="var(--radix-dropdown-menu-content-available-height)"
-                  renderMenu={() => (
-                    <JsonTableStyleMenuContent
-                      dataClass={dataClass}
-                      fieldDataClass={fieldDataClass}
-                      classMode={classMode}
-                      active={styleVariant}
-                    />
-                  )}
+                  renderMenu={() =>
+                    showAllStyles ? (
+                      <JsonTableStyleMenuContent
+                        dataClass={dataClass}
+                        fieldDataClass={fieldDataClass}
+                        classMode={classMode}
+                        active={styleVariant}
+                      />
+                    ) : (
+                      <JsonTableStyleFinalistMenuContent
+                        active={styleVariant}
+                      />
+                    )
+                  }
                 >
                   {({ Trigger }) => (
                     <Trigger asChild>

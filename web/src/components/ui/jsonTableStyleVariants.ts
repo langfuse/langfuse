@@ -10,6 +10,10 @@ import { useSyncExternalStore } from "react";
  * from the data instead (see `classifyJsonShape`). Once directions are
  * picked the others are a deletion here: PrettyJsonView only reads
  * `JSON_TABLE_STYLES[variant]`.
+ *
+ * Three directions are finalists (`FINALIST_JSON_TABLE_STYLE_VARIANTS`);
+ * the picker shows only those unless `lf-json-style-all` is set in
+ * localStorage.
  */
 export const JSON_TABLE_STYLE_VARIANTS = [
   "quiet",
@@ -30,6 +34,14 @@ export type JsonTableStyleVariant = (typeof JSON_TABLE_STYLE_VARIANTS)[number];
 
 export const DEFAULT_JSON_TABLE_STYLE_VARIANT: JsonTableStyleVariant =
   "current";
+
+/** The three directions still under review, in picker order. */
+export const FINALIST_JSON_TABLE_STYLE_VARIANTS: readonly JsonTableStyleVariant[] =
+  ["current", "dense-dotbreak", "tree"];
+
+/** Style the IO class takes when "Tree for long content" is on. */
+export const LONG_CONTENT_JSON_TABLE_STYLE_VARIANT: JsonTableStyleVariant =
+  "tree";
 
 /** Which kind of data a table shows; facts and IO tables can pick
     different style directions. */
@@ -142,6 +154,7 @@ const JSON_TABLE_STYLE_STORAGE_KEYS: Record<JsonTableDataClass, string> = {
 
 export type JsonTableStyle = {
   label: string;
+  /** Plain-language description shown next to the label. */
   reference: string;
   /** columns = Path / Value; inline = key: value on one line; stacked = key above value. */
   layout: "columns" | "inline" | "stacked";
@@ -233,8 +246,9 @@ export const JSON_TABLE_STYLES: Record<JsonTableStyleVariant, JsonTableStyle> =
     },
     "dense-dotbreak": {
       ...BASE_FLAGS,
-      label: "Dense, dot-break keys",
-      reference: "quiet dense, dotted keys wrap at segments",
+      label: "Table",
+      reference:
+        "Two columns, key column sized to the keys, hairline per row, dotted keys wrap at the dots, nested parents show N keys / N items",
       layout: "columns",
       headerUnderTitle: false,
       boxUnderTitle: false,
@@ -248,7 +262,8 @@ export const JSON_TABLE_STYLES: Record<JsonTableStyleVariant, JsonTableStyle> =
     tree: {
       ...BASE_FLAGS,
       label: "Tree",
-      reference: "LangSmith fields",
+      reference:
+        "key: value on one line, indented like a file tree, collapsed objects show {N items}, leaf rows carry a dot, no dividers",
       layout: "inline",
       headerUnderTitle: false,
       boxUnderTitle: false,
@@ -311,7 +326,8 @@ export const JSON_TABLE_STYLES: Record<JsonTableStyleVariant, JsonTableStyle> =
     current: {
       ...BASE_FLAGS,
       label: "Current",
-      reference: "today's rendering",
+      reference:
+        "Today's table: bordered box, Path / Value header, fixed key column",
       layout: "columns",
       headerUnderTitle: true,
       boxUnderTitle: true,
@@ -361,6 +377,9 @@ export const JSON_TABLE_STYLES: Record<JsonTableStyleVariant, JsonTableStyle> =
       expandedParentSummary: true,
     },
   };
+
+/** Set (any value) to show every direction instead of the finalists. */
+const JSON_TABLE_SHOW_ALL_STORAGE_KEY = "lf-json-style-all";
 
 const CHANGE_EVENT = "lf-json-style-change";
 
@@ -448,6 +467,23 @@ export function writeStoredJsonTableStyleVariant(
   notifyChange();
 }
 
+/** Store the simple picker's state: `style` for facts tables and, when
+    `treeForLongContent` is on, the tree direction for IO tables with the
+    class derived from the data (shape). Off puts `style` on both classes and
+    the class back to the caller's field. */
+export function writeStoredJsonTableStylePick(
+  style: JsonTableStyleVariant,
+  treeForLongContent: boolean,
+) {
+  writeStoredVariant(JSON_TABLE_STYLE_STORAGE_KEYS.facts, style);
+  writeStoredVariant(
+    JSON_TABLE_STYLE_STORAGE_KEYS.io,
+    treeForLongContent ? LONG_CONTENT_JSON_TABLE_STYLE_VARIANT : style,
+  );
+  writeStoredClassMode(treeForLongContent ? "shape" : "field");
+  notifyChange();
+}
+
 /** Clear every stored pick (both classes, the legacy shared key, the class
     mode). */
 export function clearStoredJsonTableStyleVariants() {
@@ -523,4 +559,26 @@ export function useShowJsonTableStylePicker(): boolean {
   const facts = useStoredJsonTableStyleVariant("facts");
   const io = useStoredJsonTableStyleVariant("io");
   return facts !== null || io !== null || process.env.NODE_ENV !== "production";
+}
+
+function readShowAll(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return (
+      window.localStorage.getItem(JSON_TABLE_SHOW_ALL_STORAGE_KEY) !== null
+    );
+  } catch {
+    return false;
+  }
+}
+
+function getServerShowAll(): boolean {
+  return false;
+}
+
+/** True when `lf-json-style-all` is stored: the picker then shows every
+    direction with both class groups, not only the finalists. False on the
+    server. */
+export function useShowAllJsonTableStyles(): boolean {
+  return useSyncExternalStore(subscribe, readShowAll, getServerShowAll);
 }
