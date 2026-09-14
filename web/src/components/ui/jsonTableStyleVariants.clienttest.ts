@@ -54,12 +54,18 @@ describe("classifyJsonShape", () => {
   });
 
   it("judges a huge, shallow payload from its first children only", () => {
-    const wideChild = Object.fromEntries(
-      Array.from({ length: 200_000 }, (_, i) => [`k${i}`, i]),
+    let reads = 0;
+    const wideChild = new Proxy(
+      Object.fromEntries(Array.from({ length: 5_000 }, (_, i) => [`k${i}`, i])),
+      {
+        get(target, key, receiver) {
+          reads += 1;
+          return Reflect.get(target, key, receiver);
+        },
+      },
     );
-    const started = performance.now();
     expect(classifyJsonShape({ a: "x", b: wideChild })).toBe("facts");
-    expect(performance.now() - started).toBeLessThan(50);
+    expect(reads).toBeLessThanOrEqual(32);
   });
 
   it("reads primitives as facts unless the root itself is a long string", () => {

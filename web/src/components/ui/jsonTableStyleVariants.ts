@@ -94,10 +94,20 @@ const SHAPE_SCAN_CHILDREN = 32;
 function nestsAtLeast(value: unknown, levels: number): boolean {
   if (value === null || typeof value !== "object") return false;
   if (levels <= 1) return true;
-  const children = Array.isArray(value)
-    ? value.slice(0, SHAPE_SCAN_CHILDREN)
-    : Object.values(value).slice(0, SHAPE_SCAN_CHILDREN);
-  return children.some((child) => nestsAtLeast(child, levels - 1));
+  return firstChildren(value).some((child) => nestsAtLeast(child, levels - 1));
+}
+
+/** The first `SHAPE_SCAN_CHILDREN` own values of a container, read one by
+    one so a 200k-key object costs 32 property reads, not 200k. */
+function firstChildren(value: object): unknown[] {
+  if (Array.isArray(value)) return value.slice(0, SHAPE_SCAN_CHILDREN);
+  const out: unknown[] = [];
+  for (const key in value) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
+    out.push((value as Record<string, unknown>)[key]);
+    if (out.length >= SHAPE_SCAN_CHILDREN) break;
+  }
+  return out;
 }
 
 /**
