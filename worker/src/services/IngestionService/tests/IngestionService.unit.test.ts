@@ -998,4 +998,127 @@ describe("IngestionService unit tests", () => {
       ).resolves.toBe(events.at(-1)?.body.value);
     }
   });
+
+  it("links orphan observations without traceId to a deterministic wrapper trace", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2026-09-14T00:00:00.000Z";
+    const observationEventList: ObservationEvent[] = [
+      {
+        id: "event-id",
+        timestamp,
+        type: "generation-create",
+        body: {
+          id: "observation-id",
+          startTime: timestamp,
+          name: "orphan-generation",
+          environment: "default",
+        },
+      },
+      {
+        id: "update-event-id",
+        timestamp: "2026-09-14T00:00:01.000Z",
+        type: "generation-update",
+        body: {
+          id: "observation-id",
+          output: "done",
+        },
+      },
+    ];
+
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
+      null,
+    );
+    vi.spyOn(ingestionService as any, "getPrompt").mockResolvedValue(null);
+    vi.spyOn(ingestionService as any, "getGenerationUsage").mockResolvedValue(
+      {},
+    );
+
+    await (ingestionService as any).processObservationEventList({
+      projectId: "project-id",
+      entityId: "observation-id",
+      createdAtTimestamp: new Date(timestamp),
+      observationEventList,
+      writeToStagingTables: false,
+      attribution: {
+        ingestionApiKey: "pk-lf-unit-test",
+        ingestionSdkName: "langfuse-test",
+        ingestionSdkVersion: "0.0.0",
+      },
+    });
+
+    const observationRecord = addToQueue.mock.calls.find(
+      ([table]) => table === TableName.Observations,
+    )?.[1];
+
+    // Deterministic link instead of a random UUID per event (issue #17413).
+    expect(observationRecord?.trace_id).toBe("observation-id");
+
+    const wrapperTraceRecord = addToQueue.mock.calls.find(
+      ([table]) => table === TableName.Traces,
+    )?.[1];
+    expect(wrapperTraceRecord).toMatchObject({
+      id: "observation-id",
+      project_id: "project-id",
+    });
+  });
+
+  it("preserves an explicit traceId and skips the wrapper trace", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2026-09-14T00:00:00.000Z";
+    const observationEventList: ObservationEvent[] = [
+      {
+        id: "event-id",
+        timestamp,
+        type: "generation-create",
+        body: {
+          id: "observation-id",
+          traceId: "trace-id",
+          startTime: timestamp,
+          name: "linked-generation",
+          environment: "default",
+        },
+      },
+    ];
+
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
+      null,
+    );
+    vi.spyOn(ingestionService as any, "getPrompt").mockResolvedValue(null);
+    vi.spyOn(ingestionService as any, "getGenerationUsage").mockResolvedValue(
+      {},
+    );
+
+    await (ingestionService as any).processObservationEventList({
+      projectId: "project-id",
+      entityId: "observation-id",
+      createdAtTimestamp: new Date(timestamp),
+      observationEventList,
+      writeToStagingTables: false,
+      attribution: {
+        ingestionApiKey: "pk-lf-unit-test",
+        ingestionSdkName: "langfuse-test",
+        ingestionSdkVersion: "0.0.0",
+      },
+    });
+
+    const observationRecord = addToQueue.mock.calls.find(
+      ([table]) => table === TableName.Observations,
+    )?.[1];
+    expect(observationRecord?.trace_id).toBe("trace-id");
+    expect(
+      addToQueue.mock.calls.some(([table]) => table === TableName.Traces),
+    ).toBe(false);
+  });
 });

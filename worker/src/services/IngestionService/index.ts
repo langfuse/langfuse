@@ -1,5 +1,4 @@
 import { Cluster, Redis } from "ioredis";
-import { v4 } from "uuid";
 import { Decimal } from "decimal.js";
 import {
   InvalidRequestError,
@@ -1080,8 +1079,28 @@ export class IngestionService {
       ...generationUsage,
     };
 
-    // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
-    if (!finalObservationRecord.trace_id) {
+    // Create a wrapper trace for observations ingested without a traceId
+    // (single generations/evals, SDK < 2.0.0). mapObservationEventsToRecords
+    // falls back to trace_id = observation id so the link is deterministic
+    // across events; ensure the matching trace row exists so the observation
+    // stays reachable from trace views and cost rollups.
+    const hasExplicitTraceId =
+      observationEventList.some(
+        (event) =>
+          "traceId" in event.body &&
+          event.body.traceId !== undefined &&
+          event.body.traceId !== null &&
+          event.body.traceId !== "",
+      ) ||
+      (clickhouseObservationRecord?.trace_id !== undefined &&
+        clickhouseObservationRecord?.trace_id !== null &&
+        clickhouseObservationRecord?.trace_id !== "" &&
+        clickhouseObservationRecord?.trace_id !== entityId);
+    if (
+      !finalObservationRecord.trace_id ||
+      (!hasExplicitTraceId &&
+        finalObservationRecord.trace_id === finalObservationRecord.id)
+    ) {
       const wrapperTraceRecord: TraceRecordInsertType = {
         id: finalObservationRecord.id,
         timestamp: finalObservationRecord.start_time,
@@ -2015,7 +2034,11 @@ export class IngestionService {
 
       const observationRecord: ObservationRecordInsertType = {
         id: entityId,
-        trace_id: obs.body.traceId ?? v4(),
+        // Fall back to the observation id so orphan observations without a
+        // traceId deterministically link to their wrapper trace (created
+        // below with id = observation id) instead of a random UUID per event
+        // that would point to a non-existent trace.
+        trace_id: obs.body.traceId ?? entityId,
         type: observationType,
         name: obs.body.name,
         environment:
