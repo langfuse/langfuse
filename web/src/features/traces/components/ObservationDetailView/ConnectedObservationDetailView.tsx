@@ -573,8 +573,8 @@ export function ConnectedObservationDetailView({
                       objectStartTime: observation.startTime,
                     }),
                   commentedPathsByField,
-                  // DEMO ONLY: the three tables live in the Attributes tab;
-                  // revert this commit to show them in Preview again.
+                  // Attributes, model parameters and metadata live in the
+                  // Attributes tab; Preview is input and output.
                   showMetadata: false,
                   attributes: undefined,
                   attributesAnchorTime: observation.startTime,
