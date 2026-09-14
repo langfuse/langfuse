@@ -1,6 +1,6 @@
 import { eventsSearchRegistry } from "../config/eventsSearchRegistry";
-import { useEventsTableSearch } from "../hooks/useEventsTableSearch";
-import { SearchScopeSelect } from "@/src/components/table/SearchScopeSelect";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -56,7 +56,6 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   buildAiContext,
-  DEFAULT_SEARCH_TYPE,
   EventsSearchBarRow,
   filterStateToQueryText,
   observedScoreNamesFromOptions,
@@ -101,6 +100,7 @@ import {
   useColumnVisibility,
 } from "@/src/features/column-visibility";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
@@ -308,6 +308,10 @@ export default function ObservationsEventsTable({
   isolateTableState = false,
 }: EventsTableProps) {
   const peekContext = usePeekTableState();
+  const hasBatchExportAccess = useHasProjectAccess({
+    projectId,
+    scope: "batchExports:create",
+  });
   const eventsFilterConfig = useMemo(
     () => getObservationEventsFilterConfig(omittedFilter),
     [omittedFilter],
@@ -783,11 +787,10 @@ export default function ObservationsEventsTable({
     commit: searchBarCommit,
     applyFilters: searchBarApplyFilters,
     resetDraft: resetSearchBarDraft,
-  } = useEventsTableSearch({
+  } = useEventsSearchBar({
     projectId,
     tableName: eventsFilterConfig.tableName,
     enabled: searchBarMode,
-    useHostSearchScopes: tableStatePolicy.useHostSearchScopes,
     registry: searchRegistry,
     filterState: queryFilter.searchBarFilterState,
     searchQuery,
@@ -820,9 +823,7 @@ export default function ObservationsEventsTable({
             projectFiltersForSearchBar(state.filters),
             {
               searchQuery: state.searchQuery,
-              searchType: tableStatePolicy.useHostSearchScopes
-                ? DEFAULT_SEARCH_TYPE
-                : searchType,
+              searchType,
             },
             searchRegistry,
           ).text,
@@ -836,7 +837,6 @@ export default function ObservationsEventsTable({
       searchBarStore,
       projectFiltersForSearchBar,
       searchRegistry,
-      tableStatePolicy.useHostSearchScopes,
       searchType,
     ],
   );
@@ -1351,7 +1351,6 @@ export default function ObservationsEventsTable({
           defaultHidden: true,
           enableSorting,
           formatter: (value) => usdFormatter(value),
-          emptyValue: "-",
         }),
         createTextTableColumn<EventsTableRow>({
           accessorFn: (row) =>
@@ -1396,7 +1395,11 @@ export default function ObservationsEventsTable({
 
         return (
           <span>
-            {timeToFirstToken ? formatIntervalSeconds(timeToFirstToken) : "-"}
+            {timeToFirstToken ? (
+              formatIntervalSeconds(timeToFirstToken)
+            ) : (
+              <EmptyValue />
+            )}
           </span>
         );
       },
@@ -1798,15 +1801,6 @@ export default function ObservationsEventsTable({
     new Set(
       (queryFilter.explicitFilterState ?? []).map((filter) => filter.column),
     ).size + (searchQuery && searchQuery.trim().length > 0 ? 1 : 0);
-  const searchScope = tableStatePolicy.useHostSearchScopes ? (
-    <SearchScopeSelect
-      searchType={searchType}
-      setSearchType={handleSearchTypeChange}
-      metadataLabel="IDs / Names"
-      fullTextLabel="Full Text"
-      availableSearchTypes={{ content: true, input: true, output: true }}
-    />
-  ) : null;
 
   return (
     <DataTableControlsProvider tableName={eventsFilterConfig.tableName}>
@@ -1865,9 +1859,6 @@ export default function ObservationsEventsTable({
                       // padding, so the bar lines up with time range / presets.
                       className="p-0"
                     />
-                    {searchScope && (
-                      <div className="flex justify-end">{searchScope}</div>
-                    )}
                   </div>
                 ) : (
                   // Externally controlled filters retain the host's search input.
@@ -1999,7 +1990,6 @@ export default function ObservationsEventsTable({
                     aiScoreNames={aiScoreNames}
                   />
                 </div>
-                {searchScope}
               </div>
             )}
             {/* Toolbar spanning full width */}
@@ -2061,17 +2051,19 @@ export default function ObservationsEventsTable({
                 showControlsInPageHeader ? undefined : refreshConfig
               }
               actionButtons={[
-                <BatchExportTableButton
-                  {...{
-                    projectId,
-                    filterState,
-                    orderByState,
-                    searchQuery,
-                    searchType,
-                  }}
-                  tableName={BatchExportTableName.Events}
-                  key="batchExport"
-                />,
+                hasBatchExportAccess ? (
+                  <BatchExportTableButton
+                    {...{
+                      projectId,
+                      filterState,
+                      orderByState,
+                      searchQuery,
+                      searchType,
+                    }}
+                    tableName={BatchExportTableName.Events}
+                    key="batchExport"
+                  />
+                ) : null,
                 !chartActive &&
                 (selectedObservationIds.length > 0 || selectAll) ? (
                   <AddTracesToAnnotationQueueDialogController

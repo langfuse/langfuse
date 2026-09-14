@@ -15,8 +15,8 @@ import {
   type PreparedSessionTimelineItem,
   type PreparedSessionTimelineMessages,
 } from "@/src/features/sessions/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
-import { SessionTimelineContentMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionTimelineContentMessage/SessionTimelineContentMessage";
-import { SessionTimelineSystemMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionTimelineSystemMessage/SessionTimelineSystemMessage";
+import { SessionTimelineContentMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTimelineContentMessage/SessionTimelineContentMessage";
+import { SessionTimelineSystemMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTimelineSystemMessage/SessionTimelineSystemMessage";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -53,7 +53,12 @@ export type SessionObservation = Omit<
 type SessionConversationTimelineTraceState =
   | { type: "loading" }
   | { type: "error" }
-  | { type: "empty"; message: string }
+  | { type: "empty" }
+  | {
+      type: "filtered-empty";
+      viewLabel: string | null;
+      onClearFilters: () => void;
+    }
   | {
       type: "loaded";
       observations: readonly SessionObservation[];
@@ -690,17 +695,30 @@ function LoadedSessionConversationTimeline({
   const [collapseState, setCollapseState] = useState(() => ({
     scrollRequestId: null as number | null,
     observationIds: new Set(
-      observations.flatMap(({ observation, phase, ancestorObservationIds }) => {
-        if (phase !== "start") return [];
-        if (ancestorObservationIds.length > 0) return [observation.id];
-        if (
-          hasPreviewValue(observation.input) ||
-          hasPreviewValue(observation.output)
-        ) {
-          return [observation.id];
-        }
-        return [];
-      }),
+      observations.flatMap(
+        ({
+          observation,
+          phase,
+          ancestorObservationIds,
+          nestedObservationCounts,
+        }) => {
+          if (phase !== "start") return [];
+          if (
+            Object.keys(nestedObservationCounts).length === 1 &&
+            nestedObservationCounts.TOOL === 1
+          ) {
+            return [];
+          }
+          if (ancestorObservationIds.length > 0) return [observation.id];
+          if (
+            hasPreviewValue(observation.input) ||
+            hasPreviewValue(observation.output)
+          ) {
+            return [observation.id];
+          }
+          return [];
+        },
+      ),
     ),
   }));
   const [expandedToolObservationIds, setExpandedToolObservationIds] = useState(
@@ -795,6 +813,9 @@ function LoadedSessionConversationTimeline({
             );
           const hasNestedObservations =
             Object.keys(nestedObservationCounts).length > 0;
+          const hasSingleNestedTool =
+            Object.keys(nestedObservationCounts).length === 1 &&
+            nestedObservationCounts.TOOL === 1;
           const nestedObservationSummary = hasNestedObservations
             ? (nestedObservationSummaries.get(observation.id) ?? "")
             : "";
@@ -900,7 +921,9 @@ function LoadedSessionConversationTimeline({
                   actions={observationActions}
                 />
               ) : null}
-              {phase === "start" && hasNestedObservations ? (
+              {phase === "start" &&
+              hasNestedObservations &&
+              !hasSingleNestedTool ? (
                 <div
                   className={cn(
                     "relative",
@@ -1077,9 +1100,26 @@ export function SessionConversationTimelineTrace({
         <div className="border-destructive/40 bg-destructive/5 text-foreground rounded-lg border p-4 text-xs">
           Failed to load observations.
         </div>
-      ) : state.type === "empty" ? (
-        <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-xs">
-          {state.message}
+      ) : state.type === "empty" || state.type === "filtered-empty" ? (
+        <div className="text-muted-foreground flex items-center justify-between gap-4 rounded-lg border border-dashed p-4 text-xs">
+          <span>
+            {state.type === "empty"
+              ? "This trace has no observations."
+              : state.viewLabel
+                ? `No observation matches the “${state.viewLabel}” view in this trace.`
+                : "No observation matches the current filters in this trace."}
+          </span>
+          {state.type === "filtered-empty" ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={state.onClearFilters}
+            >
+              Clear filters
+            </Button>
+          ) : null}
         </div>
       ) : (
         <LoadedSessionConversationTimeline

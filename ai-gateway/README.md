@@ -24,8 +24,9 @@ pnpm dev
 This starts the gateway alongside the other development services. Turbo Watch
 recompiles and restarts the gateway after Rust source changes; Web and worker
 keep their built-in watchers. The gateway loads the root `.env` and listens on
-port 8080 by default. Add overrides from the table below to your root `.env`;
-exported shell variables take precedence.
+the first available port starting at 8080. This lets multiple worktrees run
+their development stacks at the same time. Add overrides from the table below
+to your root `.env`; exported shell variables take precedence.
 Without a Web URL, the process starts with liveness available; readiness and
 inference return 503. To enable inference, configure the Web URL and shared service key.
 
@@ -34,8 +35,9 @@ Both commands watch Rust source changes; do not run both on the same port.
 
 To start once without watching, run `pnpm dev` from `ai-gateway/`. Cargo also
 works independently of Node/pnpm; it reads exported environment variables only,
-without automatically loading `.env`. Run it from this directory so rustup
-selects the pinned toolchain:
+without automatically loading `.env`. Direct Cargo and production starts fail
+if the configured port is occupied unless port auto-increment is explicitly
+enabled. Run it from this directory so rustup selects the pinned toolchain:
 
 ```sh
 cd ai-gateway
@@ -60,6 +62,7 @@ do not load dotenv files:
 | `LANGFUSE_AI_GATEWAY_WEB_URL` | unset; inference disabled | Trusted Web base URL, including any deployment prefix |
 | `LANGFUSE_AI_GATEWAY_SERVICE_KEY` | unset | Required with Web URL; same key configured in Web |
 | `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS`           | `0.0.0.0:8080` | IP address and port; IPv6 uses `[::]:8080`         |
+| `LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT` | `false` | `true`, `false`; the pnpm dev task sets `true` |
 | `LANGFUSE_LOG_FORMAT`                          | `text`         | `text`, `json`                                     |
 | `LANGFUSE_LOG_LEVEL`                           | `info`         | `trace`, `debug`, `info`, `warn`, `error`, `fatal` |
 | `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300                              |

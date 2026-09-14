@@ -1,7 +1,7 @@
 import preview from "@/.storybook/preview";
 import { expect, userEvent, within } from "storybook/test";
 
-import { SessionTimelineSystemMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionTimelineSystemMessage/SessionTimelineSystemMessage";
+import { SessionTimelineSystemMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTimelineSystemMessage/SessionTimelineSystemMessage";
 
 const systemPromptParts = [
   {

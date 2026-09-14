@@ -53,6 +53,7 @@ import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
@@ -91,7 +92,6 @@ import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import { SearchScopeSelect } from "@/src/components/table/SearchScopeSelect";
 import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
 import { tracesFieldRegistry } from "@/src/features/filters/config/tracingSearchRegistry";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
@@ -186,6 +186,10 @@ function TracesTableInternal({
   const hasTraceDeleteAccess = useHasProjectAccess({
     projectId,
     scope: "traces:delete",
+  });
+  const hasBatchExportAccess = useHasProjectAccess({
+    projectId,
+    scope: "batchExports:create",
   });
   const tracesFilterConfig = useMemo(
     () => getTraceFilterConfig(omittedFilter),
@@ -436,7 +440,6 @@ function TracesTableInternal({
     filterOptions,
     queryFilterOptions,
   );
-  const searchRegistry = tracesFieldRegistry(tracesFilterConfig);
   const observedOptions = toObservedOptions(
     filterOptions,
     isSidebarFilterLoading,
@@ -466,6 +469,10 @@ function TracesTableInternal({
   );
   const legacyTracingIoSearchEnabled =
     legacyTracingSearchConfig.data?.legacyTracingIoSearchEnabled ?? true;
+  const searchRegistry = tracesFieldRegistry(
+    tracesFilterConfig,
+    legacyTracingIoSearchEnabled,
+  );
   const { searchQuery, searchType, setSearchQuery, setSearchType } =
     useFullTextSearch({
       tableAllowsFullTextSearch: legacyTracingIoSearchEnabled,
@@ -845,7 +852,7 @@ function TracesTableInternal({
               {cost ? (
                 <span>{usdFormatter(cost.toNumber())}</span>
               ) : (
-                <span>-</span>
+                <EmptyValue />
               )}
               <InfoIcon className="h-3 w-3" />
             </div>
@@ -1021,7 +1028,6 @@ function TracesTableInternal({
       enableHiding: true,
       enableSorting,
       isLive: false,
-      emptyValue: "-",
       getStatus: (level, { row }) =>
         isMetricPending(row.original.id)
           ? { type: "loading" }
@@ -1107,7 +1113,6 @@ function TracesTableInternal({
           id: "inputCost",
           header: "Input Cost",
           size: 100,
-          emptyValue: "-",
           formatter: (value) => usdFormatter(value),
           getValue: (value, { row }) => {
             if (isMetricPending(row.original.id)) return { type: "loading" };
@@ -1122,7 +1127,6 @@ function TracesTableInternal({
           id: "outputCost",
           header: "Output Cost",
           size: 100,
-          emptyValue: "-",
           formatter: (value) => usdFormatter(value),
           getValue: (value, { row }) => {
             if (isMetricPending(row.original.id)) return { type: "loading" };
@@ -1408,22 +1412,8 @@ function TracesTableInternal({
                 query: searchQuery,
                 type: searchType,
                 setQuery: handleSearchQueryChange,
+                setType: handleSearchTypeChange,
               }}
-              searchScope={
-                legacyTracingIoSearchEnabled ? (
-                  <SearchScopeSelect
-                    searchType={searchType}
-                    setSearchType={handleSearchTypeChange}
-                    metadataLabel="IDs / Names"
-                    fullTextLabel="Full Text"
-                    availableSearchTypes={{
-                      content: true,
-                      input: true,
-                      output: true,
-                    }}
-                  />
-                ) : undefined
-              }
             />
             <DataTableToolbar
               rowClassName="my-1"
@@ -1472,17 +1462,19 @@ function TracesTableInternal({
                     )}
                   </AddTracesToAnnotationQueueDialogController>
                 ) : null,
-                <BatchExportTableButton
-                  {...{
-                    projectId,
-                    filterState,
-                    orderByState,
-                    searchQuery,
-                    searchType,
-                  }}
-                  tableName={BatchExportTableName.Traces}
-                  key="batchExport"
-                />,
+                hasBatchExportAccess ? (
+                  <BatchExportTableButton
+                    {...{
+                      projectId,
+                      filterState,
+                      orderByState,
+                      searchQuery,
+                      searchType,
+                    }}
+                    tableName={BatchExportTableName.Traces}
+                    key="batchExport"
+                  />
+                ) : null,
               ]}
               orderByState={orderByState}
               columnVisibility={columnVisibility}

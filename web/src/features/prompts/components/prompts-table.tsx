@@ -44,7 +44,6 @@ import {
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
-import { SearchScopeSelect } from "@/src/components/table/SearchScopeSelect";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { PROMPTS_FIELD_REGISTRY } from "@/src/features/prompts/constants/promptsSearchRegistry";
 
@@ -508,20 +507,8 @@ export function PromptTable() {
             query: searchQuery,
             type: searchType,
             setQuery: handleSearchQueryChange,
+            setType: handleSearchTypeChange,
           }}
-          searchScope={
-            <SearchScopeSelect
-              searchType={searchType}
-              setSearchType={handleSearchTypeChange}
-              metadataLabel="Names, Tags"
-              fullTextLabel="Full Text"
-              availableSearchTypes={{
-                content: true,
-                input: false,
-                output: false,
-              }}
-            />
-          }
         />
         <DataTableToolbar
           tableName="prompts"

@@ -121,13 +121,11 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
     <div className="@container shrink-0 space-y-2 border-b p-2">
       {/* Title row with actions */}
       <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
-        <div className="flex w-full flex-row items-center gap-1">
+        <div className="flex w-full min-w-0 flex-row items-center gap-1">
           <ItemBadge type="TRACE" isSmall />
           <span
-            className={cn(
-              "line-clamp-2 min-w-0 font-bold break-all md:break-normal md:wrap-break-word",
-              isMobile && "flex-1",
-            )}
+            className={cn("min-w-0 truncate font-bold", isMobile && "flex-1")}
+            title={trace.name || trace.id}
           >
             {trace.name || trace.id}
           </span>
@@ -489,15 +487,23 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
         {!isAnnotationMode && (
           <CollapsibleBadgeRow>
             <LatencyBadge latencySeconds={trace.latency ?? null} />
-            <SessionBadge sessionId={trace.sessionId} projectId={projectId} />
-            <UserIdBadge userId={trace.userId} projectId={projectId} />
-            <TargetTraceBadge
-              targetTraceId={targetTraceId}
-              projectId={projectId}
-            />
-            <EnvironmentBadge environment={trace.environment} />
-            <ReleaseBadge release={trace.release} />
-            <VersionBadge version={trace.version} />
+            {trace.sessionId && (
+              <SessionBadge sessionId={trace.sessionId} projectId={projectId} />
+            )}
+            {trace.userId && (
+              <UserIdBadge userId={trace.userId} projectId={projectId} />
+            )}
+            {targetTraceId && (
+              <TargetTraceBadge
+                targetTraceId={targetTraceId}
+                projectId={projectId}
+              />
+            )}
+            {trace.environment && (
+              <EnvironmentBadge environment={trace.environment} />
+            )}
+            {trace.release && <ReleaseBadge release={trace.release} />}
+            {trace.version && <VersionBadge version={trace.version} />}
             {aggregatedMetrics.totalCost != null &&
               aggregatedMetrics.costDetails && (
                 <CostBadge

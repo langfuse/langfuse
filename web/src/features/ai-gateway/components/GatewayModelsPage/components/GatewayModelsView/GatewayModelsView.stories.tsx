@@ -27,8 +27,22 @@ const models = [
         connectionName: "Primary",
         provider: "OPENAI",
       },
+      {
+        connectionId: "connection-fallback",
+        connectionName: "Fallback",
+        provider: "OPENAI",
+      },
+      {
+        connectionId: "connection-secondary",
+        connectionName: "Secondary production",
+        provider: "OPENAI",
+      },
     ],
-    apiFormats: ["OpenAI Responses", "OpenAI Chat Completions"],
+    apiFormats: [
+      "OpenAI Responses",
+      "OpenAI Chat Completions",
+      "Anthropic Messages",
+    ],
   },
   {
     id: "claude-sonnet-4-5",
