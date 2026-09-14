@@ -4,8 +4,15 @@
  * whose input and output push the tables a long scroll away.
  */
 
+import { useMemo } from "react";
+
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
+import { LargeJsonFieldFallback } from "@/src/features/traces/components/IOPreview/components/LargeJsonFieldFallback";
+import {
+  JSON_VIEW_RENDER_CHAR_LIMIT,
+  probeJsonField,
+} from "@/src/features/traces/components/IOPreview/fns/jsonViewSizeGate";
 
 // Same wrappers Preview uses for these tables, so both tabs line up: one
 // `space-y-4` stack, no top margin on the first section.
@@ -17,6 +24,8 @@ export function ObservationAttributesTab({
   attributesAnchorTime,
   modelParameters,
   metadata,
+  parsedMetadata,
+  observationId,
   projectId,
   currentView,
 }: {
@@ -24,6 +33,9 @@ export function ObservationAttributesTab({
   attributesAnchorTime: Date;
   modelParameters: Record<string, unknown> | null;
   metadata: unknown;
+  /** Already parsed by Preview's worker; reused so the tab never re-parses. */
+  parsedMetadata?: unknown;
+  observationId: string;
   projectId: string;
   /** Same table / raw JSON switch the Preview honours, so the two agree. */
   currentView: "pretty" | "json";
@@ -37,6 +49,10 @@ export function ObservationAttributesTab({
     metadata !== null &&
     metadata !== undefined &&
     !(typeof metadata === "object" && Object.keys(metadata).length === 0);
+  // Same gate Preview applies: PrettyJsonView is unvirtualized, so a multi-MB
+  // payload freezes the tab. Above the limit show the bounded fallback.
+  const metadataProbe = useMemo(() => probeJsonField(metadata), [metadata]);
+  const metadataTooLarge = metadataProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT;
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col overflow-auto pb-4">
@@ -75,17 +91,28 @@ export function ObservationAttributesTab({
         ) : null}
         {hasMetadata ? (
           <div className={SECTION_CLASS}>
-            <PrettyJsonView
-              hideHeader
-              title="Metadata"
-              json={metadata}
-              currentView={currentView}
-              metadataActions={{
-                ...metadataActions,
-                analyticsTable: "metadata",
-              }}
-              hoverControls
-            />
+            {metadataTooLarge ? (
+              <LargeJsonFieldFallback
+                title="Metadata"
+                serialized={metadataProbe.serialized}
+                isString={metadataProbe.isString}
+                charCount={metadataProbe.size}
+                downloadFileBase={`metadata-${observationId}`}
+              />
+            ) : (
+              <PrettyJsonView
+                hideHeader
+                title="Metadata"
+                json={metadata}
+                parsedJson={parsedMetadata}
+                currentView={currentView}
+                metadataActions={{
+                  ...metadataActions,
+                  analyticsTable: "metadata",
+                }}
+                hoverControls
+              />
+            )}
           </div>
         ) : null}
         {!hasAttributes && !modelParameters && !hasMetadata ? (

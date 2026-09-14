@@ -596,6 +596,8 @@ export function ConnectedObservationDetailView({
                 attributesAnchorTime={observation.startTime}
                 modelParameters={modelParameters}
                 metadata={observationWithIOCompat.data?.metadata ?? undefined}
+                parsedMetadata={parsedMetadata}
+                observationId={observation.id}
                 projectId={projectId}
                 currentView={selectedViewTab}
               />
