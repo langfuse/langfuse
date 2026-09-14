@@ -1,3 +1,5 @@
+import { MessageCircleMoreIcon } from "lucide-react";
+
 import { numberFormatter } from "@/src/utils/numbers";
 
 /**
@@ -10,6 +12,10 @@ type HoverListScore = {
   dataType: string;
   value?: number | null;
   stringValue?: string | null;
+  comment?: string | null;
+  /** A line standing for several scores (a group) sets this when any of
+      them carries a comment. */
+  hasComment?: boolean;
 };
 
 function formatScoreValue(score: Omit<HoverListScore, "name">): string {
@@ -27,34 +33,56 @@ function formatScoreValue(score: Omit<HoverListScore, "name">): string {
  */
 export function ScoreHoverList({
   scores,
+  formatName = (name) => name,
 }: {
   scores: ReadonlyArray<HoverListScore>;
+  /** What to print for a score name. A score group's chip already
+      shows the shared prefix, so its card lists the metric behind it. */
+  formatName?: (name: string) => string;
 }) {
-  const scoreNames = Array.from(new Set(scores.map((s) => s.name))).sort();
+  const scoreNames = Array.from(new Set(scores.map((s) => s.name))).sort(
+    (a, b) => {
+      const [left, right] = [formatName(a), formatName(b)];
+      return left < right ? -1 : left > right ? 1 : 0;
+    },
+  );
   const visibleScoreNames = scoreNames.slice(0, MAX_HOVER_SCORES);
   const hiddenScoreCount = scoreNames.length - visibleScoreNames.length;
   // Every value per name, comma separated, the way the chip shows them: two
   // annotators scoring "helpfulness" are two values, not one arbitrary pick.
   const valuesByName = new Map<string, string[]>();
+  const commentedNames = new Set<string>();
   for (const score of scores) {
     const list = valuesByName.get(score.name) ?? [];
     list.push(formatScoreValue(score));
     valuesByName.set(score.name, list);
+    if (score.hasComment || score.comment) commentedNames.add(score.name);
   }
 
+  // The name column gives way, the value never does: a group's `Avg 0.76`
+  // must stay whole inside the fixed-width row card.
   return (
-    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1">
+    <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1">
       {/* Score names are arbitrary strings, so the section says what they are. */}
       <div className="col-span-full font-bold">Scores</div>
       {visibleScoreNames.map((name) => {
         const value = (valuesByName.get(name) ?? []).join(", ");
+        const label = formatName(name);
         return (
           <div key={name} className="col-span-full grid grid-cols-subgrid">
-            <dt className="text-muted-foreground truncate" title={name}>
-              {name}
+            <dt className="text-muted-foreground truncate" title={label}>
+              {label}
             </dt>
-            <dd className="truncate text-right tabular-nums" title={value}>
+            <dd className="flex items-center justify-end gap-1 text-right whitespace-nowrap tabular-nums">
               {value}
+              {/* The card cannot show the comment itself; the marker says
+                  the Scores tab has one to read. */}
+              {commentedNames.has(name) ? (
+                <MessageCircleMoreIcon
+                  className="text-muted-foreground size-3 shrink-0"
+                  aria-label="Has comment"
+                />
+              ) : null}
             </dd>
           </div>
         );

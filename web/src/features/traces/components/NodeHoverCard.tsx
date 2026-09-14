@@ -15,6 +15,7 @@ import { type TreeNode } from "@/src/features/traces/types/treeNode";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { ScoreHoverList } from "@/src/components/ScoreBadge/ScoreHoverList";
+import { scoreHoverRows } from "@/src/components/grouped-score-badge";
 
 export const NODE_HOVER_CARD_SURFACE_CLASS =
   "bg-popover text-popover-foreground w-60 rounded-md border p-2.5 text-xs shadow-md";
@@ -113,7 +114,9 @@ export function NodeHoverCardContent({ node }: { node: TreeNode }) {
 
       {scores.length > 0 ? (
         <div className="border-border/60 border-t pt-2">
-          <ScoreHoverList scores={scores} />
+          {/* Same lines as the chips and the "+N" hover: a score group is
+              one line with its summary, not its metrics. */}
+          <ScoreHoverList scores={scoreHoverRows(scores)} />
         </div>
       ) : null}
     </div>

@@ -1,14 +1,15 @@
 import { cn } from "@/src/utils/tailwind";
 import { type LastUserScore, type ScoreDomain } from "@langfuse/shared";
-import {
-  BracesIcon,
-  ExternalLinkIcon,
-  MessageCircleMoreIcon,
-} from "lucide-react";
-import Link from "next/link";
+import { BracesIcon, MessageCircleMoreIcon } from "lucide-react";
 
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import {
+  ExecutionTraceLink,
+  ScoreDetail,
+  hasMetadata,
+  hasScoreDetail,
+} from "@/src/components/ScoreBadge/ScoreDetail";
 import {
   HoverCard,
   HoverCardContent,
@@ -17,40 +18,6 @@ import {
 import { ScoreTag, scoreLevelFromScore } from "@/src/components/score-tag";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-
-const hasMetadata = (
-  score: WithStringifiedMetadata<ScoreDomain> | LastUserScore,
-) => {
-  if (!score.metadata) return false;
-  try {
-    const metadata =
-      typeof score.metadata === "string"
-        ? JSON.parse(score.metadata)
-        : score.metadata;
-    return Object.keys(metadata).length > 0;
-  } catch {
-    return false;
-  }
-};
-
-const ExecutionTraceLink = ({
-  executionTraceId,
-  projectId,
-}: {
-  executionTraceId: string;
-  projectId: string;
-}) => {
-  return (
-    <Link
-      href={`/project/${projectId}/traces/${encodeURIComponent(executionTraceId)}`}
-      className="flex items-center gap-1 text-blue-600 hover:underline"
-      target="_blank"
-    >
-      <ExternalLinkIcon className="h-3 w-3" />
-      View execution trace
-    </Link>
-  );
-};
 
 export const ScoreBadge = <
   T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
@@ -73,9 +40,7 @@ export const ScoreBadge = <
     : [];
   // Compact chips carry no per-score icons, so one card on the whole chip
   // shows everything a score has to say: comment, metadata, execution trace.
-  const detailed = scores.filter(
-    (score) => Boolean(score.comment) || hasMetadata(score),
-  );
+  const detailed = scores.filter(hasScoreDetail);
 
   return (
     <span className="inline-flex max-w-full min-w-0 cursor-default items-center gap-1">
@@ -168,32 +133,11 @@ export const ScoreBadge = <
           <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
             {detailed.map((score, index) => (
               <div key={index} className={index > 0 ? "mt-2" : undefined}>
-                {detailed.length > 1 || !score.comment ? (
-                  <p className="text-muted-foreground">
-                    {score.stringValue ?? score.value?.toFixed(2) ?? ""}
-                  </p>
-                ) : null}
-                {score.comment ? (
-                  <p className="whitespace-pre-wrap">{score.comment}</p>
-                ) : null}
-                {hasMetadata(score) ? (
-                  <div className="mt-2">
-                    <JSONView
-                      codeClassName="rounded-md!"
-                      json={score.metadata}
-                    />
-                  </div>
-                ) : null}
-                {"executionTraceId" in score &&
-                  score.executionTraceId &&
-                  projectId && (
-                    <div className="mt-2">
-                      <ExecutionTraceLink
-                        executionTraceId={score.executionTraceId}
-                        projectId={projectId}
-                      />
-                    </div>
-                  )}
+                <ScoreDetail
+                  score={score}
+                  showValue={detailed.length > 1 || !score.comment}
+                  projectId={projectId}
+                />
               </div>
             ))}
           </HoverCardContent>
