@@ -32,7 +32,8 @@ type checks and tooling work without a Rust toolchain. `*.node` binaries and
 ## Building
 
 Install Rust through [rustup](https://rustup.rs), the same prerequisite the AI
-gateway already has. `rust-toolchain.toml` pins this crate's exact version and
+gateway already has. `rust-toolchain.toml` pins this crate's exact version
+(the same one the gateway uses, in a separate file so either can move) and
 pulls in `clippy` and `rustfmt`; rustup installs it on first use inside this
 directory. `napi build` then drives `cargo` and regenerates `index.js` and
 `index.d.ts`.
@@ -63,10 +64,11 @@ is always present when the worker starts or its tests run. A direct
 
 ## How it ships
 
-`worker/Dockerfile` installs Alpine's `rust` and `cargo` packages in the
-builder stage; `turbo run build --filter=worker...` compiles the addon for
-musl, and `pnpm deploy` copies the `.node` file into the runtime image next to
-the loader. Each architecture builds on a native runner, so no cross
+`worker/Dockerfile` copies the toolchain pinned in `rust-toolchain.toml` from
+the official `rust:<version>-alpine` image into the builder stage;
+`turbo run build --filter=worker...` compiles the addon for musl, and
+`pnpm deploy` copies the `.node` file into the runtime image next to the
+loader. Each architecture builds on a native runner, so no cross
 compilation is involved. The runtime image gains only the compiled library.
 CI jobs that build the worker need no extra setup: rustup on the runner
 installs the pinned toolchain the first time `cargo` runs in this directory.

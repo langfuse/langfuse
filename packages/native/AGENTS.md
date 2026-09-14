@@ -14,9 +14,10 @@
   image ships (`docker run --rm node:24-alpine apk info rust` after
   `apk update`). `worker/Dockerfile` compiles the addon with that package.
 - Building the worker needs the pinned Rust toolchain: CI runners get it from
-  rustup auto-install on first `cargo` use, the worker image installs
-  `rust cargo` with `apk`. Keep `rust-toolchain.toml` on the Rust version
-  that `node:24-alpine` ships so both compile with the same compiler.
+  rustup auto-install on first `cargo` use; `worker/Dockerfile` copies the
+  same version from the `rust:<version>-alpine` image. Bump
+  `rust-toolchain.toml` and that image tag together. The pin starts equal to
+  `ai-gateway/rust-toolchain.toml` but the files are deliberately separate.
 - Native code reports through the `metrics` and `tracing` facades set up in
   `src/telemetry.rs`; never return values for Node to record. Configuration
   mirrors dd-trace and the winston logger (`DD_*`, `LANGFUSE_LOG_*`).
