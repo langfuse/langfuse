@@ -17,6 +17,7 @@ import {
   useOrgProjectSwitchPaths,
   useQueryProjectOrOrganization,
 } from "@/src/features/projects/hooks";
+import { organizationsForSwitcher } from "@/src/features/organizations/organizationsForSwitcher";
 import { useSession } from "next-auth/react";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
@@ -36,7 +37,10 @@ const BreadcrumbComponent = ({
   const { organization, project } = useQueryProjectOrOrganization();
   const { getProjectPath, getOrgPath } = useOrgProjectSwitchPaths();
 
-  const organizations = session.data?.user?.organizations;
+  const organizations = organizationsForSwitcher(
+    session.data?.user?.organizations,
+    organization,
+  );
 
   const canCreateOrganizations = session.data?.user?.canCreateOrganizations;
   const canCreateProjects = useHasOrganizationAccess({

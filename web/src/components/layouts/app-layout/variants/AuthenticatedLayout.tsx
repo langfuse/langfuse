@@ -32,6 +32,7 @@ import {
   getCloudRegionAuthUrl,
 } from "@/src/features/organizations/cloudRegions";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { organizationsForSwitcher } from "@/src/features/organizations/organizationsForSwitcher";
 import type { Session } from "next-auth";
 import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
@@ -437,7 +438,10 @@ function ConnectedAppSidebar({
         organization ? { id: organization.id, name: organization.name } : null
       }
       project={project ? { id: project.id, name: project.name } : null}
-      organizations={session.data?.user?.organizations ?? null}
+      organizations={organizationsForSwitcher(
+        session.data?.user?.organizations,
+        organization,
+      )}
       canCreateOrganizations={
         session.data?.user?.canCreateOrganizations ?? false
       }

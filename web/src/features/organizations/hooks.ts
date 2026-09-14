@@ -7,6 +7,15 @@ import { useRouter } from "next/router";
  * Hook to get the organization of the current page.
  */
 export const useQueryOrganization = () => {
+  return useQueryOrganizationLookup().organization;
+};
+
+/**
+ * Same lookup as useQueryOrganization, plus whether an admin fallback
+ * request is still in flight. Use this when a miss must not flash an
+ * error page before the fallback resolves.
+ */
+export const useQueryOrganizationLookup = () => {
   const router = useRouter();
   const organizationId = router.query.organizationId;
   return useOrganization(
@@ -27,10 +36,12 @@ const useOrganization = (organizationId: string | null) => {
   // org is absent from their session. Resolve it from the admin-aware API
   // instead. The query is disabled for everyone else, so non-admins keep the
   // exact previous behavior (membership-only, no extra request).
+  const adminFallbackEnabled =
+    Boolean(organizationId) && isAdmin && !fromSession;
   const adminFallback = api.organizations.byId.useQuery(
     { orgId: organizationId as string },
     {
-      enabled: Boolean(organizationId) && isAdmin && !fromSession,
+      enabled: adminFallbackEnabled,
       staleTime: 60_000,
       // A stale/deleted org id is an expected miss for admins: resolve to
       // null like the session-only lookup, without retries, error toast, or
@@ -40,9 +51,13 @@ const useOrganization = (organizationId: string | null) => {
     },
   );
 
-  if (fromSession) return fromSession;
-  if (isAdmin) return adminFallback.data ?? null;
-  return null;
+  return {
+    organization:
+      fromSession ?? (isAdmin ? (adminFallback.data ?? null) : null),
+    isPending:
+      session.status === "loading" ||
+      (adminFallbackEnabled && adminFallback.isLoading),
+  };
 };
 
 export const useLangfuseCloudRegion = () => {
