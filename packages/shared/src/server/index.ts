@@ -68,6 +68,7 @@ export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
 export * from "./utils/billingCycleHelpers";
 export * from "./utils/compareVersions";
+export * from "./utils/executionReceipt";
 export * from "./otel/utils";
 export * from "./clickhouse/client";
 export {
