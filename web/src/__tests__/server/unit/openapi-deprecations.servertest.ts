@@ -30,10 +30,16 @@ type OpenApiOperation = {
   description?: string;
   security?: unknown;
 };
+type OpenApiSchema = {
+  description?: string;
+};
 type OpenApiDocument = {
   paths: Record<string, Record<string, OpenApiOperation>>;
+  components: {
+    schemas: Record<string, OpenApiSchema>;
+  };
 };
-type FernUnion = Record<string, { docs?: string }>;
+type FernUnion = Record<string, { docs?: string; type: string }>;
 
 const definitionDirectory = path.resolve(
   process.cwd(),
@@ -234,6 +240,7 @@ describe("OpenAPI deprecations", () => {
       types: { IngestionEvent: { union: FernUnion } };
     };
     const ingestionEvents = ingestionDefinition.types.IngestionEvent.union;
+    const openApi = parseSpec(fs.readFileSync(openApiPath, "utf8"));
     const supportedEventTypes = new Set(["score-create", "sdk-log"]);
     const expectedEventTypes = new Set([
       "trace-create",
@@ -258,14 +265,26 @@ describe("OpenAPI deprecations", () => {
     expect(new Set(Object.keys(ingestionEvents))).toEqual(expectedEventTypes);
 
     for (const [eventType, event] of Object.entries(ingestionEvents)) {
+      const generatedSchema = openApi.components.schemas[event.type];
+
       if (supportedEventTypes.has(eventType)) {
         expect(event.docs, eventType).not.toContain("Sunset warning");
+        expect(generatedSchema.description, eventType).not.toContain(
+          "Sunset warning",
+        );
         continue;
       }
 
       expect(event.docs, eventType).toContain("Sunset warning");
       expect(event.docs, eventType).toContain(V3_SUNSET_HUMAN);
       expect(event.docs, eventType).toContain(
+        "POST /api/public/otel/v1/traces",
+      );
+      expect(generatedSchema.description, eventType).toContain(
+        "Sunset warning",
+      );
+      expect(generatedSchema.description, eventType).toContain(V3_SUNSET_HUMAN);
+      expect(generatedSchema.description, eventType).toContain(
         "POST /api/public/otel/v1/traces",
       );
     }

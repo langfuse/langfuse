@@ -376,16 +376,19 @@ types:
         docs: Optional. Metadata field used by the Langfuse SDKs for debugging.
 
   TraceEvent:
+    docs: "Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
     extends: BaseEvent
     properties:
       body: TraceBody
 
   CreateObservationEvent:
+    docs: "Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
     extends: BaseEvent
     properties:
       body: ObservationBody
 
   UpdateObservationEvent:
+    docs: "Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
     extends: BaseEvent
     properties:
       body: ObservationBody
@@ -401,61 +404,73 @@ types:
       body: SDKLogBody
 
   CreateGenerationEvent:
+    docs: "Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
     extends: BaseEvent
     properties:
       body: CreateGenerationBody
 
   UpdateGenerationEvent:
+    docs: "Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
     extends: BaseEvent
     properties:
       body: UpdateGenerationBody
 
   CreateAgentEvent:
+    docs: "Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
     extends: BaseEvent
     properties:
       body: CreateGenerationBody
 
   CreateToolEvent:
+    docs: "Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
     extends: BaseEvent
     properties:
       body: CreateGenerationBody
 
   CreateChainEvent:
+    docs: "Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
     extends: BaseEvent
     properties:
       body: CreateGenerationBody
 
   CreateRetrieverEvent:
+    docs: "Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
     extends: BaseEvent
     properties:
       body: CreateGenerationBody
 
   CreateEvaluatorEvent:
+    docs: "Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
     extends: BaseEvent
     properties:
       body: CreateGenerationBody
 
   CreateEmbeddingEvent:
+    docs: "Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
     extends: BaseEvent
     properties:
       body: CreateGenerationBody
 
   CreateGuardrailEvent:
+    docs: "Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
     extends: BaseEvent
     properties:
       body: CreateGenerationBody
 
   CreateSpanEvent:
+    docs: "Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
     extends: BaseEvent
     properties:
       body: CreateSpanBody
 
   UpdateSpanEvent:
+    docs: "Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
     extends: BaseEvent
     properties:
       body: UpdateSpanBody
 
   CreateEventEvent:
+    docs: "Sunset warning: This event type is rejected in v4-only write mode. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to the current Python or JS SDK, or use `POST /api/public/otel/v1/traces` for custom integrations."
     extends: BaseEvent
     properties:
       body: CreateEventBody
