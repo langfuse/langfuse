@@ -17,6 +17,7 @@ import { type RowMetrics } from "./TimelineRowMetrics";
 import { usdFormatter } from "@/src/utils/numbers";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { useTraceSearchMatches } from "@/src/features/traces/hooks/useTraceSearchMatches";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
 import { detectPointerModality } from "../../fns/timeline/density";
@@ -31,6 +32,14 @@ export function TraceTimelineCompact() {
   const { showDuration, showCostTokens } = useViewPreferences();
   const { handleHover } = useHandlePrefetchObservation();
   const selectNode = useSelectTraceNode("timeline_compact");
+
+  /**
+   * The search box, answered in place. The renderer takes the SET of ids that
+   * keep their colour and nothing about searching — it dims the rest, reveals
+   * the first hit and states the count. The Graph reads the same hook, so the
+   * two cannot state different counts for one query.
+   */
+  const search = useTraceSearchMatches();
 
   const [pointerModality] = useState(detectPointerModality);
   const [box, setBox] = useState<{ width: number; height: number } | null>(
@@ -110,6 +119,7 @@ export function TraceTimelineCompact() {
           metricsOf={metricsOf}
           hoverContent={hoverContent}
           showDuration={showDuration}
+          search={search}
         />
       ) : null}
     </div>
