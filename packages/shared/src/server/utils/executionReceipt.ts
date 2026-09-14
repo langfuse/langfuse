@@ -18,13 +18,14 @@ import { z } from "zod";
  * independently recomputable — not that the agent is generally reliable.
  *
  * Canonicalization (`json-sort-keys-utf8`):
- * - Object keys are sorted lexicographically (UTF-16 code-unit order, matching
- *   Python `sort_keys=True` for ASCII keys), arrays preserve order, output is
- *   compact (`separators=(",", ":")`) and hashed as UTF-8 bytes.
+ * - Object keys are sorted by Unicode code point (matching Python
+ *   `sort_keys=True`), arrays preserve order, output is compact
+ *   (`separators=(",", ":")`) and hashed as UTF-8 bytes.
  * - Only JSON-native values are accepted (string, finite number, boolean,
  *   null, array, object). `bigint`, `undefined`, functions, and symbols are
- *   rejected. `Date` instances are normalized to ISO-8601 strings before
- *   hashing so the hash matches the exported JSON.
+ *   rejected (object properties set to `undefined` throw instead of being
+ *   silently dropped). `Date` instances are normalized to ISO-8601 strings
+ *   before hashing so the hash matches the exported JSON.
  * - Numbers are finite only (`NaN`/`Infinity` are rejected — Python emits
  *   `Infinity`, which is invalid JSON). Integer-valued numbers within
  *   `Number.MAX_SAFE_INTEGER` serialize as plain integers. Non-integers use
@@ -116,6 +117,27 @@ function formatCanonicalNumber(value: number): string {
   return raw;
 }
 
+/**
+ * Compare object keys by Unicode code point (matching Python `sort_keys=True`).
+ * JavaScript's default `<` compares UTF-16 code units, which orders U+10000
+ * before U+FFFD; Python orders by code point (U+FFFD first). Comparing
+ * code-point arrays keeps cross-runtime hashes identical.
+ */
+function compareKeysByCodePoint(left: string, right: string): number {
+  const leftCodes = Array.from(left, (ch) => ch.codePointAt(0) ?? 0);
+  const rightCodes = Array.from(right, (ch) => ch.codePointAt(0) ?? 0);
+  const len = Math.min(leftCodes.length, rightCodes.length);
+  for (let i = 0; i < len; i++) {
+    if (leftCodes[i] !== rightCodes[i]) {
+      return leftCodes[i] < rightCodes[i] ? -1 : 1;
+    }
+  }
+  if (leftCodes.length === rightCodes.length) {
+    return 0;
+  }
+  return leftCodes.length < rightCodes.length ? -1 : 1;
+}
+
 function stringifyCanonical(value: unknown): string {
   if (value === null) {
     return "null";
@@ -139,9 +161,17 @@ function stringifyCanonical(value: unknown): string {
     return JSON.stringify(value.toISOString()) ?? "null";
   }
   if (typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .filter(([, nested]) => nested !== undefined)
-      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+    const rawEntries = Object.entries(value as Record<string, unknown>);
+    for (const [, nested] of rawEntries) {
+      if (nested === undefined) {
+        throw new Error(
+          "Undefined values cannot be canonically hashed (omit the key or use null)",
+        );
+      }
+    }
+    const entries = rawEntries.sort(([left], [right]) =>
+      compareKeysByCodePoint(left, right),
+    );
     return `{${entries
       .map(
         ([key, nested]) =>
@@ -237,7 +267,7 @@ export const executionReceiptSchema = z
       .min(1),
     provenance: z
       .object({
-        capturedAt: z.string().min(1),
+        capturedAt: z.iso.datetime({ offset: true }),
         collector: z.string().min(1),
         langfuseTraceUrl: z.url().optional(),
         redactionPolicy: z.string().min(1),
@@ -454,7 +484,7 @@ export const sableSubmissionSchema = z
       .strict(),
     provenance: z
       .object({
-        captured_at: z.string().min(1),
+        captured_at: z.iso.datetime({ offset: true }),
         collector: z.string().min(1),
         redaction_policy: z.string().min(1),
       })
@@ -476,6 +506,11 @@ export type SableSubmission = z.infer<typeof sableSubmissionSchema>;
  * the same real execution can be checked by an external verifier without
  * re-collecting evidence. The receipt is re-verified first so tampered
  * evidence (stale hashes) cannot be laundered into a valid envelope.
+ *
+ * SABLE state hashes are content hashes of the published `state_after`
+ * (i.e. the observed result), so `verifySableSubmission` can recompute them.
+ * Receipt-level `stateBeforeHash`/`stateAfterHash` (external state anchors)
+ * remain in the native receipt and are not conflated here.
  */
 export function toSableSubmission(receipt: ExecutionReceipt): SableSubmission {
   const verification = verifyExecutionReceipt(receipt);
@@ -500,9 +535,7 @@ export function toSableSubmission(receipt: ExecutionReceipt): SableSubmission {
       before_state_hash:
         call.stateBeforeHash ??
         sha256HexOfCanonical({ traceId: value.traceId, kind: "before" }),
-      after_state_hash:
-        call.stateAfterHash ??
-        sha256HexOfCanonical(call.observedResult ?? null),
+      after_state_hash: sha256HexOfCanonical(call.observedResult ?? null),
       state_after: call.observedResult,
     })),
     claimed_status: value.claimedStatus,
@@ -536,7 +569,8 @@ export function toSableSubmission(receipt: ExecutionReceipt): SableSubmission {
 }
 
 /**
- * Verify a SABLE envelope structurally by recomputing its trace hash.
+ * Verify a SABLE envelope by recomputing its trace hash and each step's
+ * `after_state_hash` (SHA-256 of `state_after`).
  * This checks internal consistency, not general agent reliability.
  */
 export function verifySableSubmission(
@@ -548,9 +582,17 @@ export function verifySableSubmission(
   }
 
   const value = parsed.data;
+  const reasons: string[] = [];
+  for (const step of value.trace.steps) {
+    if (
+      sha256HexOfCanonical(step.state_after ?? null) !== step.after_state_hash
+    ) {
+      reasons.push(`after_state_hash_mismatch:${step.tool}`);
+    }
+  }
   if (sha256HexOfCanonical(value.trace) !== value.integrity.source_trace_hash) {
-    return { ok: false, reasons: ["source_trace_hash_mismatch"] };
+    reasons.push("source_trace_hash_mismatch");
   }
 
-  return { ok: true, reasons: [] };
+  return { ok: reasons.length === 0, reasons };
 }

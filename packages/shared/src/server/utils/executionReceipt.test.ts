@@ -246,4 +246,69 @@ describe("sable submission mapping", () => {
       ),
     ).toMatchObject({ ok: false, reasons: ["schema_mismatch"] });
   });
+
+  it("sorts keys by Unicode code point like Python", () => {
+    // JS UTF-16 order puts U+10000 before U+FFFD; Python code-point order
+    // puts U+FFFD first. Canonical output must follow Python.
+    const u10000 = String.fromCodePoint(0x10000);
+    const ufffd = "�";
+    expect(canonicalJsonString({ [u10000]: 1, [ufffd]: 2 })).toBe(
+      `{"${ufffd}":2,"${u10000}":1}`,
+    );
+  });
+
+  it("throws on undefined object values instead of dropping them", () => {
+    expect(() => canonicalJsonString({ a: 1, b: undefined })).toThrow(
+      /Undefined/,
+    );
+  });
+
+  it("rejects hand-crafted receipts with invalid timestamps", () => {
+    const receipt = buildExecutionReceipt(baseInput);
+    const { receiptHash, contentAddress, ...body } = receipt;
+    void receiptHash;
+    void contentAddress;
+    const tamperedBody = {
+      ...body,
+      provenance: { ...body.provenance, capturedAt: "not-a-timestamp" },
+    };
+    const tampered = {
+      ...tamperedBody,
+      receiptHash: sha256HexOfCanonical(tamperedBody),
+      contentAddress: `sha256:${sha256HexOfCanonical(tamperedBody)}`,
+    };
+    expect(
+      verifyExecutionReceipt(
+        tampered as unknown as Parameters<typeof verifyExecutionReceipt>[0],
+      ),
+    ).toMatchObject({ ok: false, reasons: ["schema_mismatch"] });
+  });
+
+  it("detects tampered SABLE state evidence", () => {
+    const receipt = buildExecutionReceipt(baseInput);
+    const submission = toSableSubmission(receipt);
+    const tamperedStep = {
+      ...submission.trace.steps[0],
+      state_after: { tampered: true },
+    };
+    const tamperedTrace = {
+      ...submission.trace,
+      steps: [tamperedStep],
+    };
+    const tampered = {
+      ...submission,
+      trace: tamperedTrace,
+      integrity: {
+        ...submission.integrity,
+        source_trace_hash: sha256HexOfCanonical(tamperedTrace),
+      },
+    };
+    const result = verifySableSubmission(
+      tampered as unknown as Parameters<typeof verifySableSubmission>[0],
+    );
+    expect(result.ok).toBe(false);
+    expect(result.reasons).toContain(
+      "after_state_hash_mismatch:get_order_status",
+    );
+  });
 });
