@@ -51,8 +51,10 @@ export function ScoreHoverList({
     valuesByName.set(score.name, list);
   }
 
+  // The name column gives way, the value never does: a group's `Avg 0.76`
+  // must stay whole inside the fixed-width row card.
   return (
-    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1">
+    <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1">
       {/* Score names are arbitrary strings, so the section says what they are. */}
       <div className="col-span-full font-bold">Scores</div>
       {visibleScoreNames.map((name) => {
@@ -63,7 +65,7 @@ export function ScoreHoverList({
             <dt className="text-muted-foreground truncate" title={label}>
               {label}
             </dt>
-            <dd className="truncate text-right tabular-nums" title={value}>
+            <dd className="text-right whitespace-nowrap tabular-nums">
               {value}
             </dd>
           </div>
