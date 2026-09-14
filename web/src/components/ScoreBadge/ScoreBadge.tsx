@@ -1,3 +1,4 @@
+import { cn } from "@/src/utils/tailwind";
 import { type LastUserScore, type ScoreDomain } from "@langfuse/shared";
 import {
   BracesIcon,
@@ -70,73 +71,207 @@ export const ScoreBadge = <
   const levels = showLevels
     ? Array.from(new Set(scores.map((score) => scoreLevelFromScore(score))))
     : [];
+  // Compact chips carry no per-score icons, so one card on the whole chip
+  // shows everything a score has to say: comment, metadata, execution trace.
+  const detailed = scores.filter(
+    (score) => Boolean(score.comment) || hasMetadata(score),
+  );
 
   return (
-    <span className="inline-flex max-w-full min-w-0 items-center gap-1">
+    <span className="inline-flex max-w-full min-w-0 cursor-default items-center gap-1">
       {levels.map((level) => (
         <ScoreTag key={level} level={level} />
       ))}
-      <BadgeShell color="neutral" size={compact ? "sm" : "default"}>
-        <span className="min-w-0 flex-1 truncate" title={name}>
-          {name}:
-        </span>
-        <span className="flex min-w-0 items-center gap-1 text-nowrap">
-          {scores.map((score, index) => {
-            const value = score.stringValue ?? score.value?.toFixed(2) ?? "";
-
-            return (
+      {compact && detailed.length > 0 ? (
+        // Dense rows have no room for per-score icons: the whole chip is the
+        // trigger and the card lists every score with a comment or metadata.
+        <HoverCard openDelay={100}>
+          <HoverCardTrigger asChild>
+            <BadgeShell color="neutral" size={compact ? "sm" : "default"}>
               <span
-                key={index}
-                className="inline-flex min-w-0 items-center gap-1"
+                className={cn(
+                  "min-w-0 flex-1 truncate",
+                  compact && "text-muted-foreground",
+                )}
+                title={name}
               >
-                <span className="truncate" title={value}>
-                  {value}
-                </span>
-                {score.comment && (
-                  <HoverCard>
-                    <HoverCardTrigger
-                      aria-label={`View comment for ${name}: ${value}`}
-                      className="inline-block shrink-0"
-                    >
-                      <MessageCircleMoreIcon className="mb-0.25 size-3!" />
-                    </HoverCardTrigger>
-                    <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
-                      <p className="whitespace-pre-wrap">{score.comment}</p>
-                      {"executionTraceId" in score &&
-                        score.executionTraceId &&
-                        projectId && (
-                          <div className="mt-2">
-                            <ExecutionTraceLink
-                              executionTraceId={score.executionTraceId}
-                              projectId={projectId}
-                            />
-                          </div>
-                        )}
-                    </HoverCardContent>
-                  </HoverCard>
-                )}
-                {hasMetadata(score) && (
-                  <HoverCard>
-                    <HoverCardTrigger
-                      aria-label={`View metadata for ${name}: ${value}`}
-                      className="inline-block shrink-0"
-                    >
-                      <BracesIcon className="mb-0.25 size-3!" />
-                    </HoverCardTrigger>
-                    <HoverCardContent className="max-h-[50dvh] overflow-y-auto rounded-md border-none p-0 text-xs break-normal whitespace-normal">
-                      <JSONView
-                        codeClassName="rounded-md!"
-                        json={score.metadata}
-                      />
-                    </HoverCardContent>
-                  </HoverCard>
-                )}
-                {index < scores.length - 1 && <span>,</span>}
+                {name}:
               </span>
-            );
-          })}
-        </span>
-      </BadgeShell>
+              <span
+                className={cn(
+                  "flex min-w-0 items-center gap-1 text-nowrap",
+                  compact && "text-muted-foreground",
+                )}
+              >
+                {scores.map((score, index) => {
+                  const value =
+                    score.stringValue ?? score.value?.toFixed(2) ?? "";
+
+                  return (
+                    <span
+                      key={index}
+                      className="inline-flex min-w-0 items-center gap-1"
+                    >
+                      <span className="truncate" title={value}>
+                        {value}
+                      </span>
+                      {score.comment && !compact && (
+                        <HoverCard>
+                          <HoverCardTrigger
+                            aria-label={`View comment for ${name}: ${value}`}
+                            className="inline-block shrink-0"
+                          >
+                            <MessageCircleMoreIcon className="mb-0.25 size-3!" />
+                          </HoverCardTrigger>
+                          <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
+                            <p className="whitespace-pre-wrap">
+                              {score.comment}
+                            </p>
+                            {"executionTraceId" in score &&
+                              score.executionTraceId &&
+                              projectId && (
+                                <div className="mt-2">
+                                  <ExecutionTraceLink
+                                    executionTraceId={score.executionTraceId}
+                                    projectId={projectId}
+                                  />
+                                </div>
+                              )}
+                          </HoverCardContent>
+                        </HoverCard>
+                      )}
+                      {/* Compact chips already sit inside the comment hover
+                          trigger; a nested trigger would open two cards. */}
+                      {hasMetadata(score) && !compact && (
+                        <HoverCard>
+                          <HoverCardTrigger
+                            aria-label={`View metadata for ${name}: ${value}`}
+                            className="inline-block shrink-0"
+                          >
+                            <BracesIcon className="mb-0.25 size-3!" />
+                          </HoverCardTrigger>
+                          <HoverCardContent className="max-h-[50dvh] overflow-y-auto rounded-md border-none p-0 text-xs break-normal whitespace-normal">
+                            <JSONView
+                              codeClassName="rounded-md!"
+                              json={score.metadata}
+                            />
+                          </HoverCardContent>
+                        </HoverCard>
+                      )}
+                      {index < scores.length - 1 && <span>,</span>}
+                    </span>
+                  );
+                })}
+              </span>
+            </BadgeShell>
+          </HoverCardTrigger>
+          <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
+            {detailed.map((score, index) => (
+              <div key={index} className={index > 0 ? "mt-2" : undefined}>
+                {detailed.length > 1 || !score.comment ? (
+                  <p className="text-muted-foreground">
+                    {score.stringValue ?? score.value?.toFixed(2) ?? ""}
+                  </p>
+                ) : null}
+                {score.comment ? (
+                  <p className="whitespace-pre-wrap">{score.comment}</p>
+                ) : null}
+                {hasMetadata(score) ? (
+                  <div className="mt-2">
+                    <JSONView
+                      codeClassName="rounded-md!"
+                      json={score.metadata}
+                    />
+                  </div>
+                ) : null}
+                {"executionTraceId" in score &&
+                  score.executionTraceId &&
+                  projectId && (
+                    <div className="mt-2">
+                      <ExecutionTraceLink
+                        executionTraceId={score.executionTraceId}
+                        projectId={projectId}
+                      />
+                    </div>
+                  )}
+              </div>
+            ))}
+          </HoverCardContent>
+        </HoverCard>
+      ) : (
+        <BadgeShell color="neutral" size={compact ? "sm" : "default"}>
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate",
+              compact && "text-muted-foreground",
+            )}
+            title={name}
+          >
+            {name}:
+          </span>
+          <span
+            className={cn(
+              "flex min-w-0 items-center gap-1 text-nowrap",
+              compact && "text-muted-foreground",
+            )}
+          >
+            {scores.map((score, index) => {
+              const value = score.stringValue ?? score.value?.toFixed(2) ?? "";
+
+              return (
+                <span
+                  key={index}
+                  className="inline-flex min-w-0 items-center gap-1"
+                >
+                  <span className="truncate" title={value}>
+                    {value}
+                  </span>
+                  {score.comment && !compact && (
+                    <HoverCard>
+                      <HoverCardTrigger
+                        aria-label={`View comment for ${name}: ${value}`}
+                        className="inline-block shrink-0"
+                      >
+                        <MessageCircleMoreIcon className="mb-0.25 size-3!" />
+                      </HoverCardTrigger>
+                      <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
+                        <p className="whitespace-pre-wrap">{score.comment}</p>
+                        {"executionTraceId" in score &&
+                          score.executionTraceId &&
+                          projectId && (
+                            <div className="mt-2">
+                              <ExecutionTraceLink
+                                executionTraceId={score.executionTraceId}
+                                projectId={projectId}
+                              />
+                            </div>
+                          )}
+                      </HoverCardContent>
+                    </HoverCard>
+                  )}
+                  {hasMetadata(score) && (
+                    <HoverCard>
+                      <HoverCardTrigger
+                        aria-label={`View metadata for ${name}: ${value}`}
+                        className="inline-block shrink-0"
+                      >
+                        <BracesIcon className="mb-0.25 size-3!" />
+                      </HoverCardTrigger>
+                      <HoverCardContent className="max-h-[50dvh] overflow-y-auto rounded-md border-none p-0 text-xs break-normal whitespace-normal">
+                        <JSONView
+                          codeClassName="rounded-md!"
+                          json={score.metadata}
+                        />
+                      </HoverCardContent>
+                    </HoverCard>
+                  )}
+                  {index < scores.length - 1 && <span>,</span>}
+                </span>
+              );
+            })}
+          </span>
+        </BadgeShell>
+      )}
     </span>
   );
 };

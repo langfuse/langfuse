@@ -80,7 +80,7 @@ export function TimeToFirstTokenBadge({
 // text, key muted and value a touch stronger so the value still reads at a
 // glance. Still under design discussion — kept isolated here so it stays
 // cheap to restyle, and exported so the session header restyles with it.
-function KeyValueText({
+export function KeyValueText({
   label,
   value,
 }: {

@@ -1,15 +1,11 @@
-import { percentile, type ScoreDomain } from "@langfuse/shared";
-import { ArrowUpRight, Eye, EyeOff, Plus, Search, X } from "lucide-react";
-import { type ReactNode, type SyntheticEvent, useRef, useState } from "react";
+import { type ScoreDomain } from "@langfuse/shared";
+import { Clock, Plus, Search, X } from "lucide-react";
+import { type ReactNode, type SyntheticEvent, useState } from "react";
 
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ModernSessionHeaderPill } from "@/src/features/sessions/ModernSessionHeaderPill";
-import {
-  MAX_STORED_HIDDEN_SESSION_HEADER_DETAILS,
-  parseStoredHiddenSessionHeaderDetails,
-  sessionHeaderDynamicDetailKey,
-  sessionHeaderVisibilityStorageKey,
-} from "@/src/features/sessions/sessionHeaderVisibility";
+import { sessionHeaderDynamicDetailKey } from "@/src/features/sessions/sessionHeaderVisibility";
 import {
   getMetadataJsonPathLabel,
   resolveMetadataJsonPath,
@@ -20,6 +16,13 @@ import {
   INITIAL_SESSION_USERS_DISPLAY_COUNT,
   SESSION_USERS_PER_PAGE,
 } from "@/src/features/sessions/sessionUsers";
+import { UserIdBadge } from "@/src/features/traces/components/TraceMetadataBadges";
+import {
+  EnvironmentBadge,
+  KeyValueText,
+  METRIC_TEXT_CLASS,
+} from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+import { CostUsageBadge } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import { Label } from "@/src/components/ui/label";
@@ -28,20 +31,32 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import {
-  compactNumberFormatter,
-  numberFormatter,
-  usdFormatter,
-} from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
+import { numberFormatter } from "@/src/utils/numbers";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+
+/**
+ * Session detail header, in the trace view's visual grammar
+ * (`TraceSummaryStrip` / `TraceDetailViewHeader`): metrics are quiet muted
+ * text, references are links, attributes are key:value text, and only scores
+ * are boxed (as score chips, two inline then "+N", matching the trace
+ * header). The pill
+ * primitive survives for the "+N" overflow control alone.
+ *
+ * The time metric is the session duration (first to last trace). Behaviour is
+ * unchanged: one measured line with a searchable "+N" overflow popover (users
+ * paginate inside it), pinned metadata JSONPaths with a hover remove and a `+`
+ * editor, and the PostHog captures on JSONPath config changes.
+ */
 
 type ModernSessionHeaderProps = {
   projectId: string;
   countTraces: number;
+  /** First and last trace timestamp of the session; their distance is the
+      session duration, the same figure the sessions table shows. */
+  minTimestamp: Date | null;
+  maxTimestamp: Date | null;
   traces:
     | { state: "loading" }
     | {
@@ -58,13 +73,13 @@ type ModernSessionHeaderProps = {
   environment: string | null;
   users: readonly string[];
   metadataJsonPaths: SessionMetadataJsonPathState;
-  scores: ReadonlyArray<
-    Pick<
-      WithStringifiedMetadata<ScoreDomain>,
-      "id" | "name" | "dataType" | "value" | "stringValue"
-    >
-  >;
+  /** Full score rows: the chips render the comment / metadata hover cards
+      off the same fields the trace tree chips use. */
+  scores: ReadonlyArray<WithStringifiedMetadata<ScoreDomain>>;
 };
+
+// Score names shown before "+N", same cap as the trace header and tree rows.
+const MAX_INLINE_SCORE_GROUPS = 2;
 
 type SessionHeaderDetailType =
   | "cost"
@@ -72,99 +87,31 @@ type SessionHeaderDetailType =
   | "latency"
   | "metadata"
   | "score"
-  | "tokens"
   | "traces"
   | "user";
 
 type SessionHeaderDetail = {
   key: string;
   searchText: string;
-  visibilityLabel: string;
   type: SessionHeaderDetailType;
   content: ReactNode;
 };
 
-type SessionHeaderDetailControlLocation = "header" | "overflow";
-
-const EMPTY_HIDDEN_SESSION_HEADER_DETAILS: readonly string[] = [];
-
-const ChipValue = ({ children }: { children: React.ReactNode }) => (
+/** Numbers carry the emphasis inside a metric; the words stay muted. */
+const MetricValue = ({ children }: { children: React.ReactNode }) => (
   <span className="text-foreground">{children}</span>
 );
 
-const ChipDot = () => <span className="text-foreground-tertiary">·</span>;
+const MetricDot = () => <span className="text-foreground-tertiary">·</span>;
 
-const compactTokenFormatter = (tokens: number) =>
-  compactNumberFormatter(tokens, 0).toLowerCase();
-
-const scoreChipValue = (
+const scoreSearchValue = (
   score: Pick<WithStringifiedMetadata<ScoreDomain>, "stringValue" | "value">,
 ) => {
   if (score.stringValue) return score.stringValue;
-  if (score.value === null || score.value === undefined) return "—";
+  if (score.value === null || score.value === undefined) return "";
   return Number.isInteger(score.value)
     ? String(score.value)
     : score.value.toFixed(2);
-};
-
-const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
-  <ModernSessionHeaderPill
-    variant="link"
-    href={`/project/${projectId}/users/${encodeURIComponent(user)}`}
-  >
-    user{" "}
-    <span
-      className="text-foreground group-hover:text-link truncate"
-      title={user}
-    >
-      {user}
-    </span>
-    <ArrowUpRight className="text-link h-3 w-3 shrink-0" />
-  </ModernSessionHeaderPill>
-);
-
-const SessionHeaderDetailWithVisibilityControl = ({
-  detail,
-  isHidden,
-  location,
-  onVisibilityChange,
-}: {
-  detail: SessionHeaderDetail;
-  isHidden: boolean;
-  location: SessionHeaderDetailControlLocation;
-  onVisibilityChange: (
-    detail: SessionHeaderDetail,
-    isHidden: boolean,
-    location: SessionHeaderDetailControlLocation,
-    control: HTMLButtonElement,
-  ) => void;
-}) => {
-  const action = isHidden ? "Show" : "Hide";
-  return (
-    <span
-      className={cn(
-        "group relative flex items-center",
-        detail.type === "metadata" ? "pr-6" : "[@media(hover:none)]:pr-6",
-      )}
-    >
-      {detail.content}
-      <button
-        type="button"
-        aria-label={`${action} ${detail.visibilityLabel} in session header`}
-        title={`${action} in session header`}
-        className="bg-header hover:bg-muted focus-visible:ring-ring absolute right-0 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border opacity-0 shadow-sm transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none [@media(hover:none)]:opacity-100"
-        onClick={(event) =>
-          onVisibilityChange(detail, !isHidden, location, event.currentTarget)
-        }
-      >
-        {isHidden ? (
-          <Eye aria-hidden="true" className="h-3 w-3" />
-        ) : (
-          <EyeOff aria-hidden="true" className="h-3 w-3" />
-        )}
-      </button>
-    </span>
-  );
 };
 
 const resolveAgainstSource = (
@@ -197,36 +144,31 @@ const getConfiguredMetadataDisplay = (
   };
 };
 
-const MetadataJsonPathPill = ({
+/**
+ * A pinned metadata JSONPath reads as the same key:value attribute text as
+ * `env` — the only extra is the remove affordance, which stays hidden until
+ * the row is hovered or focused so the line still scans as text.
+ */
+const MetadataJsonPathText = ({
   display,
   onRemove,
 }: {
   display: ReturnType<typeof getConfiguredMetadataDisplay>;
   onRemove: (path: string) => void;
 }) => (
-  <span className="group flex items-center">
-    <ModernSessionHeaderPill variant="display">
-      <span className="max-w-40 truncate" title={display.path}>
-        {display.label}
-      </span>
-      <span
-        className="text-foreground max-w-56 truncate"
-        title={display.displayValue}
+  <span className="group flex items-center" title={display.path}>
+    <KeyValueText label={display.label} value={display.displayValue} />
+    <span className="inline-flex w-0 overflow-hidden transition-[width,margin] group-focus-within:ml-1 group-focus-within:w-4 group-hover:ml-1 group-hover:w-4">
+      <button
+        type="button"
+        aria-label={`Remove metadata JSONPath ${display.path}`}
+        title="Remove metadata JSONPath"
+        className="hover:bg-muted focus-visible:ring-ring inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
+        onClick={() => onRemove(display.path)}
       >
-        {display.displayValue}
-      </span>
-      <span className="-ml-1.5 inline-flex w-0 overflow-hidden transition-[width,margin] group-focus-within:ml-0 group-focus-within:w-4 group-hover:ml-0 group-hover:w-4">
-        <button
-          type="button"
-          aria-label={`Remove metadata JSONPath ${display.path}`}
-          title="Remove metadata JSONPath"
-          className="hover:bg-muted focus-visible:ring-ring inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
-          onClick={() => onRemove(display.path)}
-        >
-          <X className="h-3 w-3" />
-        </button>
-      </span>
-    </ModernSessionHeaderPill>
+        <X className="h-3 w-3" />
+      </button>
+    </span>
   </span>
 );
 
@@ -334,6 +276,8 @@ const MetadataJsonPathEditorContent = ({
 export function ModernSessionHeader({
   projectId,
   countTraces,
+  minTimestamp,
+  maxTimestamp,
   traces,
   tokensIn,
   tokensOut,
@@ -345,17 +289,6 @@ export function ModernSessionHeader({
   scores,
 }: ModernSessionHeaderProps) {
   const capture = usePostHogClientCapture();
-  const [rawHiddenDetailKeys, setRawHiddenDetailKeys] =
-    useLocalStorage<unknown>(
-      sessionHeaderVisibilityStorageKey(projectId),
-      EMPTY_HIDDEN_SESSION_HEADER_DETAILS,
-    );
-  const hiddenDetailKeys =
-    parseStoredHiddenSessionHeaderDetails(rawHiddenDetailKeys);
-  const hiddenDetailKeySet = new Set(hiddenDetailKeys);
-  const overflowButtonRef = useRef<HTMLButtonElement>(null);
-  const metadataEditorButtonRef = useRef<HTMLButtonElement>(null);
-  const overflowSearchInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
   const [visibleUserCount, setVisibleUserCount] = useState(
     SESSION_USERS_PER_PAGE,
@@ -381,171 +314,119 @@ export function ModernSessionHeader({
       isV4: true,
     });
   };
-  const latencies =
-    traces.state === "loaded"
-      ? traces.data.flatMap((trace) =>
-          trace.latencyMs !== null && trace.latencyMs > 0
-            ? [trace.latencyMs]
-            : [],
-        )
-      : [];
   const spanCount =
     traces.state === "loaded"
       ? traces.data.reduce((total, trace) => total + trace.observationCount, 0)
       : null;
-  const p50LatencyMs = latencies.length > 0 ? percentile(latencies, 0.5) : null;
-  const p95LatencyMs =
-    latencies.length > 0 ? percentile(latencies, 0.95) : null;
-  const pills: SessionHeaderDetail[] = [
+  const sessionDurationMs =
+    minTimestamp && maxTimestamp
+      ? Math.max(0, maxTimestamp.getTime() - minTimestamp.getTime())
+      : null;
+  const details: SessionHeaderDetail[] = [
     {
       key: "traces",
       searchText: `traces ${countTraces} spans ${spanCount ?? ""}`,
-      visibilityLabel: "trace and span counts",
       type: "traces",
       content: (
-        <ModernSessionHeaderPill variant="display">
+        <span className={METRIC_TEXT_CLASS}>
           <span>
-            <ChipValue>{numberFormatter(countTraces, 0)}</ChipValue> traces
+            <MetricValue>{numberFormatter(countTraces, 0)}</MetricValue> traces
           </span>
           {spanCount !== null ? (
             <>
-              <ChipDot />
+              <MetricDot />
               <span>
-                <ChipValue>{numberFormatter(spanCount, 0)}</ChipValue> spans
+                <MetricValue>{numberFormatter(spanCount, 0)}</MetricValue> spans
               </span>
             </>
           ) : null}
-        </ModernSessionHeaderPill>
+        </span>
       ),
     },
   ];
 
-  if (p50LatencyMs !== null) {
-    pills.push({
-      key: "latency",
-      searchText: `latency p50 ${p50LatencyMs} p95 ${p95LatencyMs ?? ""}`,
-      visibilityLabel: "latency percentiles",
+  if (sessionDurationMs !== null) {
+    details.push({
+      key: "duration",
+      searchText: `duration ${sessionDurationMs}`,
       type: "latency",
       content: (
-        <ModernSessionHeaderPill variant="display">
-          <span>
-            p50{" "}
-            <ChipValue>{formatIntervalSeconds(p50LatencyMs / 1000)}</ChipValue>
-          </span>
-          {p95LatencyMs !== null ? (
-            <>
-              <ChipDot />
-              <span>
-                p95{" "}
-                <ChipValue>
-                  {formatIntervalSeconds(p95LatencyMs / 1000)}
-                </ChipValue>
-              </span>
-            </>
-          ) : null}
-        </ModernSessionHeaderPill>
+        <span title="Session duration" className={METRIC_TEXT_CLASS}>
+          <Clock className="size-3 shrink-0" aria-hidden />
+          <MetricValue>
+            {formatIntervalSeconds(sessionDurationMs / 1000)}
+          </MetricValue>
+        </span>
       ),
     });
   }
 
-  if (totalTokens > 0) {
-    const exactTokenCounts = `${numberFormatter(tokensIn, 0)} → ${numberFormatter(tokensOut, 0)} (Σ ${numberFormatter(totalTokens, 0)})`;
-    pills.push({
-      key: "tokens",
-      searchText: `tokens ${tokensIn} ${tokensOut} ${totalTokens}`,
-      visibilityLabel: "token usage",
-      type: "tokens",
-      content: (
-        <ModernSessionHeaderPill
-          variant="display"
-          title={`tokens ${exactTokenCounts}`}
-        >
-          <span>
-            tokens{" "}
-            <ChipValue>
-              {compactTokenFormatter(tokensIn)} →{" "}
-              {compactTokenFormatter(tokensOut)} (Σ{" "}
-              {compactTokenFormatter(totalTokens)})
-            </ChipValue>
-          </span>
-        </ModernSessionHeaderPill>
-      ),
-    });
-  }
-
-  pills.push({
+  // One element for cost AND usage, exactly as the trace summary strip does
+  // it: cost as plain text, then a coin icon + the token total whose hover
+  // carries the input/output breakdown. Sessions have no per-direction cost
+  // or per-key usage map, so the detail maps go in empty.
+  details.push({
     key: "cost",
-    searchText: `cost ${totalCost}`,
-    visibilityLabel: "cost",
+    searchText: `cost ${totalCost} tokens ${tokensIn} ${tokensOut} ${totalTokens}`,
     type: "cost",
     content: (
-      <ModernSessionHeaderPill
-        variant="display"
-        title={`exact $${totalCost.toFixed(6)}`}
-      >
-        <span>
-          cost <ChipValue>{usdFormatter(totalCost, 2, 3)}</ChipValue>
-        </span>
-      </ModernSessionHeaderPill>
+      <CostUsageBadge
+        totalCost={totalCost}
+        costDetails={{}}
+        inputUsage={tokensIn}
+        outputUsage={tokensOut}
+        totalUsage={totalTokens}
+        usageDetails={{}}
+      />
     ),
   });
 
-  scores.forEach((score, index) => {
-    const value = scoreChipValue(score);
-    const isFraction =
-      score.dataType === "NUMERIC" &&
-      score.value !== null &&
-      score.value !== undefined &&
-      score.value >= 0 &&
-      score.value <= 1;
-    pills.push({
-      key: sessionHeaderDynamicDetailKey("score", score.id),
-      searchText: `score ${score.name} ${value}`,
-      visibilityLabel: `score ${index + 1}`,
+  // Same grammar as the trace header: two score names inline, then "+N"
+  // whose hover lists them all. One detail item, so the overflow search
+  // still finds every score name.
+  if (scores.length > 0) {
+    details.push({
+      key: "scores",
+      searchText: `scores ${scores
+        .map((score) => `${score.name} ${scoreSearchValue(score)}`)
+        .join(" ")}`,
       type: "score",
       content: (
-        <ModernSessionHeaderPill variant="display" title={score.name}>
-          {isFraction ? (
-            <span className="bg-dark-yellow h-1.5 w-1.5 shrink-0 rounded-[1px]" />
-          ) : null}
-          <span className="max-w-40 truncate" title={score.name}>
-            {score.name}
-          </span>
-          <ChipValue>{value}</ChipValue>
-        </ModernSessionHeaderPill>
+        <span className="inline-flex items-center gap-1">
+          <GroupedScoreBadges
+            compact
+            scores={[...scores]}
+            maxVisible={MAX_INLINE_SCORE_GROUPS}
+          />
+        </span>
       ),
     });
-  });
+  }
 
   if (environment) {
-    pills.push({
+    details.push({
       key: "environment",
       searchText: `environment env ${environment}`,
-      visibilityLabel: "environment",
       type: "environment",
-      content: (
-        <ModernSessionHeaderPill variant="display">
-          <span>
-            env <ChipValue>{environment}</ChipValue>
-          </span>
-        </ModernSessionHeaderPill>
-      ),
+      content: <EnvironmentBadge environment={environment} />,
     });
   }
 
   const userDetails = users.map(
-    (user, index): SessionHeaderDetail => ({
+    (user): SessionHeaderDetail => ({
       key: sessionHeaderDynamicDetailKey("user", user),
       searchText: `user ${user}`,
-      visibilityLabel: `user ${index + 1}`,
       type: "user",
-      content: <UserChip projectId={projectId} user={user} />,
+      // UserIdBadge already carries `ph-no-capture`, so user ids stay masked
+      // in PostHog session recordings.
+      content: <UserIdBadge userId={user} projectId={projectId} />,
     }),
   );
-  const visibleUserDetails = userDetails
-    .filter((detail) => !hiddenDetailKeySet.has(detail.key))
-    .slice(0, INITIAL_SESSION_USERS_DISPLAY_COUNT);
-  visibleUserDetails.forEach((detail) => pills.push(detail));
+  const visibleUserDetails = userDetails.slice(
+    0,
+    INITIAL_SESSION_USERS_DISPLAY_COUNT,
+  );
+  visibleUserDetails.forEach((detail) => details.push(detail));
   const visibleUserDetailKeySet = new Set(
     visibleUserDetails.map((detail) => detail.key),
   );
@@ -553,99 +434,46 @@ export function ModernSessionHeader({
     (detail) => !visibleUserDetailKeySet.has(detail.key),
   );
 
-  metadataJsonPaths.paths.forEach((path, index) => {
+  metadataJsonPaths.paths.forEach((path) => {
     const display = getConfiguredMetadataDisplay(
       path,
       metadataJsonPaths.source,
     );
-    pills.push({
+    details.push({
       key: sessionHeaderDynamicDetailKey("metadata", path),
       searchText: `metadata ${display.path} ${display.label} ${display.displayValue}`,
-      visibilityLabel: `metadata ${index + 1}`,
       type: "metadata",
       content: (
-        <MetadataJsonPathPill
+        <MetadataJsonPathText
           display={display}
           onRemove={removeMetadataJsonPath}
         />
       ),
     });
   });
-  const visiblePills = pills.filter(
-    (pill) => !hiddenDetailKeySet.has(pill.key),
-  );
-  const manuallyHiddenPills = pills.filter((pill) =>
-    hiddenDetailKeySet.has(pill.key),
-  );
-  const changeDetailVisibility = (
-    detail: SessionHeaderDetail,
-    isHidden: boolean,
-    location: SessionHeaderDetailControlLocation,
-    control: HTMLButtonElement,
-  ) => {
-    if (hiddenDetailKeySet.has(detail.key) === isHidden) return;
-
-    setRawHiddenDetailKeys((current: unknown) => {
-      const currentKeys = parseStoredHiddenSessionHeaderDetails(current);
-      return isHidden
-        ? currentKeys
-            .concat(detail.key)
-            .slice(-MAX_STORED_HIDDEN_SESSION_HEADER_DETAILS)
-        : currentKeys.filter((key) => key !== detail.key);
-    });
-    capture("session_detail:header_detail_visibility_changed", {
-      action: isHidden ? "hide" : "show",
-      detailType: detail.type,
-      storedHiddenDetailCount: Math.min(
-        Math.max(hiddenDetailKeys.length + (isHidden ? 1 : -1), 0),
-        MAX_STORED_HIDDEN_SESSION_HEADER_DETAILS,
-      ),
-      isV4: true,
-    });
-    window.requestAnimationFrame(() => {
-      if (control.isConnected) return;
-
-      const preferredTarget =
-        location === "overflow"
-          ? overflowSearchInputRef.current
-          : overflowButtonRef.current;
-      (
-        preferredTarget ??
-        overflowButtonRef.current ??
-        metadataEditorButtonRef.current
-      )?.focus();
-    });
-  };
-
   return (
     <div className="bg-header border-b px-4 py-2">
       <SingleLineOverflowList
-        items={visiblePills}
-        additionalOverflowCount={
-          overflowUserDetails.length + manuallyHiddenPills.length
-        }
-        getKey={(pill) => pill.key}
-        renderItem={(pill) => (
-          <SessionHeaderDetailWithVisibilityControl
-            detail={pill}
-            isHidden={false}
-            location="header"
-            onVisibilityChange={changeDetailVisibility}
-          />
-        )}
+        items={details}
+        additionalOverflowCount={overflowUserDetails.length}
+        spacing="comfortable"
+        getKey={(detail) => detail.key}
+        renderItem={(detail) => detail.content}
         trailingContent={
           <Popover
             open={isMetadataEditorOpen}
             onOpenChange={handleMetadataEditorOpenChange}
           >
             <PopoverTrigger asChild>
-              <ModernSessionHeaderPill
-                variant="button"
-                ariaLabel="Add metadata JSONPath"
-                ref={metadataEditorButtonRef}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Add metadata JSONPath"
+                title="Add metadata JSONPath"
               >
                 <Plus className="h-3 w-3" />
-              </ModernSessionHeaderPill>
+              </Button>
             </PopoverTrigger>
             {isMetadataEditorOpen ? (
               <MetadataJsonPathEditorContent
@@ -656,21 +484,18 @@ export function ModernSessionHeader({
             ) : null}
           </Popover>
         }
-        renderOverflow={({ hiddenItems: hiddenPills, overflowItemCount }) => {
+        renderOverflow={({
+          hiddenItems: overflowDetails,
+          overflowItemCount,
+        }) => {
           const normalizedSearch = search.trim().toLocaleLowerCase();
-          const overflowPillKeys = new Set(
-            hiddenPills
-              .map((pill) => pill.key)
-              .concat(manuallyHiddenPills.map((pill) => pill.key)),
-          );
-          const overflowPills = pills.filter((pill) =>
-            overflowPillKeys.has(pill.key),
-          );
-          const filteredPills = normalizedSearch
-            ? overflowPills.filter((pill) =>
-                pill.searchText.toLocaleLowerCase().includes(normalizedSearch),
+          const filteredDetails = normalizedSearch
+            ? overflowDetails.filter((detail) =>
+                detail.searchText
+                  .toLocaleLowerCase()
+                  .includes(normalizedSearch),
               )
-            : overflowPills;
+            : overflowDetails;
           const filteredUserDetails = normalizedSearch
             ? overflowUserDetails.filter((detail) =>
                 detail.searchText
@@ -680,7 +505,7 @@ export function ModernSessionHeader({
             : overflowUserDetails;
           const visibleUsers = filteredUserDetails.slice(0, visibleUserCount);
           const hasResults =
-            filteredPills.length > 0 || visibleUsers.length > 0;
+            filteredDetails.length > 0 || visibleUsers.length > 0;
 
           return (
             <Popover
@@ -693,8 +518,7 @@ export function ModernSessionHeader({
               <PopoverTrigger asChild>
                 <ModernSessionHeaderPill
                   variant="button"
-                  ariaLabel={`Show ${overflowItemCount} hidden session details`}
-                  ref={overflowButtonRef}
+                  ariaLabel={`Show ${overflowItemCount} more session details`}
                 >
                   +{overflowItemCount}
                 </ModernSessionHeaderPill>
@@ -707,7 +531,6 @@ export function ModernSessionHeader({
                 <div className="relative border-b p-2">
                   <Search className="text-muted-foreground absolute top-1/2 left-4 h-3.5 w-3.5 -translate-y-1/2" />
                   <Input
-                    ref={overflowSearchInputRef}
                     value={search}
                     onChange={(event) => {
                       setSearch(event.target.value);
@@ -740,23 +563,15 @@ export function ModernSessionHeader({
                 >
                   {hasResults ? (
                     <>
-                      {filteredPills.map((pill) => (
-                        <SessionHeaderDetailWithVisibilityControl
-                          key={pill.key}
-                          detail={pill}
-                          isHidden={hiddenDetailKeySet.has(pill.key)}
-                          location="overflow"
-                          onVisibilityChange={changeDetailVisibility}
-                        />
+                      {filteredDetails.map((detail) => (
+                        <span key={detail.key} className="flex items-center">
+                          {detail.content}
+                        </span>
                       ))}
                       {visibleUsers.map((detail) => (
-                        <SessionHeaderDetailWithVisibilityControl
-                          key={detail.key}
-                          detail={detail}
-                          isHidden={hiddenDetailKeySet.has(detail.key)}
-                          location="overflow"
-                          onVisibilityChange={changeDetailVisibility}
-                        />
+                        <span key={detail.key} className="flex items-center">
+                          {detail.content}
+                        </span>
                       ))}
                     </>
                   ) : (

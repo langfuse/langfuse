@@ -30,14 +30,28 @@ import {
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 
 // Tags shown before the rest folds into a "+N" toggle — tag-heavy traces must
 // not turn the one-line strip into a wall of chips.
 const MAX_VISIBLE_TAGS = 3;
 
+// Score names shown before "+N", same cap as tree rows.
+const MAX_VISIBLE_TRACE_SCORE_GROUPS = 2;
+
 export function TraceSummaryStrip() {
-  const { trace, observations } = useTraceData();
+  const { trace, observations, mergedScores, traceLevelScoreOwnerIds } =
+    useTraceData();
+  const { selectedNodeId, setSelectedNodeId, setSelectedTab } = useSelection();
   const [showAllTags, setShowAllTags] = useState(false);
+
+  // Trace-level scores render here, once, next to the trace's other facts.
+  // Tree rows only show a node's own scores (see fns/nodeScores).
+  const traceScores = useMemo(
+    () => mergedScores.filter((score) => score.observationId === null),
+    [mergedScores],
+  );
 
   const aggregatedMetrics = useMemo(
     () => aggregateTraceMetrics(observations),
@@ -67,11 +81,30 @@ export function TraceSummaryStrip() {
           <SessionBadge
             sessionId={trace.sessionId}
             projectId={trace.projectId}
+            // The session page opens on this trace (and observation), so the
+            // jump keeps the context the reader is in.
+            traceId={trace.id}
+            observationId={selectedNodeId}
           />
         ) : null}
         {trace.userId ? (
           <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
         ) : null}
+        {traceScores.length > 0 && (
+          <div className="flex min-w-0 flex-wrap items-center gap-1">
+            <GroupedScoreBadges
+              compact
+              scores={traceScores}
+              maxVisible={MAX_VISIBLE_TRACE_SCORE_GROUPS}
+              // The root's Scores tab is the table that lists these.
+              onOverflowClick={() => {
+                const [owner] = traceLevelScoreOwnerIds;
+                setSelectedNodeId(owner ?? null);
+                setSelectedTab("scores");
+              }}
+            />
+          </div>
+        )}
         {trace.tags.length > 0 && (
           <div className="flex min-w-0 items-center gap-1">
             {/* Session-header pill styling; v4 tags are immutable here, so no
