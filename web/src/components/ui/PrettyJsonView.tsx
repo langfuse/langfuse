@@ -63,6 +63,7 @@ import {
   writeStoredJsonTableStylePick,
   writeStoredJsonTableStyleVariant,
 } from "@/src/components/ui/jsonTableStyleVariants";
+import { usePinnedJsonTableStyleVariant } from "@/src/components/ui/jsonViewPreference";
 import {
   useReactTable,
   getCoreRowModel,
@@ -1274,14 +1275,19 @@ export function PrettyJsonView(props: {
     dataClass,
     props.styleVariant,
   );
+  // Caller lock (review pages) > style pinned by the app-wide view toggle >
+  // stored debug pick > caller prop > default. A pinned style also locks the
+  // table: the picker's picks are not consulted and it is hidden.
+  const pinnedStyleVariant = usePinnedJsonTableStyleVariant();
   const styleVariant = props.lockStyleVariant
     ? (props.styleVariant ?? DEFAULT_JSON_TABLE_STYLE_VARIANT)
-    : resolvedStyleVariant;
+    : (pinnedStyleVariant ?? resolvedStyleVariant);
+  const styleVariantLocked =
+    Boolean(props.lockStyleVariant) || pinnedStyleVariant !== null;
   const tableStyle = JSON_TABLE_STYLES[styleVariant];
   const tableHasContentSizedKeys =
     tableStyle.layout === "columns" && tableStyle.keyColumn === "content";
-  const showStylePicker =
-    useShowJsonTableStylePicker() && !props.lockStyleVariant;
+  const showStylePicker = useShowJsonTableStylePicker() && !styleVariantLocked;
   const showAllStyles = useShowAllJsonTableStyles();
   const hasTitle = Boolean(props.title);
   // Title-owned tables drop the Path / Value header and the outer box (the

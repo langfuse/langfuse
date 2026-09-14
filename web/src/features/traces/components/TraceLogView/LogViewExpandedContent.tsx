@@ -10,12 +10,16 @@ import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type TreeNode } from "@/src/features/traces/types/treeNode";
 import { useLogViewObservationIO } from "./useLogViewObservationIO";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import {
+  type JsonViewPreference,
+  toPrettyOrJsonView,
+} from "@/src/components/ui/jsonViewPreference";
 
 export interface LogViewExpandedContentProps {
   node: TreeNode;
   traceId: string;
   projectId: string;
-  currentView?: "pretty" | "json" | "json-beta";
+  currentView?: JsonViewPreference;
   /** Optional external expansion state for JSON tree (non-virtualized mode) */
   externalExpansionState?: Record<string, boolean> | boolean;
   /** Callback when expansion state changes (non-virtualized mode) */
@@ -83,8 +87,9 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
       {jsonData && !isLoading && (
         <PrettyJsonView
           json={jsonData}
-          // Map json-beta to "pretty" for PrettyJsonView since it only supports "pretty" | "json"
-          currentView={currentView === "json-beta" ? "pretty" : currentView}
+          // PrettyJsonView only distinguishes pretty from json; json-beta and
+          // the pinned styles render as pretty.
+          currentView={toPrettyOrJsonView(currentView)}
           isLoading={false}
           showNullValues={false}
           stickyTopLevelKey={false}

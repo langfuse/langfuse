@@ -37,6 +37,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { type JsonViewPreference } from "@/src/components/ui/jsonViewPreference";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { JSONTableView } from "@/src/features/traces/components/JSONTableView";
 import { type FlatLogItem } from "./log-view-types";
@@ -56,7 +57,7 @@ import { flattenTreeOrder } from "@/src/features/traces/components/TraceLogView/
 export interface TraceLogViewProps {
   traceId: string;
   projectId: string;
-  currentView?: "pretty" | "json" | "json-beta";
+  currentView?: JsonViewPreference;
   /** Which detail panel hosts this log view — analytics segmentation only. */
   target?: "trace" | "observation";
 }
@@ -378,24 +379,23 @@ export const TraceLogView = ({
       )}
 
       {/* Table view mode - render as expandable table */}
-      {/* "json-beta" uses table mode since advanced I/O viewer works in expandable rows */}
-      {flatItems.length > 0 &&
-        (currentView === "pretty" || currentView === "json-beta") && (
-          <JSONTableView
-            items={flatItems}
-            columns={columns}
-            getItemKey={(item) => item.node.id}
-            expandable
-            renderExpanded={renderExpanded}
-            expandedKeys={expandedKeys}
-            onExpandedKeysChange={handleExpandedKeysChange}
-            virtualized={isVirtualized}
-            overscan={100}
-            collapsedRowHeight={COLLAPSED_ROW_HEIGHT}
-            expandedRowHeight={EXPANDED_ROW_HEIGHT}
-            renderRowPrefix={renderRowPrefix}
-          />
-        )}
+      {/* Every view but raw JSON uses table mode: "json-beta" because the advanced I/O viewer works in expandable rows, pinned styles because they are Formatted */}
+      {flatItems.length > 0 && currentView !== "json" && (
+        <JSONTableView
+          items={flatItems}
+          columns={columns}
+          getItemKey={(item) => item.node.id}
+          expandable
+          renderExpanded={renderExpanded}
+          expandedKeys={expandedKeys}
+          onExpandedKeysChange={handleExpandedKeysChange}
+          virtualized={isVirtualized}
+          overscan={100}
+          collapsedRowHeight={COLLAPSED_ROW_HEIGHT}
+          expandedRowHeight={EXPANDED_ROW_HEIGHT}
+          renderRowPrefix={renderRowPrefix}
+        />
+      )}
     </div>
   );
 };
