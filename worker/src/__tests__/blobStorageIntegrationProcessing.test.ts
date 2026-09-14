@@ -584,6 +584,15 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           lastSyncAt,
         },
       });
+      // One row inside the [lastSyncAt, lastSyncAt+1d) window so the upload path
+      // runs and the mocked uploadFileBuffered can drive the part-limit failure;
+      // an empty window would skip the upload entirely.
+      await createTracesCh([
+        createTrace({
+          project_id: projectId,
+          timestamp: lastSyncAt.getTime() + 60 * 60 * 1000,
+        }),
+      ]);
     };
 
     // The exact @aws-sdk/lib-storage message, wrapped the way
@@ -858,6 +867,15 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
       },
     });
+
+    // One row inside the window so the upload path runs; an empty window would
+    // skip the upload and never reach the failing uploadFileBuffered mock.
+    await createTracesCh([
+      createTrace({
+        project_id: projectId,
+        timestamp: Date.now() - 36 * 60 * 60 * 1000,
+      }),
+    ]);
 
     // Force every upload to reject so the export takes the failure path.
     const getInstanceSpy = vi
@@ -1359,8 +1377,64 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       }
     });
 
+    it("skips all uploads for a window with no rows but still advances the watermark", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = `${projectId}/`;
+
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: "",
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region,
+          endpoint: minioEndpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "weekly",
+          lastSyncAt: oneHourAgo,
+          compressed: false,
+        },
+      });
+
+      // Deliberately create no ClickHouse data: the window [lastSyncAt, now-lag)
+      // resolves to zero rows across every source table.
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const files = await s3StorageService.listFiles(s3Prefix);
+      expect(files).toHaveLength(0);
+
+      // The run still recorded success and advanced the watermark to the window
+      // max (now - lag buffer), exactly as a non-empty run would.
+      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
+        {
+          where: { projectId },
+        },
+      );
+      const expectedLastSync = new Date(
+        now.getTime() - BLOB_STORAGE_LAG_BUFFER_MS,
+      );
+      expect(updatedIntegration?.lastSyncAt).not.toBeNull();
+      expect(
+        Math.abs(
+          (updatedIntegration?.lastSyncAt?.getTime() ?? 0) -
+            expectedLastSync.getTime(),
+        ),
+      ).toBeLessThan(1000);
+      expect(updatedIntegration?.lastError).toBeNull();
+      expect(updatedIntegration?.runStartedAt).toBeNull();
+    });
+
     it("should use prefix in file path when specified", async () => {
-      // Setup
       const { projectId } = await createOrgProjectAndApiKey();
       s3Prefix = "test-prefix";
       const now = new Date();

@@ -26,6 +26,7 @@ import {
   recordIncrement,
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
+  convertDateToClickhouseDateTime,
   QueueJobs,
   enrichObservationWithModelData,
   createModelCache,
@@ -276,6 +277,52 @@ const getMinTimestampForExport = async (
     exportStartDate,
     historicalMinTimestampMs,
   });
+};
+
+// Cheap existence probe across every source table for the export window. Lets a
+// window with no rows skip its uploads so a project with no exportable data (or
+// a gap in a project's data) does not litter the customer bucket with empty
+// ~1 KB files, one per table per window. The window is half-open
+// [minTimestamp, maxTimestamp), matching the export queries. Counts the full
+// source-table set — a superset of whatever a single exportSource selects — so a
+// zero result guarantees every selected table is empty and a non-empty window is
+// never skipped. Events are counted from events_full (the base insert target)
+// rather than events_core (its materialized-view projection, which can lag): the
+// events export reads events_full for full I/O, and events_full ⊇ events_core,
+// so this never undercounts what the export would stream.
+const windowHasExportableRows = async (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+): Promise<boolean> => {
+  const result = await queryClickhouse<{ total: string | number }>({
+    query: `
+      SELECT
+        (SELECT count() FROM traces
+          WHERE project_id = {projectId: String}
+          AND timestamp >= {minTimestamp: DateTime64(3)}
+          AND timestamp < {maxTimestamp: DateTime64(3)})
+        + (SELECT count() FROM observations
+          WHERE project_id = {projectId: String}
+          AND start_time >= {minTimestamp: DateTime64(3)}
+          AND start_time < {maxTimestamp: DateTime64(3)})
+        + (SELECT count() FROM scores
+          WHERE project_id = {projectId: String}
+          AND timestamp >= {minTimestamp: DateTime64(3)}
+          AND timestamp < {maxTimestamp: DateTime64(3)})
+        + (SELECT count() FROM events_full
+          WHERE project_id = {projectId: String}
+          AND start_time >= {minTimestamp: DateTime64(3)}
+          AND start_time < {maxTimestamp: DateTime64(3)}) AS total
+    `,
+    params: {
+      projectId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+    tags: { projectId, surface: "worker", route: "blob_export" },
+  });
+  return Number(result[0]?.total ?? 0) > 0;
 };
 
 /**
@@ -1317,6 +1364,15 @@ export const handleBlobStorageIntegrationProjectJob = async (
       await validateBlobStorageEndpoint(blobStorageIntegration.endpoint);
     }
 
+    // Skip the S3/Azure/GCS uploads for a window with no rows so an empty window
+    // does not write empty ~1 KB files to the customer bucket. The cursor /
+    // watermark still advance below exactly as on a normal run.
+    const windowHasRows = await windowHasExportableRows(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+    );
+
     // Process the export based on the integration configuration
     // Convert v4 (events table) latency/time_to_first_token from ms to seconds
     // for integrations created on or after 2026-04-01. Before this date, v4 blob
@@ -1399,87 +1455,101 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    let runFiles: BlobExportManifestFile[];
-    if (isTraceOnlyProject) {
-      // Only process traces table for projects in the trace-only list (legacy behavior)
+    if (!windowHasRows) {
+      // No rows in this window: skip every upload (table files, manifest, and
+      // the deprecation notice) so nothing empty lands in the bucket. The cursor
+      // advance below runs unchanged, so the run still records success and
+      // lastSyncAt moves forward exactly as it would after a real export.
       logger.info(
-        `[BLOB INTEGRATION] Project ${projectId} is configured for trace-only export via env var, skipping observations, scores, and events`,
+        `[BLOB INTEGRATION] Skipping upload for project ${projectId}: export window has no rows ` +
+          `(min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()}); advancing cursor without writing empty files`,
       );
-      runFiles = [
-        await processBlobStorageExport({ ...executionConfig, table: "traces" }),
-      ];
     } else {
-      // Process tables based on exportSource setting
-      const processPromises: Promise<BlobExportManifestFile>[] = [];
-
-      // Always include scores
-      processPromises.push(
-        processBlobStorageExport({ ...executionConfig, table: "scores" }),
-      );
-
-      // Traces and observations - for TRACES_OBSERVATIONS and TRACES_OBSERVATIONS_EVENTS
-      if (
-        blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS" ||
-        blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
-      ) {
-        processPromises.push(
-          processBlobStorageExport({ ...executionConfig, table: "traces" }),
-          processBlobStorageExport({
-            ...executionConfig,
-            table: "observations",
-          }),
+      let runFiles: BlobExportManifestFile[];
+      if (isTraceOnlyProject) {
+        // Only process traces table for projects in the trace-only list (legacy behavior)
+        logger.info(
+          `[BLOB INTEGRATION] Project ${projectId} is configured for trace-only export via env var, skipping observations, scores, and events`,
         );
+        runFiles = [
+          await processBlobStorageExport({
+            ...executionConfig,
+            table: "traces",
+          }),
+        ];
+      } else {
+        // Process tables based on exportSource setting
+        const processPromises: Promise<BlobExportManifestFile>[] = [];
+
+        // Always include scores
+        processPromises.push(
+          processBlobStorageExport({ ...executionConfig, table: "scores" }),
+        );
+
+        // Traces and observations - for TRACES_OBSERVATIONS and TRACES_OBSERVATIONS_EVENTS
+        if (
+          blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS" ||
+          blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+        ) {
+          processPromises.push(
+            processBlobStorageExport({ ...executionConfig, table: "traces" }),
+            processBlobStorageExport({
+              ...executionConfig,
+              table: "observations",
+            }),
+          );
+        }
+
+        // Events - for EVENTS and TRACES_OBSERVATIONS_EVENTS
+        // events are stored in the observations_v2 directory in blob storage
+        if (
+          blobStorageIntegration.exportSource === "EVENTS" ||
+          blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+        ) {
+          processPromises.push(
+            processBlobStorageExport({
+              ...executionConfig,
+              table: "observations_v2",
+            }),
+          );
+        }
+
+        runFiles = await Promise.all(processPromises);
       }
 
-      // Events - for EVENTS and TRACES_OBSERVATIONS_EVENTS
-      // events are stored in the observations_v2 directory in blob storage
-      if (
-        blobStorageIntegration.exportSource === "EVENTS" ||
-        blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
-      ) {
-        processPromises.push(
-          processBlobStorageExport({
-            ...executionConfig,
-            table: "observations_v2",
-          }),
-        );
-      }
+      // The manifest is the run's commit point: written strictly after every
+      // table upload succeeded. A failure here fails the run, so lastSyncAt does
+      // not advance and the retry idempotently overwrites the table files.
+      await writeBlobExportManifest({
+        storageService,
+        prefix: blobStorageIntegration.prefix || undefined,
+        projectId,
+        exportSource: blobStorageIntegration.exportSource,
+        minTimestamp,
+        maxTimestamp,
+        files: runFiles,
+      });
 
-      runFiles = await Promise.all(processPromises);
-    }
-
-    // The manifest is the run's commit point: written strictly after every
-    // table upload succeeded. A failure here fails the run, so lastSyncAt does
-    // not advance and the retry idempotently overwrites the table files.
-    await writeBlobExportManifest({
-      storageService,
-      prefix: blobStorageIntegration.prefix || undefined,
-      projectId,
-      exportSource: blobStorageIntegration.exportSource,
-      minTimestamp,
-      maxTimestamp,
-      files: runFiles,
-    });
-
-    // Cloud-only v3-deprecation notice; both sides best-effort (never fail the run).
-    if (isCloud) {
-      if (isLegacyExportSource(blobStorageIntegration.exportSource)) {
-        await writeBlobExportDeprecationNotice({
-          storageService,
-          prefix: blobStorageIntegration.prefix || undefined,
-          projectId,
-        });
-      } else if (
-        // Gate cleanup on "old enough to have written a notice": otherwise every
-        // enriched-only export adds a needless per-run s3:DeleteObject on the
-        // destination, which is write-only for many customers.
-        isLegacyExporter(blobStorageIntegration.createdAt, isCloud)
-      ) {
-        await removeBlobExportDeprecationNotice({
-          storageService,
-          prefix: blobStorageIntegration.prefix || undefined,
-          projectId,
-        });
+      // Cloud-only v3-deprecation notice; both sides best-effort (never fail the run).
+      if (isCloud) {
+        if (isLegacyExportSource(blobStorageIntegration.exportSource)) {
+          await writeBlobExportDeprecationNotice({
+            storageService,
+            prefix: blobStorageIntegration.prefix || undefined,
+            projectId,
+          });
+        } else if (
+          // Gate cleanup on "old enough to have written a notice": otherwise every
+          // enriched-only export adds a needless per-run s3:DeleteObject on the
+          // destination, which is write-only for many customers.
+          isLegacyExporter(blobStorageIntegration.createdAt, isCloud)
+        ) {
+          await removeBlobExportDeprecationNotice({
+            storageService,
+            prefix: blobStorageIntegration.prefix || undefined,
+            projectId,
+          });
+        }
       }
     }
 
