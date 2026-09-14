@@ -76,12 +76,6 @@
     "packages/eslint-plugin": {
       "project": ["src/**/*.ts"],
     },
-    "packages/native": {
-      // scripts/build.mjs runs `napi build` through `pnpm exec`.
-      "ignoreDependencies": ["@napi-rs/cli"],
-      // macOS system tools scripts/build.mjs uses to locate the SDK.
-      "ignoreBinaries": ["xcode-select", "xcrun"],
-    },
     "packages/config-typescript": {
       // The shared Next.js tsconfig names a plugin supplied by its consuming workspace.
       "ignoreUnresolved": ["next"],

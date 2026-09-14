@@ -15,8 +15,8 @@
     "node": "24"
   },
   "scripts": {
-    "build": "node scripts/build.mjs --release",
-    "build:debug": "node scripts/build.mjs",
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
     "lint": "cargo fmt --check && cargo clippy --all-targets -- -D warnings",
     "lint:fix": "cargo fmt && cargo clippy --all-targets --fix --allow-dirty -- -D warnings"
   },

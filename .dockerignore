@@ -16,4 +16,3 @@ README.md
 ai-gateway/target
 packages/native/target
 packages/native/*.node
-packages/native/*.node.sha256

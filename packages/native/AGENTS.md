@@ -17,11 +17,6 @@
   rustup auto-install on first `cargo` use, the worker image installs
   `rust cargo` with `apk`. Keep `rust-toolchain.toml` on the Rust version
   that `node:24-alpine` ships so both compile with the same compiler.
-- `scripts/build.mjs` falls back to cross-compiling in `builder.Dockerfile`
-  when `cargo` is missing. That image installs the Rust version from
-  `rust-toolchain.toml` at build time; Zig and `cargo-zigbuild` come from the
-  upstream `ghcr.io/rust-cross/cargo-zigbuild` base, pinned by tag and
-  digest. Bump both together and rebuild through the docker strategy.
 - Native code reports through the `metrics` and `tracing` facades set up in
   `src/telemetry.rs`; never return values for Node to record. Configuration
   mirrors dd-trace and the winston logger (`DD_*`, `LANGFUSE_LOG_*`).
@@ -32,10 +27,10 @@
 
 - `pnpm --filter @langfuse/native run lint` (rustfmt + clippy with
   `-D warnings`).
-- After touching `scripts/build.mjs` or `builder.Dockerfile`:
-  `LANGFUSE_NATIVE_BUILD=docker pnpm --filter @langfuse/native run build`, then
-  the worker `nativeHello` test against the produced binary.
-- `pnpm --filter worker run typecheck` and
-  `pnpm --filter worker run test nativeHello` after a build.
+- `pnpm --filter @langfuse/native run build`, then
+  `pnpm --filter worker run typecheck` and
+  `pnpm --filter worker run test nativeHello`. The test loads the compiled
+  addon; `pnpm turbo run test --filter=worker` builds it first, a direct
+  vitest run does not.
 - When touching the build pipeline, build the worker image:
   `docker build -f worker/Dockerfile .` and check `/api/health` on it.

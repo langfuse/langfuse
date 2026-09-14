@@ -131,11 +131,9 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
-- [Rust via rustup](https://rust-lang.org/tools/install/) and a native compiler/linker for the AI gateway, which starts with `pnpm dev`. See [gateway setup](ai-gateway/README.md#run-locally).
-- pnpm 12.3.1 as specified in `package.json`
+- [Rust via rustup](https://rust-lang.org/tools/install/) and a native compiler/linker, for the AI gateway (which starts with `pnpm dev`, see [gateway setup](ai-gateway/README.md#run-locally)) and for the worker's native addon (compiled during the worker build, see [packages/native/README.md](packages/native/README.md)). Each crate pins its own toolchain in `rust-toolchain.toml`; rustup installs it on first use.
 - Docker to run the database locally
 - Clickhouse client
-- Rust via [rustup](https://rustup.rs) to build the worker's native addon, or none at all on macOS and Linux: without `cargo` the build cross-compiles inside a Docker container (Windows needs Rust or WSL2; see [packages/native/README.md](packages/native/README.md))
 
 **Note:** You can also simply run Langfuse in a **GitHub Codespace** via the provided devcontainer. To do this, click on the green "Code" button in the top right corner of the repository and select "Open with Codespaces".
 

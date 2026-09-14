@@ -22,8 +22,6 @@ functionality lands on top of it.
 | `build.rs`            | napi-rs build hook.                                                          |
 | `rust-toolchain.toml` | Pinned compiler version, kept equal to the Rust shipped in `node:24-alpine`. |
 | `package.json`        | npm package; `napi.binaryName` names the compiled `.node` file.              |
-| `scripts/build.mjs`   | Build entry: `napi build` locally, or cross-compile in a container.          |
-| `builder.Dockerfile`  | Container build path: upstream Zig image plus our pinned Rust toolchain.     |
 | `index.js`            | Generated loader that picks the `.node` file for the current platform.       |
 | `index.d.ts`          | Generated TypeScript declarations, derived from the `#[napi]` signatures.    |
 
@@ -33,58 +31,17 @@ type checks and tooling work without a Rust toolchain. `*.node` binaries and
 
 ## Building
 
-`pnpm --filter @langfuse/native run build` picks one of two strategies. Force
-one with `LANGFUSE_NATIVE_BUILD=local` or `LANGFUSE_NATIVE_BUILD=docker`.
-
-### local: a Rust toolchain is installed
-
-Install Rust through [rustup](https://rustup.rs). `rust-toolchain.toml` pins
-the exact version and pulls in `clippy` and `rustfmt`; rustup installs it on
-first use inside this directory. `napi build` then drives `cargo` and
-regenerates `index.js` and `index.d.ts`. CI, the worker Docker image, and
-anyone editing Rust use this path.
-
-### docker: no toolchain, Docker is running
-
-Without `cargo` on `PATH` the script cross-compiles inside a builder container
-for your machine's platform, macOS included, and copies the binary back into
-this directory. The first run builds the image, which takes a few minutes;
-later runs finish in seconds, or skip the container entirely when the Rust
-sources are unchanged.
-
-This path does not regenerate `index.js` and `index.d.ts`. It is for people who
-run the worker but do not change Rust; anyone editing `src/` needs the local
-strategy. It covers macOS and Linux hosts. On Windows, install Rust or work
-inside WSL2, which takes the Linux path; the script says so when it cannot
-target the host.
-
-<details>
-<summary>How the container build works</summary>
-
-- `builder.Dockerfile` starts from the upstream
-  `ghcr.io/rust-cross/cargo-zigbuild` image, pinned by digest, which bundles
-  Zig and `cargo-zigbuild`, and installs the Rust version named in
-  `rust-toolchain.toml` on top, so the container compiles with the same
-  compiler as CI and the worker image.
-- Rust generates code for Apple targets on any host; Zig supplies the Mach-O
-  linker and the `libSystem` stubs that otherwise come only with Xcode. On
-  macOS hosts the script also mounts the local SDK (found through `xcrun`) so
-  `rustc` stops warning about it and crates may link Apple frameworks. If
-  Docker cannot share that path, the build proceeds without the SDK.
-- Linux hosts get glibc 2.17 pinned through Zig, so the binary runs on any
-  distro.
-- Cargo caches live in named Docker volumes, and a source hash next to the
-  binary skips the container when nothing changed.
-
-</details>
-
-### Commands
+Install Rust through [rustup](https://rustup.rs), the same prerequisite the AI
+gateway already has. `rust-toolchain.toml` pins this crate's exact version and
+pulls in `clippy` and `rustfmt`; rustup installs it on first use inside this
+directory. `napi build` then drives `cargo` and regenerates `index.js` and
+`index.d.ts`.
 
 Run from the repo root:
 
 ```bash
 pnpm --filter @langfuse/native run build        # release build for the current platform
-pnpm --filter @langfuse/native run build:debug  # unoptimised build (local strategy only)
+pnpm --filter @langfuse/native run build:debug  # unoptimised build
 pnpm --filter @langfuse/native run lint         # cargo fmt --check && cargo clippy -D warnings
 ```
 
@@ -111,6 +68,10 @@ builder stage; `turbo run build --filter=worker...` compiles the addon for
 musl, and `pnpm deploy` copies the `.node` file into the runtime image next to
 the loader. Each architecture builds on a native runner, so no cross
 compilation is involved. The runtime image gains only the compiled library.
+CI jobs that build the worker need no extra setup: rustup on the runner
+installs the pinned toolchain the first time `cargo` runs in this directory.
+The Rust lint runs as its own step in the lint job, outside the ESLint turbo
+invocation, which forwards flags cargo does not understand.
 
 ## Observability
 
