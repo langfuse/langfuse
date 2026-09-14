@@ -2,6 +2,7 @@ import { useRouter } from "next/router";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { cn } from "@/src/utils/tailwind";
 import {
+  classifyJsonShape,
   JSON_TABLE_STYLE_VARIANTS,
   type JsonTableDataClass,
   useShowJsonTableStylePicker,
@@ -151,6 +152,35 @@ const USE_CASES: UseCase[] = [
   },
 ];
 
+const DATA_CLASS_TITLES: Record<JsonTableDataClass, string> = {
+  facts: "Facts table: metadata, attributes, model parameters",
+  io: "IO table: input, output, messages, tool calls",
+};
+
+/** The fixture's class by field, and by shape when the two rules disagree,
+    so the review shows where "differ by shape" would pick differently. */
+function DataClassBadge({
+  fieldClass,
+  shapeClass,
+}: {
+  fieldClass: JsonTableDataClass;
+  shapeClass: JsonTableDataClass;
+}) {
+  const agree = fieldClass === shapeClass;
+  return (
+    <span
+      className="bg-muted text-muted-foreground ml-2 rounded-sm px-1.5 py-0.5 font-mono text-xs font-normal"
+      title={
+        agree
+          ? DATA_CLASS_TITLES[fieldClass]
+          : `${DATA_CLASS_TITLES[fieldClass]}. By shape (array, long string, deep or wide object = IO) this is ${shapeClass}.`
+      }
+    >
+      {agree ? fieldClass : `${fieldClass} by field, ${shapeClass} by shape`}
+    </span>
+  );
+}
+
 /** Dev-only side-by-side review of the JSON table style directions.
     `?wide=1` sizes each column like a wide (1000px) panel instead of the
     default ~620px side panel. */
@@ -189,16 +219,10 @@ export function JsonStyleReviewPage() {
           <div className="flex flex-col gap-0.5">
             <h2 className="text-sm font-bold">
               {useCase.title}
-              <span
-                className="bg-muted text-muted-foreground ml-2 rounded-sm px-1.5 py-0.5 font-mono text-xs font-normal"
-                title={
-                  useCase.dataClass === "facts"
-                    ? "Facts table: metadata, attributes, model parameters"
-                    : "IO table: input, output, messages, tool calls"
-                }
-              >
-                {useCase.dataClass}
-              </span>
+              <DataClassBadge
+                fieldClass={useCase.dataClass}
+                shapeClass={classifyJsonShape(useCase.json)}
+              />
               {useCase.stress ? (
                 <span className="text-muted-foreground ml-2 text-xs font-normal">
                   stress case

@@ -5,7 +5,9 @@ import { useSyncExternalStore } from "react";
  * debug toggle. Tables are classed as facts (metadata, attributes, model
  * parameters) or IO (input, output, messages, tool calls) and each class
  * stores its own pick (localStorage `lf-json-style-facts` / `lf-json-style-io`;
- * the legacy `lf-json-style` still applies to both). Once directions are
+ * the legacy `lf-json-style` still applies to both). The class is normally
+ * the caller's (by field); `lf-json-style-class-mode` = "shape" derives it
+ * from the data instead (see `classifyJsonShape`). Once directions are
  * picked the others are a deletion here: PrettyJsonView only reads
  * `JSON_TABLE_STYLES[variant]`.
  */
@@ -43,8 +45,77 @@ export const JSON_TABLE_DATA_CLASS_LABELS: Record<JsonTableDataClass, string> =
     io: "IO tables",
   };
 
+/** How a table's data class is decided: by the field it shows (the caller's
+    `dataClass`) or by the shape of the data (`classifyJsonShape`). */
+export const JSON_TABLE_CLASS_MODES = ["field", "shape"] as const;
+
+export type JsonTableClassMode = (typeof JSON_TABLE_CLASS_MODES)[number];
+
+const DEFAULT_JSON_TABLE_CLASS_MODE: JsonTableClassMode = "field";
+
+export const JSON_TABLE_CLASS_MODE_LABELS: Record<
+  JsonTableClassMode,
+  { label: string; reference: string }
+> = {
+  field: {
+    label: "Field",
+    reference:
+      "metadata, attributes, parameters are facts; input, output are IO",
+  },
+  shape: {
+    label: "Shape",
+    reference:
+      "arrays, long strings, deep or wide objects are IO; flat is facts",
+  },
+};
+
+/** Longest top-level string a facts table still shows as a value column. */
+const SHAPE_LONG_STRING_CHARS = 80;
+/** Container levels (root counts as one) from which a table reads as IO. */
+const SHAPE_DEEP_LEVELS = 3;
+/** Top-level keys above which a table reads as IO. */
+const SHAPE_WIDE_KEYS = 20;
+
+function isLongOrMultiline(value: unknown): boolean {
+  return (
+    typeof value === "string" &&
+    (value.length > SHAPE_LONG_STRING_CHARS || value.includes("\n"))
+  );
+}
+
+/** True when `value` nests `levels` or more container levels (itself
+    included). Stops walking as soon as the bound is reached. */
+function nestsAtLeast(value: unknown, levels: number): boolean {
+  if (value === null || typeof value !== "object") return false;
+  if (levels <= 1) return true;
+  const children = Array.isArray(value) ? value : Object.values(value);
+  return children.some((child) => nestsAtLeast(child, levels - 1));
+}
+
+/**
+ * Data class by shape, not by field. A flat object with short values is a
+ * fact sheet and wants a key / value column layout, whatever field it sits in
+ * (the production p50 output is one). Anything that reads as content wants
+ * the IO layout: a root array (chat messages, documents), a top-level string
+ * over 80 chars or with a line break, three or more container levels, or
+ * more than 20 top-level keys. Only the top level is inspected.
+ */
+export function classifyJsonShape(value: unknown): JsonTableDataClass {
+  if (Array.isArray(value)) return "io";
+  if (value === null || typeof value !== "object") {
+    return isLongOrMultiline(value) ? "io" : "facts";
+  }
+  const entries = Object.values(value);
+  if (entries.length > SHAPE_WIDE_KEYS) return "io";
+  if (entries.some(isLongOrMultiline)) return "io";
+  if (nestsAtLeast(value, SHAPE_DEEP_LEVELS)) return "io";
+  return "facts";
+}
+
 /** Pre-split key; a value here applies to both classes. */
 const LEGACY_JSON_TABLE_STYLE_STORAGE_KEY = "lf-json-style";
+
+const JSON_TABLE_CLASS_MODE_STORAGE_KEY = "lf-json-style-class-mode";
 
 const JSON_TABLE_STYLE_STORAGE_KEYS: Record<JsonTableDataClass, string> = {
   facts: "lf-json-style-facts",
@@ -309,8 +380,45 @@ function writeStoredVariant(
   }
 }
 
+function isJsonTableClassMode(value: unknown): value is JsonTableClassMode {
+  return (
+    typeof value === "string" &&
+    (JSON_TABLE_CLASS_MODES as readonly string[]).includes(value)
+  );
+}
+
+function readStoredClassMode(): JsonTableClassMode | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const value = window.localStorage.getItem(
+      JSON_TABLE_CLASS_MODE_STORAGE_KEY,
+    );
+    return isJsonTableClassMode(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredClassMode(mode: JsonTableClassMode | null) {
+  try {
+    if (mode) {
+      window.localStorage.setItem(JSON_TABLE_CLASS_MODE_STORAGE_KEY, mode);
+    } else {
+      window.localStorage.removeItem(JSON_TABLE_CLASS_MODE_STORAGE_KEY);
+    }
+  } catch {
+    // Storage unavailable: the in-memory event below still updates this tab.
+  }
+}
+
 function notifyChange() {
   window.dispatchEvent(new Event(CHANGE_EVENT));
+}
+
+/** Store how tables decide their data class (field or shape). */
+export function writeStoredJsonTableClassMode(mode: JsonTableClassMode) {
+  writeStoredClassMode(mode);
+  notifyChange();
 }
 
 /** Store the debug pick for one data class. */
@@ -322,12 +430,14 @@ export function writeStoredJsonTableStyleVariant(
   notifyChange();
 }
 
-/** Clear every stored pick, including the legacy shared key. */
+/** Clear every stored pick (both classes, the legacy shared key, the class
+    mode). */
 export function clearStoredJsonTableStyleVariants() {
   for (const dataClass of JSON_TABLE_DATA_CLASSES) {
     writeStoredVariant(JSON_TABLE_STYLE_STORAGE_KEYS[dataClass], null);
   }
   writeStoredVariant(LEGACY_JSON_TABLE_STYLE_STORAGE_KEY, null);
+  writeStoredClassMode(null);
   notifyChange();
 }
 
@@ -340,8 +450,22 @@ function subscribe(onChange: () => void) {
   };
 }
 
-function getServerSnapshot(): JsonTableStyleVariant | null {
+function getServerSnapshot(): null {
   return null;
+}
+
+/** The class mode stored via the debug picker, or null when unset. */
+export function useStoredJsonTableClassMode(): JsonTableClassMode | null {
+  return useSyncExternalStore(
+    subscribe,
+    readStoredClassMode,
+    getServerSnapshot,
+  );
+}
+
+/** Stored class mode > default (field). */
+export function useJsonTableClassMode(): JsonTableClassMode {
+  return useStoredJsonTableClassMode() ?? DEFAULT_JSON_TABLE_CLASS_MODE;
 }
 
 function useStoredVariantForKey(

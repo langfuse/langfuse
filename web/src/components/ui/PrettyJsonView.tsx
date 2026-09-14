@@ -36,19 +36,26 @@ import {
   DropdownMenuSeparator,
 } from "@/src/components/ui/dropdown-menu";
 import {
+  classifyJsonShape,
   clearStoredJsonTableStyleVariants,
   DEFAULT_JSON_TABLE_DATA_CLASS,
   DEFAULT_JSON_TABLE_STYLE_VARIANT,
+  JSON_TABLE_CLASS_MODE_LABELS,
+  JSON_TABLE_CLASS_MODES,
   JSON_TABLE_DATA_CLASS_LABELS,
   JSON_TABLE_DATA_CLASSES,
   JSON_TABLE_STYLE_VARIANTS,
   JSON_TABLE_STYLES,
+  type JsonTableClassMode,
   type JsonTableDataClass,
   type JsonTableStyle,
   type JsonTableStyleVariant,
+  useJsonTableClassMode,
   useJsonTableStyleVariant,
   useShowJsonTableStylePicker,
+  useStoredJsonTableClassMode,
   useStoredJsonTableStyleVariant,
+  writeStoredJsonTableClassMode,
   writeStoredJsonTableStyleVariant,
 } from "@/src/components/ui/jsonTableStyleVariants";
 import {
@@ -978,13 +985,20 @@ function JsonTableStyleRadioGroup({
 
 /** Debug-only menu for the table style directions. Facts and IO tables each
     store their own pick in localStorage so the two classes can be compared
-    live in one panel; the pick applies app-wide and survives reloads. */
+    live in one panel; the pick applies app-wide and survives reloads. "Class
+    by" switches between the caller's class (field) and one derived from the
+    data (shape). */
 function JsonTableStyleMenuContent({
   dataClass,
+  fieldDataClass,
+  classMode,
   active,
 }: {
-  /** Class of the table that opened the menu. */
+  /** Class of the table that opened the menu, after the class mode. */
   dataClass: JsonTableDataClass;
+  /** Class the caller passed for that table. */
+  fieldDataClass: JsonTableDataClass;
+  classMode: JsonTableClassMode;
   /** Variant that table renders right now. */
   active: JsonTableStyleVariant;
 }) {
@@ -999,9 +1013,29 @@ function JsonTableStyleMenuContent({
       <DropdownMenuLabel>
         JSON table style (debug)
         <span className="text-muted-foreground ml-1 font-normal">
-          this table: {dataClass}
+          this table: {dataClass} (by {classMode}
+          {dataClass !== fieldDataClass ? `, ${fieldDataClass} by field` : ""})
         </span>
       </DropdownMenuLabel>
+      <DropdownMenuSeparator />
+      <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
+        Class by
+      </DropdownMenuLabel>
+      <DropdownMenuRadioGroup
+        value={classMode}
+        onValueChange={(next) =>
+          writeStoredJsonTableClassMode(next as JsonTableClassMode)
+        }
+      >
+        {JSON_TABLE_CLASS_MODES.map((mode) => (
+          <DropdownMenuRadioItem key={mode} value={mode}>
+            {JSON_TABLE_CLASS_MODE_LABELS[mode].label}
+            <span className="text-muted-foreground ml-1">
+              {JSON_TABLE_CLASS_MODE_LABELS[mode].reference}
+            </span>
+          </DropdownMenuRadioItem>
+        ))}
+      </DropdownMenuRadioGroup>
       {JSON_TABLE_DATA_CLASSES.map((group) => (
         <Fragment key={group}>
           <DropdownMenuSeparator />
@@ -1027,11 +1061,13 @@ function JsonTableStyleMenuContent({
   );
 }
 
-/** True once any debug pick is stored (either class or the legacy key). */
+/** True once any debug pick is stored (either class, the legacy key, or the
+    class mode). */
 function useHasStoredJsonTableStylePick(): boolean {
   const facts = useStoredJsonTableStyleVariant("facts");
   const io = useStoredJsonTableStyleVariant("io");
-  return facts !== null || io !== null;
+  const classMode = useStoredJsonTableClassMode();
+  return facts !== null || io !== null || classMode !== null;
 }
 
 export function PrettyJsonView(props: {
@@ -1063,7 +1099,8 @@ export function PrettyJsonView(props: {
   hideHeader?: boolean;
   /** What the table shows: facts (metadata, attributes, model parameters)
       or IO (input, output, messages, tool calls). Each class has its own
-      stored debug pick; defaults to facts. */
+      stored debug pick; defaults to facts. Ignored while the stored class
+      mode is "shape" (`classifyJsonShape` decides from the data). */
   dataClass?: JsonTableDataClass;
   /** Table style direction. A stored debug pick for `dataClass` (localStorage
       `lf-json-style-facts` / `lf-json-style-io`, or the legacy `lf-json-style`)
@@ -1086,28 +1123,6 @@ export function PrettyJsonView(props: {
     ? PRETTY_JSON_VIEW_TONE_CLASSES[props.tone]
     : undefined;
   const codeClassName = cn(props.codeClassName, toneClasses?.container);
-  const dataClass = props.dataClass ?? DEFAULT_JSON_TABLE_DATA_CLASS;
-  const resolvedStyleVariant = useJsonTableStyleVariant(
-    dataClass,
-    props.styleVariant,
-  );
-  const styleVariant = props.lockStyleVariant
-    ? (props.styleVariant ?? DEFAULT_JSON_TABLE_STYLE_VARIANT)
-    : resolvedStyleVariant;
-  const tableStyle = JSON_TABLE_STYLES[styleVariant];
-  const tableHasContentSizedKeys =
-    tableStyle.layout === "columns" && tableStyle.keyColumn === "content";
-  const showStylePicker =
-    useShowJsonTableStylePicker() && !props.lockStyleVariant;
-  const hasTitle = Boolean(props.title);
-  // Title-owned tables drop the Path / Value header and the outer box (the
-  // section title is the frame) unless the style keeps them. Single-column
-  // layouts never show the header. Toned containers keep their tinted border.
-  const hideTableHeader =
-    props.hideHeader ??
-    (tableStyle.layout !== "columns" ||
-      (hasTitle && !tableStyle.headerUnderTitle));
-  const tableBorderless = hasTitle && !tableStyle.boxUnderTitle && !props.tone;
   // Large plain-string gate (LFE-10991): a multi-MB top-level string skips
   // deepParseJson's object-only `maxSize` guard, so without this it would run
   // several full-length main-thread passes (parse, the markdown-probe
@@ -1164,6 +1179,37 @@ export function PrettyJsonView(props: {
     // non-ASCII characters correctly in the trace detail view.
     return decodeUnicodeInJson(result);
   }, [props.json, props.parsedJson, props.isParsing, largeStringValue]);
+
+  // Data class: the caller's by default (by field); in shape mode the parsed
+  // value decides, so a flat output reads as facts and a chat input as IO.
+  const fieldDataClass = props.dataClass ?? DEFAULT_JSON_TABLE_DATA_CLASS;
+  const classMode = useJsonTableClassMode();
+  const dataClass = useMemo(
+    () =>
+      classMode === "shape" ? classifyJsonShape(parsedJson) : fieldDataClass,
+    [classMode, parsedJson, fieldDataClass],
+  );
+  const resolvedStyleVariant = useJsonTableStyleVariant(
+    dataClass,
+    props.styleVariant,
+  );
+  const styleVariant = props.lockStyleVariant
+    ? (props.styleVariant ?? DEFAULT_JSON_TABLE_STYLE_VARIANT)
+    : resolvedStyleVariant;
+  const tableStyle = JSON_TABLE_STYLES[styleVariant];
+  const tableHasContentSizedKeys =
+    tableStyle.layout === "columns" && tableStyle.keyColumn === "content";
+  const showStylePicker =
+    useShowJsonTableStylePicker() && !props.lockStyleVariant;
+  const hasTitle = Boolean(props.title);
+  // Title-owned tables drop the Path / Value header and the outer box (the
+  // section title is the frame) unless the style keeps them. Single-column
+  // layouts never show the header. Toned containers keep their tinted border.
+  const hideTableHeader =
+    props.hideHeader ??
+    (tableStyle.layout !== "columns" ||
+      (hasTitle && !tableStyle.headerUnderTitle));
+  const tableBorderless = hasTitle && !tableStyle.boxUnderTitle && !props.tone;
 
   // JSONView internally calls deepParseJson (with maxDepth:3) which mutates
   // nested string fields in place. Because baseTableData[].rawChildData holds
@@ -1800,6 +1846,8 @@ export function PrettyJsonView(props: {
                   renderMenu={() => (
                     <JsonTableStyleMenuContent
                       dataClass={dataClass}
+                      fieldDataClass={fieldDataClass}
+                      classMode={classMode}
                       active={styleVariant}
                     />
                   )}
@@ -1810,7 +1858,7 @@ export function PrettyJsonView(props: {
                         variant="ghost"
                         size="icon-xs"
                         className="hover:bg-border -mr-2"
-                        title={`JSON table style (${dataClass}): ${JSON_TABLE_STYLES[styleVariant].label}`}
+                        title={`JSON table style (${dataClass} by ${classMode}): ${JSON_TABLE_STYLES[styleVariant].label}`}
                         aria-label="JSON table style"
                       >
                         <Palette className="h-3 w-3" />
