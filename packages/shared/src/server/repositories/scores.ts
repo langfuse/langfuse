@@ -1540,10 +1540,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       : `LEFT ANY JOIN traces e ON s.trace_id = e.id`
     : "";
 
-  const select =
-    props.select === "count"
-      ? "count(*) as count"
-      : `
+  const rowSelect = `
         s.id,
         s.project_id,
         s.environment,
@@ -1574,15 +1571,36 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         ${includeHasMetadataFlag ? ",length(mapKeys(s.metadata)) > 0 AS has_metadata" : ""}
       `;
 
-  const query = `
-      ${tracesCTEClause}
-      SELECT
-          ${select}
-      FROM scores s final
-      ${eventsJoin}
+  const whereClause = `
       WHERE s.project_id = {projectId: String}
       AND s.data_type IN ({dataTypes: Array(String)})
-      ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}
+      ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}`;
+
+  // Row reads use FINAL to dedup the ReplacingMergeTree. Count dedups via
+  // GROUP BY + argMax(is_deleted) instead: a single aggregation pass keeps
+  // each score id's latest version and drops soft-deleted ids, matching FINAL
+  // semantics without its multi-part merge.
+  const query =
+    props.select === "count"
+      ? `
+      ${tracesCTEClause}
+      SELECT count(*) AS count
+      FROM (
+        SELECT s.id
+        FROM scores s
+        ${eventsJoin}
+        ${whereClause}
+        GROUP BY s.id, s.project_id
+        HAVING argMax(s.is_deleted, s.event_ts) = 0
+      )
+    `
+      : `
+      ${tracesCTEClause}
+      SELECT
+          ${rowSelect}
+      FROM scores s final
+      ${eventsJoin}
+      ${whereClause}
       ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
