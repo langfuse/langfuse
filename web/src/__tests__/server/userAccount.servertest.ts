@@ -207,7 +207,6 @@ async function createCaller({
       ],
       featureFlags: {
         modernSession: featureFlags.includes("modernSession"),
-        searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
         excludeClickhouseRead: false,
         observationEvals: false,

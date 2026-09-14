@@ -85,7 +85,6 @@ maybe("sessions observations bounded I/O (events)", () => {
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
-        searchBar: false,
         v4BetaToggleVisible: false,
         observationEvals: false,
         experimentsV4Enabled: false,

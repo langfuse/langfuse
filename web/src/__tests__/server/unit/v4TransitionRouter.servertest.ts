@@ -431,7 +431,6 @@ const session: Session = {
       excludeClickhouseRead: false,
       observationEvals: false,
       templateFlag: false,
-      searchBar: false,
       v4BetaToggleVisible: false,
       experimentsV4Enabled: false,
     },
