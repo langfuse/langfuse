@@ -396,6 +396,7 @@ const events = {
   ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
+  billing: ["teams_addon_toggled"],
   sidebar: [
     "book_a_call_clicked",
     "v4_beta_toggled",
