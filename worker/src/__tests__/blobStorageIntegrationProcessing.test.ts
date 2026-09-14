@@ -2648,6 +2648,71 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       },
     );
 
+    // The notice lifecycle must not stall on an empty window: an idle project
+    // that migrated off a legacy source still needs its stale notice removed.
+    // Uses a non-legacy source (EVENTS) with no ClickHouse data, so the empty-
+    // window branch runs without ever querying the enriched events table — no
+    // V4 provisioning needed, so this is not gated behind maybeDescribe.
+    maybeIt(
+      "removes a stale notice on an empty window with no rows",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = `${projectId}/`;
+        const noticeKey = `${s3Prefix}${projectId}${NOTICE_SUFFIX}`;
+        const now = new Date();
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+        // Simulate a notice left behind by an earlier legacy-source run.
+        await s3StorageService.uploadFile({
+          fileName: noticeKey,
+          fileType: "text/plain; charset=utf-8",
+          data: "stale notice from a previous legacy run",
+        });
+        const before = await s3StorageService.listFiles(s3Prefix);
+        expect(before.some((f) => f.file === noticeKey)).toBe(true);
+
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            exportSource: "EVENTS",
+            fileType: BlobStorageIntegrationFileType.JSONL,
+            compressed: false,
+            lastSyncAt: oneHourAgo,
+            // Pre-exporter-cutoff: old enough to have used a legacy source, so
+            // cleanup runs. Derived from the live cutoff so an env override
+            // can't flip the gate.
+            createdAt: new Date(
+              LEGACY_BLOB_EXPORTER_CUTOFF.getTime() - 24 * 60 * 60 * 1000,
+            ),
+          },
+        });
+
+        // Deliberately create no ClickHouse data: the window resolves to zero
+        // rows, so the run takes the empty-window branch.
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        // No table files or manifest were written for the empty window, but the
+        // stale notice was still removed.
+        const after = await s3StorageService.listFiles(s3Prefix);
+        expect(after.some((f) => f.file.endsWith(NOTICE_SUFFIX))).toBe(false);
+        expect(after).toHaveLength(0);
+      },
+    );
+
     // The EVENTS export reads the enriched events table, which only the
     // V4-preview CI leg provisions — gate these like every other enriched test.
     // isCloud is set by the suite's beforeAll, so the notice logic still runs.

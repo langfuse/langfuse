@@ -26,6 +26,9 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   }
   return {
     ...mod,
+    // The empty-window probe counts rows before uploading; return a nonzero
+    // total so the export path (whose behavior these tests assert) runs.
+    queryClickhouse: vi.fn(async () => [{ total: 1 }]),
     StorageServiceFactory: {
       getInstance: () => ({
         uploadFileBuffered: vi.fn(async (params: any) => {
