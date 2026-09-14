@@ -7,17 +7,10 @@ import { createIOTableColumn } from "@/src/components/design-system/table/column
 import { useColumnVisibility } from "@/src/features/column-visibility";
 import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
 import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { api } from "@/src/utils/api";
-import { Button } from "@/src/components/ui/button";
-import { LayoutList } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import {
@@ -44,8 +37,8 @@ function DatasetCompareRunsTableInternal(props: {
   datasetId: string;
   runIds: string[];
 }) {
-  const { toggleField, isFieldSelected } = useDatasetCompareFields();
-  const [isFieldsDropdownOpen, setIsFieldsDropdownOpen] = useState(false);
+  const { toggleField, isFieldSelected, setSelectedFields } =
+    useDatasetCompareFields();
   const {
     updateColumnFilters: updateRunFilters,
     getFiltersForColumnById: getFiltersForRun,
@@ -204,41 +197,41 @@ function DatasetCompareRunsTableInternal(props: {
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
-        actionButtons={
-          <DropdownMenu open={isFieldsDropdownOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                onClick={() => setIsFieldsDropdownOpen(!isFieldsDropdownOpen)}
-              >
-                <LayoutList className="mr-2 h-4 w-4" />
-                <span>Fields</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              onPointerDownOutside={() => setIsFieldsDropdownOpen(false)}
-            >
-              <DropdownMenuCheckboxItem
-                checked={isFieldSelected("output")}
-                onCheckedChange={() => toggleField("output")}
-              >
-                Output
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={isFieldSelected("scores")}
-                onCheckedChange={() => toggleField("scores")}
-              >
-                Scores
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={isFieldSelected("resourceMetrics")}
-                onCheckedChange={() => toggleField("resourceMetrics")}
-              >
-                Latency and cost
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        }
+        additionalColumnSettings={{
+          isDefault:
+            isFieldSelected("output") &&
+            isFieldSelected("scores") &&
+            isFieldSelected("resourceMetrics"),
+          content: (
+            <div className="px-3 py-2">
+              <p className="text-muted-foreground px-2 pb-1 text-xs">
+                Within each experiment
+              </p>
+              {(
+                [
+                  ["output", "Output"],
+                  ["scores", "Scores"],
+                  ["resourceMetrics", "Latency and cost"],
+                ] as const
+              ).map(([field, label]) => (
+                <label
+                  key={field}
+                  htmlFor={`dataset-compare-${field}`}
+                  className="hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded-md p-2 text-sm"
+                >
+                  <Checkbox
+                    id={`dataset-compare-${field}`}
+                    checked={isFieldSelected(field)}
+                    onCheckedChange={() => toggleField(field)}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          ),
+          onRestoreDefaults: () =>
+            setSelectedFields(["output", "scores", "resourceMetrics"]),
+        }}
       />
       <FilteredRunPills
         projectId={props.projectId}

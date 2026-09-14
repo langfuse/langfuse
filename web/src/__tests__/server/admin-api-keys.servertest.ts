@@ -1,6 +1,9 @@
+import { randomUUID } from "node:crypto";
+import { vi } from "vitest";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 import { env } from "@/src/env.mjs";
+import type * as SharedServer from "@langfuse/shared/src/server";
 import {
   API_KEY_CACHE_PATTERN,
   createApiKeyCacheKey,
@@ -9,11 +12,23 @@ import {
 import handler from "../../pages/api/admin/api-keys";
 import {
   clearRedisKeysByPatternSafely,
+  createRedisTestClient,
   ensureRedisReady,
   getRedisValue,
   setRedisValue,
   type RedisTestClient,
 } from "@/src/__tests__/server/redis-test-utils";
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof SharedServer>();
+  const { randomUUID } = await import("node:crypto");
+  return {
+    ...actual,
+    redis: actual.createNewRedisInstance({
+      keyPrefix: `admin-api-keys-test:${randomUUID()}:`,
+    }),
+  };
+});
 
 describe("Admin API keys route", () => {
   const ADMIN_API_KEY = "test-admin-api-key";
@@ -46,9 +61,14 @@ describe("Admin API keys route", () => {
     await clearRedisKeysByPatternSafely(redisClient, "other-cache:*");
   });
 
-  afterAll(() => {
+  afterAll(async () => {
     (env as any).ADMIN_API_KEY = originalAdminApiKey;
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    redis?.disconnect();
+    const actual = await vi.importActual<typeof SharedServer>(
+      "@langfuse/shared/src/server",
+    );
+    actual.redis?.disconnect();
   });
 
   it("invalidates all cached API keys without deleting other redis entries", async () => {
@@ -74,19 +94,32 @@ describe("Admin API keys route", () => {
       },
     });
 
-    await handler(req, res);
+    const otherClient = createRedisTestClient({ keyPrefix: "" });
+    const otherApiKey = createApiKeyCacheKey(randomUUID());
+    try {
+      await setRedisValue(otherClient, otherApiKey, "other-suite");
+      await handler(req, res);
 
-    expect(res._getStatusCode()).toBe(200);
-    const responseBody = res._getJSONData();
-    expect(responseBody).toEqual({
-      message: "All cached API keys invalidated",
-      invalidatedCount: expect.any(Number),
-    });
-    expect(responseBody.invalidatedCount).toBeGreaterThanOrEqual(2);
-    expect(await getRedisValue(redisClient, existingApiKeyCacheKey)).toBeNull();
-    expect(await getRedisValue(redisClient, missingApiKeyCacheKey)).toBeNull();
-    expect(await getRedisValue(redisClient, "other-cache:existing-key")).toBe(
-      "untouched",
-    );
+      expect(await getRedisValue(otherClient, otherApiKey)).toBe("other-suite");
+      expect(res._getStatusCode()).toBe(200);
+      const responseBody = res._getJSONData();
+      expect(responseBody).toEqual({
+        message: "All cached API keys invalidated",
+        invalidatedCount: expect.any(Number),
+      });
+      expect(responseBody.invalidatedCount).toBeGreaterThanOrEqual(2);
+      expect(
+        await getRedisValue(redisClient, existingApiKeyCacheKey),
+      ).toBeNull();
+      expect(
+        await getRedisValue(redisClient, missingApiKeyCacheKey),
+      ).toBeNull();
+      expect(await getRedisValue(redisClient, "other-cache:existing-key")).toBe(
+        "untouched",
+      );
+    } finally {
+      await otherClient.del(otherApiKey);
+      otherClient.disconnect();
+    }
   });
 });

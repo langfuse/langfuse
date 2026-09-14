@@ -57,6 +57,10 @@
   AI SDK-native LLM execution helpers (`generateLLMText` and
   `streamLLMText`), Bedrock default-credential provider auth
   (`createDefaultBedrockProviderAuth`), and server test utilities.
+- `@langfuse/shared/src/server/clickhouse` via `src/server/clickhouse/index.ts`:
+  ClickHouse clients and helpers without loading the full server barrel. Use this
+  entry point for test cleanup so built and source-aliased clients retain the same
+  module identity.
 - `@langfuse/shared/src/db` via `src/db.ts`: Prisma client singleton plus
   Prisma namespace/types for direct database access. Never route this into
   frontend-safe code.

@@ -12,7 +12,7 @@ vi.mock("@/src/features/traces/TracePage", () => ({
   ),
 }));
 
-vi.mock("@/src/features/annotation-queues/components/session", () => ({
+vi.mock("@/src/features/sessions/SessionPages", () => ({
   SessionPage: ({ sessionId }: { sessionId: string }) => (
     <div data-testid="session-page">{sessionId}</div>
   ),
@@ -42,10 +42,31 @@ vi.mock("@/src/features/annotation-queues/pages/AnnotationQueueItems", () => ({
   ),
 }));
 
+vi.mock("@/src/features/datasets/components/DatasetRunsTable", () => ({
+  DatasetRunsTable: ({
+    projectId,
+    datasetId,
+  }: {
+    projectId: string;
+    datasetId: string;
+  }) => (
+    <div data-testid="dataset-runs-table">
+      {projectId}:{datasetId}
+    </div>
+  ),
+}));
+
+vi.mock("@/src/features/experiments/components/table", () => ({
+  ExperimentsTable: ({ projectId }: { projectId: string }) => (
+    <div data-testid="experiments-table">{projectId}</div>
+  ),
+}));
+
 import TracePageRoute from "@/src/pages/project/[projectId]/traces/[traceId]";
 import SessionPageRoute from "@/src/pages/project/[projectId]/sessions/[sessionId]";
 import AnnotationQueueItemRoute from "@/src/pages/project/[projectId]/annotation-queues/[queueId]/items/[itemId]";
 import AnnotationQueueItemsIndexRoute from "@/src/pages/project/[projectId]/annotation-queues/[queueId]/index";
+import DatasetExperimentsRoute from "@/src/pages/project/[projectId]/datasets/[datasetId]/experiments/index";
 
 function mockRouterQuery(query: Record<string, string | undefined>) {
   (useRouter as Mock).mockReturnValue({
@@ -103,5 +124,12 @@ describe("detail page deep-link route params", () => {
     expect(screen.getByTestId("annotation-queue-items")).toHaveTextContent(
       "q1",
     );
+  });
+
+  test("dataset experiments does not mount the runs table while router.query is empty", () => {
+    mockRouterQuery({});
+    render(<DatasetExperimentsRoute />);
+    expect(screen.queryByTestId("dataset-runs-table")).toBeNull();
+    expect(screen.queryByTestId("experiments-table")).toBeNull();
   });
 });

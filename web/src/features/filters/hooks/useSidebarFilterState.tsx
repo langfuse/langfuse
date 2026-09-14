@@ -124,28 +124,19 @@ export function decodeAndNormalizeFilters(
 }
 
 function computeNumericRange(
-  column: string,
-  filterState: FilterState,
+  conditions: NumericUIFilter["conditions"],
   defaultMin: number,
   defaultMax: number,
-): [number, number] {
-  const minFilter = filterState.find(
-    (f) => f.column === column && f.type === "number" && f.operator === ">=",
-  );
-  const maxFilter = filterState.find(
-    (f) => f.column === column && f.type === "number" && f.operator === "<=",
-  );
-
-  const minValue =
-    minFilter && typeof minFilter.value === "number"
-      ? minFilter.value
-      : defaultMin;
-  const maxValue =
-    maxFilter && typeof maxFilter.value === "number"
-      ? maxFilter.value
-      : defaultMax;
-
-  return [minValue, maxValue];
+): [number, number] | null {
+  if (conditions.length === 0) return [defaultMin, defaultMax];
+  // The range editor writes exactly one inclusive lower and upper bound.
+  // Other shapes must retain their operators and every separate condition.
+  if (conditions.length !== 2) return null;
+  const minFilter = conditions.find((filter) => filter.operator === ">=");
+  const maxFilter = conditions.find((filter) => filter.operator === "<=");
+  if (!minFilter || !maxFilter || minFilter.value > maxFilter.value)
+    return null;
+  return [minFilter.value, maxFilter.value];
 }
 
 interface BaseUIFilter {
@@ -228,7 +219,9 @@ export interface CategoricalUIFilter extends BaseUIFilter {
 
 export interface NumericUIFilter extends BaseUIFilter {
   type: "numeric";
-  value: [number, number];
+  value: [number, number] | null;
+  conditions: Extract<FilterState[number], { type: "number" }>[];
+  onRemoveCondition: (index: number) => void;
   min: number;
   max: number;
   onChange: (value: [number, number]) => void;
@@ -489,6 +482,7 @@ type BaseUseSidebarFilterStateOptions = {
     previousFilters: FilterState;
     nextFilters: FilterState;
     origin: "user" | "saved_view" | "system";
+    action?: "clear";
   }) => void;
   /**
    * Precise per-facet loading set (lazy filter-options): exactly the columns
@@ -840,6 +834,7 @@ export function useSidebarFilterStateCore(
       options?: {
         updateType?: UrlUpdateType;
         origin?: "user" | "saved_view" | "system";
+        action?: "clear";
       },
     ) => {
       const explicitFilters = stripOmittedColumns(
@@ -853,6 +848,7 @@ export function useSidebarFilterStateCore(
         previousFilters: explicitFilterState,
         nextFilters: explicitFilters,
         origin: options?.origin ?? "user",
+        action: options?.action,
       });
 
       if (stateLocationType === "peekContext" && setPeekTableState) {
@@ -1038,6 +1034,7 @@ export function useSidebarFilterPresentation(
   presentationOptions: SidebarFilterPresentationOptions = {},
 ) {
   const { loading, loadingColumns } = presentationOptions;
+  const [draftResetKey, setDraftResetKey] = useState(0);
   const isV4Surface = presentationOptions.isV4 ?? false;
   const capture = usePostHogClientCapture();
   const {
@@ -1138,7 +1135,8 @@ export function useSidebarFilterPresentation(
 
   const clearAll = () => {
     const clearedCount = explicitFilterState.length;
-    setFilterState([]);
+    setDraftResetKey((key) => key + 1);
+    setFilterState([], { action: "clear" });
     if (clearedCount > 0) {
       capture("filters:cleared", {
         surface: "sidebar",
@@ -1383,9 +1381,14 @@ export function useSidebarFilterPresentation(
     return config.facets
       .map((facet): UIFilter | null => {
         if (facet.type === "numeric") {
+          const conditions = filterState.filter(
+            (
+              filter,
+            ): filter is Extract<FilterState[number], { type: "number" }> =>
+              filter.column === facet.column && filter.type === "number",
+          );
           const currentRange = computeNumericRange(
-            facet.column,
-            filterState,
+            conditions,
             facet.min,
             facet.max,
           );
@@ -1402,6 +1405,7 @@ export function useSidebarFilterPresentation(
             help: facet.help,
 
             value: currentRange,
+            conditions,
             min: facet.min,
             max: facet.max,
             unit: facet.unit,
@@ -1412,6 +1416,13 @@ export function useSidebarFilterPresentation(
             disabledReason: disableState.reason,
             onChange: (value: [number, number]) =>
               updateNumericFilter(facet.column, value, facet.min, facet.max),
+            onRemoveCondition: (index: number) => {
+              const condition = conditions[index];
+              if (!condition) return;
+              const filterIndex = filterState.indexOf(condition);
+              setFilterState(filterState.filter((_, i) => i !== filterIndex));
+              emitFacetCleared(facet.column, 1);
+            },
             onReset: () =>
               updateNumericFilter(facet.column, null, facet.min, facet.max),
           };
@@ -2028,6 +2039,7 @@ export function useSidebarFilterPresentation(
     updateFilterOnly,
     updateOperator,
     clearAll,
+    draftResetKey,
     isFiltered: explicitFilterState.length > 0,
     filters,
     expanded: expandedState,

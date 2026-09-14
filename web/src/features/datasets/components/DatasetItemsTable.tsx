@@ -35,6 +35,8 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 import { useQueryFilterState } from "@/src/features/filters";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
+import { TableSearchBar } from "@/src/features/search-bar";
+import { DATASET_ITEMS_FIELD_REGISTRY } from "../constants/datasetItemsSearchRegistry";
 import { useDatasetVersion } from "../hooks/useDatasetVersion";
 import { EditDatasetItemDialog } from "./EditDatasetItemDialog";
 
@@ -351,13 +353,29 @@ export function DatasetItemsTable({
   );
 
   const setFilterStateWithDebounce = useDebounce(setFilterState);
-  const setSearchQueryWithDebounce = useDebounce(setSearchQuery, 300);
 
   return (
     <>
+      <TableSearchBar
+        key={`${projectId}:${datasetId}:${selectedVersion?.toISOString() ?? "latest"}`}
+        projectId={projectId}
+        tableName="dataset-items"
+        registry={DATASET_ITEMS_FIELD_REGISTRY}
+        filterState={filterState}
+        setFilterState={setFilterState}
+        observed={undefined}
+        isV4={false}
+        search={{
+          query: searchQuery,
+          type: searchType,
+          setQuery: setSearchQuery,
+          setType: setSearchType,
+        }}
+      />
       <DataTableToolbar
         columns={columns}
         tableName="dataset-items"
+        isV4={false}
         filterColumnDefinition={datasetItemFilterColumns}
         filterState={filterState}
         setFilterState={setFilterStateWithDebounce}
@@ -368,19 +386,6 @@ export function DatasetItemsTable({
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         actionButtons={[menuItems, batchExportButton].filter(Boolean)}
-        searchConfig={{
-          metadataSearchFields: ["ID"],
-          updateQuery: setSearchQueryWithDebounce,
-          currentQuery: searchQuery ?? undefined,
-          tableAllowsFullTextSearch: true,
-          setSearchType,
-          searchType,
-          customDropdownLabels: {
-            metadata: "IDs",
-            fullText: "Full Text",
-          },
-          hidePerformanceWarning: true,
-        }}
       />
       <DataTable
         tableName="datasetItems"

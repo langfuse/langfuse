@@ -22,7 +22,7 @@ service:
         query-parameters:
           startTime:
             type: optional<datetime>
-            docs: The start time of the observation (ISO 8601 with offset, e.g. 2024-01-01T00:00:00Z). When provided, the lookup is restricted to the observation's start day, which makes the request substantially faster. Omit it to look up the observation without a time bound.
+            docs: The start time of the observation (ISO 8601 with offset, e.g. 2024-01-01T00:00:00Z). Optional performance hint - when provided, Langfuse narrows the lookup to make the request substantially faster. It only affects speed - an incorrect or omitted value never changes the result.
       response: commons.ObservationsViewSingle
     getMany:
       availability:

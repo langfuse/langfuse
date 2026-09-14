@@ -154,7 +154,6 @@ export class ApiAuthService {
               logger.info("No project id found for key", publicKey);
               throw new Error("Invalid credentials");
             }
-
             const plan = finalApiKey.plan;
 
             if (!isPlan(plan)) {

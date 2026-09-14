@@ -58,6 +58,11 @@ this.
 | See all scenarios and flags                                                                                                                      | `pnpm run seed -- list --json`                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Predict without writing                                                                                                                          | add `--dry-run`                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
+For a v4 experiment with chat messages and nested JSON input/output, run
+`pnpm run seed -- experiment-io`. It creates one dataset, one experiment, and
+three items, then prints the experiment results link. Set `NEXTAUTH_URL` to
+your local app URL when using a port other than 3000.
+
 ## Contract
 
 - Last stdout line is a JSON summary: `traceIds`, `sessionIds`, `counts`,

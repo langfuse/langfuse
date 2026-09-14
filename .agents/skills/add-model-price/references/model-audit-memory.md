@@ -12,20 +12,34 @@ audit date.
 
 ## Latest useful snapshot
 
-**Audit date:** 2026-09-02
+**Audit date:** 2026-09-10
 
 All prices listed as `$X / MTok` (per million tokens). Per-token JSON values: divide by 1,000,000.
 
-The 2026-09-02 run re-fetched the full Anthropic pricing table (plus the models-overview
-table, model-deprecations page, and the dedicated Mythos 5.1 page), the full OpenAI
+The 2026-09-10 run re-fetched the full Anthropic pricing table (plus the
+models-overview table), the full OpenAI standard/Fast-mode/Flex pricing tables plus
+the full model catalog page, and both Gemini pricing pages (2.5-family and 3.x-family)
+plus the Gemini models catalog. Every price already in the file — including
+`gpt-6-astra` (added 2026-09-03, not yet reflected in the prior 2026-09-02 snapshot
+below) — matched verbatim; no pricing or catalog changes were made. This run also
+ran the deterministic validator's `--usage-key-model` check against **every** model in
+the file at once (not just changed entries) — see unresolved finding #11 below for the
+pre-existing alias-coverage gaps that full sweep surfaced. All rows below except the
+new `gpt-6-astra` row are carried over unchanged from the 2026-09-02 snapshot, which
+itself re-fetched the full Anthropic pricing table (plus the models-overview table,
+model-deprecations page, and the dedicated Mythos 5.1 page), the full OpenAI
 standard/Fast-mode/Flex pricing tables (plus dedicated pages for `gpt-5.6-sol`,
 `gpt-5.3-codex`, and `gpt-5.6-cyber`), and the Gemini AI Studio pricing/models pages
-(with explicit Free/Paid column separation). Three new models were found and added:
-`claude-fable-5-1`, `claude-mythos-5-1`, and `gemini-3.8-flash`. One existing entry
-gained a previously undocumented tier: `gpt-5.3-codex` (Fast mode). One specialized
-model was found and deliberately left unadded: `gpt-5.6-cyber` (restricted
-cybersecurity endpoint, Daybreak-program-gated). All other checked rows were
-reconfirmed unchanged from the 2026-08-24 snapshot.
+(with explicit Free/Paid column separation). That run found and added
+`claude-fable-5-1`, `claude-mythos-5-1`, and `gemini-3.8-flash`; gave `gpt-5.3-codex`
+a previously undocumented Fast mode tier; and found but deliberately left unadded
+`gpt-5.6-cyber` (restricted cybersecurity endpoint, Daybreak-program-gated — now known
+to have siblings `gpt-5.5-cyber`/`gpt-5.4-cyber`, see provider-sources-and-price-keys.md's
+2026-09-10 entry).
+
+| Provider | Model / pricing entry | Pricing checked | Price confirmed | Tiering checked | Tiering correct | Change | Official source(s) | Comments |
+| -------- | --------------------- | --------------- | --------------- | --------------- | --------------- | ------ | ------------------- | -------- |
+| OpenAI | gpt-6-astra | Input $10/MTok, Cached $1/MTok, Cache write $12.50/MTok, Output $50/MTok | Yes | Large Context (>272K) 2x/2x/2x/1.5x; Fast mode 2x base; Flex 0.5x base | Yes | None | https://developers.openai.com/api/docs/pricing https://developers.openai.com/api/docs/models/gpt-6-astra | Added 2026-09-03, re-confirmed unchanged 2026-09-10. Six-tier gpt-5.6-sol-style key set. |
 
 | Provider | Model / pricing entry | Pricing checked | Price confirmed | Tiering checked | Tiering correct | Change | Official source(s) | Comments |
 | -------- | --------------------- | --------------- | --------------- | --------------- | --------------- | ------ | ------------------ | -------- |
@@ -172,3 +186,38 @@ reconfirmed unchanged from the 2026-08-24 snapshot.
     matching pricing entry — retired/experimental IDs with no official pricing page
     entry, not a new finding. Not re-run this cycle (no new selectable model was added to
     `types.ts` outside the ones this audit itself added, which do have matching entries).
+
+11. **Pre-existing usage-key alias-coverage gaps found via a full-file validator sweep
+    (2026-09-10)** — Running `validate-pricing-file.mjs` with `--usage-key-model`
+    supplied for every model in the file at once (not just changed entries) surfaces
+    structural alias-family gaps on legacy entries that were never touched by an alias
+    fix. None of these were changed this run — no official pricing evidence prompted an
+    edit, and backfilling dozens of unrelated legacy entries in one audit would not be a
+    surgical, evidence-driven change. Confirmed gaps as of 2026-09-10:
+    - **Anthropic input/output missing the `_tokens` alias**: `claude-1.1`, `claude-1.2`,
+      `claude-1.3`, `claude-2.0`, `claude-2.1`, `claude-instant-1`, `claude-instant-1.2`,
+      `claude-3-opus-20240229`, `claude-3-haiku-20240307` have only `input`/`output`, not
+      `input_tokens`/`output_tokens`.
+    - **Gemini input/output missing every non-`input`/`output` alias**: `gemini-1.0-pro`,
+      `gemini-1.0-pro-001`, `gemini-1.0-pro-latest`, `gemini-pro`, `gemini-1.5-pro-latest`,
+      `gemini-2.0-flash`, `gemini-2.0-flash-001`, `gemini-2.0-flash-lite-preview`,
+      `gemini-2.0-flash-lite-preview-02-05` have only `input`/`output`, not
+      `input_text`/`input_modality_1`/`prompt_token_count`/`promptTokenCount` (and the
+      output equivalents). `gemini-live-2.5-flash-native-audio` additionally lacks even
+      the bare `input`/`output` keys (it uses modality-specific
+      `input_text`/`input_audio`/`input_image`/`output_text`/`output_audio` only, which
+      may be correct for a live/audio model rather than a genuine gap — not re-derived
+      this run).
+    - **OpenAI reasoning models missing the `reasoning_tokens` alias**: `o1`, `o1-2024-12-17`,
+      `o1-preview`, `o1-preview-2024-09-12`, `o1-mini`, `o1-mini-2024-09-12`, `o3-mini`,
+      `o3-mini-2025-01-31`, `o3-pro`, `o3-pro-2025-06-10`, `o1-pro`, `o1-pro-2025-03-19`,
+      `gpt-5-pro`, `gpt-5-pro-2025-10-06`, `gpt-5.2-pro`, `gpt-5.2-pro-2025-12-11`,
+      `gpt-5-chat-latest` have `output_reasoning_tokens`/`output_reasoning` but not the
+      third `reasoning_tokens` alias. `o1`-family and `o1-preview`/`o1-mini` additionally
+      lack the `cache_read_input_tokens` alias (only have `input_cached_tokens`/
+      `input_cache_read`), as does `gpt-5-chat-latest`. `gpt-4.5-preview` and its dated
+      snapshot lack `cache_read_input_tokens` too.
+    Treat this as a standing, documented backlog rather than something to silently patch
+    inside an unrelated price-confirmation audit; a future task that explicitly scopes
+    "backfill legacy alias coverage" should address it deliberately, entry by entry,
+    rather than as an audit side-effect.

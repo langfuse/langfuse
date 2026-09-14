@@ -546,6 +546,54 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   generation, embedding, native-audio, text-to-speech, and robotics endpoints, none a
   general-purpose text/chat model with standard per-token text pricing, so none were
   added, consistent with the existing modality-specific skip rule.
+- **September 9 2026 audit: full re-fetch found no price or catalog drift; Gemma
+  confirmed free-only; AWS Bedrock Amazon Nova confirmed a pre-existing, not
+  newly released, coverage gap** — Re-fetched the full Anthropic pricing table
+  (plus the models overview table), the OpenAI aggregate Standard/Fast-mode/Flex
+  pricing tables, both Gemini pricing pages (`ai.google.dev/gemini-api/docs/pricing`
+  for the 3.x family, `ai.google.dev/pricing` implicitly re-confirmed via the 2.5
+  family rows), the Gemini models catalog page, and the AWS Bedrock pricing page.
+  Every price already in the file — including all `gpt-6-astra` and `gemini-3.8-flash`
+  tiers — matched verbatim; no updates were needed. Two clarifications: (1) a
+  targeted fetch of the official pricing page confirms `Gemma 4` (and the Gemma
+  family generally) is listed with "Input price: Free of charge | Output price:
+  Free of charge" and "Paid Tier ... Not available" — it has no hosted per-token
+  API pricing on Google's own page, so it is out of scope for a Langfuse default
+  pricing entry (not merely unchecked); (2) AWS Bedrock's pricing page prominently
+  lists **Amazon Nova** as a foundation-model family, but `types.ts` and the
+  pricing file have never had a Nova entry — this is a pre-existing gap (Nova
+  launched in Dec 2024, well before this audit's history), not a newly released
+  model this run. Adding Nova would require its own model-ID/matchPattern and
+  Bedrock usage-key research (Nova is not an Anthropic-format model, per the
+  "Other Bedrock models" section below) and was left as a reportable gap rather
+  than a surgical same-run addition. Also reconfirmed the AWS Bedrock "Claude 3.5
+  Sonnet (Public Extended Access)" pricing is unchanged ($6.00/$30.00 input/output,
+  $7.50/$0.60 cache write/read) — same documented, non-representable limitation
+  as before. The Gemini models catalog also still lists the same image-generation
+  (`gemini-3.1-flash-image`, `gemini-3.1-flash-lite-image`, `gemini-3-pro-image`),
+  audio/TTS/translate, robotics, and agent-product waves noted in the September 6
+  and September 8 2026 entries above — no new modality-specific model needed
+  re-investigation.
+- **September 10 2026 audit: full re-fetch found no price or catalog drift;
+  OpenAI Daybreak cybersecurity family confirmed to include more than
+  `gpt-5.6-cyber`** — Re-fetched the full Anthropic pricing table plus the
+  models-overview table, the OpenAI aggregate Standard/Fast-mode/Flex pricing
+  tables plus the full model catalog (`developers.openai.com/api/docs/models/all`),
+  and both Gemini pricing pages (`ai.google.dev/gemini-api/docs/pricing` for the
+  3.x family, `ai.google.dev/pricing` for the 2.5 family) plus the Gemini models
+  catalog page. Every price already in the file — including every `gpt-6-astra`,
+  `gemini-3.8-flash`, `claude-fable-5-1`/`claude-mythos-5-1`, and `gpt-5.3-codex`
+  tier — matched verbatim; no updates were needed. One clarification: the OpenAI
+  model catalog groups `gpt-5.6-cyber` together with previously-unseen
+  `gpt-5.5-cyber` and `gpt-5.4-cyber` under a "Cyber/Daybreak models" heading, and
+  separately lists `gpt-oss-120b`/`gpt-oss-20b` as open-weight (self-hosted, no
+  OpenAI-hosted per-token price) models. Per the existing `gpt-5.6-cyber` scope
+  exclusion (gated Daybreak-program endpoint), `gpt-5.5-cyber` and `gpt-5.4-cyber`
+  are the same class of restricted, specialized-use endpoint and were not added;
+  no pricing was visible for either in this run's fetch, so there is nothing to
+  add even if the scope exclusion were lifted. Treat the whole Daybreak cyber
+  family (currently three members) as one standing scope exclusion rather than
+  re-investigating each member separately in future audits.
 
 Capture:
 

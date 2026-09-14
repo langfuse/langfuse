@@ -4,12 +4,33 @@ import { DatasetRunItemsByItemTable } from "@/src/features/datasets/components/D
 import { DATASET_ITEM_TABS } from "@/src/features/navigation/utils/dataset-item-tabs";
 import { DatasetItemDetailPage } from "@/src/features/datasets/components/DatasetItemDetailPage";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import {
+  RouteParamsPendingFallback,
+  useReadyRouteParams,
+} from "@/src/hooks/useReadyRouteParams";
 
-function DatasetItemRuns() {
+export default function DatasetItemRunsPage() {
+  const route = useReadyRouteParams(["projectId", "datasetId", "itemId"]);
+  if (!route.ready) return <RouteParamsPendingFallback />;
+  return (
+    <DatasetItemRuns
+      projectId={route.params.projectId}
+      datasetId={route.params.datasetId}
+      itemId={route.params.itemId}
+    />
+  );
+}
+
+function DatasetItemRuns({
+  projectId,
+  datasetId,
+  itemId,
+}: {
+  projectId: string;
+  datasetId: string;
+  itemId: string;
+}) {
   const router = useRouter();
-  const projectId = router.query.projectId as string;
-  const datasetId = router.query.datasetId as string;
-  const itemId = router.query.itemId as string;
 
   // The per-item runs view reads legacy dataset_run_items and has no
   // events-backed equivalent, so fast-preview (v4) users are redirected back to
@@ -44,5 +65,3 @@ function DatasetItemRuns() {
     </DatasetItemDetailPage>
   );
 }
-
-export default DatasetItemRuns;

@@ -114,15 +114,15 @@ export function ResetPasswordPage({
 
       let target =
         isSetMode && isLangfuseCloud && region !== "DEV" ? "/onboarding" : "/";
-      if (session.status !== "authenticated") {
-        const signInResult = await signIn("credentials", {
-          email: effectiveEmail,
-          password: values.password,
-          redirect: false,
-        });
-        if (!signInResult?.ok) {
-          target = "/auth/sign-in";
-        }
+      // A password update revokes every existing JWT, including this
+      // browser's, so the current session always has to be re-established.
+      const signInResult = await signIn("credentials", {
+        email: effectiveEmail,
+        password: values.password,
+        redirect: false,
+      });
+      if (!signInResult?.ok) {
+        target = "/auth/sign-in";
       }
 
       setIsSuccess(true);

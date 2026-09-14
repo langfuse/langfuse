@@ -7,6 +7,13 @@ export const featurePreviewFlags = [
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
 
+const restrictedFlags = ["aiGateway"] as const;
+
+type RestrictedFlag = (typeof restrictedFlags)[number];
+
+export const isRestrictedFlag = (flag: string): flag is RestrictedFlag =>
+  restrictedFlags.some((restrictedFlag) => restrictedFlag === flag);
+
 export const isFeaturePreviewFlag = (
   flag: string,
 ): flag is FeaturePreviewFlag =>
@@ -42,10 +49,14 @@ export const isFeaturePreviewAvailable = (
 
 export const availableFlags = [
   ...featurePreviewFlags,
+  ...restrictedFlags,
   "searchBar",
   "templateFlag",
   "excludeClickhouseRead",
   "v4BetaToggleVisible",
   "observationEvals",
   "experimentsV4Enabled",
+  // Internal flag (deliberately NOT in featurePreviewFlags): gates the
+  // redesigned compact session timeline for admins/flagged users only.
+  "sessionTimeline",
 ] as const;

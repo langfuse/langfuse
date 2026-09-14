@@ -33,7 +33,7 @@ import {
 import {
   SESSION_DETAIL_SYSTEM_PRESETS,
   getSessionDetailPresetToApply,
-} from "@/src/features/annotation-queues/components/session/session-detail-presets";
+} from "@/src/features/sessions";
 import {
   buildManagedEnvironmentPolicyConfig,
   buildImplicitEnvironmentFilter,

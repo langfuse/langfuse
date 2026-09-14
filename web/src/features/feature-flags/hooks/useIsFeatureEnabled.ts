@@ -1,4 +1,5 @@
 import { useSession } from "next-auth/react";
+import { isRestrictedFlag } from "../available-flags";
 import type { Flag } from "../types";
 import { getContextualFeatureFlags } from "../utils";
 
@@ -26,6 +27,10 @@ export default function useIsFeatureEnabled(
       projectId,
       organizationId,
     })?.[feature] ?? false;
+
+  if (isRestrictedFlag(feature)) {
+    return isFeatureEnabledOnUser;
+  }
 
   return (
     isExperimentalFeaturesEnabled ||
