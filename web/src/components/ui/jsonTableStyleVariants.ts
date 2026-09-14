@@ -83,12 +83,20 @@ function isLongOrMultiline(value: unknown): boolean {
   );
 }
 
+/** Children inspected per level when probing depth. Keeps the shape check
+    O(1) on huge payloads: a wide, shallow object is judged from its first
+    children, never from all of them. */
+const SHAPE_SCAN_CHILDREN = 32;
+
 /** True when `value` nests `levels` or more container levels (itself
-    included). Stops walking as soon as the bound is reached. */
+    included). Stops walking as soon as the bound is reached and never looks
+    past the first `SHAPE_SCAN_CHILDREN` children of a level. */
 function nestsAtLeast(value: unknown, levels: number): boolean {
   if (value === null || typeof value !== "object") return false;
   if (levels <= 1) return true;
-  const children = Array.isArray(value) ? value : Object.values(value);
+  const children = Array.isArray(value)
+    ? value.slice(0, SHAPE_SCAN_CHILDREN)
+    : Object.values(value).slice(0, SHAPE_SCAN_CHILDREN);
   return children.some((child) => nestsAtLeast(child, levels - 1));
 }
 
