@@ -125,6 +125,11 @@ patchedDependencies:
   # runs), e.g. opening a row-actions dropdown while a table re-renders.
   # Still unfixed upstream as of 1.1.19; remove once Radix guards focusFirst.
   '@radix-ui/react-roving-focus@1.1.11': patches/@radix-ui__react-roving-focus@1.1.11.patch
+  # Select typeahead schedules nextItem.ref.current.focus() in a setTimeout.
+  # If the item unmounts before the timeout (dynamic option lists, closing the
+  # menu, a sibling field remounting items), the ref is null and throws.
+  # Fixed upstream in 2.3.7; remove this patch when we bump.
+  '@radix-ui/react-select@2.2.6': patches/@radix-ui__react-select@2.2.6.patch
   next-auth@4.24.15: patches/next-auth@4.24.15.patch
   # The document-level drag handlers crash when a panel group unmounts
   # mid-drag: setPointerCapture on the detached separator throws

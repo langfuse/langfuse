@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
@@ -18,13 +19,6 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import { TriangleAlert } from "lucide-react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -105,25 +99,16 @@ export function TransferProjectDialogContent({
                 <FormItem>
                   <FormLabel>Select New Organization</FormLabel>
                   <FormControl>
-                    <Select
+                    <SelectInput
                       onValueChange={field.onChange}
                       value={field.value}
                       disabled={isPending}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select organization" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {organizations.map((organization) => (
-                          <SelectItem
-                            key={organization.id}
-                            value={organization.id}
-                          >
-                            {organization.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Select organization"
+                      options={organizations.map((organization) => ({
+                        value: organization.id,
+                        label: organization.name,
+                      }))}
+                    />
                   </FormControl>
                   <FormDescription>
                     Transfer this project to another organization where you have
