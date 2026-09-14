@@ -214,6 +214,11 @@ export function getInAppAgentReasoningProviderOptions(
             type: "adaptive" as const,
             display: "summarized" as const,
           },
+          // Adaptive thinking only engages when an effort level accompanies
+          // it; without this the model silently answers with no thinking at
+          // all. These models also reject thinking.type.enabled outright.
+          // The provider maps this onto the wire `output_config.effort`.
+          effort: "medium" as const,
         },
       };
     }

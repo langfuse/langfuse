@@ -1,5 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// Vertex exchanges application default credentials for an OAuth token through
+// google-auth-library before issuing the model request. worker/vitest.config.ts
+// inlines the vertex provider so this mock reaches the copy it resolves.
+vi.mock("google-auth-library", () => ({
+  GoogleAuth: class {
+    getClient = async () => ({
+      getAccessToken: async () => ({ token: "fake-gcp-token" }),
+    });
+    getProjectId = async () => "adc-project";
+  },
+}));
+
+// The project lookup runs inside shared, which resolves its own copy of
+// google-auth-library and would otherwise reach a developer's real gcloud ADC
+// (and fail outright wherever no credentials exist).
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
+  resolveVertexProjectIdFromADC: async () => "adc-project",
+}));
+
 import { env } from "@langfuse/shared/src/env";
 import {
   createInAppAgentLanguageModel,
@@ -390,6 +410,97 @@ function userPrompt() {
     },
   ];
 }
+
+describe("getInAppAgentReasoningProviderOptions on Vertex", () => {
+  // Claude on Vertex runs the Anthropic Messages model, so it takes the same
+  // canonical "anthropic" provider options as the direct Anthropic path even
+  // though the provider name is "vertex.anthropic.messages".
+  it.each([
+    "claude-sonnet-4-5@20250929",
+    "claude-opus-4-8",
+    "claude-haiku-4-5@20251001",
+  ])("returns adaptive summarized thinking for %s", (modelId) => {
+    expect(
+      getInAppAgentReasoningProviderOptions({
+        provider: "vertex",
+        modelId,
+        titleModelId: modelId,
+        location: "us-east5",
+      }),
+    ).toEqual({
+      anthropic: {
+        thinking: { type: "adaptive", display: "summarized" },
+        effort: "medium",
+      },
+    });
+  });
+
+  it("returns undefined for a Gemini model", () => {
+    expect(
+      getInAppAgentReasoningProviderOptions({
+        provider: "vertex",
+        modelId: "gemini-2.5-pro",
+        titleModelId: "gemini-2.5-flash",
+      }),
+    ).toBeUndefined();
+  });
+});
+
+describe("Vertex Claude request shape", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps adaptive summarized thinking on the Vertex rawPredict body", async () => {
+    // Claude on Vertex is the Anthropic Messages model behind a rawPredict
+    // URL: the version moves into the body and the model into the URL. Capture
+    // the real SDK request so a provider change that drops thinking.display —
+    // or the ADC-resolved project — fails here rather than in production.
+    const config = {
+      provider: "vertex" as const,
+      modelId: "claude-sonnet-4-5@20250929",
+      titleModelId: "gemini-2.5-flash",
+      location: "us-east5",
+    };
+    const { calls, fetch } = createCaptureFetch({
+      id: "msg_1",
+      type: "message",
+      role: "assistant",
+      model: config.modelId,
+      content: [{ type: "text", text: "ok" }],
+      stop_reason: "end_turn",
+      stop_sequence: null,
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const model = await createInAppAgentLanguageModel({ config });
+    await model.doGenerate({
+      prompt: [
+        {
+          role: "user",
+          content: [{ type: "text", text: "hi" }],
+        },
+      ],
+      providerOptions: getInAppAgentReasoningProviderOptions(config),
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(decodeURIComponent(calls[0]?.url ?? "")).toBe(
+      "https://us-east5-aiplatform.googleapis.com/v1/projects/adc-project/locations/us-east5/publishers/anthropic/models/claude-sonnet-4-5@20250929:rawPredict",
+    );
+    expect(calls[0]?.body.thinking).toEqual({
+      type: "adaptive",
+      display: "summarized",
+    });
+    // Adaptive thinking is inert without an effort level: the model answers
+    // with no thinking at all, and these models reject thinking.type.enabled,
+    // so this field is what actually turns reasoning on.
+    expect(calls[0]?.body.output_config).toEqual({ effort: "medium" });
+    expect(calls[0]?.body.anthropic_version).toBeTruthy();
+    expect(calls[0]?.body.model).toBeUndefined();
+  });
+});
 
 function createCaptureFetch(response: unknown) {
   const calls: Array<{
