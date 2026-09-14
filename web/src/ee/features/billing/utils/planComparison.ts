@@ -471,6 +471,11 @@ const capabilityDiff = (
         polarity,
         text: "Negotiated usage rate on yearly terms",
       });
+    } else if (from.usageModel === "negotiated") {
+      lines.push({
+        polarity,
+        text: `${formatCount(to.includedUnits)} units included, then $8 / 100k, lower with increasing usage`,
+      });
     }
   }
 

@@ -184,6 +184,10 @@ function BillingSwitchPlanDialogContent() {
               key={displayTier}
               displayTier={displayTier}
               currentTier={currentTier}
+              hobbyPlanLimit={
+                organization?.cloudConfig?.monthlyObservationLimit ??
+                MAX_EVENTS_FREE_PLAN
+              }
               teamsAddonOn={teamsAddonOn}
               onTeamsAddonChange={(enabled) => {
                 setTeamsAddonOn(enabled);
@@ -211,6 +215,7 @@ function BillingSwitchPlanDialogContent() {
 function PlanCard({
   displayTier,
   currentTier,
+  hobbyPlanLimit,
   teamsAddonOn,
   onTeamsAddonChange,
   memberCount,
@@ -227,6 +232,7 @@ function PlanCard({
 }: {
   displayTier: DisplayPlanTier;
   currentTier: PlanTier;
+  hobbyPlanLimit: number;
   teamsAddonOn: boolean;
   onTeamsAddonChange: (enabled: boolean) => void;
   memberCount?: number;
@@ -272,7 +278,7 @@ function PlanCard({
 
   const usageLabel =
     displayTier === "hobby"
-      ? `${MAX_EVENTS_FREE_PLAN.toLocaleString("en-US")} units included`
+      ? `${hobbyPlanLimit.toLocaleString("en-US")} units included`
       : `${PAID_PLAN_INCLUDED_UNITS.toLocaleString("en-US")} units included`;
 
   const usageDetail =
@@ -289,7 +295,7 @@ function PlanCard({
       )}
     >
       <div className="mb-3 flex min-h-6 items-start justify-end gap-1">
-        {isCurrentDisplay ? (
+        {isCurrentTarget ? (
           <Badge variant="secondary" size="sm">
             Current plan
           </Badge>

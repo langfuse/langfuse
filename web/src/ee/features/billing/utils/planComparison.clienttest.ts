@@ -104,6 +104,19 @@ describe("planComparison", () => {
     );
   });
 
+  it("describes leaving negotiated Enterprise usage when moving to Core", () => {
+    const comparison = getPlanComparison({
+      currentTier: "enterprise",
+      targetTier: "core",
+    });
+
+    expect(comparison.lines.map((line) => line.text)).toEqual(
+      expect.arrayContaining([
+        "100,000 units included, then $8 / 100k, lower with increasing usage",
+      ]),
+    );
+  });
+
   it("lists Enterprise-only additions over Pro + Teams", () => {
     const comparison = getPlanComparison({
       currentTier: "team",
