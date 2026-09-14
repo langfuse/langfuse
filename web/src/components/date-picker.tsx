@@ -516,9 +516,14 @@ export function TimeRangePicker({
       }
       // Custom range - show calendar icon and date range
       return (
-        <div className="flex items-center gap-2">
-          <CalendarIcon className="h-4 w-4" />
-          <span>{customLabel}</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <CalendarIcon className="h-4 w-4 @max-[42rem]/pageheader:hidden" />
+          <span
+            className="@max-[42rem]/pageheader:truncate"
+            title={customLabel}
+          >
+            {customLabel}
+          </span>
         </div>
       );
     } else if (rangeType === "named") {
@@ -537,11 +542,13 @@ export function TimeRangePicker({
         );
       }
       return (
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <span className="bg-muted h-5 w-10 rounded px-1.5 text-center text-xs leading-5">
             {setting?.abbreviation || namedRangeValue}
           </span>
-          <span>{setting?.label || namedRangeValue}</span>
+          <span className="@max-[42rem]/pageheader:hidden">
+            {setting?.label || namedRangeValue}
+          </span>
         </div>
       );
     }
@@ -573,6 +580,7 @@ export function TimeRangePicker({
               // Let the trigger shrink below content so the label truncates in
               // a tight header instead of widening the row.
               compact && "min-w-0",
+              "@max-[42rem]/pageheader:min-w-0",
               triggerClassName,
             )}
           >

@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
+import {
+  registerExclusiveRightPanel,
+  resetExclusiveRightPanelsForTests,
+} from "@/src/components/layouts/app-layout/right-drawer/exclusiveRightPanels";
 import {
   SupportDrawerProvider,
   useSupportDrawer,
@@ -12,6 +16,20 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 );
 
 describe("SupportDrawerProvider", () => {
+  beforeEach(() => {
+    resetExclusiveRightPanelsForTests();
+  });
+
+  it("closes the assistant when the support drawer opens", () => {
+    const closeAssistant = vi.fn();
+    registerExclusiveRightPanel("assistant", closeAssistant);
+    const { result } = renderHook(() => useSupportDrawer(), { wrapper });
+
+    act(() => result.current.setOpen(true));
+
+    expect(closeAssistant).toHaveBeenCalledTimes(1);
+  });
+
   it("bumps openEpoch and reseeds on closed→open", () => {
     const { result } = renderHook(() => useSupportDrawer(), { wrapper });
     const epochBefore = result.current.openEpoch;

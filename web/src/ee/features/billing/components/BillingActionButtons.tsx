@@ -4,7 +4,6 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
-import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { StripeCustomerPortalButton } from "./StripeCustomerPortalButton";
 import { BillingSwitchPlanDialog } from "./BillingSwitchPlanDialog";
 import { useBillingInformation } from "./useBillingInformation";
@@ -18,7 +17,6 @@ export const BillingActionButtons = () => {
     isLoading,
   } = useBillingInformation();
   const { setOpen } = useSupportDrawer();
-  const { setOpen: setMigrationPanelOpen } = useV4MigrationPanel();
 
   // Show pricing page button
   const shouldDisableChangePlan = useMemo(() => {
@@ -35,7 +33,6 @@ export const BillingActionButtons = () => {
         <Button
           variant="secondary"
           onClick={() => {
-            setMigrationPanelOpen(false);
             setOpen(true);
           }}
         >

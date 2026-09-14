@@ -101,33 +101,33 @@ const PageHeader = ({
         >
           <div
             className={cn(
-              // No extra vertical padding: min-h-11 + border-b already is
-              // the 44px box. Extra py would grow the row past the sidebar
-              // strip (border-box counts padding inside min-height, then
-              // 32px controls no longer fit). justify-between (not ml-auto
-              // on the slot) so the controls sit right when the row fits on
-              // one line but fall back to the LEFT edge when they wrap to
-              // their own line on narrow viewports (a line with a single
-              // flex item renders as flex-start).
-              "flex h-full w-full flex-wrap items-center justify-between gap-3 px-3 leading-none",
+              // Named container so chrome controls compact from remaining
+              // pane width (docked right rail) rather than the viewport.
+              // min-h-11 matches the sidebar logo strip. At genuinely narrow
+              // panes, keep the complete breadcrumb cluster on the first row
+              // and move the controls below it; this prevents the project
+              // selector from wrapping before the controls do.
+              "@container/pageheader flex min-h-11 w-full min-w-0 flex-wrap items-center justify-between gap-2 px-3 leading-none",
               container && containerLayoutClassName,
             )}
           >
-            <div className="flex min-h-5 min-w-0 flex-wrap items-center gap-3">
+            <div className="flex min-h-5 min-w-0 flex-1 flex-wrap items-center gap-2 @max-[28rem]/pageheader:w-full @max-[28rem]/pageheader:flex-none">
               {showSidebarChrome ? (
                 <>
-                  <SidebarTrigger />
+                  <SidebarTrigger className="shrink-0" />
                   {/* Brand the app in the top bar while the sidebar (which
                       owns the logo) is off-canvas below `md`. Hidden on
                       desktop where the sidebar logo is visible. */}
-                  <TopbarBrand className="md:hidden" />
+                  <TopbarBrand className="shrink-0 md:hidden" />
                 </>
               ) : (
                 leadingControl && (
-                  <div className="flex items-center">{leadingControl}</div>
+                  <div className="flex shrink-0 items-center">
+                    {leadingControl}
+                  </div>
                 )
               )}
-              <div>
+              <div className="shrink-0">
                 {envLabel.visible && (
                   <EnvLabelBadge
                     region={envLabel.region}
@@ -135,7 +135,7 @@ const PageHeader = ({
                   />
                 )}
               </div>
-              <div className="flex translate-y-px items-center gap-2">
+              <div className="flex min-w-0 flex-1 translate-y-px items-center gap-2">
                 <BreadcrumbComponent items={breadcrumb} />
                 {breadcrumbBadges}
               </div>
@@ -143,7 +143,7 @@ const PageHeader = ({
             {/* Slot for page-level controls (time range, auto-refresh)
                 hoisted from a list table via PageHeaderControlsPortal.
                 Empty on pages that don't use it. */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2">
               <PageHeaderControlsSlotTarget />
               <InAppAiAgentButton />
             </div>

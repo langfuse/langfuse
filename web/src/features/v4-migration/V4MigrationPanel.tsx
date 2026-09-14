@@ -59,7 +59,7 @@ export const V4MigrationPanel = ({
       {showCloseButton && (
         <Button
           variant="ghost"
-          size="icon"
+          size="icon-xs"
           className="absolute top-2 right-2"
           onClick={() => setOpen(false)}
           aria-label="Close"

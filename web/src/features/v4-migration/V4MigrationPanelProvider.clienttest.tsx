@@ -4,6 +4,10 @@ import { act, renderHook } from "@testing-library/react";
 import { vi } from "vitest";
 
 import {
+  registerExclusiveRightPanel,
+  resetExclusiveRightPanelsForTests,
+} from "@/src/components/layouts/app-layout/right-drawer/exclusiveRightPanels";
+import {
   V4MigrationPanelProvider,
   useV4MigrationPanel,
 } from "./V4MigrationPanelProvider";
@@ -31,6 +35,23 @@ describe("V4MigrationPanelProvider", () => {
   beforeEach(() => {
     flagState.enabled = false;
     captureMock.mockClear();
+    resetExclusiveRightPanelsForTests();
+  });
+
+  it("closes the assistant when the migration panel opens", () => {
+    flagState.enabled = true;
+    const closeAssistant = vi.fn();
+    registerExclusiveRightPanel("assistant", closeAssistant);
+    const { result } = renderHook(() => useV4MigrationPanel(), { wrapper });
+
+    act(() =>
+      result.current.openForProject(
+        { id: "project-id", name: "Project" },
+        "sidebar_card",
+      ),
+    );
+
+    expect(closeAssistant).toHaveBeenCalledTimes(1);
   });
 
   it("refuses to open when the user flag is disabled", () => {
