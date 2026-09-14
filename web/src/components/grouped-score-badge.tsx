@@ -39,6 +39,18 @@ const EvaluatorGroupBadge = <T extends ChipScore>({
   onClick?: () => void;
 }) => {
   const metricCount = new Set(group.scores.map((score) => score.name)).size;
+  // Average over the numeric metrics only; categorical and boolean values
+  // have no mean. Absent when the group has no numeric value at all.
+  const numericValues = group.scores.flatMap((score) =>
+    score.dataType === "NUMERIC" && typeof score.value === "number"
+      ? [score.value]
+      : [],
+  );
+  const average =
+    numericValues.length > 0
+      ? numericValues.reduce((sum, value) => sum + value, 0) /
+        numericValues.length
+      : null;
   const levels = showLevels
     ? Array.from(
         new Set(group.scores.map((score) => scoreLevelFromScore(score))),
@@ -53,14 +65,16 @@ const EvaluatorGroupBadge = <T extends ChipScore>({
         )}
         title={group.label}
       >
-        {group.label}
+        {group.label}({metricCount})
       </span>
-      <span className="text-muted-foreground text-nowrap tabular-nums">
-        · {metricCount}
-      </span>
+      {average !== null ? (
+        <span className="text-muted-foreground text-nowrap tabular-nums">
+          avg {average.toFixed(2)}
+        </span>
+      ) : null}
     </>
   );
-  const ariaLabel = `Open scores, ${group.label}, ${metricCount} metrics`;
+  const ariaLabel = `Open scores, ${group.label}, ${metricCount} metrics${average !== null ? `, average ${average.toFixed(2)}` : ""}`;
   // A button only when a click does something; chips render inside clickable
   // rows, so the click must not also select the row.
   const chip = onClick ? (

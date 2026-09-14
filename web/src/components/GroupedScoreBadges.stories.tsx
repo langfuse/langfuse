@@ -111,12 +111,16 @@ export const EvaluatorGroup = meta.story({
     onOverflowClick: fn(),
   },
   play: async ({ canvasElement }) => {
-    // The four metrics are one chip labelled with the prefix and a count...
+    // The four metrics are one chip: prefix, count, mean of the numeric values
+    // (0.2, 0.4, 0.6, 0.8)...
     const group = canvasElement.querySelector(
       '[title="OutputModerationPrecision"]',
     );
     await expect(group).not.toBeNull();
-    await expect(group?.parentElement?.textContent).toContain("· 4");
+    await expect(group?.parentElement?.textContent).toContain(
+      "OutputModerationPrecision(4)",
+    );
+    await expect(group?.parentElement?.textContent).toContain("avg 0.50");
     await expect(
       canvasElement.querySelector('[title="OutputModerationPrecision.pii"]'),
     ).toBeNull();
