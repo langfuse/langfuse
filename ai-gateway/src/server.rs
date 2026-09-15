@@ -13,13 +13,22 @@ use serde::Serialize;
 use tokio::{net::TcpListener, sync::oneshot};
 
 #[derive(Clone, Default)]
-pub struct AppState {
+pub struct GatewayLifecycleState {
     ready: Arc<AtomicBool>,
+    disabled: bool,
 }
 
-impl AppState {
+impl GatewayLifecycleState {
     pub fn is_ready(&self) -> bool {
-        self.ready.load(Ordering::Acquire)
+        !self.disabled && self.ready.load(Ordering::Acquire)
+    }
+
+    /// Keep liveness available without advertising inference readiness.
+    pub fn unconfigured() -> Self {
+        Self {
+            disabled: true,
+            ..Self::default()
+        }
     }
 }
 
@@ -28,30 +37,40 @@ struct Probe {
     status: &'static str,
 }
 
-pub fn router(state: AppState) -> Router {
+pub fn router(state: GatewayLifecycleState) -> Router {
     Router::new()
         .route("/health", get(|| async { Json(Probe { status: "ok" }) }))
         .route("/ready", get(readiness))
         .with_state(state)
 }
 
-async fn readiness(State(state): State<AppState>) -> (StatusCode, Json<Probe>) {
+async fn readiness(State(state): State<GatewayLifecycleState>) -> (StatusCode, Json<Probe>) {
     if state.is_ready() {
         (StatusCode::OK, Json(Probe { status: "ready" }))
     } else {
         (
             StatusCode::SERVICE_UNAVAILABLE,
-            Json(Probe { status: "draining" }),
+            Json(Probe {
+                status: if state.disabled {
+                    "unconfigured"
+                } else {
+                    "draining"
+                },
+            }),
         )
     }
 }
 
 /// Serve an initialized router until shutdown, then bound connection draining.
 /// A timeout must terminate the owning process/runtime to stop remaining tasks.
+///
+/// # Errors
+/// Returns the server's I/O error, or [`io::ErrorKind::TimedOut`] if connections
+/// do not finish draining within `shutdown_timeout`.
 pub async fn serve(
     listener: TcpListener,
     app: Router,
-    state: AppState,
+    state: GatewayLifecycleState,
     shutdown: impl Future<Output = ()> + Send + 'static,
     shutdown_timeout: Duration,
 ) -> io::Result<()> {
@@ -69,7 +88,7 @@ pub async fn serve(
     state.ready.store(true, Ordering::Release);
     let result = tokio::select! {
         result = &mut server => result,
-        _ = async {
+        () = async {
             let _ = draining_rx.await;
             tokio::time::sleep(shutdown_timeout).await;
         } => Err(io::Error::new(io::ErrorKind::TimedOut, "gateway shutdown deadline exceeded")),

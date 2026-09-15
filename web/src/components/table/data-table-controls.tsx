@@ -1107,11 +1107,8 @@ export function DataTableControls({
               </Tooltip>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem
-                  // Enabled also when only value-less added facets exist —
-                  // Clear all is the affordance that demotes them.
-                  disabled={
-                    !queryFilter.isFiltered && revealedColumns.length === 0
-                  }
+                  // Clear also resets unfinished drafts and selected views,
+                  // even when no filter values have been applied.
                   onClick={() => {
                     // Explicit adds are part of "everything" too: without
                     // this, a value-less added facet stays pinned after

@@ -1,5 +1,6 @@
 import { ActionButton } from "@/src/components/ActionButton";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
@@ -15,13 +16,6 @@ import {
   FormItem,
   FormMessage,
 } from "@/src/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 
@@ -111,28 +105,20 @@ export function AddTracesToAnnotationQueueSelectDialogContent({
               name="targetId"
               render={({ field }) => (
                 <FormItem>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value}
-                    disabled={isQueueOptionsLoading}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue
-                          placeholder={
-                            isQueueOptionsLoading ? "Loading..." : "Select..."
-                          }
-                        />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {queueOptions.map((option) => (
-                        <SelectItem key={option.id} value={option.id}>
-                          {option.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <SelectInput
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      disabled={isQueueOptionsLoading}
+                      placeholder={
+                        isQueueOptionsLoading ? "Loading..." : "Select..."
+                      }
+                      options={queueOptions.map((option) => ({
+                        value: option.id,
+                        label: option.name,
+                      }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

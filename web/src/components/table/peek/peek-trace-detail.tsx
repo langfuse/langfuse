@@ -19,9 +19,10 @@ export const TablePeekViewTraceDetail = (
     "children" | "title"
   > & {
     projectId: string;
+    layout?: React.ComponentProps<typeof TraceDetailBody>["layout"];
   },
 ) => {
-  const { projectId } = props;
+  const { projectId, layout, ...tablePeekViewProps } = props;
 
   const router = useRouter();
   const { traceId, timestamp } = resolvePeekTraceParams({
@@ -57,7 +58,7 @@ export const TablePeekViewTraceDetail = (
         timestamp,
         onAfterDelete: (deletedTraceId: string) => {
           if (shouldClosePeekAfterDelete(peekIdRef.current, deletedTraceId)) {
-            props.closePeek();
+            tablePeekViewProps.closePeek();
           }
         },
       }
@@ -65,7 +66,7 @@ export const TablePeekViewTraceDetail = (
 
   return (
     <TablePeekView
-      {...props}
+      {...tablePeekViewProps}
       title={traceDetailTitle(trace.data, traceId)}
       actions={
         actionProps ? <TraceDetailActions {...actionProps} /> : undefined
@@ -79,6 +80,7 @@ export const TablePeekViewTraceDetail = (
       <TraceDetailBody
         trace={trace.data}
         context="peek"
+        layout={layout}
         truncatedAtObservations={trace.truncatedAtObservations}
       />
     </TablePeekView>

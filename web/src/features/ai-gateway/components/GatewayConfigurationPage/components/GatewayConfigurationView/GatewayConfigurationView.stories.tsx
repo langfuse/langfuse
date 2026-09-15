@@ -14,6 +14,7 @@ const projects = [
 export const Enabled = meta.story({
   args: {
     projects,
+    gatewayBaseUrl: "https://gateway.staging.langfuse.com/v1",
     initialProjectId: "project-production",
     initialIngestionMode: "USAGE",
     isSaving: false,
@@ -26,6 +27,7 @@ export const Enabled = meta.story({
 export const MissingProjectWarning = meta.story({
   args: {
     projects,
+    gatewayBaseUrl: "https://gateway.staging.langfuse.com/v1",
     initialProjectId: "deleted-project",
     initialIngestionMode: "FULL",
     isSaving: false,

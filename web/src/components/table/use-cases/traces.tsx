@@ -53,6 +53,7 @@ import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
@@ -90,6 +91,9 @@ import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import { tracesFieldRegistry } from "@/src/features/filters/config/tracingSearchRegistry";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { type TableDateRange } from "@/src/utils/date-range-utils";
 import useSessionStorage from "@/src/components/useSessionStorage";
@@ -106,11 +110,6 @@ import { DialogController } from "@/src/components/ui/dialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { DeleteTraceDialogContent } from "@/src/features/traces/components/DeleteTraceDialogContent";
-import {
-  demoteViewOnUserFilterEdit,
-  type ExplicitFilterStateChange,
-  type ViewDemotionControllers,
-} from "@/src/features/events/lib/demoteViewOnUserFilterEdit";
 
 export type TracesTableRow = {
   // Shown by default
@@ -187,6 +186,10 @@ function TracesTableInternal({
   const hasTraceDeleteAccess = useHasProjectAccess({
     projectId,
     scope: "traces:delete",
+  });
+  const hasBatchExportAccess = useHasProjectAccess({
+    projectId,
+    scope: "batchExports:create",
   });
   const tracesFilterConfig = useMemo(
     () => getTraceFilterConfig(omittedFilter),
@@ -389,19 +392,15 @@ function TracesTableInternal({
   const isSidebarFilterLoading =
     traceFilterOptionsResponse.isPending || environmentFilterOptions.isPending;
 
-  const viewControllersRef = useRef<ViewDemotionControllers | null>(null);
-  const onExplicitFilterStateChange = useCallback(
-    (change: ExplicitFilterStateChange) => {
-      demoteViewOnUserFilterEdit(change, viewControllersRef.current);
-    },
-    [],
-  );
+  const { viewControllersRef, onExplicitFilterStateChange } =
+    useTableViewFilterChange();
 
   const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
       loading: isSidebarFilterLoading,
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
       onExplicitFilterStateChange,
+      isV4: false,
     };
 
     if (peekContext) {
@@ -441,6 +440,10 @@ function TracesTableInternal({
     filterOptions,
     queryFilterOptions,
   );
+  const observedOptions = toObservedOptions(
+    filterOptions,
+    isSidebarFilterLoading,
+  );
 
   const combinedFilterState = queryFilter.effectiveFilterState.concat(
     userIdFilter,
@@ -455,8 +458,6 @@ function TracesTableInternal({
     ? externalFilterState.concat(rowsDateRangeFilter)
     : combinedFilterState;
 
-  const { searchQuery, searchType, setSearchQuery, setSearchType } =
-    useFullTextSearch();
   const legacyTracingSearchConfig = api.public.tracingSearchConfig.useQuery(
     { projectId },
     {
@@ -468,6 +469,14 @@ function TracesTableInternal({
   );
   const legacyTracingIoSearchEnabled =
     legacyTracingSearchConfig.data?.legacyTracingIoSearchEnabled ?? true;
+  const searchRegistry = tracesFieldRegistry(
+    tracesFilterConfig,
+    legacyTracingIoSearchEnabled,
+  );
+  const { searchQuery, searchType, setSearchQuery, setSearchType } =
+    useFullTextSearch({
+      tableAllowsFullTextSearch: legacyTracingIoSearchEnabled,
+    });
 
   const tracesAllCountFilter = {
     projectId,
@@ -843,7 +852,7 @@ function TracesTableInternal({
               {cost ? (
                 <span>{usdFormatter(cost.toNumber())}</span>
               ) : (
-                <span>-</span>
+                <EmptyValue />
               )}
               <InfoIcon className="h-3 w-3" />
             </div>
@@ -1019,7 +1028,6 @@ function TracesTableInternal({
       enableHiding: true,
       enableSorting,
       isLive: false,
-      emptyValue: "-",
       getStatus: (level, { row }) =>
         isMetricPending(row.original.id)
           ? { type: "loading" }
@@ -1105,7 +1113,6 @@ function TracesTableInternal({
           id: "inputCost",
           header: "Input Cost",
           size: 100,
-          emptyValue: "-",
           formatter: (value) => usdFormatter(value),
           getValue: (value, { row }) => {
             if (isMetricPending(row.original.id)) return { type: "loading" };
@@ -1120,7 +1127,6 @@ function TracesTableInternal({
           id: "outputCost",
           header: "Output Cost",
           size: 100,
-          emptyValue: "-",
           formatter: (value) => usdFormatter(value),
           getValue: (value, { row }) => {
             if (isMetricPending(row.original.id)) return { type: "loading" };
@@ -1284,8 +1290,8 @@ function TracesTableInternal({
   });
   viewControllersRef.current = viewControllers;
 
-  const handleSearchQueryChange = (nextQuery: string) => {
-    viewControllers.handleUserStateChange(searchQuery ?? "", nextQuery);
+  const handleSearchQueryChange = (nextQuery: string | null) => {
+    viewControllers.handleUserStateChange(searchQuery ?? "", nextQuery ?? "");
     setSearchQuery(nextQuery);
   };
   const handleSearchTypeChange = (nextType: TracingSearchType[]) => {
@@ -1392,95 +1398,113 @@ function TracesTableInternal({
         )}
         {/* Toolbar spanning full width */}
         {!hideControls && (
-          <DataTableToolbar
-            columns={columns}
-            filterWithAI
-            filterState={queryFilter.explicitFilterState}
-            tableName={tracesFilterConfig.tableName}
-            isV4={false}
-            viewConfig={{
-              tableName: TableViewPresetTableName.Traces,
-              projectId,
-              controllers: viewControllers,
-            }}
-            searchConfig={{
-              metadataSearchFields: ["ID", "Trace Name", "User ID"],
-              updateQuery: handleSearchQueryChange,
-              currentQuery: searchQuery ?? undefined,
-              tableAllowsFullTextSearch: legacyTracingIoSearchEnabled,
-              setSearchType: handleSearchTypeChange,
-              searchType,
-            }}
-            columnsWithCustomSelect={["traceName", "traceTags"]}
-            actionButtons={[
-              selectedTraceIds.length > 0 || selectAll ? (
-                <AddTracesToAnnotationQueueDialogController
-                  key="traces-multi-select-actions"
-                  projectId={projectId}
-                  onSuccess={() => {
-                    setSelectedRows({});
-                    setSelectAll(false);
-                  }}
-                  description={`Add ${displayCount} selected traces to an annotation queue.`}
-                  onAddToQueue={handleAddToAnnotationQueue}
-                >
-                  {({ openDialog }) => (
-                    <TableActionMenu
-                      projectId={projectId}
-                      actions={tableActions}
-                      tableName={BatchExportTableName.Traces}
-                      selectedCount={selectedTraceCount}
-                      onClearSelection={() => {
-                        setSelectedRows({});
-                        setSelectAll(false);
-                      }}
-                      onCustomAction={(actionType) => {
-                        if (actionType === ActionId.TraceAddToAnnotationQueue) {
-                          openDialog();
-                        }
-                      }}
-                    />
-                  )}
-                </AddTracesToAnnotationQueueDialogController>
-              ) : null,
-              <BatchExportTableButton
-                {...{
-                  projectId,
-                  filterState,
-                  orderByState,
-                  searchQuery,
-                  searchType,
-                }}
-                tableName={BatchExportTableName.Traces}
-                key="batchExport"
-              />,
-            ]}
-            orderByState={orderByState}
-            columnVisibility={columnVisibility}
-            setColumnVisibility={handleColumnVisibilityChange}
-            columnOrder={columnOrder}
-            setColumnOrder={handleColumnOrderChange}
-            rowHeight={rowHeight}
-            setRowHeight={setRowHeight}
-            timeRange={showControlsInPageHeader ? undefined : timeRange}
-            setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-            refreshConfig={showControlsInPageHeader ? undefined : refreshConfig}
-            multiSelect={{
-              selectAll,
-              setSelectAll,
-              selectedRowIds: selectedTraceIds,
-              setRowSelection: setSelectedRows,
-              totalCount,
-              ...paginationState,
-            }}
-          />
+          <div className="shrink-0 pb-1.5">
+            <TableSearchBar
+              key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+              projectId={projectId}
+              tableName={tracesFilterConfig.tableName}
+              registry={searchRegistry}
+              filterState={queryFilter.searchBarFilterState}
+              setFilterState={queryFilter.setFilterState}
+              observed={observedOptions}
+              isV4={false}
+              search={{
+                query: searchQuery,
+                type: searchType,
+                setQuery: handleSearchQueryChange,
+                setType: handleSearchTypeChange,
+              }}
+            />
+            <DataTableToolbar
+              rowClassName="my-1"
+              columns={columns}
+              filterWithAI
+              filterState={queryFilter.explicitFilterState}
+              tableName={tracesFilterConfig.tableName}
+              isV4={false}
+              viewConfig={{
+                tableName: TableViewPresetTableName.Traces,
+                projectId,
+                controllers: viewControllers,
+              }}
+              currentSearchQuery={searchQuery ?? ""}
+              columnsWithCustomSelect={["traceName", "traceTags"]}
+              actionButtons={[
+                selectedTraceIds.length > 0 || selectAll ? (
+                  <AddTracesToAnnotationQueueDialogController
+                    key="traces-multi-select-actions"
+                    projectId={projectId}
+                    onSuccess={() => {
+                      setSelectedRows({});
+                      setSelectAll(false);
+                    }}
+                    description={`Add ${displayCount} selected traces to an annotation queue.`}
+                    onAddToQueue={handleAddToAnnotationQueue}
+                  >
+                    {({ openDialog }) => (
+                      <TableActionMenu
+                        projectId={projectId}
+                        actions={tableActions}
+                        tableName={BatchExportTableName.Traces}
+                        selectedCount={selectedTraceCount}
+                        onClearSelection={() => {
+                          setSelectedRows({});
+                          setSelectAll(false);
+                        }}
+                        onCustomAction={(actionType) => {
+                          if (
+                            actionType === ActionId.TraceAddToAnnotationQueue
+                          ) {
+                            openDialog();
+                          }
+                        }}
+                      />
+                    )}
+                  </AddTracesToAnnotationQueueDialogController>
+                ) : null,
+                hasBatchExportAccess ? (
+                  <BatchExportTableButton
+                    {...{
+                      projectId,
+                      filterState,
+                      orderByState,
+                      searchQuery,
+                      searchType,
+                    }}
+                    tableName={BatchExportTableName.Traces}
+                    key="batchExport"
+                  />
+                ) : null,
+              ]}
+              orderByState={orderByState}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={handleColumnVisibilityChange}
+              columnOrder={columnOrder}
+              setColumnOrder={handleColumnOrderChange}
+              rowHeight={rowHeight}
+              setRowHeight={setRowHeight}
+              timeRange={showControlsInPageHeader ? undefined : timeRange}
+              setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+              refreshConfig={
+                showControlsInPageHeader ? undefined : refreshConfig
+              }
+              multiSelect={{
+                selectAll,
+                setSelectAll,
+                selectedRowIds: selectedTraceIds,
+                setRowSelection: setSelectedRows,
+                totalCount,
+                ...paginationState,
+              }}
+            />
+          </div>
         )}
 
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
           {!hideControls && (
             <DataTableControls
-              key={viewControllers.filterEditorResetKey}
+              key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
               queryFilter={queryFilter}
               filterWithAI
             />

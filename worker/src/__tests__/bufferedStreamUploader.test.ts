@@ -7,8 +7,12 @@ import {
   type ChunkedUploadStrategy,
   type CompletedPart,
 } from "@langfuse/shared/src/server";
-import { S3ChunkedUploadStrategy } from "@langfuse/shared/src/server";
+import {
+  S3ChunkedUploadStrategy,
+  S3_MAX_MULTIPART_PARTS,
+} from "@langfuse/shared/src/server";
 import { logger } from "@langfuse/shared/src/server";
+import { isMultipartPartLimitError } from "../features/blobstorage/partLimitError";
 
 /**
  * Creates a mock ChunkedUploadStrategy that records method calls.
@@ -673,6 +677,50 @@ describe("S3ChunkedUploadStrategy", () => {
 
     return { client: { send } as any, sentCommands };
   }
+
+  describe("part-count limit guard", () => {
+    it("throws a detectable part-limit error before sending an over-limit part", async () => {
+      const mock = createMockS3Client();
+      const strategy = new S3ChunkedUploadStrategy({
+        client: mock.client,
+        bucket: "test-bucket",
+        key: "big-export.parquet",
+        contentType: "application/octet-stream",
+      });
+      await strategy.initialize();
+
+      let thrown: unknown;
+      try {
+        await strategy.uploadPart(Buffer.from("x"), S3_MAX_MULTIPART_PARTS + 1);
+      } catch (e) {
+        thrown = e;
+      }
+
+      expect(thrown).toBeInstanceOf(Error);
+      // The blob export's terminal-failure detector must recognise this wording;
+      // otherwise the buffered path silently retries into truncated success.
+      expect(isMultipartPartLimitError(thrown)).toBe(true);
+      // Guard is pre-flight: no UploadPart for the over-limit part reached S3.
+      expect(
+        mock.sentCommands.some((c) => c.name === "UploadPartCommand"),
+      ).toBe(false);
+    });
+
+    it("allows the last valid part number", async () => {
+      const mock = createMockS3Client();
+      const strategy = new S3ChunkedUploadStrategy({
+        client: mock.client,
+        bucket: "test-bucket",
+        key: "big-export.parquet",
+        contentType: "application/octet-stream",
+      });
+      await strategy.initialize();
+
+      await expect(
+        strategy.uploadPart(Buffer.from("x"), S3_MAX_MULTIPART_PARTS),
+      ).resolves.toBeDefined();
+    });
+  });
 
   describe("S3 command mapping", () => {
     it("should map initialize to CreateMultipartUploadCommand with SSE params", async () => {
