@@ -122,6 +122,150 @@ export const langchainSerializedEnvelopeFixture = {
 } satisfies NormalizedIOFixture;
 
 /**
+ * OpenInference LangChain instrumentation: chat-model runs record the
+ * callback's `messages: List[List[BaseMessage]]` verbatim, so the message
+ * list is nested one level under the batch dimension, with each message a
+ * `dumpd()` constructor envelope and the tool declarations alongside under a
+ * top-level `tools` array. The batch level must be flattened so the inner
+ * messages normalize, and the tool declarations land as tool definitions.
+ */
+export const langchainBatchedMessagesFixture = {
+  name: "normalizes OpenInference LangChain batched (list-of-lists) messages",
+  spanIO: {
+    input: {
+      messages: [
+        [
+          {
+            lc: 1,
+            type: "constructor",
+            id: ["langchain", "schema", "messages", "SystemMessage"],
+            kwargs: {
+              content: "You are a helpful support assistant.",
+              type: "system",
+            },
+          },
+          {
+            lc: 1,
+            type: "constructor",
+            id: ["langchain", "schema", "messages", "SystemMessage"],
+            kwargs: { content: "## Overview", type: "system" },
+          },
+          {
+            lc: 1,
+            type: "constructor",
+            id: ["langchain", "schema", "messages", "HumanMessage"],
+            kwargs: {
+              content: "do you offer obseravility of the moon",
+              type: "human",
+              id: "73mm861f-fe05-4dd1-8c6f-b1321067a231",
+            },
+          },
+        ],
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "get_callback_details",
+            description: "Initiates the callback flow for a customer.",
+            parameters: {
+              type: "object",
+              properties: { phone: { type: "string" } },
+              required: ["phone"],
+            },
+          },
+        },
+      ],
+    },
+    output: undefined,
+    metadata: undefined,
+  },
+  expected: {
+    messages: [
+      {
+        role: "system",
+        parts: [{ type: "text", text: "You are a helpful support assistant." }],
+        source: "input",
+      },
+      {
+        role: "system",
+        parts: [{ type: "text", text: "## Overview" }],
+        source: "input",
+      },
+      {
+        id: "73mm861f-fe05-4dd1-8c6f-b1321067a231",
+        role: "user",
+        parts: [
+          { type: "text", text: "do you offer obseravility of the moon" },
+        ],
+        source: "input",
+      },
+    ],
+    toolDefinitions: [
+      {
+        name: "get_callback_details",
+        description: "Initiates the callback flow for a customer.",
+        inputSchema: {
+          type: "object",
+          properties: { phone: { type: "string" } },
+          required: ["phone"],
+        },
+        type: "function",
+      },
+    ],
+  },
+} satisfies NormalizedIOFixture;
+
+/**
+ * Multiple batches (`[[convA], [convB]]`) hardly occur in practice —
+ * LangChain fans each prompt into its own run/span — but if one appears, the
+ * flat transcript has no batch boundary, so conversations concatenate in
+ * order. Locked as best-effort: visible beats the pre-flatten drop.
+ */
+export const langchainMultiBatchMessagesFixture = {
+  name: "flattens multiple LangChain batches into one transcript",
+  spanIO: {
+    input: {
+      messages: [
+        [
+          {
+            lc: 1,
+            type: "constructor",
+            id: ["langchain", "schema", "messages", "HumanMessage"],
+            kwargs: { content: "Question A", type: "human" },
+          },
+        ],
+        [
+          {
+            lc: 1,
+            type: "constructor",
+            id: ["langchain", "schema", "messages", "HumanMessage"],
+            kwargs: { content: "Question B", type: "human" },
+          },
+        ],
+      ],
+    },
+    output: undefined,
+    metadata: undefined,
+  },
+  expected: {
+    messages: [
+      {
+        role: "user",
+        parts: [{ type: "text", text: "Question A" }],
+        source: "input",
+      },
+      {
+        role: "user",
+        parts: [{ type: "text", text: "Question B" }],
+        source: "input",
+      },
+    ],
+    toolDefinitions: [],
+  },
+} satisfies NormalizedIOFixture;
+
+/**
  * LangChain dict serialization (`.dict()` / LangSmith-style): messages carry
  * `type: "tool"` instead of a `role` key. A ToolMessage dict with a
  * tool_call_id must become a tool-result part — not a text part titled by

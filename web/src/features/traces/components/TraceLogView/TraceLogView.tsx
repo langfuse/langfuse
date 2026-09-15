@@ -9,7 +9,7 @@
  * - Two view modes: chronological (by time) and tree-order (DFS hierarchy)
  * - Search filtering by name, type, or ID
  * - Expandable rows with full I/O preview
- * - Copy/Download JSON functionality
+ * - Copy JSON functionality
  *
  * Uses JSONTableView for table rendering with domain-specific column definitions.
  *
@@ -33,6 +33,8 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
@@ -54,8 +56,28 @@ import { flattenTreeOrder } from "@/src/features/traces/components/TraceLogView/
 export interface TraceLogViewProps {
   traceId: string;
   projectId: string;
-  currentView?: "pretty" | "pretty-beta" | "json" | "json-beta";
+  currentView?: "pretty" | "json" | "json-beta";
+  /** Which detail panel hosts this log view — analytics segmentation only. */
+  target?: "trace" | "observation";
 }
+
+/**
+ * Log View controls reported as `action` on
+ * `trace_detail:log_view_interaction`. Kept as a union so a typo cannot
+ * silently create a new action value in PostHog. `view_mode_switch` is the one
+ * action emitted by the hosting detail views instead — the Formatted/JSON
+ * toggle lives in their tabs bar, not in this subtree.
+ */
+type LogViewAction =
+  | "search_focus"
+  | "indent_toggle"
+  | "milliseconds_toggle"
+  | "expand_all"
+  | "collapse_all"
+  | "row_expand"
+  | "row_collapse"
+  | "copy_json"
+  | "json_mode_collapse_toggle";
 
 // Import configuration constants
 const {
@@ -70,10 +92,27 @@ export const TraceLogView = ({
   traceId,
   projectId,
   currentView = "pretty",
+  target = "trace",
 }: TraceLogViewProps) => {
   const { roots, observations } = useTraceData();
   const { logViewMode, logViewTreeStyle } = useViewPreferences();
   const { formattedExpansion, setFormattedFieldExpansion } = useJsonExpansion();
+  const capture = usePostHogClientCapture();
+  const analyticsDimensions = useTraceAnalyticsDimensions();
+
+  // Single funnel for every Log View control so `action`/`target`/dimensions
+  // can never drift between call sites. Never pass ids or search text.
+  const captureLogView = useCallback(
+    (action: LogViewAction, properties?: Record<string, unknown>) => {
+      capture("trace_detail:log_view_interaction", {
+        action,
+        target,
+        ...properties,
+        ...analyticsDimensions,
+      });
+    },
+    [capture, target, analyticsDimensions],
+  );
 
   // Determine if we should virtualize based on observation count
   const isVirtualized =
@@ -114,6 +153,18 @@ export const TraceLogView = ({
       setFormattedFieldExpansion(expandedRowsKey, newState);
     },
     [expandedKeys, setFormattedFieldExpansion, expandedRowsKey],
+  );
+
+  // Row chevron toggles only. `handleToggleExpandAll` keeps calling the raw
+  // setter so a bulk toggle is not also counted as a row toggle.
+  const handleExpandedKeysChange = useCallback(
+    (keys: Set<string>) => {
+      captureLogView(
+        keys.size > expandedKeys.size ? "row_expand" : "row_collapse",
+      );
+      setExpandedKeys(keys);
+    },
+    [captureLogView, expandedKeys, setExpandedKeys],
   );
 
   // Local state for search
@@ -170,7 +221,6 @@ export const TraceLogView = ({
         <LogViewTreeIndent
           treeLines={item.treeLines}
           isLastSibling={item.isLastSibling}
-          depth={item.node.depth}
         />
       );
     },
@@ -216,6 +266,7 @@ export const TraceLogView = ({
 
   // Toggle expand/collapse all (non-virtualized mode only)
   const handleToggleExpandAll = useCallback(() => {
+    captureLogView(allRowsExpanded ? "collapse_all" : "expand_all");
     if (allRowsExpanded) {
       // Collapse all
       setExpandedKeys(new Set());
@@ -224,7 +275,7 @@ export const TraceLogView = ({
       const allKeys = new Set(flatItems.map((item) => item.node.id));
       setExpandedKeys(allKeys);
     }
-  }, [allRowsExpanded, flatItems, setExpandedKeys]);
+  }, [allRowsExpanded, flatItems, setExpandedKeys, captureLogView]);
 
   // On-demand loading hook for observation I/O data
   // Does NOT auto-fetch - call loadAllData() or buildDataFromCache() when needed
@@ -241,10 +292,9 @@ export const TraceLogView = ({
     projectId,
   });
 
-  // Download and copy handlers
-  const { handleCopyJson, isActionLoading: isCopyOrDownloadLoading } =
+  // Copy handler
+  const { handleCopyJson: copyJson, isActionLoading: isCopyOrDownloadLoading } =
     useLogViewDownload({
-      traceId,
       isCacheOnly: isCopyOrDownloadCacheOnly,
       allObservationsData: allObservationsIO.data,
       isLoadingAllData: allObservationsIO.isLoading,
@@ -253,10 +303,18 @@ export const TraceLogView = ({
       buildDataFromCache: allObservationsIO.buildDataFromCache,
     });
 
+  const handleCopyJson = useCallback(() => {
+    captureLogView("copy_json", { cacheOnly: isCopyOrDownloadCacheOnly });
+    return copyJson();
+  }, [captureLogView, copyJson, isCopyOrDownloadCacheOnly]);
+
   // Toggle JSON view collapse
   const handleToggleJsonCollapse = useCallback(() => {
+    captureLogView("json_mode_collapse_toggle", {
+      collapsed: !jsonViewCollapsed,
+    });
     setJsonViewCollapsed((prev) => !prev);
-  }, []);
+  }, [captureLogView, jsonViewCollapsed]);
 
   // Check if there are any observations at all
   const hasNoObservations = allItems.length === 0;
@@ -268,6 +326,7 @@ export const TraceLogView = ({
       <LogViewToolbar
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        onSearchFocus={() => captureLogView("search_focus")}
         isVirtualized={isVirtualized}
         observationCount={observations.length}
         loadedObservationCount={loadedObservationCount}
@@ -279,9 +338,15 @@ export const TraceLogView = ({
         currentView={currentView}
         indentEnabled={indentEnabled}
         indentDisabled={indentDisabled}
-        onToggleIndent={() => setIndentEnabled(!indentEnabledPref)}
+        onToggleIndent={() => {
+          captureLogView("indent_toggle", { enabled: !indentEnabledPref });
+          setIndentEnabled(!indentEnabledPref);
+        }}
         showMilliseconds={showMilliseconds}
-        onToggleMilliseconds={() => setShowMilliseconds(!showMilliseconds)}
+        onToggleMilliseconds={() => {
+          captureLogView("milliseconds_toggle", { enabled: !showMilliseconds });
+          setShowMilliseconds(!showMilliseconds);
+        }}
       />
 
       {/* Empty states */}
@@ -315,9 +380,7 @@ export const TraceLogView = ({
       {/* Table view mode - render as expandable table */}
       {/* "json-beta" uses table mode since advanced I/O viewer works in expandable rows */}
       {flatItems.length > 0 &&
-        (currentView === "pretty" ||
-          currentView === "pretty-beta" ||
-          currentView === "json-beta") && (
+        (currentView === "pretty" || currentView === "json-beta") && (
           <JSONTableView
             items={flatItems}
             columns={columns}
@@ -325,7 +388,7 @@ export const TraceLogView = ({
             expandable
             renderExpanded={renderExpanded}
             expandedKeys={expandedKeys}
-            onExpandedKeysChange={setExpandedKeys}
+            onExpandedKeysChange={handleExpandedKeysChange}
             virtualized={isVirtualized}
             overscan={100}
             collapsedRowHeight={COLLAPSED_ROW_HEIGHT}

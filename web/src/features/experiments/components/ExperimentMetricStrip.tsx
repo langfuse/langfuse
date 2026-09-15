@@ -11,7 +11,7 @@ import {
 } from "@/src/components/ui/select";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { ScoreTag, SCORE_LEVEL_LABELS } from "@/src/components/score-tag";
-import { WidgetContent } from "@/src/features/widgets/components/InlineWidget";
+import { WidgetContent } from "@/src/features/widgets";
 import { type QueryType } from "@langfuse/shared/query";
 import type {
   MetricOption,

@@ -54,8 +54,10 @@ operations.
 - Prefer non-interactive Git and GitHub commands where possible.
 - Keep PRs narrow enough to review without unrelated refactors.
 - When a change is too large for one reviewable PR, split it into a chained
-  stack instead of widening the PR: use `pr-stack-workflow`.
+  stack of small PRs instead of widening one.
 - Open PRs as reviewable, not as drafts, unless a human asks for a draft.
+- Cursor agents apply the GitHub `cursor` label after opening a PR; see
+  `cursor-agents-workflow`. Do not leave that tag for a human.
 - Do not post GitHub PR comments as the human author. Cursor agents that
   comment as Cursor should leave one last comment with proof of user-visible
   work (screenshot, video, or before/after on the PR, not only in chat) and

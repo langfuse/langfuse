@@ -5,7 +5,7 @@ import { Plus } from "lucide-react";
 import { SpendAlertsTable } from "./SpendAlertsTable";
 import { SpendAlertDialog } from "./SpendAlertDialog";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements";
 
 interface SpendAlertsSectionProps {
   orgId: string;

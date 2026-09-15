@@ -44,6 +44,7 @@ import {
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
+import { ScoresSearchBar } from "@/src/features/scores/components/ScoresSearchBar";
 import { getScoreChartTimeRange } from "@/src/features/scores-chart-view/fns/scoreChartConfig";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -62,9 +63,11 @@ import React, { useState, useRef, useCallback, useMemo } from "react";
 import type { TableAction } from "@/src/features/table/types";
 import type { RowSelectionState } from "@tanstack/react-table";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
@@ -163,6 +166,10 @@ export default function ScoresTable({
   showAllEnvironments = false,
 }: ScoresTableProps) {
   const peekContext = usePeekTableState();
+  const hasBatchExportAccess = useHasProjectAccess({
+    projectId,
+    scope: "batchExports:create",
+  });
 
   const scoresFilterConfig = useMemo(
     () => getScoreFilterConfig(hiddenColumns),
@@ -431,8 +438,13 @@ export default function ScoresTable({
   const isSidebarFilterLoading =
     filterOptions.isPending || environmentFilterOptions.isPending;
 
+  const { viewControllersRef, onExplicitFilterStateChange } =
+    useTableViewFilterChange();
+
   const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
+      onExplicitFilterStateChange,
+      isV4,
       loading: isSidebarFilterLoading,
       implicitDefaultConfig: showAllEnvironments
         ? undefined
@@ -461,6 +473,8 @@ export default function ScoresTable({
     };
   }, [
     disableUrlPersistence,
+    onExplicitFilterStateChange,
+    isV4,
     isSidebarFilterLoading,
     peekContext,
     projectId,
@@ -605,6 +619,14 @@ export default function ScoresTable({
       accessorKey: "value",
       header: "Value",
       id: "value",
+      cell: ({ row }) =>
+        row.original.dataType === "NUMERIC" && row.original.value !== "" ? (
+          <span title={Number(row.original.value).toFixed(4)}>
+            {Number(row.original.value).toFixed(2)}
+          </span>
+        ) : (
+          row.original.value
+        ),
       enableHiding: true,
       enableSorting: true,
       size: 100,
@@ -965,9 +987,7 @@ export default function ScoresTable({
       dataType: score.dataType,
       value:
         isNumericDataType(score.dataType) && isPresent(score.value)
-          ? score.value % 1 === 0
-            ? String(score.value)
-            : score.value.toFixed(4)
+          ? String(score.value)
           : (score.stringValue ?? ""),
       author: {
         userId: score.authorUserId ?? undefined,
@@ -1013,9 +1033,7 @@ export default function ScoresTable({
         dataType: score.dataType,
         value:
           isNumericDataType(score.dataType) && isPresent(score.value)
-            ? score.value % 1 === 0
-              ? String(score.value)
-              : score.value.toFixed(4)
+            ? String(score.value)
             : (score.stringValue ?? ""),
         author: {
           userId: score.authorUserId ?? undefined,
@@ -1044,7 +1062,10 @@ export default function ScoresTable({
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
-      setFilters: setFiltersWrapper,
+      setFilters: (filters) =>
+        queryFilterRef.current.setFilterState(filters, {
+          origin: "saved_view",
+        }),
       setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibility,
@@ -1059,6 +1080,23 @@ export default function ScoresTable({
     currentFilterState: queryFilter.explicitFilterState,
     currentExpandedFilters: queryFilter.expanded,
   });
+  viewControllersRef.current = viewControllers;
+
+  const handleOrderByChange: typeof setOrderByState = (next) => {
+    viewControllers.handleUserStateChange(orderByState, next);
+    setOrderByState(next);
+  };
+  const handleColumnOrderChange: typeof setColumnOrder = (update) => {
+    const next = typeof update === "function" ? update(columnOrder) : update;
+    viewControllers.handleUserStateChange(columnOrder, next);
+    setColumnOrder(next);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibility = (update) => {
+    const next =
+      typeof update === "function" ? update(columnVisibility) : update;
+    viewControllers.handleUserStateChange(columnVisibility, next);
+    setColumnVisibility(next);
+  };
 
   const visibleSelectedScoreIds = useMemo(
     () =>
@@ -1084,14 +1122,24 @@ export default function ScoresTable({
             setTimeRange={setTimeRange}
           />
         )}
+        <ScoresSearchBar
+          key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+          isV4={isV4}
+          projectId={projectId}
+          filterConfig={scoresFilterConfig}
+          filterState={queryFilter.searchBarFilterState}
+          setFilterState={setFiltersWrapper}
+          filterOptions={newFilterOptions}
+          isLoading={isSidebarFilterLoading}
+        />
         {/* Toolbar spanning full width */}
         <DataTableToolbar
           columns={columns}
           filterState={queryFilter.explicitFilterState}
           columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibility}
+          setColumnVisibility={handleColumnVisibilityChange}
           columnOrder={columnOrder}
-          setColumnOrder={setColumnOrder}
+          setColumnOrder={handleColumnOrderChange}
           viewConfig={{
             tableName: TableViewPresetTableName.Scores,
             projectId,
@@ -1111,11 +1159,17 @@ export default function ScoresTable({
                 }}
               />
             ) : null,
-            <BatchExportTableButton
-              {...{ projectId, filterState: backendFilterState, orderByState }}
-              tableName={BatchExportTableName.Scores}
-              key="batchExport"
-            />,
+            hasBatchExportAccess ? (
+              <BatchExportTableButton
+                {...{
+                  projectId,
+                  filterState: backendFilterState,
+                  orderByState,
+                }}
+                tableName={BatchExportTableName.Scores}
+                key="batchExport"
+              />
+            ) : null,
           ]}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
@@ -1147,7 +1201,7 @@ export default function ScoresTable({
         <ResizableFilterLayout>
           <DataTableControls
             // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
-            key={viewControllers.selectedViewId ?? "no-view"}
+            key={viewControllers.filterEditorResetKey}
             queryFilter={queryFilter}
           />
 
@@ -1215,15 +1269,15 @@ export default function ScoresTable({
                   onChange: setPaginationState,
                   state: paginationState,
                 }}
-                setOrderBy={setOrderByState}
+                setOrderBy={handleOrderByChange}
                 orderBy={orderByState}
                 rowSelection={selectedRows}
                 highlightAllRows={selectAll}
                 setRowSelection={setSelectedRows}
                 columnVisibility={columnVisibility}
-                onColumnVisibilityChange={setColumnVisibility}
+                onColumnVisibilityChange={handleColumnVisibilityChange}
                 columnOrder={columnOrder}
-                onColumnOrderChange={setColumnOrder}
+                onColumnOrderChange={handleColumnOrderChange}
                 rowHeight={rowHeight}
               />
             )}

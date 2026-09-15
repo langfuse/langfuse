@@ -15,7 +15,8 @@ import {
 } from "./queues/evalQueue";
 import { codeEvalExecutionQueueProcessorBuilder } from "./queues/codeEvalQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
-import { onShutdown } from "./utils/shutdown";
+import { drainAndClose, onShutdown } from "./utils/shutdown";
+import { installProcessErrorHandlers } from "@langfuse/shared/src/server";
 import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
 import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
@@ -820,5 +821,14 @@ if (env.LANGFUSE_MONITOR_SCHEDULER_ENABLED === "true") {
 
 process.on("SIGINT", () => onShutdown("SIGINT"));
 process.on("SIGTERM", () => onShutdown("SIGTERM"));
+
+// On a fatal error (uncaught exception / unhandled rejection), drain in-flight
+// jobs and flush pending writes before exiting instead of dying abruptly. A
+// repeated fatal mid-drain forces an immediate exit.
+installProcessErrorHandlers({
+  onFatal: async () => {
+    await drainAndClose();
+  },
+});
 
 export default app;

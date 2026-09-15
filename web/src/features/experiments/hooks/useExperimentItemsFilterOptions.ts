@@ -8,6 +8,8 @@ export type ScoreColumnDef = {
   source: string;
 };
 
+const EXPERIMENT_ITEM_LEVEL_OPTIONS = ["DEBUG", "DEFAULT", "WARNING", "ERROR"];
+
 const processCategoricalScoreOptions = (
   categories: Array<{ label: string; values: string[] }>,
 ): Record<string, string[]> =>
@@ -53,6 +55,7 @@ export const useExperimentItemsFilterOptions = ({
         score_name_levels_numeric: undefined,
         score_name_levels_categorical: undefined,
         score_name_levels_boolean: undefined,
+        level: EXPERIMENT_ITEM_LEVEL_OPTIONS,
       } satisfies ExperimentItemScoreFilterOptions;
     }
 
@@ -69,6 +72,7 @@ export const useExperimentItemsFilterOptions = ({
       score_name_levels_categorical:
         filterOptions.data.score_name_levels_categorical,
       score_name_levels_boolean: filterOptions.data.score_name_levels_boolean,
+      level: EXPERIMENT_ITEM_LEVEL_OPTIONS,
     } satisfies ExperimentItemScoreFilterOptions;
   }, [filterOptions.data]);
 

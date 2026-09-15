@@ -109,13 +109,22 @@ const ftsTextIndexedSubstringCondition = (
 ): string =>
   `(position(${normalizeFtsTextExpr(fieldExpr)}, ${normalizeFtsTextExpr(valueParam)}) > 0 AND ${ftsTextTokenPredicate(fieldExpr, valueParam)})`;
 
-const ftsMetadataArrayHas = (arrayExpr: string, valueParam: string): string =>
-  `has(${arrayExpr}, ${valueParam})`;
-
 const ftsMetadataArrayTokenConjunct = (
   arrayExpr: string,
   valueParam: string,
 ): string => ftsTokenPrefilterPredicate(arrayExpr, valueParam, false);
+
+// Text-index prefilter for exact metadata equality. The stored value equals the
+// search value, so it trivially contains all of the value's tokens: a
+// correctness-safe superset that engages `idx_fts_metadata_values`. Guard against
+// tokenless values (e.g. "!!!"), where `tokens()` is empty and the prefilter
+// would otherwise exclude legitimate matches; the exact `= value` check remains
+// the precise post-filter. Metadata is case-sensitive, so tokens are not lowered.
+const ftsMetadataArrayEqualityTokenConjunct = (
+  arrayExpr: string,
+  valueParam: string,
+): string =>
+  `(empty(${ftsSearchTokensExpr(valueParam, false)}) OR ${ftsMetadataArrayTokenConjunct(arrayExpr, valueParam)})`;
 
 type FtsMetadataArrayConditionContext = {
   hasKey: string;
@@ -155,7 +164,7 @@ export const FTS_OPERATOR_DESCRIPTORS = {
       valueAccessor,
       valueParam,
     }) =>
-      `${hasKey} AND ${ftsMetadataArrayHas(valuesColumn, valueParam)} AND (${valueAccessor} = ${valueParam})`,
+      `${hasKey} AND ${ftsMetadataArrayEqualityTokenConjunct(valuesColumn, valueParam)} AND (${valueAccessor} = ${valueParam})`,
   },
   [FTS_MATCH_OPERATOR]: {
     textCondition: (fieldExpr, valueParam, _exactCondition) =>

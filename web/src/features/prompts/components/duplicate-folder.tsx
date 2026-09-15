@@ -30,7 +30,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { Copy } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements";
 
 enum CopySettings {
   LATEST_ONLY = "latest_only",

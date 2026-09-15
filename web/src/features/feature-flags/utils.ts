@@ -1,6 +1,7 @@
 import {
   availableFlags,
   filterFeaturePreviewFlags,
+  isRestrictedFlag,
   isFeaturePreviewFlag,
   isFeaturePreviewAvailable,
   type FeaturePreviewAvailabilityContext,
@@ -23,6 +24,7 @@ export const parseFlags = (
   dbFlags: string[],
   context: FeaturePreviewAvailabilityContext & {
     email: string | null | undefined;
+    aiGatewayEnabled?: boolean;
   },
 ): Flags => {
   const parsedFlags = {} as Flags;
@@ -31,6 +33,11 @@ export const parseFlags = (
   );
 
   availableFlags.forEach((flag) => {
+    if (isRestrictedFlag(flag)) {
+      parsedFlags[flag] = context.aiGatewayEnabled === true;
+      return;
+    }
+
     if (
       isFeaturePreviewFlag(flag) &&
       dbFlags.includes(getFeaturePreviewOptOutFlag(flag))
@@ -51,6 +58,10 @@ export const parseFlags = (
     parsedFlags[flag] = dbFlags.includes(flag);
   });
 
+  if (!parsedFlags.modernSession) {
+    parsedFlags.sessionTimeline = false;
+  }
+
   return parsedFlags;
 };
 
@@ -59,6 +70,7 @@ export const parseFlagsWithOrganizationDefaults = (
   organizationDefaults: string[],
   context: FeaturePreviewAvailabilityContext & {
     email: string | null | undefined;
+    aiGatewayEnabled?: boolean;
   },
 ): Flags => {
   const featurePreviewDefaults =

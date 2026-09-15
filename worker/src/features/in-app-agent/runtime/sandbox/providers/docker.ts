@@ -327,6 +327,8 @@ async function callSandboxServer(
     containerId: container.id,
     payload: summarizePayload(payload),
   });
+  // Docker exec argv is bounded by ARG_MAX. The sandbox POST body, including
+  // rebuilt tool_calls files, goes on stdin like the MicroVM HTTP body.
   const result = await execJsonInContainer(
     container,
     [
@@ -334,7 +336,9 @@ async function callSandboxServer(
       "-e",
       `
       (async () => {
-        const payload = JSON.parse(process.argv[1]);
+        const chunks = [];
+        for await (const chunk of process.stdin) chunks.push(chunk);
+        const payload = JSON.parse(Buffer.concat(chunks).toString("utf8"));
         const response = await fetch("http://127.0.0.1:${DOCKER_SANDBOX_SERVER_PORT}/sandbox", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -351,12 +355,13 @@ async function callSandboxServer(
         process.exit(1);
       });
     `,
-      JSON.stringify(payload),
     ],
-    undefined,
     {
-      operation: `sandbox:${String(payload.operation ?? "unknown")}`,
-      containerId: container.id,
+      context: {
+        operation: `sandbox:${String(payload.operation ?? "unknown")}`,
+        containerId: container.id,
+      },
+      stdin: JSON.stringify(payload),
     },
   );
 
@@ -388,10 +393,13 @@ function getSession(
 async function execJsonInContainer(
   container: DockerContainer,
   cmd: string[],
-  timeoutMs?: number,
-  context?: DockerExecContext,
+  options?: {
+    timeoutMs?: number;
+    context?: DockerExecContext;
+    stdin?: string;
+  },
 ) {
-  const result = await execInContainer(container, cmd, timeoutMs, context);
+  const result = await execInContainer(container, cmd, options);
   if (result.exitCode !== 0) {
     throw new Error(
       result.stderr || result.stdout || "Container command failed",
@@ -403,20 +411,28 @@ async function execJsonInContainer(
 async function execInContainer(
   container: DockerContainer,
   cmd: string[],
-  timeoutMs?: number,
-  context?: DockerExecContext,
+  options?: {
+    timeoutMs?: number;
+    context?: DockerExecContext;
+    stdin?: string;
+  },
 ): Promise<DockerExecResult> {
+  const timeoutMs = options?.timeoutMs;
+  const context = options?.context;
+  const stdin = options?.stdin;
   logger.debug("In-app agent docker sandbox exec create", {
     containerId: container.id,
     operation: context?.operation ?? "unknown",
     attempt: context?.attempt,
     timeoutMs: timeoutMs ?? null,
+    stdinBytes: stdin === undefined ? null : Buffer.byteLength(stdin, "utf8"),
     commandPreview: summarizeCommand(cmd),
   });
   const exec = await container.exec({
     Cmd: cmd,
     AttachStdout: true,
     AttachStderr: true,
+    ...(stdin !== undefined ? { AttachStdin: true } : {}),
     WorkingDir: "/workspace",
   });
   logger.debug("In-app agent docker sandbox exec created", {
@@ -424,7 +440,10 @@ async function execInContainer(
     operation: context?.operation ?? "unknown",
     attempt: context?.attempt,
   });
-  const stream = await exec.start({ Tty: false });
+  const stream = await exec.start({
+    Tty: false,
+    ...(stdin !== undefined ? { hijack: true, stdin: true } : {}),
+  });
   logger.debug("In-app agent docker sandbox exec stream started", {
     containerId: container.id,
     operation: context?.operation ?? "unknown",
@@ -463,6 +482,14 @@ async function execInContainer(
     });
     finalizeDemuxStreams();
   });
+
+  if (
+    stdin !== undefined &&
+    "end" in stream &&
+    typeof stream.end === "function"
+  ) {
+    stream.end(stdin);
+  }
 
   const timeoutId = timeoutMs
     ? setTimeout(

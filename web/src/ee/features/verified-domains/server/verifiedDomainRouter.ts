@@ -1,5 +1,5 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,

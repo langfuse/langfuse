@@ -218,4 +218,14 @@ maybe("sessions trpc (events_only write mode)", () => {
     expect(read.public).toBe(true);
     expect(read.bookmarked).toBe(false);
   });
+
+  it("rejects publishing an empty session id", async () => {
+    await expect(
+      caller.sessions.publish({
+        projectId,
+        sessionId: "",
+        public: true,
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
 });

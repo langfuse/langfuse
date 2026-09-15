@@ -7,7 +7,10 @@ import {
   createObservationsCh,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
-import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
+import {
+  makeAPICall,
+  makeZodVerifiedAPICall,
+} from "@/src/__tests__/test-utils";
 import {
   GetObservationV1Response,
   GetObservationsV1Response,
@@ -165,6 +168,78 @@ describe("/api/public/observations API Endpoint", () => {
             input: observation.input,
             output: observation.output,
           });
+        });
+
+        it("should GET an observation when the startTime hint matches", async () => {
+          const observationId = uuidv4();
+          const traceId = uuidv4();
+          const startTime = new Date("2024-03-15T08:30:00.000Z").getTime();
+
+          const observation = createObservationData(useEventsTable, {
+            id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            start_time: startTime * timeMultiplier,
+            event_ts: startTime * timeMultiplier,
+            end_time: startTime * timeMultiplier,
+          });
+
+          await insertObservations(useEventsTable, [observation]);
+
+          const getEventRes = await makeZodVerifiedAPICall(
+            GetObservationV1Response,
+            "GET",
+            `/api/public/observations/${observationId}?startTime=2024-03-15T08:30:00.000Z&useEventsTable=${useEventsTable}`,
+          );
+
+          expect(getEventRes.body).toMatchObject({
+            id: observationId,
+            traceId,
+            type: "GENERATION",
+          });
+        });
+
+        it("should still GET an observation when the startTime hint is wrong", async () => {
+          const observationId = uuidv4();
+          const traceId = uuidv4();
+          const startTime = new Date("2024-03-15T08:30:00.000Z").getTime();
+
+          const observation = createObservationData(useEventsTable, {
+            id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            start_time: startTime * timeMultiplier,
+            event_ts: startTime * timeMultiplier,
+            end_time: startTime * timeMultiplier,
+          });
+
+          await insertObservations(useEventsTable, [observation]);
+
+          // A different day than the observation: the bounded lookup misses, but
+          // the hint falls back to an unbounded lookup, so the observation is
+          // still returned.
+          const getEventRes = await makeZodVerifiedAPICall(
+            GetObservationV1Response,
+            "GET",
+            `/api/public/observations/${observationId}?startTime=2024-03-16T00:00:00.000Z&useEventsTable=${useEventsTable}`,
+          );
+
+          expect(getEventRes.body).toMatchObject({
+            id: observationId,
+            traceId,
+            type: "GENERATION",
+          });
+        });
+
+        it("should 400 when startTime lacks a timezone offset", async () => {
+          const res = await makeAPICall(
+            "GET",
+            `/api/public/observations/${uuidv4()}?startTime=2024-03-15T08:30:00&useEventsTable=${useEventsTable}`,
+          );
+
+          expect(res.status).toBe(400);
         });
 
         it.each([
