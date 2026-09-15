@@ -10,9 +10,9 @@ import { Readable } from "stream";
  * rather than true database streaming. It fetches data in paginated batches determined by the pageSize.
  * GitHub issue: https://github.com/prisma/prisma/issues/5055
  *
- * @param prisma - The PrismaClient instance for database queries.
- * @param rawSqlQuery - A Prisma.Sql object representing the base SQL query, excluding OFFSET and LIMIT.
+ * @param queryDelegate - Executes one page of the query, excluding OFFSET and LIMIT.
  * @param pageSize - Number of records per batch, defining the chunk size.
+ * @param maxRecords - Maximum number of records to stream before closing.
  *
  * The class extends Node.js's Readable stream, using async iteration and Prisma's pagination for scalable
  * data processing. It's suitable for applications requiring large dataset processing with a low memory footprint.
