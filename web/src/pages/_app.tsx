@@ -23,6 +23,7 @@ import { QueryParamProvider } from "use-query-params";
 import "@/src/styles/globals.css";
 import { plexMono } from "@/src/styles/fonts";
 import { AppLayout } from "@/src/components/layouts/app-layout";
+import { DefaultHead } from "@/src/components/layouts/default-head/DefaultHead";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 
@@ -188,6 +189,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
           content="width=device-width, height=device-height, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no, viewport-fit=cover"
         />
       </Head>
+      <DefaultHead />
       <QueryParamProvider
         adapter={NextAdapterPagesWithReadyGuard}
         options={{ enableBatching: true }}

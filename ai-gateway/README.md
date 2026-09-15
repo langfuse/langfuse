@@ -1,9 +1,10 @@
-# AI Gateway service foundation
+# AI Gateway service
 
-A standalone Rust HTTP process with health probes, bounded shutdown, structured
-logs and a container, with a tested Web resolution client library. Inference and
-customer telemetry are not implemented yet; inference paths return 404. No Web, database or provider
-credentials are needed to build, start or test this package.
+A standalone Rust gateway for `POST /openai/v1/responses`. Web resolves the gateway
+key to a trusted provider connection; Rust relays native JSON or SSE without
+rewriting provider bytes. A bounded capture layer captures request/response facts and
+logs the finalized record at debug level. Customer telemetry is not exported
+yet. Building and testing need no real Web, database or provider credentials.
 
 ## Run locally
 
@@ -22,12 +23,14 @@ pnpm dev
 ```
 
 This starts the gateway alongside the other development services. Turbo Watch
-recompiles and restarts the gateway after Rust source changes; Web and worker
-keep their built-in watchers. The gateway loads the root `.env` and listens on
-the first available port starting at 8080. This lets multiple worktrees run
-their development stacks at the same time. Add overrides from the table below
-to your root `.env`; exported shell variables take precedence.
-No gateway-specific credentials are needed for this foundation slice.
+restores the cached debug gateway binary when its inputs are unchanged, then
+rebuilds and restarts it after Rust source changes; Web and worker keep their
+built-in watchers. The gateway loads the root `.env` and listens on the first
+available port starting at 8080. This lets multiple worktrees run their
+development stacks at the same time. Add overrides from the table below to your
+root `.env`; exported shell variables take precedence.
+Without a Web URL, the process starts with liveness available; readiness and
+inference return 503. To enable inference, configure the Web URL and shared service key.
 
 To work on only the gateway, use `pnpm dev --filter=ai-gateway`.
 Both commands watch Rust source changes; do not run both on the same port.
@@ -48,21 +51,25 @@ In another terminal:
 ```sh
 curl --fail http://localhost:8080/health
 # {"status":"ok"}
-curl --fail http://localhost:8080/ready
-# {"status":"ready"}
+curl http://localhost:8080/ready
+# 503 without configuration; 200 {"status":"ready"} when configured
 ```
 
 The binary reads configuration from the process environment. The pnpm development
 script loads the root `.env` before starting it; production and direct Cargo runs
-do not load dotenv files. All settings have defaults:
+do not load dotenv files:
 
-| Variable                                         | Default        | Validation                                         |
-| ------------------------------------------------ | -------------- | -------------------------------------------------- |
-| `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS`             | `0.0.0.0:8080` | IP address and port; IPv6 uses `[::]:8080`         |
-| `LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT` | `false`        | `true`, `false`; the pnpm dev task sets `true`     |
-| `LANGFUSE_LOG_FORMAT`                            | `text`         | `text`, `json`                                     |
-| `LANGFUSE_LOG_LEVEL`                             | `info`         | `trace`, `debug`, `info`, `warn`, `error`, `fatal` |
-| `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS`   | `10`           | Integer from 1 to 300                              |
+| Variable                                       | Default        | Validation                                         |
+| ---------------------------------------------- | -------------- | -------------------------------------------------- |
+| `LANGFUSE_AI_GATEWAY_WEB_URL` | unset; inference disabled | Trusted Web base URL, including any deployment prefix |
+| `LANGFUSE_AI_GATEWAY_SERVICE_KEY` | unset | Required with Web URL; same key configured in Web |
+| `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS`           | `0.0.0.0:8080` | IP address and port; IPv6 uses `[::]:8080`         |
+| `LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT` | `false` | `true`, `false`; the pnpm dev task sets `true` |
+| `LANGFUSE_LOG_FORMAT`                          | `text`         | `text`, `json`                                     |
+| `LANGFUSE_LOG_LEVEL`                           | `info`         | `trace`, `debug`, `info`, `warn`, `error`, `fatal` |
+| `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300                              |
+| `LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS` | `128` | Positive integer up to Tokio's semaphore capacity; authenticated requests per instance |
+| `LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS` | `128` | Positive integer up to Tokio's semaphore capacity; concurrent Web resolutions per instance |
 
 The gateway shares `LANGFUSE_LOG_LEVEL` with Web and worker. Values are lowercase;
 `fatal` maps to Rust's `error` level and therefore includes ordinary error logs.
@@ -75,21 +82,160 @@ Both formats use the same log level and preserve event fields. For example:
 2026-09-10T13:20:00Z INFO gateway listening address=0.0.0.0:8080
 ```
 
-Invalid values fail startup without echoing their contents. Logs contain service
-lifecycle events, not request bodies or headers. For direct
+Invalid values fail startup without echoing their contents. At the default `info`
+level, logs contain service lifecycle events. Debug logging also includes the
+captured request and completed output when Web resolves `ingestion_mode: full`;
+see capture details below. For direct
 host-only development, set `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS=127.0.0.1:8080`.
+
+## Call the gateway
+
+Set these in the repository root `.env` for `pnpm dev` (or export them for Cargo):
+
+```dotenv
+LANGFUSE_AI_GATEWAY_WEB_URL=http://localhost:3000
+LANGFUSE_AI_GATEWAY_SERVICE_KEY=<same-service-key-as-web>
+```
+
+For production use the HTTPS Web URL; include `/app` when Web was built with that
+base path. Web also needs its existing ingestion JWT signer configured, an enabled
+gateway key, and an eligible OpenAI connection. Rust needs neither the JWT signing
+key nor an operator-supplied OpenAI key: provider credentials come from resolution.
+A service key alone does not enable inference without the Web URL.
+
+```sh
+curl http://localhost:8080/openai/v1/responses \
+  -H "Authorization: Bearer $LANGFUSE_GATEWAY_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"gpt-4.1-mini","input":"Say hello"}'
+# Add "stream":true to the JSON and use curl -N for SSE.
+```
+
+```python
+from openai import OpenAI
+import os
+
+client = OpenAI(
+    base_url="http://localhost:8080/openai/v1",
+    api_key=os.environ["LANGFUSE_GATEWAY_KEY"],
+    max_retries=0,
+)
+response = client.responses.create(model="gpt-4.1-mini", input="Say hello")
+print(response.output_text)
+```
+
+The gateway forwards to the official OpenAI Responses endpoint only. It does not
+retry, follow redirects, or accept client routing overrides. Request parsing is
+best-effort capture only; Web still selects the provider connection.
+Provider errors retain their status and body. Gateway errors use an OpenAI-style
+`{"error":{"message":"...","type":"...","param":null,"code":"..."}}` envelope.
+
+The gateway authenticates through Web before reserving execution capacity or
+reading the request body. Web resolution uses a separate concurrency budget,
+released after resolution finishes; authenticated requests then reserve execution
+capacity through body reading and response completion. Either budget returns 503
+immediately when full, without a waiting queue. Both defaults of 128 are provisional
+guardrails, not measured capacity: tune them independently using load tests for the
+instance resources, request sizes and stream durations. These limits bound work;
+they do not guarantee fairness between clients or tenants.
+
+Other limits are 4 MiB request bodies, 10 seconds to read a request, 5 seconds to
+connect, 120 seconds for provider response headers or an individual upstream read,
+and 600 seconds overall from execution admission. Response size is not capped: a single task pumps chunks
+through a one-slot channel, with chunks at most 64 KiB. It stops reading when that
+channel fills. Completion, disconnect and deadline release admission and context;
+the deadline runs even when the downstream stops polling. A failure after headers
+terminates the response body without adding an error event or retrying.
+There is no separate downstream stall timeout; a client that stops reading can
+retain execution capacity until the overall deadline. A progress-based downstream
+stall policy is deferred to a separate change.
+
+Only request content type/encoding and accept cross the provider boundary, plus
+the resolved Bearer token. The gateway sets `Accept-Encoding: identity` upstream
+so client compression preferences cannot disable JSON/SSE capture. Response
+content type/encoding, cache control, retry-after, request ID and selected OpenAI
+timing/version/rate-limit
+headers are retained. Cookies, routing overrides, gateway/ingestion credentials,
+hop-by-hop headers and upstream framing are excluded.
+
+## Response capture
+
+Set `LANGFUSE_LOG_LEVEL=debug` to print one `gateway response captured` event at
+execution end. Its `capture` field is JSON with `input`, `output`, model,
+parameters, usage, attribution, timestamps, capture completeness and relay outcome.
+Text logs pretty-print the captured JSON across multiple lines.
+`LANGFUSE_LOG_FORMAT=json` keeps each surrounding log event on one line, with
+newlines escaped inside the `capture` string.
+
+Web's resolved ingestion mode controls content capture:
+
+- `full`: input is the native request JSON object, including `input`, `instructions`,
+  tools, parameters, context references and unknown fields. Output is an ordered
+  array of native completed items. Debug logs intentionally contain this content.
+- `usage`: input and output are null. Model, scalar parameters, native usage,
+  timing and trusted attribution are retained; request schemas/content are omitted.
+
+In both modes, `usage_details` preserves the provider's entire usage object,
+including nested and unknown fields. The gateway does not rename counters,
+subtract cached tokens, or synthesize totals. Missing usage stays null.
+`api_format` identifies the payload format (`openai.responses` today).
+
+For SSE, only `response.output_item.done` adds output. Terminal Responses events
+provide model, service tier, status and usage; their repeated output is not copied.
+Deltas are never stitched or retained. A disconnect midway through an item loses
+that unfinished item; already completed items remain in the partial record. Item
+completion alone is not response completion. JSON responses capture their native
+output array at EOF. Missing usage remains null, rather than invented zeros.
+
+`outcome` describes the relay (`eof`, `cancelled`, `timeout`, `transport_error`);
+`provider_status` is separate. For example, a completed provider response can
+still end with downstream cancellation. `first_byte_ms` measures the first body
+bytes observed by the gateway, not first-token latency. No completion-start time
+is fabricated from completed items.
+
+`input_complete` means the full native request was captured; it is false when
+content is omitted in usage mode. `output_complete` means response inspection
+finished without capture gaps for the configured mode (including a terminal event
+and all expected completed items for full-mode SSE). It does not promise that the
+provider succeeded or that delivery to the client finished. `capture_complete`
+combines request inspection and output completeness; intentionally omitted usage-mode
+content does not make it false. Request inspection failure does not invalidate a
+fully captured response, and downstream cancellation does not erase completed capture.
+
+The implementation separates shared `ExecutionCapture` lifecycle/timing, the
+`OpenAiResponsesCapture` adapter and bounded `SseDecoder`. A private `ProtocolCapture`
+enum dispatches to the adapter. Finalization hands an owned `InferenceFacts` record
+to `telemetry::record`, which currently only pretty-prints at debug level. Another
+provider can supply native facts through the same interface without changing the
+relay or final sink. No Anthropic adapter or Langfuse observation/span mapping is
+implemented yet. Capture runs independently of log level; only emission is gated.
+
+Capture is limited to 1 MiB request inspection, 1 MiB JSON/SSE event inspection,
+1 MiB retained output and 256 output items per execution. The active-request limit
+bounds the number of captures. Trusted key metadata is bounded by the resolver's
+256 KiB response limit. Oversized input is omitted; oversized output items
+are skipped and completeness is false. Malformed, truncated or compressed bodies
+do not interrupt the relay. Capture buffers are independent of forwarding, so
+these limits never cap the actual provider response. Media is not fetched/uploaded.
+
+Provider credentials, the gateway credential and ingestion tokens are not part of
+the capture record; raw headers are not logged. Full captured content and resolved
+key metadata may themselves be sensitive. Keep debug logging enabled only where
+that content is intended to be recorded. No data is posted to Langfuse yet.
 
 ## Process lifecycle
 
 - `/health` returns 200 while HTTP is serving. It never probes dependencies.
-- `/ready` returns 200 after initialization. On shutdown, readiness changes to
+- `/ready` returns 200 after initialization with inference configured. It does not
+  probe Web or OpenAI; dependency failures are reported per request. Without a Web
+  URL it returns 503. On shutdown, readiness changes to
   503 with `{"status":"draining"}` and the listener stops accepting connections.
   An external probe may see a closed connection instead of the brief 503 state.
 - SIGTERM or Ctrl-C starts graceful shutdown. In-flight requests may finish
   within the configured timeout. Deadline expiry exits nonzero and terminates
   remaining runtime tasks; ordinary shutdown exits zero.
-- The deadline starts on the shutdown signal, not at process startup. Future
-  stream/export slices must integrate their own work into this lifecycle.
+- The shutdown deadline starts on the shutdown signal. New inference requests
+  are rejected while draining; existing response streams share this budget.
 
 ## Container
 
@@ -108,29 +254,29 @@ The runtime image runs as UID/GID 10001, includes CA certificates, and executes
 the binary directly so it receives signals. Set the container/orchestrator stop
 grace period longer than the gateway shutdown timeout. The smoke test uses an
 isolated container and an ephemeral host port, checks read-only/non-root startup,
-probes, missing inference routes and a clean SIGTERM exit, then removes it.
+probes, rejection of unauthenticated inference and a clean SIGTERM exit, then removes it.
 
 ## Tests and module boundaries
 
 ### Web resolution client
 
-`resolution::Resolver` resolves a gateway key through an operator-configured Web
-base URL. It is a library boundary; the binary does not initialize it yet. The
+`resolution::ControlPlaneClient` resolves a gateway key through an operator-configured Web
+base URL. The binary initializes it when a Web URL is configured. The
 caller supplies the existing `LANGFUSE_AI_GATEWAY_SERVICE_KEY` and a trusted Web
-base URL to `ResolverConfig::new`. HTTPS is required except on loopback for local
+base URL to `ControlPlaneConfig::new`. HTTPS is required except on loopback for local
 development. URLs cannot contain credentials, a query or fragment. Include the
 Web deployment's `NEXT_PUBLIC_BASE_PATH`, if set: both `https://host/app` and
 `https://host/app/` resolve through `/app/api/internal/ai-gateway/v1/resolve`.
 
 ```rust,no_run
-use ai_gateway::resolution::{ApiFormat, ResolveError, Resolver, ResolverConfig};
+use ai_gateway::resolution::{ApiFormat, ResolutionError, ControlPlaneClient, ControlPlaneConfig};
 
 async fn example(web_base_url: &str, service_key: &str, gateway_key: &str)
-    -> Result<(), ResolveError>
+    -> Result<(), ResolutionError>
 {
-    let resolver = Resolver::new(ResolverConfig::new(web_base_url, service_key)?)?;
-    let execution = resolver.resolve(gateway_key, ApiFormat::OpenAiResponses).await?;
-    assert_eq!(execution.connection().base_url(), "https://api.openai.com/v1");
+    let control_plane = ControlPlaneClient::new(ControlPlaneConfig::new(web_base_url, service_key)?)?;
+    let context = control_plane.resolve(gateway_key, ApiFormat::OpenAiResponses).await?;
+    assert_eq!(context.connection().base_url(), "https://api.openai.com/v1");
     Ok(())
 }
 ```
@@ -163,7 +309,10 @@ pnpm --filter ai-gateway format
 
 These scripts delegate to Cargo. Root `pnpm build`, `pnpm typecheck`, `pnpm lint`
 and `pnpm test` include the gateway; its Turbo tasks have no Prisma/JavaScript
-dependencies and disable Turbo caching, leaving incremental builds to Cargo.
+dependencies. Turbo caches successful checks and only the final release binary,
+not Cargo's potentially large `target` directory. Development similarly caches
+only the final debug binary so unchanged gateway builds can be reused across
+worktrees.
 The JavaScript CI jobs and commit-hook lint exclude it; the dedicated Rust CI job
 runs its checks without Node. Root Prettier formatting remains JavaScript/CSS-only;
 use the gateway `format` script for Rust. Docker builds also use Cargo directly.
@@ -181,6 +330,10 @@ cargo test --locked
 - `server.rs`: router, probe state and bounded graceful shutdown. A listener and
   shutdown future are injected, so tests do not depend on fixed ports or signals.
 - `main.rs`: configuration, logging, signal registration and process exit.
+- `http.rs`: credential extraction, bounded body reads and gateway error envelopes.
+- `inference.rs`: `InferenceService` coordinates resolution, admission and forwarding.
+- `providers/openai.rs`: fixed destination, provider credentials and admission.
+- `transport/mod.rs`: header allowlists, bounded byte relay and response lifetime.
 - `resolution/mod.rs`: trusted base URL configuration and bounded Web HTTP client.
 - `resolution/contracts.rs`: strict Web response validation and immutable execution context.
 - `resolution/signing.rs`: Web v1 HMAC; a literal shared fixture pins byte compatibility.

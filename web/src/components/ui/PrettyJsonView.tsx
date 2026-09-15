@@ -1,5 +1,12 @@
 /* eslint-disable @repo/no-style-props */
-import { useMemo, useState, useEffect, useRef, useCallback, memo } from "react";
+import React, {
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  memo,
+} from "react";
 import { cn } from "@/src/utils/tailwind";
 import { deepParseJson } from "@langfuse/shared";
 import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
@@ -30,12 +37,6 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 // Custom expanded state type that allows false ("user intentionally collapsed all")
 type LangfuseExpandedState = ExpandedState | false;
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableRow,
-} from "@/src/components/ui/table";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import {
@@ -47,6 +48,7 @@ import {
   StringOrMarkdownSchema,
   containsAnyMarkdown,
 } from "@/src/components/schemas/MarkdownSchema";
+
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import {
   convertRowIdToKeyPath,
@@ -367,7 +369,7 @@ const JsonTableRowComponent = memo(
     });
 
     return (
-      <TableRow
+      <tr
         ref={
           rowIndex === 0 && row.original.level === 0
             ? topLevelRowRef
@@ -376,6 +378,7 @@ const JsonTableRowComponent = memo(
         data-observation-id={row.id}
         {...rowClickProps}
         className={cn(
+          "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
           isExpandable ? "cursor-pointer" : "",
           row.original.level === 0 && stickyTopLevelKey
             ? "bg-background sticky top-0 z-10 shadow-xs"
@@ -384,9 +387,10 @@ const JsonTableRowComponent = memo(
         )}
       >
         {row.getVisibleCells().map((cell) => (
-          <TableCell
+          <td
             key={cell.id}
             className={cn(
+              "h-full border-b [:last-child_>_&]:border-b-0",
               CELL_CLASSES,
               // Auto table layout sizes the key column to content; unbreakable
               // value tokens (URLs, paths) must not push the table wider.
@@ -396,9 +400,9 @@ const JsonTableRowComponent = memo(
             style={{ width: `${cell.column.columnDef.size}%` }}
           >
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
-          </TableCell>
+          </td>
         ))}
-      </TableRow>
+      </tr>
     );
   },
 );
@@ -707,8 +711,8 @@ function JsonPrettyTable({
       {/* Auto layout so the key column sizes to its keys. The table carries
           no header row: the section title, or the surface around an untitled
           table, is the only frame. */}
-      <Table className="table-auto">
-        <TableBody>
+      <table className="w-full table-auto caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto text-sm">
+        <tbody className="text-xs [&_tr:last-child]:border-0">
           {table.getRowModel().rows.map((row, rowIndex) => (
             <JsonTableRowComponent
               key={row.id}
@@ -726,8 +730,8 @@ function JsonPrettyTable({
               toneClasses={toneClasses}
             />
           ))}
-        </TableBody>
-      </Table>
+        </tbody>
+      </table>
     </div>
   );
 }
