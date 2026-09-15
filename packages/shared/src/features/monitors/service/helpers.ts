@@ -10,6 +10,7 @@ import {
   Prisma,
 } from "@prisma/client";
 
+import { coerceLegacyEmptyMetadataFilters } from "../../../interfaces/filters";
 import { DAY, HOUR, MINUTE, WEEK } from "../helpers";
 import {
   type Monitor,
@@ -200,6 +201,9 @@ export { windowToMs, windowFromMs };
 export const monitorFromPrisma = (monitor: PrismaMonitor): Monitor =>
   MonitorSchema.parse({
     ...monitor,
+    // Persisted filters may use the legacy metadata `contains ""` key-presence
+    // idiom that the value guard now rejects; coerce it to `is set` on read.
+    filters: coerceLegacyEmptyMetadataFilters(monitor.filters),
     view: viewFromPrisma(monitor.view),
     window: windowFromMs(monitor.windowMs),
     alertThreshold: monitor.alertThreshold.toNumber(),

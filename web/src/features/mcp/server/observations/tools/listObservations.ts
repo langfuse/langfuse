@@ -6,6 +6,7 @@ import {
   eventsTableStringFilter,
   eventsTableStringObjectFilter,
   eventsTableCols,
+  coerceLegacyEmptyMetadataFilters,
   filterOperators,
   FTS_MATCH_OPERATOR,
   numberFilter,
@@ -127,11 +128,11 @@ const OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE = {
       column: z.literal(column),
     }),
   stringObject: (column: string, requireType = false) => {
-    const filterSchema = OBSERVATION_MCP_FTS_COLUMNS.has(column)
+    const filterSchemaBase = OBSERVATION_MCP_FTS_COLUMNS.has(column)
       ? eventsTableStringObjectFilter
       : stringObjectFilter;
 
-    return filterSchema.omit({ type: true, column: true }).extend({
+    return filterSchemaBase.omit({ type: true, column: true }).extend({
       type: requireType
         ? z.literal("stringObject")
         : z.literal("stringObject").optional(),
@@ -245,11 +246,16 @@ const ObservationMcpFilterSchema = z.preprocess(
       const type =
         filter.type ?? OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
 
-      return eventsTableSingleFilter.parse(
+      const reshaped =
         filter.column === "tags"
           ? { ...filter, type, column: "traceTags" }
-          : { ...filter, type },
-      );
+          : { ...filter, type };
+      // Legacy `contains ""` presence spelling → `is set` before validation.
+      const [coerced] = coerceLegacyEmptyMetadataFilters([
+        reshaped,
+      ]) as unknown[];
+
+      return eventsTableSingleFilter.parse(coerced);
     }),
 );
 

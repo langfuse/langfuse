@@ -42,7 +42,7 @@ import {
   PromptType,
   extractPlaceholderNames,
   type PromptMessage,
-  singleFilter,
+  singleFilterList,
   type FilterState,
   orderBy,
   paginationZod,
@@ -60,7 +60,7 @@ import { describeVariableMismatch } from "@/src/features/experiments/fns/describ
 
 const ExperimentFilterOptions = z.object({
   projectId: z.string(),
-  filter: z.array(singleFilter).nullable(),
+  filter: singleFilterList.nullable(),
   orderBy: orderBy,
   ...paginationZod,
 });
@@ -337,7 +337,7 @@ export const experimentsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
         limit: z.number().int().min(1).max(50),
       }),
     )
@@ -411,7 +411,7 @@ export const experimentsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -436,7 +436,7 @@ export const experimentsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         experimentIds: z.array(z.string()),
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -632,7 +632,7 @@ export const experimentsRouter = createTRPCRouter({
           .array(
             z.object({
               experimentId: z.string(),
-              filters: z.array(singleFilter),
+              filters: singleFilterList,
             }),
           )
           .nullish(),
@@ -771,7 +771,7 @@ export const experimentsRouter = createTRPCRouter({
           .array(
             z.object({
               experimentId: z.string(),
-              filters: z.array(singleFilter),
+              filters: singleFilterList,
             }),
           )
           .nullish(),
