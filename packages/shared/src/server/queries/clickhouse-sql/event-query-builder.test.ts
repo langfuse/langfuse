@@ -169,30 +169,7 @@ describe("buildEventsFullTableSplitQuery", () => {
     expect(query).toContain("i.metadata as metadata");
   });
 
-  it("mirrors the io prefilter onto the events_full lane, keeping the semi-join", () => {
-    const { query, params } = buildEventsFullTableSplitQuery({
-      projectId: "test-project",
-      baseBuilder: buildBase(),
-      includeIO: true,
-      includeMetadata: false,
-      ioPrefilter: {
-        query: 'e."span_id" IN ({ioSpanIds: Array(String)})',
-        params: { ioSpanIds: ["span-1"] },
-      },
-    }).buildWithParams();
-
-    // The semi-join stays (join correctness); the mirrored predicate is an
-    // additive AND that lets events_full prune instead of scanning the project.
-    expect(query).toContain(
-      'AND (e.start_time, e.trace_id, e.span_id) IN (SELECT "start_time", "trace_id", id FROM base)',
-    );
-    expect(query).toContain(
-      'AND (e."span_id" IN ({ioSpanIds: Array(String)}))',
-    );
-    expect(params.ioSpanIds).toEqual(["span-1"]);
-  });
-
-  it("omits the extra io predicate when no prefilter is given", () => {
+  it("bounds the io lane to base's start_time range and keeps the semi-join", () => {
     const { query } = buildEventsFullTableSplitQuery({
       projectId: "test-project",
       baseBuilder: buildBase(),
@@ -200,8 +177,19 @@ describe("buildEventsFullTableSplitQuery", () => {
       includeMetadata: false,
     }).buildWithParams();
 
-    // Only the semi-join uses the "AND (e." shape here; a mirrored prefilter
-    // would add a second occurrence.
-    expect(query.match(/AND \(e\./g)?.length ?? 0).toBe(1);
+    // The bound is derived from base (no re-serialized params) so events_full
+    // can prune partitions/primary key; the semi-join stays for join exactness.
+    expect(query).toContain(
+      "SELECT min(start_time) AS io_min_start_time, max(start_time) AS io_max_start_time FROM base",
+    );
+    expect(query).toContain(
+      "AND e.start_time >= (SELECT io_min_start_time FROM io_bounds)",
+    );
+    expect(query).toContain(
+      "AND e.start_time <= (SELECT io_max_start_time FROM io_bounds)",
+    );
+    expect(query).toContain(
+      'AND (e.start_time, e.trace_id, e.span_id) IN (SELECT "start_time", "trace_id", id FROM base)',
+    );
   });
 });

@@ -2116,12 +2116,6 @@ export function buildEventsFullTableSplitQuery(opts: {
     name: string;
     queryWithParams: { query: string; params: Record<string, any> };
   }>;
-  // Index-relevant predicates (start_time range, span_id/trace_id) mirrored from
-  // base onto the io CTE so events_full can prune partitions/primary key and use
-  // its bloom filters instead of relying solely on the tuple semi-join. Build it
-  // with buildIoLanePrefilter. Additive over the semi-join, so join results are
-  // unchanged.
-  ioPrefilter?: { query: string; params: Record<string, any> } | null;
 }): SplitQueryBuilder {
   const { query: baseQuery, params: baseParams } =
     opts.baseBuilder.buildWithParams();
@@ -2142,18 +2136,21 @@ export function buildEventsFullTableSplitQuery(opts: {
       "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata",
     );
   }
-  const ioWhereParts = [
-    "WHERE e.project_id = {projectId: String}",
-    'AND (e.start_time, e.trace_id, e.span_id) IN (SELECT "start_time", "trace_id", id FROM base)',
-  ];
-  if (opts.ioPrefilter?.query) {
-    ioWhereParts.push(`AND (${opts.ioPrefilter.query})`);
-  }
+  // The tuple semi-join alone cannot prune events_full's primary key (raw
+  // start_time/trace_id vs the toStartOfMinute/xxHash32 key expressions), so
+  // bound start_time to base's own matched range. Derived from base (not the
+  // request filter) so it also tightens lookups that arrive without a time
+  // filter, and the values are never re-serialized as params.
   const ioQuery = [
     `SELECT ${ioSelectParts.join(", ")}`,
     "FROM events_full e",
-    ...ioWhereParts,
+    "WHERE e.project_id = {projectId: String}",
+    "AND e.start_time >= (SELECT io_min_start_time FROM io_bounds)",
+    "AND e.start_time <= (SELECT io_max_start_time FROM io_bounds)",
+    'AND (e.start_time, e.trace_id, e.span_id) IN (SELECT "start_time", "trace_id", id FROM base)',
   ].join("\n");
+  const ioBoundsQuery =
+    "SELECT min(start_time) AS io_min_start_time, max(start_time) AS io_max_start_time FROM base";
 
   // Compose final query using CTEQueryBuilder
   let cteBuilder = new CTEQueryBuilder();
@@ -2166,19 +2163,22 @@ export function buildEventsFullTableSplitQuery(opts: {
     });
   }
 
-  // Register base and io CTEs, set up FROM and JOIN
+  // Register base, io_bounds, and io CTEs, set up FROM and JOIN. io_bounds must
+  // follow base (it aggregates over it) and precede io (which reads from it).
   cteBuilder = cteBuilder
     .withCTE("base", {
       query: baseQuery,
       params: baseParams,
       schema: [] as string[],
     })
+    .withCTE("io_bounds", {
+      query: ioBoundsQuery,
+      params: {},
+      schema: [] as string[],
+    })
     .withCTE("io", {
       query: ioQuery,
-      params: {
-        projectId: opts.projectId,
-        ...(opts.ioPrefilter?.params ?? {}),
-      },
+      params: { projectId: opts.projectId },
       schema: [] as string[],
     })
     .from("base", "b")

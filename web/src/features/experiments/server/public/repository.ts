@@ -5,7 +5,6 @@ import {
   FilterList,
   ExperimentsAggregationQueryBuilder,
   buildEventsFullTableSplitQuery,
-  buildIoLanePrefilter,
   parseClickhouseUTCDateTimeFormat,
   publicApiExperimentItemColumnDefinitions,
   publicApiExperimentItemColumnMappings,
@@ -399,11 +398,6 @@ async function queryExperimentItemRowsForPublicApi(
     publicApiExperimentItemColumnDefinitions,
   );
 
-  const timeBoundFilters = eventTimeBoundFilters(
-    params.fromTime,
-    params.toTime,
-  );
-
   const queryBuilder = applyExperimentItemCursor(
     new EventsQueryBuilder({ projectId: params.projectId })
       .selectFieldSet("publicApiExperimentItemCore")
@@ -422,18 +416,13 @@ async function queryExperimentItemRowsForPublicApi(
       .whereRaw("e.experiment_id != ''")
       .whereRaw("e.experiment_item_id != ''")
       .whereRaw("e.experiment_item_root_span_id = e.span_id")
-      .applyFilters(timeBoundFilters)
+      .applyFilters(eventTimeBoundFilters(params.fromTime, params.toTime))
       .applyFilters(filterList),
     params.cursor,
   )
     .orderByColumns([...experimentItemOrderByColumns("e")])
     .limitBy("e.span_id", "e.project_id")
     .limit(params.limit);
-
-  const ioPrefilterFilters = new FilterList([]);
-  timeBoundFilters.forEach((f) => ioPrefilterFilters.push(f));
-  filterList.forEach((f) => ioPrefilterFilters.push(f));
-  const ioPrefilter = buildIoLanePrefilter(ioPrefilterFilters);
 
   const builder =
     params.includeIo || params.includeMetadata
@@ -442,7 +431,6 @@ async function queryExperimentItemRowsForPublicApi(
           baseBuilder: queryBuilder,
           includeIO: params.includeIo,
           includeMetadata: params.includeMetadata,
-          ioPrefilter,
         }).orderByColumns([...experimentItemOrderByColumns("b")], {
           eventTableAlias: "b",
           matchTablePrimaryKey: true,

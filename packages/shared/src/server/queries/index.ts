@@ -107,7 +107,4 @@ export {
   type EventsObservationFilterGroups,
   type EventsObservationRowSelectionInput,
 } from "./clickhouse-sql/events-observation-row-selection";
-export {
-  extractTimeFilter,
-  buildIoLanePrefilter,
-} from "./clickhouse-sql/filter-utils";
+export { extractTimeFilter } from "./clickhouse-sql/filter-utils";
