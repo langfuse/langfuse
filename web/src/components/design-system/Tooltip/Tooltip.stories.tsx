@@ -1,6 +1,6 @@
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import preview from "../../../../../.storybook/preview";
+import preview from "../../../../.storybook/preview";
 import { Tooltip } from "./Tooltip";
 
 const meta = preview.meta({

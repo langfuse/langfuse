@@ -1,4 +1,4 @@
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip/Tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
 export function EvaluatorExecutionHistory({

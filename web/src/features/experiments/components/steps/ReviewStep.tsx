@@ -6,7 +6,7 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip/Tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { InfoIcon } from "lucide-react";
 import { type ReviewStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";

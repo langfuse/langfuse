@@ -3,7 +3,7 @@ import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPane
 import { type PropsWithChildren } from "react";
 import { useMediaQuery } from "react-responsive";
 import dynamic from "next/dynamic";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
 
 const DynamicMobileRightDrawer = dynamic(
