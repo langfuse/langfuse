@@ -386,11 +386,7 @@
     --dark-violet: 262 72% 54%;
 
     --light-teal: 167 85% 89%;
-    /* 25%, not 28%: as a foreground role this has to clear 4.5:1 at small
-       sizes on every light surface it lands on — white, muted, and its own
-       light-teal tint (28% failed the tint at 4.08). Dark mode already
-       clears it, so only the light value moves. */
-    --dark-teal: 175 84% 25%;
+    --dark-teal: 175 84% 28%;
 
     /* Search-bar query syntax highlighting — a DELIBERATE editor-style syntax
        theme (like a code editor's theme), intentionally its own thing rather
