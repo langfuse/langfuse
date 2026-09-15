@@ -65,6 +65,7 @@ export const observationForEvalSchema = z.object({
   experiment_description: z.string().nullish(),
   experiment_dataset_id: z.string().nullish(),
   experiment_item_id: z.string().nullish(),
+  experiment_item_input: z.unknown().nullish(),
   experiment_item_expected_output: z.string().nullish(),
   experiment_item_metadata: z.record(z.string(), z.unknown()).nullish(),
   experiment_item_root_span_id: z.string().nullish(),
@@ -202,6 +203,7 @@ export type ObservationEvalMappingColumnInternal = keyof Pick<
   | "output"
   | "metadata"
   | "tool_calls"
+  | "experiment_item_input"
   | "experiment_item_expected_output"
   | "experiment_item_metadata"
 >;
@@ -277,24 +279,30 @@ export const eventTargetEvalVariableColumns: (ObservationEvalVariableColumn & {
   },
 ];
 
-export const experimentTargetEvalVariableColumns: (ObservationEvalVariableColumn & {
-  id: CodeEvalTemplateVariable;
-})[] = [
-  ...eventTargetEvalVariableColumns,
-  {
-    id: "experimentItemExpectedOutput",
-    name: "Expected Output",
-    description: "Expected output from experiment item",
-    internal: "experiment_item_expected_output",
-  },
-  {
-    id: "experimentItemMetadata",
-    name: "Experiment Item Metadata",
-    description: "Metadata from experiment item",
-    type: "stringObject",
-    internal: "experiment_item_metadata",
-  },
-];
+export const experimentTargetEvalVariableColumns: ObservationEvalVariableColumn[] =
+  [
+    ...eventTargetEvalVariableColumns,
+    {
+      id: "experimentItemInput",
+      name: "Dataset Item Input",
+      description:
+        "Input from the dataset item used in the experiment, filtered to prompt template variables",
+      internal: "experiment_item_input",
+    },
+    {
+      id: "experimentItemExpectedOutput",
+      name: "Expected Output",
+      description: "Expected output from experiment item",
+      internal: "experiment_item_expected_output",
+    },
+    {
+      id: "experimentItemMetadata",
+      name: "Experiment Item Metadata",
+      description: "Metadata from experiment item",
+      type: "stringObject",
+      internal: "experiment_item_metadata",
+    },
+  ];
 
 /**
  * Columns available for variable extraction in observation-based evals.
