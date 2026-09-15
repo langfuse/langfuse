@@ -35,6 +35,8 @@
       "ignoreFiles": [
         // Standalone benchmark invoked directly with Node rather than imported by the application.
         "src/features/traces/components/AdvancedJsonViewer/lazy/benchByteJsonIndex.ts",
+        // Reached only through vitest resolve aliases (next/font/google, Fontsource CSS).
+        "src/__tests__/mocks/**",
       ],
       // Include runtime JavaScript modules such as src/env.mjs in dependency analysis.
       "project": ["src/**/*.{ts,tsx,mjs}"],
