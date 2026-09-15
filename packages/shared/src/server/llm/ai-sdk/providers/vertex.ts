@@ -4,7 +4,8 @@ import type { LanguageModel } from "ai";
 import { GoogleAuth, type GoogleAuthOptions } from "google-auth-library";
 
 import { env } from "../../../../env";
-import GCPServiceAccountKeySchema, {
+import {
+  GCPServiceAccountKeySchema,
   type LLMConnectionConfig,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   VertexAIConfigSchema,

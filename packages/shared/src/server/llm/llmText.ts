@@ -1,6 +1,5 @@
 import { type ZodType } from "zod";
 
-import { ProxyAgent } from "undici";
 import {
   Output,
   generateText,
@@ -25,6 +24,7 @@ import { decrypt } from "../../encryption";
 import { env } from "../../env";
 import type { LLMConnectionConfig } from "../../interfaces/customLLMProviderConfigSchemas";
 import { LLMValidationError } from "./errors";
+import { resolveEvaluatorMediaTransport } from "./mediaMessages";
 import { mapChatMessagesToModelMessages } from "./ai-sdk/messages";
 import { buildAiSdkModel } from "./ai-sdk/providers";
 import { translateAnthropicProviderOptions } from "./ai-sdk/providers/anthropic";
@@ -32,6 +32,7 @@ import { translateBedrockProviderOptions } from "./ai-sdk/providers/bedrock";
 import { translateGoogleProviderOptions } from "./ai-sdk/providers/google";
 import {
   isOpenAICompatibleEndpoint,
+  isOpenRouterEndpoint,
   translateOpenAIProviderOptions,
 } from "./ai-sdk/providers/openai";
 import type {
@@ -60,6 +61,15 @@ import { decryptAndParseExtraHeaders } from "./utils";
 
 type RuntimeContext = Record<string, unknown>;
 type ProviderOptions = Record<string, Record<string, JSONValue>>;
+
+const CLIENT_INITIATED_NON_STREAMING_LLM_TIMEOUT_CAP_MS = 95_000;
+
+// Finish client-initiated non-streaming calls before the 102-second load balancer timeout.
+export const getClientInitiatedNonStreamingLlmTimeoutMs = () =>
+  Math.min(
+    env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS,
+    CLIENT_INITIATED_NON_STREAMING_LLM_TIMEOUT_CAP_MS,
+  );
 
 export type LLMModelRef = {
   adapter: LLMAdapter;
@@ -107,6 +117,12 @@ type BaseLLMTextOptions<TOOLS extends ToolSet, OUTPUT extends Output.Output> = {
   timeout?: TimeoutConfiguration<TOOLS>;
   abortSignal?: AbortSignal;
   trace?: TraceSinkParams;
+  /**
+   * Input recorded on traced root and generation spans. Defaults to messages.
+   * Use this when provider messages contain ephemeral credentials such as
+   * signed media URLs.
+   */
+  traceInput?: unknown;
   credentialSource?: LLMCredentialSource;
   onEnd?: GenerateTextOnEndCallback<TOOLS, RuntimeContext>;
 };
@@ -281,14 +297,19 @@ async function prepareLLMTextCall<
   });
   recordAiSdkExecution({ model: options.model, modelConfig });
 
+  const providerOptions = addOpenRouterInternalTraceProvenance({
+    model: options.model,
+    baseURL: options.connection.baseURL,
+    apiMode: modelConfig.openAIApiMode,
+    providerOptions: options.providerOptions,
+    trace: options.trace,
+  });
+
   const apiKey = decrypt(options.connection.secretKey);
   const extraHeaders = decryptAndParseExtraHeaders(
     options.connection.extraHeaders,
   );
 
-  const proxyDispatcher = env.HTTPS_PROXY
-    ? new ProxyAgent(env.HTTPS_PROXY)
-    : undefined;
   const createFetch = (
     logContext: string,
     additionalSensitiveHeaders?: string[],
@@ -301,7 +322,6 @@ async function prepareLLMTextCall<
       additionalSensitiveHeaders: (additionalSensitiveHeaders ?? []).concat(
         Object.keys(extraHeaders ?? {}),
       ),
-      dispatcher: proxyDispatcher,
     });
 
   const languageModel = await buildAiSdkModel({
@@ -318,7 +338,8 @@ async function prepareLLMTextCall<
   const capture = options.trace
     ? createAiSdkTelemetryCapture({
         traceSinkParams: options.trace,
-        rootInput: options.messages,
+        rootInput: options.traceInput ?? options.messages,
+        generationInput: options.traceInput,
       })
     : undefined;
 
@@ -335,16 +356,70 @@ async function prepareLLMTextCall<
       temperature: options.temperature,
       topP: options.topP,
       reasoning: options.reasoning,
-      providerOptions: options.providerOptions,
+      providerOptions,
       maxRetries: options.maxRetries,
       timeout,
       abortSignal: options.abortSignal,
-      // Do not let AI SDK download remote media on the Langfuse server.
-      // Callers must use provider-supported URLs or inline data.
-      experimental_download: rejectRemoteMediaDownloads,
+      // URL transport preserves provider-supported media URLs without downloading
+      // them. Inline and disabled modes continue to block remote downloads.
+      experimental_download: createEvaluatorMediaUrlPolicy(options.messages),
       ...(capture ? { telemetry: capture.telemetry } : {}),
     },
   };
+}
+
+function addOpenRouterInternalTraceProvenance(params: {
+  model: LLMModelRef;
+  baseURL?: string | null;
+  apiMode?: "responses" | "chat-completions";
+  providerOptions?: ProviderOptions;
+  trace?: TraceSinkParams;
+}): ProviderOptions | undefined {
+  if (
+    params.model.adapter !== LLMAdapter.OpenAI ||
+    params.apiMode !== "chat-completions" ||
+    !params.trace ||
+    !isOpenRouterEndpoint(params.baseURL)
+  ) {
+    return params.providerOptions;
+  }
+
+  const openAIOptions = params.providerOptions?.openai ?? {};
+  const existingTrace = isJsonObject(openAIOptions.trace)
+    ? openAIOptions.trace
+    : {};
+
+  return {
+    ...params.providerOptions,
+    openai: {
+      ...openAIOptions,
+      trace: {
+        ...existingTrace,
+        // This marker controls evaluator recursion prevention and must remain
+        // system-owned even when the caller supplies other Broadcast metadata.
+        environment: params.trace.environment,
+      },
+    },
+  };
+}
+
+function isJsonObject(
+  value: JSONValue | undefined,
+): value is Record<string, JSONValue> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function createEvaluatorMediaUrlPolicy(
+  messages: ModelMessage[],
+): Experimental_DownloadFunction {
+  const transport = resolveEvaluatorMediaTransport({
+    configured: env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT,
+    cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+  });
+
+  return transport === "url"
+    ? createProviderSupportedMediaUrlPolicy(messages)
+    : rejectRemoteMediaDownloads;
 }
 
 const rejectRemoteMediaDownloads: Experimental_DownloadFunction = async (
@@ -359,6 +434,63 @@ const rejectRemoteMediaDownloads: Experimental_DownloadFunction = async (
   }
   return [];
 };
+
+function createProviderSupportedMediaUrlPolicy(
+  messages: ModelMessage[],
+): Experimental_DownloadFunction {
+  // Keep the media type beside each URL so validation errors can explain which
+  // input the selected model rejected.
+  const mediaTypesByUrl = new Map<string, string>();
+  for (const message of messages) {
+    if (!Array.isArray(message.content)) continue;
+    for (const part of message.content) {
+      if (part.type === "file" && part.data instanceof URL) {
+        mediaTypesByUrl.set(part.data.href, part.mediaType);
+      }
+    }
+  }
+
+  return (downloads) =>
+    enforceProviderSupportedMediaUrls(downloads, mediaTypesByUrl);
+}
+
+// The AI SDK asks about every URL. Preserve URLs supported by the provider and
+// reject the rest instead of letting the SDK download them on this server.
+async function enforceProviderSupportedMediaUrls(
+  downloads: Parameters<Experimental_DownloadFunction>[0],
+  mediaTypesByUrl: Map<string, string>,
+) {
+  const unsupportedDownloads = downloads.filter(
+    ({ isUrlSupportedByModel }) => !isUrlSupportedByModel,
+  );
+  if (unsupportedDownloads.length > 0) {
+    const mediaTypes = [
+      ...new Set(
+        unsupportedDownloads
+          .map(({ url }) => mediaTypesByUrl.get(url.href))
+          .filter((mediaType): mediaType is string => Boolean(mediaType)),
+      ),
+    ];
+    const mediaTypeList = mediaTypes.join(", ");
+    const mediaDescription = mediaTypeList
+      ? `media with type ${mediaTypeList}`
+      : "media";
+    const modelSupportDescription = mediaTypeList
+      ? `this media type. To continue, narrow the variable mapping so it does not include this media, or select a model that supports ${mediaTypeList}.`
+      : "one or more media types. To continue, narrow the variable mapping so it does not include this media, or select a model that supports it.";
+
+    throw new LLMValidationError({
+      code: "invalid-request",
+      message: `The interpolated prompt contains ${mediaDescription}, but the selected model does not support ${modelSupportDescription}`,
+    });
+  }
+  // null instructs AI SDK to preserve each provider-supported URL as-is.
+  return downloads.map(() => null);
+}
+
+export const providerSupportedMediaUrlPolicy: Experimental_DownloadFunction = (
+  downloads,
+) => enforceProviderSupportedMediaUrls(downloads, new Map());
 
 function assertDefinitionOnlyTools(tools: ToolSet | undefined): void {
   if (!tools) return;

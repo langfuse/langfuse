@@ -1,12 +1,10 @@
 ---
 name: datadog-query-recipes
 description: |
-  Langfuse-specific Datadog query recipes for production telemetry research.
-  Use when asked to investigate tenant or project activity, public API endpoint
-  usage, queue consumer behavior, spans, logs, metrics, or ad hoc production
-  questions across prod-us, prod-eu, prod-hipaa, and prod-jp. This skill is for
-  reusable query shapes and measured research; pair it with
-  debug-issue-with-datadog when the task is an incident or root-cause analysis.
+  Research Langfuse production telemetry with reusable Datadog queries. Use for
+  tenant or project activity, API usage, queue behavior, spans, logs, metrics,
+  or ad hoc measurements across production regions; pair with
+  debug-issue-with-datadog for root-cause analysis.
 ---
 
 # Datadog Query Recipes
@@ -43,6 +41,8 @@ data domain you need: traces, logs, metrics, and visualizations.
      [`references/public-api-tenant-usage.md`](references/public-api-tenant-usage.md)
    - Queue inventory, queue consumers, and queue metrics:
      [`references/queue-consumers.md`](references/queue-consumers.md)
+   - Scheduled-export freshness lag (blob / PostHog / Mixpanel):
+     [`references/export-freshness-lag.md`](references/export-freshness-lag.md)
 3. Start with aggregate queries, grouped by environment, service, route,
    queue, project, org, status, or error facets as appropriate.
 4. Fetch raw spans, logs, or traces only after aggregation identifies the

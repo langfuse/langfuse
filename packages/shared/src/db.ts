@@ -29,6 +29,17 @@ const createPrismaInstance = () => {
       { emit: "event", level: "error" },
       { emit: "event", level: "warn" },
     ],
+    // Secret-bearing columns are excluded from every query result by default.
+    // Delivery paths that need them must opt back in with an explicit `select`.
+    omit: {
+      dataset: {
+        remoteExperimentSecretKey: true,
+        remoteExperimentRequestHeaders: true,
+      },
+      gatewayAiConnection: {
+        encryptedCredential: true,
+      },
+    },
   });
 
   if (env.NODE_ENV === "development") {

@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it } from "vitest";
 
 import { planPeekHeaderLayout } from "@/src/components/table/peek/peekHeaderOverflow";

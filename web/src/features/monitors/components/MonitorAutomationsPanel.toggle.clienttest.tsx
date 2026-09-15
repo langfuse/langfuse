@@ -16,16 +16,15 @@ vi.mock("@/src/utils/api", () => ({
         useQuery: () => useQueryMock(),
       },
     },
+    useUtils: () => ({
+      automations: { getAutomations: { fetch: vi.fn(async () => []) } },
+    }),
   },
-}));
-
-vi.mock("next/router", () => ({
-  useRouter: () => ({ asPath: "/", push: vi.fn() }),
 }));
 
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
 
-describe("MonitorAutomationsPanel toggle immutability", () => {
+describe("MonitorAutomationsPanel selection", () => {
   it("does not mutate the memoized set: toggling the same unselected row twice reports it selected both times", () => {
     useQueryMock.mockReturnValue({ data: [automationRow], isPending: false });
     const onTriggerIdsChange = vi.fn();

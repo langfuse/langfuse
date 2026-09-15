@@ -25,6 +25,11 @@ export default [
   {
     name: "langfuse/shared/rules",
     rules: {
+      // Preserve the ESLint 9 recommended baseline during the v10 upgrade.
+      "no-unassigned-vars": "off",
+      "no-useless-assignment": "off",
+      "preserve-caught-error": "off",
+      "no-shadow-restricted-names": ["error", { reportGlobalThis: false }],
       "no-void": "warn",
       "no-else-return": "warn",
       "no-unneeded-ternary": "warn",

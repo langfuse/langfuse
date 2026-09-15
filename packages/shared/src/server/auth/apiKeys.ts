@@ -1,9 +1,10 @@
-import { PrismaClient, ApiKeyScope } from "@prisma/client";
+import { PrismaClient, ApiKeyScope, type Prisma } from "@prisma/client";
 import { compare, hash } from "bcryptjs";
 import { randomUUID } from "crypto";
 import * as crypto from "crypto";
 import type { Cluster, Redis } from "ioredis";
 import { env } from "../../env";
+import { logger } from "../logger";
 import { invalidateCachedApiKeys } from "./invalidateApiKeys";
 
 export function getDisplaySecretKey(secretKey: string) {
@@ -39,7 +40,9 @@ export function createShaHash(privateKey: string, salt: string): string {
 }
 
 export async function createAndAddApiKeysToDb(p: {
-  prisma: PrismaClient;
+  // Accepts a transaction client so callers can commit key creation
+  // atomically with linking the key to its owner (e.g. an agent run row).
+  prisma: PrismaClient | Prisma.TransactionClient;
   entityId: string;
   scope: ApiKeyScope;
   note?: string;
@@ -101,6 +104,11 @@ export async function deleteApiKeyFromDb(p: {
   entityId: string;
   scope: ApiKeyScope;
   redis?: Redis | Cluster | null;
+  /**
+   * When true, only delete keys minted for in-app agent MCP sessions.
+   * A matching project key that is not an agent key is left intact.
+   */
+  isInAppAgentKey?: boolean;
 }) {
   const entity =
     p.scope === "PROJECT" ? { projectId: p.entityId } : { orgId: p.entityId };
@@ -113,6 +121,18 @@ export async function deleteApiKeyFromDb(p: {
     },
   });
 
+  if (p.isInAppAgentKey === true && apiKey.isInAppAgentKey !== true) {
+    logger.warn(
+      "Refusing to delete API key that is not an in-app agent MCP key",
+      {
+        apiKeyId: p.id,
+        entityId: p.entityId,
+        scope: p.scope,
+      },
+    );
+    return false;
+  }
+
   await invalidateCachedApiKeys([apiKey], `key ${p.id}`, p.redis);
 
   await p.prisma.apiKey.delete({
@@ -122,4 +142,21 @@ export async function deleteApiKeyFromDb(p: {
   });
 
   return true;
+}
+
+/** Delete an in-app agent MCP session key. Skips user project keys. */
+export async function deleteInAppAgentMcpApiKeyFromDb(p: {
+  prisma: PrismaClient;
+  id: string;
+  projectId: string;
+  redis?: Redis | Cluster | null;
+}) {
+  return deleteApiKeyFromDb({
+    prisma: p.prisma,
+    id: p.id,
+    entityId: p.projectId,
+    scope: "PROJECT",
+    redis: p.redis,
+    isInAppAgentKey: true,
+  });
 }

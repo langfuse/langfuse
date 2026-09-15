@@ -1,5 +1,6 @@
-import { createObservation, createTrace } from "@langfuse/shared/src/server";
 import {
+  createObservation,
+  createTrace,
   createObservationsCh,
   createTracesCh,
 } from "@langfuse/shared/src/server";

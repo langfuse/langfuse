@@ -9,7 +9,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
-import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 
 // Schema for SCIM User response
 const ScimUserSchema = z.object({
@@ -224,9 +223,17 @@ describe("SCIM API", () => {
         "urn:ietf:params:scim:api:messages:2.0:ListResponse",
       );
       expect(response.body.Resources.length).toBeGreaterThan(0);
+      // RFC 7644 3.4.2: `totalResults` must match what was actually returned.
+      expect(response.body.totalResults).toBe(response.body.Resources.length);
       expect(response.body.Resources[0].id).toContain(
         "urn:ietf:params:scim:schemas:core:2.0:User",
       );
+      // `password` must not be advertised: schema discovery is how a SCIM
+      // client learns the attribute is unsupported.
+      const attributeNames = response.body.Resources[0].attributes.map(
+        (attribute) => (attribute as { name: string }).name,
+      );
+      expect(attributeNames).not.toContain("password");
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
@@ -473,7 +480,7 @@ describe("SCIM API", () => {
         expect(user?.name).toBe("Test User");
       });
 
-      it("should create a new user with password", async () => {
+      it("accepts a password attribute but never sets a credential", async () => {
         const uniqueEmail = `test.user.${randomUUID().substring(0, 8)}@example.com`;
         const password = `password-${randomUUID().substring(0, 8)}`;
         const response = await makeZodVerifiedAPICall(
@@ -517,9 +524,11 @@ describe("SCIM API", () => {
         expect(user).not.toBeNull();
         expect(user?.email).toBe(uniqueEmail);
         expect(user?.name).toBe("Test User With Password");
-        // Verify password was created
-        expect(user?.password).not.toBeNull();
-        expect(await verifyPassword(password, user?.password ?? "")).toBe(true);
+        // The password attribute is ignored, so the account has no usable
+        // credential and cannot be signed into with the supplied value. Okta
+        // sends a placeholder password on every create, so the request must
+        // still succeed rather than 4xx.
+        expect(user?.password).toBeNull();
       });
 
       it("should return 400 when userName is missing", async () => {

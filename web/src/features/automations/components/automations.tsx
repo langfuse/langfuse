@@ -10,7 +10,7 @@ import { Button } from "@/src/components/ui/button";
 import { Plus } from "lucide-react";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import Page from "@/src/components/layouts/page";
-import { api } from "@/src/utils/api";
+import { api, getPathnameWithoutBasePath } from "@/src/utils/api";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
 import {
   Dialog,
@@ -23,7 +23,6 @@ import {
 } from "@/src/components/ui/dialog";
 import { type AutomationDomain } from "@langfuse/shared";
 import { ErrorPage } from "@/src/components/error-page";
-import { getPathnameWithoutBasePath } from "@/src/utils/api";
 
 export default function AutomationsPage() {
   const router = useRouter();
@@ -374,7 +373,7 @@ export default function AutomationsPage() {
       <div className="h-full p-6">
         <div className="text-muted-foreground flex h-full items-center justify-center">
           <div className="text-center">
-            <h3 className="text-lg font-medium">Select an automation</h3>
+            <h3 className="text-lg font-bold">Select an automation</h3>
             <p className="mt-2 text-sm">
               Choose an automation from the sidebar to view its details and
               execution history.

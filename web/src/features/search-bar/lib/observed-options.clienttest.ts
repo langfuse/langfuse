@@ -1,9 +1,13 @@
+// @vitest-environment node
+
 import { describe, expect, it } from "vitest";
 
 import {
   MAX_SCORE_NAME_LENGTH,
   MAX_SCORE_NAMES_PER_TYPE,
   observedScoreNamesFromOptions,
+  withMetadataPathOptions,
+  type ObservedOptions,
 } from "./observed-options";
 
 describe("observedScoreNamesFromOptions", () => {
@@ -48,5 +52,29 @@ describe("observedScoreNamesFromOptions", () => {
       scores_avg: [{ value: "x".repeat(MAX_SCORE_NAME_LENGTH + 1) }],
     });
     expect(names?.numeric).toBeUndefined();
+  });
+});
+
+describe("withMetadataPathOptions", () => {
+  const observed: ObservedOptions = { level: [{ value: "ERROR" }] };
+
+  it("keeps undefined observed undefined (loading semantics untouched)", () => {
+    expect(
+      withMetadataPathOptions(undefined, { a: { type: "string" } }),
+    ).toBeUndefined();
+  });
+
+  it("returns the observed map unchanged without observed paths", () => {
+    expect(withMetadataPathOptions(observed, undefined)).toBe(observed);
+    expect(withMetadataPathOptions(observed, {})).toBe(observed);
+  });
+
+  it("merges the metadata suggestions in, leaving other columns alone", () => {
+    const out = withMetadataPathOptions(observed, {
+      region: { type: "string", values: ["eu"] },
+    });
+    expect(out?.level).toBe(observed.level);
+    expect(out?.metadata).toEqual([{ value: "region", type: "string" }]);
+    expect(out?.["metadata.region"]).toEqual([{ value: "eu" }]);
   });
 });

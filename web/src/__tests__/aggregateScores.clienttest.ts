@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import {
   aggregateScores,
   type ScoreToAggregate,
@@ -17,6 +19,7 @@ describe("aggregateScores", () => {
         dataType: "NUMERIC",
         value: 5,
         comment: "test comment",
+        executionTraceId: "execution-trace-id",
       },
     ] as ScoreToAggregate[];
     expect(aggregateScores(scores)).toEqual({
@@ -25,6 +28,7 @@ describe("aggregateScores", () => {
         values: [5],
         average: 5,
         comment: "test comment",
+        executionTraceId: "execution-trace-id",
       },
     });
   });
@@ -136,12 +140,13 @@ describe("aggregateScores", () => {
     });
   });
 
-  it("should correctly aggregate multiple Categorical scores with the same key", () => {
+  it("should render Boolean scores as true/false", () => {
     const scores = [
       {
         name: "test",
         source: "API",
         dataType: "BOOLEAN",
+        value: 1,
         stringValue: "True",
         comment: "test comment",
       },
@@ -149,6 +154,7 @@ describe("aggregateScores", () => {
         name: "test",
         source: "API",
         dataType: "BOOLEAN",
+        value: 0,
         stringValue: "False",
         comment: "another comment",
       },
@@ -156,14 +162,28 @@ describe("aggregateScores", () => {
     expect(aggregateScores(scores)).toEqual({
       "test-API-BOOLEAN": {
         type: "CATEGORICAL",
-        values: ["True", "False"],
+        values: ["false", "true"],
         valueCounts: [
-          { value: "True", count: 1 },
-          { value: "False", count: 1 },
+          { value: "false", count: 1 },
+          { value: "true", count: 1 },
         ],
         comment: undefined,
       },
     });
+  });
+
+  it("should order a cell's values the same way regardless of input order", () => {
+    const asScores = (stringValues: string[]) =>
+      stringValues.map((stringValue) => ({
+        name: "verdict",
+        source: "API",
+        dataType: "CATEGORICAL",
+        stringValue,
+      })) as ScoreToAggregate[];
+
+    expect(aggregateScores(asScores(["pass", "fail", "pass"]))).toEqual(
+      aggregateScores(asScores(["fail", "pass", "pass"])),
+    );
   });
 
   it("should correctly aggregate scores with mixed types and the same name", () => {
@@ -209,10 +229,10 @@ describe("aggregateScores", () => {
       },
       "test-ANNOTATION-CATEGORICAL": {
         type: "CATEGORICAL",
-        values: ["good", "bad", "good"],
+        values: ["bad", "good", "good"],
         valueCounts: [
-          { value: "good", count: 2 },
           { value: "bad", count: 1 },
+          { value: "good", count: 2 },
         ],
         comment: undefined,
       },

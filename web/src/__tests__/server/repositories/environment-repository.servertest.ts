@@ -32,7 +32,7 @@ describe("Clickhouse Project Repository Test", () => {
     expect(environments[0].environment).toEqual("default");
   });
 
-  it("should return environment from project_environments table after new trace was inserted", async () => {
+  it("should return environments from the traces table after new traces were inserted", async () => {
     const projectId = randomUUID();
     const environmentId1 = randomUUID();
     const environmentId2 = randomUUID();

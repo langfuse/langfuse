@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import * as React from "react";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {

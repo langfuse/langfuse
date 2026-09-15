@@ -61,7 +61,7 @@ const DatasetItemEntryPointRow = ({
     >
       <div className="flex items-center">{icon}</div>
       <div className="flex flex-1 flex-col gap-1">
-        <h3 className="font-semibold">{title}</h3>
+        <h3 className="font-bold">{title}</h3>
         <p className="text-muted-foreground text-sm">{description}</p>
       </div>
     </div>

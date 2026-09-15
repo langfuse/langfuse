@@ -1,5 +1,9 @@
 import { env } from "@/src/env.mjs";
 
+// Mirrors getBaseUrl/getProductBaseUrl in @langfuse/shared
+// (src/server/utils/baseUrl.ts), which the shared in-app-agent runtime uses.
+// Web keeps its own copy so callers read the validated web env (and tests can
+// mock @/src/env.mjs as the seam).
 const LOCALHOST_HOST_PATTERN = /^(localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/i;
 
 export const getBaseUrl = () => {

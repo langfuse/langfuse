@@ -4,7 +4,7 @@ import { api } from "@/src/utils/api";
 import Header from "@/src/components/layouts/header";
 import { Label } from "@/src/components/ui/label";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 
 export function PersonalNotificationSettings() {
   const router = useRouter();
@@ -62,7 +62,7 @@ export function PersonalNotificationSettings() {
       <Header title="Personal Notifications" />
       <div className="flex flex-col gap-4">
         <div>
-          <h3 className="text-lg font-medium">Email Notifications</h3>
+          <h3 className="text-lg font-bold">Email Notifications</h3>
           <p className="text-muted-foreground text-sm">
             Manage your personal email notification preferences for this
             project.

@@ -11,6 +11,8 @@ router.get<{}, { status: string }>("/health", async (req, res) => {
       failOnSigterm: false,
       failIfEventPropagationStuck:
         req.query.failIfEventPropagationStuck === "true",
+      failIfQueueConsumptionStuck:
+        req.query.failIfQueueConsumptionStuck === "true",
     });
   } catch (e) {
     traceException(e);
@@ -27,6 +29,8 @@ router.get<{}, { status: string }>("/ready", async (req, res) => {
       failOnSigterm: true,
       failIfEventPropagationStuck:
         req.query.failIfEventPropagationStuck === "true",
+      failIfQueueConsumptionStuck:
+        req.query.failIfQueueConsumptionStuck === "true",
     });
   } catch (e) {
     traceException(e);

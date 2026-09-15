@@ -154,6 +154,33 @@ maybe("traces trpc (events_only write mode)", () => {
     expect(result.observations).toHaveLength(2);
   });
 
+  it("rejects invalid agent graph timestamps as a bad request", async () => {
+    const traceId = randomUUID();
+
+    await createEventsCh([
+      createEvent({
+        id: traceId,
+        span_id: traceId,
+        trace_id: traceId,
+        project_id: projectId,
+        parent_span_id: null,
+      }),
+    ]);
+    await waitForExpect(async () => {
+      const trace = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(trace?.id).toBe(traceId);
+    });
+
+    await expect(
+      caller.events.getAgentGraphData({
+        projectId,
+        traceId,
+        minStartTime: "'",
+        maxStartTime: "2026-08-08T22:25:00.000Z",
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
   // On a fresh events_only deployment tracing data is written ONLY to the
   // events tables; the legacy `traces` table stays intentionally empty. The
   // onboarding gate must detect data in the events table, otherwise the

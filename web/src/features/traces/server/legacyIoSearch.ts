@@ -2,7 +2,7 @@ import { env } from "@/src/env.mjs";
 import {
   hasLegacyTracingIoSearch,
   LEGACY_IO_SEARCH_TYPES,
-} from "@/src/features/traces/lib/legacyIoSearch";
+} from "@/src/features/traces/server/legacyIoSearchTypes";
 import { BatchTableNames, type TracingSearchType } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 
@@ -11,13 +11,12 @@ const LEGACY_TRACING_TABLE_NAMES = new Set<BatchTableNames>([
   BatchTableNames.Observations,
 ]);
 
-export const isLegacyTracingIoSearchDisabled = () =>
+const isLegacyTracingIoSearchDisabled = () =>
   env.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH === "true";
 
-export const hasSearchQuery = (searchQuery?: string | null) =>
-  Boolean(searchQuery);
+const hasSearchQuery = (searchQuery?: string | null) => Boolean(searchQuery);
 
-export const isLegacyTracingTableName = (tableName: BatchTableNames) =>
+const isLegacyTracingTableName = (tableName: BatchTableNames) =>
   LEGACY_TRACING_TABLE_NAMES.has(tableName);
 
 type LegacyTracingSearch = {

@@ -1,5 +1,12 @@
+/* eslint-disable @repo/no-null-render */
 import { useMemo, useRef } from "react";
-import { DollarSign, ThumbsDown, Timer, type LucideIcon } from "lucide-react";
+import {
+  Check,
+  DollarSign,
+  ThumbsDown,
+  Timer,
+  type LucideIcon,
+} from "lucide-react";
 import {
   SYSTEM_TABLE_VIEW_PRESET_CATEGORIES_ORDERED,
   SYSTEM_TABLE_VIEW_PRESET_CATEGORY_META,
@@ -16,7 +23,7 @@ import {
 } from "@/src/components/ui/popover";
 import { cn } from "@/src/utils/tailwind";
 import { useViewData } from "@/src/components/table/table-view-presets/hooks/useViewData";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 const CATEGORY_ICONS: Record<SystemTableViewPresetCategory, LucideIcon> = {
   [SystemTableViewPresetCategory.SlowCalls]: Timer,
@@ -225,7 +232,13 @@ export function CategoryPresetChips({
                   if (event.key === "Enter" || event.key === " ")
                     pointerDownRef.current = false;
                 }}
-                className={cn("gap-1.5", isCategoryActive && "bg-primary/5")}
+                className={cn(
+                  "gap-1.5",
+                  // Filled like the sibling ViewModeToggle's on-state
+                  // (toggleVariants) — bg-primary/5 was invisible in dark mode.
+                  isCategoryActive &&
+                    "bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground",
+                )}
               >
                 <Icon className="h-4 w-4" aria-hidden />
                 {label}
@@ -243,7 +256,7 @@ export function CategoryPresetChips({
                 if (openedByPointerRef.current) event.preventDefault();
               }}
             >
-              <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium">
+              <div className="text-muted-foreground px-2 py-1.5 text-xs font-bold">
                 {label}
               </div>
               <div className="max-h-72 overflow-y-auto">
@@ -325,10 +338,13 @@ export function CategoryPresetChips({
                         preset.disabled
                           ? "cursor-default opacity-60"
                           : "hover:bg-accent",
+                        // bg-muted is indistinguishable from the dark popover
+                        // surface; accent + check marks the active row.
+                        isPresetActive && "bg-accent",
                       )}
                     >
                       <span className="flex flex-col">
-                        <span className="flex items-center gap-1.5 font-medium">
+                        <span className="flex items-center gap-1.5 font-bold">
                           {preset.name}
                           {preset.disabled && (
                             <span className="text-muted-foreground rounded-sm border px-1 text-[10px] font-normal uppercase">
@@ -342,6 +358,12 @@ export function CategoryPresetChips({
                           </span>
                         )}
                       </span>
+                      {isPresetActive && (
+                        <Check
+                          className="mt-0.5 h-4 w-4 shrink-0"
+                          aria-hidden
+                        />
+                      )}
                     </button>
                   );
                   // The disabled placeholder never applies, so it isn't wrapped

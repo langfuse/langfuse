@@ -1,23 +1,21 @@
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { api } from "@/src/utils/api";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { SimpleDataTable } from "@/src/components/table/simple-data-table";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { api, reportNonTrpcError } from "@/src/utils/api";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
 import { UpdateLLMApiKeyDialog } from "./UpdateLLMApiKeyDialog";
+import { type RouterOutput } from "@/src/utils/types";
+
+type LlmApiKeyRow = RouterOutput["llmApiKey"]["all"]["data"][number];
 
 export function LlmApiKeyList(props: { projectId: string }) {
   const [editingKeyId, setEditingKeyId] = useState<string | null>(null);
@@ -26,6 +24,14 @@ export function LlmApiKeyList(props: { projectId: string }) {
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "llmApiKeys:read",
+  });
+  const hasDeleteAccess = useHasProjectAccess({
+    projectId: props.projectId,
+    scope: "llmApiKeys:delete",
+  });
+  const hasUpdateAccess = useHasProjectAccess({
+    projectId: props.projectId,
+    scope: "llmApiKeys:update",
   });
 
   const apiKeys = api.llmApiKey.all.useQuery(
@@ -41,15 +47,88 @@ export function LlmApiKeyList(props: { projectId: string }) {
     (key) => key.extraHeaderKeys.length > 0,
   );
 
+  const columns: LangfuseColumnDef<LlmApiKeyRow>[] = [
+    {
+      accessorKey: "provider",
+      header: "Provider",
+      cell: ({ getValue }) => (
+        <span className="font-mono">{getValue<string>()}</span>
+      ),
+    },
+    {
+      accessorKey: "adapter",
+      header: "Adapter",
+      cell: ({ getValue }) => (
+        <span className="font-mono">{getValue<string>()}</span>
+      ),
+    },
+    {
+      accessorKey: "baseURL",
+      header: "Base URL",
+      cell: ({ getValue }) => (
+        <div className="max-w-md overflow-auto font-mono">
+          {getValue<string | null>() ?? "default"}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "displaySecretKey",
+      header: "API Key",
+      cell: ({ getValue }) => (
+        <span className="font-mono">{getValue<string>()}</span>
+      ),
+    },
+    ...(hasExtraHeaderKeys
+      ? [
+          createTextTableColumn<LlmApiKeyRow, string[]>({
+            accessorKey: "extraHeaderKeys",
+            header: "Extra headers",
+            mapValue: (value) => value?.join(", "),
+          }),
+        ]
+      : []),
+    {
+      accessorKey: "id",
+      header: "",
+      cell: ({ row }) => {
+        const apiKey = row.original;
+        return (
+          <div data-row-click-ignore className="flex justify-end space-x-2">
+            {hasUpdateAccess && (
+              <UpdateLLMApiKeyDialog
+                apiKey={apiKey}
+                projectId={props.projectId}
+                open={editingKeyId === apiKey.id}
+                onOpenChange={(open: boolean) => {
+                  if (open) {
+                    setEditingKeyId(apiKey.id);
+                  } else {
+                    setEditingKeyId(null);
+                  }
+                }}
+              />
+            )}
+            {hasDeleteAccess && (
+              <DeleteApiKeyButton
+                projectId={props.projectId}
+                apiKeyId={apiKey.id}
+              />
+            )}
+          </div>
+        );
+      },
+    },
+  ];
+
   if (!hasAccess) {
     return (
       <div>
         <Header title="LLM Connections" />
         <Alert>
-          <AlertTitle>Access Denied</AlertTitle>
-          <AlertDescription>
+          <Alert.Title>Access Denied</Alert.Title>
+          <Alert.Description>
             You do not have permission to view LLM API keys for this project.
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       </div>
     );
@@ -63,92 +142,24 @@ export function LlmApiKeyList(props: { projectId: string }) {
         Your provider will charge based on usage.
       </p>
       <Card className="mb-4 overflow-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-primary md:table-cell">
-                Provider
-              </TableHead>
-              <TableHead className="text-primary md:table-cell">
-                Adapter
-              </TableHead>
-              <TableHead className="text-primary md:table-cell">
-                Base URL
-              </TableHead>
-              <TableHead className="text-primary">API Key</TableHead>
-              {hasExtraHeaderKeys ? (
-                <TableHead className="text-primary">Extra headers</TableHead>
-              ) : null}
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody className="text-muted-foreground">
-            {apiKeys.data?.data.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  density="comfortable"
-                  colSpan={6}
-                  className="text-center"
-                >
-                  None
-                </TableCell>
-              </TableRow>
+        <SimpleDataTable
+          columns={columns}
+          data={apiKeys.data?.data ?? []}
+          isLoading={apiKeys.isLoading}
+          noResults={
+            apiKeys.isError ? (
+              <span className="text-destructive">
+                Failed to load LLM connections. Please try again.
+              </span>
             ) : (
-              apiKeys.data?.data.map((apiKey) => (
-                <TableRow
-                  key={apiKey.id}
-                  className="hover:bg-primary-foreground cursor-default"
-                  onClick={() => setEditingKeyId(apiKey.id)}
-                >
-                  <TableCell density="comfortable" className="font-mono">
-                    {apiKey.provider}
-                  </TableCell>
-                  <TableCell density="comfortable" className="font-mono">
-                    {apiKey.adapter}
-                  </TableCell>
-                  <TableCell
-                    density="comfortable"
-                    className="max-w-md overflow-auto font-mono"
-                  >
-                    {apiKey.baseURL ?? "default"}
-                  </TableCell>
-                  <TableCell density="comfortable" className="font-mono">
-                    {apiKey.displaySecretKey}
-                  </TableCell>
-                  {hasExtraHeaderKeys ? (
-                    <TableCell density="comfortable">
-                      {" "}
-                      {apiKey.extraHeaderKeys.join(", ")}{" "}
-                    </TableCell>
-                  ) : null}
-                  <TableCell density="comfortable" className="text-right">
-                    <div
-                      className="flex justify-end space-x-2"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <UpdateLLMApiKeyDialog
-                        apiKey={apiKey}
-                        projectId={props.projectId}
-                        open={editingKeyId === apiKey.id}
-                        onOpenChange={(open: boolean) => {
-                          if (open) {
-                            setEditingKeyId(apiKey.id);
-                          } else {
-                            setEditingKeyId(null);
-                          }
-                        }}
-                      />
-                      <DeleteApiKeyButton
-                        projectId={props.projectId}
-                        apiKeyId={apiKey.id}
-                      />
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              "None"
+            )
+          }
+          bodyTone="muted"
+          rowVariant="primary-hover-static"
+          onRowClick={(apiKey) => setEditingKeyId(apiKey.id)}
+          getRowLabel={(apiKey) => `Edit ${apiKey.provider} connection`}
+        />
       </Card>
       <CreateLLMApiKeyDialog open={open} setOpen={setOpen} />
     </div>
@@ -158,18 +169,12 @@ export function LlmApiKeyList(props: { projectId: string }) {
 // show dialog to let user confirm that this is a destructive action
 function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
   const capture = usePostHogClientCapture();
-  const hasAccess = useHasProjectAccess({
-    projectId: props.projectId,
-    scope: "llmApiKeys:delete",
-  });
 
   const utils = api.useUtils();
   const mutDeleteApiKey = api.llmApiKey.delete.useMutation({
     onSuccess: () => utils.llmApiKey.invalidate(),
   });
   const [open, setOpen] = useState(false);
-
-  if (!hasAccess) return null;
 
   return (
     <ConfirmDialog
@@ -194,9 +199,7 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
             capture("project_settings:llm_api_key_delete");
             setOpen(false);
           })
-          .catch((error) => {
-            console.error(error);
-          });
+          .catch((error) => reportNonTrpcError(error, "llm-api-keys"));
       }}
     />
   );

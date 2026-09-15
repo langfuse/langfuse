@@ -56,26 +56,35 @@ export const experimentPreAggCols: UiColumnMappings = [
  * Score aggregation column mappings for experiments.
  */
 export const experimentScoreAggCols: UiColumnMappings = [
-  // Observation-level scores
+  // Level-agnostic scores: these match a score whether it was recorded on an
+  // observation or on the trace. The legacy `obs_*` ids map here too, so links
+  // and saved views written against them keep working — and start matching
+  // trace-level scores, which is the point (a score recorded on the trace used
+  // to return nothing).
   {
     uiTableName: "Scores (numeric)",
-    uiTableId: "obs_scores_avg",
+    uiTableId: "scores_avg",
     clickhouseTableName: "scores",
-    clickhouseSelect: "obs_scores_avg",
+    clickhouseSelect: "scores_avg",
+    aliases: ["obs_scores_avg"],
   },
   {
     uiTableName: "Scores (categorical)",
-    uiTableId: "obs_score_categories",
+    uiTableId: "score_categories",
     clickhouseTableName: "scores",
-    clickhouseSelect: "obs_score_categories",
+    clickhouseSelect: "score_categories",
+    aliases: ["obs_score_categories"],
   },
   {
     uiTableName: "Scores (boolean)",
-    uiTableId: "obs_score_booleans",
+    uiTableId: "score_booleans",
     clickhouseTableName: "scores",
-    clickhouseSelect: "obs_score_booleans",
+    clickhouseSelect: "score_booleans",
+    aliases: ["obs_score_booleans"],
   },
-  // Trace-level scores
+  // Trace-only, kept resolving for saved views that deliberately scoped to the
+  // trace level. Not offered as a facet: aliasing these onto the agnostic
+  // arrays would silently WIDEN such a filter.
   {
     uiTableName: "Trace Scores (numeric)",
     uiTableId: "trace_scores_avg",

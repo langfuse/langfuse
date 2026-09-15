@@ -2,9 +2,58 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildEventsFullTableSplitQuery,
+  EventsAggregationQueryBuilder,
   EventsQueryBuilder,
   EventsSessionAggregationQueryBuilder,
 } from "./event-query-builder";
+
+describe("EventsQueryBuilder public API v2 field groups", () => {
+  it.each([
+    ["basic", true],
+    ["core", false],
+  ] as const)(
+    "projects semantic root status for %s: %s",
+    (fieldSet, selected) => {
+      const query = new EventsQueryBuilder({ projectId: "test-project" })
+        .selectFieldSet(fieldSet)
+        .buildWithParams().query;
+
+      expect(query.includes('"is_root_observation"')).toBe(selected);
+    },
+  );
+});
+
+describe("EventsAggregationQueryBuilder", () => {
+  it("counts distinct non-synthetic observations per trace", () => {
+    const { query } = new EventsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("all")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "length(groupUniqArrayIf(span_id, span_id <> '' AND span_id <> concat('t-', trace_id))) AS observation_count",
+    );
+    expect(query).toContain(
+      "(e.parent_span_id = '' OR e.is_app_root = true) AND e.name <> ''",
+    );
+  });
+
+  it("promotes evaluator execution fields into the trace aggregation", () => {
+    const { query } = new EventsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("all")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "argMaxIf(evaluator_id, event_ts, evaluator_id <> '') AS evaluator_id",
+    );
+    expect(query).toContain(
+      "argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id <> '') AS evaluation_rule_id",
+    );
+  });
+});
 
 describe("EventsSessionAggregationQueryBuilder", () => {
   it("selects metadata arrays from the same deterministic latest observation", () => {

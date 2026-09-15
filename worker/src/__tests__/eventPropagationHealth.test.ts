@@ -1,6 +1,53 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { evaluateEventPropagationStuck } from "../features/health";
+import {
+  evaluateEventPropagationStuck,
+  getEventPropagationHealth,
+} from "../features/health";
+import { getLastRunStartedAt } from "../features/eventPropagation/handleEventPropagationJob";
+
+// Pin the write mode to events_only: the propagation worker registers for any
+// mode that writes to events_full (dual AND events_only), so the health gate
+// must stay active for both. See worker/src/app.ts.
+vi.mock("../env", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("../env")>();
+  return {
+    ...mod,
+    env: {
+      ...mod.env,
+      QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED: "true",
+      LANGFUSE_MIGRATION_V4_WRITE_MODE: "events_only",
+    },
+  };
+});
+
+vi.mock("../features/eventPropagation/handleEventPropagationJob", () => ({
+  getLastRunStartedAt: vi.fn().mockResolvedValue(null),
+  getLastProcessedPartition: vi.fn().mockResolvedValue(null),
+}));
+
+describe("getEventPropagationHealth", () => {
+  it("keeps the liveness gate enabled in events_only write mode", async () => {
+    const health = await getEventPropagationHealth();
+
+    expect(health.enabled).toBe(true);
+    expect(health.stuck).toBe(false); // no heartbeat yet -> not stuck
+  });
+
+  it("allows a long propagation run but still detects an expired heartbeat", async () => {
+    vi.mocked(getLastRunStartedAt).mockResolvedValueOnce(
+      Date.now() - 30 * 60_000,
+    );
+
+    expect((await getEventPropagationHealth()).stuck).toBe(false);
+
+    vi.mocked(getLastRunStartedAt).mockResolvedValueOnce(
+      Date.now() - 36 * 60_000,
+    );
+
+    expect((await getEventPropagationHealth()).stuck).toBe(true);
+  });
+});
 
 describe("evaluateEventPropagationStuck", () => {
   const nowMs = 1_700_000_000_000;

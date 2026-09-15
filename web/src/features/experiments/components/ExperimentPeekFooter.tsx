@@ -32,7 +32,7 @@ export function ExperimentPeekFooter({ projectId }: { projectId: string }) {
     <div className="flex h-7 items-center justify-between gap-3">
       <div className="flex min-w-0 items-center gap-2">
         <span
-          className={cn("truncate text-xs font-medium", colorStyles?.textClass)}
+          className={cn("truncate text-xs font-bold", colorStyles?.textClass)}
           title={currentName}
         >
           {currentName}
@@ -40,7 +40,7 @@ export function ExperimentPeekFooter({ projectId }: { projectId: string }) {
         <Badge
           variant="outline"
           size="sm"
-          className={cn("shrink-0 font-medium", colorStyles?.badgeClass)}
+          className={cn("shrink-0 font-bold", colorStyles?.badgeClass)}
         >
           {currentIndex === 0 ? "Baseline" : "Comp"}
         </Badge>

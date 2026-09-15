@@ -1,21 +1,15 @@
 import { useRouter } from "next/router";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
-import { TraceDetailBody } from "@/src/components/trace/TraceDetailBody";
+import { TraceDetailBody } from "@/src/features/traces";
 import { TablePeekView } from "@/src/components/table/peek";
 import { ExperimentPeekFooter } from "@/src/features/experiments/components/ExperimentPeekFooter";
 import { useExperimentPeekNavigation } from "@/src/features/experiments/hooks/useExperimentPeekNavigation";
+import { parseTraceTimestampFromQuery } from "@/src/fns/parseTraceTimestampFromQuery/parseTraceTimestampFromQuery";
 
 const PeekViewExperimentItemDetail = ({ projectId }: { projectId: string }) => {
   const router = useRouter();
   const peekId = router.query.peek as string | undefined;
-  const timestampParam = router.query.timestamp as string | undefined;
-
-  // Decode the timestamp parameter before parsing as Date
-  // This handles cases where the timestamp might be URL-encoded
-  const timestamp = timestampParam
-    ? new Date(decodeURIComponent(timestampParam))
-    : undefined;
-
+  const timestamp = parseTraceTimestampFromQuery(router.query.timestamp);
   const traceId = router.query.traceId as string | undefined;
 
   const trace = usePeekData({
@@ -37,7 +31,12 @@ const PeekViewExperimentItemDetail = ({ projectId }: { projectId: string }) => {
   }
 
   return (
-    <TraceDetailBody trace={trace.data} context="peek" keySuffix={peekId} />
+    <TraceDetailBody
+      trace={trace.data}
+      context="peek"
+      keySuffix={peekId}
+      truncatedAtObservations={trace.truncatedAtObservations}
+    />
   );
 };
 

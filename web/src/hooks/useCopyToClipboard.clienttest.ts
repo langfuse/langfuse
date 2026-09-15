@@ -55,6 +55,34 @@ describe("useCopyToClipboard", () => {
     expect(result.current.isCopied).toBe(true);
   });
 
+  it("falls back to plain text when the browser rejects a rich clipboard write", async () => {
+    const write = vi.fn().mockRejectedValue(new Error("unsupported type"));
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { write, writeText },
+    });
+    vi.stubGlobal("ClipboardItem", class ClipboardItemStub {});
+
+    const { result } = renderHook(() =>
+      useCopyToClipboard({ successDuration: 500 }),
+    );
+
+    await act(async () => {
+      await result.current.copyRich({
+        text: "The reranker is the bottleneck.",
+        html: "<p>The reranker is the bottleneck.</p>",
+      });
+    });
+
+    // The success state is only honest because the plain-text write landed.
+    expect(write).toHaveBeenCalledOnce();
+    expect(writeText).toHaveBeenCalledWith("The reranker is the bottleneck.");
+    expect(result.current.isCopied).toBe(true);
+
+    vi.unstubAllGlobals();
+  });
+
   it("keeps the active copied state across rerenders and preserves the original timeout", async () => {
     const { result, rerender } = renderHook(
       ({ successDuration }) => useCopyToClipboard({ successDuration }),

@@ -69,7 +69,7 @@ export const getLastProcessedPartition = async (): Promise<string | null> => {
  * Update the last processed partition timestamp in Redis.
  * This is called after successfully processing a partition.
  */
-export const updateLastProcessedPartition = async (
+const updateLastProcessedPartition = async (
   partition: string,
 ): Promise<void> => {
   try {
@@ -338,11 +338,28 @@ export const handleEventPropagationJob = async (
         ${excludeProjectIdsInClause ? `AND obs.project_id ${excludeProjectIdsInClause}` : ""}
       `,
       clickhouseConfigs: {
-        request_timeout: 600000, // 10 minutes timeout
+        request_timeout: 1_800_000, // 30 minutes timeout
       },
       clickhouseSettings: {
         parallel_view_processing: 1,
-        max_insert_threads: "8",
+        max_insert_threads: String(
+          env.LANGFUSE_EVENT_PROPAGATION_MAX_INSERT_THREADS,
+        ),
+        ...(env.LANGFUSE_EVENT_PROPAGATION_MAX_BLOCK_SIZE !== undefined && {
+          max_block_size: String(env.LANGFUSE_EVENT_PROPAGATION_MAX_BLOCK_SIZE),
+        }),
+        ...(env.LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_ROWS !==
+          undefined && {
+          min_insert_block_size_rows: String(
+            env.LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_ROWS,
+          ),
+        }),
+        ...(env.LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_BYTES !==
+          undefined && {
+          min_insert_block_size_bytes: String(
+            env.LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_BYTES,
+          ),
+        }),
         type_json_skip_duplicated_paths: true,
       },
     });

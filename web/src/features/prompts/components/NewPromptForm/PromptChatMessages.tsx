@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useEffect, useState, useCallback, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { PlusIcon } from "lucide-react";

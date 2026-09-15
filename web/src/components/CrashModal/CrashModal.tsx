@@ -22,12 +22,12 @@ export const CrashModal = ({
       </div>
 
       <div className="mt-4 min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="text-2xl font-bold tracking-tight">
           Something went wrong
         </h1>
         <p className="text-muted-foreground mt-2 text-sm leading-5">
           {statusCode ? (
-            <span className="text-foreground mr-2 font-medium whitespace-nowrap">
+            <span className="text-foreground mr-2 font-bold whitespace-nowrap">
               Error {statusCode}
             </span>
           ) : null}
@@ -38,7 +38,7 @@ export const CrashModal = ({
           <div className="border-border bg-muted/40 mt-5 rounded-lg border p-4">
             <dl>
               <div>
-                <dt className="text-muted-foreground text-xs font-medium">
+                <dt className="text-muted-foreground text-xs font-bold">
                   Error ID
                 </dt>
                 <dd className="mt-1.5 font-mono text-xs leading-5 break-all">

@@ -1,6 +1,6 @@
 import { type FilterCondition, type FilterState } from "@langfuse/shared";
 
-export const EXPERIMENT_ROOT_OBSERVATION_FILTER = {
+const EXPERIMENT_ROOT_OBSERVATION_FILTER = {
   type: "boolean",
   column: "isExperimentItemRootSpan",
   operator: "=",

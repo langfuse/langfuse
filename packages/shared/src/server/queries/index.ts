@@ -20,6 +20,7 @@ export {
   NullFilter,
   encodeBooleanScoreEntry,
   filtersRequireEventsFull,
+  metadataFilterIsEventsCoreSafe,
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
 export {
@@ -74,7 +75,9 @@ export {
 export {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
+  buildEventsMetadataValuesQuery,
   EVENTS_FILTER_OPTION_TOP_N,
+  EVENTS_APPROX_TOTAL_COUNT_MARKER,
   normalizeEventFilterOptionColumn,
   type EventFilterOptionRow,
   type EventFilterOptionColumn,
@@ -87,6 +90,7 @@ export {
   eventsTraceMetadata,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
+  promptEventsForMetrics,
   scoreBooleansAggregation,
 } from "./clickhouse-sql/query-fragments";
 export {
@@ -99,6 +103,7 @@ export {
   buildEventsObservationRowSelection,
   eventSearchCondition,
   groupEventsObservationFilters,
+  toLevelAgnosticScoreFilter,
   type EventsObservationFilterGroups,
   type EventsObservationRowSelectionInput,
 } from "./clickhouse-sql/events-observation-row-selection";

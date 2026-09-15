@@ -15,7 +15,7 @@ const placementPosition = {
   width: z.number().int().positive(),
   height: z.number().int().positive(),
 };
-export const PublicWidgetPlacementSchema = z
+const PublicWidgetPlacementSchema = z
   .object({
     type: z.literal("widget"),
     id: z.string(),
@@ -23,7 +23,7 @@ export const PublicWidgetPlacementSchema = z
     ...placementPosition,
   })
   .strict();
-export const PublicPresetPlacementSchema = z
+const PublicPresetPlacementSchema = z
   .object({
     type: z.literal("preset"),
     id: z.string(),
@@ -35,7 +35,7 @@ export const DashboardPlacementSchema = z.discriminatedUnion("type", [
   PublicWidgetPlacementSchema,
   PublicPresetPlacementSchema,
 ]);
-export const PublicDashboardDefinitionSchema = z
+const PublicDashboardDefinitionSchema = z
   .object({
     widgets: z.array(DashboardPlacementSchema),
   })
@@ -75,9 +75,11 @@ export const PostUnstableDashboardBody = z.object({
   definition: PublicDashboardDefinitionSchema.optional(),
   filters: z.array(singleFilter).optional(),
 });
+/** @alias */
 export const PostUnstableDashboardResponse = DashboardSchema;
 
 export const DashboardIdQuery = z.object({ dashboardId: z.string() });
+/** @alias */
 export const GetUnstableDashboardResponse = DashboardSchema;
 export const PatchUnstableDashboardBody = z
   .object({
@@ -90,6 +92,7 @@ export const PatchUnstableDashboardBody = z
     (value) => Object.keys(value).length > 0,
     "At least one field is required",
   );
+/** @alias */
 export const PatchUnstableDashboardResponse = DashboardSchema;
 export const DeleteUnstableDashboardResponse = z.object({
   message: z.literal("Dashboard successfully deleted"),
@@ -112,6 +115,7 @@ export const PostDashboardPlacementBody = z.discriminatedUnion("type", [
   PublicWidgetPlacementSchema.partial(placementCreateOptionalFields),
   PublicPresetPlacementSchema.partial(placementCreateOptionalFields),
 ]);
+/** @alias */
 export const PostDashboardPlacementResponse = DashboardPlacementSchema;
 // Placements are moved/resized in place; the widget/preset reference and the
 // id are immutable (delete + add to swap content).
@@ -122,6 +126,7 @@ export const PatchDashboardPlacementBody = z
     (value) => Object.keys(value).length > 0,
     "At least one field is required",
   );
+/** @alias */
 export const PatchDashboardPlacementResponse = DashboardPlacementSchema;
 export const DeleteDashboardPlacementResponse = z.object({
   message: z.literal("Placement successfully deleted"),

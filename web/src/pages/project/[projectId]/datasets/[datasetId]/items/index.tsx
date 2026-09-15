@@ -1,25 +1,15 @@
 import { api } from "@/src/utils/api";
-import { useRouter } from "next/router";
 import {
   getDatasetTabs,
   DATASET_TABS,
 } from "@/src/features/navigation/utils/dataset-tabs";
 import { DatasetItemsTable } from "@/src/features/datasets/components/DatasetItemsTable";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
-import { DeleteDatasetButton } from "@/src/components/deleteButton";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
-import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 import { UploadDatasetCsvButton } from "@/src/features/datasets/components/UploadDatasetCsvButton";
 import { Button } from "@/src/components/ui/button";
 import { History, MoreVertical } from "lucide-react";
 import Page from "@/src/components/layouts/page";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/src/components/ui/dropdown-menu";
 import { DatasetItemsOnboarding } from "@/src/components/onboarding/DatasetItemsOnboarding";
 import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
 import { DatasetVersionHistoryPanel } from "@/src/features/datasets/components/DatasetVersionHistoryPanel";
@@ -27,26 +17,50 @@ import { DatasetVersionWarningBanner } from "@/src/features/datasets/components/
 import { useState } from "react";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
+import {
+  RouteParamsPendingFallback,
+  useReadyRouteParams,
+} from "@/src/hooks/useReadyRouteParams";
+import { DatasetActionMenu } from "@/src/features/datasets/components/DatasetActionMenu";
 
-function DatasetItemsView() {
-  const router = useRouter();
-  const projectId = router.query.projectId as string;
-  const datasetId = router.query.datasetId as string;
+export default function DatasetItemsPage() {
+  const route = useReadyRouteParams(["projectId", "datasetId"]);
+  if (!route.ready) return <RouteParamsPendingFallback />;
+  return (
+    <DatasetItemsView
+      projectId={route.params.projectId}
+      datasetId={route.params.datasetId}
+    />
+  );
+}
 
+function DatasetItemsView({
+  projectId,
+  datasetId,
+}: {
+  projectId: string;
+  datasetId: string;
+}) {
   const { selectedVersion, resetToLatest } = useDatasetVersion();
   const isViewingOldVersion = selectedVersion !== null;
 
   const [isVersionPanelOpen, setIsVersionPanelOpen] = useState(false);
 
-  const dataset = api.datasets.byId.useQuery({
-    datasetId,
-    projectId,
-  });
+  const dataset = api.datasets.byId.useQuery(
+    {
+      datasetId,
+      projectId,
+    },
+    { enabled: Boolean(projectId) && Boolean(datasetId) },
+  );
 
-  const totalDatasetItemCount = api.datasets.countItemsByDatasetId.useQuery({
-    projectId,
-    datasetId,
-  });
+  const totalDatasetItemCount = api.datasets.countItemsByDatasetId.useQuery(
+    {
+      projectId,
+      datasetId,
+    },
+    { enabled: Boolean(projectId) && Boolean(datasetId) },
+  );
 
   const showOnboarding =
     totalDatasetItemCount.isSuccess && totalDatasetItemCount.data === 0;
@@ -104,49 +118,28 @@ function DatasetItemsView() {
               }
               listKey="datasets"
             />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
+            <DatasetActionMenu
+              projectId={projectId}
+              datasetId={datasetId}
+              datasetName={dataset.data?.name ?? ""}
+              datasetDescription={dataset.data?.description ?? undefined}
+              datasetMetadata={dataset.data?.metadata}
+              datasetInputSchema={dataset.data?.inputSchema ?? undefined}
+              datasetExpectedOutputSchema={
+                dataset.data?.expectedOutputSchema ?? undefined
+              }
+            >
+              {({ getTriggerProps }) => (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="Dataset actions"
+                  {...getTriggerProps()}
+                >
                   <MoreVertical className="h-4 w-4" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
-                <DropdownMenuItem asChild>
-                  <DatasetActionButton
-                    mode="update"
-                    projectId={projectId}
-                    datasetId={datasetId}
-                    datasetName={dataset.data?.name ?? ""}
-                    datasetDescription={dataset.data?.description ?? undefined}
-                    datasetMetadata={dataset.data?.metadata}
-                    datasetInputSchema={dataset.data?.inputSchema ?? undefined}
-                    datasetExpectedOutputSchema={
-                      dataset.data?.expectedOutputSchema ?? undefined
-                    }
-                  />
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <DuplicateDatasetButton
-                    datasetId={datasetId}
-                    projectId={projectId}
-                  />
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  asChild
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    return false;
-                  }}
-                >
-                  <DeleteDatasetButton
-                    itemId={datasetId}
-                    projectId={projectId}
-                    redirectUrl={`/project/${projectId}/datasets`}
-                    deleteConfirmation={dataset.data?.name}
-                  />
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              )}
+            </DatasetActionMenu>
             <Button
               variant="outline"
               size="icon"
@@ -193,5 +186,3 @@ function DatasetItemsView() {
     </Page>
   );
 }
-
-export default DatasetItemsView;

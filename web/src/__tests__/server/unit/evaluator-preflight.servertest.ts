@@ -19,7 +19,10 @@ import {
   getLLMErrorInfo,
   testModelCall,
 } from "@langfuse/shared/src/server";
-import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
+import {
+  getEvaluatorDefinitionConfigurationError,
+  getEvaluatorDefinitionPreflightError,
+} from "@/src/features/evals/server/evaluator-preflight";
 
 const numericOutputDefinition = createNumericEvalOutputDefinition({
   reasoningDescription: "Why the score was assigned",
@@ -107,6 +110,20 @@ describe("evaluator preflight", () => {
     expect(mockTestModelCall).not.toHaveBeenCalled();
   });
 
+  it("validates evaluator configuration without calling the provider", async () => {
+    const result = await getEvaluatorDefinitionConfigurationError({
+      projectId: "project_test",
+      template: {
+        name: "Answer correctness",
+        outputDefinition: numericOutputDefinition,
+      },
+    });
+
+    expect(result).toBeNull();
+    expect(mockFetchValidModelConfig).toHaveBeenCalledOnce();
+    expect(mockTestModelCall).not.toHaveBeenCalled();
+  });
+
   it("preserves actionable output definition validation errors", async () => {
     const result = await getEvaluatorDefinitionPreflightError({
       projectId: "project_test",
@@ -130,7 +147,7 @@ describe("evaluator preflight", () => {
     expect(mockGetLLMErrorInfo).not.toHaveBeenCalled();
   });
 
-  describe("live provider call failures", () => {
+  describe("live provider calls", () => {
     // The preflight skips the provider call in test-like environments;
     // stub these so the mocked testModelCall is actually reached.
     beforeEach(() => {
@@ -140,6 +157,21 @@ describe("evaluator preflight", () => {
 
     afterEach(() => {
       vi.unstubAllEnvs();
+    });
+
+    it("limits the non-streaming model call to 95 seconds", async () => {
+      const result = await getEvaluatorDefinitionPreflightError({
+        projectId: "project_test",
+        template: {
+          name: "Answer correctness",
+          outputDefinition: numericOutputDefinition,
+        },
+      });
+
+      expect(result).toBeNull();
+      expect(mockTestModelCall).toHaveBeenCalledWith(
+        expect.objectContaining({ timeout: 95_000 }),
+      );
     });
 
     it("returns a clean model-not-found message when the provider responds with 404", async () => {

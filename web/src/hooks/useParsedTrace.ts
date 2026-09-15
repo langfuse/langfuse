@@ -23,6 +23,7 @@ import type {
   ParseResponse,
 } from "@/src/workers/json-parser.worker";
 import { cheapHash } from "@/src/hooks/parsedIoCacheKey";
+import { reportParserWorkerError } from "@/src/hooks/parserWorkerError";
 
 /**
  * Threshold for using Web Worker vs sync parsing (in characters).
@@ -73,8 +74,8 @@ function getOrCreateWorker(): Worker | null {
         }
       };
 
-      workerInstance.onerror = (error) => {
-        console.error("[useParsedTrace] Worker error:", error);
+      workerInstance.onerror = (event) => {
+        reportParserWorkerError("useParsedTrace", event);
       };
     } catch (error) {
       console.error("[useParsedTrace] Failed to create worker:", error);

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, type ReactNode } from "react";
 import {
   type FormatMetricOptions,
   type MetricFormatterFunction,
@@ -10,13 +10,15 @@ import {
   type MissingBucketValue,
 } from "@/src/features/widgets/chart-library/chart-props";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
+import { isChartDataEmpty } from "@/src/features/widgets/chart-library/isChartDataEmpty";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { CardContent } from "@/src/components/ui/card";
-import LineChartTimeSeries from "@/src/features/widgets/chart-library/LineChartTimeSeries";
-import AreaChartTimeSeries from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
-import VerticalBarChartTimeSeries from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
-import HorizontalBarChart from "@/src/features/widgets/chart-library/HorizontalBarChart";
-import VerticalBarChart from "@/src/features/widgets/chart-library/VerticalBarChart";
-import PieChart from "@/src/features/widgets/chart-library/PieChart";
+import { LineChartTimeSeries } from "@/src/features/widgets/chart-library/LineChartTimeSeries";
+import { AreaChartTimeSeries } from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
+import { VerticalBarChartTimeSeries } from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
+import { TopListChart } from "@/src/features/widgets/chart-library/TopListChart";
+import { VerticalBarChart } from "@/src/features/widgets/chart-library/VerticalBarChart";
+import { PieChart } from "@/src/features/widgets/chart-library/PieChart";
 import HistogramChart from "@/src/features/widgets/chart-library/HistogramChart";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { Button } from "@/src/components/ui/button";
@@ -30,6 +32,19 @@ const DEFAULT_METRIC_THEME = {
   light: "hsl(var(--chart-1))",
   dark: "hsl(var(--chart-1))",
 } as const;
+
+/**
+ * Chart types whose recharts primitive draws nothing but empty axes/grid when
+ * every point is null/zero — a blank canvas rather than guidance (manifesto
+ * principle 8). Decided once here so no time-series component re-derives the
+ * emptiness check. (LFE-14333)
+ */
+const EMPTY_STATE_CHART_TYPES = new Set<DashboardWidgetChartType>([
+  "LINE_TIME_SERIES",
+  "AREA_TIME_SERIES",
+  "BAR_TIME_SERIES",
+  "NUMBER",
+]);
 
 const ChartComponent = ({
   chartType,
@@ -50,6 +65,9 @@ const ChartComponent = ({
   thresholds,
   missingValue,
   hideXAxisLabels,
+  colorBarsByCategory,
+  zeroBaseline,
+  emptyState,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -88,6 +106,19 @@ const ChartComponent = ({
    * dataset-compare charts.
    */
   hideXAxisLabels?: boolean;
+  /**
+   * Colour each bar of a categorical axis and name it in a legend below the
+   * plot; see {@link ChartProps.colorBarsByCategory}. Consumed by VERTICAL_BAR.
+   */
+  colorBarsByCategory?: boolean;
+  /** See {@link ChartProps.zeroBaseline}. Consumed by VERTICAL_BAR. */
+  zeroBaseline?: boolean;
+  /**
+   * Replaces the default "No data" card when the chart has nothing to draw.
+   * For a chart in a band too short for that card (the table strips), where it
+   * would clip its own text. Pass a stable node so the memo still holds.
+   */
+  emptyState?: ReactNode;
 }) => {
   const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -127,6 +158,24 @@ const ChartComponent = ({
   }, [config]);
 
   const renderChart = () => {
+    // A time-series query can densify an empty range into null-filled bucket
+    // rows rather than an empty array, so recharts still gets data — it just
+    // draws blank axes with no series. Fail into guidance instead of that
+    // blank box. A real 0 is never treated as empty here (see
+    // isChartDataEmpty); skip while loading so a first paint doesn't flash
+    // "No data" before the real result arrives. (LFE-14333, manifesto
+    // principle 8)
+    // A caller that supplied its own empty state (a table strip) gets it for
+    // any chart type: its band is too short for the default card, whatever the
+    // mark.
+    if (
+      (EMPTY_STATE_CHART_TYPES.has(chartType) || emptyState !== undefined) &&
+      (chartType === "NUMBER" || !isLoading) &&
+      isChartDataEmpty(data)
+    ) {
+      return emptyState ?? <NoDataOrLoading isLoading={isLoading} />;
+    }
+
     switch (chartType) {
       case "LINE_TIME_SERIES":
         return (
@@ -178,10 +227,9 @@ const ChartComponent = ({
         );
       case "HORIZONTAL_BAR":
         return (
-          <HorizontalBarChart
+          <TopListChart
             data={renderedData.slice(0, rowLimit)}
             config={resolvedConfig}
-            showValueLabels={chartConfig?.show_value_labels}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
           />
@@ -193,6 +241,9 @@ const ChartComponent = ({
             config={resolvedConfig}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
+            hideXAxisLabels={hideXAxisLabels}
+            colorBarsByCategory={colorBarsByCategory}
+            zeroBaseline={zeroBaseline}
           />
         );
       case "PIE":
@@ -243,9 +294,8 @@ const ChartComponent = ({
       }
       default:
         return (
-          <HorizontalBarChart
+          <TopListChart
             data={renderedData.slice(0, rowLimit)}
-            showValueLabels={chartConfig?.show_value_labels}
             metricFormatter={metricFormatter}
           />
         );
@@ -255,7 +305,7 @@ const ChartComponent = ({
   const renderWarning = () => (
     <div className="flex flex-col items-center justify-center p-6 text-center">
       <AlertCircle className="mb-4 h-12 w-12" />
-      <h3 className="mb-2 text-lg font-semibold">Large Dataset Warning</h3>
+      <h3 className="mb-2 text-lg font-bold">Large Dataset Warning</h3>
       <p className="text-muted-foreground mb-6 text-sm">
         This chart has more than 2,000 unique data points. Rendering it may be
         slow or may crash your browser. Try to reduce the number of dimensions
@@ -265,7 +315,7 @@ const ChartComponent = ({
       <Button
         variant="outline"
         onClick={() => setForceRender(true)}
-        className="font-medium"
+        className="font-bold"
       >
         I understand, proceed to render the chart
       </Button>

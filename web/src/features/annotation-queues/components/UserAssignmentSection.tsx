@@ -1,11 +1,11 @@
 import { api } from "@/src/utils/api";
 import { MoreHorizontal, X } from "lucide-react";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Button } from "@/src/components/ui/button";
 import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
 import { useUserSearch } from "@/src/hooks/useUserSearch";
 import { useSelectedUsers } from "@/src/features/annotation-queues/hooks/useSelectedUsers";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { useRef } from "react";
 
 interface UserAssignmentSectionProps {
@@ -141,7 +141,7 @@ export const UserAssignmentSection = ({
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-3">
-                  <p className="truncate text-xs font-medium" title={userName}>
+                  <p className="truncate text-xs font-bold" title={userName}>
                     {userName}
                   </p>
                   <p
@@ -178,7 +178,7 @@ export const UserAssignmentSection = ({
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-3">
                             <p
-                              className="truncate text-xs font-medium"
+                              className="truncate text-xs font-bold"
                               title={userName}
                             >
                               {userName}

@@ -1,25 +1,3 @@
-export const utcDateOffsetByDays = (days: number) => {
-  const date = new Date();
-  date.setUTCHours(0, 0, 0, 0);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date;
-};
-
-export const localtimeDateOffsetByDays = (days: number) => {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  date.setDate(date.getDate() + days);
-  return date;
-};
-export const utcDate = (localDateTime: Date) =>
-  new Date(
-    Date.UTC(
-      localDateTime.getFullYear(),
-      localDateTime.getMonth(),
-      localDateTime.getDate(),
-    ),
-  );
-
 export const setBeginningOfDay = (date: Date) => {
   const newDate = new Date(date);
   newDate.setHours(0, 0, 0, 0);
@@ -31,9 +9,6 @@ export const setEndOfDay = (date: Date) => {
   newDate.setHours(23, 59, 59, 999);
   return newDate;
 };
-
-export const intervalInSeconds = (start: Date, end: Date | null) =>
-  end ? (end.getTime() - start.getTime()) / 1000 : 0;
 
 export const formatIntervalSeconds = (seconds: number, scale = 2) => {
   const hrs = Math.floor(seconds / 3600);
@@ -62,6 +37,58 @@ export const formatApproximateDuration = (secondsRemaining: number) => {
   return `${hours} hour${hours === 1 ? "" : "s"}`;
 };
 
+type Accuracy = "day" | "hour" | "minute" | "second" | "millisecond";
+
+export const formatLocalIsoDate = (
+  date: Date,
+  useUTC = false,
+  pAccuracy: Accuracy,
+) => {
+  const pad = (num: number) => String(num).padStart(2, "0");
+
+  const year = useUTC ? date.getUTCFullYear() : date.getFullYear();
+  const month = useUTC ? date.getUTCMonth() + 1 : date.getMonth() + 1;
+  const day = useUTC ? date.getUTCDate() : date.getDate();
+  const hours = useUTC ? date.getUTCHours() : date.getHours();
+  const minutes = useUTC ? date.getUTCMinutes() : date.getMinutes();
+  const seconds = useUTC ? date.getUTCSeconds() : date.getSeconds();
+  const ms = useUTC ? date.getUTCMilliseconds() : date.getMilliseconds();
+
+  let formatted = `${year}-${pad(month)}-${pad(day)}`;
+
+  if (["hour", "minute", "second", "millisecond"].includes(pAccuracy)) {
+    formatted += ` ${pad(hours)}`;
+  }
+  if (["minute", "second", "millisecond"].includes(pAccuracy)) {
+    formatted += `:${pad(minutes)}`;
+  }
+  if (["second", "millisecond"].includes(pAccuracy)) {
+    formatted += `:${pad(seconds)}`;
+  }
+  if (pAccuracy === "millisecond") {
+    formatted += `.${String(ms).padStart(3, "0")}`;
+  }
+
+  return formatted;
+};
+
+export const buildLocalIsoDatePresentation = ({
+  date,
+  accuracy = "second",
+}: {
+  date: unknown;
+  accuracy?: Accuracy;
+}) => {
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    return null;
+  }
+
+  return {
+    display: formatLocalIsoDate(date, false, accuracy),
+    title: `UTC: ${formatLocalIsoDate(date, true, "millisecond")}`,
+  };
+};
+
 export const getShortLocalTimezone = () => {
   return new Date()
     .toLocaleTimeString("en-us", { timeZoneName: "short" })
@@ -73,6 +100,21 @@ export const getTimezoneDetails = () => {
   const location = longLocalTz.replace(/_/g, " ");
   const utcDifference = -(new Date().getTimezoneOffset() / 60); // negative because TZ info is the opposite of UTC offset
   return `${location} (UTC${utcDifference >= 0 ? "+" : ""}${utcDifference})`;
+};
+
+// Compact relative time: "just now", "3m ago", "5h ago", "15d ago",
+// "2mo ago", "1y ago" — largest sensible unit, no live refresh implied.
+export const formatCompactRelativeTime = (timestamp: Date): string => {
+  const diffInSeconds = Math.max(0, (Date.now() - timestamp.getTime()) / 1000);
+  if (diffInSeconds < 60) return "just now";
+  const minutes = diffInSeconds / 60;
+  if (minutes < 60) return `${Math.floor(minutes)}m ago`;
+  const hours = minutes / 60;
+  if (hours < 24) return `${Math.floor(hours)}h ago`;
+  const days = hours / 24;
+  if (days < 30) return `${Math.floor(days)}d ago`;
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+  return `${Math.floor(days / 365)}y ago`;
 };
 
 export const getRelativeTimestampFromNow = (timestamp: Date): string => {

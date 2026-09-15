@@ -15,16 +15,11 @@
 // overflows on the same pathological input. So the depth check below is a single
 // pass, non-recursive scan that can never itself overflow.
 
-// Cheap preempt: individual strings larger than this are rendered as plain text
-// instead of markdown. Mirrors MARKDOWN_RENDER_CHARACTER_LIMIT (the caller-side
-// input+output+messages gate) as a per-string backstop for surfaces that do not
-// apply that gate (e.g. comments), and avoids scanning/rendering huge blobs.
-export const MARKDOWN_MAX_RENDER_BYTES = 150_000;
-
 // Content whose estimated markdown nesting depth exceeds this is rendered as
 // plain text. Legitimate markdown nests <20-30 levels deep; a stack-overflowing
 // payload needs hundreds+, so this threshold sits in a wide safe band.
 export const MARKDOWN_MAX_NESTING_DEPTH = 100;
+export const DEFAULT_MARKDOWN_RENDER_CHARACTER_LIMIT = 150_000;
 
 const isListBullet = (char: string): boolean =>
   char === "-" || char === "+" || char === "*";
@@ -123,11 +118,25 @@ export function estimateMarkdownNestingDepth(content: string): number {
 }
 
 /**
- * Whether `content` should be rendered as plain text rather than parsed as GFM
- * markdown, to avoid stack-overflow crashes on pathologically large or deeply
- * nested payloads. See the module header for the mechanism.
+ * Whether `content` should be rendered as plain text rather than parsed as
+ * GFM markdown, to avoid stack-overflow crashes on pathologically large or
+ * deeply nested payloads (see the module header).
+ *
+ * The byte preempt follows `characterLimit` (the configured markdown render
+ * limit, see `useMarkdownRenderCharacterLimit`) floored at its 150_000
+ * default, so raising the limit also raises this backstop for surfaces
+ * without a caller-side gate (e.g. comments). The depth check remains the
+ * stack-overflow guard.
  */
-export function exceedsMarkdownRenderLimits(content: string): boolean {
-  if (content.length > MARKDOWN_MAX_RENDER_BYTES) return true;
+export function exceedsMarkdownRenderLimits(
+  content: string,
+  characterLimit: number,
+): boolean {
+  if (
+    content.length >
+    Math.max(DEFAULT_MARKDOWN_RENDER_CHARACTER_LIMIT, characterLimit)
+  ) {
+    return true;
+  }
   return estimateMarkdownNestingDepth(content) > MARKDOWN_MAX_NESTING_DEPTH;
 }

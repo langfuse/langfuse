@@ -18,7 +18,8 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { env } from "@/src/env.mjs";
-import { captureException } from "@sentry/nextjs";
+import { reportError } from "@/src/utils/reportError";
+import { isJsonParseSyntaxError } from "@/src/features/auth/lib/expectedAuthErrors";
 
 const enterpriseSsoFormSchema = z.object({
   email: z.email(),
@@ -36,6 +37,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   auth0: "Auth0",
   cognito: "Cognito",
   keycloak: "Keycloak",
+  jumpcloud: "JumpCloud",
   workos: "WorkOS",
   wordpress: "WordPress",
   custom: "Custom OAuth",
@@ -123,7 +125,11 @@ export default function EnterpriseSsoRequiredPage() {
           "Unable to start the Enterprise SSO sign-in flow. Please try again.",
       );
     } catch (err) {
-      captureException(err);
+      reportError(err, {
+        area: "auth.enterpriseSso",
+        expected: isJsonParseSyntaxError(err),
+        extra: { context: "auth.enterpriseSso" },
+      });
       setError(
         "Something went wrong while checking your Enterprise SSO configuration. Please try again.",
       );
@@ -141,7 +147,7 @@ export default function EnterpriseSsoRequiredPage() {
       <Head>
         <title>Enterprise SSO Required | Langfuse</title>
       </Head>
-      <div className="min-h-screen-with-banner bg-background flex flex-col justify-center px-6 py-12 lg:px-8">
+      <div className="flex min-h-full flex-1 flex-col justify-center px-6 py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <div className="mx-auto w-fit">
             <LangfuseIcon />
@@ -188,7 +194,7 @@ export default function EnterpriseSsoRequiredPage() {
             </form>
           </Form>
           {error ? (
-            <div className="text-destructive mt-4 text-center text-sm font-medium">
+            <div className="text-destructive mt-4 text-center text-sm font-bold">
               {error}
               <br />
               Contact{" "}

@@ -9,6 +9,7 @@
 
 import {
   FilterCondition,
+  normalizeEventsTraceName,
   type ScoreDataTypeType,
   TracingSearchType,
 } from "@langfuse/shared";
@@ -75,11 +76,13 @@ export const getEventsStream = async (props: {
   const { query, params: queryParams } = queryBuilder.buildWithParams();
 
   // Get distinct score names for empty columns
+  // Same service as the values read below: a missing name is silently dropped.
   const distinctScoreNames = await getDistinctScoreNames({
     projectId,
     cutoffCreatedAt,
     startTimeFrom,
     clickhouseConfigs,
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   const emptyScoreColumns = distinctScoreNames.reduce(
@@ -130,6 +133,20 @@ export const getEventsStream = async (props: {
       | undefined;
     score_categories: string[] | undefined;
     score_categories_tuples: [string, string | null, string][] | undefined;
+    // Trace-level scores (observation_id NULL) live in their own aggregate;
+    // exported rows merge them with the observation-level ones so the export
+    // matches the UI's unified Scores column (LFE-10596).
+    trace_scores_avg:
+      | {
+          name: string;
+          value: number;
+          dataType: ScoreDataTypeType;
+          stringValue: string;
+        }[]
+      | undefined;
+    trace_score_categories_tuples:
+      | [string, string | null, string][]
+      | undefined;
   };
 
   const asyncGenerator = queryClickhouseStream<EventRow>({
@@ -145,8 +162,13 @@ export const getEventsStream = async (props: {
     bufferedRow: EventRow,
     commentsByEvent: Map<string, any[]>,
   ) => {
-    // Process numeric/boolean scores (tuples from ClickHouse)
-    const numericScores = (bufferedRow.scores_avg ?? []).map((score: any) => ({
+    // Process numeric/boolean scores (tuples from ClickHouse), merging the
+    // observation-level and trace-level aggregates so the export matches the
+    // UI's unified Scores column (LFE-10596).
+    const numericScores = [
+      ...(bufferedRow.scores_avg ?? []),
+      ...(bufferedRow.trace_scores_avg ?? []),
+    ].map((score: any) => ({
       name: score[0],
       value: score[1],
       dataType: score[2],
@@ -154,14 +176,15 @@ export const getEventsStream = async (props: {
     }));
 
     // Process categorical scores (tuples from ClickHouse)
-    const categoricalScores = (bufferedRow.score_categories_tuples ?? []).map(
-      (cat: [string, string | null, string]) => ({
-        name: cat[0],
-        value: null,
-        dataType: cat[2],
-        stringValue: cat[1],
-      }),
-    );
+    const categoricalScores = [
+      ...(bufferedRow.score_categories_tuples ?? []),
+      ...(bufferedRow.trace_score_categories_tuples ?? []),
+    ].map((cat: [string, string | null, string]) => ({
+      name: cat[0],
+      value: null,
+      dataType: cat[2],
+      stringValue: cat[1],
+    }));
 
     const outputScores: Record<string, string[] | number[]> =
       prepareScoresForOutput([...numericScores, ...categoricalScores]);
@@ -172,7 +195,7 @@ export const getEventsStream = async (props: {
     const eventRow: BatchExportEventsRow = {
       id: bufferedRow.id,
       traceId: bufferedRow.trace_id,
-      traceName: bufferedRow.trace_name,
+      traceName: normalizeEventsTraceName(bufferedRow.trace_name),
       type: bufferedRow.type,
       name: bufferedRow.name ?? "",
       startTime: bufferedRow.start_time,
