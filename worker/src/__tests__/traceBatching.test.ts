@@ -26,6 +26,7 @@ import {
 import * as shared from "@langfuse/shared/src/server";
 import { env } from "../env";
 import {
+  prepareLocalityPartials,
   selectTraceBatches,
   type PendingTrace,
   trackTraceBatchActivity,
@@ -247,6 +248,142 @@ describe("trace batch selection", () => {
         return union <= Math.max(60 * minute, seedSpan * 1.25);
       }),
     ).toBe(true);
+  });
+  it("coalesces overlapping same-project partials deterministically", () => {
+    const early = [
+      pendingTrace("project", "early-1", 1, 0, minute),
+      pendingTrace("project", "early-2", 2, minute, 2 * minute),
+    ];
+    const intervening = [
+      pendingTrace("project", "late-1", 3, 24 * 60 * minute, 24 * 60 * minute),
+    ];
+    const compatible = [
+      pendingTrace("project", "early-3", 4, 3 * minute, 3 * minute),
+    ];
+
+    const forward = prepareLocalityPartials(
+      [early, intervening, compatible],
+      6,
+    );
+    const reversed = prepareLocalityPartials(
+      [compatible, intervening, early],
+      6,
+    );
+
+    expect(ids(forward.carry)).toEqual(ids(reversed.carry));
+    expect(ids(forward.dispatch)).toEqual(ids(reversed.dispatch));
+    expect(forward.dispatch).toEqual([]);
+    expect(
+      forward.carry.map((batch) =>
+        batch.map(({ trace }) => trace.traceId).sort(),
+      ),
+    ).toEqual([["early-1", "early-2", "early-3"], ["late-1"]]);
+  });
+
+  it("bounds locality partial carry without splitting batches", () => {
+    const oldest = [
+      pendingTrace("project", "oldest-1", 1, 0, 0),
+      pendingTrace("project", "oldest-2", 2, 0, 0),
+      pendingTrace("project", "oldest-3", 3, 0, 0),
+    ];
+    const newer = [
+      pendingTrace("project", "newer-1", 4, 24 * 60 * minute, 24 * 60 * minute),
+      pendingTrace("project", "newer-2", 5, 24 * 60 * minute, 24 * 60 * minute),
+      pendingTrace("project", "newer-3", 6, 24 * 60 * minute, 24 * 60 * minute),
+    ];
+
+    const result = prepareLocalityPartials([newer, oldest], 6);
+
+    expect(
+      result.dispatch.map((batch) =>
+        batch.map(({ trace }) => trace.traceId).sort(),
+      ),
+    ).toEqual([oldest.map(({ trace }) => trace.traceId)]);
+    expect(
+      result.carry.map((batch) =>
+        batch.map(({ trace }) => trace.traceId).sort(),
+      ),
+    ).toEqual([newer.map(({ trace }) => trace.traceId)]);
+    expect(result.carry.flat()).toHaveLength(3);
+    expect(result.carry.flat().length).toBeLessThanOrEqual(5);
+  });
+
+  it("breaks equal-increase coalescing ties by canonical order", () => {
+    const candidates = [
+      pendingTrace("project", "trace-1", 1, 0, 0),
+      pendingTrace("project", "trace-2", 1, 0, 0),
+      pendingTrace("project", "trace-3", 1, 0, 0),
+    ];
+    const canonical = selectTraceBatches(candidates, 3, "locality")[0];
+
+    const result = prepareLocalityPartials(
+      candidates.toReversed().map((candidate) => [candidate]),
+      2,
+    );
+
+    expect(result.dispatch).toHaveLength(1);
+    expect(ids(result.dispatch)).toEqual([
+      canonical.slice(0, 2).map(({ member }) => member),
+    ]);
+    expect(ids(result.carry)).toEqual([
+      canonical.slice(2).map(({ member }) => member),
+    ]);
+  });
+
+  it("does not coalesce incompatible partials or exceed the trace cap", () => {
+    const wide = [
+      pendingTrace("project", "wide", 1, 0, 120 * minute),
+      pendingTrace("project", "wide-neighbor", 2, 121 * minute, 121 * minute),
+    ];
+    const otherProject = [
+      pendingTrace("other", "same-window", 3, 121 * minute, 121 * minute),
+    ];
+    const distant = [
+      pendingTrace("project", "distant", 4, 24 * 60 * minute, 24 * 60 * minute),
+    ];
+    const atCapacity = Array.from({ length: 5 }, (_, index) =>
+      pendingTrace("capacity", `trace-${index}`, 10 + index, 0, 0),
+    );
+    const wouldOverflow = [
+      pendingTrace("capacity", "overflow", 20, minute, minute),
+    ];
+
+    const result = prepareLocalityPartials(
+      [otherProject, distant, wouldOverflow, wide, atCapacity],
+      5,
+    );
+    const all = [...result.dispatch, ...result.carry];
+
+    expect(
+      all.some(
+        (batch) =>
+          batch.some(({ trace }) => trace.traceId === "wide") &&
+          batch.some(({ trace }) => trace.traceId === "wide-neighbor"),
+      ),
+    ).toBe(true);
+    expect(
+      all.some(
+        (batch) =>
+          batch.some(({ trace }) => trace.traceId === "wide") &&
+          batch.some(({ trace }) => trace.projectId === "other"),
+      ),
+    ).toBe(false);
+    expect(
+      all.some(
+        (batch) =>
+          batch.some(({ trace }) => trace.traceId === "wide") &&
+          batch.some(({ trace }) => trace.traceId === "distant"),
+      ),
+    ).toBe(false);
+    expect(
+      all.some(
+        (batch) =>
+          batch.some(({ trace }) => trace.traceId === "overflow") &&
+          batch.some(({ trace }) => trace.traceId === "trace-0"),
+      ),
+    ).toBe(false);
+    expect(all.every((batch) => batch.length <= 5)).toBe(true);
+    expect(new Set(all.flat().map(({ member }) => member)).size).toBe(10);
   });
 });
 
@@ -805,9 +942,7 @@ describe("trace micro-batch scheduling with Redis", () => {
           ([name]) => name === "langfuse.trace_batch.candidate_buffer_size",
         )
         .map(([, value]) => Number(value));
-      expect(Math.max(...candidateSizes)).toBeLessThanOrEqual(
-        strategy === "project" ? 1059 : 1000,
-      );
+      expect(Math.max(...candidateSizes)).toBeLessThanOrEqual(1059);
       if (strategy === "project") {
         expect(batches.map((batch) => batch.length)).toEqual([
           ...Array(167).fill(60),
@@ -836,6 +971,65 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect(await client().hlen(stateKey)).toBe(0);
     },
   );
+
+  it("keeps project locality and a bounded partial tail across hydration chunks", async () => {
+    env.LANGFUSE_TRACE_BATCH_STRATEGY = "locality";
+    const traces = Array.from({ length: 2_001 }, (_, index) => ({
+      projectId: index % 2 === 0 ? "project-a" : "project-b",
+      traceId: `trace-${String(index).padStart(4, "0")}`,
+    }));
+    for (const projectId of ["project-a", "project-b"]) {
+      await trackTraceBatchActivity(
+        projectId,
+        traces
+          .filter((trace) => trace.projectId === projectId)
+          .map((trace) => event(trace.traceId)),
+      );
+    }
+    const due = Date.now() - 1_000;
+    await client().zadd(
+      dueKey,
+      ...traces.flatMap((trace) => [
+        due,
+        member(trace.projectId, trace.traceId),
+      ]),
+    );
+    const add = vi.spyOn(queue, "add");
+
+    await runner().processBatch();
+
+    const batches = add.mock.calls.map(([, job]) => job.payload.traces);
+    expect(batches.length).toBeGreaterThanOrEqual(
+      Math.ceil(traces.length / 60),
+    );
+    expect(batches.length).toBeLessThanOrEqual(2 * Math.ceil(1_000 / 60) + 1);
+    expect(
+      batches.every((batch) => batch.length > 0 && batch.length <= 60),
+    ).toBe(true);
+    expect(
+      batches.filter(
+        (batch) => new Set(batch.map((trace) => trace.projectId)).size > 1,
+      ),
+    ).toHaveLength(0);
+    const dispatchedMembers = batches
+      .flat()
+      .map((trace) => member(trace.projectId, trace.traceId));
+    expect(dispatchedMembers).toHaveLength(traces.length);
+    expect(new Set(dispatchedMembers)).toEqual(
+      new Set(traces.map((trace) => member(trace.projectId, trace.traceId))),
+    );
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(
+          ([name]) => name === "langfuse.trace_batch.skipped_traces",
+        )
+        .map(([, value]) => value),
+    ).toEqual([0, 0, 0]);
+    expect(await queue.getWaitingCount()).toBe(batches.length);
+    expect(await client().zcard(dueKey)).toBe(0);
+    expect(await client().hlen(stateKey)).toBe(0);
+  });
 
   it("coalesces a non-final compatible partial across a hydration boundary", async () => {
     env.LANGFUSE_TRACE_BATCH_STRATEGY = "locality";

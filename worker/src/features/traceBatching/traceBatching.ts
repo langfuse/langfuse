@@ -81,6 +81,46 @@ const compareByClickHouseLocality = (
   compareNumbers(left.traceHash, right.traceHash) ||
   compareStrings(left.entry.trace.traceId, right.entry.trace.traceId);
 
+const canonicalizeLocalityBatch = (
+  batch: readonly PendingTrace[],
+): PendingTrace[] =>
+  batch
+    .map(toLocalityCandidate)
+    .toSorted(compareByClickHouseLocality)
+    .map(({ entry }) => entry);
+
+const compareCanonicalBatches = (
+  left: readonly PendingTrace[],
+  right: readonly PendingTrace[],
+) => {
+  const leftCandidates = left.map(toLocalityCandidate);
+  const rightCandidates = right.map(toLocalityCandidate);
+  const sharedLength = Math.min(leftCandidates.length, rightCandidates.length);
+  for (let index = 0; index < sharedLength; index++) {
+    const comparison = compareByClickHouseLocality(
+      leftCandidates[index],
+      rightCandidates[index],
+    );
+    if (comparison !== 0) return comparison;
+  }
+  return compareNumbers(leftCandidates.length, rightCandidates.length);
+};
+
+const getBatchBounds = (batch: readonly PendingTrace[]) => ({
+  minStart: Math.min(...batch.map(({ trace }) => trace.minStart)),
+  maxStart: Math.max(...batch.map(({ trace }) => trace.maxStart)),
+});
+
+const isFeasibleLocalityBatch = (
+  batch: readonly PendingTrace[],
+  maxBatchSize: number,
+) => {
+  if (batch.length === 0 || batch.length > maxBatchSize) return false;
+  const canonical = canonicalizeLocalityBatch(batch);
+  const { minStart, maxStart } = getBatchBounds(canonical);
+  return maxStart - minStart <= allowedEnvelopeMs(canonical[0]);
+};
+
 const compareBatchSelectionCost = (
   left: BatchSelectionCost,
   right: BatchSelectionCost,
@@ -245,7 +285,8 @@ const selectLocalityBatches = (
  * Selection uses O(n × k × maxBatchSize) time and
  * O(n × min(n, maxBatchSize) + n × k) memory, where k is the fewest feasible
  * jobs (at least ceil(n / maxBatchSize), up to n for disjoint envelopes).
- * Locality callers bound n to CHUNK_SIZE (1,000) hydrated candidates.
+ * Locality callers bound n to CHUNK_SIZE (1,000) hydrated candidates plus
+ * at most maxBatchSize - 1 traces across all retained partials.
  * Project mode also accepts a tail of at most maxBatchSize - 1 traces and is O(n).
  */
 export function selectTraceBatches(
@@ -263,6 +304,124 @@ export function selectTraceBatches(
   }
 
   return selectLocalityBatches(candidates, maxBatchSize);
+}
+
+const compareBatchesByOldestDue = (
+  left: readonly PendingTrace[],
+  right: readonly PendingTrace[],
+) =>
+  compareNumbers(
+    Math.min(...left.map(({ due }) => due)),
+    Math.min(...right.map(({ due }) => due)),
+  ) || compareCanonicalBatches(left, right);
+
+const canCoalesceLocalityPartials = (
+  left: readonly PendingTrace[],
+  right: readonly PendingTrace[],
+  maxBatchSize: number,
+) => {
+  if (left.length + right.length > maxBatchSize) return false;
+  const projectId = left[0]?.trace.projectId;
+  if (
+    !projectId ||
+    left.some(({ trace }) => trace.projectId !== projectId) ||
+    right.some(({ trace }) => trace.projectId !== projectId)
+  ) {
+    return false;
+  }
+  const leftBounds = getBatchBounds(left);
+  const rightBounds = getBatchBounds(right);
+  const bufferedIntervalsOverlap =
+    leftBounds.minStart - QUERY_BUFFER_MS <=
+      rightBounds.maxStart + QUERY_BUFFER_MS &&
+    rightBounds.minStart - QUERY_BUFFER_MS <=
+      leftBounds.maxStart + QUERY_BUFFER_MS;
+  return (
+    bufferedIntervalsOverlap &&
+    isFeasibleLocalityBatch([...left, ...right], maxBatchSize)
+  );
+};
+
+/**
+ * Coalesce compatible locality partials and retain a globally bounded carry.
+ * The dispatcher calls this once per hydrated window; work never survives the
+ * current dispatch run.
+ */
+export function prepareLocalityPartials(
+  partials: readonly (readonly PendingTrace[])[],
+  maxBatchSize: number,
+): { dispatch: PendingTrace[][]; carry: PendingTrace[][] } {
+  const batches = partials
+    .filter((batch) => batch.length > 0)
+    .map(canonicalizeLocalityBatch)
+    .toSorted(compareCanonicalBatches);
+
+  while (true) {
+    let best:
+      | {
+          leftIndex: number;
+          rightIndex: number;
+          envelopeIncrease: number;
+          merged: PendingTrace[];
+        }
+      | undefined;
+    for (let leftIndex = 0; leftIndex < batches.length; leftIndex++) {
+      for (
+        let rightIndex = leftIndex + 1;
+        rightIndex < batches.length;
+        rightIndex++
+      ) {
+        const left = batches[leftIndex];
+        const right = batches[rightIndex];
+        if (!canCoalesceLocalityPartials(left, right, maxBatchSize)) continue;
+        const leftBounds = getBatchBounds(left);
+        const rightBounds = getBatchBounds(right);
+        const merged = canonicalizeLocalityBatch([...left, ...right]);
+        const mergedBounds = getBatchBounds(merged);
+        const envelopeIncrease =
+          mergedBounds.maxStart -
+          mergedBounds.minStart -
+          Math.max(
+            leftBounds.maxStart - leftBounds.minStart,
+            rightBounds.maxStart - rightBounds.minStart,
+          );
+        if (
+          !best ||
+          envelopeIncrease < best.envelopeIncrease ||
+          (envelopeIncrease === best.envelopeIncrease &&
+            compareCanonicalBatches(merged, best.merged) < 0)
+        ) {
+          best = { leftIndex, rightIndex, envelopeIncrease, merged };
+        }
+      }
+    }
+    if (!best) break;
+    batches[best.leftIndex] = best.merged;
+    batches.splice(best.rightIndex, 1);
+    batches.sort(compareCanonicalBatches);
+  }
+
+  const dispatch = batches
+    .filter((batch) => batch.length === maxBatchSize)
+    .toSorted(compareBatchesByOldestDue);
+  const carry = batches
+    .filter((batch) => batch.length < maxBatchSize)
+    .toSorted(compareCanonicalBatches);
+  const carryBudget = maxBatchSize - 1;
+  let carriedTraceCount = carry.reduce(
+    (count, batch) => count + batch.length,
+    0,
+  );
+  while (carriedTraceCount > carryBudget) {
+    carry.sort(compareBatchesByOldestDue);
+    const batch = carry.shift();
+    if (!batch) break;
+    dispatch.push(batch);
+    carriedTraceCount -= batch.length;
+  }
+  dispatch.sort(compareBatchesByOldestDue);
+  carry.sort(compareCanonicalBatches);
+  return { dispatch, carry };
 }
 
 // Retain traces for a bounded time after readiness. Reuse the due index so
@@ -624,6 +783,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
     };
 
     let projectBatchTail: PendingTrace[] = [];
+    let localityPartials: PendingTrace[][] = [];
     for (
       let offset = 0;
       offset < members.length && !this.stopping;
@@ -659,13 +819,18 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
           }),
         });
       }
+
+      const carriedTraceCount =
+        strategy === "project"
+          ? projectBatchTail.length
+          : localityPartials.reduce((count, batch) => count + batch.length, 0);
       const selectorInput =
         strategy === "project"
           ? [...projectBatchTail, ...hydratedCandidates]
-          : hydratedCandidates;
+          : [...localityPartials.flat(), ...hydratedCandidates];
       recordDistribution(
         "langfuse.trace_batch.candidate_buffer_size",
-        selectorInput.length,
+        hydratedCandidates.length + carriedTraceCount,
         { strategy },
       );
       const selectorStartedAt = performance.now();
@@ -679,19 +844,49 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         performance.now() - selectorStartedAt,
         { strategy },
       );
+
       if (strategy === "project") {
         projectBatchTail = [];
         if (selected.at(-1)?.length !== env.LANGFUSE_TRACE_BATCH_MAX_SIZE) {
           projectBatchTail = selected.pop() ?? [];
         }
+        for (const batch of selected) {
+          if (this.stopping) return;
+          await enqueue(batch);
+        }
+        continue;
       }
-      for (const batch of selected) {
+
+      const fullBatches = selected.filter(
+        (batch) => batch.length === env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
+      );
+      const partialBatches = selected.filter(
+        (batch) => batch.length < env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
+      );
+      for (const batch of fullBatches) {
+        if (this.stopping) return;
+        await enqueue(batch);
+      }
+      await this.extendLockOnProgress();
+      if (this.stopping) return;
+      const prepared = prepareLocalityPartials(
+        partialBatches,
+        env.LANGFUSE_TRACE_BATCH_MAX_SIZE,
+      );
+      localityPartials = prepared.carry;
+      for (const batch of prepared.dispatch) {
         if (this.stopping) return;
         await enqueue(batch);
       }
     }
-    if (!this.stopping && projectBatchTail.length > 0) {
-      await enqueue(projectBatchTail);
+    if (this.stopping) return;
+    if (strategy === "project") {
+      if (projectBatchTail.length > 0) await enqueue(projectBatchTail);
+      return;
+    }
+    for (const batch of localityPartials.toSorted(compareBatchesByOldestDue)) {
+      if (this.stopping) return;
+      await enqueue(batch);
     }
   }
 }
