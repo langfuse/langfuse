@@ -179,11 +179,6 @@ export default defineConfig({
           "src/__tests__/mocks/nextFontGoogle.ts",
         ),
       },
-      // Fontsource CSS entries are plain stylesheets, irrelevant in jsdom.
-      {
-        find: /^@fontsource\/.*\.css$/,
-        replacement: join(import.meta.dirname, "src/__tests__/mocks/empty.ts"),
-      },
       {
         find: /^next-query-params\/pages$/,
         replacement: join(
