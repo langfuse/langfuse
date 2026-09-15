@@ -9,6 +9,7 @@ import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
+import { InputControl } from "../internal/InputControl/InputControl";
 
 type SelectOption<V> =
   | {
@@ -123,22 +124,23 @@ function SelectInputInner<V extends string>(
       open={open}
       onOpenChange={setOpen}
     >
-      <SelectPrimitive.Trigger
-        ref={ref}
-        className="border-input bg-background ring-offset-background placeholder:text-foreground-tertiary focus:ring-ring disabled:bg-muted/50 flex h-8 w-full items-center justify-between gap-1 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
-        title={selectedOption?.label}
-        {...triggerProps}
-      >
-        <span
-          className="min-w-0 flex-1 truncate text-left"
+      <InputControl contentLayout="spread">
+        <SelectPrimitive.Trigger
+          ref={ref}
           title={selectedOption?.label}
+          {...triggerProps}
         >
-          <SelectPrimitive.SelectValue placeholder={placeholder} />
-        </span>
-        <SelectPrimitive.Icon asChild>
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-        </SelectPrimitive.Icon>
-      </SelectPrimitive.Trigger>
+          <span
+            className="min-w-0 flex-1 truncate text-left"
+            title={selectedOption?.label}
+          >
+            <SelectPrimitive.SelectValue placeholder={placeholder} />
+          </span>
+          <SelectPrimitive.Icon asChild>
+            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+          </SelectPrimitive.Icon>
+        </SelectPrimitive.Trigger>
+      </InputControl>
       <SelectPrimitive.Portal container={container}>
         <SelectPrimitive.Content
           position="popper"
