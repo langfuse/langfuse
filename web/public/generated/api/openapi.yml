@@ -14055,8 +14055,9 @@ components:
       description: >-
         Sunset warning: This event type is rejected in v4-only write mode.
         Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade
-        to the current Python or JS SDK, or use `POST
-        /api/public/otel/v1/traces` for custom integrations.
+        to a current Langfuse SDK; see the [Langfuse v4
+        documentation](https://langfuse.com/docs/v4) and the [SDK
+        overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
         body:
           $ref: '#/components/schemas/TraceBody'
@@ -14070,8 +14071,9 @@ components:
       description: >-
         Sunset warning: This event type is rejected in v4-only write mode.
         Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade
-        to the current Python or JS SDK, or use `POST
-        /api/public/otel/v1/traces` for custom integrations.
+        to a current Langfuse SDK; see the [Langfuse v4
+        documentation](https://langfuse.com/docs/v4) and the [SDK
+        overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
         body:
           $ref: '#/components/schemas/ObservationBody'
@@ -14085,8 +14087,9 @@ components:
       description: >-
         Sunset warning: This event type is rejected in v4-only write mode.
         Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade
-        to the current Python or JS SDK, or use `POST
-        /api/public/otel/v1/traces` for custom integrations.
+        to a current Langfuse SDK; see the [Langfuse v4
+        documentation](https://langfuse.com/docs/v4) and the [SDK
+        overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
         body:
           $ref: '#/components/schemas/ObservationBody'
@@ -14120,8 +14123,9 @@ components:
       description: >-
         Sunset warning: This event type is rejected in v4-only write mode.
         Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade
-        to the current Python or JS SDK, or use `POST
-        /api/public/otel/v1/traces` for custom integrations.
+        to a current Langfuse SDK; see the [Langfuse v4
+        documentation](https://langfuse.com/docs/v4) and the [SDK
+        overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
         body:
           $ref: '#/components/schemas/CreateGenerationBody'
@@ -14135,8 +14139,9 @@ components:
       description: >-
         Sunset warning: This event type is rejected in v4-only write mode.
         Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade
-        to the current Python or JS SDK, or use `POST
-        /api/public/otel/v1/traces` for custom integrations.
+        to a current Langfuse SDK; see the [Langfuse v4
+        documentation](https://langfuse.com/docs/v4) and the [SDK
+        overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
         body:
           $ref: '#/components/schemas/UpdateGenerationBody'
@@ -14150,8 +14155,9 @@ components:
       description: >-
         Sunset warning: This event type is rejected in v4-only write mode.
         Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade
-        to the current Python or JS SDK, or use `POST
-        /api/public/otel/v1/traces` for custom integrations.
+        to a current Langfuse SDK; see the [Langfuse v4
+        documentation](https://langfuse.com/docs/v4) and the [SDK
+        overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
         body:
           $ref: '#/components/schemas/CreateGenerationBody'
@@ -14165,8 +14171,9 @@ components:
       description: >-
         Sunset warning: This event type is rejected in v4-only write mode.
         Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade
-        to the current Python or JS SDK, or use `POST
-        /api/public/otel/v1/traces` for custom integrations.
+        to a current Langfuse SDK; see the [Langfuse v4
+        documentation](https://langfuse.com/docs/v4) and the [SDK
+        overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
         body:
           $ref: '#/components/schemas/CreateGenerationBody'
@@ -14180,8 +14187,9 @@ components:
       description: >-
         Sunset warning: This event type is rejected in v4-only write mode.
         Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade
-        to the current Python or JS SDK, or use `POST
-        /api/public/otel/v1/traces` for custom integrations.
+        to a current Langfuse SDK; see the [Langfuse v4
+        documentation](https://langfuse.com/docs/v4) and the [SDK
+        overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
         body:
           $ref: '#/components/schemas/CreateGenerationBody'
@@ -14195,8 +14203,9 @@ components:
       description: >-
         Sunset warning: This event type is rejected in v4-only write mode.
         Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade
-        to the current Python or JS SDK, or use `POST
-        /api/public/otel/v1/traces` for custom integrations.
+        to a current Langfuse SDK; see the [Langfuse v4
+        documentation](https://langfuse.com/docs/v4) and the [SDK
+        overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
         body:
           $ref: '#/components/schemas/CreateGenerationBody'
@@ -14210,8 +14219,9 @@ components:
       description: >-
         Sunset warning: This event type is rejected in v4-only write mode.
         Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade
-        to the current Python or JS SDK, or use `POST
-        /api/public/otel/v1/traces` for custom integrations.
+        to a current Langfuse SDK; see the [Langfuse v4
+        documentation](https://langfuse.com/docs/v4) and the [SDK
+        overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
         body:
           $ref: '#/components/schemas/CreateGenerationBody'
@@ -14225,8 +14235,9 @@ components:
       description: >-
         Sunset warning: This event type is rejected in v4-only write mode.
         Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade
-        to the current Python or JS SDK, or use `POST
-        /api/public/otel/v1/traces` for custom integrations.
+        to a current Langfuse SDK; see the [Langfuse v4
+        documentation](https://langfuse.com/docs/v4) and the [SDK
+        overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
         body:
           $ref: '#/components/schemas/CreateGenerationBody'
@@ -14240,8 +14251,9 @@ components:
       description: >-
         Sunset warning: This event type is rejected in v4-only write mode.
         Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade
-        to the current Python or JS SDK, or use `POST
-        /api/public/otel/v1/traces` for custom integrations.
+        to a current Langfuse SDK; see the [Langfuse v4
+        documentation](https://langfuse.com/docs/v4) and the [SDK
+        overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
         body:
           $ref: '#/components/schemas/CreateGenerationBody'
@@ -14255,8 +14267,9 @@ components:
       description: >-
         Sunset warning: This event type is rejected in v4-only write mode.
         Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade
-        to the current Python or JS SDK, or use `POST
-        /api/public/otel/v1/traces` for custom integrations.
+        to a current Langfuse SDK; see the [Langfuse v4
+        documentation](https://langfuse.com/docs/v4) and the [SDK
+        overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
         body:
           $ref: '#/components/schemas/CreateSpanBody'
@@ -14270,8 +14283,9 @@ components:
       description: >-
         Sunset warning: This event type is rejected in v4-only write mode.
         Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade
-        to the current Python or JS SDK, or use `POST
-        /api/public/otel/v1/traces` for custom integrations.
+        to a current Langfuse SDK; see the [Langfuse v4
+        documentation](https://langfuse.com/docs/v4) and the [SDK
+        overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
         body:
           $ref: '#/components/schemas/UpdateSpanBody'
@@ -14285,8 +14299,9 @@ components:
       description: >-
         Sunset warning: This event type is rejected in v4-only write mode.
         Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade
-        to the current Python or JS SDK, or use `POST
-        /api/public/otel/v1/traces` for custom integrations.
+        to a current Langfuse SDK; see the [Langfuse v4
+        documentation](https://langfuse.com/docs/v4) and the [SDK
+        overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
         body:
           $ref: '#/components/schemas/CreateEventBody'

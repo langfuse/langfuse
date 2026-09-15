@@ -52,6 +52,8 @@ const openApiPath = path.resolve(
 
 const MESSAGE = "Use `GET /api/public/v2/observations?from=<from>` instead.";
 
+const V4_DOCS_URL = "https://langfuse.com/docs/v4";
+
 /** Spec fixture in the shape `fern export` produces, aliased `security` included. */
 const SPEC = `openapi: 3.0.1
 paths:
@@ -277,16 +279,12 @@ describe("OpenAPI deprecations", () => {
 
       expect(event.docs, eventType).toContain("Sunset warning");
       expect(event.docs, eventType).toContain(V3_SUNSET_HUMAN);
-      expect(event.docs, eventType).toContain(
-        "POST /api/public/otel/v1/traces",
-      );
+      expect(event.docs, eventType).toContain(V4_DOCS_URL);
       expect(generatedSchema.description, eventType).toContain(
         "Sunset warning",
       );
       expect(generatedSchema.description, eventType).toContain(V3_SUNSET_HUMAN);
-      expect(generatedSchema.description, eventType).toContain(
-        "POST /api/public/otel/v1/traces",
-      );
+      expect(generatedSchema.description, eventType).toContain(V4_DOCS_URL);
     }
   });
 
