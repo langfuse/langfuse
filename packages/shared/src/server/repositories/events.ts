@@ -39,6 +39,7 @@ import {
   type FullEventsObservation,
   FullEventsObservations,
   buildEventsObservationRowSelection,
+  buildIoLanePrefilter,
   extractTimeFilter,
   orderByToClickhouseSql,
   orderByToEntries,
@@ -1435,6 +1436,7 @@ function buildObservationsQueryComponents(
     name: string;
     queryWithParams: { query: string; params: Record<string, any> };
   }>;
+  ioPrefilter: { query: string; params: Record<string, any> } | null;
 } {
   const { projectId, advancedFilters, ...filterParams } = opts;
 
@@ -1461,9 +1463,12 @@ function buildObservationsQueryComponents(
   );
   const filtersNeedFullTable = filtersRequireEventsFull(observationsFilter);
 
-  // Extract time filter and apply filters
   const startTimeFrom = extractTimeFilter(observationsFilter);
   const appliedFilter = observationsFilter.apply();
+
+  // Mirror base's index-relevant predicates onto the io lane (events_full) so
+  // the split query prunes there too instead of relying only on the semi-join.
+  const ioPrefilter = buildIoLanePrefilter(observationsFilter);
 
   // Build external CTEs
   const externalCTEs: Array<{
@@ -1491,7 +1496,7 @@ function buildObservationsQueryComponents(
     )
     .where(appliedFilter);
 
-  return { queryBuilder, externalCTEs };
+  return { queryBuilder, externalCTEs, ioPrefilter };
 }
 
 function buildObservationsQueryBase(
@@ -1682,12 +1687,15 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
     needsIOCTE && requestedFields.includes("metadata");
 
   // Shared: build base query with field sets, ordering, pagination
-  const { queryBuilder: baseBuilder, externalCTEs } =
-    buildObservationsQueryComponents(
-      opts,
-      eventsTableNativeUiColumnDefinitions,
-      options,
-    );
+  const {
+    queryBuilder: baseBuilder,
+    externalCTEs,
+    ioPrefilter,
+  } = buildObservationsQueryComponents(
+    opts,
+    eventsTableNativeUiColumnDefinitions,
+    options,
+  );
 
   // Shared steps: ordering and pagination apply to every path and are
   // independent of which columns each path projects.
@@ -1731,6 +1739,7 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
         includeIO: needsIO,
         includeMetadata: metadataFromFullTable,
         externalCTEs,
+        ioPrefilter,
       }).orderByColumns(orderByForObservationsQuery("b", "id"));
       break;
   }

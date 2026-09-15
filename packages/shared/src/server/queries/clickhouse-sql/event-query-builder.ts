@@ -2116,6 +2116,12 @@ export function buildEventsFullTableSplitQuery(opts: {
     name: string;
     queryWithParams: { query: string; params: Record<string, any> };
   }>;
+  // Index-relevant predicates (start_time range, span_id/trace_id) mirrored from
+  // base onto the io CTE so events_full can prune partitions/primary key and use
+  // its bloom filters instead of relying solely on the tuple semi-join. Build it
+  // with buildIoLanePrefilter. Additive over the semi-join, so join results are
+  // unchanged.
+  ioPrefilter?: { query: string; params: Record<string, any> } | null;
 }): SplitQueryBuilder {
   const { query: baseQuery, params: baseParams } =
     opts.baseBuilder.buildWithParams();
@@ -2136,11 +2142,17 @@ export function buildEventsFullTableSplitQuery(opts: {
       "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata",
     );
   }
+  const ioWhereParts = [
+    "WHERE e.project_id = {projectId: String}",
+    'AND (e.start_time, e.trace_id, e.span_id) IN (SELECT "start_time", "trace_id", id FROM base)',
+  ];
+  if (opts.ioPrefilter?.query) {
+    ioWhereParts.push(`AND (${opts.ioPrefilter.query})`);
+  }
   const ioQuery = [
     `SELECT ${ioSelectParts.join(", ")}`,
     "FROM events_full e",
-    "WHERE e.project_id = {projectId: String}",
-    'AND (e.start_time, e.trace_id, e.span_id) IN (SELECT "start_time", "trace_id", id FROM base)',
+    ...ioWhereParts,
   ].join("\n");
 
   // Compose final query using CTEQueryBuilder
@@ -2163,7 +2175,10 @@ export function buildEventsFullTableSplitQuery(opts: {
     })
     .withCTE("io", {
       query: ioQuery,
-      params: { projectId: opts.projectId },
+      params: {
+        projectId: opts.projectId,
+        ...(opts.ioPrefilter?.params ?? {}),
+      },
       schema: [] as string[],
     })
     .from("base", "b")

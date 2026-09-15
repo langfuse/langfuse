@@ -168,4 +168,40 @@ describe("buildEventsFullTableSplitQuery", () => {
     expect(query).toContain("i.output as output");
     expect(query).toContain("i.metadata as metadata");
   });
+
+  it("mirrors the io prefilter onto the events_full lane, keeping the semi-join", () => {
+    const { query, params } = buildEventsFullTableSplitQuery({
+      projectId: "test-project",
+      baseBuilder: buildBase(),
+      includeIO: true,
+      includeMetadata: false,
+      ioPrefilter: {
+        query: 'e."span_id" IN ({ioSpanIds: Array(String)})',
+        params: { ioSpanIds: ["span-1"] },
+      },
+    }).buildWithParams();
+
+    // The semi-join stays (join correctness); the mirrored predicate is an
+    // additive AND that lets events_full prune instead of scanning the project.
+    expect(query).toContain(
+      'AND (e.start_time, e.trace_id, e.span_id) IN (SELECT "start_time", "trace_id", id FROM base)',
+    );
+    expect(query).toContain(
+      'AND (e."span_id" IN ({ioSpanIds: Array(String)}))',
+    );
+    expect(params.ioSpanIds).toEqual(["span-1"]);
+  });
+
+  it("omits the extra io predicate when no prefilter is given", () => {
+    const { query } = buildEventsFullTableSplitQuery({
+      projectId: "test-project",
+      baseBuilder: buildBase(),
+      includeIO: true,
+      includeMetadata: false,
+    }).buildWithParams();
+
+    // Only the semi-join uses the "AND (e." shape here; a mirrored prefilter
+    // would add a second occurrence.
+    expect(query.match(/AND \(e\./g)?.length ?? 0).toBe(1);
+  });
 });
