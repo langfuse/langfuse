@@ -39,13 +39,14 @@ import { getSubtreeDurationOverflowMs } from "@/src/features/traces/fns/getSubtr
 import { heatMapTextColor } from "@/src/features/traces/fns/heatMapTextColor";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
 import type Decimal from "decimal.js";
 
 // How many distinct score groups to show inline on a tree/search row before
 // collapsing the rest into a "+N" pill. Keeps dense-score rows compact; the
 // full set is always on the node's Scores tab. (The timeline caps at 3.)
-const MAX_INLINE_SCORE_GROUPS = 3;
+const MAX_INLINE_SCORE_GROUPS = 2;
 
 /** Rest on a row this long before its hover card opens. Sweeping the pointer
  * up and down the tree shows nothing; pausing on a row shows the card. */
@@ -75,7 +76,8 @@ export function SpanContent({
   onHover,
   className,
 }: SpanContentProps) {
-  const { mergedScores, nodeMap, traceLevelScoreOwnerIds } = useTraceData();
+  const { mergedScores, nodeMap } = useTraceData();
+  const { setSelectedTab } = useSelection();
   // The heat map compares a row against the trace total. It says nothing on
   // the trace wrapper, on root observations, or on an only child (a lone
   // wrapper span is ~100% of its parent by construction), so those rows are
@@ -131,11 +133,7 @@ export function SpanContent({
   const shouldRenderAnyMetrics =
     shouldRenderDuration || shouldRenderCost || shouldRenderModel;
 
-  const nodeScores = selectNodeScores(
-    mergedScores,
-    node.id,
-    traceLevelScoreOwnerIds,
-  );
+  const nodeScores = selectNodeScores(mergedScores, node.id);
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
 
@@ -292,6 +290,12 @@ export function SpanContent({
             <div className="mt-1 flex flex-wrap gap-1">
               <GroupedScoreBadges
                 compact
+                hideLevels
+                overflowPreview={false}
+                onOverflowClick={() => {
+                  onSelect?.();
+                  setSelectedTab("scores");
+                }}
                 scores={nodeScores}
                 maxVisible={MAX_INLINE_SCORE_GROUPS}
               />

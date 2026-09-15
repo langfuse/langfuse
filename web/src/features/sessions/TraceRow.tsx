@@ -8,6 +8,7 @@ import React, { useEffect, useCallback, useRef } from "react";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { useSessionDetailStore } from "@/src/features/sessions/SessionDetailStoreProvider";
 import { SessionTraceActionButtons } from "@/src/features/sessions/SessionTraceActionButtons";
+import { cn } from "@/src/utils/tailwind";
 
 const TraceSkeleton = () => {
   return (
@@ -25,6 +26,8 @@ type LazyTraceRowProps = {
   openPeek: (id: string, row: any) => void;
   index: number;
   traceCommentCounts: Map<string, number> | undefined;
+  /** The trace the user arrived from (`?focusTraceId=`): outlined. */
+  isFocused?: boolean;
 };
 
 const areLazyTraceRowPropsEqual = (
@@ -35,7 +38,8 @@ const areLazyTraceRowPropsEqual = (
   previous.projectId === next.projectId &&
   previous.openPeek === next.openPeek &&
   previous.index === next.index &&
-  previous.traceCommentCounts === next.traceCommentCounts;
+  previous.traceCommentCounts === next.traceCommentCounts &&
+  previous.isFocused === next.isFocused;
 
 const TraceRow = React.memo(
   ({
@@ -44,15 +48,22 @@ const TraceRow = React.memo(
     openPeek,
     traceCommentCounts,
     showCorrections,
+    isFocused = false,
   }: {
     trace: RouterOutputs["sessions"]["byIdWithScores"]["traces"][number];
     projectId: string;
     openPeek: (id: string, row: any) => void;
     traceCommentCounts: Map<string, number> | undefined;
     showCorrections: boolean;
+    isFocused?: boolean;
   }) => {
     return (
-      <Card className="border-border shadow-none">
+      <Card
+        className={cn(
+          "border-border shadow-none",
+          isFocused && "border-primary-accent ring-primary-accent/50 ring-1",
+        )}
+      >
         <div className="grid md:grid-cols-[1fr_1px_358px] lg:grid-cols-[1fr_1px_30rem]">
           <div className="overflow-hidden py-4 pr-4 pl-4">
             <SessionIO
@@ -161,7 +172,13 @@ const LazyTraceRowInner = (props: LazyTraceRowProps) => {
   }, []);
 
   return (
-    <div ref={setRowRef} className="pb-3" data-session-row-index={index}>
+    <div
+      ref={setRowRef}
+      className="pb-3"
+      data-session-row-index={index}
+      // Read by useScrollToFocusedSessionTrace's pin loop.
+      data-session-focused-trace={props.isFocused ? "true" : undefined}
+    >
       {shouldLoad ? (
         <TraceRow showCorrections={showCorrections} {...cardProps} />
       ) : (

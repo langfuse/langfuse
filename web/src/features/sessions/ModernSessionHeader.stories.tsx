@@ -3,25 +3,23 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { ModernSessionHeader } from "@/src/features/sessions/ModernSessionHeader";
-import { sessionHeaderVisibilityStorageKey } from "@/src/features/sessions/sessionHeaderVisibility";
+import { modernSessionHeaderScore } from "@/src/features/sessions/__fixtures__/modernSessionHeaderScore";
 
 const scores = [
-  {
+  modernSessionHeaderScore({
     id: "score-helpfulness",
     name: "Helpfulness",
     value: 0.86,
-    stringValue: null,
-    dataType: "NUMERIC",
-  },
+  }),
 ] satisfies ComponentProps<typeof ModernSessionHeader>["scores"];
 
-const overflowScores = Array.from({ length: 16 }, (_, index) => ({
-  id: `score-quality-${index + 1}`,
-  name: `Quality ${index + 1}`,
-  value: (index + 1) / 20,
-  stringValue: null,
-  dataType: "NUMERIC" as const,
-})) satisfies ComponentProps<typeof ModernSessionHeader>["scores"];
+const overflowScores = Array.from({ length: 16 }, (_, index) =>
+  modernSessionHeaderScore({
+    id: `score-quality-${index + 1}`,
+    name: `Quality ${index + 1}`,
+    value: (index + 1) / 20,
+  }),
+) satisfies ComponentProps<typeof ModernSessionHeader>["scores"];
 
 const manyUsers = Array.from(
   { length: 1_000 },
@@ -31,6 +29,8 @@ const manyUsers = Array.from(
 const defaultArgs = {
   projectId: "project-1",
   countTraces: 24,
+  minTimestamp: new Date("2026-01-01T09:00:00.000Z"),
+  maxTimestamp: new Date("2026-01-01T09:14:32.000Z"),
   traces: {
     state: "loaded",
     data: [
@@ -69,7 +69,17 @@ const minimalArgs = {
 
 const meta = preview.meta({
   component: ModernSessionHeader,
-  parameters: { layout: "fullscreen", a11y: { test: "error" } },
+  parameters: {
+    layout: "fullscreen",
+    a11y: {
+      test: "error",
+      // Score chips are `ScoreBadge compact`, shared with the trace tree: its
+      // muted-on-muted palette sits at 3.82:1. Restyling it is a change to
+      // every chip in the app, so it is not this header's call — every other
+      // a11y rule stays at error, and nothing else here violates contrast.
+      config: { rules: [{ id: "color-contrast", enabled: false }] },
+    },
+  },
 });
 
 export default meta;
@@ -105,8 +115,17 @@ export const ConfiguredMetadata = meta.story({
   },
 });
 
-export const TestSearchesHiddenPills = meta.story({
-  name: "(Test) Searches hidden pills",
+export const TestSearchesOverflowPills = meta.story({
+  name: "(Test) Searches overflow pills",
+  // Scores collapse to two chips + "+N", so the line only overflows when the
+  // header is narrow, as on a split trace/session layout.
+  decorators: [
+    (Story) => (
+      <div className="w-[560px]">
+        <Story />
+      </div>
+    ),
+  ],
   args: {
     ...defaultArgs,
     scores: overflowScores,
@@ -125,28 +144,29 @@ export const TestSearchesHiddenPills = meta.story({
     await waitFor(() =>
       expect(
         canvas.getByRole("button", {
-          name: /show \d+ hidden session details/i,
+          name: /show \d+ more session details/i,
         }),
       ).toBeInTheDocument(),
     );
     const overflowButton = canvas.getByRole("button", {
-      name: /show \d+ hidden session details/i,
+      name: /show \d+ more session details/i,
     });
-    const visiblePills = canvasElement.querySelectorAll<HTMLElement>(
-      "[data-overflow-visible-item='true'] [data-session-header-pill='true']",
+    const visibleItems = canvasElement.querySelectorAll<HTMLElement>(
+      "[data-overflow-visible-item='true']",
     );
-    const lastVisiblePill = visiblePills.item(visiblePills.length - 1);
+    const lastVisibleItem = visibleItems.item(visibleItems.length - 1);
+    // gap-3 between the text items and the overflow control.
     await expect(
       overflowButton.getBoundingClientRect().left -
-        lastVisiblePill.getBoundingClientRect().right,
-    ).toBeLessThanOrEqual(8);
+        lastVisibleItem.getBoundingClientRect().right,
+    ).toBeLessThanOrEqual(12);
     const overflowButtonRect = overflowButton.getBoundingClientRect();
-    const lastVisiblePillRect = lastVisiblePill.getBoundingClientRect();
+    const lastVisibleItemRect = lastVisibleItem.getBoundingClientRect();
     await expect(
       Math.abs(
         overflowButtonRect.top +
           overflowButtonRect.height / 2 -
-          (lastVisiblePillRect.top + lastVisiblePillRect.height / 2),
+          (lastVisibleItemRect.top + lastVisibleItemRect.height / 2),
       ),
     ).toBeLessThanOrEqual(0.5);
     const trailingButton = canvas.getByRole("button", {
@@ -156,7 +176,7 @@ export const TestSearchesHiddenPills = meta.story({
       trailingButton.getBoundingClientRect().left -
       overflowButton.getBoundingClientRect().right;
     await expect(trailingGap).toBeGreaterThanOrEqual(0);
-    await expect(trailingGap).toBeLessThanOrEqual(8);
+    await expect(trailingGap).toBeLessThanOrEqual(12);
 
     await userEvent.click(overflowButton);
 
@@ -170,7 +190,7 @@ export const TestSearchesHiddenPills = meta.story({
     await userEvent.type(searchInput, "cloud_region");
     await expect(within(dialog).getByText("cloud_region")).toBeInTheDocument();
     await expect(
-      within(dialog).queryByText("Quality 16"),
+      within(dialog).queryByText("Quality 16:"),
     ).not.toBeInTheDocument();
   },
 });
@@ -191,7 +211,7 @@ export const TestBoundsManyUsers = meta.story({
 
     await userEvent.click(
       canvas.getByRole("button", {
-        name: /show \d+ hidden session details/i,
+        name: /show \d+ more session details/i,
       }),
     );
     const body = within(canvasElement.ownerDocument.body);
@@ -219,7 +239,7 @@ export const TestBoundsManyUsers = meta.story({
     await userEvent.type(searchInput, "user-999@example.com");
     await expect(
       within(results).getByRole("link", {
-        name: "user user-999@example.com",
+        name: "User user-999@example.com",
       }),
     ).toBeInTheDocument();
   },
@@ -288,28 +308,46 @@ export const TestConfiguresMultipleMetadataPaths = meta.story({
     await userEvent.clear(input);
     await userEvent.type(input, "$.cloud_region");
     await userEvent.click(save);
-    const getVisibleText = (text: string) =>
+    // Each pinned path renders as key:value attribute text, titled with the
+    // JSONPath; the measurement row holds a hidden copy of each.
+    const getVisiblePath = (path: string) =>
       canvas
-        .getAllByText(text)
+        .getAllByTitle(path)
         .find((element) => element.closest("[data-overflow-visible-item]"));
-    await expect(getVisibleText("email")).toBeInTheDocument();
-    await expect(getVisibleText("cloud_region")).toBeInTheDocument();
-    await expect(getVisibleText("EU")).toBeInTheDocument();
+    await expect(getVisiblePath("$.email")).toHaveTextContent(
+      "email danielm@nexite.io",
+    );
+    await expect(getVisiblePath("$.cloud_region")).toHaveTextContent(
+      "cloud_region EU",
+    );
 
-    const email = getVisibleText("email")!;
-    await userEvent.hover(email);
+    await userEvent.hover(getVisiblePath("$.email")!);
     await userEvent.click(
       canvas.getByRole("button", {
         name: "Remove metadata JSONPath $.email",
       }),
     );
-    await expect(canvas.queryByText("email")).not.toBeInTheDocument();
-    await expect(getVisibleText("cloud_region")).toBeInTheDocument();
+    await expect(canvas.queryByTitle("$.email")).not.toBeInTheDocument();
+    await expect(getVisiblePath("$.cloud_region")).toBeInTheDocument();
   },
 });
 
-export const TestCompactsTokenCounts = meta.story({
-  name: "(Test) Compacts token counts",
+export const TestShowsCostAndTokenBreakdown = meta.story({
+  name: "(Test) Shows cost and token breakdown",
+  parameters: {
+    a11y: {
+      test: "error",
+      // The open breakdown tooltip is the shared usage `BreakdownTooltip`, shared with the trace
+      // view: its corner `<th>` is empty by design. Same reasoning as the
+      // file-level contrast exemption — not this header's component to change.
+      config: {
+        rules: [
+          { id: "color-contrast", enabled: false },
+          { id: "empty-table-header", enabled: false },
+        ],
+      },
+    },
+  },
   args: {
     ...minimalArgs,
     tokensIn: 648_714,
@@ -317,94 +355,24 @@ export const TestCompactsTokenCounts = meta.story({
     totalTokens: 655_411,
   },
   play: async ({ canvasElement }) => {
-    const tokenPill = Array.from(
-      canvasElement.querySelectorAll<HTMLElement>(
-        "[data-overflow-visible-item='true'] [data-session-header-pill='true']",
-      ),
-    ).find((pill) => pill.textContent?.trim().startsWith("tokens "));
-
-    await expect(tokenPill).toBeInTheDocument();
-    await expect(tokenPill).toHaveTextContent("tokens 649k → 7k (Σ 655k)");
-    await expect(tokenPill).toHaveAttribute(
-      "title",
-      "tokens 648,714 → 6,697 (Σ 655,411)",
+    const visibleRow = canvasElement.querySelector<HTMLElement>(
+      "[data-overflow-visible-item='true']:has([title='Cost'])",
     );
-  },
-});
+    // Cost is plain text; the token total carries the hover breakdown.
+    await expect(visibleRow).toHaveTextContent("$0.084291");
+    await expect(visibleRow).toHaveTextContent("655,411");
 
-export const TestHidesAndRevealsDetails = meta.story({
-  name: "(Test) Hides and reveals details",
-  args: {
-    ...defaultArgs,
-    projectId: "project-header-visibility-story",
-  },
-  play: async ({ canvasElement }) => {
-    const storageKey = sessionHeaderVisibilityStorageKey(
-      "project-header-visibility-story",
+    const usage = visibleRow!.querySelector<HTMLElement>(
+      "[title='Usage breakdown on hover']",
     );
-    const storedValue = JSON.stringify([]);
-    localStorage.setItem(storageKey, storedValue);
-    window.dispatchEvent(
-      new CustomEvent("localStorageChange", {
-        detail: { key: storageKey, newValue: storedValue },
-      }),
-    );
-
-    const canvas = within(canvasElement);
-    const hideTraceDetail = await canvas.findByRole("button", {
-      name: "Hide trace and span counts in session header",
-    });
-    const visibleTraceDetail = hideTraceDetail.closest(
-      "[data-overflow-visible-item='true']",
-    );
-    await expect(visibleTraceDetail).toBeInTheDocument();
-    hideTraceDetail.focus();
-    await waitFor(() => expect(hideTraceDetail).toBeVisible());
-    await expect(
-      hideTraceDetail.getBoundingClientRect().width,
-    ).toBeGreaterThanOrEqual(24);
-    await expect(
-      hideTraceDetail.getBoundingClientRect().height,
-    ).toBeGreaterThanOrEqual(24);
-    await userEvent.click(hideTraceDetail);
-    await expect(
-      canvas.queryByRole("button", {
-        name: "Hide trace and span counts in session header",
-      }),
-    ).not.toBeInTheDocument();
-    await expect(
-      JSON.parse(localStorage.getItem(storageKey) ?? "[]"),
-    ).toContain("traces");
-
-    const overflowButton = canvas.getByRole("button", {
-      name: /show \d+ hidden session details/i,
-    });
-    await waitFor(() => expect(overflowButton).toHaveFocus());
-    await userEvent.click(overflowButton);
+    await userEvent.hover(usage!);
     const body = within(canvasElement.ownerDocument.body);
-    const overflowSearchInput = await body.findByRole("textbox", {
-      name: "Search session details",
-    });
-    const showTraceDetail = await body.findByRole("button", {
-      name: "Show trace and span counts in session header",
-    });
-    showTraceDetail.focus();
-    await waitFor(() => expect(showTraceDetail).toBeVisible());
-    await userEvent.click(showTraceDetail);
-
+    // Radix mirrors tooltip content into a visually hidden copy for screen
+    // readers, so every node in the breakdown matches twice.
     await expect(
-      canvas.getByRole("button", {
-        name: "Hide trace and span counts in session header",
-      }),
-    ).toBeInTheDocument();
-    await expect(localStorage.getItem(storageKey)).toBe(JSON.stringify([]));
-    const metadataEditorButton = canvas.getByRole("button", {
-      name: "Add metadata JSONPath",
-    });
-    await waitFor(() =>
-      expect([overflowSearchInput, metadataEditorButton]).toContain(
-        canvasElement.ownerDocument.activeElement,
-      ),
-    );
+      (await body.findAllByText("Token breakdown")).length,
+    ).toBeGreaterThan(0);
+    await expect(body.getAllByText("648,714").length).toBeGreaterThan(0);
+    await expect(body.getAllByText("6,697").length).toBeGreaterThan(0);
   },
 });

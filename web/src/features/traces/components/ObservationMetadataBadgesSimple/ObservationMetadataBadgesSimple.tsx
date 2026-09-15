@@ -19,9 +19,10 @@ import {
   formatIntervalSeconds,
 } from "@/src/utils/dates";
 
-// Metrics tier (latency, time-to-first-token): uniform muted mono text,
-// matching the numeric feel of the session header without its pill box.
-const METRIC_TEXT_CLASS =
+// Metrics tier (latency, time-to-first-token, cost, usage): uniform muted
+// mono text, no pill box. The one definition of the tier, shared by the
+// observation header, the cost/usage badges and the session header metrics.
+export const METRIC_TEXT_CLASS =
   "text-muted-foreground inline-flex shrink-0 items-center gap-1 text-xs whitespace-nowrap";
 
 /** Absolute start time, quiet text like the other metrics; full ISO on hover. */
@@ -80,7 +81,7 @@ export function TimeToFirstTokenBadge({
 // text, key muted and value a touch stronger so the value still reads at a
 // glance. Still under design discussion — kept isolated here so it stays
 // cheap to restyle, and exported so the session header restyles with it.
-function KeyValueText({
+export function KeyValueText({
   label,
   value,
 }: {
