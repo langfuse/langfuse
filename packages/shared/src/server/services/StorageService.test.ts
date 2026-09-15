@@ -10,6 +10,23 @@ import { env } from "../../env";
 import { resolveMediaStorageEndpoints } from "../s3";
 import { StorageServiceFactory } from "./StorageService";
 
+// Capture the options handed to lib-storage's Upload so the non-buffered
+// fallback's part size can be asserted without real network I/O.
+const s3UploadCtorOptions = vi.hoisted(
+  () => [] as Array<{ partSize?: number; queueSize?: number }>,
+);
+
+vi.mock("@aws-sdk/lib-storage", () => ({
+  Upload: class {
+    constructor(options: { partSize?: number; queueSize?: number }) {
+      s3UploadCtorOptions.push(options);
+    }
+    done() {
+      return Promise.resolve(undefined);
+    }
+  },
+}));
+
 describe("S3StorageService region normalization", () => {
   it("trims a persisted region before configuring the AWS client", async () => {
     const service = StorageServiceFactory.getInstance({
@@ -527,5 +544,64 @@ describe("S3StorageService DeleteObjects checksum", () => {
       .digest("base64");
     expect(findHeader(request, "content-md5")).toBe(expectedMd5);
     expect(findHeader(request, "x-amz-checksum-crc32")).toBeUndefined();
+  });
+});
+
+describe("S3StorageService non-buffered upload part size", () => {
+  const bufferedKey = "LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED" as const;
+  const originalBuffered = env[bufferedKey];
+
+  afterEach(() => {
+    (env as Record<string, unknown>)[bufferedKey] = originalBuffered;
+    s3UploadCtorOptions.length = 0;
+  });
+
+  const makeService = () =>
+    StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: "http://127.0.0.1:9000",
+      region: "us-east-1",
+      forcePathStyle: true,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+  it("forwards the caller's part size so the 10k-part cap does not truncate large exports", async () => {
+    (env as Record<string, unknown>)[bufferedKey] = "false";
+
+    await makeService().uploadFileBuffered({
+      fileName: "export.csv",
+      fileType: "text/csv",
+      data: Readable.from(["a,b,c\n"]),
+      partSizeBytes: 100 * 1024 * 1024,
+    });
+
+    expect(s3UploadCtorOptions).toHaveLength(1);
+    const { partSize } = s3UploadCtorOptions[0];
+    expect(partSize).toBe(100 * 1024 * 1024);
+    // Above lib-storage's 5 MiB default, which caps a single object at ~48.83 GiB.
+    expect(partSize).toBeGreaterThan(5 * 1024 * 1024);
+  });
+
+  it("caps concurrency so parallel callers do not multiply peak buffer memory", async () => {
+    (env as Record<string, unknown>)[bufferedKey] = "false";
+
+    await makeService().uploadFileBuffered({
+      fileName: "export.csv",
+      fileType: "text/csv",
+      data: Readable.from(["a,b,c\n"]),
+      partSizeBytes: 100 * 1024 * 1024,
+      maxConcurrentParts: 2,
+    });
+
+    expect(s3UploadCtorOptions).toHaveLength(1);
+    // Caller's concurrency is honored instead of lib-storage's default of 4,
+    // which would otherwise buffer partSize x 4 per concurrent upload.
+    expect(s3UploadCtorOptions[0].queueSize).toBe(2);
   });
 });
