@@ -109,5 +109,12 @@ lazy retention rules. Drain and expired jobs are removed immediately on success.
 For an already enabled cloud experiment, explicitly set the new read flag to
 `true` when deploying this version if reads should continue; leaving it unset
 drains instead. Upgrade all producers before relying on native expiry: older
-producers do not install or refresh that TTL. Locality, query controls and load
-test artifacts belong in separate follow-up changes.
+producers do not install or refresh that TTL. Locality and query controls remain
+separate follow-up changes.
+
+## Redis benchmark evidence
+
+See the [local Redis load test](./trace-batch-redis-loadtest.md) for synthetic
+memory/CPU measurements, retention and queue-growth estimates, limitations and
+reproduction commands. The harness runs only against an empty disposable local
+Redis; it does not query ClickHouse or change experiment enablement.
