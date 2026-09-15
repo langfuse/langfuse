@@ -1,0 +1,12 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ingestion connection auth parity > legacy matches the captured baseline 1`] = `
+{
+  "agent/basic": 207,
+  "agent/bearer": 207,
+  "org/basic": 403,
+  "org/bearer": 401,
+  "project/basic": 207,
+  "project/bearer": 207,
+}
+`;
