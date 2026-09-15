@@ -225,6 +225,9 @@ describe("OpenAPI deprecations", () => {
     expect(ingestion?.message).toContain("curl");
     expect(INGESTION_DEPRECATION.message).toContain("never shut down");
     expect(INGESTION_DEPRECATION.message).toContain("score events");
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "All other event types are rejected",
+    );
     expect(INGESTION_DEPRECATION.message).toContain("v4-only write mode");
     expect(INGESTION_DEPRECATION.message).toContain(
       "not in dual or legacy mode",
