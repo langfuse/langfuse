@@ -168,4 +168,28 @@ describe("buildEventsFullTableSplitQuery", () => {
     expect(query).toContain("i.output as output");
     expect(query).toContain("i.metadata as metadata");
   });
+
+  it("bounds the io lane to base's start_time range and keeps the semi-join", () => {
+    const { query } = buildEventsFullTableSplitQuery({
+      projectId: "test-project",
+      baseBuilder: buildBase(),
+      includeIO: true,
+      includeMetadata: false,
+    }).buildWithParams();
+
+    // The bound is derived from base (no re-serialized params) so events_full
+    // can prune partitions/primary key; the semi-join stays for join exactness.
+    expect(query).toContain(
+      "SELECT min(start_time) AS io_min_start_time, max(start_time) AS io_max_start_time FROM base",
+    );
+    expect(query).toContain(
+      "AND e.start_time >= (SELECT io_min_start_time FROM io_bounds)",
+    );
+    expect(query).toContain(
+      "AND e.start_time <= (SELECT io_max_start_time FROM io_bounds)",
+    );
+    expect(query).toContain(
+      'AND (e.start_time, e.trace_id, e.span_id) IN (SELECT "start_time", "trace_id", id FROM base)',
+    );
+  });
 });
