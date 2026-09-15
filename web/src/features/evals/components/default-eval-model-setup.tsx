@@ -222,6 +222,7 @@ export function DefaultEvalModelSetup({
                   <UpdateButton
                     projectId={projectId}
                     isLoading={setup.isUpsertLoading}
+                    error={setup.formError ?? undefined}
                     executeUpsertMutation={setup.executeUpsertMutation}
                   />
                 ) : (
@@ -289,10 +290,12 @@ export function InlineDefaultEvalModelSetup({
 function UpdateButton({
   projectId,
   isLoading,
+  error,
   executeUpsertMutation,
 }: {
   projectId: string;
   isLoading: boolean;
+  error?: string;
   executeUpsertMutation: () => Promise<void>;
 }) {
   const hasWriteAccess = useHasProjectAccess({
@@ -308,6 +311,7 @@ function UpdateButton({
       confirmLabel="Confirm"
       variant="default"
       loading={isLoading}
+      error={error}
       onConfirm={executeUpsertMutation}
     >
       {({ openDialog }) => (

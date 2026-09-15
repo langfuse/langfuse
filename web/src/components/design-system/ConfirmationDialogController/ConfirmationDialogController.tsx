@@ -36,6 +36,7 @@ function ConfirmationDialogController({
 }) {
   const [confirmationInput, setConfirmationInput] = React.useState("");
   const confirmationInputId = React.useId();
+  const requiresConfirmationInput = Boolean(confirmationText);
 
   return (
     <DialogController
@@ -48,7 +49,7 @@ function ConfirmationDialogController({
             {
               disabled:
                 disabled ||
-                (confirmationText !== undefined &&
+                (requiresConfirmationInput &&
                   confirmationInput !== confirmationText),
               label: confirmLabel,
               loading,
@@ -73,7 +74,7 @@ function ConfirmationDialogController({
                 <p className="whitespace-pre-wrap">{error}</p>
               </div>
             ) : null}
-            {confirmationText !== undefined ? (
+            {requiresConfirmationInput ? (
               <div className="grid gap-2">
                 <Label
                   htmlFor={confirmationInputId}

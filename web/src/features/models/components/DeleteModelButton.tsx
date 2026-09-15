@@ -4,7 +4,7 @@ import { Button } from "@/src/components/ui/button";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { type GetModelResult } from "@/src/features/models/validation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { useState } from "react";
 
 export const DeleteModelButton = ({
@@ -43,10 +43,15 @@ export const DeleteModelButton = ({
       loading={mut.isPending}
       onConfirm={async () => {
         capture("models:delete_button_click");
-        await mut.mutateAsync({
-          projectId,
-          modelId: modelData.id,
-        });
+        try {
+          await mut.mutateAsync({
+            projectId,
+            modelId: modelData.id,
+          });
+        } catch (error) {
+          reportTrpcErrorWithoutToast(error, "models");
+          throw error;
+        }
       }}
     >
       {({ openDialog }) => (
