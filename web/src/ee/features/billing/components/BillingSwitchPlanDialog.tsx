@@ -349,13 +349,11 @@ function PlanCard({
         <ul className="space-y-1.5 text-sm">
           {comparison.lines.map((line) => (
             <li key={line.text} className="flex gap-2">
-              <span className="w-3 shrink-0 font-bold">
-                {line.polarity === "plus"
-                  ? "+"
-                  : line.polarity === "minus"
-                    ? "−"
-                    : ""}
-              </span>
+              {line.polarity === "plus" || line.polarity === "minus" ? (
+                <span className="w-3 shrink-0 font-bold">
+                  {line.polarity === "plus" ? "+" : "−"}
+                </span>
+              ) : null}
               <span className="text-muted-foreground">{line.text}</span>
             </li>
           ))}
