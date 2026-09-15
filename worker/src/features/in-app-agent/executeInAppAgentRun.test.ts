@@ -200,7 +200,11 @@ const textChunk = (delta: string) => ({
   delta,
 });
 
-const interruptEvent = (parentRunId: string, toolCallId = "tc-1") => ({
+const interruptEvent = (
+  parentRunId: string,
+  toolCallId = "tc-1",
+  parentModelObservationId?: string,
+) => ({
   type: "CUSTOM",
   name: "on_interrupt",
   value: {
@@ -209,6 +213,7 @@ const interruptEvent = (parentRunId: string, toolCallId = "tc-1") => ({
     toolName: "langfuse_createTextPrompt",
     args: { name: "p" },
     runId: parentRunId,
+    ...(parentModelObservationId ? { parentModelObservationId } : {}),
   },
 });
 
@@ -282,6 +287,7 @@ async function seedApprovedContinuation(opts?: {
   rootRunId?: string;
   traceStartedAt?: string;
   approvalRequestedAt?: string;
+  parentModelObservationId?: string;
 }) {
   const seeded = await seedBackgroundRun({
     alwaysAllowedTools: opts?.alwaysAllowedTools,
@@ -304,7 +310,11 @@ async function seedApprovedContinuation(opts?: {
       runId: parentRun.id,
       sequenceNumber: 1,
       type: "CUSTOM",
-      event: interruptEvent(parentRun.id) as never,
+      event: interruptEvent(
+        parentRun.id,
+        "tc-1",
+        opts?.parentModelObservationId,
+      ) as never,
     },
   });
   await prisma.inAppAgentRun.update({
@@ -400,6 +410,7 @@ describe("executeInAppAgentRun", () => {
     const rootRunId = "root-run-1";
     const traceStartedAt = "2026-08-14T10:00:00.000Z";
     const approvalRequestedAt = "2026-08-14T10:00:05.000Z";
+    const parentModelObservationId = "parent-run-1-llm-3";
     const context = [
       {
         description: "current_url",
@@ -413,6 +424,7 @@ describe("executeInAppAgentRun", () => {
       rootRunId,
       traceStartedAt,
       approvalRequestedAt,
+      parentModelObservationId,
     });
 
     scenarioRef.current = async ({ input, options }) => {
@@ -425,6 +437,9 @@ describe("executeInAppAgentRun", () => {
         traceStartedAt,
         approvalRequestedAt,
         approvalDecidedAt: run.createdAt.toISOString(),
+        approvalRequest: expect.objectContaining({
+          parentModelObservationId,
+        }),
       });
       await options.onComplete();
       await options.onFinish();
