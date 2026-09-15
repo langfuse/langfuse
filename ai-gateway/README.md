@@ -123,11 +123,11 @@ headers are not sent to the external provider. Inference generations retain thei
 separate identity. Client spans measure the HTTP send through response headers;
 streaming execution and inference-telemetry delivery are tracked separately.
 
-`axum-otel-metrics` supplies `http.server.request.duration`,
-`http.server.active_requests`, and request/response body-size metrics. Active HTTP
-requests end at response headers; body sizes come from headers/size hints, not
-bytes streamed. Exported dimensions are limited to method, matched route, and HTTP
-status. The duration histogram's count supplies request volume.
+A small Axum middleware records `http.server.request.duration` through the
+OpenTelemetry SDK, with method, matched route, and HTTP status as its only
+dimensions. The histogram's count supplies request volume and error rates,
+including responses rejected before provider execution. Metrics are independent
+of trace sampling. Health probes are excluded.
 
 Gateway-specific metrics include `gateway.active` (resolution/execution),
 `gateway.phase.duration` (execution/provider.first_byte), `gateway.executions`,

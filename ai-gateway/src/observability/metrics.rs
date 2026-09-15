@@ -9,6 +9,7 @@ use opentelemetry::{
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 struct Metrics {
+    http_duration: Histogram<f64>,
     active: UpDownCounter<i64>,
     phases: Histogram<f64>,
     rejections: Counter<u64>,
@@ -22,6 +23,13 @@ static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
         0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0, 600.0,
     ];
     Metrics {
+        http_duration: meter
+            .f64_histogram("http.server.request.duration")
+            .with_unit("s")
+            .with_boundaries(vec![
+                0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0, 2.5, 5.0, 7.5, 10.0,
+            ])
+            .build(),
         active: meter.i64_up_down_counter("gateway.active").build(),
         phases: meter
             .f64_histogram("gateway.phase.duration")
@@ -33,6 +41,22 @@ static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
         executions: meter.u64_counter("gateway.executions").build(),
     }
 });
+
+pub(super) fn http_response(
+    duration: std::time::Duration,
+    method: String,
+    route: String,
+    status: u16,
+) {
+    METRICS.http_duration.record(
+        duration.as_secs_f64(),
+        &[
+            KeyValue::new("http.request.method", method),
+            KeyValue::new("http.route", route),
+            KeyValue::new("http.response.status_code", i64::from(status)),
+        ],
+    );
+}
 
 pub(crate) struct Active(&'static str);
 

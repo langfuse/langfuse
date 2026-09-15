@@ -6,15 +6,14 @@ publish = false
 license = "MIT"
 
 [dependencies]
-axum-otel-metrics = "0.14.1"
-axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
+axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "matched-path", "tokio"] }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 hmac = "0.13"
 http-body-util = "0.1"
 futures-util = "0.3"
 opentelemetry-http = "0.32"
 opentelemetry = { version = "0.32", default-features = false, features = ["trace", "metrics", "internal-logs"] }
-opentelemetry_sdk = { version = "0.32", default-features = false, features = ["trace", "metrics", "internal-logs", "spec_unstable_metrics_views"] }
+opentelemetry_sdk = { version = "0.32", default-features = false, features = ["trace", "metrics", "internal-logs"] }
 opentelemetry-otlp = { version = "0.32", default-features = false, features = ["trace", "metrics", "http-proto", "reqwest-blocking-client", "internal-logs"] }
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "stream"] }
 reqwest-middleware = "0.5"

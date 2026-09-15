@@ -7,11 +7,11 @@ pub use http::instrument;
 pub(crate) use metrics::{Active, delivery, execution_finished, rejected};
 
 use crate::config::{GatewayConfig, LogFormat};
-use opentelemetry::{Key, KeyValue, global, trace::TracerProvider};
+use opentelemetry::{KeyValue, global, trace::TracerProvider};
 use opentelemetry_otlp::{Protocol, WithExportConfig};
 use opentelemetry_sdk::{
     Resource,
-    metrics::{Instrument, PeriodicReader, SdkMeterProvider, Stream},
+    metrics::{PeriodicReader, SdkMeterProvider},
     propagation::TraceContextPropagator,
     trace::{BatchConfigBuilder, BatchSpanProcessor, Sampler, SdkTracerProvider},
 };
@@ -82,7 +82,6 @@ pub fn init(config: &GatewayConfig) -> Result<Observability, Box<dyn Error>> {
         Some(
             SdkMeterProvider::builder()
                 .with_resource(resource)
-                .with_view(http_metric_view)
                 .with_reader(
                     PeriodicReader::builder(exporter)
                         .with_interval(Duration::from_secs(30))
@@ -170,24 +169,6 @@ fn sampling_ratio(value: Option<&str>) -> Result<f64, Box<dyn Error>> {
         .ok()
         .filter(|value| (0.0..=1.0).contains(value))
         .ok_or_else(|| "OTEL_TRACES_SAMPLER_ARG must be a number from 0 to 1".into())
-}
-
-// Only bounded HTTP dimensions are exported; Host and forwarded headers are untrusted.
-fn http_metric_view(instrument: &Instrument) -> Option<Stream> {
-    if !instrument.name().starts_with("http.server.") {
-        return None;
-    }
-    Stream::builder()
-        .with_allowed_attribute_keys(
-            [
-                "http.request.method",
-                "http.route",
-                "http.response.status_code",
-            ]
-            .map(Key::from),
-        )
-        .build()
-        .ok()
 }
 
 #[cfg(test)]

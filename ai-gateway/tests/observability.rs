@@ -4,6 +4,10 @@ use axum::{Router, body::Bytes, extract::Request, routing::post};
 use opentelemetry_proto::tonic::collector::{
     metrics::v1::ExportMetricsServiceRequest, trace::v1::ExportTraceServiceRequest,
 };
+use opentelemetry_proto::tonic::{
+    common::v1::any_value::Value as AttributeValue,
+    metrics::v1::{ResourceMetrics, metric::Data},
+};
 use prost::Message;
 use serde_json::Value;
 use std::{
@@ -64,7 +68,7 @@ impl Gateway {
         }
     }
 
-    async fn request(&self) {
+    async fn request(&self, sampled: bool) {
         let response = reqwest::Client::new()
             .post(format!(
                 "{}/openai/v1/responses?secret=query-canary",
@@ -74,7 +78,10 @@ impl Gateway {
             .header("x-forwarded-proto", "scheme-canary")
             .header(
                 "traceparent",
-                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+                format!(
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-{:02x}",
+                    u8::from(sampled)
+                ),
             )
             .header("authorization", "Bearer secret-auth-token")
             .body(r#"{"input":"secret-prompt-content"}"#)
@@ -137,7 +144,15 @@ async fn exports_otlp_traces_metrics_and_correlated_content_free_logs() {
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
     let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
     let mut gateway = Gateway::start(&endpoint, "5", "debug");
-    gateway.request().await;
+    gateway.request(true).await;
+    gateway.request(false).await;
+    assert_eq!(
+        reqwest::get(format!("{}/health", gateway.url))
+            .await
+            .unwrap()
+            .status(),
+        200
+    );
     gateway.stop().await;
     server.abort();
     let captured = captured.lock().unwrap();
@@ -182,7 +197,7 @@ async fn exports_otlp_traces_metrics_and_correlated_content_free_logs() {
         .iter()
         .filter(|value| value["message"] == "gateway response started")
         .collect();
-    assert_eq!(summaries.len(), 1);
+    assert_eq!(summaries.len(), 2);
     assert_eq!(summaries[0]["trace_id"], "4bf92f3577b34da6a3ce929d0e0e4736");
     assert_eq!(
         summaries[0]["span_id"].as_str().unwrap(),
@@ -204,13 +219,49 @@ async fn exports_otlp_traces_metrics_and_correlated_content_free_logs() {
         assert!(!exported.contains(secret));
         assert!(!serialized.contains(secret));
     }
-    let names: Vec<_> = metrics
+    assert_http_metrics(&metrics);
+}
+
+fn assert_http_metrics(metrics: &[ResourceMetrics]) {
+    let http_duration = metrics
         .iter()
         .flat_map(|resource| &resource.scope_metrics)
         .flat_map(|scope| &scope.metrics)
-        .map(|metric| metric.name.as_str())
+        .find(|metric| metric.name == "http.server.request.duration")
+        .expect("HTTP duration must export even for requests rejected before execution");
+    let Some(Data::Histogram(histogram)) = &http_duration.data else {
+        panic!("HTTP duration must be a histogram");
+    };
+    assert_eq!(histogram.data_points.len(), 1);
+    let point = &histogram.data_points[0];
+    assert_eq!(
+        point.count, 2,
+        "count includes unsampled requests and excludes health probes"
+    );
+    assert!(point.sum.unwrap() > 0.0);
+    let attributes: std::collections::BTreeMap<_, _> = point
+        .attributes
+        .iter()
+        .map(|attribute| {
+            (
+                attribute.key.as_str(),
+                attribute.value.as_ref().unwrap().value.as_ref().unwrap(),
+            )
+        })
         .collect();
-    assert!(names.contains(&"http.server.request.duration"));
+    assert_eq!(attributes.len(), 3);
+    assert_eq!(
+        attributes["http.request.method"],
+        &AttributeValue::StringValue("POST".into())
+    );
+    assert_eq!(
+        attributes["http.route"],
+        &AttributeValue::StringValue("/openai/v1/responses".into())
+    );
+    assert_eq!(
+        attributes["http.response.status_code"],
+        &AttributeValue::IntValue(503)
+    );
 }
 
 #[tokio::test]
@@ -223,7 +274,7 @@ async fn an_unresponsive_collector_does_not_extend_the_shutdown_deadline() {
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
     let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
     let mut gateway = Gateway::start(&endpoint, "1", "info");
-    gateway.request().await;
+    gateway.request(true).await;
     let start = Instant::now();
     gateway.stop().await;
     assert!(start.elapsed() < Duration::from_secs(2));

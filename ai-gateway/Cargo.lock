@@ -16,7 +16,6 @@ name = "ai-gateway"
 version = "0.1.0"
 dependencies = [
  "axum",
- "axum-otel-metrics",
  "chrono",
  "futures-util",
  "hmac",
@@ -141,20 +140,6 @@ dependencies = [
  "sync_wrapper",
  "tower-layer",
  "tower-service",
-]
-
-[[package]]
-name = "axum-otel-metrics"
-version = "0.14.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0d74d40b1ff9bd3e8f782aa6798d22ff6a7d1b53049e0e239f5332dab2dd83d"
-dependencies = [
- "axum",
- "http-body",
- "opentelemetry",
- "opentelemetry-semantic-conventions",
- "pin-project-lite",
- "tower",
 ]
 
 [[package]]
@@ -950,12 +935,6 @@ dependencies = [
  "opentelemetry_sdk",
  "prost",
 ]
-
-[[package]]
-name = "opentelemetry-semantic-conventions"
-version = "0.32.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c913ac17a6c451661ee255f4625d143e51647ae78ebd969b75e41c4442f4fe47"
 
 [[package]]
 name = "opentelemetry_sdk"
