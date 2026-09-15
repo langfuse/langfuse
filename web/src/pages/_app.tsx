@@ -48,6 +48,8 @@ import "streamdown/styles.css";
 // See: https://github.com/facebook/react/issues/11538
 // See also: https://issues.chromium.org/issues/41407169
 if (typeof window !== "undefined") {
+  installStaleChunkReloadListener();
+
   const originalRemoveChild = Element.prototype.removeChild;
   const originalInsertBefore = Element.prototype.insertBefore;
 
@@ -88,6 +90,7 @@ import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownConte
 import { MarkdownRenderCharacterLimitProvider } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
 import { V4MigrationPanelProvider } from "@/src/features/v4-migration/V4MigrationPanelProvider";
+import { installStaleChunkReloadListener } from "@/src/features/version-update/reloadOnStaleChunk";
 import { InAppAiAgentProvider } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
