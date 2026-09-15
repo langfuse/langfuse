@@ -32,6 +32,7 @@ import {
   blobStorageEndpointConnectionValidationOptions,
   validateBlobStorageEndpoint,
   dispatchProjectNotification,
+  isS3MultipartLimitExceededError,
 } from "@langfuse/shared/src/server";
 import {
   registerInFlightBlobExport,
@@ -1635,7 +1636,12 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     const errorMessage = extractStorageErrorMessage(error);
 
-    const isFinalAttempt = isFinalBullmqAttempt(job, error);
+    // Deterministic size fault: never retry (see rethrow below), so treat this
+    // attempt as final for the failure notification even though BullMQ would
+    // otherwise retry 5 times.
+    const isMultipartLimit = isS3MultipartLimitExceededError(error);
+    const isFinalAttempt =
+      isMultipartLimit || isFinalBullmqAttempt(job, error);
     // Defined => disable, on the first occurrence: a config fault cannot succeed
     // on a retry, and the failures metric counts every failed attempt.
     const customerFaultReason = classifyCustomerFault(error);
@@ -1697,6 +1703,16 @@ export const handleBlobStorageIntegrationProjectJob = async (
       `[BLOB INTEGRATION] Error processing blob storage integration for project ${projectId}: ${chain}`,
       error instanceof Error ? { stack: error.stack } : {},
     );
+    // Oversized window (>10k S3 parts) is deterministic: retrying re-queries a
+    // TTL-shrunk window and can commit a truncated object as success (#17282).
+    // Fail permanently so the persisted lastError stays visible instead of being
+    // overwritten by a "successful" truncated retry.
+    if (isS3MultipartLimitExceededError(error)) {
+      const fatal = new UnrecoverableError(chain);
+      (fatal as unknown as { cause?: unknown }).cause = error;
+      if (error instanceof Error) fatal.stack = error.stack;
+      throw fatal;
+    }
     const rethrown = new Error(chain, { cause: error });
     // Copy the original stack so BullMQ and the queue processor see the real
     // failure site rather than this rethrow line. rethrown.stack starts with
@@ -1875,6 +1891,13 @@ async function notifyBlobStorageExportFailed(
 
 function extractStorageErrorMessage(error: unknown): string {
   if (!(error instanceof Error)) return String(error).slice(0, 1000);
+
+  // Multipart-limit errors carry the actionable remediation (raise partSize,
+  // shorten window) on the outer error; the cause is the bare SDK message
+  // ("Exceeded 10000 parts"). Prefer the outer message so lastError stays useful.
+  if (isS3MultipartLimitExceededError(error)) {
+    return error.message.slice(0, 1000);
+  }
 
   // handleStorageError wraps SDK errors via { cause: sdkError }
   // Unwrap to get the raw SDK message (S3/Azure/GCS)

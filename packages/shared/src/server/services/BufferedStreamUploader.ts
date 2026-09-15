@@ -1,6 +1,12 @@
 import type { Readable } from "stream";
 import { backOff } from "exponential-backoff";
 import { logger } from "../logger";
+import {
+  S3_MAX_PARTS,
+  S3MultipartLimitExceededError,
+  formatGiB,
+  maxBytesForPartSize,
+} from "./s3MultipartLimits";
 
 const TRANSIENT_ERROR_PATTERNS = [
   "socket hang up",
@@ -233,6 +239,25 @@ export class BufferedStreamUploader {
 
   private async enqueuePart(partData: Buffer): Promise<void> {
     this.partNumber++;
+
+    // S3 hard limit: fail fast with a non-retryable error instead of uploading
+    // 10k parts and then failing at CompleteMultipartUpload (or worse: letting
+    // a BullMQ retry re-query a TTL-shrunk window and commit a truncated object
+    // as success — issue #17282). The finally in upload() aborts the multipart
+    // so no orphaned parts are left behind to bill.
+    if (this.partNumber > S3_MAX_PARTS) {
+      const partMiB = (this.params.partSizeBytes / 1024 / 1024).toFixed(1);
+      throw new S3MultipartLimitExceededError(
+        `Blob export for key ${this.params.key} exceeds S3's ${S3_MAX_PARTS}-part limit ` +
+          `at ${partMiB} MiB/part (max ~${formatGiB(maxBytesForPartSize(this.params.partSizeBytes))}). ` +
+          `Increase partSizeBytes and/or shorten the export window (e.g. daily -> hourly).`,
+        {
+          key: this.params.key,
+          partSizeBytes: this.params.partSizeBytes,
+          partsAttempted: this.partNumber,
+        },
+      );
+    }
 
     // Wait for a slot if all concurrent slots are full
     while (

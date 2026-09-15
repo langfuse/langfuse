@@ -59,7 +59,7 @@ const CH_EXCEPTION_PATTERN =
   /db::\w*exception|memory_limit_exceeded|timeout_exceeded|too_many_simultaneous_queries|socket_timeout|cannot_schedule_task/;
 
 const UPLOAD_FAULT_PATTERN =
-  /slowdown|access denied|accessdenied|nosuchupload|nosuchbucket|entitytoolarge|requesttimeout|invalidpart|signaturedoesnotmatch|notimplemented|preconditionfailed/;
+  /slowdown|access denied|accessdenied|nosuchupload|nosuchbucket|entitytoolarge|requesttimeout|invalidpart|signaturedoesnotmatch|notimplemented|preconditionfailed|exceeded.*parts|too many parts|multipart.*limit|s3multipartlimitexceeded/;
 
 // Rarely reaches this path (a BullMQ stall re-enqueues rather than throwing).
 const STALL_PATTERN = /stalled|missing lock|lock.*(lapse|renew)/;
