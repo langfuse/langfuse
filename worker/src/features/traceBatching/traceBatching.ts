@@ -189,9 +189,18 @@ const selectLocalityBatches = (
     const currentCosts: Array<BatchSelectionCost | null> = Array(
       candidateCount + 1,
     ).fill(null);
-    const minEnd = batchIndex;
-    const maxEnd = Math.min(candidateCount, batchIndex * maxBatchSize);
+    const remainingJobs = batchCount - batchIndex;
+    // Leave enough traces for the remaining nonempty, size-bounded batches.
+    const minEnd = Math.max(
+      batchIndex,
+      candidateCount - remainingJobs * maxBatchSize,
+    );
+    const maxEnd = Math.min(
+      candidateCount - remainingJobs,
+      batchIndex * maxBatchSize,
+    );
     for (let end = minEnd; end <= maxEnd; end++) {
+      if (minJobs[end] > batchIndex) continue;
       const minStart = Math.max(batchIndex - 1, end - maxBatchSize);
       for (let start = minStart; start < end; start++) {
         const previousCost = previousCosts[start];

@@ -208,6 +208,27 @@ describe("trace batch selection", () => {
     );
   });
 
+  it("preserves uneven cohorts separated by mandatory envelope boundaries", () => {
+    const cohorts = [2, 1, 4, 2].map((size, cohort) =>
+      Array.from({ length: size }, (_, index) => {
+        const start = (cohort * 120 + index) * minute;
+        return pendingTrace(
+          "project",
+          `cohort-${cohort}-${index}`,
+          index,
+          start,
+          start + minute,
+        );
+      }),
+    );
+
+    for (const cap of [4, 9]) {
+      expect(
+        ids(selectTraceBatches(cohorts.flat().toReversed(), cap, "locality")),
+      ).toEqual(ids(cohorts));
+    }
+  });
+
   it("bounds chained wide-trace expansion relative to the batch seed", () => {
     const seed = pendingTrace("project", "seed", 1, 0, 120 * minute);
     const compatible = pendingTrace(
