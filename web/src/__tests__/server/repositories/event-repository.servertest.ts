@@ -1,6 +1,7 @@
 import {
   createEvent,
   createEventsCh,
+  getTraceBatchEventStream,
   getObservationsForTraceFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getObservationsCountFromEventsTable,
@@ -63,6 +64,130 @@ const findFilterOption = (
 ) => rows.find((row) => row.column === column && row.value === value);
 
 describe("Clickhouse Events Repository Test", () => {
+  it("streams complete trace batches with full payloads, tenant isolation and shared batch time bounds", async () => {
+    const batchProjectId = randomUUID();
+    const firstTraceId = randomUUID();
+    const secondTraceId = randomUUID();
+    const start = Date.now();
+    const buffer = 2 * 60_000;
+    const input = JSON.stringify({ message: "input".repeat(100) });
+    const output = JSON.stringify({ message: "output".repeat(100) });
+    const metadataValue = JSON.stringify({ detail: "metadata".repeat(100) });
+    const first = createEvent({
+      project_id: batchProjectId,
+      trace_id: firstTraceId,
+      start_time: new Date(start - buffer),
+      input,
+      output,
+      metadata_names: ["context"],
+      metadata_values: [metadataValue],
+      tool_definitions: { search: '{"description":"Search"}' },
+      tool_calls: ['{"name":"search"}'],
+      tool_call_names: ["search"],
+    });
+    const second = createEvent({
+      project_id: batchProjectId,
+      trace_id: secondTraceId,
+      start_time: new Date(start + 600_000 + buffer),
+    });
+    // Another trace can widen the shared window beyond this trace's own bounds.
+    const insideBatchWindow = createEvent({
+      project_id: batchProjectId,
+      trace_id: firstTraceId,
+      start_time: new Date(start + buffer + 1),
+    });
+    await createEventsCh([
+      first,
+      second,
+      insideBatchWindow,
+      createEvent({
+        project_id: randomUUID(),
+        trace_id: firstTraceId,
+        start_time: new Date(start),
+      }),
+      createEvent({
+        project_id: batchProjectId,
+        trace_id: randomUUID(),
+        start_time: new Date(start),
+      }),
+      createEvent({
+        project_id: batchProjectId,
+        trace_id: firstTraceId,
+        start_time: new Date(start - buffer - 1),
+      }),
+      createEvent({
+        project_id: batchProjectId,
+        trace_id: secondTraceId,
+        start_time: new Date(start + 600_000 + buffer + 1),
+      }),
+    ]);
+
+    // Exceed the single-trace reader's historical 20,000-observation cap.
+    const extraRowCount = 20_001;
+    const template = createEvent({
+      project_id: batchProjectId,
+      trace_id: firstTraceId,
+      start_time: new Date(start),
+      input: "",
+      output: "",
+      metadata_names: [],
+      metadata_values: [],
+    });
+    for (let offset = 0; offset < extraRowCount; offset += 2_000) {
+      await createEventsCh(
+        Array.from({ length: Math.min(2_000, extraRowCount - offset) }, () => {
+          const spanId = randomUUID();
+          return { ...template, span_id: spanId, id: spanId };
+        }),
+      );
+    }
+
+    let rowCount = 0;
+    let fullPayloadSeen = false;
+    let insideBatchWindowSeen = false;
+    const foundTraceIds = new Set<string>();
+    for await (const event of getTraceBatchEventStream({
+      projectId: batchProjectId,
+      traces: [
+        { traceId: firstTraceId, minStart: start, maxStart: start },
+        {
+          traceId: secondTraceId,
+          minStart: start + 600_000,
+          maxStart: start + 600_000,
+        },
+        // A full dispatcher snapshot can belong to one project. Missing IDs
+        // exercise the HTTP parameter limit and query size without adding
+        // unrelated fixture rows.
+        ...Array.from({ length: 998 }, () => ({
+          traceId: randomUUID(),
+          minStart: start,
+          maxStart: start,
+        })),
+      ],
+    })) {
+      rowCount++;
+      foundTraceIds.add(event.trace_id);
+      if (event.span_id === insideBatchWindow.span_id) {
+        insideBatchWindowSeen = true;
+      }
+      if (event.span_id === first.span_id) {
+        fullPayloadSeen = true;
+        expect(event).toMatchObject({
+          input,
+          output,
+          metadata: { context: metadataValue },
+          tool_definitions: first.tool_definitions,
+          tool_calls: first.tool_calls,
+          tool_call_names: first.tool_call_names,
+        });
+      }
+    }
+    expect(fullPayloadSeen).toBe(true);
+    expect(insideBatchWindowSeen).toBe(true);
+    expect(foundTraceIds).toEqual(new Set([firstTraceId, secondTraceId]));
+    expect(rowCount).toBe(extraRowCount + 3);
+  }, 60_000);
+
   it("should kill redis connection", () => {
     // we need at least one test case to avoid hanging
     // redis connection when everything else is skipped.
