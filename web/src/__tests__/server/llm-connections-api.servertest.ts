@@ -321,6 +321,182 @@ describe("/api/public/llm-connections API Endpoints", () => {
         totalPages: 1,
       });
     });
+
+    describe("GET /api/public/llm-connections timestamp window", () => {
+      // Three LLM connections at deterministic, well-separated `createdAt`
+      // values so the half-open `[fromTimestamp, toTimestamp)` window can be
+      // exercised without relying on clock or ordering accidents.
+      const OLD = new Date("2021-01-01T00:00:00.000Z");
+      const MID = new Date("2021-06-01T00:00:00.000Z");
+      const NEW = new Date("2022-01-01T00:00:00.000Z");
+
+      let oldProvider: string;
+      let midProvider: string;
+      let newProvider: string;
+
+      const createConnectionAt = async (
+        provider: string,
+        createdAt: Date,
+      ): Promise<void> => {
+        await prisma.llmApiKeys.create({
+          data: {
+            projectId,
+            provider,
+            adapter: LLMAdapter.OpenAI,
+            secretKey: encrypt("sk-test-secret-for-timestamp-window"),
+            displaySecretKey: "sk-t...st",
+            withDefaultModels: true,
+            customModels: [],
+            extraHeaderKeys: [],
+            createdAt,
+            // updatedAt must satisfy `@updatedAt` so the row is internally
+            // consistent; setting it equal to createdAt is fine for tests.
+            updatedAt: createdAt,
+          },
+        });
+      };
+
+      beforeEach(async () => {
+        oldProvider = generateUniqueProvider("ts-old");
+        midProvider = generateUniqueProvider("ts-mid");
+        newProvider = generateUniqueProvider("ts-new");
+
+        await createConnectionAt(oldProvider, OLD);
+        await createConnectionAt(midProvider, MID);
+        await createConnectionAt(newProvider, NEW);
+      });
+
+      it("omits the filter when neither timestamp is provided (existing behavior)", async () => {
+        const response = await makeZodVerifiedAPICall(
+          GetLlmConnectionsV1Response,
+          "GET",
+          "/api/public/llm-connections?limit=50",
+          undefined,
+          auth,
+        );
+
+        expect(response.status).toBe(200);
+        const providers = response.body.data.map((c) => c.provider);
+        expect(providers).toEqual(
+          expect.arrayContaining([oldProvider, midProvider, newProvider]),
+        );
+        expect(response.body.meta.totalItems).toBe(3);
+      });
+
+      it("filters by fromTimestamp only (inclusive lower bound)", async () => {
+        // Anything on or after MID: the mid and new connections.
+        const response = await makeZodVerifiedAPICall(
+          GetLlmConnectionsV1Response,
+          "GET",
+          `/api/public/llm-connections?fromTimestamp=${MID.toISOString()}&limit=50`,
+          undefined,
+          auth,
+        );
+
+        expect(response.status).toBe(200);
+        const providers = response.body.data.map((c) => c.provider);
+        expect(providers).toEqual(
+          expect.arrayContaining([midProvider, newProvider]),
+        );
+        expect(providers).not.toContain(oldProvider);
+        expect(response.body.meta.totalItems).toBe(2);
+      });
+
+      it("filters by toTimestamp only (exclusive upper bound)", async () => {
+        // Anything strictly before NEW: the old and mid connections. The
+        // connection created exactly at NEW is excluded because the upper
+        // bound is `lt`.
+        const response = await makeZodVerifiedAPICall(
+          GetLlmConnectionsV1Response,
+          "GET",
+          `/api/public/llm-connections?toTimestamp=${NEW.toISOString()}&limit=50`,
+          undefined,
+          auth,
+        );
+
+        expect(response.status).toBe(200);
+        const providers = response.body.data.map((c) => c.provider);
+        expect(providers).toEqual(
+          expect.arrayContaining([oldProvider, midProvider]),
+        );
+        expect(providers).not.toContain(newProvider);
+        expect(response.body.meta.totalItems).toBe(2);
+      });
+
+      it("filters by a half-open [fromTimestamp, toTimestamp) window when both are provided", async () => {
+        // Window [OLD, NEW) → exactly the mid connection.
+        const response = await makeZodVerifiedAPICall(
+          GetLlmConnectionsV1Response,
+          "GET",
+          `/api/public/llm-connections?fromTimestamp=${OLD.toISOString()}&toTimestamp=${NEW.toISOString()}&limit=50`,
+          undefined,
+          auth,
+        );
+
+        expect(response.status).toBe(200);
+        const providers = response.body.data.map((c) => c.provider);
+        expect(providers).toEqual([midProvider]);
+        expect(response.body.meta.totalItems).toBe(1);
+      });
+
+      it("returns 400 on an invalid fromTimestamp format", async () => {
+        const response = await makeAPICall(
+          "GET",
+          "/api/public/llm-connections?fromTimestamp=not-a-date",
+          undefined,
+          auth,
+        );
+
+        expect(response.status).toBe(400);
+      });
+
+      it("returns 400 on an invalid toTimestamp format", async () => {
+        const response = await makeAPICall(
+          "GET",
+          "/api/public/llm-connections?toTimestamp=2021-13-40T99:99:99Z",
+          undefined,
+          auth,
+        );
+
+        expect(response.status).toBe(400);
+      });
+
+      it("composes the time window with the existing project scope", async () => {
+        // Create a separate project + api key so we can prove the filter
+        // does not leak connections across the project boundary.
+        const other = await createOrgProjectAndApiKey();
+
+        await prisma.llmApiKeys.create({
+          data: {
+            projectId: other.projectId,
+            provider: generateUniqueProvider("ts-other-project"),
+            adapter: LLMAdapter.OpenAI,
+            secretKey: encrypt("sk-other-project-secret"),
+            displaySecretKey: "sk-o...ct",
+            withDefaultModels: true,
+            customModels: [],
+            extraHeaderKeys: [],
+            createdAt: NEW,
+            updatedAt: NEW,
+          },
+        });
+
+        const response = await makeZodVerifiedAPICall(
+          GetLlmConnectionsV1Response,
+          "GET",
+          `/api/public/llm-connections?fromTimestamp=${NEW.toISOString()}&limit=50`,
+          undefined,
+          auth,
+        );
+
+        expect(response.status).toBe(200);
+        // Only `newProvider` belongs to `projectId` with createdAt >= NEW.
+        expect(response.body.meta.totalItems).toBe(1);
+        expect(response.body.data.map((c) => c.provider)).toEqual([
+          newProvider,
+        ]);
+      });
+    });
   });
 
   describe("PUT /api/public/llm-connections", () => {
