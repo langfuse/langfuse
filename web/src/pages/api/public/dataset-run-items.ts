@@ -55,6 +55,8 @@ export default withMiddlewares({
         projectId: auth.scope.projectId,
         limit: query.limit,
         page: query.page,
+        fromTimestamp: query.fromTimestamp,
+        toTimestamp: query.toTimestamp,
       });
     },
   }),
