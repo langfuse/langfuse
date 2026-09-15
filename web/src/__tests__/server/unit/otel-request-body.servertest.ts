@@ -72,6 +72,15 @@ describe("OTel request body limits", () => {
     await expect(bodyPromise).resolves.toEqual(Buffer.from("hello"));
   });
 
+  it("aborts an in-flight read when its deadline signal aborts", async () => {
+    const req = request({ "content-length": "5" });
+    const controller = new AbortController();
+    const bodyPromise = readOtelRequestBody(req, 5, controller.signal);
+
+    controller.abort();
+    await expect(bodyPromise).rejects.toMatchObject({ code: "ABORT_ERR" });
+  });
+
   it("rejects a declared body above the limit before reading", async () => {
     const req = request({ "content-length": "5" });
 
