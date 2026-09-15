@@ -2,7 +2,7 @@
 
 A standalone Rust gateway for `POST /openai/v1/responses`. Web resolves the gateway
 key to a trusted provider connection; Rust relays native JSON or SSE without
-rewriting provider bytes. A bounded observer captures request/response facts and
+rewriting provider bytes. A bounded capture layer captures request/response facts and
 logs the finalized record at debug level. Customer telemetry is not exported
 yet. Building and testing need no real Web, database or provider credentials.
 
@@ -125,7 +125,7 @@ print(response.output_text)
 
 The gateway forwards to the official OpenAI Responses endpoint only. It does not
 retry, follow redirects, or accept client routing overrides. Request parsing is
-best-effort observation only; Web still selects the provider connection.
+best-effort capture only; Web still selects the provider connection.
 Provider errors retain their status and body. Gateway errors use an OpenAI-style
 `{"error":{"message":"...","type":"...","param":null,"code":"..."}}` envelope.
 
@@ -151,7 +151,7 @@ stall policy is deferred to a separate change.
 
 Only request content type/encoding and accept cross the provider boundary, plus
 the resolved Bearer token. The gateway sets `Accept-Encoding: identity` upstream
-so client compression preferences cannot disable JSON/SSE observation. Response
+so client compression preferences cannot disable JSON/SSE capture. Response
 content type/encoding, cache control, retry-after, request ID and selected OpenAI
 timing/version/rate-limit
 headers are retained. Cookies, routing overrides, gateway/ingestion credentials,
@@ -168,11 +168,16 @@ newlines escaped inside the `capture` string.
 
 Web's resolved ingestion mode controls content capture:
 
-- `full`: input contains a `messages` array (instructions become a system message),
-  tools and context references. Output is an ordered array of native completed
-  items. Debug logs intentionally contain this full captured content.
-- `usage`: input and output are null. Only model, scalar parameters, native token
-  counts, timing and trusted attribution are retained; schemas and content are omitted.
+- `full`: input is the native request JSON object, including `input`, `instructions`,
+  tools, parameters, context references and unknown fields. Output is an ordered
+  array of native completed items. Debug logs intentionally contain this content.
+- `usage`: input and output are null. Model, scalar parameters, native usage,
+  timing and trusted attribution are retained; request schemas/content are omitted.
+
+In both modes, `usage_details` preserves the provider's entire usage object,
+including nested and unknown fields. The gateway does not rename counters,
+subtract cached tokens, or synthesize totals. Missing usage stays null.
+`api_format` identifies the payload format (`openai.responses` today).
 
 For SSE, only `response.output_item.done` adds output. Terminal Responses events
 provide model, service tier, status and usage; their repeated output is not copied.
@@ -187,9 +192,27 @@ still end with downstream cancellation. `first_byte_ms` measures the first body
 bytes observed by the gateway, not first-token latency. No completion-start time
 is fabricated from completed items.
 
-Capture is limited to 1 MiB request inspection, 1 MiB JSON/SSE event observation,
+`input_complete` means the full native request was captured; it is false when
+content is omitted in usage mode. `output_complete` means response inspection
+finished without capture gaps for the configured mode (including a terminal event
+and all expected completed items for full-mode SSE). It does not promise that the
+provider succeeded or that delivery to the client finished. `capture_complete`
+combines request inspection and output completeness; intentionally omitted usage-mode
+content does not make it false. Request inspection failure does not invalidate a
+fully captured response, and downstream cancellation does not erase completed capture.
+
+The implementation separates shared `ExecutionCapture` lifecycle/timing, the
+`OpenAiResponsesCapture` adapter and bounded `SseDecoder`. A private `ProtocolCapture`
+enum dispatches to the adapter. Finalization hands an owned `InferenceFacts` record
+to `telemetry::record`, which currently only pretty-prints at debug level. Another
+provider can supply native facts through the same interface without changing the
+relay or final sink. No Anthropic adapter or Langfuse observation/span mapping is
+implemented yet. Capture runs independently of log level; only emission is gated.
+
+Capture is limited to 1 MiB request inspection, 1 MiB JSON/SSE event inspection,
 1 MiB retained output and 256 output items per execution. The active-request limit
-bounds the number of observers. Oversized input is omitted; oversized output items
+bounds the number of captures. Trusted key metadata is bounded by the resolver's
+256 KiB response limit. Oversized input is omitted; oversized output items
 are skipped and completeness is false. Malformed, truncated or compressed bodies
 do not interrupt the relay. Capture buffers are independent of forwarding, so
 these limits never cap the actual provider response. Media is not fetched/uploaded.

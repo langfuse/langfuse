@@ -9,7 +9,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use crate::observation::{Observation, Outcome};
+use crate::capture::{ExecutionCapture, RelayOutcome};
 use axum::{
     body::{Body, Bytes},
     http::{HeaderMap, header},
@@ -92,7 +92,7 @@ pub(crate) fn relay<T: Send + 'static>(
     upstream: reqwest::Response,
     deadline: Instant,
     owner: T,
-    observation: Observation,
+    capture: ExecutionCapture,
 ) -> Body {
     relay_stream(
         upstream.bytes_stream().map(|chunk| {
@@ -106,7 +106,7 @@ pub(crate) fn relay<T: Send + 'static>(
         }),
         deadline,
         owner,
-        Some(observation),
+        Some(capture),
     )
 }
 
@@ -114,7 +114,7 @@ fn relay_stream<S, T>(
     upstream: S,
     deadline: Instant,
     owner: T,
-    observation: Option<Observation>,
+    capture: Option<ExecutionCapture>,
 ) -> Body
 where
     S: Stream<Item = Result<Bytes, ProviderError>> + Send + 'static,
@@ -122,7 +122,7 @@ where
 {
     let (sender, receiver) = mpsc::channel(1);
     let resources = Arc::new(StreamResources {
-        owner: Mutex::new(Some((owner, observation))),
+        owner: Mutex::new(Some((owner, capture))),
         failed: AtomicBool::new(false),
         released: Notify::new(),
     });
@@ -132,7 +132,7 @@ where
             tokio::pin!(upstream);
             while let Some(chunk) = upstream.next().await {
                 let chunk = chunk?;
-                pump_resources.observe(|observation| observation.bytes(&chunk));
+                pump_resources.observe(|capture| capture.bytes(&chunk));
                 // One queued chunk plus one pending send; no per-chunk tasks.
                 for bytes in chunk.chunks(64 * 1024) {
                     if sender.send(Bytes::copy_from_slice(bytes)).await.is_err() {
@@ -140,16 +140,16 @@ where
                     }
                 }
             }
-            pump_resources.observe(Observation::end_body);
+            pump_resources.observe(ExecutionCapture::end_body);
             Ok::<_, ProviderError>(())
         };
         match tokio::time::timeout_at(deadline, pump).await {
             Ok(Ok(())) => {}
             result => {
                 let outcome = if matches!(result, Err(_) | Ok(Err(ProviderError::Timeout))) {
-                    Outcome::Timeout
+                    RelayOutcome::Timeout
                 } else {
-                    Outcome::TransportError
+                    RelayOutcome::TransportError
                 };
                 pump_resources.release(outcome);
             }
@@ -161,7 +161,7 @@ where
             .await
             .is_err()
         {
-            pump_resources.release(Outcome::Timeout);
+            pump_resources.release(RelayOutcome::Timeout);
         }
     });
     Body::from_stream(ResponseStream {
@@ -173,40 +173,45 @@ where
 }
 
 struct StreamResources<T> {
-    owner: Mutex<Option<(T, Option<Observation>)>>,
+    owner: Mutex<Option<(T, Option<ExecutionCapture>)>>,
     failed: AtomicBool,
     released: Notify,
 }
 
 impl<T> StreamResources<T> {
-    fn release(&self, outcome: Outcome) {
+    fn release(&self, outcome: RelayOutcome) {
         let owner = {
             let mut owner = self.owner.lock().expect("relay owner lock poisoned");
             let taken = owner.take();
             // Only the winning finalizer publishes the body failure. In
             // particular, a deadline racing downstream EOF cannot change it later.
-            if taken.is_some() && matches!(outcome, Outcome::Timeout | Outcome::TransportError) {
+            if taken.is_some()
+                && matches!(
+                    outcome,
+                    RelayOutcome::Timeout | RelayOutcome::TransportError
+                )
+            {
                 self.failed.store(true, Ordering::Release);
             }
             taken
         };
-        if let Some((owner, observation)) = owner {
+        if let Some((owner, capture)) = owner {
             drop(owner);
-            if let Some(mut observation) = observation {
-                observation.finish(outcome);
+            if let Some(mut capture) = capture {
+                capture.finish(outcome);
             }
         }
         self.released.notify_one();
     }
 
-    fn observe(&self, update: impl FnOnce(&mut Observation)) {
-        if let Some((_, Some(observation))) = self
+    fn observe(&self, update: impl FnOnce(&mut ExecutionCapture)) {
+        if let Some((_, Some(capture))) = self
             .owner
             .lock()
             .expect("relay owner lock poisoned")
             .as_mut()
         {
-            update(observation);
+            update(capture);
         }
     }
 }
@@ -229,7 +234,7 @@ impl<T> Stream for ResponseStream<T> {
         match this.receiver.poll_recv(cx) {
             Poll::Ready(None) => {
                 this.done = true;
-                this.resources.release(Outcome::Eof);
+                this.resources.release(RelayOutcome::Eof);
                 // Finalization publishes failure under the same lock as its outcome.
                 Poll::Ready(
                     this.resources
@@ -246,7 +251,7 @@ impl<T> Stream for ResponseStream<T> {
 impl<T> Drop for ResponseStream<T> {
     fn drop(&mut self) {
         self.task.abort();
-        self.resources.release(Outcome::Cancelled);
+        self.resources.release(RelayOutcome::Cancelled);
     }
 }
 
@@ -266,19 +271,19 @@ mod tests {
 
     #[test]
     fn eof_and_deadline_finalizers_cannot_overwrite_each_other() {
-        for first in [Outcome::Eof, Outcome::Timeout] {
+        for first in [RelayOutcome::Eof, RelayOutcome::Timeout] {
             let resources = StreamResources {
                 owner: Mutex::new(Some(((), None))),
                 failed: AtomicBool::new(false),
                 released: Notify::new(),
             };
             resources.release(first);
-            resources.release(Outcome::Timeout);
-            resources.release(Outcome::Eof);
-            resources.release(Outcome::Cancelled);
+            resources.release(RelayOutcome::Timeout);
+            resources.release(RelayOutcome::Eof);
+            resources.release(RelayOutcome::Cancelled);
             assert_eq!(
                 resources.failed.load(Ordering::Acquire),
-                first == Outcome::Timeout
+                first == RelayOutcome::Timeout
             );
             assert!(resources.owner.lock().unwrap().is_none());
         }

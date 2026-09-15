@@ -1,14 +1,33 @@
 use super::*;
-use crate::test_support::resolved_request_context_with_mode;
-use axum::http::HeaderValue;
-use std::sync::{Arc, Mutex};
+use crate::capture::{ExecutionCapture, ProtocolCapture, RelayOutcome};
+use crate::{
+    providers::openai::{OpenAiProvider, ProviderLimits},
+    test_support::{FakeServer, resolved_request_context_with_mode},
+};
+use axum::{
+    body::{Body, Bytes, to_bytes},
+    http::{HeaderValue, Response},
+};
+use serde_json::json;
+use std::{
+    convert::Infallible,
+    future::pending,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+use tokio::sync::Notify;
 
-async fn observer(mode: &'static str) -> Observation {
-    let context = resolved_request_context_with_mode("provider-secret", mode).await;
-    Observation::new(&context, &HeaderMap::new(), br#"{"model":"requested","instructions":"prompt-canary","input":[{"role":"user","content":"hello"}],"tools":[{"type":"function","name":"weather","parameters":{"type":"object"}}],"text":{"format":{"type":"json_schema","schema":{"description":"schema-canary"}}},"service_tier":"auto"}"#)
+fn captured(execution: &ExecutionCapture) -> &OpenAiResponsesCapture {
+    let ProtocolCapture::OpenAiResponses(capture) = execution.protocol.as_ref().unwrap();
+    capture
 }
 
-fn response(observer: &mut Observation, content_type: &'static str) {
+async fn observer(mode: &'static str) -> ExecutionCapture {
+    let context = resolved_request_context_with_mode("provider-secret", mode).await;
+    ExecutionCapture::openai_responses(&context, &HeaderMap::new(), br#"{"model":"requested","instructions":"prompt-canary","input":[{"role":"user","content":"hello"}],"tools":[{"type":"function","name":"weather","parameters":{"type":"object"}}],"text":{"format":{"type":"json_schema","schema":{"description":"schema-canary"}}},"service_tier":"auto"}"#)
+}
+
+fn response(observer: &mut ExecutionCapture, content_type: &'static str) {
     let mut headers = HeaderMap::new();
     headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
     headers.insert(
@@ -57,23 +76,23 @@ async fn captures_completed_items_only_in_order_without_duplication() {
         observer.bytes(&[*byte]);
     }
     observer.end_body();
-    let capture = observer.capture.as_ref().unwrap();
+    let capture = captured(&observer);
     assert_eq!(capture.items.len(), 2);
     assert_eq!(capture.items[&0]["content"][0]["text"], "héllo 🌍");
     assert_eq!(capture.items[&1]["content"][0]["text"], "second");
     assert_eq!(capture.items[&0]["future"]["preserved"], true);
-    assert_eq!(capture.record.model.as_deref(), Some("actual"));
-    assert_eq!(capture.record.model_parameters["service_tier"], "priority");
+    assert_eq!(capture.facts.model.as_deref(), Some("actual"));
+    assert_eq!(capture.facts.model_parameters["service_tier"], "priority");
     assert_eq!(
-        capture.record.usage_details.as_ref().unwrap()["input_tokens_details"]["cached_tokens"],
+        capture.facts.usage_details.as_ref().unwrap()["input_tokens_details"]["cached_tokens"],
         40
     );
     assert_eq!(
-        capture.record.input.as_ref().unwrap()["messages"][0]["role"],
-        "system"
+        capture.facts.input.as_ref().unwrap()["instructions"],
+        "prompt-canary"
     );
-    assert!(capture.record.output_complete);
-    let stored = json!({"record":capture.record,"items":capture.items}).to_string();
+    assert!(capture.facts.output_complete);
+    let stored = json!({"record":capture.facts,"items":capture.items}).to_string();
     assert!(!stored.contains("unfinished-canary"));
     assert!(!stored.contains("terminal-output-must-not-be-copied"));
 }
@@ -85,11 +104,11 @@ async fn eof_and_item_completion_are_not_provider_completion() {
     observer.bytes(completed_item(0, "completed item").as_bytes());
     observer.bytes(event("response.output_text.delta", json!({"delta":"unfinished"})).as_bytes());
     observer.end_body();
-    let capture = observer.capture.as_ref().unwrap();
+    let capture = captured(&observer);
     assert_eq!(capture.items.len(), 1);
-    assert!(!capture.record.output_complete);
-    assert!(capture.record.usage_details.is_none());
-    assert!(capture.record.provider_status.is_none());
+    assert!(!capture.facts.output_complete);
+    assert!(capture.facts.usage_details.is_none());
+    assert!(capture.facts.provider_status.is_none());
 }
 
 #[tokio::test]
@@ -99,13 +118,13 @@ async fn failed_and_incomplete_responses_keep_usage_and_native_status() {
         response(&mut observer, "text/event-stream");
         observer.bytes(terminal(status, 0).as_bytes());
         observer.end_body();
-        let capture = observer.capture.as_ref().unwrap();
-        assert_eq!(capture.record.provider_status.as_deref(), Some(status));
+        let capture = captured(&observer);
+        assert_eq!(capture.facts.provider_status.as_deref(), Some(status));
         assert_eq!(
-            capture.record.usage_details.as_ref().unwrap()["total_tokens"],
+            capture.facts.usage_details.as_ref().unwrap()["total_tokens"],
             130
         );
-        assert!(capture.record.output_complete);
+        assert!(capture.facts.output_complete);
     }
 }
 
@@ -119,11 +138,11 @@ async fn json_and_streaming_capture_equivalent_native_items_and_facts() {
         json_observer.bytes(chunk);
     }
     json_observer.end_body();
-    let captured = json_observer.capture.as_ref().unwrap();
+    let captured = captured(&json_observer);
     assert_eq!(captured.items[&0], item);
-    assert!(captured.record.output_complete);
+    assert!(captured.facts.output_complete);
     assert_eq!(
-        captured.record.usage_details.as_ref().unwrap()["total_tokens"],
+        captured.facts.usage_details.as_ref().unwrap()["total_tokens"],
         7
     );
 }
@@ -135,11 +154,11 @@ async fn usage_mode_excludes_content_and_context_credentials() {
     observer.bytes(completed_item(0, "output-canary").as_bytes());
     observer.bytes(terminal("completed", 1).as_bytes());
     observer.end_body();
-    let capture = observer.capture.as_ref().unwrap();
-    assert!(capture.record.input.is_none());
+    let capture = captured(&observer);
+    assert!(capture.facts.input.is_none());
     assert!(capture.items.is_empty());
-    assert!(capture.record.usage_details.is_some());
-    let text = json!(capture.record).to_string();
+    assert!(capture.facts.usage_details.is_some());
+    let text = json!(capture.facts).to_string();
     for secret in [
         "prompt-canary",
         "schema-canary",
@@ -160,12 +179,12 @@ async fn oversized_and_malformed_events_do_not_prevent_later_facts() {
     observer.bytes(format!("data: {}\n\n", "x".repeat(MAX_CAPTURE_BYTES + 1)).as_bytes());
     observer.bytes(terminal("completed", 0).as_bytes());
     observer.end_body();
-    let capture = observer.capture.as_ref().unwrap();
-    assert!(!capture.record.observation_complete);
-    assert!(!capture.record.output_complete);
-    assert_eq!(capture.record.provider_status.as_deref(), Some("completed"));
+    let capture = captured(&observer);
+    assert!(!capture.facts.capture_complete);
+    assert!(!capture.facts.output_complete);
+    assert_eq!(capture.facts.provider_status.as_deref(), Some("completed"));
     assert_eq!(
-        capture.record.usage_details.as_ref().unwrap()["total_tokens"],
+        capture.facts.usage_details.as_ref().unwrap()["total_tokens"],
         130
     );
 }
@@ -177,15 +196,8 @@ async fn capture_limits_and_encoded_bodies_are_explicit() {
     for index in 0..=MAX_ITEMS {
         observer.bytes(completed_item(index as u64, "x").as_bytes());
     }
-    assert_eq!(observer.capture.as_ref().unwrap().items.len(), MAX_ITEMS);
-    assert!(
-        !observer
-            .capture
-            .as_ref()
-            .unwrap()
-            .record
-            .observation_complete
-    );
+    assert_eq!(captured(&observer).items.len(), MAX_ITEMS);
+    assert!(!captured(&observer).facts.capture_complete);
     let mut encoded = observer;
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -196,13 +208,13 @@ async fn capture_limits_and_encoded_bodies_are_explicit() {
     encoded.response(200, &headers);
     encoded.bytes(b"opaque compressed bytes");
     encoded.end_body();
-    assert!(matches!(encoded.body, ResponseBody::Unavailable));
-    assert!(!encoded.capture.as_ref().unwrap().record.output_complete);
+    assert!(matches!(captured(&encoded).body, ResponseBody::Unavailable));
+    assert!(!captured(&encoded).facts.output_complete);
 }
 
 #[test]
 fn sse_handles_crlf_multiline_data_and_truncated_eof() {
-    let mut decoder = sse::Sse::default();
+    let mut decoder = SseDecoder::default();
     let mut events = Vec::new();
     for byte in b": ping\r\nevent: anything\r\ndata: {\r\ndata: \"ok\": true}\r\n\r\n" {
         decoder.push(&[*byte], 1024, |event| events.push(event.to_vec()));
@@ -248,8 +260,8 @@ async fn debug_record_is_emitted_once_and_only_at_debug_level() {
             .with_writer(writer.clone())
             .finish();
         tracing::subscriber::with_default(subscriber, || {
-            observer.finish(Outcome::Eof);
-            observer.finish(Outcome::Cancelled);
+            observer.finish(RelayOutcome::Eof);
+            observer.finish(RelayOutcome::Cancelled);
             drop(observer);
         });
         let text = String::from_utf8(writer.0.lock().unwrap().clone()).unwrap();
@@ -263,7 +275,7 @@ async fn debug_record_is_emitted_once_and_only_at_debug_level() {
                 "captured-output"
             );
             assert_eq!(capture["outcome"], "eof");
-            assert_eq!(capture["input"]["messages"][0]["content"], "prompt-canary");
+            assert_eq!(capture["input"]["instructions"], "prompt-canary");
             for secret in [
                 "provider-secret",
                 "private-ingestion-token",
@@ -292,16 +304,6 @@ fn records(writer: &LogWriter) -> Vec<Value> {
 
 #[tokio::test]
 async fn upstream_read_timeout_is_logged_as_timeout() {
-    use crate::{
-        providers::openai::{OpenAiProvider, ProviderLimits},
-        test_support::FakeServer,
-    };
-    use axum::{
-        body::{Body, Bytes, to_bytes},
-        http::Response,
-    };
-    use std::{convert::Infallible, time::Duration};
-
     let upstream = FakeServer::start(|_| async {
         Response::builder()
             .header("content-type", "text/event-stream")
@@ -345,17 +347,11 @@ async fn upstream_read_timeout_is_logged_as_timeout() {
 
 #[tokio::test]
 async fn native_http_relay_logs_once_on_eof_drop_and_unpolled_deadline() {
-    use crate::{
-        providers::openai::{OpenAiProvider, ProviderLimits},
-        test_support::FakeServer,
-    };
-    use axum::{
-        body::{Body, Bytes, to_bytes},
-        http::Response,
-    };
-    use std::time::Duration;
-
-    for outcome in [Outcome::Eof, Outcome::Cancelled, Outcome::Timeout] {
+    for outcome in [
+        RelayOutcome::Eof,
+        RelayOutcome::Cancelled,
+        RelayOutcome::Timeout,
+    ] {
         let native = format!(
             "{}{}",
             completed_item(0, "native-result"),
@@ -398,23 +394,23 @@ async fn native_http_relay_logs_once_on_eof_drop_and_unpolled_deadline() {
             .await
             .unwrap();
         match outcome {
-            Outcome::Eof => assert_eq!(
+            RelayOutcome::Eof => assert_eq!(
                 to_bytes(response.into_body(), 4096).await.unwrap(),
                 expected
             ),
-            Outcome::Cancelled => drop(response),
-            Outcome::Timeout => {
+            RelayOutcome::Cancelled => drop(response),
+            RelayOutcome::Timeout => {
                 tokio::time::sleep(Duration::from_millis(1100)).await;
                 assert!(provider.try_admit().is_ok());
                 drop(response);
             }
-            Outcome::TransportError => unreachable!(),
+            RelayOutcome::TransportError => unreachable!(),
         }
         tokio::task::yield_now().await;
         let records = records(&writer);
         assert_eq!(records.len(), 1);
         assert_eq!(records[0]["outcome"], json!(outcome));
-        if outcome == Outcome::Eof {
+        if outcome == RelayOutcome::Eof {
             assert_eq!(
                 records[0]["output"][0]["content"][0]["text"],
                 "native-result"
@@ -429,17 +425,6 @@ async fn native_http_relay_logs_once_on_eof_drop_and_unpolled_deadline() {
 
 #[tokio::test]
 async fn provider_future_finalizes_on_timeout_and_cancellation_before_headers() {
-    use crate::{
-        providers::openai::{OpenAiProvider, ProviderLimits},
-        test_support::FakeServer,
-    };
-    use axum::{
-        body::{Body, Bytes},
-        http::Response,
-    };
-    use std::{future::pending, time::Duration};
-    use tokio::sync::Notify;
-
     for cancel in [false, true] {
         let started = Arc::new(Notify::new());
         let signal = started.clone();
@@ -498,15 +483,6 @@ async fn provider_future_finalizes_on_timeout_and_cancellation_before_headers() 
 
 #[tokio::test]
 async fn client_compression_preferences_do_not_disable_capture() {
-    use crate::{
-        providers::openai::{OpenAiProvider, ProviderLimits},
-        test_support::FakeServer,
-    };
-    use axum::{
-        body::{Body, Bytes, to_bytes},
-        http::Response,
-    };
-
     for streaming in [false, true] {
         let native = if streaming {
             format!(
@@ -568,7 +544,7 @@ async fn client_compression_preferences_do_not_disable_capture() {
         );
         let records = records(&writer);
         assert_eq!(records.len(), 1);
-        assert_eq!(records[0]["observation_complete"], true);
+        assert_eq!(records[0]["capture_complete"], true);
         assert_eq!(records[0]["output_complete"], true);
         assert_eq!(records[0]["provider_response_id"], "resp-1");
         assert_eq!(records[0]["provider_status"], "completed");
@@ -577,5 +553,115 @@ async fn client_compression_preferences_do_not_disable_capture() {
             records[0]["output"][0]["content"][0]["text"],
             "captured output"
         );
+    }
+}
+
+#[tokio::test]
+async fn capture_regression_large_request_does_not_invalidate_output() {
+    let context = resolved_request_context_with_mode("provider-secret", "full").await;
+    let request = json!({"input": "x".repeat(MAX_CAPTURE_BYTES)}).to_string();
+    for streaming in [false, true] {
+        let mut observer =
+            ExecutionCapture::openai_responses(&context, &HeaderMap::new(), request.as_bytes());
+        response(
+            &mut observer,
+            if streaming {
+                "text/event-stream"
+            } else {
+                "application/json"
+            },
+        );
+        let body = if streaming {
+            terminal("completed", 0)
+        } else {
+            json!({"status":"completed","output":[]}).to_string()
+        };
+        observer.bytes(body.as_bytes());
+        observer.end_body();
+        let facts = &captured(&observer).facts;
+        assert!(!facts.input_complete);
+        assert!(
+            facts.output_complete,
+            "response capture must be independent of request size"
+        );
+    }
+}
+
+#[tokio::test]
+async fn capture_regression_preserves_native_request_and_usage() {
+    let usage = json!({"input_tokens":5,"output_tokens":2,"input_tokens_details":{"cached_tokens":3,"future_tokens":1},"future_usage_field":{"region":"eu"}});
+    for mode in ["full", "usage"] {
+        let context = resolved_request_context_with_mode("provider-secret", mode).await;
+        for input in [
+            json!("hello"),
+            json!([{"type":"function_call_output","call_id":"call-1","output":"native result"}]),
+        ] {
+            let request = json!({"model":"requested","input":input,"instructions":"be brief","future_request_field":{"enabled":true}});
+            for streaming in [false, true] {
+                let mut execution = ExecutionCapture::openai_responses(
+                    &context,
+                    &HeaderMap::new(),
+                    request.to_string().as_bytes(),
+                );
+                response(
+                    &mut execution,
+                    if streaming {
+                        "text/event-stream"
+                    } else {
+                        "application/json"
+                    },
+                );
+                let native = json!({"output":[],"usage":usage,"status":"completed"});
+                let body = if streaming {
+                    event("response.completed", json!({"response":native}))
+                } else {
+                    native.to_string()
+                };
+                execution.bytes(body.as_bytes());
+                execution.end_body();
+                let facts = &captured(&execution).facts;
+                assert_eq!(
+                    facts.input.as_ref(),
+                    if mode == "full" { Some(&request) } else { None }
+                );
+                assert_eq!(facts.usage_details.as_ref(), Some(&usage));
+                assert!(facts.capture_complete);
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn downstream_cancellation_does_not_erase_completed_capture() {
+    for streaming in [false, true] {
+        let mut execution = observer("full").await;
+        response(
+            &mut execution,
+            if streaming {
+                "text/event-stream"
+            } else {
+                "application/json"
+            },
+        );
+        let body = if streaming {
+            terminal("completed", 0)
+        } else {
+            json!({"status":"completed","output":[]}).to_string()
+        };
+        execution.bytes(body.as_bytes());
+        execution.end_body();
+        let writer = LogWriter::default();
+        let subscriber = tracing_subscriber::fmt()
+            .json()
+            .with_max_level(tracing::Level::DEBUG)
+            .with_writer(writer.clone())
+            .finish();
+        tracing::subscriber::with_default(subscriber, || execution.finish(RelayOutcome::Cancelled));
+        let facts = records(&writer);
+        assert_eq!(facts.len(), 1);
+        assert_eq!(facts[0]["outcome"], "cancelled");
+        assert_eq!(facts[0]["provider_status"], "completed");
+        assert_eq!(facts[0]["output_complete"], true);
+        assert_eq!(facts[0]["capture_complete"], true);
     }
 }

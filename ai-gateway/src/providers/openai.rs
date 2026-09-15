@@ -12,7 +12,7 @@ use tokio::{
 };
 
 use crate::{
-    observation::{Observation, Outcome},
+    capture::{ExecutionCapture, RelayOutcome},
     resolution::ResolvedRequestContext,
     transport,
 };
@@ -128,7 +128,7 @@ impl OpenAiProvider {
             HeaderValue::from_str(&format!("Bearer {}", context.connection().provider_token()))
                 .map_err(|_| ProviderError::Configuration)?;
         authorization.set_sensitive(true);
-        let mut observation = Observation::new(&context, headers, &body);
+        let mut capture = ExecutionCapture::openai_responses(&context, headers, &body);
         let response = tokio::time::timeout_at(
             permit
                 .deadline
@@ -156,20 +156,20 @@ impl OpenAiProvider {
         let response = match response {
             Ok(response) => response,
             Err(error) => {
-                observation.finish(if matches!(error, ProviderError::Timeout) {
-                    Outcome::Timeout
+                capture.finish(if matches!(error, ProviderError::Timeout) {
+                    RelayOutcome::Timeout
                 } else {
-                    Outcome::TransportError
+                    RelayOutcome::TransportError
                 });
                 return Err(error);
             }
         };
-        observation.response(response.status().as_u16(), response.headers());
+        capture.response(response.status().as_u16(), response.headers());
         let mut downstream = Response::new(Body::empty());
         *downstream.status_mut() = response.status();
         *downstream.headers_mut() = transport::response_headers(response.headers());
         *downstream.body_mut() =
-            transport::relay(response, permit.deadline, (permit, context), observation);
+            transport::relay(response, permit.deadline, (permit, context), capture);
         Ok(downstream)
     }
 

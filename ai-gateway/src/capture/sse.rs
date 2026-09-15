@@ -1,6 +1,6 @@
-//! Incremental SSE framing. A bad or oversized event only affects observation.
+//! Incremental SSE framing. A bad or oversized event only affects capture.
 #[derive(Default)]
-pub(super) struct Sse {
+pub(super) struct SseDecoder {
     line: Vec<u8>,
     data: Vec<u8>,
     line_nonempty: bool,
@@ -16,7 +16,7 @@ enum EventState {
     Discarding,
 }
 
-impl Sse {
+impl SseDecoder {
     pub fn push(&mut self, bytes: &[u8], limit: usize, mut event: impl FnMut(&[u8])) {
         for &byte in bytes {
             if self.skip_lf {
