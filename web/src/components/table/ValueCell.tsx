@@ -378,7 +378,10 @@ export const ValueCell = memo(
 
     const handleCopy = async (e: React.MouseEvent) => {
       e.stopPropagation();
-      const copyValue = getCopyValue(value);
+      // The cell shows strings bare; the copy button hands over the raw JSON
+      // form, quotes included. The actions menu keeps bare copies for filters.
+      const copyValue =
+        typeof value === "string" ? JSON.stringify(value) : getCopyValue(value);
 
       try {
         await copyTextToClipboard(copyValue);
@@ -413,7 +416,7 @@ export const ValueCell = memo(
           return {
             content: (
               <span
-                className={`text-green-600 dark:text-green-400 ${
+                className={`text-foreground ${
                   preserveStringWhitespace
                     ? "whitespace-pre-wrap"
                     : "whitespace-pre-line"
@@ -428,20 +431,12 @@ export const ValueCell = memo(
         }
         case "number":
           return {
-            content: (
-              <span className="text-blue-600 dark:text-blue-400">
-                {String(value)}
-              </span>
-            ),
+            content: <span className="text-code-literal">{String(value)}</span>,
             needsTruncation: false,
           };
         case "boolean":
           return {
-            content: (
-              <span className="text-orange-600 dark:text-orange-400">
-                {String(value)}
-              </span>
-            ),
+            content: <span className="text-code-literal">{String(value)}</span>,
             needsTruncation: false,
           };
         case "null":
