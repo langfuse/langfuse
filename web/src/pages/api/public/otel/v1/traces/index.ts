@@ -42,6 +42,12 @@ export default withMiddlewares({
       // Mark project as using OTEL API
       await markProjectAsOtelUser(auth.scope.projectId);
 
+      if (env.LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED === "true") {
+        const { startOtelIngestionWorkerAdmissionShadow } =
+          await import("@/src/server/otel/otelIngestionWorkerShadow");
+        startOtelIngestionWorkerAdmissionShadow(res, auth.scope.projectId);
+      }
+
       const maxBodyBytes = env.LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES;
 
       let body: Buffer;
