@@ -15,8 +15,9 @@ const SheetTrigger = SheetPrimitive.Trigger;
 
 const SheetClose = SheetPrimitive.Close;
 
-// Route the portal into the `panel` overlay layer (null until mounted →
-// falls back to <body>, SSR-parity). Layer order, not z-index, stacks it.
+// Route the portal into the `panel` overlay layer. The layer node is static
+// HTML, so the container is available on the first client render — no <body>
+// fallback hop. Layer order, not z-index, stacks it.
 // The non-modal table peek (modal={false}) portals here too; the `agent`,
 // `modal`, and `toast` layers are ordered after `panel`, so they paint above
 // panel surfaces by DOM order.

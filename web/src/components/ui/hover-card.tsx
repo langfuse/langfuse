@@ -14,8 +14,9 @@ const HoverCard = HoverCardPrimitive.Root;
 
 const HoverCardTrigger = HoverCardPrimitive.Trigger;
 
-// Route into the `popover` overlay layer (same as HoverCardContent). null until
-// mounted → falls back to <body>, SSR-parity. Layer order, not z-index, stacks
+// Route into the `popover` overlay layer (same as HoverCardContent). The
+// layer node is static HTML, so the container is available on the first
+// client render — no <body> fallback hop. Layer order, not z-index, stacks
 // it. An explicit `container` prop still overrides the default.
 const HoverCardPortal = ({
   ...props
@@ -40,8 +41,9 @@ const HoverCardContent = React.forwardRef<
     },
     ref,
   ) => {
-    // Route into the `popover` overlay layer. null until mounted → falls back to
-    // <body>, SSR-parity. Layer order, not z-index, stacks it.
+    // Route into the `popover` overlay layer. The layer node is static HTML,
+    // so the container is available on the first client render — no <body>
+    // fallback hop. Layer order, not z-index, stacks it.
     const container = useLayerContainer("popover");
     return (
       <HoverCardPrimitive.Portal container={container}>

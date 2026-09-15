@@ -113,8 +113,9 @@ Drawer.displayName = "Drawer";
 
 const DrawerTrigger = DrawerPrimitive.Trigger;
 
-// Route the Vaul portal into the `panel` overlay layer (null until mounted →
-// falls back to <body>, SSR-parity). Layer order, not z-index, stacks it.
+// Route the Vaul portal into the `panel` overlay layer. The layer node is
+// static HTML, so the container is available on the first client render — no
+// <body> fallback hop. Layer order, not z-index, stacks it.
 const DrawerPortal = ({
   layer = "panel",
   ...props

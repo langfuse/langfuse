@@ -18,8 +18,9 @@ const TooltipContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
 >(({ className, sideOffset = 4, ...props }, ref) => {
   // Route into the `tooltip` overlay layer (above `popover`/`modal`, below
-  // `toast`). null until mounted → falls back to <body>, SSR-parity. Layer
-  // order, not z-index, stacks it.
+  // `toast`). The layer node is static HTML, so the container is available on
+  // the first client render — no <body> fallback hop. Layer order, not
+  // z-index, stacks it.
   const container = useLayerContainer("tooltip");
   return (
     <TooltipPrimitive.Portal container={container}>
