@@ -53,7 +53,7 @@ jobs:
             const TEAM_SLUG = "langfuse-maintainers";
             const CLA_CONTEXT = "license/cla";
             const CLA_TARGET = `https://cla-assistant.io/${ORG}/${context.repo.repo}`;
-            const MEMBER_ASSOCIATIONS = new Set(["MEMBER", "OWNER"]);
+            const WRITE_PERMISSIONS = new Set(["write", "admin"]);
 
             async function canReadTeam() {
               try {
@@ -160,6 +160,25 @@ jobs:
               return null;
             }
 
+            async function hasRepoWrite(username) {
+              if (username.endsWith("[bot]")) {
+                return false;
+              }
+              try {
+                const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  username,
+                });
+                return WRITE_PERMISSIONS.has(data.permission);
+              } catch (error) {
+                if (error.status === 404) {
+                  return false;
+                }
+                throw error;
+              }
+            }
+
             async function shouldSkip(pull, teamReadable) {
               if (teamReadable) {
                 const isMember = await isTeamMaintainer(pull.author);
@@ -171,21 +190,22 @@ jobs:
                 };
               }
 
-              // Token cannot see the private team. Use org membership on the PR
-              // rather than treating a 404 as "not a member".
-              if (MEMBER_ASSOCIATIONS.has(pull.association)) {
+              // Token cannot see the private team. Private org members often
+              // show as CONTRIBUTOR, so repo write/admin is the usable proxy.
+              const canWrite = await hasRepoWrite(pull.author);
+              if (canWrite) {
                 core.warning(
-                  `Cannot read ${TEAM_SLUG}; skipping CLA via author_association=${pull.association}.`,
+                  `Cannot read ${TEAM_SLUG}; skipping CLA via repo write access for ${pull.author}.`,
                 );
                 return {
                   skip: true,
-                  reason: `${pull.author} has author_association=${pull.association}`,
+                  reason: `${pull.author} has repo write access`,
                 };
               }
 
               return {
                 skip: false,
-                reason: `${pull.author} author_association=${pull.association}; ${TEAM_SLUG} is not readable`,
+                reason: `${pull.author} has no repo write access; ${TEAM_SLUG} is not readable`,
               };
             }
 
