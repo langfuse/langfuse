@@ -499,6 +499,9 @@ export const createEvalJobs = async ({
             projectId: event.projectId,
             jobInputTraceId: event.traceId,
             jobConfigurationId: { in: configIds },
+            status: {
+              notIn: [JobExecutionStatus.CANCELLED, JobExecutionStatus.ERROR],
+            },
           },
         })
       : [];
