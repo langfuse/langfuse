@@ -72,6 +72,57 @@ vi.mock("@langfuse/shared", async () => {
   };
 });
 
+const playgroundMocks = vi.hoisted(() => ({
+  setPlaygroundCache: vi.fn(),
+  clearAllCache: vi.fn(),
+  push: vi.fn(),
+}));
+
+vi.mock("next/router", () => ({
+  useRouter: () => ({ push: playgroundMocks.push }),
+}));
+vi.mock("@/src/hooks/useProjectIdFromURL", () => ({
+  default: () => "project-schema",
+}));
+vi.mock("@/src/features/posthog-analytics", () => ({
+  usePostHogClientCapture: () => vi.fn(),
+}));
+vi.mock("@/src/utils/api", () => ({
+  api: { llmApiKey: { all: { useQuery: () => ({ data: { data: [] } }) } } },
+}));
+vi.mock("@/src/features/playground/page/hooks/usePersistedWindowIds", () => ({
+  usePersistedWindowIds: () => ({
+    clearAllCache: playgroundMocks.clearAllCache,
+    addWindowWithId: vi.fn(),
+  }),
+}));
+vi.mock("@/src/features/playground/page/hooks/usePlaygroundCache", () => ({
+  default: () => ({ setPlaygroundCache: playgroundMocks.setPlaygroundCache }),
+}));
+vi.mock("@/src/components/ui/dropdown-menu", () => ({
+  DropdownMenuController: ({ renderMenu }: { renderMenu: () => ReactNode }) =>
+    renderMenu(),
+}));
+vi.mock(
+  "@/src/features/playground/page/components/JumpToPlaygroundMenu",
+  () => ({
+    JumpToPlaygroundMenu: ({
+      onPlaygroundAction,
+    }: {
+      onPlaygroundAction: (action: "fresh") => void;
+    }) =>
+      createElement(
+        "button",
+        { onClick: () => onPlaygroundAction("fresh") },
+        "Fresh playground",
+      ),
+  }),
+);
+
+import { createElement, type ComponentProps, type ReactNode } from "react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
+import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
+import type { PlaygroundCache } from "@/src/features/playground/page/types";
 import { normalizeInput, normalizeOutput } from "./adapters";
 import { convertChatMlToPlayground } from "./playgroundConverter";
 import { extractTools } from "./extractTools";
@@ -1304,5 +1355,155 @@ describe("Playground Jump Full Pipeline", () => {
       expect(thirdMsg.role).toBe("assistant");
       expect(thirdMsg.content).toBe("I can help with many tasks!");
     }
+  });
+});
+
+describe("Playground structured output import", () => {
+  const schema = {
+    type: "object",
+    properties: { text: { type: "string" } },
+    required: ["text"],
+    additionalProperties: false,
+  };
+  const responseFormat = {
+    type: "json_schema",
+    json_schema: { name: "existing_schema", schema },
+  };
+  type Generation = Extract<
+    ComponentProps<typeof JumpToPlaygroundDropdownMenuController>,
+    { source: "generation" }
+  >["generation"];
+  const generation = (
+    metadata: unknown,
+    modelParameters: Record<string, string> = {},
+  ) =>
+    ({
+      id: "generation-schema",
+      type: "GENERATION",
+      input: "Return a structured answer",
+      output: null,
+      metadata,
+      modelParameters,
+    }) as Generation;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation(
+      (callback) => {
+        callback(0);
+        return 0;
+      },
+    );
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  function importSchemaToPlayground(observation: Generation) {
+    const props: ComponentProps<typeof JumpToPlaygroundDropdownMenuController> =
+      {
+        source: "generation",
+        generation: observation,
+        analyticsEventName: "trace_detail:test_in_playground_button_click",
+        children: () => null,
+      };
+    const view = render(
+      createElement(JumpToPlaygroundDropdownMenuController, props),
+    );
+    fireEvent.click(view.getByRole("button", { name: "Fresh playground" }));
+    expect(playgroundMocks.setPlaygroundCache).toHaveBeenCalledTimes(1);
+    expect(playgroundMocks.clearAllCache).toHaveBeenCalledOnce();
+    expect(playgroundMocks.push).toHaveBeenCalledWith(
+      "/project/project-schema/playground",
+    );
+    const cache = playgroundMocks.setPlaygroundCache.mock
+      .calls[0]![0] as PlaygroundCache;
+    expect(cache?.messages).toHaveLength(1);
+    return cache?.structuredOutputSchema;
+  }
+
+  it.each([
+    ["object metadata", { "ai.schema": schema }],
+    ["encoded schema", { "ai.schema": JSON.stringify(schema) }],
+    ["encoded metadata", JSON.stringify({ "ai.schema": schema })],
+    [
+      "OTel attributes",
+      { attributes: { "ai.schema": JSON.stringify(schema) } },
+    ],
+    ["parsed OTel attributes", { attributes: { "ai.schema": schema } }],
+  ])("imports an AI SDK schema from %s", (_name, metadata) => {
+    expect(importSchemaToPlayground(generation(metadata))).toMatchObject({
+      name: "ai_sdk_schema",
+      description: "Schema parsed from generation",
+      schema,
+    });
+  });
+
+  it.each([null, [], 42, "not JSON", "null", "[]"])(
+    "ignores an invalid AI SDK schema: %j",
+    (value) => {
+      expect(
+        importSchemaToPlayground(generation({ "ai.schema": value })),
+      ).toBeNull();
+    },
+  );
+
+  it("preserves OpenAI metadata precedence over other formats", () => {
+    expect(
+      importSchemaToPlayground(
+        generation(
+          { response_format: responseFormat, "ai.schema": schema },
+          {
+            response_format: JSON.stringify({
+              ...responseFormat,
+              json_schema: { name: "litellm_schema", schema },
+            }),
+          },
+        ),
+      ),
+    ).toMatchObject({ name: "existing_schema", schema });
+  });
+
+  it("preserves LiteLLM model parameter precedence over AI SDK metadata", () => {
+    expect(
+      importSchemaToPlayground(
+        generation(
+          { "ai.schema": schema },
+          { response_format: JSON.stringify(responseFormat) },
+        ),
+      ),
+    ).toMatchObject({ name: "existing_schema", schema });
+  });
+
+  it("imports AI SDK metadata when a legacy response format is malformed", () => {
+    expect(
+      importSchemaToPlayground(
+        generation({ "ai.schema": schema }, { response_format: "not JSON" }),
+      ),
+    ).toMatchObject({ name: "ai_sdk_schema", schema });
+  });
+
+  it("prefers a valid top-level AI SDK schema over OTel attributes", () => {
+    expect(
+      importSchemaToPlayground(
+        generation({
+          "ai.schema": schema,
+          attributes: { "ai.schema": { type: "object", properties: {} } },
+        }),
+      ),
+    ).toMatchObject({ schema });
+  });
+
+  it("falls back to OTel attributes when a top-level schema is invalid", () => {
+    expect(
+      importSchemaToPlayground(
+        generation({
+          "ai.schema": "not JSON",
+          attributes: { "ai.schema": JSON.stringify(schema) },
+        }),
+      ),
+    ).toMatchObject({ name: "ai_sdk_schema", schema });
   });
 });
