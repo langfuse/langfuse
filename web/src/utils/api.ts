@@ -108,6 +108,11 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
  *                    your request…", see `withErrorHandling` in
  *                    `web/src/server/api/trpc.ts`) and oversized payloads
  *                    (`PayloadTooLargeError`, httpCode 422)
+ *  - TOO_MANY_REQUESTS — a rate or concurrency limiter rejected the request
+ *                    (in-app-agent `assertInAppAgentRateLimit` /
+ *                    `assertInAppAgentRunCapacity`, web-callout invoke
+ *                    limits, feedback submission). The toast and (for the
+ *                    assistant) the panel retry window are the UX.
  *
  * The UI already renders each of these as an error page or toast — it is the
  * product working as designed, not a regression a human should act on. Sending
@@ -142,6 +147,7 @@ export const EXPECTED_TRPC_ERROR_CODES = [
   "FORBIDDEN",
   "UNAUTHORIZED",
   "UNPROCESSABLE_CONTENT",
+  "TOO_MANY_REQUESTS",
 ] as const;
 
 /**
