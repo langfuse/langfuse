@@ -33,41 +33,10 @@ export default withMiddlewares({
     responseSchema: GetDatasetsV2Response,
     rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
-      const datasets = await prisma.dataset.findMany({
-        select: {
-          name: true,
-          description: true,
-          metadata: true,
-          inputSchema: true,
-          expectedOutputSchema: true,
-          projectId: true,
-          createdAt: true,
-          updatedAt: true,
-          id: true,
-        },
-        where: {
-          projectId: auth.scope.projectId,
-        },
-        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-        take: query.limit,
-        skip: (query.page - 1) * query.limit,
+      return await listDatasetsForApi({
+        ...query,
+        projectId: auth.scope.projectId,
       });
-
-      const totalItems = await prisma.dataset.count({
-        where: {
-          projectId: auth.scope.projectId,
-        },
-      });
-
-      return {
-        data: datasets,
-        meta: {
-          page: query.page,
-          limit: query.limit,
-          totalItems,
-          totalPages: Math.ceil(totalItems / query.limit),
-        },
-      };
     },
   }),
 });
