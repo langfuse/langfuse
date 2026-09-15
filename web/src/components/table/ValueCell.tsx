@@ -399,7 +399,7 @@ export const ValueCell = memo(
           return {
             content: (
               <span
-                className={`text-blue-800 ${}
+                className={`text-blue-800 ${
                   preserveStringWhitespace
                     ? "whitespace-pre-wrap"
                     : "whitespace-pre-line"
