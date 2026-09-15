@@ -2,7 +2,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type CustomHeights } from "@/src/components/table/data-table-row-height-switch";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { useColumnVisibility } from "@/src/features/column-visibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { createColumnHelper } from "@tanstack/react-table";
@@ -39,7 +39,7 @@ import {
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { ActionButton } from "@/src/components/ActionButton";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Badge } from "@/src/components/ui/badge";
 import { getTemplateResultType } from "@/src/features/evals/utils/template-output";

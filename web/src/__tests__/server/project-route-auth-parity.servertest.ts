@@ -97,13 +97,6 @@ const projectRoutes: Route[] = [
     route: "unstable/dashboard-widgets/[widgetId]",
     methods: ["GET", "PATCH", "DELETE"],
   },
-  { route: "unstable/evaluators/index", methods: ["GET", "POST"] },
-  { route: "unstable/evaluators/[evaluatorId]", methods: ["GET", "DELETE"] },
-  { route: "unstable/evaluation-rules/index", methods: ["GET", "POST"] },
-  {
-    route: "unstable/evaluation-rules/[evaluationRuleId]",
-    methods: ["GET", "PATCH", "DELETE"],
-  },
   { route: "v2/evaluators/index", methods: ["GET", "POST"] },
   {
     route: "v2/evaluators/[evaluatorId]",

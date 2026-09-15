@@ -272,7 +272,11 @@ export const TestCustomFalsyHandling = meta.story({
   play: async ({ canvas }) => {
     await expect(canvas.queryByText("false")).toBeInTheDocument();
     await expect(canvas.getAllByText("false")).toHaveLength(1);
+    // "fallback" hands the hyphen over as content, so it renders as given;
+    // "omitted" hands over nothing and gets the shared empty treatment.
     await expect(canvas.getByText("-")).toBeInTheDocument();
+    await expect(canvas.getByText("—")).toBeInTheDocument();
+    await expect(canvas.getByText("No value")).toBeInTheDocument();
   },
 });
 

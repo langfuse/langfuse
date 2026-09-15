@@ -1956,7 +1956,9 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
     "nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id",
   startTime: "min(e.start_time) AS start_time",
   itemCount: "uniq(e.experiment_item_id) AS item_count",
-  errorCount: "countIf(e.level = 'ERROR') AS error_count",
+  // Distinct items that carry any ERROR event, so the number matches the
+  // items-view Status=ERROR list the badge opens.
+  errorCount: "uniqIf(e.experiment_item_id, e.level = 'ERROR') AS error_count",
   prompts:
     "groupUniqArrayIf(tuple(e.prompt_name, e.prompt_version), e.prompt_name != '') AS prompts",
   experimentMetadata:

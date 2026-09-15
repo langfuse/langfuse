@@ -164,7 +164,7 @@ export class MonitorProcessor {
       metricMap["count_count"] = parseNumericValue(row["count_count"]);
     } catch (error) {
       // Resource pressure is transient, not a bad query; rethrow so the monitor stays ACTIVE and the scheduler retries.
-      if (error instanceof ClickHouseResourceError) {
+      if (ClickHouseResourceError.is(error)) {
         logger.warn("queryMetrics hit a ClickHouse resource limit; retrying", {
           errorType: error.errorType,
           projectId: event.projectId,
@@ -204,12 +204,16 @@ export class MonitorProcessor {
     completions: MonitorCompletion[];
   }): Promise<void> {
     if (args.completions.length === 0) return;
-    await this.db.$executeRaw(
-      buildCompleteQuery({
-        projectId: args.projectId,
-        completions: args.completions,
-      }),
-    );
+    await this.db.$transaction([
+      // tz-naive columns are read back as UTC by Prisma; pin the session so raw casts store UTC wall-clock
+      this.db.$executeRawUnsafe(`SET LOCAL TIME ZONE 'UTC'`),
+      this.db.$executeRaw(
+        buildCompleteQuery({
+          projectId: args.projectId,
+          completions: args.completions,
+        }),
+      ),
+    ]);
   }
 }
 

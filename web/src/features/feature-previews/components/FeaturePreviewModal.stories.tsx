@@ -57,6 +57,7 @@ const meta = preview.meta({
     onOpenChange: fn(),
     state: {
       modernSession: { enabled: false, onToggle: fn(), isToggling: false },
+      sessionTimeline: { enabled: false, disabled: true, onToggle: fn() },
     },
   },
   render: StatefulFeaturePreviewModal,

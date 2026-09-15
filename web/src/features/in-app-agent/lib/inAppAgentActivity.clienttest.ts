@@ -6,8 +6,10 @@ import { InAppAgentRunStatus } from "@langfuse/shared";
 
 import {
   getInAppAgentActivityKey,
+  getInAppAgentActivityRefetchInterval,
   getInAppAgentPendingNotificationCards,
   hasInFlightInAppAgentActivity,
+  IN_APP_AGENT_ACTIVITY_POLL_INTERVAL_MS,
   markInAppAgentActivityDelivered,
   markInAppAgentConversationHandled,
   mergeInAppAgentReceipts,
@@ -266,5 +268,29 @@ describe("in-app agent activity receipts", () => {
         ),
       ]),
     ).toBe(true);
+  });
+
+  it("does not throw from the poll interval helper when a conversation cannot be read", () => {
+    const conversations = [
+      {
+        id: "c1",
+        title: "c1",
+        get latestRun(): InAppAgentConversationLatestRun {
+          throw new SyntaxError("Invalid or unexpected token");
+        },
+      },
+    ];
+
+    expect(getInAppAgentActivityRefetchInterval(conversations)).toBe(false);
+    expect(getInAppAgentActivityRefetchInterval(undefined)).toBe(false);
+    expect(getInAppAgentActivityRefetchInterval({ pages: [] })).toBe(false);
+    expect(
+      getInAppAgentActivityRefetchInterval([
+        conversation(
+          "queued",
+          latestRun({ id: "queued-run", status: InAppAgentRunStatus.QUEUED }),
+        ),
+      ]),
+    ).toBe(IN_APP_AGENT_ACTIVITY_POLL_INTERVAL_MS);
   });
 });
