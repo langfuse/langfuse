@@ -156,7 +156,7 @@
      per token). */
   --text-xs: 0.7rem;
   --text-xs--font-weight: var(--font-weight-regular);
-  --text-sm: 0.825rem;
+  --text-sm: 0.8125rem;
   --text-sm--font-weight: var(--font-weight-regular);
   /* Mono partner of text-sm: mono glyphs read larger than sans at equal
      size, so mono next to text-sm takes 11.6px with text-sm line box, and
