@@ -3,6 +3,7 @@ import {
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
 import {
+  DeleteScoreConfigV1Response,
   GetScoreConfigResponse,
   GetScoreConfigsResponse,
   PostScoreConfigResponse,
@@ -807,6 +808,120 @@ describe("/api/public/score-configs API Endpoint", () => {
           { label: "False", value: 0 },
         ],
       });
+    });
+  });
+
+  describe("DELETE /api/public/score-configs/:configId", () => {
+    it("soft-archives the config and returns the success message", async () => {
+      const { body: created } = await makeZodVerifiedAPICall(
+        PostScoreConfigResponse,
+        "POST",
+        "/api/public/score-configs",
+        {
+          name: "to-be-archived",
+          dataType: "NUMERIC",
+          minValue: 0,
+          maxValue: 1,
+        },
+        auth,
+      );
+
+      const { id: configId } = created;
+
+      const deleteResponse = await makeZodVerifiedAPICall(
+        DeleteScoreConfigV1Response,
+        "DELETE",
+        `/api/public/score-configs/${configId}`,
+        undefined,
+        auth,
+      );
+
+      expect(deleteResponse.status).toBe(200);
+      expect(deleteResponse.body).toEqual({
+        message: "Score config successfully archived",
+      });
+
+      // The row is still present but flagged isArchived.
+      const row = await prisma.scoreConfig.findUnique({
+        where: { id: configId },
+      });
+      expect(row).not.toBeNull();
+      expect(row?.isArchived).toBe(true);
+
+      // A follow-up GET still returns the row (archived, not deleted).
+      const getResponse = await makeZodVerifiedAPICall(
+        GetScoreConfigResponse,
+        "GET",
+        `/api/public/score-configs/${configId}`,
+        undefined,
+        auth,
+      );
+      expect(getResponse.status).toBe(200);
+      expect(getResponse.body.isArchived).toBe(true);
+
+      // A second DELETE on the already-archived config is a no-op.
+      const secondDelete = await makeZodVerifiedAPICall(
+        DeleteScoreConfigV1Response,
+        "DELETE",
+        `/api/public/score-configs/${configId}`,
+        undefined,
+        auth,
+      );
+      expect(secondDelete.status).toBe(200);
+      expect(secondDelete.body).toEqual({
+        message: "Score config successfully archived",
+      });
+    });
+
+    it("returns 404 for an unknown configId", async () => {
+      await expect(
+        makeZodVerifiedAPICall(
+          DeleteScoreConfigV1Response,
+          "DELETE",
+          "/api/public/score-configs/does-not-exist",
+          undefined,
+          auth,
+        ),
+      ).rejects.toThrow(/returned status 404/);
+    });
+
+    it("returns 404 when the config belongs to a different project", async () => {
+      // Seed a score config in a different project directly via Prisma. The
+      // public API key in the test harness is scoped to the default test
+      // project, so the {id, projectId} filter in `getScoreConfig` (used
+      // by `archiveScoreConfigForApi`) will miss and the handler must
+      // return 404.
+      const otherProjectId = "01234567-89ab-cdef-0123-456789abcdef";
+      const otherConfig = await prisma.scoreConfig.create({
+        data: {
+          id: v4(),
+          projectId: otherProjectId,
+          name: "in-a-different-project",
+          dataType: "BOOLEAN",
+          isArchived: false,
+        },
+      });
+
+      try {
+        await expect(
+          makeZodVerifiedAPICall(
+            DeleteScoreConfigV1Response,
+            "DELETE",
+            `/api/public/score-configs/${otherConfig.id}`,
+            undefined,
+            auth,
+          ),
+        ).rejects.toThrow(/returned status 404/);
+
+        // The foreign-project row was not modified.
+        const stillThere = await prisma.scoreConfig.findUnique({
+          where: { id: otherConfig.id },
+        });
+        expect(stillThere?.isArchived).toBe(false);
+      } finally {
+        // Cleanup the foreign-project row so the suite stays isolated.
+        await prisma.scoreConfig.delete({ where: { id: otherConfig.id } });
+      }
     });
   });
 });
