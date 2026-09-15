@@ -37,7 +37,7 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import Header from "@/src/components/layouts/header";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -345,8 +345,9 @@ function CopyableText({ value }: { value: string }) {
         aria-label="Copy to clipboard"
         onClick={async (event) => {
           event.preventDefault();
+          const button = event.currentTarget;
           await copy(value).catch(() => undefined);
-          event.currentTarget.focus();
+          button.focus();
         }}
       >
         {isCopied ? (

@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
-import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
+import { advanceSessionsExpiredAtForEmail } from "@/src/features/auth/lib/sessionExpiration";
+import type { AdClickIds } from "@/src/features/auth";
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
@@ -112,6 +113,10 @@ export async function consumeEmailOtpAndUpdatePassword({
         emailVerified: now,
       },
     });
+
+    if (updated.count === 1) {
+      await advanceSessionsExpiredAtForEmail(identifier, tx);
+    }
 
     return updated.count === 1;
   });

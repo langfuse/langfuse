@@ -8,7 +8,7 @@ import {
   validateDbScoreConfigSafe,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   type PostScoreConfigBody,
   type PutScoreConfigBody,

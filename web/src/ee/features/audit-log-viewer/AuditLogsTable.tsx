@@ -12,6 +12,7 @@ import { SettingsTableCard } from "@/src/components/layouts/settings-table-card"
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BatchExportTableName } from "@langfuse/shared";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { useHasProjectAccess } from "@/src/features/rbac";
 
 // Both endpoints return the same shape
 type AuditLogRow = RouterOutputs["auditLogs"]["all"]["data"][number];
@@ -21,6 +22,10 @@ type AuditLogsTableProps =
   | { scope: "organization"; orgId: string };
 
 export function AuditLogsTable(props: AuditLogsTableProps) {
+  const hasBatchExportAccess = useHasProjectAccess({
+    projectId: props.scope === "project" ? props.projectId : undefined,
+    scope: "batchExports:create",
+  });
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -136,7 +141,7 @@ export function AuditLogsTable(props: AuditLogsTableProps) {
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         actionButtons={
-          props.scope === "project"
+          props.scope === "project" && hasBatchExportAccess
             ? [
                 <BatchExportTableButton
                   key="audit-logs-export"

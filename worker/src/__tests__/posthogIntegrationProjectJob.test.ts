@@ -92,6 +92,7 @@ const h = vi.hoisted(() => {
   // hostname) and the customer notification, both controllable per test.
   const validateWebhookURL = vi.fn(async () => {});
   const recordIncrement = vi.fn();
+  const recordDistribution = vi.fn();
   const dispatchProjectNotification = vi.fn(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     try {
@@ -143,6 +144,7 @@ const h = vi.hoisted(() => {
     notification,
     validateWebhookURL,
     recordIncrement,
+    recordDistribution,
     dispatchProjectNotification,
     OutboundUrlValidationError,
     getTraces,
@@ -174,6 +176,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   QueueName: { PostHogIntegrationProcessingQueue: "posthog" },
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
   recordIncrement: h.recordIncrement,
+  recordDistribution: h.recordDistribution,
   getCurrentSpan: vi.fn(() => undefined),
   validateWebhookURL: h.validateWebhookURL,
   dispatchProjectNotification: h.dispatchProjectNotification,
@@ -277,6 +280,7 @@ function resetSharedState() {
   h.notification.settled = false;
   h.notification.rejects = false;
   h.recordIncrement.mockClear();
+  h.recordDistribution.mockClear();
   h.validateWebhookURL.mockReset();
   h.validateWebhookURL.mockImplementation(async () => {});
   h.dispatchProjectNotification.mockClear();

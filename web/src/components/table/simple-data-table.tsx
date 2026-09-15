@@ -125,13 +125,12 @@ export function SimpleDataTable<TData extends object>({
                     key={column.id}
                     className={cn(
                       "h-full overflow-hidden border-b align-middle [&:has([role=checkbox])]:pr-0 [:last-child_>_&]:border-b-0",
-                      column.columnDef.cellClassName,
-                      "h-full border-b align-middle [&:has([role=checkbox])]:pr-0 [:last-child_>_&]:border-b-0",
                       column.columnDef.hideBelowMd && "hidden md:table-cell",
                       column.columnDef.cellPadding === "compact"
                         ? "px-2 py-0"
                         : "p-2",
                       column.columnDef.cellPadding === "none" && "p-0",
+                      column.columnDef.cellClassName,
                     )}
                   >
                     {typeof loadingCell === "function" ? (
@@ -197,14 +196,13 @@ export function SimpleDataTable<TData extends object>({
                     key={cell.id}
                     className={cn(
                       "h-full overflow-hidden border-b align-middle [&:has([role=checkbox])]:pr-0 [:last-child_>_&]:border-b-0",
-                      cell.column.columnDef.cellClassName,
-                      "h-full border-b align-middle [&:has([role=checkbox])]:pr-0 [:last-child_>_&]:border-b-0",
                       cell.column.columnDef.hideBelowMd &&
                         "hidden md:table-cell",
                       cell.column.columnDef.cellPadding === "compact"
                         ? "px-2 py-0"
                         : "p-2",
                       cell.column.columnDef.cellPadding === "none" && "p-0",
+                      cell.column.columnDef.cellClassName,
                     )}
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

@@ -175,6 +175,7 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
     {
       accessorKey: "url",
       header: "Endpoint",
+      cellClassName: "max-w-xl",
       cell: ({ getValue }) => {
         const url = getValue<string>();
         return (

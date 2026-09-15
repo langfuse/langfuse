@@ -19,6 +19,7 @@ import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { SimpleDataTable } from "@/src/components/table/simple-data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
   Dialog,
   DialogBody,
@@ -38,15 +39,8 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import Header from "@/src/components/layouts/header";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { VerifiedDomainsSettings } from "@/src/ee/features/verified-domains/components/VerifiedDomainsSettings";
 import { SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso/types";
@@ -433,21 +427,15 @@ function SsoConfigDialog({
                     <FormItem>
                       <FormLabel>Provider</FormLabel>
                       <FormControl>
-                        <Select
+                        <SelectInput
                           value={field.value}
                           onValueChange={field.onChange}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select an SSO provider" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {SSO_PROVIDERS.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          placeholder="Select an SSO provider"
+                          options={SSO_PROVIDERS.map((provider) => ({
+                            value: provider.id,
+                            label: provider.label,
+                          }))}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -693,8 +681,9 @@ function CopyableCallbackUrl({ value }: { value: string }) {
         aria-label="Copy to clipboard"
         onClick={async (event) => {
           event.preventDefault();
+          const button = event.currentTarget;
           await copy(value).catch(() => undefined);
-          event.currentTarget.focus();
+          button.focus();
         }}
       >
         {isCopied ? (

@@ -24,6 +24,7 @@ const columns: LangfuseColumnDef<Dashboard>[] = [
   createTextTableColumn<Dashboard>({
     accessorKey: "description",
     header: "Description",
+    cellClassName: "truncate",
   }),
   {
     accessorKey: "updatedAt",
