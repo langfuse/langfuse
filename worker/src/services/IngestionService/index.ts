@@ -1968,7 +1968,7 @@ export class IngestionService {
         "usage" in obs.body ? obs.body.usage?.output : undefined;
 
       const newTotalCount =
-        ("usage" in obs.body ? obs.body.usage?.total : undefined) ||
+        ("usage" in obs.body ? obs.body.usage?.total : undefined) ??
         (Object.keys(
           "usageDetails" in obs.body ? (obs.body.usageDetails ?? {}) : {},
         ).length === 0
