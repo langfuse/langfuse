@@ -135,7 +135,9 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
 /** "N items" shown on an expanded parent, in the same mono preview style as
     the collapsed row so the two states read alike; the chevron carries the
     open / closed distinction. Objects count keys but say "items" too,
-    matching the collapsed preview's wording. */
+    matching the collapsed preview's wording. Callers pass the rendered row
+    count, not the raw size: showNullValues={false} filters children out, and
+    a count above the rows it describes reads like rows failed to load. */
 function renderCountSummary(count: number) {
   return (
     <span className={PREVIEW_TEXT_CLASSES}>
@@ -466,7 +468,7 @@ export const ValueCell = memo(
             row.getIsExpanded() && row.subRows.length > 0;
           if (hasVisibleChildRows) {
             return {
-              content: renderCountSummary((value as unknown[]).length),
+              content: renderCountSummary(row.subRows.length),
               needsTruncation: false,
             };
           }
@@ -481,9 +483,7 @@ export const ValueCell = memo(
             row.getIsExpanded() && row.subRows.length > 0;
           if (hasVisibleChildRows) {
             return {
-              content: renderCountSummary(
-                Object.keys(value as Record<string, unknown>).length,
-              ),
+              content: renderCountSummary(row.subRows.length),
               needsTruncation: false,
             };
           }
