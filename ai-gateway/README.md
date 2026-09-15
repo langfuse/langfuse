@@ -3,7 +3,7 @@
 A standalone Rust gateway for `POST /openai/v1/responses`. Web resolves the gateway
 key to a trusted provider connection; Rust relays native JSON or SSE without
 rewriting provider bytes. A bounded capture layer captures request/response facts and
-logs the finalized record at debug level. Each finalized execution is immediately
+logs capture completeness at debug level. Each finalized execution is immediately
 uploaded as a Langfuse generation through OTLP. Building and testing need no real
 Web, database or provider credentials.
 
@@ -67,7 +67,7 @@ do not load dotenv files:
 | `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS`           | `0.0.0.0:8080` | IP address and port; IPv6 uses `[::]:8080`         |
 | `LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT` | `false` | `true`, `false`; the pnpm dev task sets `true` |
 | `LANGFUSE_LOG_FORMAT`                          | `text`         | `text`, `json`                                     |
-| `LANGFUSE_LOG_LEVEL`                           | `info`         | `trace`, `debug`, `info`, `warn`, `error`, `fatal` |
+| `LANGFUSE_LOG_LEVEL`                           | `info`         | `debug`, `info`, `warn`, `error`, `fatal` |
 | `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300                              |
 | `LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS` | `128` | Positive integer up to Tokio's semaphore capacity; authenticated requests per instance |
 | `LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS` | `128` | Positive integer up to Tokio's semaphore capacity; concurrent Web resolutions per instance |
@@ -84,10 +84,63 @@ Both formats use the same log level and preserve event fields. For example:
 ```
 
 Invalid values fail startup without echoing their contents. At the default `info`
-level, logs contain service lifecycle events. Debug logging also includes the
-captured request and completed output when Web resolves `ingestion_mode: full`;
-see capture details below. For direct
+level, logs contain service lifecycle events and HTTP response summaries.
+Debug logging adds content-free phase and capture details. For direct
 host-only development, set `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS=127.0.0.1:8080`.
+
+## Operational observability
+
+Logs and operational OpenTelemetry exports describe gateway health independently
+of the inference generations sent to Langfuse. They do not include request/response
+content, credentials, key metadata, or URL query strings. Health probes are excluded
+from request logs and spans.
+
+Use `LANGFUSE_LOG_FORMAT=text` locally and `json` for log collectors. Built-in `tracing-subscriber` formatters handle both modes. JSON event fields
+are top-level attributes; span fields are nested. HTTP response and execution
+summaries include top-level `trace_id` and `span_id` for Datadog correlation.
+`info` emits lifecycle, HTTP response, and execution summaries; `debug` adds
+sanitized capture details. Other log events do not automatically include trace IDs. Dependency logs stay at `warn`. Log severity does not control
+trace sampling. `trace` is not an accepted gateway log level.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | Enables operational traces and metrics; HTTP/protobuf base URL, e.g. `http://localhost:4318` |
+| `OTEL_SERVICE_NAME` | `ai-gateway` | Operational service name |
+| `DD_ENV` | `development` | Deployment environment resource attribute |
+| `BUILD_ID` | Cargo package version | Service version; set to the deployed image's commit SHA |
+| `OTEL_TRACES_SAMPLER_ARG` | `1` | Sampling ratio from 0 to 1 for root traces; incoming W3C sampling decisions are respected |
+
+Tower's `TraceLayer` keeps the server span alive through the response body.
+The HTTP response log and `http.server.request.duration` measure time to response
+headers, not full SSE duration. Execution summaries and `gateway.phase.duration`
+with `phase=execution` measure the provider relay through completion, cancellation,
+timeout, or transport error. HTTP status and stream outcome are separate: a 200
+response can still fail while streaming.
+
+`reqwest-tracing` instruments resolver, provider-header, and ingestion requests.
+Only trusted Web calls receive W3C trace context; baggage and operational trace
+headers are not sent to the external provider. Inference generations retain their
+separate identity. Client spans measure the HTTP send through response headers;
+streaming execution and inference-telemetry delivery are tracked separately.
+
+A small Axum middleware records `http.server.request.duration` through the
+OpenTelemetry SDK, with method, matched route, and HTTP status as its only
+dimensions. The histogram's count supplies request volume and error rates,
+including responses rejected before provider execution. Metrics are independent
+of trace sampling. Health probes are excluded.
+
+Gateway-specific metrics include `gateway.active` (resolution/execution),
+`gateway.phase.duration` (execution/provider.first_byte), `gateway.executions`,
+`gateway.admission.rejected`, and `gateway.telemetry.records`. Durations use seconds;
+first-byte timing measures provider bytes arriving at the gateway, not first-token
+delivery to the caller. Metric attributes contain bounded categories, not tenant
+or request identifiers.
+
+Trace export uses a 512-span queue, batches of up to 64, and a one-second interval.
+Metrics export every 30 seconds. Export calls use a three-second timeout; failures
+do not fail inference. Shutdown flushes within the remaining shared drain deadline.
+Telemetry delivery warnings report the first failure/drop and every hundredth;
+metrics count each occurrence. This is best-effort operational telemetry.
 
 ## Call the gateway
 
@@ -206,17 +259,15 @@ compatible grant. Capture and provider byte forwarding do not need to change.
 ## Response capture
 
 Set `LANGFUSE_LOG_LEVEL=debug` to print one `gateway response captured` event at
-execution end. Its `capture` field is JSON with `input`, `output`, model,
-parameters, usage, attribution, timestamps, capture completeness and relay outcome.
-Text logs pretty-print the captured JSON across multiple lines.
-`LANGFUSE_LOG_FORMAT=json` keeps each surrounding log event on one line, with
-newlines escaped inside the `capture` string.
+execution end with HTTP status, timing, capture completeness and relay outcome.
+Operational logs exclude prompts, outputs, model parameters and key metadata,
+including at debug level. `LANGFUSE_LOG_FORMAT=json` emits one JSON object per line.
 
 Web's resolved ingestion mode controls content capture:
 
 - `full`: input is the native request JSON object, including `input`, `instructions`,
   tools, parameters, context references and unknown fields. Output is an ordered
-  array of native completed items. Debug logs intentionally contain this content.
+  array of native completed items. Content is sent only through Langfuse ingestion.
 - `usage`: input and output are null. Model, scalar parameters, native usage,
   timing and trusted attribution are retained; request schemas/content are omitted.
 
@@ -250,7 +301,7 @@ fully captured response, and downstream cancellation does not erase completed ca
 The implementation separates shared `ExecutionCapture` lifecycle/timing, the
 `OpenAiResponsesCapture` adapter and bounded `SseDecoder`. A private `ProtocolCapture`
 enum dispatches to the adapter. Finalization hands an owned `InferenceFacts` record
-to telemetry for debug logging and immediate upload. Another provider can supply
+to telemetry for a safe debug summary and immediate upload. Another provider can supply
 native facts through the same interface without changing the relay. The current
 usage mapping targets OpenAI Responses; no Anthropic adapter is implemented yet.
 Capture and upload run independently of log level; debug emission alone is gated.
@@ -265,8 +316,7 @@ these limits never cap the actual provider response. Media is not fetched/upload
 
 Provider credentials, the gateway credential and ingestion tokens are not part of
 the capture record; raw headers are not logged. Full captured content and resolved
-key metadata may themselves be sensitive. Keep debug logging enabled only where
-that content is intended to be recorded. No data is posted to Langfuse yet.
+key metadata remain in Langfuse ingestion and are excluded from operational logs.
 
 ## Process lifecycle
 

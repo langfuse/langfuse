@@ -121,9 +121,46 @@ struct OpenAiErrorDetail {
     code: &'static str,
 }
 
+impl InferenceHttpError {
+    fn category(&self) -> (&'static str, &'static str) {
+        use ResolutionError as R;
+        match self {
+            Self::Unavailable => ("admission", "unavailable"),
+            Self::Credential => ("authentication", "invalid_credential"),
+            Self::TooLarge => ("request", "body_too_large"),
+            Self::RequestTimeout => ("request", "body_timeout"),
+            Self::InvalidBody => ("request", "invalid_body"),
+            Self::Resolution(error) => (
+                "resolution",
+                match error {
+                    R::InvalidCredential | R::Authentication => "authentication",
+                    R::Forbidden => "forbidden",
+                    R::NoRoute => "no_route",
+                    R::Timeout => "timeout",
+                    R::Unavailable => "unavailable",
+                    R::Configuration => "configuration",
+                    R::Transport => "transport",
+                    R::InvalidResponse => "invalid_response",
+                    R::ResponseTooLarge => "response_too_large",
+                },
+            ),
+            Self::Provider(error) => (
+                "provider",
+                match error {
+                    ProviderError::Busy => "capacity",
+                    ProviderError::Timeout => "timeout",
+                    ProviderError::Transport => "transport",
+                    ProviderError::Configuration => "configuration",
+                },
+            ),
+        }
+    }
+}
+
 impl IntoResponse for InferenceHttpError {
     fn into_response(self) -> Response<Body> {
         use ResolutionError as R;
+        let (phase, reason) = self.category();
         let (status, message, kind, code) = match self {
             Self::Credential | Self::Resolution(R::InvalidCredential | R::Authentication) => (
                 StatusCode::UNAUTHORIZED,
@@ -183,6 +220,21 @@ impl IntoResponse for InferenceHttpError {
                 "upstream_error",
             ),
         };
+        if status.is_server_error() {
+            tracing::warn!(
+                phase,
+                reason,
+                status = status.as_u16(),
+                "gateway request rejected"
+            );
+        } else {
+            tracing::debug!(
+                phase,
+                reason,
+                status = status.as_u16(),
+                "gateway request rejected"
+            );
+        }
         (
             status,
             Json(OpenAiErrorResponse {

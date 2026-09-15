@@ -20,6 +20,7 @@ for route in health ready; do
     *) echo "Unexpected probe response: $route" >&2; exit 1 ;;
   esac
 done
+docker exec "$container" sh -c 'wget -qO /dev/null http://localhost:8080/health || exit 1'
 [[ "$(docker exec "$container" id -u)" != 0 ]]
 [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' \
   --max-time 2 -X POST "http://$port/openai/v1/responses")" == 401 ]]
@@ -27,4 +28,4 @@ docker stop --time 5 "$container" >/dev/null
 [[ "$(docker inspect --format '{{.State.ExitCode}}' "$container")" == 0 ]]
 docker logs "$container" 2>&1 | grep -q 'gateway draining'
 docker logs "$container" 2>&1 | grep -q 'gateway stopped'
-printf '%s\n' 'Image smoke: non-root, probes, unauthenticated inference, SIGTERM passed'
+printf '%s\n' 'Image smoke: non-root, probes, ECS health command, unauthenticated inference, SIGTERM passed'
