@@ -2200,4 +2200,183 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(runAfterSecond?.createdAt).toEqual(customCreatedAt); // Still original timestamp
   });
+
+  describe("GET /api/public/dataset-run-items timestamp window", () => {
+    // Three run items at deterministic, well-separated `created_at` values
+    // so the half-open `[fromTimestamp, toTimestamp)` window can be
+    // exercised without relying on clock or insertion-order accidents.
+    const ITEM_AT = {
+      old: new Date("2021-01-01T00:00:00.000Z"),
+      mid: new Date("2021-06-01T00:00:00.000Z"),
+      new: new Date("2022-01-01T00:00:00.000Z"),
+    };
+
+    let timestampDatasetId: string;
+    let timestampDatasetItemId: string;
+    let timestampRunId: string;
+    let timestampRunName: string;
+
+    beforeEach(async () => {
+      const dataset = await makeZodVerifiedAPICall(
+        PostDatasetsV1Response,
+        "POST",
+        "/api/public/datasets",
+        { name: `ts-dataset-${v4()}`, description: null, metadata: null },
+        auth,
+      );
+      expect(dataset.status).toBe(200);
+      timestampDatasetId = dataset.body.id;
+
+      const item = await makeZodVerifiedAPICall(
+        PostDatasetItemsV1Response,
+        "POST",
+        `/api/public/datasets/${encodeURIComponent(dataset.body.name)}/items`,
+        {
+          datasetItemName: "ts-item",
+          input: { prompt: "p" },
+          expectedOutput: { answer: "a" },
+          metadata: null,
+        },
+        auth,
+      );
+      expect(item.status).toBe(200);
+      timestampDatasetItemId = item.body.id;
+
+      timestampRunName = `ts-run-${v4()}`;
+      const run = await prisma.datasetRuns.create({
+        data: {
+          id: v4(),
+          datasetId: timestampDatasetId,
+          name: timestampRunName,
+          metadata: {},
+          projectId,
+        },
+      });
+      timestampRunId = run.id;
+
+      // Three run items at deterministic `created_at` values. The
+      // `createDatasetRunItem` factory wires the timestamp into the
+      // ClickHouse DateTime64 record; `createDatasetRunItemsCh` then
+      // inserts directly into `dataset_run_items_rmt`.
+      const traceIdForRun = v4();
+      await createDatasetRunItemsCh([
+        createDatasetRunItem({
+          project_id: projectId,
+          dataset_id: timestampDatasetId,
+          dataset_run_id: timestampRunId,
+          dataset_run_name: timestampRunName,
+          dataset_item_id: timestampDatasetItemId,
+          trace_id: traceIdForRun,
+          created_at: ITEM_AT.old,
+          updated_at: ITEM_AT.old,
+          event_ts: ITEM_AT.old,
+          dataset_run_created_at: ITEM_AT.old,
+        }),
+        createDatasetRunItem({
+          project_id: projectId,
+          dataset_id: timestampDatasetId,
+          dataset_run_id: timestampRunId,
+          dataset_run_name: timestampRunName,
+          dataset_item_id: timestampDatasetItemId,
+          trace_id: v4(),
+          created_at: ITEM_AT.mid,
+          updated_at: ITEM_AT.mid,
+          event_ts: ITEM_AT.mid,
+          dataset_run_created_at: ITEM_AT.mid,
+        }),
+        createDatasetRunItem({
+          project_id: projectId,
+          dataset_id: timestampDatasetId,
+          dataset_run_id: timestampRunId,
+          dataset_run_name: timestampRunName,
+          dataset_item_id: timestampDatasetItemId,
+          trace_id: v4(),
+          created_at: ITEM_AT.new,
+          updated_at: ITEM_AT.new,
+          event_ts: ITEM_AT.new,
+          dataset_run_created_at: ITEM_AT.new,
+        }),
+      ]);
+    });
+
+    it("returns every item when neither fromTimestamp nor toTimestamp is provided", async () => {
+      const response = await makeZodVerifiedAPICall(
+        GetDatasetRunItemsV1Response,
+        "GET",
+        `/api/public/dataset-run-items?datasetId=${timestampDatasetId}&runName=${encodeURIComponent(timestampRunName)}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.meta.totalItems).toBe(3);
+      expect(response.body.data).toHaveLength(3);
+    });
+
+    it("applies fromTimestamp as an inclusive lower bound", async () => {
+      // Anything on or after MID (Jun 1 2021): the mid and new items.
+      const response = await makeZodVerifiedAPICall(
+        GetDatasetRunItemsV1Response,
+        "GET",
+        `/api/public/dataset-run-items?datasetId=${timestampDatasetId}&runName=${encodeURIComponent(timestampRunName)}&fromTimestamp=${ITEM_AT.mid.toISOString()}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.meta.totalItems).toBe(2);
+      expect(response.body.data).toHaveLength(2);
+      for (const item of response.body.data) {
+        expect(new Date(item.createdAt).getTime()).toBeGreaterThanOrEqual(
+          ITEM_AT.mid.getTime(),
+        );
+      }
+    });
+
+    it("applies toTimestamp as an exclusive upper bound", async () => {
+      // Anything strictly before MID (Jun 1 2021): only the old item.
+      const response = await makeZodVerifiedAPICall(
+        GetDatasetRunItemsV1Response,
+        "GET",
+        `/api/public/dataset-run-items?datasetId=${timestampDatasetId}&runName=${encodeURIComponent(timestampRunName)}&toTimestamp=${ITEM_AT.mid.toISOString()}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.meta.totalItems).toBe(1);
+      expect(response.body.data).toHaveLength(1);
+      expect(new Date(response.body.data[0].createdAt).toISOString()).toBe(
+        ITEM_AT.old.toISOString(),
+      );
+    });
+
+    it("returns the intersection of fromTimestamp and toTimestamp when both are provided", async () => {
+      // Window [MID, NEW): the mid item only.
+      const response = await makeZodVerifiedAPICall(
+        GetDatasetRunItemsV1Response,
+        "GET",
+        `/api/public/dataset-run-items?datasetId=${timestampDatasetId}&runName=${encodeURIComponent(timestampRunName)}&fromTimestamp=${ITEM_AT.mid.toISOString()}&toTimestamp=${ITEM_AT.new.toISOString()}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.meta.totalItems).toBe(1);
+      expect(response.body.data).toHaveLength(1);
+      expect(new Date(response.body.data[0].createdAt).toISOString()).toBe(
+        ITEM_AT.mid.toISOString(),
+      );
+    });
+
+    it("rejects a malformed fromTimestamp with 400 (stringDateTime validation)", async () => {
+      const response = await makeAPICall(
+        "GET",
+        `/api/public/dataset-run-items?datasetId=${timestampDatasetId}&runName=${encodeURIComponent(timestampRunName)}&fromTimestamp=not-a-date`,
+        undefined,
+        auth,
+      );
+      expect(response.status).toBe(400);
+    });
+  });
 });

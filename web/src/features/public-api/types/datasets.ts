@@ -287,6 +287,13 @@ export const PostDatasetRunItemsV1Response = APIDatasetRunItem.strict();
 export const GetDatasetRunItemsV1Query = z.object({
   datasetId: z.string(),
   runName: z.string(),
+  // Optional ISO-8601 time window on the run-item creation time. Both
+  // params are independently optional and compose into a half-open
+  // `[fromTimestamp, toTimestamp)` range. Omitting both preserves the
+  // historical "all items in the run" behavior. Mirrors the pattern in
+  // `GetDatasetsV1Query` (PR #17002) and `GetDatasetsV2Query` (PR #17107).
+  fromTimestamp: stringDateTime,
+  toTimestamp: stringDateTime,
   ...publicApiPaginationZod,
 });
 export const GetDatasetRunItemsV1Response = z

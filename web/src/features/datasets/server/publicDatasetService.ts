@@ -957,12 +957,16 @@ export const listDatasetRunItemsForApi = async ({
   projectId,
   limit,
   page,
+  fromTimestamp,
+  toTimestamp,
 }: {
   datasetId: string;
   runName: string;
   projectId: string;
   limit: number;
   page: number;
+  fromTimestamp?: string | null;
+  toTimestamp?: string | null;
 }) => {
   const datasetRun = await prisma.datasetRuns.findUnique({
     where: {
@@ -989,6 +993,8 @@ export const listDatasetRunItemsForApi = async ({
         projectId,
         limit,
         page,
+        fromTimestamp,
+        toTimestamp,
       },
     }),
     getDatasetRunItemsCountForPublicApi({
@@ -998,6 +1004,8 @@ export const listDatasetRunItemsForApi = async ({
         projectId,
         limit,
         page,
+        fromTimestamp,
+        toTimestamp,
       },
     }),
   ]);
