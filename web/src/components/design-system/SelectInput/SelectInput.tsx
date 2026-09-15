@@ -1,4 +1,3 @@
-/* eslint-disable boundaries/dependencies */
 "use client";
 
 import * as React from "react";
@@ -10,11 +9,6 @@ import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 
 type SelectOption<V> =
   | {
@@ -94,40 +88,26 @@ function SelectInputInner<V extends string>(
       }
 
       if ("value" in node) {
-        const option = (
+        return (
           <SelectPrimitive.SelectItem
             key={node.value}
             value={node.value}
             disabled={node.disabled}
             className={cn(
-              "focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-default items-center rounded-sm px-1.5 py-1.5 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50",
+              "focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-default items-center rounded-sm px-1.5 py-1.5 text-sm outline-hidden select-none data-disabled:opacity-50",
               hasPreviousGroup ? "mt-4" : "",
             )}
           >
-            <span className="min-w-0 flex-1 truncate" title={node.label}>
+            <span
+              className="min-w-0 flex-1 truncate"
+              title={node.disabled ? node.disabledReason : node.label}
+            >
               <SelectPrimitive.ItemText>{node.label}</SelectPrimitive.ItemText>
             </span>
             <SelectPrimitive.ItemIndicator className="ml-auto flex size-3.5 shrink-0 items-center justify-center">
               <Check className="size-4" />
             </SelectPrimitive.ItemIndicator>
           </SelectPrimitive.SelectItem>
-        );
-
-        if (!node.disabled) {
-          return option;
-        }
-
-        return (
-          // disableHoverableContent keeps the tooltip grace area from swallowing hover between adjacent disabled options.
-          <Tooltip key={node.value} disableHoverableContent>
-            <TooltipTrigger asChild>
-              {/* Disabled items ignore pointer events, so this wrapper owns the tooltip trigger. */}
-              <div>{option}</div>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs">
-              {node.disabledReason}
-            </TooltipContent>
-          </Tooltip>
         );
       }
 
