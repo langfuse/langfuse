@@ -177,6 +177,11 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
  */
 export async function* getTraceBatchEventStream(
   props: TraceBatchEventStreamProps,
+  options: {
+    maxThreads?: number;
+    maxBlockSize?: number;
+    experimentId?: string;
+  } = {},
 ): AsyncGenerator<TraceBatchEventRow> {
   if (props.traces.length === 0) return;
 
@@ -187,15 +192,18 @@ export async function* getTraceBatchEventStream(
     useMultipartParamsAuto: true,
     tags: {
       projectId: projectIds.length === 1 ? projectIds[0] : "MULTI_PROJECT",
+      ...(options.experimentId ? { experimentId: options.experimentId } : {}),
     },
     preferredClickhouseService: "EventsReadOnly",
     clickhouseConfigs: {
       compression: { response: true },
     },
     // Bound background-read CPU/time; timeouts fail instead of returning partial results.
-    // Prefer max_threads=1: lower peak memory per ClickHouse guidance for this setting.
     clickhouseSettings: {
-      max_threads: 1,
+      max_threads: options.maxThreads ?? 1,
+      ...(options.maxBlockSize === undefined
+        ? {}
+        : { max_block_size: String(options.maxBlockSize) }),
       max_execution_time: 30,
       timeout_overflow_mode: "throw",
     },

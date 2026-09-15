@@ -43,6 +43,9 @@
   then groups exact project/trace pairs by identical buffered bounds so each
   pair reads only its own recorded interval plus two minutes on either side.
   Full `events_full` input, output, metadata and tools remain selected.
+  Consumer query controls and operator comparisons are documented in
+  `src/features/traces/trace-batch-experiment.md`; threads default to 1 and
+  an unset block override preserves the server profile. Env changes require restart.
   Stop intake first and keep dispatcher/consumer running to drain pending work.
   Pending entries are pruned atomically from due/state during ingestion and
   dispatch after `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS` past readiness (default

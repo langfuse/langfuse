@@ -1,5 +1,8 @@
 # Trace batch read experiment
 
+For environment configurations, measurement windows, and rollout/rollback steps,
+see the [operator runbook](trace-batch-experiment.md).
+
 This opt-in worker experiment measures how much ready traces can share a
 ClickHouse query. It reads full input, output, metadata and tool fields, streams
 and counts the rows, then discards the payloads. It does not run evaluators,
@@ -91,7 +94,7 @@ repeated intervals for one pair form a union without duplicating rows.
 Consequently, a wider batch companion no longer admits observations outside
 another trace's required window. Full input, output, metadata and tool fields
 still come from `events_full`, and no observation-count cap silently truncates a
-trace. Queries use one execution thread and a 30-second execution
+trace. Queries default to one execution thread and use a 30-second execution
 limit; failures throw and follow the queue's three-attempt retry policy. Only
 counts and logical I/O/metadata bytes are retained in job results.
 
@@ -288,7 +291,7 @@ streaming client as the event blob-export reader. The batch-I/O API also reads
 explicit trace-hash filter and uses one shared time window across projects.
 These are comparable existing code paths, not a production capacity guarantee.
 
-The emitted query has this shape (the builder also selects span identity,
+With default query settings, the emitted query has this shape (the builder also selects span identity,
 timestamps, type, name and tool fields):
 
 ```sql

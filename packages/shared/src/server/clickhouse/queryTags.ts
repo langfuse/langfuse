@@ -13,6 +13,7 @@ export const clickHouseQuerySurfaces = [
 export type ClickHouseQuerySurface = (typeof clickHouseQuerySurfaces)[number];
 
 export type ClickHouseQueryTags = {
+  experimentId?: string;
   surface?: ClickHouseQuerySurface | (string & {});
   route?: string;
   projectId?: string;
@@ -22,6 +23,7 @@ export type ClickHouseQueryTags = {
 };
 
 export type NormalizedClickHouseQueryTags = {
+  experimentId?: string;
   tag_schema_version: typeof CLICKHOUSE_QUERY_TAG_SCHEMA_VERSION;
   surface: ClickHouseQuerySurface | typeof UNKNOWN_CLICKHOUSE_QUERY_TAG_VALUE;
   route?: string;
@@ -86,6 +88,9 @@ export function normalizeClickHouseQueryTags(
       : UNKNOWN_CLICKHOUSE_QUERY_TAG_VALUE,
     ...(normalizedRoute ? { route: normalizedRoute } : {}),
     ...(projectId ? { projectId } : {}),
+    ...(providedTags?.experimentId
+      ? { experimentId: providedTags.experimentId }
+      : {}),
     ...(isPublicApi && normalizedSdkName ? { sdkName: normalizedSdkName } : {}),
     ...(isPublicApi && normalizedSdkVersion
       ? { sdkVersion: normalizedSdkVersion }

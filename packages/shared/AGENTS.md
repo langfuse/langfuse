@@ -28,6 +28,10 @@
   persisted single-project jobs. `TraceBatchTraceSchema` validates each pair;
   `TraceBatchQueue` in `src/server/redis/traceBatch.ts` is available through the
   server barrel. Its getter creates no recurring jobs.
+  `getTraceBatchEventStream` accepts optional thread/block overrides and an
+  experiment label from the worker; omitted options retain one thread and
+  the server's block size. Query tags preserve the optional `experimentId`
+  alongside existing entrypoint attribution.
 - Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
 - Query-builder AST (server half, WIP): `src/server/query-ast/*` — golden-SQL

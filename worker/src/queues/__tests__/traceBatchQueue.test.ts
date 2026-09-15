@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { type Job } from "bullmq";
 import {
   getTraceBatchEventStream,
+  logger,
   QueueJobs,
   type QueueName,
   recordDistribution,
@@ -22,6 +23,68 @@ afterEach(() => {
 });
 
 describe("trace batch queue", () => {
+  it("forwards operator overrides and logs the attempt configuration even if the stream fails", async () => {
+    const originalEnv = { ...env };
+    Object.assign(env, {
+      LANGFUSE_TRACE_BATCH_MAX_THREADS: 2,
+      LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: 512,
+      LANGFUSE_TRACE_BATCH_EXPERIMENT_ID: "arm-b",
+      BUILD_ID: "test-build",
+    });
+    const log = vi.spyOn(logger, "info").mockImplementation(() => logger);
+    const failure = new Error("query failed");
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      throw failure;
+    });
+    const payload = {
+      traces: [
+        {
+          projectId: "project",
+          traceId: "trace",
+          minStart: 1_000,
+          maxStart: 2_000,
+          revision: "r",
+        },
+      ],
+    };
+    const job = {
+      data: {
+        id: "batch",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload,
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+    try {
+      await expect(traceBatchQueueProcessor(job, undefined)).rejects.toBe(
+        failure,
+      );
+      expect(getTraceBatchEventStream).toHaveBeenCalledWith(payload, {
+        maxThreads: 2,
+        maxBlockSize: 512,
+        experimentId: "arm-b",
+      });
+      expect(log).toHaveBeenCalledWith(
+        "Trace batch experiment read",
+        expect.objectContaining({
+          experimentId: "arm-b",
+          buildId: "test-build",
+          maxThreads: 2,
+          maxBlockSize: 512,
+          batchTraceCount: 1,
+        }),
+      );
+      expect(recordDistribution).not.toHaveBeenCalled();
+    } finally {
+      env.LANGFUSE_TRACE_BATCH_MAX_THREADS =
+        originalEnv.LANGFUSE_TRACE_BATCH_MAX_THREADS;
+      env.LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE =
+        originalEnv.LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE;
+      env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID =
+        originalEnv.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID;
+      env.BUILD_ID = originalEnv.BUILD_ID;
+    }
+  });
   it("counts project/trace pairs with producers disabled and safely repeats reads without retaining payloads", async () => {
     const ingestionEnabled = env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED;
     const dispatcherEnabled = env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED;
@@ -92,7 +155,11 @@ describe("trace batch queue", () => {
         );
       }
       expect(getTraceBatchEventStream).toHaveBeenCalledTimes(2);
-      expect(getTraceBatchEventStream).toHaveBeenCalledWith(payload);
+      expect(getTraceBatchEventStream).toHaveBeenCalledWith(payload, {
+        maxThreads: env.LANGFUSE_TRACE_BATCH_MAX_THREADS,
+        maxBlockSize: env.LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE,
+        experimentId: env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID,
+      });
       expect(yieldedRows).toBe(8);
       expect(
         vi
@@ -161,9 +228,14 @@ describe("trace batch queue", () => {
         "langfuse.trace_batch.found_project_count",
         Number(hasRows),
       );
-      expect(getTraceBatchEventStream).toHaveBeenCalledWith({
-        traces: [{ ...trace, projectId: "project" }],
-      });
+      expect(getTraceBatchEventStream).toHaveBeenCalledWith(
+        { traces: [{ ...trace, projectId: "project" }] },
+        {
+          maxThreads: env.LANGFUSE_TRACE_BATCH_MAX_THREADS,
+          maxBlockSize: env.LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE,
+          experimentId: env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID,
+        },
+      );
     },
   );
 });
