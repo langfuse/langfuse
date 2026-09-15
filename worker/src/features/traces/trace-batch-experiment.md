@@ -219,6 +219,11 @@ and CPU tradeoffs motivate the comparison; they are not fleet-wide guarantees.
 
 ## Rollback and stopping
 
+The [local Redis load test](trace-batch-redis-loadtest.md) documents retained-map
+and waiting-job memory, the giant-key expiry risk on synchronous-freeing Redis,
+and why the first rollout starts with 10% sampling and 120 traces per job.
+These are experiment settings; application enable flags still default to false.
+
 - **Block rollback:** remove `LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE`, set a new
   rollback experiment label, and roll consumers. Keep threads at `2` to isolate
   this reversal. Removing the thread setting too returns to the code default
