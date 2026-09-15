@@ -11,7 +11,10 @@ const {
   mockRecordCoverage,
   mockVerifyGatewayIngestionAuthorization,
 } = vi.hoisted(() => ({
-  env: { API_AUTH_MIGRATION: "legacy" as string },
+  env: {
+    API_AUTH_MIGRATION: "legacy" as string,
+    LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF: "2026-09-16T00:00:00.000Z",
+  },
   mockLegacyVerifyAuth: vi.fn(),
   mockEnforceProjectAuth: vi.fn(),
   mockDiffResults: vi.fn(),
@@ -62,6 +65,7 @@ describe("project seam verifyAuth", () => {
 
   const principalOrg = {
     orgId: "o1",
+    organizationCreatedAt: "2026-09-16T00:00:00.000Z",
     plan: "Team" as const,
     rateLimitOverrides: [],
     projectIds: ["p1"],
@@ -206,6 +210,7 @@ describe("project seam verifyAuth", () => {
           projectId: "p1",
           accessLevel: "project",
           orgId: "o1",
+          organizationCreatedAt: "2026-09-16T00:00:00.000Z",
           plan: "Team",
           rateLimitOverrides: [],
           apiKeyId: "ak1",

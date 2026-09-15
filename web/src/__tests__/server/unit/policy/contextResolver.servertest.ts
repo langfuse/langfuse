@@ -18,12 +18,14 @@ const ORG = "org_1";
 const PRJ = "prj_1";
 const OTHER_PRJ = "prj_2";
 const USER = "user_1";
+const ORGANIZATION_CREATED_AT = new Date("2026-09-16T00:00:00.000Z");
 
 const orgRow = (
   over: Partial<OrganizationWithProjects> = {},
 ): OrganizationWithProjects =>
   ({
     id: ORG,
+    createdAt: ORGANIZATION_CREATED_AT,
     cloudConfig: null,
     cloudFreeTierUsageThresholdState: null,
     projects: [{ id: PRJ }, { id: OTHER_PRJ }],
@@ -159,6 +161,18 @@ describe("attribution", () => {
     expect(
       ctx.principal.kind === "apiKey" && ctx.principal.isInAppAgentKey,
     ).toBe(true);
+  });
+
+  it("carries the organization creation time", async () => {
+    const ctx = await contextFor({
+      authorization: "privateKey",
+      apiKey: apiKey(),
+    });
+    const org =
+      ctx.principal.kind === "apiKey" ? ctx.principal.organizations[0] : null;
+    expect(org?.organizationCreatedAt).toBe(
+      ORGANIZATION_CREATED_AT.toISOString(),
+    );
   });
 });
 

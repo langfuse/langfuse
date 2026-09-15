@@ -6,6 +6,7 @@ import {
   traceException,
   logger,
   contextWithLangfuseProps,
+  recordIncrement,
 } from "@langfuse/shared/src/server";
 import {
   PayloadTooLargeError,
@@ -51,6 +52,16 @@ import { verifyGatewayIngestionAuthorization } from "@/src/features/ai-gateway/s
 // exceeds the engine limit. Keep this check scoped to the response write.
 const isJsonStringTooLargeError = (error: unknown): error is RangeError =>
   error instanceof RangeError && error.message === "Invalid string length";
+
+const LEGACY_API_ORGANIZATION_CUTOFF = new Date(
+  env.LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF,
+);
+const LEGACY_API_ORGANIZATION_CUTOFF_HUMAN = new Intl.DateTimeFormat("en-US", {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+  timeZone: "UTC",
+}).format(LEGACY_API_ORGANIZATION_CUTOFF);
 
 export type AuthedProjectAPIRouteConfig<
   TQuery extends ZodType<any>,
@@ -236,6 +247,7 @@ function apiKeyScope(
       accessLevel:
         principal.presentation === "publicKey" ? "scores" : "project",
       orgId: org.orgId,
+      organizationCreatedAt: org.organizationCreatedAt,
       plan: org.plan,
       rateLimitOverrides: org.rateLimitOverrides,
       apiKeyId: principal.apiKeyId,
@@ -394,6 +406,48 @@ export const createAuthedProjectAPIRoute = <
         errorContract: routeConfig.errorContract,
         upgradePath: routeConfig.rateLimitUpgradePath,
       });
+    }
+
+    if (
+      env.LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF_ENABLED === "true" &&
+      req.method === "GET" &&
+      deprecation &&
+      auth.scope.orgId &&
+      auth.scope.organizationCreatedAt
+    ) {
+      const organizationCreatedAt = new Date(auth.scope.organizationCreatedAt);
+
+      if (organizationCreatedAt >= LEGACY_API_ORGANIZATION_CUTOFF) {
+        const apiPath = clickHouseRouteForRequest(req);
+        const rejectionContext = {
+          orgId: auth.scope.orgId,
+          projectId: auth.scope.projectId,
+          apiRoute: routeConfig.name,
+        };
+        recordIncrement("langfuse.public_api.legacy_get_rejected", 1);
+        logger.info(
+          "Rejected legacy GET API request for organization created at or after cutoff",
+          {
+            ...rejectionContext,
+            apiPath,
+            organizationCreatedAt: auth.scope.organizationCreatedAt,
+            cutoff: LEGACY_API_ORGANIZATION_CUTOFF.toISOString(),
+          },
+        );
+        res.status(410).json(
+          attachDeprecation(
+            {
+              error: "LEGACY_API_UNAVAILABLE_FOR_NEW_ORGANIZATION",
+              message: `${apiPath} is a legacy API that is not available to organizations created on or after ${LEGACY_API_ORGANIZATION_CUTOFF_HUMAN}. Migrate this request to ${deprecation.replacement}. See the migration documentation at ${deprecation.docsUrl}.`,
+              requestedEndpoint: apiPath,
+              replacementEndpoint: deprecation.replacement,
+              documentationUrl: deprecation.docsUrl,
+            },
+            deprecation,
+          ),
+        );
+        return;
+      }
     }
 
     logger.debug(

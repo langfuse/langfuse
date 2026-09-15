@@ -596,6 +596,14 @@ export const env = createEnv({
       .default("false"),
     LANGFUSE_API_TRACES_DEFAULT_FIELDS: z.string().optional(),
     LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS: z.string().optional(),
+    // Cloud rollout gate for rejecting legacy GET APIs for organizations
+    // created on or after the cutoff date.
+    LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF_ENABLED: z
+      .enum(["true", "false"])
+      .default("false"),
+    LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF: z.iso
+      .datetime()
+      .default("2026-09-16T00:00:00.000Z"),
 
     // V4 preview opt-in. See LFE-9778. Defaults on for the v4 target state so
     // the events read paths are available out of the box (v3 shipped "false").
@@ -1176,6 +1184,10 @@ export const env = createEnv({
       process.env.LANGFUSE_API_TRACES_DEFAULT_FIELDS,
     LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS:
       process.env.LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS,
+    LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF_ENABLED:
+      process.env.LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF_ENABLED,
+    LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF:
+      process.env.LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF,
     LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN:
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
     LANGFUSE_MIGRATION_V4_WRITE_MODE:

@@ -1381,6 +1381,13 @@ jobs:
           pnpm run db:migrate
           pnpm --filter=shared run ch:up
           pnpm --filter=shared run db:seed
+      # This job runs cache-cold, so the napi addon compiles from source here.
+      # napi starts `cargo metadata` and the build concurrently, and rustup's
+      # on-demand component install races between the two invocations, so the
+      # pinned toolchain has to be in place before the build starts.
+      - name: Install pinned Rust toolchain
+        run: rustup show
+        working-directory: packages/native
       - name: Build
         run: pnpm run build
         env:
