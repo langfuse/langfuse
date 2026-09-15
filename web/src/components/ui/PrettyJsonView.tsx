@@ -488,10 +488,13 @@ function JsonPrettyTable({
         // w-max keeps the column at the longest key (up to the cap) instead
         // of letting long values squeeze it to its narrowest wrap; the
         // floor keeps the value column at a steady x across stacked tables.
-        className="flex w-max max-w-[40cqw] min-w-40 items-start wrap-break-word"
+        className="flex w-max max-w-[40cqw] min-w-40 items-start text-sm wrap-break-word"
       >
         <div
-          className="flex shrink-0 items-center justify-end"
+          // One key line tall (text-sm's line box, inherited from the key
+          // classes on the wrapper) so the chevron centres on the first line
+          // of the key instead of the top of the row.
+          className="flex h-[1lh] shrink-0 items-center justify-end"
           style={{ width: `${indentationWidth}px` }}
         >
           {row.original.hasChildren ? (
