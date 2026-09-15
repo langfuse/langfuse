@@ -2,7 +2,7 @@ use std::{
     future::{Future, IntoFuture},
     io,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
     time::Duration,
@@ -16,9 +16,21 @@ use tokio::{net::TcpListener, sync::oneshot};
 pub struct GatewayLifecycleState {
     ready: Arc<AtomicBool>,
     disabled: bool,
+    drain_deadline: Arc<Mutex<Option<tokio::time::Instant>>>,
 }
 
 impl GatewayLifecycleState {
+    /// Deadline shared by connection draining and telemetry delivery.
+    ///
+    /// # Panics
+    /// Panics if the lifecycle lock was poisoned.
+    pub fn drain_deadline(&self) -> Option<tokio::time::Instant> {
+        *self
+            .drain_deadline
+            .lock()
+            .expect("gateway drain lock poisoned")
+    }
+
     pub fn is_ready(&self) -> bool {
         !self.disabled && self.ready.load(Ordering::Acquire)
     }
@@ -67,6 +79,9 @@ async fn readiness(State(state): State<GatewayLifecycleState>) -> (StatusCode, J
 /// # Errors
 /// Returns the server's I/O error, or [`io::ErrorKind::TimedOut`] if connections
 /// do not finish draining within `shutdown_timeout`.
+///
+/// # Panics
+/// Panics if the lifecycle lock was poisoned.
 pub async fn serve(
     listener: TcpListener,
     app: Router,
@@ -80,6 +95,11 @@ pub async fn serve(
         .with_graceful_shutdown(async move {
             shutdown.await;
             shutdown_state.ready.store(false, Ordering::Release);
+            *shutdown_state
+                .drain_deadline
+                .lock()
+                .expect("gateway drain lock poisoned") =
+                Some(tokio::time::Instant::now() + shutdown_timeout);
             tracing::info!("gateway draining");
             let _ = draining_tx.send(());
         })

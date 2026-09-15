@@ -1,6 +1,6 @@
 //! Resolve credentials through trusted Web before any provider execution.
 mod contracts;
-mod signing;
+pub(crate) mod signing;
 
 pub use contracts::{
     ApiFormat, IngestionGrant, IngestionMode, MetadataValue, ProviderConnection,
@@ -25,7 +25,7 @@ struct ResolutionLimits {
 
 /// Operator-supplied Web base URL and the existing gateway/Web service key.
 pub struct ControlPlaneConfig {
-    url: Url,
+    web_url: Url,
     service_key: String,
     limits: ResolutionLimits,
 }
@@ -38,7 +38,7 @@ impl ControlPlaneConfig {
     /// base URL. URLs require HTTPS (HTTP is allowed on loopback), with no userinfo,
     /// query, or fragment.
     pub fn new(web_url: &str, service_key: &str) -> Result<Self, ResolutionError> {
-        let mut url = Url::parse(web_url).map_err(|_| ResolutionError::Configuration)?;
+        let url = Url::parse(web_url).map_err(|_| ResolutionError::Configuration)?;
         let loopback = url.host_str().is_some_and(|host| {
             host == "localhost"
                 || host
@@ -56,16 +56,24 @@ impl ControlPlaneConfig {
         {
             return Err(ResolutionError::Configuration);
         }
-        let resolve_path = format!("{}{RESOLVE_PATH}", url.path().trim_end_matches('/'));
-        url.set_path(&resolve_path);
         Ok(Self {
-            url,
+            web_url: url,
             service_key: service_key.to_owned(),
             limits: ResolutionLimits {
                 timeout: Duration::from_secs(5),
                 max_response_bytes: 256 * 1024,
             },
         })
+    }
+
+    pub(crate) fn endpoint(&self, path: &str) -> Url {
+        let mut url = self.web_url.clone();
+        url.set_path(&format!("{}{path}", url.path().trim_end_matches('/')));
+        url
+    }
+
+    pub(crate) fn service_key(&self) -> &str {
+        &self.service_key
     }
 }
 
@@ -154,7 +162,7 @@ impl ControlPlaneClient {
             .map_err(|_| ResolutionError::Configuration)?;
         let mut response = self
             .client
-            .post(self.config.url.clone())
+            .post(self.config.endpoint(RESOLVE_PATH))
             .header(AUTHORIZATION, credential)
             .header("langfuse-gateway-authorization", signature)
             .header(CONTENT_TYPE, "application/json")
