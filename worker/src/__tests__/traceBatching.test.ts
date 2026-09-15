@@ -1248,6 +1248,43 @@ describe("trace micro-batch scheduling with Redis", () => {
     );
   });
 
+  it("expires abandoned pending keys natively without another ingestion or dispatcher run", async () => {
+    env.LANGFUSE_TRACE_BATCH_IDLE_MS = 50;
+    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 150;
+    await trackTraceBatchActivity("project", [event("abandoned")]);
+    for (const key of [dueKey, stateKey]) {
+      expect(await client().pttl(key)).toBeGreaterThan(0);
+    }
+    await vi.waitFor(async () => {
+      expect(await client().exists(dueKey, stateKey)).toBe(0);
+    });
+    expect(await queue.getWaitingCount()).toBe(0);
+  });
+
+  it("extends native expiry for later activity and never shortens another pending trace's deadline", async () => {
+    env.LANGFUSE_TRACE_BATCH_IDLE_MS = 10_000;
+    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 60_000;
+    await trackTraceBatchActivity("project", [event("long-idle")]);
+    const initialDeadline = Number(await client().pexpiretime(dueKey));
+    env.LANGFUSE_TRACE_BATCH_IDLE_MS = 20_000;
+    await trackTraceBatchActivity("project", [event("later")]);
+    const extendedDeadline = Number(await client().pexpiretime(dueKey));
+    expect(extendedDeadline).toBeGreaterThan(initialDeadline);
+    expect(Number(await client().pexpiretime(stateKey))).toBe(extendedDeadline);
+
+    env.LANGFUSE_TRACE_BATCH_IDLE_MS = 1_000;
+    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 1_000;
+    await trackTraceBatchActivity("project", [event("short-idle")]);
+    expect(Number(await client().pexpiretime(dueKey))).toBeGreaterThanOrEqual(
+      extendedDeadline,
+    );
+    expect(Number(await client().pexpiretime(stateKey))).toBe(
+      Number(await client().pexpiretime(dueKey)),
+    );
+    expect(await client().zcard(dueKey)).toBe(3);
+    expect(await client().hlen(stateKey)).toBe(3);
+  });
+
   it("expires bounded pending state during ingestion without dispatch and preserves refreshed traces", async () => {
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 60_000;
     const expired = Array.from({ length: 1_001 }, (_, i) =>

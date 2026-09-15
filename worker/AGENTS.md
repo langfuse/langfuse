@@ -49,7 +49,11 @@
   Stop intake first and keep dispatcher/consumer running to drain pending work.
   Pending entries are pruned atomically from due/state during ingestion and
   dispatch after `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS` past readiness (default
-  two hours). This is opportunistic retention, not native Redis key expiry.
+  two hours). Ingestion also sets matching native expiry on both shared keys
+  after the latest pending deadline, without shortening existing expiry.
+  Per-member cleanup remains opportunistic. Native expiry requires Redis 7+;
+  pause intake and drain before upgrading or rolling back writers, since old
+  writers do not extend installed TTLs. See the experiment runbook.
 - Feature processors: `src/features/*`
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`

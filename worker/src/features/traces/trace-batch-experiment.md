@@ -47,6 +47,13 @@ resource controls; they are not a future store for customer project settings.
 
 ## Establish the experiment
 
+Before upgrading existing intake writers to native expiry, stop intake and
+drain pending state, upgrade **all** writers, then resume. The command
+`PEXPIRETIME` requires Redis 7+. Old writers preserve TTL set by a new writer
+but do not extend it, so mixed-version intake can expire a late arrival too
+early. Use the same stop/drain sequence before rolling back writer code.
+This is separate from later consumer-only query-setting rollouts.
+
 1. Record the actual deployed commit SHA, image/build ID, region, consumer
    process count, other enabled experimental readers, and every control above.
    Map `BUILD_ID` to the deployed SHA explicitly; a build ID is not necessarily
@@ -220,10 +227,15 @@ Stop/revert on the pre-agreed resource/SLO criteria, persistent backlog growth,
 or rising failures; investigate before resuming. Do not invent thresholds from
 the two sampled benchmark cases.
 
-Pending TTL is opportunistic retention after the due timestamp, not native
-Redis key expiry or a hard memory cap. Admitted ingestion chunks and dispatcher
-activity prune expired entries from the shared due/state keys; no cleanup runs
-when both paths are stopped, and sampling `0` produces no admitted chunks.
+Pending TTL is retention after the due timestamp. Admitted ingestion chunks
+and dispatcher activity prune individual expired entries from the shared
+due/state keys. Each admitted chunk also sets the same native expiry on both
+whole keys: at least the latest due timestamp plus retention, preserving any
+later existing expiry. Abandoned state expires without another writer or
+dispatcher run. Per-trace pruning is still needed during continuous intake;
+whole-key expiry is not a per-trace memory bound. Native expirations do not
+increment `expired_traces`, and backlog gauges may stay stale while dispatch
+is disabled. Sampling `0` produces no admitted chunks or TTL refresh.
 Lower retention can discard existing pending traces without enqueueing them.
 Already queued jobs are unaffected. See [the implementation README](README.md)
 for readiness, retention, retry and legacy-job compatibility details.

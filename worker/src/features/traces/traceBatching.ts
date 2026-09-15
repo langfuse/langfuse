@@ -424,7 +424,7 @@ export function prepareLocalityPartials(
 }
 
 // Retain traces for a bounded time after readiness. Reuse the due index so
-// cleanup needs neither a full hash scan nor expiry of shared Redis keys.
+// cleanup needs no full hash scan. Whole-key expiry is only an inactivity backstop.
 const EXPIRE_PENDING_SCRIPT = `
   local function expirePending(now, retention, limit)
     local expired = redis.call('ZRANGE', KEYS[1], '-inf', now - retention,
@@ -456,7 +456,18 @@ const TRACK_SCRIPT = `
     }))
     redis.call('ZADD', KEYS[1], now + tonumber(ARGV[1]), member)
   end
-  return expirePending(now, tonumber(ARGV[2]), ${CHUNK_SIZE})
+  local retention = tonumber(ARGV[2])
+  local expired = expirePending(now, retention, ${CHUNK_SIZE})
+  local latest = redis.call('ZRANGE', KEYS[1], -1, -1, 'WITHSCORES')
+  if latest[2] then
+    -- Keep both structures until every pending trace's retention deadline.
+    -- A shorter policy on another writer must not shorten an existing expiry.
+    local expiresAt = math.max(tonumber(latest[2]) + retention,
+      redis.call('PEXPIRETIME', KEYS[1]), redis.call('PEXPIRETIME', KEYS[2]))
+    redis.call('PEXPIREAT', KEYS[1], expiresAt)
+    redis.call('PEXPIREAT', KEYS[2], expiresAt)
+  end
+  return expired
 `;
 
 // Cleanup stays bounded even when the dispatcher has accumulated a backlog.

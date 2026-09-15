@@ -271,13 +271,22 @@ the cap is an experiment setting, not an established production optimum.
   needed. Expired entries are discarded without enqueueing and counted in
   `langfuse.trace_batch.expired_traces`. Already queued jobs are unaffected.
   Expiry cleanup remains bounded per Lua call and continues across pages.
-- This is opportunistic retention, not native Redis TTL or a hard memory cap.
-  Ingestion cleanup runs even with the dispatcher disabled, but with both paths
-  stopped no entries are removed until activity resumes. Cleanup can lag behind
-  a large backlog; continuously active traces keep extending readiness. No
-  whole-key expiry is used because shared keys may still contain fresh traces.
+- Per-trace cleanup is opportunistic and can lag behind a large backlog;
+  continuously active traces keep extending readiness. Each admitted ingestion
+  chunk also sets matching native expiry on both shared keys, no earlier than
+  the latest due timestamp plus retention or either existing expiry. Redis
+  therefore removes abandoned pending state even if ingestion and dispatch stop.
+  This whole-key backstop does not expire individual members during continuous
+  intake and is not a hard memory cap. Native expiry is not counted in the
+  `expired_traces` metric. Queued jobs remain independent.
   Keep retention consistent across workers; a lower setting can discard existing
   pending work. Monitor expiry counts alongside pending depth and oldest due age.
+- The native expiry uses `PEXPIRETIME` (Redis 7+). Before upgrading existing
+  writers, disable intake and drain pending state, upgrade every writer, then
+  resume. Old writers preserve an installed TTL but do not extend it; mixing
+  writer versions can prematurely expire their later arrivals. Before a code
+  rollback, disable intake and drain again. Query-setting-only changes do not
+  require this writer migration sequence.
 - No query cache, materialized view, SQL transcript generation, or LLM calls
   are involved in this experiment.
 
