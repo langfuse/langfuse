@@ -102,19 +102,46 @@ export function renderFilterIcon(value: string): React.ReactNode {
   );
 }
 
+/**
+ * `"DATASET_RUN"` -> `{ label: "Dataset_run", displayLabel: "Dataset run" }`.
+ * `label` titles the element, `displayLabel` is what the user reads.
+ */
+function itemTypeLabels(type: LangfuseItemType) {
+  const label =
+    String(type).charAt(0).toUpperCase() + String(type).slice(1).toLowerCase();
+  return { label, displayLabel: label.replace(/_/g, " ") };
+}
+
+/**
+ * Quiet chip naming an item type, for page and peek headers: no fill and muted
+ * text so it doesn't compete with the title next to it. Carries no icon — the
+ * label already names the type, so an icon would only repeat it.
+ */
+export function ItemTypeChip({ type }: { type: LangfuseItemType }) {
+  const { label, displayLabel } = itemTypeLabels(type);
+
+  return (
+    <Badge
+      variant="outline"
+      title={label}
+      className="text-muted-foreground border-border flex max-w-fit items-center overflow-hidden border bg-transparent px-1 whitespace-nowrap"
+    >
+      <span className="truncate" title={displayLabel}>
+        {displayLabel}
+      </span>
+    </Badge>
+  );
+}
+
 export function ItemBadge({
   type,
   showLabel = false,
   isSmall = false,
-  hideIcon = false,
   className,
 }: {
   type: LangfuseItemType;
   showLabel?: boolean;
   isSmall?: boolean;
-  /** Label-only chip (page headers): the label names the type, so the icon
-      repeats it. */
-  hideIcon?: boolean;
   className?: string;
 }) {
   const Icon = iconMap[type] || ListTree; // Default to ListTree if unknown type
@@ -127,21 +154,14 @@ export function ItemBadge({
     className,
   );
 
-  const label =
-    String(type).charAt(0).toUpperCase() + String(type).slice(1).toLowerCase();
-
-  const displayLabel = label.replace(/_/g, " ");
+  const { label, displayLabel } = itemTypeLabels(type);
 
   return (
     <Badge
       variant="outline"
       title={label}
       className={cn(
-        hideIcon
-          ? // Label-only mode (page/peek headers): quiet chip — no fill, muted
-            // text — so the type label doesn't compete with the title.
-            "text-muted-foreground border-border flex max-w-fit items-center gap-1 overflow-hidden border bg-transparent whitespace-nowrap"
-          : "bg-background flex max-w-fit items-center gap-1 overflow-hidden border-2 whitespace-nowrap",
+        "bg-background flex max-w-fit items-center gap-1 overflow-hidden border-2 whitespace-nowrap",
         // With a label the horizontal padding is what separates the icon from the
         // text. Without one there is nothing to separate, and the padding only
         // made a square icon sit in a rectangle. `max-w-none` is what lets it be
@@ -153,7 +173,7 @@ export function ItemBadge({
         isSmall && showLabel && "h-4",
       )}
     >
-      {!hideIcon && <Icon className={iconClass} />}
+      <Icon className={iconClass} />
       {showLabel && (
         <span className="truncate" title={displayLabel}>
           {displayLabel}
