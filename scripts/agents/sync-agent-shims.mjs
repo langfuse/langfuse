@@ -562,7 +562,7 @@ for (const staleShim of findStaleClaudeShims(repoRoot)) {
     continue;
   }
 
-  rmSync(output.path, { force: true });
+  rmSync(staleShim, { force: true });
   console.log(`Removed stale CLAUDE.md shim ${staleShim}`);
 }
 
@@ -585,7 +585,7 @@ for (const directory of managedDirectoryEntries) {
 
   for (const child of unexpectedChildren) {
     const childPath = resolve(directory.path, child);
-    rmSync(output.path, { force: true, recursive: true });
+    rmSync(childPath, { force: true, recursive: true });
     console.log(`Removed stale generated shim ${childPath}`);
   }
 }
