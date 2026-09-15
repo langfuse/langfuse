@@ -181,6 +181,19 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     return inferClickHouseType(values);
   }
 
+  protected override visitSelectQuery(node: SelectQueryNode): void {
+    // A surrounding `column <op> (SELECT …)` must not type this select's
+    // own LIMIT / OFFSET / literals with the outer column's bind type, so we
+    // clear the pending bind type across the (forked) body and restore it after.
+    const previousBindType = this.pendingBindType;
+    this.pendingBindType = undefined;
+    try {
+      this.visitSelectQueryBody(node);
+    } finally {
+      this.pendingBindType = previousBindType;
+    }
+  }
+
   /**
    * Wholesale copy of Kysely's `DefaultQueryCompiler.visitSelectQuery` (kept in
    * sync with the pinned 0.28.17) with two ClickHouse-only insertions:
@@ -191,18 +204,6 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * than call `super` because the parent emits clauses in a fixed order and
    * offers no hook to inject a clause between JOIN and WHERE.
    */
-  protected override visitSelectQuery(node: SelectQueryNode): void {
-    // A surrounding `column <op> (SELECT …)` must not type this select's
-    // own LIMIT / OFFSET / literals with the outer column's bind type.
-    const previousBindType = this.pendingBindType;
-    this.pendingBindType = undefined;
-    try {
-      this.visitSelectQueryBody(node);
-    } finally {
-      this.pendingBindType = previousBindType;
-    }
-  }
-
   private visitSelectQueryBody(node: SelectQueryNode): void {
     const wrapInParens =
       this.parentNode !== undefined &&
