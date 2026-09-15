@@ -72,36 +72,48 @@ exports[`golden: events.getEventsExactFilterOptionsForColumns > scope=scoredTrac
             arrayJoin(
                 arrayConcat(
                     arrayMap(
-                        option -> tuple(
-                            'userId',
-                            tupleElement(option, 1),
-                            tupleElement(option, 2),
-                            -toInt64(tupleElement(option, 2)),
-                            ''
+                        option -> CAST(
+                            tuple(
+                                'userId',
+                                tupleElement(option, 1),
+                                tupleElement(option, 2),
+                                -toInt64(tupleElement(option, 2)),
+                                ''
+                            ),
+                            'Tuple(column String, value String, count UInt64, sortKey Int64, displayValue String)'
                         ),
                         userIdTopOptions
                     ),
                     arrayMap(
-                        option -> tuple(
-                            'experimentId',
-                            tupleElement(tupleElement(option, 1), 1),
-                            tupleElement(option, 2),
-                            -toInt64(tupleElement(option, 2)),
-                            tupleElement(tupleElement(option, 1), 2)
+                        option -> CAST(
+                            tuple(
+                                'experimentId',
+                                tupleElement(tupleElement(option, 1), 1),
+                                tupleElement(option, 2),
+                                -toInt64(tupleElement(option, 2)),
+                                tupleElement(tupleElement(option, 1), 2)
+                            ),
+                            'Tuple(column String, value String, count UInt64, sortKey Int64, displayValue String)'
                         ),
                         experimentIdTopOptions
                     ),
                     arrayMap(
-                        option -> tuple('traceTags', tupleElement(option, 1), tupleElement(option, 2), toInt64(0), ''),
+                        option -> CAST(
+                            tuple('traceTags', tupleElement(option, 1), tupleElement(option, 2), toInt64(0), ''),
+                            'Tuple(column String, value String, count UInt64, sortKey Int64, displayValue String)'
+                        ),
                         traceTagsTopOptions
                     ),
                     arrayMap(
-                        option -> tuple(
-                            'isRootObservation',
-                            tupleElement(option, 1),
-                            tupleElement(option, 2),
-                            if(tupleElement(option, 1) = 'true', toInt64(1), toInt64(0)),
-                            ''
+                        option -> CAST(
+                            tuple(
+                                'isRootObservation',
+                                tupleElement(option, 1),
+                                tupleElement(option, 2),
+                                if(tupleElement(option, 1) = 'true', toInt64(1), toInt64(0)),
+                                ''
+                            ),
+                            'Tuple(column String, value String, count UInt64, sortKey Int64, displayValue String)'
                         ),
                         isRootObservationTopOptions
                     )
@@ -111,15 +123,15 @@ exports[`golden: events.getEventsExactFilterOptionsForColumns > scope=scoredTrac
         FROM aggregated_options
     )
 SELECT
-    tupleElement(option, 1) AS column,
-    tupleElement(option, 2) AS value,
-    toUInt64(round(tupleElement(option, 3) * sample_factor)) AS count,
-    tupleElement(option, 5) AS displayValue
+    option.column AS column,
+    option.value AS value,
+    toUInt64(round(option.count * sample_factor)) AS count,
+    option.displayValue AS displayValue
 FROM option_rows
 ORDER BY
     column ASC,
-    tupleElement(option, 4) ASC,
-    tupleElement(option, 2) ASC",
+    option.sortKey ASC,
+    option.value ASC",
   },
 ]
 `;
@@ -190,36 +202,48 @@ exports[`golden: events.getEventsExactFilterOptionsForColumns > scope=unset — 
             arrayJoin(
                 arrayConcat(
                     arrayMap(
-                        option -> tuple(
-                            'userId',
-                            tupleElement(option, 1),
-                            tupleElement(option, 2),
-                            -toInt64(tupleElement(option, 2)),
-                            ''
+                        option -> CAST(
+                            tuple(
+                                'userId',
+                                tupleElement(option, 1),
+                                tupleElement(option, 2),
+                                -toInt64(tupleElement(option, 2)),
+                                ''
+                            ),
+                            'Tuple(column String, value String, count UInt64, sortKey Int64, displayValue String)'
                         ),
                         userIdTopOptions
                     ),
                     arrayMap(
-                        option -> tuple(
-                            'experimentId',
-                            tupleElement(tupleElement(option, 1), 1),
-                            tupleElement(option, 2),
-                            -toInt64(tupleElement(option, 2)),
-                            tupleElement(tupleElement(option, 1), 2)
+                        option -> CAST(
+                            tuple(
+                                'experimentId',
+                                tupleElement(tupleElement(option, 1), 1),
+                                tupleElement(option, 2),
+                                -toInt64(tupleElement(option, 2)),
+                                tupleElement(tupleElement(option, 1), 2)
+                            ),
+                            'Tuple(column String, value String, count UInt64, sortKey Int64, displayValue String)'
                         ),
                         experimentIdTopOptions
                     ),
                     arrayMap(
-                        option -> tuple('traceTags', tupleElement(option, 1), tupleElement(option, 2), toInt64(0), ''),
+                        option -> CAST(
+                            tuple('traceTags', tupleElement(option, 1), tupleElement(option, 2), toInt64(0), ''),
+                            'Tuple(column String, value String, count UInt64, sortKey Int64, displayValue String)'
+                        ),
                         traceTagsTopOptions
                     ),
                     arrayMap(
-                        option -> tuple(
-                            'isRootObservation',
-                            tupleElement(option, 1),
-                            tupleElement(option, 2),
-                            if(tupleElement(option, 1) = 'true', toInt64(1), toInt64(0)),
-                            ''
+                        option -> CAST(
+                            tuple(
+                                'isRootObservation',
+                                tupleElement(option, 1),
+                                tupleElement(option, 2),
+                                if(tupleElement(option, 1) = 'true', toInt64(1), toInt64(0)),
+                                ''
+                            ),
+                            'Tuple(column String, value String, count UInt64, sortKey Int64, displayValue String)'
                         ),
                         isRootObservationTopOptions
                     )
@@ -229,15 +253,15 @@ exports[`golden: events.getEventsExactFilterOptionsForColumns > scope=unset — 
         FROM aggregated_options
     )
 SELECT
-    tupleElement(option, 1) AS column,
-    tupleElement(option, 2) AS value,
-    toUInt64(round(tupleElement(option, 3) * sample_factor)) AS count,
-    tupleElement(option, 5) AS displayValue
+    option.column AS column,
+    option.value AS value,
+    toUInt64(round(option.count * sample_factor)) AS count,
+    option.displayValue AS displayValue
 FROM option_rows
 ORDER BY
     column ASC,
-    tupleElement(option, 4) ASC,
-    tupleElement(option, 2) ASC",
+    option.sortKey ASC,
+    option.value ASC",
   },
 ]
 `;

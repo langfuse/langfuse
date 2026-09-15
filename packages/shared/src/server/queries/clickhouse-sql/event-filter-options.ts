@@ -19,8 +19,20 @@ export const EVENTS_FILTER_OPTION_TOP_N = 1000;
 // Sentinel "column" carrying the approx total observation count in the facet result.
 export const EVENTS_APPROX_TOTAL_COUNT_MARKER = "__approxTotalCount__";
 
-// Facet tuple format: (option name, option value, value-occurrence count, sort order, display value).
-const EVENTS_APPROX_TOTAL_COUNT_TUPLE = `tuple('${EVENTS_APPROX_TOTAL_COUNT_MARKER}', '', toUInt64(approx_total_count), toInt64(0), '')`;
+// Named row tuple emitted per facet option. Casting to a named Tuple lets the
+// final projection read option.column / option.sortKey etc. instead of opaque
+// positional tupleElement(option, N) reads, and forces every facet — plus the
+// approx-total sentinel below — to arrayConcat with a structurally identical
+// shape (arrayConcat rejects mismatched element types).
+const EVENTS_FILTER_OPTION_ROW_TUPLE_TYPE =
+  "Tuple(column String, value String, count UInt64, sortKey Int64, displayValue String)";
+
+const castEventFilterOptionRowTuple = (tupleExpression: string): string =>
+  `CAST(${tupleExpression} AS ${EVENTS_FILTER_OPTION_ROW_TUPLE_TYPE})`;
+
+const EVENTS_APPROX_TOTAL_COUNT_TUPLE = castEventFilterOptionRowTuple(
+  `tuple('${EVENTS_APPROX_TOTAL_COUNT_MARKER}', '', toUInt64(approx_total_count), toInt64(0), '')`,
+);
 
 const EVENTS_FILTER_OPTION_TOP_K_MAX_N = 65_536;
 
@@ -376,7 +388,9 @@ const optionRowsArrayExpression = (column: EventFilterOptionColumn) => {
     ? "tupleElement(tupleElement(option, 1), 2)"
     : "''";
 
-  return `arrayMap(option -> tuple(${eventFilterOptionColumnSqlLiteral(column)}, ${valueExpression}, tupleElement(option, 2), ${sortKeyExpression}, ${displayValueExpression}), ${topAlias})`;
+  return `arrayMap(option -> ${castEventFilterOptionRowTuple(
+    `tuple(${eventFilterOptionColumnSqlLiteral(column)}, ${valueExpression}, tupleElement(option, 2), ${sortKeyExpression}, ${displayValueExpression})`,
+  )}, ${topAlias})`;
 };
 
 const eventFilterOptionScopeCondition = (
@@ -513,8 +527,8 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
   // approx_top_k counts live inside the tuple, so scale in the outer projection.
   const sampleFactorRow = sampled ? ",\n    sample_factor" : "";
   const countExpression = sampled
-    ? "toUInt64(round(tupleElement(option, 3) * sample_factor))"
-    : "tupleElement(option, 3)";
+    ? "toUInt64(round(option.count * sample_factor))"
+    : "option.count";
 
   const query = `
 WITH aggregated_options AS (
@@ -528,12 +542,12 @@ option_rows AS (
   FROM aggregated_options
 )
 SELECT
-  tupleElement(option, 1) AS column,
-  tupleElement(option, 2) AS value,
+  option.column AS column,
+  option.value AS value,
   ${countExpression} AS count,
-  tupleElement(option, 5) AS displayValue
+  option.displayValue AS displayValue
 FROM option_rows
-ORDER BY column ASC, tupleElement(option, 4) ASC, tupleElement(option, 2) ASC
+ORDER BY column ASC, option.sortKey ASC, option.value ASC
 `.trim();
 
   return {
@@ -618,7 +632,7 @@ const exactOptionRowsArrayExpression = (
   // alias = array of option tuples, option = (key, count)
   // key = value              (scalar / array / boolean)
   // key = (value, label)     (labeledScalar)
-  // Output row = (column, value, count, sortKey, displayValue).
+  // Output row is cast to the named EVENTS_FILTER_OPTION_ROW_TUPLE_TYPE.
   const sortKeyExpression =
     definition.sort === "countDesc"
       ? "-toInt64(tupleElement(option, 2))"
@@ -632,7 +646,9 @@ const exactOptionRowsArrayExpression = (
     ? "tupleElement(tupleElement(option, 1), 2)"
     : "''";
 
-  return `arrayMap(option -> tuple(${eventFilterOptionColumnSqlLiteral(column)}, ${valueExpression}, tupleElement(option, 2), ${sortKeyExpression}, ${displayValueExpression}), ${alias})`;
+  return `arrayMap(option -> ${castEventFilterOptionRowTuple(
+    `tuple(${eventFilterOptionColumnSqlLiteral(column)}, ${valueExpression}, tupleElement(option, 2), ${sortKeyExpression}, ${displayValueExpression})`,
+  )}, ${alias})`;
 };
 
 /**
@@ -684,8 +700,8 @@ export const buildEventsExactFilterOptionsForColumnsQuery = (params: {
 
   const sampleFactorRow = sampled ? ",\n    sample_factor" : "";
   const countExpression = sampled
-    ? "toUInt64(round(tupleElement(option, 3) * sample_factor))"
-    : "tupleElement(option, 3)";
+    ? "toUInt64(round(option.count * sample_factor))"
+    : "option.count";
 
   const query = `
 WITH aggregated_options AS (
@@ -699,12 +715,12 @@ option_rows AS (
   FROM aggregated_options
 )
 SELECT
-  tupleElement(option, 1) AS column,
-  tupleElement(option, 2) AS value,
+  option.column AS column,
+  option.value AS value,
   ${countExpression} AS count,
-  tupleElement(option, 5) AS displayValue
+  option.displayValue AS displayValue
 FROM option_rows
-ORDER BY column ASC, tupleElement(option, 4) ASC, tupleElement(option, 2) ASC
+ORDER BY column ASC, option.sortKey ASC, option.value ASC
 `.trim();
 
   return {
