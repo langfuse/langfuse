@@ -35,7 +35,7 @@ import {
 import { PromptHistoryNode } from "./prompt-history";
 import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
-import LegacyGenerations from "@/src/features/tracing-tables/observations/ObservationsTable";
+import { ObservationsTable as LegacyGenerations } from "@/src/features/tracing-tables";
 import EventsTable from "@/src/features/events/components/EventsTable";
 import { useReadPath } from "@/src/features/events";
 import {
