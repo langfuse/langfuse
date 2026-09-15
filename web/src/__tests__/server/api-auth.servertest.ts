@@ -513,6 +513,9 @@ describe("Authenticate API calls", () => {
       const apiKey = await prisma.apiKey.findUnique({
         where: { publicKey: legacyPublicKey },
       });
+      const organization = await prisma.organization.findUniqueOrThrow({
+        where: { id: testApiKey.orgId },
+      });
 
       expect(apiKey).not.toBeNull();
       expect(apiKey?.fastHashedSecretKey).not.toBeNull();
@@ -552,6 +555,7 @@ describe("Authenticate API calls", () => {
           },
         ],
         createdAt: apiKey?.createdAt.toISOString(),
+        organizationCreatedAt: organization.createdAt.toISOString(),
         isIngestionSuspended: expect.anything(),
       });
 

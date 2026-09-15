@@ -404,34 +404,25 @@ export const createAuthedProjectAPIRoute = <
       env.LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF_ENABLED === "true" &&
       req.method === "GET" &&
       deprecation &&
-      auth.scope.orgId
+      auth.scope.orgId &&
+      auth.scope.organizationCreatedAt
     ) {
-      const organization = await prisma.organization.findUnique({
-        where: { id: auth.scope.orgId },
-        select: { createdAt: true },
-      });
+      const organizationCreatedAt = new Date(auth.scope.organizationCreatedAt);
 
-      if (
-        organization &&
-        organization.createdAt >= LEGACY_API_ORGANIZATION_CUTOFF
-      ) {
+      if (organizationCreatedAt >= LEGACY_API_ORGANIZATION_CUTOFF) {
         const apiPath = clickHouseRouteForRequest(req);
         const rejectionContext = {
           orgId: auth.scope.orgId,
           projectId: auth.scope.projectId,
           apiRoute: routeConfig.name,
         };
-        recordIncrement(
-          "langfuse.public_api.legacy_get_rejected",
-          1,
-          rejectionContext,
-        );
+        recordIncrement("langfuse.public_api.legacy_get_rejected", 1);
         logger.info(
           "Rejected legacy GET API request for organization created at or after cutoff",
           {
             ...rejectionContext,
             apiPath,
-            organizationCreatedAt: organization.createdAt.toISOString(),
+            organizationCreatedAt: auth.scope.organizationCreatedAt,
             cutoff: LEGACY_API_ORGANIZATION_CUTOFF.toISOString(),
           },
         );

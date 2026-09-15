@@ -122,6 +122,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     scope: {
       projectId: "project-1",
       orgId: "org-1",
+      organizationCreatedAt: "2026-09-16T00:00:00.000Z",
       plan: "cloud:hobby",
       accessLevel: "project",
       rateLimitOverrides: [],
@@ -189,13 +190,10 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     return res;
   }
 
-  it("rejects deprecated GET routes with actionable guidance and scoped telemetry", async () => {
+  it("rejects deprecated GET routes using cached organization data with actionable guidance", async () => {
     mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
     mockEnv.LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF_ENABLED = "true";
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
-    mockFindOrganization.mockResolvedValueOnce({
-      createdAt: new Date("2026-09-16T00:00:00.000Z"),
-    });
 
     const res = await callRoute({ deprecation });
 
@@ -214,12 +212,8 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(mockRecordIncrement).toHaveBeenCalledWith(
       "langfuse.public_api.legacy_get_rejected",
       1,
-      {
-        orgId: "org-1",
-        projectId: "project-1",
-        apiRoute: "Test Route",
-      },
     );
+    expect(mockFindOrganization).not.toHaveBeenCalled();
     expect(mockLoggerInfo).toHaveBeenCalledWith(
       "Rejected legacy GET API request for organization created at or after cutoff",
       {
@@ -248,9 +242,12 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
   it("keeps deprecated GET routes available to older Cloud organizations", async () => {
     mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
     mockEnv.LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF_ENABLED = "true";
-    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
-    mockFindOrganization.mockResolvedValueOnce({
-      createdAt: new Date("2026-09-15T23:59:59.999Z"),
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce({
+      ...validAuth,
+      scope: {
+        ...validAuth.scope,
+        organizationCreatedAt: "2026-09-15T23:59:59.999Z",
+      },
     });
 
     const res = await callRoute({ deprecation });
@@ -260,6 +257,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       ok: true,
       _deprecation: deprecation,
     });
+    expect(mockFindOrganization).not.toHaveBeenCalled();
   });
 
   it("does not apply the organization cutoff outside Langfuse Cloud", async () => {
