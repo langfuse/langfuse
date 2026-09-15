@@ -9,14 +9,14 @@ import { supportCopilotRefundLoopFixture } from "./trace/support-copilot-refund-
 
 export type { TranscriptFixture } from "./fixture-types";
 
-export const traceTranscriptFixtures: TranscriptFixture[] = [
+const traceTranscriptFixtures: TranscriptFixture[] = [
   openaiAgentsSpanishHandoffFixture,
   vercelAiSdkDocsToolLoopFixture,
   openaiAgentsJokeAndRatingFixture,
   supportCopilotRefundLoopFixture,
 ];
 
-export const sessionTranscriptFixtures: TranscriptFixture[] = [
+const sessionTranscriptFixtures: TranscriptFixture[] = [
   orderSupportRoutingFixture,
   cumulativeHistoryFixture,
   reorderedHistoryFixture,
