@@ -576,16 +576,6 @@ export const JSON_TABLE_MONO_FONT_LABELS: Record<JsonTableMonoFont, string> = {
   "iosevka-extended-light": "Iosevka Extended Light",
 };
 
-/** Tailwind arbitrary properties that swap `--font-mono` for one subtree. */
-export const JSON_TABLE_MONO_FONT_CLASSES: Record<JsonTableMonoFont, string> = {
-  system: "",
-  plex: "[--font-mono:var(--font-plex-mono),ui-monospace,monospace]",
-  jetbrains: "[--font-mono:var(--font-jetbrains-mono),ui-monospace,monospace]",
-  geist: "[--font-mono:var(--font-geist-mono),ui-monospace,monospace]",
-  iosevka: "[--font-mono:Iosevka,ui-monospace,monospace]",
-  "iosevka-extended": "[--font-mono:'Iosevka_Extended',ui-monospace,monospace]",
-};
-
 const JSON_TABLE_MONO_FONT_STORAGE_KEY = "lf-json-mono";
 
 function isJsonTableMonoFont(value: unknown): value is JsonTableMonoFont {

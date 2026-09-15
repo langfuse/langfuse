@@ -64,7 +64,6 @@ import {
   writeStoredJsonTableStyleVariant,
   JSON_TABLE_MONO_FONTS,
   JSON_TABLE_MONO_FONT_LABELS,
-  JSON_TABLE_MONO_FONT_CLASSES,
   useJsonTableMonoFont,
   writeStoredJsonTableMonoFont,
   type JsonTableMonoFont,
@@ -1322,7 +1321,6 @@ export function PrettyJsonView(props: {
     ? (props.styleVariant ?? DEFAULT_JSON_TABLE_STYLE_VARIANT)
     : (pinnedStyleVariant ?? resolvedStyleVariant);
   const tableStyle = JSON_TABLE_STYLES[styleVariant];
-  const monoFont = useJsonTableMonoFont();
   const tableHasContentSizedKeys =
     tableStyle.layout === "columns" && tableStyle.keyColumn === "content";
   const showStylePicker =
@@ -1830,7 +1828,6 @@ export function PrettyJsonView(props: {
                 // containment zeroes this flex item's intrinsic width, so it
                 // takes the row width explicitly.
                 tableHasContentSizedKeys && "@container w-full",
-                JSON_TABLE_MONO_FONT_CLASSES[monoFont],
               )}
             >
               {props.isLoading ? (

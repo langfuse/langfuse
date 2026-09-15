@@ -828,3 +828,24 @@
   font-display: swap;
   src: url("/fonts/Iosevka-ExtendedLight.woff2") format("woff2");
 }
+
+/* Mono family under trial, chosen in the JSON table debug picker and applied
+   app-wide through a data attribute on <html>. Plain rules per option. */
+html[data-mono-font="plex"] {
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+}
+html[data-mono-font="jetbrains"] {
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+}
+html[data-mono-font="geist"] {
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+html[data-mono-font="iosevka"] {
+  --font-mono: Iosevka, ui-monospace, monospace;
+}
+html[data-mono-font="iosevka-extended"] {
+  --font-mono: "Iosevka Extended", ui-monospace, monospace;
+}
+html[data-mono-font="iosevka-extended-light"] {
+  --font-mono: "Iosevka Extended Light", ui-monospace, monospace;
+}
