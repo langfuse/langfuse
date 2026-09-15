@@ -1,7 +1,10 @@
 import {
   type FilterState,
+  TABLE_AGGREGATION_OPTIONS,
+  TIME_RANGES,
   decodeFiltersGeneric,
   encodeFiltersGeneric,
+  rangeToString,
 } from "@langfuse/shared";
 
 type BuildEventsTablePathForSpanNameParams = {
@@ -75,6 +78,89 @@ export function buildEventsTablePathForObservationType({
     column: "type",
     value: observationType,
   });
+}
+
+/**
+ * Builds an events-table URL that adds a filter on a regular table column
+ * (environment, model, version, release, ...). Like the metadata helper below
+ * it MERGES into the filters already in `currentPath`, replacing any existing
+ * clause on the same column so the click reads as "filter by this value".
+ */
+/**
+ * Smallest table preset whose window still contains `time`, or an absolute
+ * day-sized range when nothing does. Without this a filter link opened from an
+ * older observation lands on a table whose default "past 1 day" window is
+ * empty — the filter applied, the row it came from is just out of range.
+ */
+function dateRangeCovering(time: Date, now = new Date()): string {
+  const ageMinutes = (now.getTime() - time.getTime()) / 60_000;
+  for (const option of TABLE_AGGREGATION_OPTIONS) {
+    const minutes = TIME_RANGES[option].minutes;
+    // A preset reaches back from now, so it only covers a row that is in the
+    // past: a future timestamp (skewed client clocks) would otherwise satisfy
+    // even the shortest preset and land on a window without it.
+    if (minutes != null && ageMinutes >= 0 && ageMinutes < minutes * 0.9) {
+      return rangeToString({ range: option });
+    }
+  }
+  const dayMs = 24 * 60 * 60_000;
+  return rangeToString({
+    from: new Date(time.getTime() - dayMs),
+    // Clamp the end to now only while that still includes the row itself.
+    to: new Date(
+      Math.max(time.getTime(), Math.min(now.getTime(), time.getTime() + dayMs)),
+    ),
+  });
+}
+
+function rangeCovers(encoded: string, time: Date, now = new Date()): boolean {
+  const preset = Object.values(TIME_RANGES).find(
+    (def) => def.abbreviation === encoded,
+  );
+  if (preset?.minutes != null) {
+    const age = now.getTime() - time.getTime();
+    return age >= 0 && age < preset.minutes * 60_000;
+  }
+  const [from, to] = encoded.split("-").map(Number);
+  if (Number.isFinite(from) && Number.isFinite(to)) {
+    return time.getTime() >= from && time.getTime() <= to;
+  }
+  return false;
+}
+
+export function buildEventsTablePathForColumnFilter({
+  currentPath,
+  projectId,
+  target,
+  filter,
+  coverTime,
+}: {
+  currentPath: string;
+  projectId: string;
+  target: "observations" | "traces";
+  filter: FilterState[number];
+  /** A time the resulting table window must include (the source row's start). */
+  coverTime?: Date;
+}) {
+  const url = new URL(currentPath, "https://langfuse.local");
+  const params = new URLSearchParams();
+
+  const dateRange = url.searchParams.get("dateRange");
+  if (coverTime && !(dateRange && rangeCovers(dateRange, coverTime))) {
+    params.set("dateRange", dateRangeCovering(coverTime));
+  } else if (dateRange) {
+    params.set("dateRange", dateRange);
+  }
+
+  const existingFilters = decodeFiltersGeneric(
+    url.searchParams.get("filter") ?? "",
+  ).filter((f) => f.column !== filter.column);
+
+  params.set("filter", encodeFiltersGeneric([...existingFilters, filter]));
+
+  const query = params.toString();
+
+  return `/project/${projectId}/${target}${query ? `?${query}` : ""}`;
 }
 
 export type MetadataFilterOperator = "=" | "contains" | "does not contain";

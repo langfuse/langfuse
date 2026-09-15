@@ -9,11 +9,12 @@
 import { type ComponentPropsWithoutRef, forwardRef } from "react";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 
 // Same scale as the metrics tier; link affordance (hover color + underline)
 // is the only thing that sets a reference apart from a plain metric.
-const REFERENCE_LINK_CLASS =
+// Exported so observation-level references (the header's model link) share ONE
+// definition of the tier instead of copying it.
+export const REFERENCE_LINK_CLASS =
   "text-muted-foreground hover:text-link inline-flex min-w-0 max-w-[280px] shrink-0 items-center gap-0.5 text-xs whitespace-nowrap hover:underline";
 
 type ReferenceLinkProps = Omit<
@@ -81,16 +82,4 @@ export function TargetTraceBadge({
       <ArrowUpRight className="h-3 w-3 shrink-0" />
     </Link>
   );
-}
-
-export function EnvironmentBadge({ environment }: { environment: string }) {
-  return <Badge text={`Env: ${environment}`} />;
-}
-
-export function ReleaseBadge({ release }: { release: string }) {
-  return <Badge text={`Release: ${release}`} />;
-}
-
-export function VersionBadge({ version }: { version: string }) {
-  return <Badge text={`Version: ${version}`} />;
 }

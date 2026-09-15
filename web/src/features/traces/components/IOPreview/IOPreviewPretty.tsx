@@ -58,9 +58,10 @@ function JsonInputOutputView({
   const showOutput = !hideOutput && !(hideIfNull && !parsedOutput);
 
   return (
-    <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+    <div className="space-y-4 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
       {showInput && (
         <PrettyJsonView
+          hideHeader
           title="Input"
           json={parsedInput ?? null}
           isLoading={isLoading}
@@ -69,10 +70,12 @@ function JsonInputOutputView({
           currentView="pretty"
           externalExpansionState={inputExpansionState}
           onExternalExpansionChange={onInputExpansionChange}
+          hoverControls
         />
       )}
       {showOutput && (
         <PrettyJsonView
+          hideHeader
           title="Output"
           json={parsedOutput}
           isLoading={isLoading}
@@ -81,6 +84,7 @@ function JsonInputOutputView({
           currentView="pretty"
           externalExpansionState={outputExpansionState}
           onExternalExpansionChange={onOutputExpansionChange}
+          hoverControls
         />
       )}
     </div>
@@ -107,6 +111,10 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   hideInput?: boolean;
   // Whether to show metadata section (default: false)
   showMetadata?: boolean;
+  // Fixed-key attributes, rendered between Output and Metadata
+  attributes?: Record<string, unknown>;
+  attributesAnchorTime?: Date | null;
+  modelParameters?: Record<string, unknown> | null;
   observationId?: string;
   projectId: string;
   traceId: string;
@@ -157,6 +165,9 @@ export function IOPreviewPretty({
   onOutputExpansionChange,
   onMetadataExpansionChange,
   showMetadata = false,
+  attributes,
+  attributesAnchorTime,
+  modelParameters,
   observationId,
   projectId,
   traceId,
@@ -328,7 +339,7 @@ export function IOPreviewPretty({
       ) : null}
 
       {shouldRenderMessages ? (
-        <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+        <div className="mt-4 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
           <ChatMessageList
             messages={allMessages}
             shouldRenderMarkdown={shouldRenderMarkdown}
@@ -370,9 +381,49 @@ export function IOPreviewPretty({
       ) : null}
 
       {/* Metadata Section */}
-      {showData && shouldShowMetadata && (
-        <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+      {showData && attributes && Object.keys(attributes).length > 0 ? (
+        <div className="mt-4 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
           <PrettyJsonView
+            hideHeader
+            title="Attributes"
+            json={attributes}
+            currentView="pretty"
+            metadataActions={{
+              ...metadataActions,
+              attributes: { anchorTime: attributesAnchorTime },
+              analyticsTable: "attributes",
+            }}
+            hoverControls
+          />
+        </div>
+      ) : null}
+      {/* The LLM call's own parameters. Copy only: nothing here maps to a
+          table column, unlike the attributes above. */}
+      {showData && modelParameters ? (
+        <div className="mt-4 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
+          <PrettyJsonView
+            hideHeader
+            title="Model parameters"
+            json={modelParameters}
+            currentView="pretty"
+            metadataActions={
+              metadataActions
+                ? {
+                    ...metadataActions,
+                    copyOnly: true,
+                    analyticsTable: "model_parameters",
+                  }
+                : undefined
+            }
+            hoverControls
+          />
+        </div>
+      ) : null}
+
+      {showData && shouldShowMetadata && (
+        <div className="mt-4 [&_.io-message-content]:px-3 [&_.io-message-header]:px-3">
+          <PrettyJsonView
+            hideHeader
             title="Metadata"
             json={parsedMetadata}
             isLoading={isLoading}
@@ -381,7 +432,12 @@ export function IOPreviewPretty({
             currentView="pretty"
             externalExpansionState={metadataExpansionState}
             onExternalExpansionChange={onMetadataExpansionChange}
-            metadataActions={metadataActions}
+            metadataActions={
+              metadataActions
+                ? { ...metadataActions, analyticsTable: "metadata" }
+                : undefined
+            }
+            hoverControls
           />
         </div>
       )}

@@ -33,8 +33,12 @@ export function SessionTimelineCollapsiblePart({
         <button
           type="button"
           className={cn(
-            "flex max-w-full items-center gap-1.5 py-1 text-left font-mono text-xs transition-colors hover:opacity-80",
-            alignment === "row" ? "text-muted-foreground" : "text-foreground",
+            "flex max-w-full items-center gap-1.5 py-1 text-left font-mono text-xs transition-colors",
+            // Muted text at 80% opacity reads 3.24:1 on white, under WCAG AA,
+            // so the row variant hovers by colour instead.
+            alignment === "row"
+              ? "text-muted-foreground hover:text-foreground"
+              : "text-foreground hover:opacity-80",
             alignment === "center" && "mx-auto",
             alignment === "start" ? "font-bold" : "font-normal",
           )}

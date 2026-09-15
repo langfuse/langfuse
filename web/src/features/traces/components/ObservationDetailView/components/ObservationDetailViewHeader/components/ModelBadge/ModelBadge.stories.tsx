@@ -1,4 +1,4 @@
-import preview from "../../../../../../.storybook/preview";
+import preview from "../../../../../../../../../.storybook/preview";
 import { ModelBadge } from "./ModelBadge";
 
 const meta = preview.meta({
@@ -11,4 +11,6 @@ const meta = preview.meta({
   },
 });
 
+// Only the linked branch has a story: the unlinked branch renders
+// `UpsertModelFormDialog`, which needs a tRPC provider Storybook does not have.
 export const Linked = meta.story({});
