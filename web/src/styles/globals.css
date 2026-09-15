@@ -348,7 +348,7 @@
     --muted-blue: 239 84% 67%;
     --muted-gray: 210 50% 91.1%;
 
-    --accent-light-green: 138 76.5% 96.7%;
+    --accent-light-green: 138 76.5% 98%;
     --accent-dark-green: 112 100% 32%;
 
     /* Status pairs: light-* tinted fills (alpha baked in), dark-* the
@@ -644,16 +644,16 @@
 
   /* The whole app renders inside #__next. Isolating it into its own stacking
      context caps every z-index in the app (page header, modals, popovers, …)
-     so none can escape it. The overlay layer containers (declared in
-     _document.tsx) are <body> siblings AFTER #__next and paint on top purely by
-     DOM order — see components/ui/layer.tsx. This is what lets layers carry no
+     so none can escape it. LayerProvider appends the overlay layer containers
+     as <body> siblings AFTER #__next, so they paint on top purely by
+     DOM order — see context/LayerContext/LayerContext.tsx. This is what lets layers carry no
      z-index of their own; z-index stays a LOCAL tool for ordering within a
      single layer. */
   div#__next {
     isolation: isolate;
   }
 
-  /* Overlay layer roots (see _document.tsx + components/ui/layer.tsx). The
+  /* Overlay layer roots (see context/LayerContext/LayerContext.tsx). The
      stack is click-through; each layer is its own isolated stacking context and
      they order by DOM order (later = on top). The layer containers are
      `pointer-events: none` so the EMPTY regions around an overlay pass clicks

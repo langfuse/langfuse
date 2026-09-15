@@ -2,6 +2,7 @@ import { env } from "@/src/env.mjs";
 import {
   createShaHash,
   deleteApiKeyFromDb,
+  formatSubmittedPublicKeyForLog,
   recordIncrement,
   verifySecretKey,
   type AuthHeaderVerificationResult,
@@ -35,22 +36,26 @@ type VerifyAuthHeaderOptions = {
 const MAX_LOGGED_PUBLIC_KEY_LENGTH = 64;
 
 /**
- * Public keys are read straight out of a client-controlled Authorization header
- * via `atob`, so on the paths where the key was not found in the database they
- * may be arbitrary bytes. The text log formatter interpolates `message`
- * verbatim, so an unsanitized value lets an unauthenticated caller forge log
- * lines with a newline, or drive an operator's terminal with an escape
+ * Renders a client-submitted public key for a log message.
+ *
+ * `formatSubmittedPublicKeyForLog` masks a value that is not a Langfuse public
+ * key, so a secret pasted into the public key slot is never echoed in full. The
+ * value still arrives straight from a client-controlled Authorization header
+ * via `atob`, though, and the paths that log it are the ones where the key was
+ * not found in the database, so it may be arbitrary bytes. The text log
+ * formatter interpolates `message` verbatim, so left as-is a caller could forge
+ * log lines with a newline, or drive an operator's terminal with an escape
  * sequence (CWE-117).
  *
  * A real public key is printable ASCII (`pk-lf-` plus a UUID), so allow-list
- * that range rather than enumerating the dangerous one: this covers C0
+ * that range rather than enumerating the dangerous one: one rule covers C0
  * controls, DEL, and the C1 range (`atob` maps byte 0x9B to U+009B, which
- * `JSON.stringify` does not escape) in one rule. `JSON.stringify` then quotes
- * the result and escapes any embedded quote or backslash.
+ * `JSON.stringify` does not escape). `JSON.stringify` then quotes the result
+ * and escapes any embedded quote or backslash.
  */
 const sanitizeKeyForLog = (publicKey: string): string =>
   JSON.stringify(
-    publicKey
+    formatSubmittedPublicKeyForLog(publicKey)
       .slice(0, MAX_LOGGED_PUBLIC_KEY_LENGTH)
       .replace(/[^\x20-\x7e]/g, "\uFFFD"),
   );
@@ -157,7 +162,9 @@ export class ApiAuthService {
               );
 
               if (!isValid) {
-                logger.debug(`Old key is invalid: ${publicKey}`);
+                logger.debug(
+                  `Old key is invalid: ${formatSubmittedPublicKeyForLog(publicKey)}`,
+                );
                 throw new Error("Invalid credentials");
               }
 
@@ -209,7 +216,7 @@ export class ApiAuthService {
             // credential rotation on the client.
             if (publicKey !== finalApiKey.publicKey) {
               logger.warn(
-                `Public key mismatch on basic auth: submitted public key ${publicKey} does not match public key ${finalApiKey.publicKey} of the API key resolved via the secret key (apiKeyId ${finalApiKey.id}, projectId ${finalApiKey.projectId}, orgId ${finalApiKey.orgId})`,
+                `Public key mismatch on basic auth: submitted public key ${formatSubmittedPublicKeyForLog(publicKey)} does not match public key ${finalApiKey.publicKey} of the API key resolved via the secret key (apiKeyId ${finalApiKey.id}, projectId ${finalApiKey.projectId}, orgId ${finalApiKey.orgId})`,
               );
             }
 

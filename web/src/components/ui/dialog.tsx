@@ -7,7 +7,7 @@ import { X } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/src/utils/tailwind";
-import { useLayerContainer } from "@/src/components/ui/layer";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import motionStyles from "./dialog-motion.module.css";
 
 const Dialog = DialogPrimitive.Root;

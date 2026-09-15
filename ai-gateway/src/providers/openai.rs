@@ -11,7 +11,11 @@ use tokio::{
     time::Instant,
 };
 
-use crate::{resolution::ResolvedRequestContext, transport};
+use crate::{
+    capture::{ExecutionCapture, RelayOutcome},
+    resolution::ResolvedRequestContext,
+    transport,
+};
 
 pub use crate::transport::ProviderError;
 
@@ -124,6 +128,7 @@ impl OpenAiProvider {
             HeaderValue::from_str(&format!("Bearer {}", context.connection().provider_token()))
                 .map_err(|_| ProviderError::Configuration)?;
         authorization.set_sensitive(true);
+        let mut capture = ExecutionCapture::openai_responses(&context, headers, &body);
         let response = tokio::time::timeout_at(
             permit
                 .deadline
@@ -131,23 +136,40 @@ impl OpenAiProvider {
             self.client
                 .post(endpoint)
                 .headers(transport::request_headers(headers))
+                // Observe plain JSON/SSE while relaying the provider bytes unchanged.
+                .header(header::ACCEPT_ENCODING, "identity")
                 .header(header::AUTHORIZATION, authorization)
                 .body(body)
                 .send(),
         )
         .await
-        .map_err(|_| ProviderError::Timeout)?
-        .map_err(|error| {
-            if error.is_timeout() {
-                ProviderError::Timeout
-            } else {
-                ProviderError::Transport
+        .map_err(|_| ProviderError::Timeout)
+        .and_then(|result| {
+            result.map_err(|error| {
+                if error.is_timeout() {
+                    ProviderError::Timeout
+                } else {
+                    ProviderError::Transport
+                }
+            })
+        });
+        let response = match response {
+            Ok(response) => response,
+            Err(error) => {
+                capture.finish(if matches!(error, ProviderError::Timeout) {
+                    RelayOutcome::Timeout
+                } else {
+                    RelayOutcome::TransportError
+                });
+                return Err(error);
             }
-        })?;
+        };
+        capture.response(response.status().as_u16(), response.headers());
         let mut downstream = Response::new(Body::empty());
         *downstream.status_mut() = response.status();
         *downstream.headers_mut() = transport::response_headers(response.headers());
-        *downstream.body_mut() = transport::relay(response, permit.deadline, (permit, context));
+        *downstream.body_mut() =
+            transport::relay(response, permit.deadline, (permit, context), capture);
         Ok(downstream)
     }
 

@@ -6,7 +6,7 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 
 import { assertUnreachable } from "@langfuse/shared";
 import { useCallback } from "react";
-import { useLayerContainer } from "../../ui/layer";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
