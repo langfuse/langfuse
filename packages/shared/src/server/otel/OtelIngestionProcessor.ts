@@ -1505,7 +1505,10 @@ export class OtelIngestionProcessor {
       }
     }
 
-    logger.warn("OTEL oversized span detected", {
+    // The `langfuse.ingestion.otel.oversized_span` metric below carries the
+    // aggregate signal; keep the detailed line at debug to avoid drowning
+    // warn-level log volume with a per-span customer-data condition.
+    logger.debug("OTEL oversized span detected", {
       spanId: context.spanId,
       traceId: context.traceId,
       projectId: this.projectId,
