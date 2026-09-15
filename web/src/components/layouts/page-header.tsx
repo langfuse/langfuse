@@ -1,10 +1,8 @@
 /* eslint-disable @repo/no-style-props */
 import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
-import {
-  ItemTypeChip,
-  type LangfuseItemType,
-} from "@/src/components/ItemBadge";
+import { type LangfuseItemType } from "@/src/components/ItemBadge";
+import { ItemTypeChip } from "@/src/components/ItemTypeChip";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";

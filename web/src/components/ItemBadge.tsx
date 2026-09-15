@@ -106,31 +106,10 @@ export function renderFilterIcon(value: string): React.ReactNode {
  * `"DATASET_RUN"` -> `{ label: "Dataset_run", displayLabel: "Dataset run" }`.
  * `label` titles the element, `displayLabel` is what the user reads.
  */
-function itemTypeLabels(type: LangfuseItemType) {
+export function getItemTypeLabels(type: LangfuseItemType) {
   const label =
     String(type).charAt(0).toUpperCase() + String(type).slice(1).toLowerCase();
   return { label, displayLabel: label.replace(/_/g, " ") };
-}
-
-/**
- * Quiet chip naming an item type, for page and peek headers: no fill and muted
- * text so it doesn't compete with the title next to it. Carries no icon — the
- * label already names the type, so an icon would only repeat it.
- */
-export function ItemTypeChip({ type }: { type: LangfuseItemType }) {
-  const { label, displayLabel } = itemTypeLabels(type);
-
-  return (
-    <Badge
-      variant="outline"
-      title={label}
-      className="text-muted-foreground border-border flex max-w-fit items-center overflow-hidden border bg-transparent px-1 whitespace-nowrap"
-    >
-      <span className="truncate" title={displayLabel}>
-        {displayLabel}
-      </span>
-    </Badge>
-  );
 }
 
 export function ItemBadge({
@@ -154,7 +133,7 @@ export function ItemBadge({
     className,
   );
 
-  const { label, displayLabel } = itemTypeLabels(type);
+  const { label, displayLabel } = getItemTypeLabels(type);
 
   return (
     <Badge
