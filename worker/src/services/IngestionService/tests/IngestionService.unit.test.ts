@@ -28,14 +28,18 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
+import Decimal from "decimal.js";
+
 import { IngestionService } from "../../IngestionService";
 import {
   convertDateToClickhouseDateTime,
   createTraceScore,
   type ObservationEvent,
   type ScoreEventType,
+  UsageDetails,
 } from "@langfuse/shared/src/server";
 import { TableName } from "../../ClickhouseWriter";
+import defaultModelPrices from "../../../constants/default-model-prices.json";
 
 describe("IngestionService unit tests", () => {
   beforeEach(() => {
@@ -478,6 +482,36 @@ describe("IngestionService unit tests", () => {
         metadata: { large: metadataValue },
       });
     }
+  });
+
+  it("prices OpenAI cache write tokens with the default gpt-5.6 model prices", () => {
+    const defaultTier = defaultModelPrices
+      .find((model) => model.modelName === "gpt-5.6-sol")
+      ?.pricingTiers.find((tier) => tier.isDefault);
+    const modelPrices = Object.entries(defaultTier?.prices ?? {}).map(
+      ([usageType, price]) => ({ usageType, price: new Decimal(price) }),
+    );
+
+    const usageUnits = UsageDetails.parse({
+      input_tokens: 100_000,
+      output_tokens: 1_000,
+      total_tokens: 101_000,
+      input_tokens_details: { cached_tokens: 0, cache_write_tokens: 80_000 },
+      output_tokens_details: { reasoning_tokens: 0 },
+    });
+
+    const costs = (IngestionService as any).calculateUsageCosts(
+      modelPrices,
+      { provided_cost_details: {} },
+      usageUnits,
+    );
+
+    // 20,000 input tokens at $4/1M, 80,000 cache write tokens at $5/1M,
+    // 1,000 output tokens at $20/1M
+    expect(costs.cost_details.input).toBeCloseTo(0.08, 6);
+    expect(costs.cost_details.input_cache_creation).toBeCloseTo(0.4, 6);
+    expect(costs.cost_details.output).toBeCloseTo(0.02, 6);
+    expect(costs.total_cost).toBeCloseTo(0.5, 6);
   });
 
   it("correctly sorts events in ascending order by timestamp", async () => {
