@@ -18,7 +18,7 @@ import * as React from "react";
 import { useShallow } from "zustand/react/shallow";
 import { AlertCircle, WandSparkles, X } from "lucide-react";
 
-import { Layer } from "@/src/components/ui/layer";
+import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { cn } from "@/src/utils/tailwind";
 
 import {

@@ -10,7 +10,7 @@ import {
   CommandSeparator,
 } from "@/src/components/ui/command";
 import { Settings } from "lucide-react";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
 import { useRouter } from "next/router";
 import Link from "next/link";

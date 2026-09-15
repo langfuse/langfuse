@@ -14,7 +14,7 @@ import {
 import { v4 } from "uuid";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
-import { Prisma } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 
 import { JobConfigState } from "@langfuse/shared";
 import {
@@ -270,6 +270,75 @@ describe("monitor-alert e2e (scheduler → processor → dispatcher → webhook 
       where: { projectId },
     });
     expect(after).toBe(before);
+  });
+});
+
+describe("monitor claim/complete under a non-UTC Postgres session TimeZone", () => {
+  let projectId: string;
+  let tzDb: PrismaClient;
+
+  beforeAll(() => {
+    const url = process.env.DATABASE_URL!;
+    const sep = url.includes("?") ? "&" : "?";
+    tzDb = new PrismaClient({
+      datasources: {
+        db: { url: `${url}${sep}options=-c%20timezone%3DAsia%2FShanghai` },
+      },
+    });
+  });
+
+  afterAll(async () => {
+    await tzDb.$disconnect();
+  });
+
+  beforeEach(async () => {
+    ({ projectId } = await createOrgProjectAndApiKey());
+  });
+
+  afterEach(async () => {
+    await prisma.monitor.deleteMany({ where: { projectId } });
+  });
+
+  it("claims and completes a due monitor instead of staying PENDING/UNKNOWN", async () => {
+    const session =
+      await tzDb.$queryRawUnsafe<Array<Record<string, string>>>(
+        "SHOW TIME ZONE",
+      );
+    expect(Object.values(session[0])[0]).toBe("Asia/Shanghai");
+
+    const monitorId = await seedMonitor({ projectId, alertThreshold: 100 });
+    const now = new Date();
+
+    const monitorQueueEvents: MonitorQueueEvent[] = [];
+    const scheduler = new MonitorScheduler({
+      schedulerId: 0,
+      totalSchedulers: 1,
+      db: tzDb,
+      publish: async (event) => {
+        monitorQueueEvents.push(MonitorQueueEventSchema.parse(event));
+      },
+    });
+    await scheduler.schedule(now);
+    const projectEvents = monitorQueueEvents.filter(
+      (e) => e.projectId === projectId,
+    );
+    expect(projectEvents).toHaveLength(1);
+
+    const processor = new MonitorProcessor(
+      tzDb,
+      async () => {},
+      async () => [{ count_count: 150 }],
+    );
+    await Promise.all(
+      projectEvents.map((event) => processor.process(event, now)),
+    );
+
+    const row = await tzDb.monitor.findUniqueOrThrow({
+      where: { id: monitorId },
+    });
+    expect(row.lastClaimedAt).not.toBeNull();
+    expect(row.lastCompletedAt).not.toBeNull();
+    expect(row.severity).not.toBe(MonitorSeveritySchema.enum.UNKNOWN);
   });
 });
 

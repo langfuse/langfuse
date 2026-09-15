@@ -41,7 +41,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
+import {
+  EvaluatorForm,
+  useEvaluatorFormTemplate,
+} from "@/src/features/evals/components/evaluator-form";
 import { useRouter } from "next/router";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
@@ -56,7 +59,7 @@ import {
   type EvaluatorDataRow,
   useEvaluatorTableData,
 } from "@/src/features/evals/hooks/useEvaluatorTableData";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
@@ -125,6 +128,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       enabled: !!editConfigId,
     },
   );
+  const evalTemplate = useEvaluatorFormTemplate({
+    evalTemplates: [],
+    evalTemplate: existingEvaluator.data?.evalTemplate ?? undefined,
+  });
 
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -512,10 +519,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             <div className="flex items-center justify-center p-4">
               <Spinner size="lg" />
             </div>
-          ) : (
+          ) : evalTemplate ? (
             <EvaluatorForm
               projectId={projectId}
-              evalTemplates={[]}
+              evalTemplate={evalTemplate}
               existingEvaluator={
                 existingEvaluator.data && existingEvaluator.data.evalTemplate
                   ? {
@@ -539,7 +546,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 });
               }}
             />
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
     </DataTableControlsProvider>

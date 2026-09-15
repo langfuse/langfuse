@@ -59,7 +59,8 @@ function buildObservationClickHouseQuery(
   return `SELECT *
 FROM events_full
 WHERE project_id = ${quote(projectId)}
-  AND toStartOfMinute(start_time) = toDateTime('${minute}:00', 'UTC')
+  AND toStartOfMinute(start_time) >= toDateTime('${minute}:00', 'UTC')
+  AND toStartOfMinute(start_time) < toDateTime('${minute}:00', 'UTC') + INTERVAL 1 MINUTE
   AND xxHash32(trace_id) = xxHash32(${quote(observation.traceId)})
   AND trace_id = ${quote(observation.traceId)}
   AND span_id = ${quote(observation.id)}

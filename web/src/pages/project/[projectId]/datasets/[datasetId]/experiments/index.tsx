@@ -1,19 +1,8 @@
 import { DatasetRunsTable } from "@/src/features/datasets/components/DatasetRunsTable";
 import { api } from "@/src/utils/api";
-import Link from "next/link";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { UpdateDatasetDialogController } from "@/src/features/datasets/components/UpdateDatasetDialogController";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItemWithSecondaryAction,
-  DropdownMenuTrigger,
-  DropdownMenuItem,
-} from "@/src/components/ui/dropdown-menu";
-import { DeleteDatasetButton } from "@/src/components/deleteButton";
-import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 import { useState, useCallback } from "react";
-import { Bot, Edit, FlaskConical, LockIcon, MoreVertical } from "lucide-react";
+import { FlaskConical, MoreVertical } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   Dialog,
@@ -37,7 +26,10 @@ import { TemplateSelector } from "@/src/features/evals/components/template-selec
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
+import {
+  EvaluatorForm,
+  useEvaluatorFormTemplate,
+} from "@/src/features/evals/components/evaluator-form";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
 import { ExperimentsTable } from "@/src/features/experiments/components/table";
@@ -47,6 +39,7 @@ import {
   RouteParamsPendingFallback,
   useReadyRouteParams,
 } from "@/src/hooks/useReadyRouteParams";
+import { DatasetActionMenu } from "@/src/features/datasets/components/DatasetActionMenu";
 
 export default function DatasetExperimentsPage() {
   const route = useReadyRouteParams(["projectId", "datasetId"]);
@@ -181,6 +174,11 @@ function DatasetExperimentsView({
     evaluatorsData: evaluators.data,
     evalTemplatesData: evalTemplates.data,
     refetchEvaluators: evaluators.refetch,
+  });
+  const evalTemplate = useEvaluatorFormTemplate({
+    evalTemplates: evalTemplates.data?.templates ?? [],
+    evalTemplate: selectedEvaluatorData?.evaluator.evalTemplate,
+    templateId: selectedEvaluatorData?.templateId,
   });
   // Callback for preprocessing evaluator form values
   // For experiment evaluators, we only run on new data (not historic)
@@ -327,7 +325,7 @@ function DatasetExperimentsView({
               }
               listKey="datasets"
             />
-            <UpdateDatasetDialogController
+            <DatasetActionMenu
               projectId={projectId}
               datasetId={datasetId}
               datasetName={dataset.data?.name ?? ""}
@@ -337,56 +335,23 @@ function DatasetExperimentsView({
               datasetExpectedOutputSchema={
                 dataset.data?.expectedOutputSchema ?? undefined
               }
-              source="dataset"
+              manageEvaluatorsHref={
+                hasReadAccess
+                  ? `/project/${projectId}/evals?target=dataset`
+                  : undefined
+              }
             >
-              {({ disabled, openDialog }) => (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
-                    <DropdownMenuItemWithSecondaryAction
-                      disabled={disabled}
-                      icon={disabled === undefined ? Edit : LockIcon}
-                      title="Edit"
-                      onClick={openDialog}
-                    />
-                    <DropdownMenuItem asChild>
-                      <DuplicateDatasetButton
-                        datasetId={datasetId}
-                        projectId={projectId}
-                      />
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      asChild
-                      onSelect={(event) => {
-                        event.preventDefault();
-                        return false;
-                      }}
-                    >
-                      <DeleteDatasetButton
-                        itemId={datasetId}
-                        projectId={projectId}
-                        redirectUrl={`/project/${projectId}/datasets`}
-                        deleteConfirmation={dataset.data?.name}
-                      />
-                    </DropdownMenuItem>
-                    {hasReadAccess && (
-                      <DropdownMenuItem asChild>
-                        <Link
-                          href={`/project/${projectId}/evals?target=dataset`}
-                        >
-                          <Bot className="mr-2 ml-1 h-4 w-4" />
-                          Manage Evaluators
-                        </Link>
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+              {({ getTriggerProps }) => (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="Dataset actions"
+                  {...getTriggerProps()}
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
               )}
-            </UpdateDatasetDialogController>
+            </DatasetActionMenu>
           </>
         ),
       }}
@@ -398,7 +363,7 @@ function DatasetExperimentsView({
         setScoreOptions={setScoreOptions}
       />
       {/* Dialog for configuring evaluators */}
-      {selectedEvaluatorData && (
+      {selectedEvaluatorData && evalTemplate && (
         <Dialog
           open={showEvaluatorForm}
           onOpenChange={(open) => {
@@ -417,8 +382,7 @@ function DatasetExperimentsView({
             <EvaluatorForm
               useDialog={true}
               projectId={projectId}
-              evalTemplates={evalTemplates.data?.templates ?? []}
-              templateId={selectedEvaluatorData.templateId}
+              evalTemplate={evalTemplate}
               existingEvaluator={selectedEvaluatorData.evaluator}
               mode={selectedEvaluatorData.evaluator.id ? "edit" : "create"}
               hideTargetSection={!selectedEvaluatorData.evaluator.id}

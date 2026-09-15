@@ -15,7 +15,7 @@ import { api } from "@/src/utils/api";
 import { FlaskConical } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 export default function Experiments() {
   const router = useRouter();
