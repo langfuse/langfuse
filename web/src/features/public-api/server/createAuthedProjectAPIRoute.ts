@@ -386,6 +386,19 @@ export const createAuthedProjectAPIRoute = <
       return;
     }
 
+    const rateLimitResponse =
+      await RateLimitService.getInstance().rateLimitRequest(
+        auth.scope,
+        routeConfig.rateLimitResource || "public-api",
+      );
+
+    if (rateLimitResponse?.isRateLimited()) {
+      return rateLimitResponse.sendRestResponseIfLimited(res, {
+        errorContract: routeConfig.errorContract,
+        upgradePath: routeConfig.rateLimitUpgradePath,
+      });
+    }
+
     if (req.method === "GET" && deprecation && auth.scope.orgId) {
       const organization = await prisma.organization.findUnique({
         where: { id: auth.scope.orgId },
@@ -406,19 +419,6 @@ export const createAuthedProjectAPIRoute = <
         );
         return;
       }
-    }
-
-    const rateLimitResponse =
-      await RateLimitService.getInstance().rateLimitRequest(
-        auth.scope,
-        routeConfig.rateLimitResource || "public-api",
-      );
-
-    if (rateLimitResponse?.isRateLimited()) {
-      return rateLimitResponse.sendRestResponseIfLimited(res, {
-        errorContract: routeConfig.errorContract,
-        upgradePath: routeConfig.rateLimitUpgradePath,
-      });
     }
 
     logger.debug(

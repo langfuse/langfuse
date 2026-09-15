@@ -196,7 +196,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
         "This legacy endpoint is not available to organizations created on or after September 16, 2026. Use GET /api/public/v2/observations instead. Learn more: https://langfuse.com/docs/api-and-data-platform/features/observations-api",
       _deprecation: deprecation,
     });
-    expect(mockRateLimitRequest).not.toHaveBeenCalled();
+    expect(mockRateLimitRequest).toHaveBeenCalledOnce();
   });
 
   it("keeps deprecated GET routes available to older Cloud organizations", async () => {
@@ -322,6 +322,24 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       errorContract: undefined,
       upgradePath: undefined,
     });
+  });
+
+  it("rate limits deprecated GET routes before loading the organization", async () => {
+    const sendRestResponseIfLimited = vi.fn((res: NextApiResponse) => {
+      res.status(429).json({ message: "rate limited" });
+    });
+
+    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+    mockRateLimitRequest.mockResolvedValueOnce({
+      isRateLimited: () => true,
+      sendRestResponseIfLimited,
+    });
+
+    const res = await callRoute({ deprecation });
+
+    expect(res.statusCode).toBe(429);
+    expect(mockFindOrganization).not.toHaveBeenCalled();
   });
 
   it("passes upgrade guidance to the shared rate limit response", async () => {
