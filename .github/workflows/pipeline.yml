@@ -698,7 +698,7 @@ jobs:
     # at run creation, so this job starts immediately (!cancelled() lets the
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
-    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }}, otel-worker-shadow=${{ matrix.deploy-mode != '-azure' }})
+    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }}, otel-worker=${{ matrix.deploy-mode != '-azure' }})
     env:
       VITEST_MAX_WORKERS: "12"
       NODE_ENV: test
@@ -771,7 +771,7 @@ jobs:
           # phase below reapplies the mode-specific config and prerendering.
           write_test_env .env.dev.example .env
           write_test_env .env.dev${{ matrix.deploy-mode }}.example .env.runtime
-          echo "LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED=${{ matrix.deploy-mode != '-azure' }}" >> .env.runtime
+          echo "LANGFUSE_OTEL_INGESTION_USE_WORKER=${{ matrix.deploy-mode != '-azure' }}" >> .env.runtime
       - name: Setup Turbo remote cache
         if: env.CI_CACHE_ALLOWED == 'true'
         continue-on-error: true
