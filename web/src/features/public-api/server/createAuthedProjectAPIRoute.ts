@@ -52,6 +52,9 @@ import { verifyGatewayIngestionAuthorization } from "@/src/features/ai-gateway/s
 const isJsonStringTooLargeError = (error: unknown): error is RangeError =>
   error instanceof RangeError && error.message === "Invalid string length";
 
+const LEGACY_API_ORGANIZATION_CUTOFF = new Date("2026-09-16T00:00:00.000Z");
+const LEGACY_API_ORGANIZATION_CUTOFF_HUMAN = "September 16, 2026";
+
 export type AuthedProjectAPIRouteConfig<
   TQuery extends ZodType<any>,
   TBody extends ZodType<any>,
@@ -381,6 +384,28 @@ export const createAuthedProjectAPIRoute = <
       res.status(statusCode).json({ message });
 
       return;
+    }
+
+    if (req.method === "GET" && deprecation && auth.scope.orgId) {
+      const organization = await prisma.organization.findUnique({
+        where: { id: auth.scope.orgId },
+        select: { createdAt: true },
+      });
+
+      if (
+        organization &&
+        organization.createdAt >= LEGACY_API_ORGANIZATION_CUTOFF
+      ) {
+        res.status(410).json(
+          attachDeprecation(
+            {
+              message: `This legacy endpoint is not available to organizations created on or after ${LEGACY_API_ORGANIZATION_CUTOFF_HUMAN}. Use ${deprecation.replacement} instead. Learn more: ${deprecation.docsUrl}`,
+            },
+            deprecation,
+          ),
+        );
+        return;
+      }
     }
 
     const rateLimitResponse =
