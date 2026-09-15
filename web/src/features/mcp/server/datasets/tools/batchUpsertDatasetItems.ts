@@ -25,7 +25,12 @@ export const [batchUpsertDatasetItemsTool, handleBatchUpsertDatasetItems] =
 
           for (const item of input.items) {
             const result = await createDatasetItemForApi({
-              input: { ...item, datasetId: input.datasetId },
+              input: {
+                ...item,
+                datasetId: input.datasetId,
+                expectedOutput:
+                  item.expectedOutput === null ? "" : item.expectedOutput,
+              },
               projectId: context.projectId,
               auditScope: context,
             });
