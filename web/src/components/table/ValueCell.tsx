@@ -38,10 +38,10 @@ export type MetadataFilterActions = {
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
 const MAX_CELL_DISPLAY_CHARS = 2000;
 const ARRAY_PREVIEW_ITEMS = 3;
-// Mono paired with sans takes the next step down: values are text-xs on
-// the same 1.25rem line box as the text-sm keys, so both columns sit on
-// one baseline.
-const MONO_TEXT_CLASSES = "font-mono text-xs/5 wrap-break-word";
+// Values are the content, so they carry the sans face at text-sm; the mono
+// keys sit one step down on the same 1.25rem line box, so both columns
+// share a baseline.
+const VALUE_TEXT_CLASSES = "text-sm/5 wrap-break-word";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
 
 function renderStringWithLinks(text: string): React.ReactNode {
@@ -510,7 +510,7 @@ export const ValueCell = memo(
       // table: the cell contributes no intrinsic width, then fills its column.
       <div
         className={cn(
-          MONO_TEXT_CLASSES,
+          VALUE_TEXT_CLASSES,
           "group relative max-w-full",
           singleLine && "w-0 min-w-full",
         )}

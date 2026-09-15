@@ -67,12 +67,13 @@ import { LargeStringFallback } from "@/src/components/ui/LargeStringFallback";
 
 // Table layout: the key column is sized to its keys (capped at 40 % of the
 // table), each row carries a hairline divider, and dotted keys wrap at the
-// dots. Keys sit one step up the type scale from the mono values, which read
-// larger than sans at an equal size.
+// dots. Keys are mono one step down the type scale from the sans values:
+// mono reads larger than sans at an equal size, and the values are the
+// content.
 const INDENTATION_PER_LEVEL = 16;
 /** Width in px reserved for the chevron column at level 0. */
-const INDENTATION_BASE = 16;
-const KEY_CLASSES = "text-muted-foreground text-sm/5 wrap-break-word";
+const INDENTATION_BASE = 12;
+const KEY_CLASSES = "text-muted-foreground font-mono text-xs/5 wrap-break-word";
 const CELL_CLASSES =
   "border-border/60 py-1 pr-2 pl-1 align-top whitespace-normal";
 
@@ -492,10 +493,10 @@ function JsonPrettyTable({
         // w-max keeps the column at the longest key (up to the cap) instead
         // of letting long values squeeze it to its narrowest wrap; the
         // floor keeps the value column at a steady x across stacked tables.
-        className="flex w-max max-w-[40cqw] min-w-40 items-start text-sm/5 wrap-break-word"
+        className="flex w-max max-w-[40cqw] min-w-40 items-start text-xs/5 wrap-break-word"
       >
         <div
-          // One key line tall (text-sm's line box, inherited from the key
+          // One key line tall (the 1.25rem line box inherited from the key
           // classes on the wrapper) so the chevron centres on the first line
           // of the key instead of the top of the row.
           className="flex h-[1lh] shrink-0 items-center justify-end"
@@ -528,7 +529,7 @@ function JsonPrettyTable({
           // A flex item cannot shrink below its min-content width, and an
           // undotted key is one unbreakable word: without min-w-0 a key
           // longer than the column cap overflows the cell into the value.
-          className={cn("ml-1 min-w-0 cursor-text", KEY_CLASSES)}
+          className={cn("min-w-0 cursor-text", KEY_CLASSES)}
         >
           {itemBadgeType && (
             <span className="mr-1 inline-block align-middle">
