@@ -20,6 +20,32 @@ service:
             type: optional<integer>
             docs: limit of items per page
       response: PaginatedDatasets
+    list-legacy:
+      method: GET
+      docs: |
+        Get all datasets (deprecated v1 endpoint, also returns `items` and `runs` arrays per dataset).
+        New integrations should use the v2 endpoint above.
+      path: /datasets
+      request:
+        name: GetDatasetsLegacyRequest
+        query-parameters:
+          fromTimestamp:
+            type: optional<nullable<datetime>>
+            docs: |
+              Optional ISO-8601 lower bound on the dataset row's `createdAt`
+              (inclusive). Omit for an open-ended start.
+          toTimestamp:
+            type: optional<nullable<datetime>>
+            docs: |
+              Optional ISO-8601 upper bound on the dataset row's `createdAt`
+              (exclusive). Omit for an open-ended end.
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
+      response: PaginatedDatasetsLegacy
     get:
       method: GET
       docs: Get a dataset
@@ -80,6 +106,22 @@ types:
     properties:
       data: list<commons.Dataset>
       meta: pagination.MetaResponse
+  PaginatedDatasetsLegacy:
+    properties:
+      data:
+        type: list<DatasetLegacy>
+        docs: Datasets with their item ids and run names embedded (v1 response shape).
+      meta: pagination.MetaResponse
+  DatasetLegacy:
+    docs: Dataset with the v1 response shape that embeds item ids and run names.
+    extends: commons.Dataset
+    properties:
+      items:
+        type: list<string>
+        docs: Dataset item ids belonging to this dataset.
+      runs:
+        type: list<string>
+        docs: Names of runs that have been executed against this dataset.
   CreateDatasetRequest:
     properties:
       name: string

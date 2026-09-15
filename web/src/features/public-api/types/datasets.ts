@@ -316,6 +316,11 @@ export const PostDatasetsV1Response = APIDataset.extend({
 
 // GET /datasets
 export const GetDatasetsV1Query = z.object({
+  // Optional ISO-8601 time window on dataset creation time. Both params are
+  // independently optional and compose into a half-open `[fromTimestamp, toTimestamp)`
+  // range. Omitting both preserves the historical "all datasets" behavior.
+  fromTimestamp: stringDateTime,
+  toTimestamp: stringDateTime,
   ...paginationZod,
 });
 export const GetDatasetsV1Response = z
