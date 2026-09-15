@@ -14,6 +14,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { useOptionalEntitlement } from "@/src/features/entitlements";
 
 type TableActionMenuProps = {
   projectId: string;
@@ -34,6 +36,60 @@ const getDefaultIcon = (type: TableAction["type"]) => {
   }
   return <Trash className="h-4 w-4 sm:mr-2" />;
 };
+
+function TableActionMenuButton({
+  projectId,
+  action,
+  onSelect,
+}: {
+  projectId: string;
+  action: TableAction;
+  onSelect: (action: TableAction) => void;
+}) {
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: action.accessCheck.scope,
+  });
+  const hasEntitlement = useOptionalEntitlement(action.accessCheck.entitlement);
+  const disabledReason = action.disabled
+    ? action.disabledReason
+    : !hasAccess
+      ? "You don't have permission to perform this action."
+      : !hasEntitlement
+        ? "This feature is not available in your current plan."
+        : undefined;
+  const isDisabled = Boolean(action.disabled) || !hasAccess || !hasEntitlement;
+
+  const menuItem = (
+    <Button
+      variant="outline"
+      size="sm"
+      className="h-8"
+      title={disabledReason ?? action.label}
+      disabled={isDisabled}
+      onClick={() => {
+        if (isDisabled) return;
+        onSelect(action);
+      }}
+    >
+      {action.icon || getDefaultIcon(action.type)}
+      <span className="hidden sm:inline">{action.label}</span>
+    </Button>
+  );
+
+  if (isDisabled && disabledReason) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span>{menuItem}</span>
+        </TooltipTrigger>
+        <TooltipContent side="left">{disabledReason}</TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return menuItem;
+}
 
 export function TableActionMenu({
   projectId,
@@ -105,37 +161,14 @@ export function TableActionMenu({
           </Button>
           <div className="bg-border h-5 w-px" />
           <div className="flex items-center gap-2">
-            {actions.map((action) => {
-              const menuItem = (
-                <Button
-                  key={action.id}
-                  variant="outline"
-                  size="sm"
-                  className="h-8"
-                  title={action.label}
-                  disabled={action.disabled}
-                  onClick={() => handleActionSelect(action)}
-                >
-                  {action.icon || getDefaultIcon(action.type)}
-                  <span className="hidden sm:inline">{action.label}</span>
-                </Button>
-              );
-
-              if (action.disabled && action.disabledReason) {
-                return (
-                  <Tooltip key={action.id}>
-                    <TooltipTrigger asChild>
-                      <span>{menuItem}</span>
-                    </TooltipTrigger>
-                    <TooltipContent side="left">
-                      {action.disabledReason}
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              }
-
-              return menuItem;
-            })}
+            {actions.map((action) => (
+              <TableActionMenuButton
+                key={action.id}
+                projectId={projectId}
+                action={action}
+                onSelect={handleActionSelect}
+              />
+            ))}
           </div>
         </div>
       </div>
