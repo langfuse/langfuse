@@ -81,6 +81,7 @@ function pinSessionFocusTarget(
   virtualizer: Virtualizer<HTMLDivElement, Element>,
   index: number,
   focusTarget: SessionFocusTarget,
+  onDone: () => void,
 ): () => void {
   const startedAt = performance.now();
   let stableFrames = 0;
@@ -91,9 +92,15 @@ function pinSessionFocusTarget(
   const stop = () => {
     cancelAnimationFrame(frame);
     USER_SCROLL_EVENTS.forEach((event) =>
-      listeningOn?.removeEventListener(event, stop),
+      listeningOn?.removeEventListener(event, finish),
     );
     listeningOn = null;
+  };
+  // Landed, timed out, or handed back to the user: the target is spent, so a
+  // later remount must not pin it again.
+  const finish = () => {
+    onDone();
+    stop();
   };
 
   const tick = () => {
@@ -104,7 +111,7 @@ function pinSessionFocusTarget(
       // The user taking over the scroll ends the pin; fighting them is worse
       // than landing slightly off.
       USER_SCROLL_EVENTS.forEach((event) =>
-        scrollElement.addEventListener(event, stop, { passive: true }),
+        scrollElement.addEventListener(event, finish, { passive: true }),
       );
       listeningOn = scrollElement;
     }
@@ -160,7 +167,7 @@ function pinSessionFocusTarget(
       stableFrames >= SETTLE_FRAMES &&
       (!focusTarget.observationId || observationSeen);
     if (settled || elapsed > MAX_PIN_MS) {
-      stop();
+      finish();
       return;
     }
     frame = requestAnimationFrame(tick);
@@ -187,9 +194,23 @@ export function useScrollToFocusedSessionTrace({
   virtualizer: Virtualizer<HTMLDivElement, Element>;
 }) {
   const appliedKeyRef = useRef<string | null>(null);
+  const pinDoneRef = useRef(false);
   const stopPinRef = useRef<(() => void) | null>(null);
 
-  useEffect(() => () => stopPinRef.current?.(), []);
+  useEffect(
+    () => () => {
+      stopPinRef.current?.();
+      stopPinRef.current = null;
+      // The pin is a frame loop, so an unmount cancels it mid-flight: React
+      // StrictMode remounts every component once in development, and the feed
+      // is re-created when the view id lands in the URL on a cold load. Both
+      // happen while the loop is still aligning, leaving the list at the top.
+      // Forgetting the key lets the remounted list pin again; a target that
+      // already landed stays applied so no later remount yanks the user back.
+      if (!pinDoneRef.current) appliedKeyRef.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!enabled || !focusTarget || !traceIds) return;
@@ -198,8 +219,16 @@ export function useScrollToFocusedSessionTrace({
     const index = traceIds.indexOf(focusTarget.traceId);
     if (index === -1) return;
     appliedKeyRef.current = key;
+    pinDoneRef.current = false;
 
     stopPinRef.current?.();
-    stopPinRef.current = pinSessionFocusTarget(virtualizer, index, focusTarget);
+    stopPinRef.current = pinSessionFocusTarget(
+      virtualizer,
+      index,
+      focusTarget,
+      () => {
+        pinDoneRef.current = true;
+      },
+    );
   }, [enabled, focusTarget, traceIds, virtualizer]);
 }
