@@ -331,7 +331,7 @@ export default [
   },
 
   // Overlay primitive wrappers must stack via the app layer system (route the
-  // portal into a layer container, see components/ui/layer.tsx), never by
+  // portal into a layer container, see context/LayerContext/LayerContext.tsx), never by
   // escalating z-index to escape to the top. On these wrapper files, ban a
   // high/arbitrary z-index ANYWHERE (mode "wrapper") — every high z-index here
   // is an escape. z-index stays a local, within-layer tool elsewhere.
