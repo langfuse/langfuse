@@ -203,8 +203,13 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
 
     expect(res.statusCode).toBe(410);
     expect(res._getJSONData()).toEqual({
+      error: "LEGACY_API_UNAVAILABLE_FOR_NEW_ORGANIZATION",
       message:
-        "This legacy endpoint is not available to organizations created on or after September 16, 2026. Use GET /api/public/v2/observations instead. Learn more: https://langfuse.com/docs/api-and-data-platform/features/observations-api",
+        "GET /api/public/test is a legacy API that is not available to organizations created on or after September 16, 2026. Migrate this request to GET /api/public/v2/observations. See the migration documentation at https://langfuse.com/docs/api-and-data-platform/features/observations-api.",
+      requestedEndpoint: "GET /api/public/test",
+      replacementEndpoint: "GET /api/public/v2/observations",
+      documentationUrl:
+        "https://langfuse.com/docs/api-and-data-platform/features/observations-api",
       _deprecation: deprecation,
     });
     expect(mockRateLimitRequest).toHaveBeenCalledOnce();

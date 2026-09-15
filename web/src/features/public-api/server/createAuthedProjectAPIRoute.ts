@@ -415,6 +415,7 @@ export const createAuthedProjectAPIRoute = <
         organization &&
         organization.createdAt >= LEGACY_API_ORGANIZATION_CUTOFF
       ) {
+        const apiPath = clickHouseRouteForRequest(req);
         const rejectionContext = {
           orgId: auth.scope.orgId,
           projectId: auth.scope.projectId,
@@ -429,7 +430,7 @@ export const createAuthedProjectAPIRoute = <
           "Rejected legacy GET API request for organization created at or after cutoff",
           {
             ...rejectionContext,
-            apiPath: clickHouseRouteForRequest(req),
+            apiPath,
             organizationCreatedAt: organization.createdAt.toISOString(),
             cutoff: LEGACY_API_ORGANIZATION_CUTOFF.toISOString(),
           },
@@ -437,7 +438,11 @@ export const createAuthedProjectAPIRoute = <
         res.status(410).json(
           attachDeprecation(
             {
-              message: `This legacy endpoint is not available to organizations created on or after ${LEGACY_API_ORGANIZATION_CUTOFF_HUMAN}. Use ${deprecation.replacement} instead. Learn more: ${deprecation.docsUrl}`,
+              error: "LEGACY_API_UNAVAILABLE_FOR_NEW_ORGANIZATION",
+              message: `${apiPath} is a legacy API that is not available to organizations created on or after ${LEGACY_API_ORGANIZATION_CUTOFF_HUMAN}. Migrate this request to ${deprecation.replacement}. See the migration documentation at ${deprecation.docsUrl}.`,
+              requestedEndpoint: apiPath,
+              replacementEndpoint: deprecation.replacement,
+              documentationUrl: deprecation.docsUrl,
             },
             deprecation,
           ),
