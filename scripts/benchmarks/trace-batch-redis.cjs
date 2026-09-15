@@ -13,11 +13,12 @@ const source = fs.readFileSync(
   "utf8",
 );
 const extract = (name) => {
-  const match = source.match(
-    new RegExp(`const ${name} = \x60([\\s\\S]*?)\x60;`),
-  );
-  if (!match) throw new Error(`Missing production script: ${name}`);
-  return match[1];
+  const marker = `const ${name} = \x60`;
+  const start = source.indexOf(marker);
+  const end = source.indexOf("\x60;", start + marker.length);
+  if (start < 0 || end < 0)
+    throw new Error(`Missing production script: ${name}`);
+  return source.slice(start + marker.length, end);
 };
 const script = (name) =>
   extract(name)
