@@ -128,27 +128,6 @@ types:
       generation-update:
         type: UpdateGenerationEvent
         docs: "Updates a generation based on id. Sunset warning: This endpoint remains available, but in v4-only write mode it accepts only `score-create` events as ingestion data. This event type is rejected. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4 documentation](https://langfuse.com/docs/v4) and the [SDK overview](https://langfuse.com/docs/observability/sdk/overview)."
-      agent-create:
-        type: CreateAgentEvent
-        docs: "Creates an agent observation. Sunset warning: This endpoint remains available, but in v4-only write mode it accepts only `score-create` events as ingestion data. This event type is rejected. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4 documentation](https://langfuse.com/docs/v4) and the [SDK overview](https://langfuse.com/docs/observability/sdk/overview)."
-      tool-create:
-        type: CreateToolEvent
-        docs: "Creates a tool observation. Sunset warning: This endpoint remains available, but in v4-only write mode it accepts only `score-create` events as ingestion data. This event type is rejected. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4 documentation](https://langfuse.com/docs/v4) and the [SDK overview](https://langfuse.com/docs/observability/sdk/overview)."
-      chain-create:
-        type: CreateChainEvent
-        docs: "Creates a chain observation. Sunset warning: This endpoint remains available, but in v4-only write mode it accepts only `score-create` events as ingestion data. This event type is rejected. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4 documentation](https://langfuse.com/docs/v4) and the [SDK overview](https://langfuse.com/docs/observability/sdk/overview)."
-      retriever-create:
-        type: CreateRetrieverEvent
-        docs: "Creates a retriever observation. Sunset warning: This endpoint remains available, but in v4-only write mode it accepts only `score-create` events as ingestion data. This event type is rejected. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4 documentation](https://langfuse.com/docs/v4) and the [SDK overview](https://langfuse.com/docs/observability/sdk/overview)."
-      evaluator-create:
-        type: CreateEvaluatorEvent
-        docs: "Creates an evaluator observation. Sunset warning: This endpoint remains available, but in v4-only write mode it accepts only `score-create` events as ingestion data. This event type is rejected. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4 documentation](https://langfuse.com/docs/v4) and the [SDK overview](https://langfuse.com/docs/observability/sdk/overview)."
-      embedding-create:
-        type: CreateEmbeddingEvent
-        docs: "Creates an embedding observation. Sunset warning: This endpoint remains available, but in v4-only write mode it accepts only `score-create` events as ingestion data. This event type is rejected. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4 documentation](https://langfuse.com/docs/v4) and the [SDK overview](https://langfuse.com/docs/observability/sdk/overview)."
-      guardrail-create:
-        type: CreateGuardrailEvent
-        docs: "Creates a guardrail observation. Sunset warning: This endpoint remains available, but in v4-only write mode it accepts only `score-create` events as ingestion data. This event type is rejected. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4 documentation](https://langfuse.com/docs/v4) and the [SDK overview](https://langfuse.com/docs/observability/sdk/overview)."
       event-create:
         type: CreateEventEvent
         docs: "Creates an event. Sunset warning: This endpoint remains available, but in v4-only write mode it accepts only `score-create` events as ingestion data. This event type is rejected. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4 documentation](https://langfuse.com/docs/v4) and the [SDK overview](https://langfuse.com/docs/observability/sdk/overview)."
@@ -401,48 +380,6 @@ types:
     extends: BaseEvent
     properties:
       body: UpdateGenerationBody
-
-  CreateAgentEvent:
-    docs: "Sunset warning: This endpoint remains available, but in v4-only write mode it accepts only `score-create` events as ingestion data. This event type is rejected. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4 documentation](https://langfuse.com/docs/v4) and the [SDK overview](https://langfuse.com/docs/observability/sdk/overview)."
-    extends: BaseEvent
-    properties:
-      body: CreateGenerationBody
-
-  CreateToolEvent:
-    docs: "Sunset warning: This endpoint remains available, but in v4-only write mode it accepts only `score-create` events as ingestion data. This event type is rejected. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4 documentation](https://langfuse.com/docs/v4) and the [SDK overview](https://langfuse.com/docs/observability/sdk/overview)."
-    extends: BaseEvent
-    properties:
-      body: CreateGenerationBody
-
-  CreateChainEvent:
-    docs: "Sunset warning: This endpoint remains available, but in v4-only write mode it accepts only `score-create` events as ingestion data. This event type is rejected. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4 documentation](https://langfuse.com/docs/v4) and the [SDK overview](https://langfuse.com/docs/observability/sdk/overview)."
-    extends: BaseEvent
-    properties:
-      body: CreateGenerationBody
-
-  CreateRetrieverEvent:
-    docs: "Sunset warning: This endpoint remains available, but in v4-only write mode it accepts only `score-create` events as ingestion data. This event type is rejected. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4 documentation](https://langfuse.com/docs/v4) and the [SDK overview](https://langfuse.com/docs/observability/sdk/overview)."
-    extends: BaseEvent
-    properties:
-      body: CreateGenerationBody
-
-  CreateEvaluatorEvent:
-    docs: "Sunset warning: This endpoint remains available, but in v4-only write mode it accepts only `score-create` events as ingestion data. This event type is rejected. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4 documentation](https://langfuse.com/docs/v4) and the [SDK overview](https://langfuse.com/docs/observability/sdk/overview)."
-    extends: BaseEvent
-    properties:
-      body: CreateGenerationBody
-
-  CreateEmbeddingEvent:
-    docs: "Sunset warning: This endpoint remains available, but in v4-only write mode it accepts only `score-create` events as ingestion data. This event type is rejected. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4 documentation](https://langfuse.com/docs/v4) and the [SDK overview](https://langfuse.com/docs/observability/sdk/overview)."
-    extends: BaseEvent
-    properties:
-      body: CreateGenerationBody
-
-  CreateGuardrailEvent:
-    docs: "Sunset warning: This endpoint remains available, but in v4-only write mode it accepts only `score-create` events as ingestion data. This event type is rejected. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4 documentation](https://langfuse.com/docs/v4) and the [SDK overview](https://langfuse.com/docs/observability/sdk/overview)."
-    extends: BaseEvent
-    properties:
-      body: CreateGenerationBody
 
   CreateSpanEvent:
     docs: "Sunset warning: This endpoint remains available, but in v4-only write mode it accepts only `score-create` events as ingestion data. This event type is rejected. Langfuse Cloud enters v4-only write mode on November 16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4 documentation](https://langfuse.com/docs/v4) and the [SDK overview](https://langfuse.com/docs/observability/sdk/overview)."
