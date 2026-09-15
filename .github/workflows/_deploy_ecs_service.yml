@@ -47,11 +47,27 @@ jobs:
       - name: Login to AWS ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+      # Cloud images must FROM a digest-pinned WizOS Node image via this
+      # account's ECR pull-through cache (prefix wizos/ → registry.os.wiz.io).
+      # Required GitHub variables: WIZOS_ECR_REPOSITORY, WIZOS_NODE_TAG,
+      # WIZOS_NODE_DIGEST, WIZOS_OS_RELEASE_ID. Missing values fail closed;
+      # there is no Alpine fallback.
+      - name: Resolve WizOS Node base
+        id: wizos-node-base
+        uses: ./.github/actions/wizos-node-base
+        with:
+          ecr-registry: ${{ steps.login-ecr.outputs.registry }}
+          wizos-ecr-repository: ${{ vars.WIZOS_ECR_REPOSITORY }}
+          wizos-node-tag: ${{ vars.WIZOS_NODE_TAG }}
+          wizos-node-digest: ${{ vars.WIZOS_NODE_DIGEST }}
+          wizos-os-release-id: ${{ vars.WIZOS_OS_RELEASE_ID }}
       - name: Build, tag, and push Docker image
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ steps.split.outputs._0 }}
           IMAGE_TAG: ${{ github.sha }}
+          NODE_BASE_IMAGE: ${{ steps.wizos-node-base.outputs.node-base-image }}
+          WIZOS_OS_RELEASE_ID: ${{ vars.WIZOS_OS_RELEASE_ID }}
           STEPS_SPLIT_OUTPUTS__0: ${{ steps.split.outputs._0 }}
           VARS_NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: ${{ vars.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION }}
           VARS_NEXT_LANGFUSE_TRACING_SAMPLE_RATE: ${{ vars.NEXT_LANGFUSE_TRACING_SAMPLE_RATE }}
@@ -71,6 +87,7 @@ jobs:
           docker build \
             -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
             -f ./${STEPS_SPLIT_OUTPUTS__0}/Dockerfile \
+            --build-arg NODE_BASE_IMAGE="${NODE_BASE_IMAGE}" \
             --build-arg NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=${VARS_NEXT_PUBLIC_LANGFUSE_CLOUD_REGION} \
             --build-arg NEXT_LANGFUSE_TRACING_SAMPLE_RATE=${VARS_NEXT_LANGFUSE_TRACING_SAMPLE_RATE} \
             --build-arg NEXT_PUBLIC_SENTRY_ENVIRONMENT=${VARS_NEXT_PUBLIC_SENTRY_ENVIRONMENT} \
@@ -87,6 +104,7 @@ jobs:
             --build-arg NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE=${VARS_NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE} \
             --build-arg NEXT_PUBLIC_ASSET_PREFIX=${VARS_NEXT_PUBLIC_ASSET_PREFIX} \
             .
+          bash scripts/ci/wizos-base-image.sh verify-image "${REGISTRY}/${REPOSITORY}:${IMAGE_TAG}"
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
       - name: Render AWS ECS Task Definition
         id: render-task-definition

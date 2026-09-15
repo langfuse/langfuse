@@ -195,13 +195,30 @@ jobs:
           role-to-assume: ${{ vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN }}
 
       - name: Login to AWS ECR
+        id: login-ecr
         uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+
+      # Preview images follow the Cloud base: digest-pinned WizOS Node via this
+      # account's ECR pull-through cache. Required GitHub variables:
+      # WIZOS_ECR_REPOSITORY, WIZOS_NODE_TAG, WIZOS_NODE_DIGEST,
+      # WIZOS_OS_RELEASE_ID. Missing values fail closed; no Alpine fallback.
+      - name: Resolve WizOS Node base
+        id: wizos-node-base
+        uses: ./.github/actions/wizos-node-base
+        with:
+          ecr-registry: ${{ steps.login-ecr.outputs.registry }}
+          wizos-ecr-repository: ${{ vars.WIZOS_ECR_REPOSITORY }}
+          wizos-node-tag: ${{ vars.WIZOS_NODE_TAG }}
+          wizos-node-digest: ${{ vars.WIZOS_NODE_DIGEST }}
+          wizos-os-release-id: ${{ vars.WIZOS_OS_RELEASE_ID }}
 
       - name: Build and push ${{ matrix.target }} image
         env:
           COMMIT_SHA: ${{ needs.meta.outputs.commit_sha }}
           IMAGE: ${{ matrix.image }}
           DOCKERFILE: ${{ matrix.dockerfile }}
+          NODE_BASE_IMAGE: ${{ steps.wizos-node-base.outputs.node-base-image }}
+          WIZOS_OS_RELEASE_ID: ${{ vars.WIZOS_OS_RELEASE_ID }}
           # Static, workflow-defined literal (per-target flags) — no user input.
           EXTRA_BUILD_ARGS: ${{ matrix.extra_build_args }}
           TARGET: ${{ matrix.target }}
@@ -260,11 +277,13 @@ jobs:
           # shellcheck disable=SC2086
           docker build \
             --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
+            --build-arg NODE_BASE_IMAGE="${NODE_BASE_IMAGE}" \
             ${EXTRA_BUILD_ARGS} \
             "${preview_meta_args[@]}" \
             -f "${DOCKERFILE}" \
             -t "${IMAGE}" \
             .
+          bash scripts/ci/wizos-base-image.sh verify-image "${IMAGE}"
           docker push "${IMAGE}"
 
   # Single authoritative status comment once both builds settle, updating the
