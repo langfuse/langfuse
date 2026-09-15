@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import {
   deriveSaveReason,
   makeWidgetFormSchema,
@@ -339,6 +341,17 @@ describe("deriveSaveReason", () => {
         metrics: [{ aggregation: { message: "bad aggregation" } }],
       }),
     ).toBe("bad aggregation");
+  });
+
+  it("prefers metrics.root over a nested item message", () => {
+    expect(
+      deriveSaveReason({
+        metrics: {
+          root: { message: "add a metric" },
+          0: { measure: { message: "bad measure" } },
+        },
+      }),
+    ).toBe("add a metric");
   });
 
   it("falls back to the first message anywhere for an unlisted path", () => {

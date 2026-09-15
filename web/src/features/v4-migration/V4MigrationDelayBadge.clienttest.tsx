@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { V4MigrationDelayBadge } from "./V4MigrationDelayBadge";
 import {
@@ -121,8 +121,10 @@ const mocks = vi.hoisted(() => ({
   } as V4MigrationSdkState,
   v4UpgradeUiEnabled: true,
   forceV3: false,
-  isBetaEnabled: false,
+  isV4: false,
+  projectId: "project-1",
   openMigrationPanel: vi.fn(),
+  capture: vi.fn(),
 }));
 
 vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
@@ -134,17 +136,17 @@ vi.mock("@/src/features/v4-migration/useForceV3Experience", () => ({
   useForceV3Experience: () => mocks.forceV3,
 }));
 
-vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
-  useV4Beta: () => ({ isBetaEnabled: mocks.isBetaEnabled }),
+vi.mock("@/src/features/events/hooks/useReadPath", () => ({
+  useReadPath: () => ({ isV4: mocks.isV4 }),
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
-  usePostHogClientCapture: () => vi.fn(),
+  usePostHogClientCapture: () => mocks.capture,
 }));
 
 vi.mock("@/src/features/projects/hooks", () => ({
   useQueryProject: () => ({
-    project: { id: "project-1", name: "Project One" },
+    project: { id: mocks.projectId, name: "Project One" },
     organization: { id: "org-1" },
   }),
 }));
@@ -159,7 +161,7 @@ vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
 }));
 
 vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
-  useCanUseInAppAgent: () => false,
+  useIsInAppAgentLauncherVisible: () => false,
   useInAppAiAgent: () => ({ setOpen: vi.fn(), submit: vi.fn() }),
 }));
 
@@ -197,18 +199,19 @@ describe("V4MigrationDelayBadge", () => {
     vi.clearAllMocks();
     mocks.v4UpgradeUiEnabled = true;
     mocks.forceV3 = false;
-    mocks.isBetaEnabled = false;
+    mocks.isV4 = false;
+    mocks.projectId = "project-1";
     setSdk("latest", [makeSdkUsageSeries({})]);
   });
 
   it("stays hidden when every ingestion path is clean", () => {
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(screen.queryByText("New data in ~15 min")).not.toBeInTheDocument();
   });
 
   it("shows SDK copy for outdated SDK traffic", () => {
     setSdk("legacy", [outdatedSdkSeries()]);
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(screen.getAllByText("New data in ~15 min").length).toBeGreaterThan(
       0,
     );
@@ -219,7 +222,7 @@ describe("V4MigrationDelayBadge", () => {
 
   it("shows OTel copy for delayed OTel exporters", () => {
     setSdk("otel_header_required", [delayedOtelSeries()]);
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(
       screen.getAllByText(/Update your OTel instrumentation for real-time data/)
         .length,
@@ -228,7 +231,7 @@ describe("V4MigrationDelayBadge", () => {
 
   it("shows instrumentation copy for headerless ingestion traffic", () => {
     setSdk("unknown", [customIngestionSeries()]);
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(
       screen.getAllByText(/Upgrade your instrumentation for real-time data/)
         .length,
@@ -237,7 +240,7 @@ describe("V4MigrationDelayBadge", () => {
 
   it("shows the generic copy when several delayed paths fire", () => {
     setSdk("legacy", [outdatedSdkSeries(), delayedOtelSeries()]);
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(
       screen.getAllByText(/Upgrade to v4 for real-time data/).length,
     ).toBeGreaterThan(0);
@@ -263,39 +266,39 @@ describe("V4MigrationDelayBadge", () => {
       upgradeRequiredCount: 0,
       delayedOtelIngestionCount: 0,
     };
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(screen.queryByText("New data in ~15 min")).not.toBeInTheDocument();
   });
 
   it("stays hidden while the check is still running", () => {
     setSdk("checking", []);
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(screen.queryByText("New data in ~15 min")).not.toBeInTheDocument();
   });
 
   it("stays hidden without the v4 upgrade UI flag", () => {
     mocks.v4UpgradeUiEnabled = false;
     setSdk("legacy", [outdatedSdkSeries()]);
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(screen.queryByText("New data in ~15 min")).not.toBeInTheDocument();
   });
 
   it("stays hidden for forced-v3 projects while they view v3", () => {
     // On v3 views the legacy tables are real-time — no delay to announce.
     mocks.forceV3 = true;
-    mocks.isBetaEnabled = false;
+    mocks.isV4 = false;
     setSdk("legacy", [outdatedSdkSeries()]);
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(screen.queryByText("New data in ~15 min")).not.toBeInTheDocument();
   });
 
   it("opens the partner FAQ instead of the panel for forced-v3 projects on v4", () => {
     mocks.forceV3 = true;
-    mocks.isBetaEnabled = true;
+    mocks.isV4 = true;
     setSdk("legacy", [outdatedSdkSeries()]);
     const windowOpen = vi.spyOn(window, "open").mockImplementation(() => null);
 
-    render(<V4MigrationDelayBadge />);
+    render(<V4MigrationDelayBadge page="traces" />);
     expect(
       screen.getAllByText(/Learn more in the docs/).length,
     ).toBeGreaterThan(0);
@@ -307,6 +310,181 @@ describe("V4MigrationDelayBadge", () => {
       "noopener,noreferrer",
     );
     expect(mocks.openMigrationPanel).not.toHaveBeenCalled();
+    expect(mocks.capture).toHaveBeenCalledWith(
+      "v4_migration:delay_badge_clicked",
+      { action: "docs", page: "traces" },
+    );
     windowOpen.mockRestore();
+  });
+
+  describe("discoverability events", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const hoveredCalls = () =>
+      mocks.capture.mock.calls.filter(
+        ([name]) => name === "v4_migration:delay_badge_hovered",
+      );
+
+    it("fires delay_badge_shown once per mount with the page dimension", () => {
+      setSdk("legacy", [outdatedSdkSeries()]);
+      const { rerender } = render(<V4MigrationDelayBadge page="traces" />);
+      rerender(<V4MigrationDelayBadge page="traces" />);
+      expect(
+        mocks.capture.mock.calls.filter(
+          ([name]) => name === "v4_migration:delay_badge_shown",
+        ),
+      ).toEqual([["v4_migration:delay_badge_shown", { page: "traces" }]]);
+    });
+
+    it("does not fire delay_badge_shown while the badge is hidden", () => {
+      setSdk("checking", []);
+      render(<V4MigrationDelayBadge page="traces" />);
+      expect(mocks.capture).not.toHaveBeenCalled();
+    });
+
+    it("fires delay_badge_hovered once after the dwell threshold", () => {
+      vi.useFakeTimers();
+      setSdk("legacy", [outdatedSdkSeries()]);
+      render(<V4MigrationDelayBadge page="observations" />);
+      const badge = screen.getByRole("button");
+
+      fireEvent.mouseEnter(badge);
+      vi.advanceTimersByTime(500);
+      fireEvent.mouseLeave(badge);
+      // A later hover on the same mount must not double-count.
+      fireEvent.mouseEnter(badge);
+      vi.advanceTimersByTime(500);
+
+      expect(hoveredCalls()).toEqual([
+        ["v4_migration:delay_badge_hovered", { page: "observations" }],
+      ]);
+    });
+
+    it("does not count a drive-by hover shorter than the dwell", () => {
+      vi.useFakeTimers();
+      setSdk("legacy", [outdatedSdkSeries()]);
+      render(<V4MigrationDelayBadge page="traces" />);
+      const badge = screen.getByRole("button");
+
+      fireEvent.mouseEnter(badge);
+      vi.advanceTimersByTime(300);
+      fireEvent.mouseLeave(badge);
+      vi.advanceTimersByTime(1000);
+
+      expect(hoveredCalls()).toHaveLength(0);
+    });
+
+    it("fires delay_badge_shown again when the project changes in place", () => {
+      setSdk("legacy", [outdatedSdkSeries()]);
+      const { rerender } = render(<V4MigrationDelayBadge page="traces" />);
+      // The project switcher navigates within the same route, so the badge is
+      // reconciled (not remounted) while the new project's SDK check runs.
+      setSdk("checking", []);
+      mocks.projectId = "project-2";
+      rerender(<V4MigrationDelayBadge page="traces" />);
+      setSdk("legacy", [outdatedSdkSeries()]);
+      rerender(<V4MigrationDelayBadge page="traces" />);
+      expect(
+        mocks.capture.mock.calls.filter(
+          ([name]) => name === "v4_migration:delay_badge_shown",
+        ),
+      ).toHaveLength(2);
+    });
+
+    it("does not count a hover that ends in a click", () => {
+      vi.useFakeTimers();
+      setSdk("legacy", [outdatedSdkSeries()]);
+      render(<V4MigrationDelayBadge page="traces" />);
+      const badge = screen.getByRole("button");
+
+      fireEvent.mouseEnter(badge);
+      vi.advanceTimersByTime(300);
+      // Also the touch path: a tap synthesizes mouseenter + click and never
+      // delivers a mouseleave to cancel the dwell timer.
+      fireEvent.click(badge);
+      vi.advanceTimersByTime(1000);
+
+      expect(hoveredCalls()).toHaveLength(0);
+    });
+
+    it("cancels a pending dwell when the badge hides without unmounting", () => {
+      vi.useFakeTimers();
+      setSdk("legacy", [outdatedSdkSeries()]);
+      const { rerender } = render(<V4MigrationDelayBadge page="traces" />);
+      fireEvent.mouseEnter(screen.getByRole("button"));
+      vi.advanceTimersByTime(300);
+      // React removes the button without a mouseleave when the SDK check
+      // turns transient mid-hover.
+      setSdk("checking", []);
+      rerender(<V4MigrationDelayBadge page="traces" />);
+      vi.advanceTimersByTime(1000);
+
+      expect(hoveredCalls()).toHaveLength(0);
+    });
+
+    it("does not count a re-hover after the badge was clicked", () => {
+      vi.useFakeTimers();
+      setSdk("legacy", [outdatedSdkSeries()]);
+      render(<V4MigrationDelayBadge page="traces" />);
+      const badge = screen.getByRole("button");
+
+      // `hovered` counts noticed-but-NOT-clicked: once the user clicked,
+      // later dwells on the same exposure must not file them under it.
+      fireEvent.click(badge);
+      fireEvent.mouseEnter(badge);
+      vi.advanceTimersByTime(1000);
+
+      expect(hoveredCalls()).toHaveLength(0);
+    });
+
+    it("re-arms hovered when the user returns to a project in place", () => {
+      vi.useFakeTimers();
+      setSdk("legacy", [outdatedSdkSeries()]);
+      const { rerender } = render(<V4MigrationDelayBadge page="traces" />);
+      const dwell = () => {
+        fireEvent.mouseEnter(screen.getByRole("button"));
+        vi.advanceTimersByTime(500);
+        fireEvent.mouseLeave(screen.getByRole("button"));
+      };
+
+      dwell();
+      // Switch away and back without unmounting (the project switcher stays
+      // on the route). The return re-fires `shown` as a new exposure, so a
+      // fresh dwell must count again — otherwise the pair drifts apart.
+      mocks.projectId = "project-2";
+      rerender(<V4MigrationDelayBadge page="traces" />);
+      mocks.projectId = "project-1";
+      rerender(<V4MigrationDelayBadge page="traces" />);
+      dwell();
+
+      expect(hoveredCalls()).toHaveLength(2);
+    });
+
+    it("counts a keyboard focus dwell as hovered", () => {
+      vi.useFakeTimers();
+      setSdk("legacy", [outdatedSdkSeries()]);
+      render(<V4MigrationDelayBadge page="traces" />);
+
+      // The description also expands via group-focus-visible, so a keyboard
+      // reveal counts as noticing the badge.
+      fireEvent.focus(screen.getByRole("button"));
+      vi.advanceTimersByTime(500);
+
+      expect(hoveredCalls()).toEqual([
+        ["v4_migration:delay_badge_hovered", { page: "traces" }],
+      ]);
+    });
+
+    it("carries the page dimension on delay_badge_clicked", () => {
+      setSdk("legacy", [outdatedSdkSeries()]);
+      render(<V4MigrationDelayBadge page="observations" />);
+      fireEvent.click(screen.getAllByText("New data in ~15 min")[0]);
+      expect(mocks.capture).toHaveBeenCalledWith(
+        "v4_migration:delay_badge_clicked",
+        { page: "observations" },
+      );
+    });
   });
 });

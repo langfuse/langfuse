@@ -1,12 +1,10 @@
-import { useState } from "react";
-
 import { api } from "@/src/utils/api";
 import {
-  countLegacyApiEntrypoints,
+  countActionableLegacyApiEntrypoints,
+  isActionableLegacyApiUsage,
   normalizeLegacyApiEntrypoint,
 } from "@/src/features/v4/utils";
 import {
-  createV4MigrationDetectionRange,
   getLegacyIntegrationLabels,
   getMigrationActionState,
   getMigrationCountState,
@@ -33,7 +31,6 @@ export function useAccountV4MigrationData(params: {
   enabled: boolean;
 }): Map<string, ProjectMigrationStatus> {
   const { organizations, enabled } = params;
-  const [detectionRange] = useState(createV4MigrationDetectionRange);
 
   const integrationQueries = api.useQueries((t) =>
     organizations.map((organization) =>
@@ -61,10 +58,7 @@ export function useAccountV4MigrationData(params: {
   const sdkQueries = api.useQueries((t) =>
     organizations.map((organization) =>
       t.v4Transition.sdkUsageSummaryByProject(
-        {
-          orgId: organization.id,
-          ...detectionRange,
-        },
+        { orgId: organization.id },
         {
           ...queryOptions,
           enabled,
@@ -76,10 +70,7 @@ export function useAccountV4MigrationData(params: {
   const apiQueries = api.useQueries((t) =>
     organizations.map((organization) =>
       t.v4Transition.legacyApiUsageSummaryByProject(
-        {
-          orgId: organization.id,
-          ...detectionRange,
-        },
+        { orgId: organization.id },
         {
           ...queryOptions,
           enabled,
@@ -119,7 +110,7 @@ export function useAccountV4MigrationData(params: {
               ?.experimentInstrumentationMigration.status ?? "not_required",
         ),
         apis: getMigrationCountState(apiQuery, (rows) => {
-          return countLegacyApiEntrypoints(
+          return countActionableLegacyApiEntrypoints(
             rows.filter((row) => row.projectId === project.id),
           );
         }),
@@ -148,13 +139,9 @@ function useProjectV4SdkSummary(params: {
   enabled: boolean;
 }) {
   const { projectId, enabled } = params;
-  const [detectionRange] = useState(createV4MigrationDetectionRange);
   const queryEnabled = enabled && Boolean(projectId);
   const sdkQuery = api.v4Transition.sdkUsageSummary.useQuery(
-    {
-      projectId: projectId ?? "",
-      ...detectionRange,
-    },
+    { projectId: projectId ?? "" },
     {
       ...queryOptions,
       enabled: queryEnabled,
@@ -190,13 +177,35 @@ export function useProjectV4EvalData(params: {
   return getMigrationCountState(evalQuery, (data) => data.traceLevelEvalCount);
 }
 
+export function useProjectV4MigrationActions(projectId: string | undefined): {
+  actionNeeded: boolean;
+} {
+  const query = api.v4Transition.migrationActions.useQuery(
+    { projectId: projectId ?? "" },
+    { ...queryOptions, enabled: Boolean(projectId) },
+  );
+  const actions = query.data;
+
+  if (!actions || actions.forceV3Experience) {
+    return { actionNeeded: false };
+  }
+  return {
+    actionNeeded: [
+      actions.sdkActionNeeded,
+      actions.experimentsActionNeeded,
+      actions.apisActionNeeded,
+      actions.evalsActionNeeded,
+      actions.exportsActionNeeded,
+    ].some((categoryActionNeeded) => categoryActionNeeded === true),
+  };
+}
+
 export function useProjectV4MigrationData(params: {
   projectId: string | undefined;
   enabled: boolean;
 }) {
   const { projectId, enabled } = params;
   const queryEnabled = enabled && Boolean(projectId);
-  const [detectionRange] = useState(createV4MigrationDetectionRange);
   const forceV3Experience = useForceV3Experience(projectId);
   const { sdkQuery, summary: sdkSummary } = useProjectV4SdkSummary({
     projectId,
@@ -207,10 +216,7 @@ export function useProjectV4MigrationData(params: {
     { ...queryOptions, enabled: queryEnabled },
   );
   const apiQuery = api.v4Transition.legacyApiUsageSummary.useQuery(
-    {
-      projectId: projectId ?? "",
-      ...detectionRange,
-    },
+    { projectId: projectId ?? "" },
     {
       ...queryOptions,
       enabled: queryEnabled,
@@ -227,6 +233,14 @@ export function useProjectV4MigrationData(params: {
       endpoint: normalizeLegacyApiEntrypoint(row.entrypoint),
       count: row.count,
       lastSeen: row.lastSeen,
+      callers: Array.from(
+        row.callers ?? [
+          {
+            count: row.count,
+            lastSeen: row.lastSeen,
+          },
+        ],
+      ).sort((left, right) => right.lastSeen.localeCompare(left.lastSeen)),
     }))
     .sort(
       (left, right) =>
@@ -253,7 +267,10 @@ export function useProjectV4MigrationData(params: {
     ),
     experimentInstrumentationUpgradePath:
       sdkSummary?.experimentInstrumentationMigration.upgradePath ?? null,
-    apis: getMigrationCountState(apiQuery, () => apiUsage.length),
+    apis: getMigrationCountState(
+      apiQuery,
+      () => apiUsage.filter(isActionableLegacyApiUsage).length,
+    ),
     exports: getMigrationCountState(
       integrationQuery,
       (data) => data.legacyIntegrationCount,

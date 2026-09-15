@@ -15,7 +15,8 @@ import {
 } from "./queues/evalQueue";
 import { codeEvalExecutionQueueProcessorBuilder } from "./queues/codeEvalQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
-import { onShutdown } from "./utils/shutdown";
+import { drainAndClose, onShutdown } from "./utils/shutdown";
+import { installProcessErrorHandlers } from "@langfuse/shared/src/server";
 import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
 import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
@@ -40,6 +41,7 @@ import {
   TraceUpsertQueue,
   CloudFreeTierUsageThresholdQueue,
   CloudUsageMeteringQueue,
+  V4LegacyApiUsageQueue,
   EventPropagationQueue,
   EvalExecutionQueue,
   SecondaryEvalExecutionQueue,
@@ -47,8 +49,9 @@ import {
   CodeEvalExecutionQueue,
 } from "@langfuse/shared/src/server";
 import { monitorProcessorTtl } from "@langfuse/shared/monitors/server";
-import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server";
+import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server/tunables";
 import { env, v4WritesToEventsTable } from "./env";
+import { isInAppAgentWorkerSurfaceEnabled } from "./features/in-app-agent/enablement";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
 import { BackgroundMigrationManager } from "./backgroundMigrations/backgroundMigrationManager";
 import { prisma } from "@langfuse/shared/src/db";
@@ -60,6 +63,7 @@ import {
   postHogIntegrationProcessingProcessor,
   postHogIntegrationProcessor,
 } from "./queues/postHogIntegrationQueue";
+import { v4LegacyApiUsageProcessor } from "./queues/v4LegacyApiUsageQueue";
 import {
   mixpanelIntegrationProcessingProcessor,
   mixpanelIntegrationProcessor,
@@ -99,6 +103,8 @@ import { QueueMetricsRunner } from "./features/queue-metrics-runner";
 import { MonitorRunner } from "./features/monitor-runner";
 import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
 import { TraceDeleteBatchActionRunner } from "./features/trace-delete-batch-action-runner";
+import { InAppAgentIntegrityRunner } from "./features/in-app-agent-integrity-runner";
+import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runner";
 
 const app = express();
 
@@ -423,7 +429,13 @@ if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
   });
 }
 
-if (env.QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED === "true") {
+export let inAppAgentDlqRetryRunner: InAppAgentDlqRetryRunner | null = null;
+
+if (
+  isInAppAgentWorkerSurfaceEnabled(
+    env.QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED,
+  )
+) {
   WorkerManager.register(
     QueueName.InAppAgentRunQueue,
     inAppAgentRunQueueProcessor,
@@ -436,6 +448,9 @@ if (env.QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED === "true") {
       maxStalledCount: 0,
     },
   );
+
+  inAppAgentDlqRetryRunner = new InAppAgentDlqRetryRunner();
+  inAppAgentDlqRetryRunner.start();
 }
 
 // Cloud Spend Alert Queue: Only enable in cloud environment with Stripe
@@ -519,6 +534,25 @@ if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
         // Process at most one PostHog job globally per 10s.
         max: 1,
         duration: 10_000,
+      },
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_V4_LEGACY_API_USAGE_QUEUE_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  V4LegacyApiUsageQueue.getInstance();
+
+  WorkerManager.register(
+    QueueName.V4LegacyApiUsageQueue,
+    v4LegacyApiUsageProcessor,
+    {
+      concurrency: 1,
+      limiter: {
+        // The job scans system.query_log across all ClickHouse services;
+        // never run it more than once per minute even if jobs pile up.
+        max: 1,
+        duration: 60_000,
       },
     },
   );
@@ -746,6 +780,18 @@ if (env.LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_ENABLED === "true") {
   traceDeleteBatchActionRunner.start();
 }
 
+// Reconciles stale in-app agent runs that nobody reopened, then reports remainders.
+export let inAppAgentIntegrityRunner: InAppAgentIntegrityRunner | null = null;
+
+if (
+  isInAppAgentWorkerSurfaceEnabled(
+    env.LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED,
+  )
+) {
+  inAppAgentIntegrityRunner = new InAppAgentIntegrityRunner();
+  inAppAgentIntegrityRunner.start();
+}
+
 // ClickHouse deleted-mask cleaner for physically applying lightweight delete masks
 export let deletedMaskCleaner: DeletedMaskCleaner | null = null;
 
@@ -775,5 +821,14 @@ if (env.LANGFUSE_MONITOR_SCHEDULER_ENABLED === "true") {
 
 process.on("SIGINT", () => onShutdown("SIGINT"));
 process.on("SIGTERM", () => onShutdown("SIGTERM"));
+
+// On a fatal error (uncaught exception / unhandled rejection), drain in-flight
+// jobs and flush pending writes before exiting instead of dying abruptly. A
+// repeated fatal mid-drain forces an immediate exit.
+installProcessErrorHandlers({
+  onFatal: async () => {
+    await drainAndClose();
+  },
+});
 
 export default app;

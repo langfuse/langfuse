@@ -312,8 +312,11 @@ const run = async (
       const startTime =
         traceTimestamp + index * 1200 + jitter(ctx.seed, index, 200);
       const usage = model ? model.usage : UNPRICED_USAGE;
-      const defaultPrices = model?.tiers.find((tier) => tier.isDefault)?.prices;
-      const costs = defaultPrices ? costFor(usage, defaultPrices) : null;
+      const defaultTier = model?.tiers.find((tier) => tier.isDefault);
+      const costs = defaultTier ? costFor(usage, defaultTier.prices) : null;
+      const internalModelId = model
+        ? (writtenModelIds.get(model.key) ?? null)
+        : null;
 
       return createObservation({
         id: `${traceId}-o${suffix}`,
@@ -331,9 +334,12 @@ const run = async (
         input: JSON.stringify({ prompt: "Summarise the call." }),
         output: "The caller asked about pricing.",
         provided_model_name: model ? model.modelName : UNPRICED_MODEL_NAME,
-        internal_model_id: model
-          ? (writtenModelIds.get(model.key) ?? null)
-          : null,
+        internal_model_id: internalModelId,
+        usage_pricing_tier_id:
+          internalModelId && defaultTier
+            ? `tier-${internalModelId}-${defaultTier.priority}`
+            : null,
+        usage_pricing_tier_name: defaultTier?.name ?? null,
         provided_usage_details: usage,
         usage_details: usage,
         provided_cost_details: {},

@@ -3,6 +3,8 @@
  *
  * Responsibility:
  * - Decide which navigation view to show (Tree/Timeline/Search)
+ * - The Timeline is either the classic gantt or the Compact Timeline, depending
+ *   on that feature preview
  * - NO layout structure - just returns the content component
  *
  * Hooks:
@@ -19,7 +21,7 @@ import { StringParam, useQueryParam } from "use-query-params";
 import { useSearch } from "@/src/features/traces/contexts/SearchContext";
 import { TraceTree } from "./TraceTree";
 import { TraceSearchList } from "./TraceSearchList";
-import { TraceTimeline } from "./TraceTimeline/TraceTimeline";
+import { TraceTimelineCompact } from "./TraceTimelineDense/TraceTimelineCompact";
 import { useMemo } from "react";
 
 export function TracePanelNavigation() {
@@ -31,12 +33,19 @@ export function TracePanelNavigation() {
 
   // Memoize to prevent recreation when deps haven't changed
   const content = useMemo(() => {
-    // Priority: Search > Timeline > Tree
+    // The Timeline answers a query IN PLACE — matching bars keep their colour
+    // and the rest dim — so it is not replaced by the flat result list. Losing
+    // the chart was the thing that made searching in the Timeline feel like
+    // leaving it: the one view whose whole point is where in time a span sits
+    // gave that up the moment you typed.
+    //
+    // The Tree still hands a query to the flat list; highlighting it is its own
+    // change.
+    if (isTimelineView) {
+      return <TraceTimelineCompact />;
+    }
     if (hasQuery) {
       return <TraceSearchList />;
-    }
-    if (isTimelineView) {
-      return <TraceTimeline />;
     }
     return <TraceTree />;
   }, [hasQuery, isTimelineView]);

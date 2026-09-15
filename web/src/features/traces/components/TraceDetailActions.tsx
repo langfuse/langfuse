@@ -1,10 +1,9 @@
 import { api } from "@/src/utils/api";
-import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
 import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
 import { DeleteTraceButton } from "@/src/components/deleteButton";
 
 /**
- * Trace-level header actions (star / publish / delete) shared by the peek and
+ * Trace-level header actions (publish / delete) shared by the peek and
  * the standalone trace page, so both surfaces expose the same controls. Each
  * sub-component renders DISABLED (not hidden) when the user lacks the relevant
  * project scope, matching the page's long-standing behavior.
@@ -27,7 +26,6 @@ import { DeleteTraceButton } from "@/src/components/deleteButton";
 export function TraceDetailActions({
   traceId,
   projectId,
-  bookmarked,
   isPublic,
   shareUrl,
   name,
@@ -39,7 +37,6 @@ export function TraceDetailActions({
 }: {
   traceId: string;
   projectId: string;
-  bookmarked: boolean;
   isPublic: boolean;
   shareUrl?: string;
   name?: string | null;
@@ -65,12 +62,6 @@ export function TraceDetailActions({
   if (isMenu) {
     return (
       <div className="flex w-full flex-col gap-0.5">
-        <StarTraceDetailsToggle
-          projectId={projectId}
-          traceId={traceId}
-          value={bookmarked}
-          showLabel
-        />
         <PublishTraceSwitch
           projectId={projectId}
           traceId={traceId}
@@ -95,16 +86,6 @@ export function TraceDetailActions({
 
   return (
     <div className="flex flex-row items-center gap-1">
-      {/* The star owns its tooltip (composed onto the real button, so the
-          aria-describedby lands on the focusable control) and drives its label
-          from the optimistic state — see StarToggle. */}
-      <StarTraceDetailsToggle
-        projectId={projectId}
-        traceId={traceId}
-        value={bookmarked}
-        size={size}
-        tooltip
-      />
       <PublishTraceSwitch
         projectId={projectId}
         traceId={traceId}
@@ -121,8 +102,8 @@ export function TraceDetailActions({
         invalidateFunc={onDeleteInvalidate}
         deleteConfirmation={name ?? ""}
         icon
-        // Match Star/Publish so the three icons share one row height and a
-        // ghost (not boxed "outline") style.
+        // Match Publish so both icons share one row height and a ghost (not
+        // boxed "outline") style.
         size={size}
         variant="ghost"
       />

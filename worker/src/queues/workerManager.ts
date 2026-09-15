@@ -154,14 +154,21 @@ export class WorkerManager {
     markQueueWorkerRegistered();
     logger.info(`${queueName} executor started: ${worker.isRunning()}`);
 
+    const { baseMetric, shardTag } = WorkerManager.resolveMetricInfo(queueName);
+
     // Liveness signal for the ?failIfQueueConsumptionStuck=true health check.
     // "active" and "completed" prove this container's consumption loop is
     // alive; "failed" is excluded because the stalled-checker emits it for
     // jobs this container never picked up.
     worker.on("active", markQueueJobActivity);
-    worker.on("completed", markQueueJobActivity);
-
-    const { baseMetric, shardTag } = WorkerManager.resolveMetricInfo(queueName);
+    // No "active" counter: metricWrapper already records "request" on pickup.
+    worker.on("completed", () => {
+      markQueueJobActivity();
+      recordIncrement(baseMetric + ".rate", 1, {
+        type: "completed",
+        ...shardTag,
+      });
+    });
 
     // Add error handling
     worker.on("failed", (job: Job | undefined, err: Error) => {

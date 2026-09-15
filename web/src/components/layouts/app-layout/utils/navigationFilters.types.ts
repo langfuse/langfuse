@@ -3,7 +3,6 @@
  */
 
 import type { Session } from "next-auth";
-import type { Route } from "@/src/components/layouts/routes";
 import type { Entitlement } from "@/src/features/entitlements/constants/entitlements";
 
 /**
@@ -27,15 +26,10 @@ export type NavigationFilterContext = {
   uiCustomization: { visibleModules: string[] } | null;
   /** Whether the deployment is a Langfuse Cloud environment */
   isLangfuseCloud: boolean;
+  /** Whether Langfuse Cloud currently has a degraded or downtime incident */
+  hasActiveCloudIncident: boolean;
+  /** Whether the current project must remain on the v3 experience */
+  forceV3Experience: boolean;
   /** Current router path for active state detection */
   currentPath: string;
 };
-
-/**
- * Filter function that processes a route and returns it (if visible) or null (if hidden)
- * Filters are composable and should be pure functions
- */
-export type NavigationFilter = (
-  route: Route,
-  context: NavigationFilterContext,
-) => Route | null;

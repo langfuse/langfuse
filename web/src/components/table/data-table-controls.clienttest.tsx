@@ -1,15 +1,25 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { Accordion } from "@/src/components/ui/accordion";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
+import { eventsTableCols, type FilterState } from "@langfuse/shared";
+import { useStore } from "zustand";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   CategoricalFacet,
   DataTableControls,
   type QueryFilter,
 } from "./data-table-controls";
-import type {
-  CategoricalUIFilter,
-  UIFilter,
+import {
+  useSidebarFilterState,
+  type CategoricalUIFilter,
+  type UIFilter,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
+import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+
+vi.mock("use-query-params", async () => ({
+  ...(await vi.importActual("use-query-params")),
+  useQueryParam: () => [null, () => {}] as const,
+}));
 
 // Spy on the posthog client so capture calls (event name + payload) can be
 // asserted at the wrapper seam.
@@ -18,8 +28,9 @@ vi.mock("posthog-js/react", () => ({
   usePostHog: () => ({ capture: captureSpy }),
 }));
 
-// Radix ScrollArea (wrapping the facet list) needs ResizeObserver, which
-// jsdom does not implement.
+// Radix ScrollArea (wrapping the facet list) needs ResizeObserver, and the
+// Add-filter picker's command list scrolls its active item into view — neither
+// of which jsdom implements.
 beforeAll(() => {
   vi.stubGlobal(
     "ResizeObserver",
@@ -29,12 +40,247 @@ beforeAll(() => {
       disconnect() {}
     },
   );
+  Element.prototype.scrollIntoView = vi.fn();
+});
+
+describe("delayed sidebar edits and search-bar commits", () => {
+  const config: FilterConfig = {
+    tableName: "observations-events",
+    columnDefinitions: eventsTableCols,
+    defaultExpanded: ["statusMessage", "latency"],
+    facets: [
+      { type: "string", column: "statusMessage", label: "Status Message" },
+      {
+        type: "numeric",
+        column: "latency",
+        label: "Latency",
+        min: 0,
+        max: 100,
+      },
+      { type: "categorical", column: "traceName", label: "Trace Name" },
+    ],
+  };
+
+  function Harness() {
+    const queryFilter = useSidebarFilterState(
+      config,
+      {},
+      { stateLocation: "memory" },
+    );
+    const bar = useEventsSearchBar({
+      projectId: "filter-test-project",
+      tableName: config.tableName,
+      enabled: true,
+      filterState: queryFilter.searchBarFilterState,
+      setFilterState: queryFilter.setFilterState,
+      searchQuery: null,
+      searchType: ["id", "content"],
+      setSearchQuery: () => {},
+      setSearchType: () => {},
+      observed: undefined,
+    });
+    const draft = useStore(bar.store, (state) => state.draft);
+
+    return (
+      <>
+        <DataTableControls queryFilter={queryFilter} />
+        <button
+          onClick={() => {
+            bar.store.getState().actions.setDraft("-traceName:*turn*");
+            bar.commit();
+          }}
+        >
+          Commit trace filter
+        </button>
+        <button onClick={queryFilter.clearAll}>Reset filters</button>
+        <pre data-testid="applied-filters">
+          {JSON.stringify(queryFilter.filterState)}
+        </pre>
+        <pre data-testid="bar-draft">{draft}</pre>
+      </>
+    );
+  }
+
+  it.each([
+    ["string", "string-statusMessage", "timeout", "statusMessage"],
+    ["numeric", "min-latency", "10", "latency"],
+  ])(
+    "preserves the committed trace filter when a delayed %s edit lands",
+    (_, inputId, value, column) => {
+      vi.useFakeTimers();
+      sessionStorage.clear();
+      const { container, unmount } = render(<Harness />, {
+        wrapper: TooltipProvider,
+      });
+      const appliedFilters = (): FilterState =>
+        JSON.parse(screen.getByTestId("applied-filters").textContent ?? "[]");
+      try {
+        fireEvent.change(container.querySelector(`#${inputId}`)!, {
+          target: { value },
+        });
+        fireEvent.click(
+          screen.getByRole("button", { name: "Commit trace filter" }),
+        );
+
+        const traceFilter = {
+          column: "traceName",
+          type: "string",
+          operator: "does not contain",
+          value: "turn",
+        };
+        expect(appliedFilters()).toEqual([traceFilter]);
+        expect(screen.getByTestId("bar-draft")).toHaveTextContent(
+          "-traceName:*turn*",
+        );
+
+        act(() => vi.advanceTimersByTime(500));
+
+        expect.soft(appliedFilters()).toContainEqual(traceFilter);
+        expect(appliedFilters()).toEqual(
+          expect.arrayContaining([expect.objectContaining({ column })]),
+        );
+        expect
+          .soft(screen.getByTestId("bar-draft"))
+          .toHaveTextContent("-traceName:*turn*");
+
+        fireEvent.change(container.querySelector(`#${inputId}`)!, {
+          target: { value: value === "10" ? "20" : "retry" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Reset filters" }));
+        expect(appliedFilters()).toEqual([]);
+        act(() => vi.advanceTimersByTime(500));
+        expect(appliedFilters()).toEqual([]);
+
+        fireEvent.click(
+          screen.getByRole("button", { name: "Commit trace filter" }),
+        );
+        fireEvent.change(container.querySelector(`#${inputId}`)!, {
+          target: { value },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Reset filters" }));
+        act(() => vi.advanceTimersByTime(500));
+        expect(appliedFilters()).toEqual([]);
+        expect(
+          container.querySelector<HTMLInputElement>(`#${inputId}`)?.value,
+        ).toBe("");
+      } finally {
+        unmount();
+        vi.useRealTimers();
+      }
+    },
+  );
+});
+
+describe("DataTableControls numeric conditions", () => {
+  it("renders strict bounds as removable chips instead of a slider", () => {
+    const queryFilter: QueryFilter = {
+      filters: [
+        {
+          type: "numeric",
+          column: "latency",
+          label: "Latency",
+          loading: false,
+          expanded: true,
+          isActive: true,
+          isDisabled: false,
+          onReset: () => {},
+          value: null,
+          conditions: [
+            { column: "latency", type: "number", operator: ">", value: 10 },
+            { column: "latency", type: "number", operator: "<", value: 80 },
+          ],
+          min: 0,
+          max: 100,
+          onChange: () => {},
+          onRemoveCondition: () => {},
+        },
+      ],
+      expanded: ["latency"],
+      onExpandedChange: () => {},
+      clearAll: () => {},
+      draftResetKey: 0,
+      isFiltered: true,
+      setFilterState: () => {},
+    };
+
+    render(<DataTableControls queryFilter={queryFilter} />, {
+      wrapper: TooltipProvider,
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Remove Latency > 10" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Remove Latency < 80" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Min.")).not.toBeInTheDocument();
+  });
 });
 
 describe("CategoricalFacet", () => {
+  it("uses a custom option hover title", () => {
+    render(
+      <AccordionPrimitive.Root type="multiple" value={["evaluatorId"]}>
+        <CategoricalFacet
+          label="Evaluator"
+          filterKey="evaluatorId"
+          expanded
+          loading={false}
+          options={["evaluator-1"]}
+          displayByValue={new Map([["evaluator-1", "Answer quality"]])}
+          counts={new Map()}
+          value={[]}
+          onChange={() => {}}
+          getOptionTitle={(value, label) => `${label} (${value})`}
+          isActive={false}
+          isDisabled={false}
+          onReset={() => {}}
+        />
+      </AccordionPrimitive.Root>,
+      { wrapper: TooltipProvider },
+    );
+
+    expect(screen.getByText("Answer quality")).toHaveAttribute(
+      "title",
+      "Answer quality (evaluator-1)",
+    );
+  });
+
+  it("renders an option suffix after its label", () => {
+    render(
+      <AccordionPrimitive.Root type="multiple" value={["model"]}>
+        <CategoricalFacet
+          label="Model"
+          filterKey="model"
+          expanded
+          loading={false}
+          options={["gpt-4.1", "claude-sonnet"]}
+          counts={new Map()}
+          value={[]}
+          onChange={() => {}}
+          renderOptionSuffix={(value) =>
+            value === "gpt-4.1" ? <span>Project default</span> : null
+          }
+          isActive={false}
+          isDisabled={false}
+          onReset={() => {}}
+        />
+      </AccordionPrimitive.Root>,
+      { wrapper: TooltipProvider },
+    );
+
+    const label = screen.getByText("gpt-4.1");
+    const suffix = screen.getByText("Project default");
+    expect(
+      label.compareDocumentPosition(suffix) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(label).not.toHaveClass("flex-1");
+    expect(screen.getByText("claude-sonnet")).toBeInTheDocument();
+  });
+
   it("shows selected values even when the backend returns no options", () => {
     render(
-      <Accordion type="multiple" value={["type"]}>
+      <AccordionPrimitive.Root type="multiple" value={["type"]}>
         <CategoricalFacet
           label="Type"
           filterKey="type"
@@ -48,7 +294,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -60,7 +306,7 @@ describe("CategoricalFacet", () => {
 
   it("shows Clear for active selected values even when the backend returns no options", () => {
     render(
-      <Accordion type="multiple" value={["type"]}>
+      <AccordionPrimitive.Root type="multiple" value={["type"]}>
         <CategoricalFacet
           label="Type"
           filterKey="type"
@@ -74,7 +320,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -88,7 +334,7 @@ describe("CategoricalFacet", () => {
     // value sits below the 12-item cap and is hidden behind "Show more".
     const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -102,7 +348,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -129,7 +375,7 @@ describe("CategoricalFacet", () => {
     // not the entire list.
     const options = Array.from({ length: 80 }, (_, i) => `opt-${i}`);
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -143,7 +389,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       { wrapper: TooltipProvider },
     );
 
@@ -174,7 +420,7 @@ describe("CategoricalFacet", () => {
     // a pinned selection — doing so would render the entire list with no cap.
     const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -188,7 +434,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -207,7 +453,7 @@ describe("CategoricalFacet", () => {
     const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
     const selected = options.slice(0, 18); // 18 of 20 selected
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -221,7 +467,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -242,7 +488,7 @@ describe("CategoricalFacet", () => {
     const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
     const value = options.filter((option) => option !== "opt-18");
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -258,7 +504,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -285,7 +531,7 @@ describe("CategoricalFacet", () => {
     // deliberate no-op in the state model, so the tab must read disabled
     // instead of silently doing nothing.
     render(
-      <Accordion type="multiple" value={["tags"]}>
+      <AccordionPrimitive.Root type="multiple" value={["tags"]}>
         <CategoricalFacet
           label="Tags"
           filterKey="tags"
@@ -301,14 +547,14 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       { wrapper: TooltipProvider },
     );
     expect(screen.getByRole("tab", { name: "None of" })).toBeDisabled();
 
     // With a persisted selection the operator conversion is meaningful.
     render(
-      <Accordion type="multiple" value={["tags2"]}>
+      <AccordionPrimitive.Root type="multiple" value={["tags2"]}>
         <CategoricalFacet
           label="Tags2"
           filterKey="tags2"
@@ -324,7 +570,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       { wrapper: TooltipProvider },
     );
     const tabs = screen.getAllByRole("tab", { name: "None of" });
@@ -333,7 +579,7 @@ describe("CategoricalFacet", () => {
 
   it("does not reorder short, fully-visible lists", () => {
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -347,7 +593,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -391,6 +637,7 @@ describe("DataTableControls facet ordering", () => {
     expanded: [],
     onExpandedChange: () => {},
     clearAll: () => {},
+    draftResetKey: 0,
     isFiltered: filters.some((f) => f.isActive),
     setFilterState: () => {},
   });
@@ -460,6 +707,22 @@ describe("DataTableControls facet ordering", () => {
       </TooltipProvider>,
     );
     expect(labelOrder("Alpha", "Beta")).toBe(true);
+  });
+
+  it("clears drafts and view selection even when no filters are applied", () => {
+    const clearAll = vi.fn();
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={{ ...queryFilter([]), clearAll }} />
+      </TooltipProvider>,
+    );
+    fireEvent.keyDown(screen.getByRole("button", { name: "Filter options" }), {
+      key: "Enter",
+    });
+    const clear = screen.getByRole("menuitem", { name: "Clear all filters" });
+    expect(clear).not.toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(clear);
+    expect(clearAll).toHaveBeenCalledOnce();
   });
 
   it("restores catalog order on Clear all, even with an in-list interaction outstanding", () => {
@@ -595,6 +858,8 @@ describe("DataTableControls facet ordering", () => {
       categoricalFilter("beta", "Beta", true),
     ]);
     qf.onExpandedChange = (value) => expandedChanges.push(value);
+    qf.isV4 = true;
+    captureSpy.mockClear();
     render(
       <TooltipProvider>
         <DataTableControls queryFilter={qf} />
@@ -604,6 +869,94 @@ describe("DataTableControls facet ordering", () => {
     // Nothing expanded -> the toggle offers Expand all with every column.
     fireEvent.click(screen.getByRole("button", { name: "Expand all filters" }));
     expect(expandedChanges.at(-1)).toEqual(["beta", "alpha"]);
+
+    const expandAll = captureSpy.mock.calls.filter(
+      ([event]) => event === "filters:expand_all_toggled",
+    );
+    expect(expandAll).toHaveLength(1);
+    expect(expandAll[0][1]).toMatchObject({
+      expanded: true,
+      facetCount: 2,
+      layout: "panel",
+      isV4: true,
+    });
+    // Expand-all is its own intent; it must not also emit per-facet toggles.
+    expect(
+      captureSpy.mock.calls.filter(
+        ([event]) => event === "filters:facet_toggled",
+      ),
+    ).toHaveLength(0);
+    for (const [, payload] of captureSpy.mock.calls) {
+      expect(JSON.stringify(payload ?? {})).not.toContain('"x"');
+    }
+  });
+
+  it("captures expand_all_toggled collapsed when every visible facet is open", () => {
+    const qf = queryFilter([
+      categoricalFilter("alpha", "Alpha", false),
+      categoricalFilter("beta", "Beta", true),
+    ]);
+    qf.expanded = ["alpha", "beta"];
+    qf.isV4 = false;
+    captureSpy.mockClear();
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={qf} />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Collapse all filters" }),
+    );
+    const expandAll = captureSpy.mock.calls.filter(
+      ([event]) => event === "filters:expand_all_toggled",
+    );
+    expect(expandAll).toHaveLength(1);
+    expect(expandAll[0][1]).toMatchObject({
+      expanded: false,
+      facetCount: 2,
+      layout: "panel",
+      isV4: false,
+    });
+    expect(
+      captureSpy.mock.calls.filter(
+        ([event]) => event === "filters:facet_toggled",
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("captures facet_toggled once when a single header is opened", () => {
+    const qf = queryFilter([
+      categoricalFilter("alpha", "Alpha", false),
+      categoricalFilter("beta", "Beta", true),
+    ]);
+    qf.isV4 = true;
+    captureSpy.mockClear();
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={qf} />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Alpha All" }));
+    const toggled = captureSpy.mock.calls.filter(
+      ([event]) => event === "filters:facet_toggled",
+    );
+    expect(toggled).toHaveLength(1);
+    expect(toggled[0][1]).toMatchObject({
+      column: "alpha",
+      expanded: true,
+      layout: "panel",
+      isV4: true,
+    });
+    expect(
+      captureSpy.mock.calls.filter(
+        ([event]) => event === "filters:expand_all_toggled",
+      ),
+    ).toHaveLength(0);
+    for (const [, payload] of captureSpy.mock.calls) {
+      expect(JSON.stringify(payload ?? {})).not.toContain('"x"');
+    }
   });
 
   it("shows only active facets plus an Add filter picker when active-only mode is on", () => {
@@ -709,6 +1062,7 @@ describe("DataTableControls blocked facets (LFE-11040)", () => {
     expanded,
     onExpandedChange: () => {},
     clearAll: () => {},
+    draftResetKey: 0,
     isFiltered: filters.some((f) => f.isActive),
     setFilterState: () => {},
   });
@@ -777,14 +1131,10 @@ describe("DataTableControls blocked facets (LFE-11040)", () => {
         </TooltipProvider>,
       );
 
-      // Open the Add-filter dropdown. Radix opens the menu on the trigger's
-      // pointer-down, which jsdom doesn't synthesize reliably; the keyboard
-      // path (Enter) opens it without depending on PointerEvent support.
-      const addButton = screen.getByRole("button", { name: /Add filter/ });
-      fireEvent.keyDown(addButton, { key: "Enter" });
+      fireEvent.click(screen.getByRole("button", { name: /Add filter/ }));
 
-      const blockedItem = screen.getByRole("menuitem", { name: "Blocked" });
-      const forwardableItem = screen.getByRole("menuitem", {
+      const blockedItem = screen.getByRole("option", { name: "Blocked" });
+      const forwardableItem = screen.getByRole("option", {
         name: "Forwardable",
       });
       // Blocked column stays visible but is disabled, with the reason on hover.
@@ -796,5 +1146,330 @@ describe("DataTableControls blocked facets (LFE-11040)", () => {
     } finally {
       localStorage.removeItem("data-table-controls-active-only");
     }
+  });
+});
+
+describe("DataTableControls facet catalog", () => {
+  const categoricalFilter = (
+    column: string,
+    label: string,
+    isActive: boolean,
+  ): CategoricalUIFilter => ({
+    type: "categorical",
+    column,
+    label,
+    loading: false,
+    expanded: false,
+    isActive,
+    isDisabled: false,
+    onReset: () => {},
+    value: isActive ? ["x"] : [],
+    options: ["x", "y"],
+    counts: new Map(),
+    onChange: () => {},
+  });
+
+  const queryFilter = (filters: UIFilter[]): QueryFilter => ({
+    filters,
+    expanded: [],
+    onExpandedChange: () => {},
+    clearAll: () => {},
+    draftResetKey: 0,
+    isFiltered: filters.some((f) => f.isActive),
+    setFilterState: () => {},
+  });
+
+  const CATALOG = [
+    categoricalFilter("environment", "Environment", false),
+    categoricalFilter("release", "Release", false),
+    categoricalFilter("name", "Name", false),
+    categoricalFilter("version", "Version", false),
+  ];
+
+  it("keeps every facet visible so browser find can reach it", () => {
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={queryFilter(CATALOG)} />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByText("Environment")).toBeVisible();
+    expect(screen.getByText("Name")).toBeVisible();
+    expect(screen.getByText("Release")).toBeVisible();
+    expect(screen.getByText("Version")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /Show \d+ more/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("expand-all expands every facet in the catalog", () => {
+    const onExpandedChange = vi.fn();
+    render(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={{
+            ...queryFilter(CATALOG),
+            onExpandedChange,
+          }}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand all filters" }));
+    expect(onExpandedChange).toHaveBeenCalledWith([
+      "environment",
+      "release",
+      "name",
+      "version",
+    ]);
+  });
+});
+
+describe("DataTableControls facet-name search", () => {
+  // A catalog long enough to earn the search box (the traces sidebar's shape).
+  const CATALOG: [column: string, label: string][] = [
+    ["environment", "Environment"],
+    ["name", "Trace Name"],
+    ["id", "Trace ID"],
+    ["userId", "User ID"],
+    ["sessionId", "Session ID"],
+    ["tags", "Tags"],
+    ["metadata", "Metadata"],
+    ["version", "Version"],
+    ["release", "Release"],
+    ["bookmarked", "Bookmarked"],
+    ["level", "Status"],
+    ["latency", "Latency"],
+    ["totalTokens", "Total Tokens"],
+  ];
+
+  const catalog = (activeColumns: string[] = []): CategoricalUIFilter[] =>
+    CATALOG.map(([column, label]) => ({
+      type: "categorical",
+      column,
+      label,
+      loading: false,
+      expanded: false,
+      isActive: activeColumns.includes(column),
+      isDisabled: false,
+      onReset: () => {},
+      value: activeColumns.includes(column) ? ["x"] : [],
+      options: ["x", "y"],
+      counts: new Map(),
+      onChange: () => {},
+      // enables the Select/Text mode tabs, so a text-filter draft can be typed
+      onTextFilterAdd: () => {},
+      onTextFilterRemove: () => {},
+    }));
+
+  const queryFilter = (filters: UIFilter[]): QueryFilter => ({
+    filters,
+    expanded: [],
+    onExpandedChange: () => {},
+    clearAll: () => {},
+    draftResetKey: 0,
+    isFiltered: filters.some((f) => f.isActive),
+    setFilterState: () => {},
+  });
+
+  const controls = (filters: UIFilter[]) => (
+    <TooltipProvider>
+      <DataTableControls queryFilter={queryFilter(filters)} />
+    </TooltipProvider>
+  );
+
+  const searchFor = (query: string) =>
+    fireEvent.change(screen.getByLabelText("Search filters"), {
+      target: { value: query },
+    });
+
+  const labelOrder = (first: string, second: string) => {
+    const a = screen.getByText(first);
+    const b = screen.getByText(second);
+    return Boolean(
+      a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  };
+
+  it("filters facet names immediately, and clearing restores the list with the selection intact", () => {
+    render(controls(catalog(["userId"])));
+
+    searchFor("token");
+    expect(screen.getByText("Total Tokens")).toBeVisible();
+    expect(screen.getByText("Environment")).not.toBeVisible();
+    // The query hides a facet whose name misses it even while it is filtering.
+    expect(screen.getByText("User ID")).not.toBeVisible();
+    // The column key matches too: the label's space would defeat "userid".
+    searchFor("userid");
+    expect(screen.getByText("User ID")).toBeVisible();
+    expect(screen.getByText("Trace Name")).not.toBeVisible();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Clear filter search" }),
+    );
+    expect(screen.getByText("Environment")).toBeVisible();
+    // The selection was never touched — its header summary still reads it.
+    expect(screen.getByText("x")).toBeInTheDocument();
+  });
+
+  it("reaches the no-match state with a filter active, without touching it", () => {
+    // A query hides every facet it misses, so the dead end is reachable while a
+    // filter is in force. Hiding is presentation ONLY: nothing here may reset,
+    // clear or re-apply anything, or a keystroke in the search box would change
+    // the rows on screen.
+    const mutations: string[] = [];
+    const filters = catalog(["userId"]).map((filter) => ({
+      ...filter,
+      onChange: () => mutations.push(`change:${filter.column}`),
+      onReset: () => mutations.push(`reset:${filter.column}`),
+    }));
+    const qf: QueryFilter = {
+      ...queryFilter(filters),
+      clearAll: () => mutations.push("clearAll"),
+      setFilterState: () => mutations.push("setFilterState"),
+      onExpandedChange: () => mutations.push("expand"),
+    };
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={qf} />
+      </TooltipProvider>,
+    );
+
+    searchFor("zzz");
+    expect(screen.getByText("User ID")).not.toBeVisible();
+    expect(screen.getByText("Environment")).not.toBeVisible();
+    expect(screen.getByText('No filters match "zzz"')).toBeInTheDocument();
+    expect(mutations).toEqual([]);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Clear filter search" }),
+    );
+    // Back in full, selection intact — its header summary still reads it.
+    expect(screen.getByText("User ID")).toBeVisible();
+    expect(screen.getByText("x")).toBeInTheDocument();
+    expect(mutations).toEqual([]);
+  });
+
+  it("hides a non-matching facet rather than unmounting it, so an open draft survives", () => {
+    // Facets hold uncommitted local state (a typed-but-not-added text filter, a
+    // metadata condition mid-build, a debounced numeric draft). Dropping them
+    // from the tree while someone types in the search box above would discard
+    // that silently, so the search only hides them.
+    const qf = queryFilter(catalog());
+    qf.expanded = ["environment"];
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={qf} />
+      </TooltipProvider>,
+    );
+    // Radix Tabs commit on mouse-down; jsdom needs both events.
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Text" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Text" }));
+    const draft = screen.getByPlaceholderText("Enter value...");
+    fireEvent.change(draft, { target: { value: "half-typed" } });
+
+    searchFor("token");
+    expect(screen.getByText("Environment")).not.toBeVisible();
+    // Same input node, same value: not remounted, not reset.
+    expect(screen.getByPlaceholderText("Enter value...")).toBe(draft);
+    expect(draft).toHaveValue("half-typed");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Clear filter search" }),
+    );
+    expect(screen.getByText("Environment")).toBeVisible();
+    expect(draft).toHaveValue("half-typed");
+  });
+
+  it("does not count typing in the search box as working the facet list", () => {
+    // The list's keydown capture marks in-list edits so the order freezes
+    // under the user's hands. Typing a query is not such an edit: an external
+    // change while searching must still re-settle the order.
+    const { rerender } = render(controls(catalog(["totalTokens"])));
+    expect(labelOrder("Total Tokens", "Environment")).toBe(true);
+
+    // "e" matches both compared facets, so only the order is under test.
+    searchFor("e");
+    expect(labelOrder("Total Tokens", "Environment")).toBe(true);
+
+    rerender(controls(catalog(["environment", "totalTokens"])));
+    expect(labelOrder("Environment", "Total Tokens")).toBe(true);
+  });
+
+  it("points the expand-all toggle at the facets the search leaves on screen", () => {
+    const expandedChanges: string[][] = [];
+    const qf = queryFilter(catalog());
+    qf.expanded = ["environment"];
+    qf.onExpandedChange = (value) => expandedChanges.push(value);
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={qf} />
+      </TooltipProvider>,
+    );
+
+    // Environment is expanded but a "token" query hides it, so the toggle must
+    // offer to expand what IS on screen rather than to collapse the invisible.
+    searchFor("token");
+    fireEvent.click(screen.getByRole("button", { name: "Expand all filters" }));
+    // The hidden facet keeps its expansion; the visible match joins it.
+    expect(expandedChanges.at(-1)).toEqual(["environment", "totalTokens"]);
+  });
+
+  it("leaves a short sidebar without search chrome", () => {
+    render(controls(catalog().slice(0, 3)));
+
+    expect(screen.queryByLabelText("Search filters")).not.toBeInTheDocument();
+  });
+
+  it("searches the Add filter picker over the whole catalog", () => {
+    localStorage.setItem("data-table-controls-active-only", "true");
+    try {
+      render(controls(catalog(["userId"])));
+
+      // Active-only mode hands the catalog to the picker, so the list's own
+      // search box steps aside.
+      expect(screen.queryByLabelText("Search filters")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /Add filter/ }));
+
+      const pickerSearch = screen.getByPlaceholderText("Search filters");
+      fireEvent.change(pickerSearch, { target: { value: "token" } });
+      expect(
+        screen.getByRole("option", { name: "Total Tokens" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("option", { name: "Environment" }),
+      ).not.toBeInTheDocument();
+
+      fireEvent.change(pickerSearch, { target: { value: "zzz" } });
+      expect(screen.getByText(/No filters match "zzz"/)).toBeInTheDocument();
+    } finally {
+      localStorage.removeItem("data-table-controls-active-only");
+    }
+  });
+
+  it("captures facet_search once per search session, without the query text", () => {
+    captureSpy.mockClear();
+    render(controls(catalog()));
+
+    searchFor("tok");
+    searchFor("token");
+    const searchEvents = captureSpy.mock.calls.filter(
+      ([event]) => event === "filters:facet_search",
+    );
+    expect(searchEvents).toHaveLength(1);
+    expect(searchEvents[0][1]).toEqual({
+      tableName: undefined,
+      surface: "facet_list",
+      isV4: false,
+    });
+
+    // Clearing ends the session, so the next search is a new one.
+    searchFor("");
+    searchFor("latency");
+    expect(
+      captureSpy.mock.calls.filter(
+        ([event]) => event === "filters:facet_search",
+      ),
+    ).toHaveLength(2);
   });
 });

@@ -2,7 +2,7 @@ import { prisma } from "../../src/db";
 import { clickhouseClient, redis } from "../../src/server";
 import { SeedError } from "./scenarios/types";
 
-export type CheckStatus = "pass" | "warn" | "fail";
+type CheckStatus = "pass" | "warn" | "fail";
 
 export type CheckResult = {
   name: string;

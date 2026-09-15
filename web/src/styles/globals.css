@@ -528,7 +528,10 @@
     /* Status pairs: light-* are dark tinted backgrounds (alpha baked in),
        dark-* the readable text/icon color on them. */
     --light-red: oklch(39.6% 0.141 25.723 / 0.7);
-    --dark-red: oklch(57.7% 0.245 27.325);
+    /* Lightened for dark mode like its green and yellow siblings below — left
+       at the light-mode step it was darker than the fill it sits on (2.74:1;
+       5.35:1 here, against green's 6.49 and yellow's 6.43). */
+    --dark-red: oklch(76.5% 0.177 27.325);
 
     --light-yellow: oklch(55.4% 0.135 66.442 / 0.4);
     --dark-yellow: oklch(79.5% 0.184 86.047);
@@ -607,10 +610,21 @@
   body {
     /* Prevent pull-to-refresh and rubber-banding on the page level only */
     overscroll-behavior-y: none;
-    /* Omitting `pinch-zoom` blocks pinch and double-tap zoom at the engine
-       level, which modern iOS honors where it ignores `user-scalable=no`
-       (viewport meta lives in pages/_app.tsx). Elements that own their own
-       gestures set their own `touch-action`. */
+  }
+
+  /* The page never zooms, so a pinch belongs to the surface under it (omitting
+     `pinch-zoom` is the block; the viewport meta lives in pages/_app.tsx).
+     Naming `html, body` alone is NOT enough: WebKit ignores root-level
+     `touch-action` for page pinch, just as it ignores `user-scalable=no`, and
+     overlays portal OUT of `#__next` into the layer containers, so each needs
+     the declaration. Deliberately layered — vaul injects
+     `[data-vaul-drawer]{touch-action:none}` unlayered, which beats any layer;
+     that is stricter, so the drawer keeps owning its drag. Surfaces that own a
+     gesture set their own `touch-action` (a `touch-*` utility wins over this). */
+  html,
+  body,
+  div#__next,
+  [data-overlay-root] > [data-layer] > * {
     touch-action: pan-x pan-y;
   }
 
@@ -715,7 +729,66 @@
   }
 }
 
-/* 
+/* A scrollport that says so. Overlay scrollbars — the platform default on
+   macOS, and Chrome's default everywhere — paint nothing until a scroll is
+   already under way, so a region holding more than it shows is
+   indistinguishable from one whose content was truncated: the reader has no
+   reason to try the wheel. This paints a thin scrollbar whenever the content
+   overflows, and still nothing when it fits. `scrollbar-color` also opts
+   Firefox out of overlay scrollbars, which it uses by default too. */
+@utility scrollbar-visible {
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: hsl(var(--muted-foreground) / 0.4);
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.6);
+  }
+
+  /* Firefox has no `::-webkit-scrollbar`, so the standard properties are its
+     only way in — and they must NOT reach Chrome, where they take precedence
+     and switch the always-painted scrollbar above back off for an overlay one.
+     Hence the gate rather than declaring both unconditionally. */
+  @supports not selector(::-webkit-scrollbar) {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
+  }
+}
+
+/* Tailwind's `sr-only` verbatim, plus `top: 0; left: 0`. Without them the box
+   sits at its static position, and since it is absolute, its containing block
+   is the nearest positioned ancestor — usually far outside the scroll container
+   it visually lives in. A scroll container only clips descendants it is a
+   containing block for, so an `sr-only` below the fold escaped the clip and
+   grew the app shell's scrollable overflow, scrolling the whole document.
+   Pinning it to the containing block's origin keeps it inside every box that
+   should clip it. `not-sr-only` still wins: it sets `position: static`, which
+   makes these offsets inert. */
+@utility sr-only {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/*
  * Fix for Vaul drawer blocking text selection
  * Vaul applies user-select: none to the entire drawer on desktop via CSS media query
  * We override this for drawers that set blockTextSelection={false}

@@ -11,14 +11,14 @@ import {
   type DashboardDateRangeAggregationOption,
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
-import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
+import { getScoreDataTypeIcon } from "@/src/features/scores";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { Chart } from "@/src/features/widgets";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 
 // Static — hoisted so its reference is stable across re-renders (keeps the
 // memoized <Chart> from reconciling on dashboard scheduler re-renders).
@@ -36,7 +36,7 @@ export function ChartScores(props: {
   toTimestamp: Date;
   projectId: string;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
   syncId?: string;
 }) {

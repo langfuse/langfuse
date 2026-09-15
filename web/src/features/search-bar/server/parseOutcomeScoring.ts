@@ -15,7 +15,7 @@ import { logger } from "@langfuse/shared/src/server";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 import type { GeneratedFilters } from "./parseFilterCompletion";
 
-export type ParseOutcomeScoreName =
+type ParseOutcomeScoreName =
   | "parse-empty-result"
   | "parse-dropped-filters"
   | "parse-unknown-score-names"

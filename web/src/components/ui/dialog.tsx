@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 "use client";
 
 import * as React from "react";
@@ -171,6 +171,76 @@ const DialogContent = React.forwardRef<
 );
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
+/**
+ * Owns dialog open state while callers retain trigger and content presentation.
+ */
+type DialogControllerProps<State = void> = {
+  // Evaluated only when the controller mounts; later callback or dependency changes do not update the dialog.
+  initialState?: () => State | undefined;
+  children: (control: {
+    isOpen: boolean;
+    openDialog: (...args: [State] extends [void] ? [] : [state: State]) => void;
+  }) => React.ReactNode;
+  closeOnInteractionOutside: boolean;
+  onBeforeClose?: () => boolean;
+  onDismiss?: () => void;
+  renderContent: (control: {
+    state: State;
+    closeDialog: () => void;
+  }) => React.ReactNode;
+  size: React.ComponentProps<typeof DialogContent>["size"];
+};
+
+const DialogController = <State = void,>({
+  initialState,
+  children,
+  closeOnInteractionOutside,
+  onBeforeClose,
+  onDismiss,
+  renderContent,
+  size,
+}: DialogControllerProps<State>) => {
+  const [controllerState, setControllerState] = React.useState<
+    { active: false } | { active: boolean; state: State }
+  >(() => {
+    const state = initialState?.();
+    return state === undefined ? { active: false } : { active: true, state };
+  });
+  const closeDialog = () => {
+    if (onBeforeClose?.() === false) return false;
+    setControllerState((currentState) =>
+      "state" in currentState
+        ? { ...currentState, active: false }
+        : currentState,
+    );
+    return true;
+  };
+
+  return (
+    <Dialog
+      open={controllerState.active}
+      onOpenChange={(open) => {
+        if (open) return;
+        if (closeDialog()) onDismiss?.();
+      }}
+    >
+      {children({
+        isOpen: controllerState.active,
+        openDialog: (...args) =>
+          setControllerState({ active: true, state: args[0] as State }),
+      })}
+      {"state" in controllerState ? (
+        <DialogContent
+          size={size}
+          closeOnInteractionOutside={closeOnInteractionOutside}
+        >
+          {renderContent({ state: controllerState.state, closeDialog })}
+        </DialogContent>
+      ) : null}
+    </Dialog>
+  );
+};
+
 const dialogHeaderVariants = cva(
   "bg-modal sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg p-4",
   {
@@ -204,8 +274,11 @@ const DialogHeader = ({
   >
     <div className="flex w-full items-center justify-between gap-4 text-center sm:text-left">
       <div className="min-w-0 flex-1">{children}</div>
+      {/* Untabbable on purpose: as the first tabbable descendant of the
+          content it would take Radix's initial focus away from the dialog's
+          first field or primary action. Escape and the mouse still close. */}
       <DialogPrimitive.Close
-        className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-20 mt-1 ml-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
+        className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -my-2 -mr-2 ml-2 inline-flex size-9 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
         tabIndex={-1}
       >
         <X className="h-4 w-4" />
@@ -287,8 +360,7 @@ DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
 export {
   Dialog,
-  DialogPortal,
-  DialogOverlay,
+  DialogController,
   DialogClose,
   DialogTrigger,
   DialogContent,

@@ -2,10 +2,10 @@
 
 import { useMemo } from "react";
 import { useRouter } from "next/router";
-import { InAppAgentWindow } from "./InAppAgentWindow";
-import type {
-  InAppAgentWindowConversation,
-  InAppAgentWindowExecutionUi,
+import {
+  InAppAgentWindow,
+  type InAppAgentWindowConversation,
+  type InAppAgentWindowExecutionUi,
 } from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import { useSmoothStreamingMessages } from "./useSmoothStreamingMessages";
@@ -16,32 +16,14 @@ import {
   getInAppAgentQuickActionContext,
 } from "@/src/features/in-app-agent/quickActions";
 import {
-  getBackgroundRunFailureMessage,
+  getBackgroundRunNotice,
+  getSettledActivityOutcome,
   isCancellableBackgroundRun,
-  type BackgroundExecutionRunView,
 } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
-import { InAppAgentRunStatus } from "@langfuse/shared";
-
-const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
-  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
-
-function getBackgroundRunNotice(
-  run: BackgroundExecutionRunView | null,
-): string | null {
-  if (!run) {
-    return null;
-  }
-
-  if (isCancellableBackgroundRun(run.status) && run.cancelRequested) {
-    return "Stopping the run…";
-  }
-
-  if (run.status === InAppAgentRunStatus.FAILED) {
-    return getBackgroundRunFailureMessage(run.errorCode ?? null);
-  }
-
-  return null;
-}
+import {
+  InAppAgentRunStatus,
+  isUnsettledInAppAgentRunStatus,
+} from "@langfuse/shared/in-app-agent";
 
 type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;
@@ -86,7 +68,7 @@ export function ControlledInAppAgentWindow(
     rejectToolCall,
     selectConversation,
     selectedConversationId,
-    selectedConversationIsWriteLocked,
+    selectedConversationTitle,
     submit,
     submitFeedback,
   } = useInAppAiAgent();
@@ -109,6 +91,7 @@ export function ControlledInAppAgentWindow(
   });
   const windowExecutionUi: InAppAgentWindowExecutionUi = {
     notice: getBackgroundRunNotice(execution.run),
+    activityOutcome: getSettledActivityOutcome(execution.run),
     stop:
       execution.run && isCancellableBackgroundRun(execution.run.status)
         ? {
@@ -120,23 +103,36 @@ export function ControlledInAppAgentWindow(
           }
         : null,
   };
-  // Only a read-only conversation disables the composer outright. An assistant
-  // turn -- including one paused on an approval -- blocks submission but leaves
-  // the draft editable.
-  const isConversationInteractionDisabled =
-    selectedConversationIsWriteLocked || isSelectedConversationHydrating;
+  // An assistant turn -- including one paused on an approval -- blocks
+  // submission but leaves the draft editable. Hydration is the only case that
+  // disables the composer outright so a stale snapshot cannot be submitted.
+  const isConversationInteractionDisabled = isSelectedConversationHydrating;
   const isAssistantTurnInProgress =
     isRunning ||
     isAnimating ||
     isSubmitting ||
     pendingToolApprovals.length > 0 ||
     displayedPendingToolApprovals.length > 0;
-  const displayError = selectedConversationIsWriteLocked
-    ? ({
-        type: "generic",
-        message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-      } as const)
-    : error;
+  // Settle from the durable run, not from attach/animation. A finished
+  // attached conversation can still be `isRunning` while the watch connects.
+  // A hydrated in-flight run may have no `execution.run` yet — then `isRunning`
+  // is the only signal that the turn is still open.
+  const isRunUnsettled =
+    isSubmitting ||
+    pendingToolApprovals.length > 0 ||
+    displayedPendingToolApprovals.length > 0 ||
+    (execution.run
+      ? isUnsettledInAppAgentRunStatus(execution.run.status)
+      : isRunning);
+  // Both halves are needed. The status alone stays AWAITING_APPROVAL after the
+  // user decides, until the watch reports the resumed run, which would leave the
+  // drawer claiming to wait on someone who already answered. Pending approvals
+  // alone are not enough either: an always-allowed tool carries one and keeps
+  // executing.
+  const isAwaitingApproval =
+    execution.run?.status === InAppAgentRunStatus.AWAITING_APPROVAL &&
+    (pendingToolApprovals.length > 0 ||
+      displayedPendingToolApprovals.length > 0);
   const screenContextDescription = useMemo(
     () => getInAppAgentScreenContextDescription(router.asPath),
     [router.asPath],
@@ -175,13 +171,14 @@ export function ControlledInAppAgentWindow(
 
   return (
     <InAppAgentWindow
-      error={displayError}
+      error={error}
       isAssistantTurnInProgress={isAssistantTurnInProgress}
+      isRunUnsettled={isRunUnsettled}
+      isAwaitingApproval={isAwaitingApproval}
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
       isConversationInteractionDisabled={isConversationInteractionDisabled}
       isSelectedConversationHydrating={isSelectedConversationHydrating}
-      disablePendingToolApprovalActions={selectedConversationIsWriteLocked}
       messages={drawerMessages}
       quickActionContext={quickActionContext}
       focusedQuickActions={focusedQuickActions}
@@ -192,6 +189,7 @@ export function ControlledInAppAgentWindow(
       hasMoreConversations={hasMoreConversations}
       isLoadingMoreConversations={isLoadingMoreConversations}
       selectedConversationId={selectedConversationId}
+      selectedConversationTitle={selectedConversationTitle}
       onLoadMoreConversations={loadMoreConversations}
       onOpenConversationHistory={invalidateConversations}
       onDeleteConversation={props.onDeleteConversation}

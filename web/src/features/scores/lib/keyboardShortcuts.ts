@@ -118,16 +118,6 @@ export function isCompleteShortcut(event: KeyboardEvent): boolean {
 }
 
 /**
- * Best-effort "is this an Apple device" check, used only to render `⌘` vs `Ctrl`
- * in shortcut hints. Call from an effect (not during render) to avoid an SSR
- * hydration mismatch.
- */
-export function isAppleDevice(): boolean {
-  if (typeof navigator === "undefined") return false;
-  return navigator.userAgent.includes("Mac");
-}
-
-/**
  * True when a "hot" platform modifier key is held — reserve those for browser /
  * app shortcuts (Cmd+K, Ctrl+S, …) and bail out of our printable-key shortcuts.
  *

@@ -1,6 +1,6 @@
 import preview from "../../../../.storybook/preview";
 import { fn } from "storybook/test";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import type { DataPoint } from "@/src/features/widgets";
 import { ChartViewPanel } from "./ChartViewPanel";
 import { DEFAULT_CONFIG } from "../vocab";
 

@@ -1,6 +1,7 @@
 import { DataTable } from "@/src/components/table/data-table";
+import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { Badge } from "@/src/components/ui/badge";
 import {
   ExperimentGridCell,
@@ -10,7 +11,7 @@ import {
   type ExperimentItemsTableRow,
   getExperimentColorStyles,
 } from "./types";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import {
   type OnChangeFn,
@@ -20,7 +21,6 @@ import {
 } from "@tanstack/react-table";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { cn } from "@/src/utils/tailwind";
-import { type ReactNode } from "react";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 
 // Grid view row heights (matching DatasetCompareRunsTable)
@@ -35,11 +35,21 @@ type ExperimentGridViewProps = {
   baselineExperimentId?: string;
   comparisonExperimentIds: string[];
   useExperimentColors?: boolean;
+  /** Whether cells carry a delta against the baseline (the diff mode). */
+  showDiff: boolean;
   /** Render I/O cells as single-line text (true) or JSON tree (false). */
   singleLine: boolean;
   rows: ExperimentItemsTableRow[];
   isLoading: boolean;
+  /**
+   * Whether the item I/O query is still in flight. Separate from `isLoading`:
+   * the rows arrive from one query and their I/O from a second, so a cell that
+   * read row-loading would show an empty payload as if it were the answer.
+   */
+  ioLoading: boolean;
   rowHeight: RowHeight;
+  /** Whether any item in view has an expected output worth a column. */
+  showExpectedOutput: boolean;
   observationScoreOrder: string[];
   traceScoreOrder: string[];
   showScoreLevelLabels: boolean;
@@ -67,10 +77,13 @@ export const ExperimentGridView = ({
   baselineExperimentId,
   comparisonExperimentIds,
   useExperimentColors = true,
+  showDiff,
   singleLine,
   rows,
   isLoading,
+  ioLoading,
   rowHeight,
+  showExpectedOutput,
   observationScoreOrder,
   traceScoreOrder,
   showScoreLevelLabels,
@@ -159,6 +172,7 @@ export const ExperimentGridView = ({
               projectId={projectId}
               itemId={row.original.itemId}
               output={outputData?.output}
+              isLoading={ioLoading}
               level={expData.level}
               startTime={expData.startTime}
               totalCost={expData.totalCost}
@@ -174,10 +188,28 @@ export const ExperimentGridView = ({
               traceScoreOrder={traceScoreOrder}
               showScoreLevelLabels={showScoreLevelLabels}
               isBaseline={isBaseline}
+              showDiff={showDiff}
               baselineScores={baselineData?.observationScores}
               baselineTraceScores={baselineData?.traceScores}
+              baselineExperimentName={
+                experimentNames.find(
+                  (e) => e.experimentId === baselineExperimentId,
+                )?.experimentName
+              }
               columnVisibility={columnVisibility}
               markerClassName={colorStyles?.markerClass}
+              onExperimentClick={
+                peekView?.openPeek
+                  ? (event) => {
+                      if (shouldIgnoreRowClickTarget(event.target)) return;
+                      event.stopPropagation();
+                      peekView.openPeek?.(row.original.itemId, {
+                        ...row.original,
+                        clickedExperimentId: expId,
+                      });
+                    }
+                  : undefined
+              }
             />
           );
         },
@@ -187,13 +219,16 @@ export const ExperimentGridView = ({
     allExperimentIds,
     experimentNames,
     baselineExperimentId,
+    ioLoading,
     projectId,
     observationScoreOrder,
     traceScoreOrder,
     showScoreLevelLabels,
     columnVisibility,
     useExperimentColors,
+    showDiff,
     singleLine,
+    peekView,
   ]);
 
   // Build all columns: Select, Input, Expected Output, then experiment columns
@@ -201,36 +236,37 @@ export const ExperimentGridView = ({
     () => [
       // Include select column if provided
       ...(selectActionColumn ? [selectActionColumn] : []),
-      {
+      createIOTableColumn<ExperimentItemsTableRow>({
         accessorKey: "input",
-        id: "input",
         header: "Input",
         size: 200,
-        cell: ({ row }) => (
-          <MemoizedIOTableCell
-            isLoading={isLoading}
-            data={row.original.input ?? null}
-            singleLine={singleLine}
-          />
-        ),
-      },
-      {
-        accessorKey: "expectedOutput",
-        id: "expectedOutput",
-        header: "Expected Output",
-        size: 200,
-        cell: ({ row }) => (
-          <MemoizedIOTableCell
-            isLoading={isLoading}
-            data={row.original.expectedOutput ?? null}
-            singleLine={singleLine}
-            className="bg-accent-light-green"
-          />
-        ),
-      },
+        getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
+        singleLine,
+      }),
+      // Gated: an empty expected output used to render as two literal quote
+      // characters, and a whole column of them is worse than no column.
+      ...(showExpectedOutput
+        ? [
+            createIOTableColumn<ExperimentItemsTableRow>({
+              accessorKey: "expectedOutput",
+              header: "Expected Output",
+              size: 200,
+              getCell: (value) =>
+                ioLoading ? { type: "loading" } : value || undefined,
+              singleLine,
+              variant: "output",
+            }),
+          ]
+        : []),
       ...experimentColumns,
     ],
-    [experimentColumns, isLoading, selectActionColumn, singleLine],
+    [
+      experimentColumns,
+      ioLoading,
+      selectActionColumn,
+      showExpectedOutput,
+      singleLine,
+    ],
   );
 
   return (

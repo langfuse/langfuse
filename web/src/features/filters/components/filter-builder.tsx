@@ -42,6 +42,7 @@ import {
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { SingleSelect } from "@/src/features/filters/components/single-select";
 import { FilterToken } from "@/src/features/filters/components/FilterToken";
+import { getColumnOptionsForFilterRow } from "@/src/features/filters/lib/filter-transform";
 import {
   type WipFilterState,
   type WipFilterCondition,
@@ -56,7 +57,7 @@ import {
   getSessionPositionInTraceFilterMode,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   InputCommand,
   InputCommandEmpty,
@@ -118,9 +119,9 @@ export function PopoverFilterBuilder({
   isV4?: boolean;
 }) {
   const capture = usePostHogClientCapture();
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const projectId = useProjectIdFromURL();
   const { organization } = useQueryProject();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const createFilterMutation =
     api.naturalLanguageFilters.createCompletion.useMutation();
   const [wipFilterState, _setWipFilterState] =
@@ -445,9 +446,11 @@ export function InlineFilterBuilder({
   columnIdentifier = "name",
   disabled,
   columnsWithCustomSelect,
+  columnsHiddenUnlessSelected,
   stringObjectValueOptions,
   onStringObjectKeyChange,
   compact = false,
+  subtleAddButton = false,
 }: {
   columns: ColumnDefinitionWithAlert[];
   filterState: FilterState;
@@ -458,12 +461,19 @@ export function InlineFilterBuilder({
   columnIdentifier?: ColumnIdentifier;
   disabled?: boolean;
   columnsWithCustomSelect?: string[];
+  /**
+   * Column ids/names that stay in the picker only for rows that already use
+   * them. Used to grandfather retired columns without offering them on new rows.
+   */
+  columnsHiddenUnlessSelected?: readonly string[];
   /** Per-key value suggestions for opt-in stringObject columns (metadata). */
   stringObjectValueOptions?: Record<string, SingleValueOption[]>;
   /** Fires when a suggestion-enabled stringObject key changes, so the parent can load its values. */
   onStringObjectKeyChange?: (key: string) => void;
   /** compact renders the width-constrained two-line layout instead of the legacy single-row table. */
   compact?: boolean;
+  /** Renders the add action like the subtle prompt-editor "Add message" action. */
+  subtleAddButton?: boolean;
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
@@ -509,9 +519,11 @@ export function InlineFilterBuilder({
         onChange={setWipFilterState}
         disabled={disabled}
         columnsWithCustomSelect={columnsWithCustomSelect}
+        columnsHiddenUnlessSelected={columnsHiddenUnlessSelected}
         stringObjectValueOptions={stringObjectValueOptions}
         onStringObjectKeyChange={onStringObjectKeyChange}
         compact={compact}
+        subtleAddButton={subtleAddButton}
       />
     </div>
   );
@@ -554,9 +566,11 @@ function FilterBuilderForm({
   onChange,
   disabled,
   columnsWithCustomSelect = [],
+  columnsHiddenUnlessSelected = [],
   stringObjectValueOptions = {},
   onStringObjectKeyChange,
   compact = false,
+  subtleAddButton = false,
   aiFilter,
 }: {
   columnIdentifier: ColumnIdentifier;
@@ -565,12 +579,18 @@ function FilterBuilderForm({
   onChange: Dispatch<SetStateAction<WipFilterState>>;
   disabled?: boolean;
   columnsWithCustomSelect?: string[];
+  /**
+   * Column ids/names that stay in the picker only for rows that already use
+   * them. Used to grandfather retired columns without offering them on new rows.
+   */
+  columnsHiddenUnlessSelected?: readonly string[];
   /** Per-key value suggestions for opt-in stringObject columns (metadata). */
   stringObjectValueOptions?: Record<string, SingleValueOption[]>;
   /** Fires when a suggestion-enabled stringObject key changes, so the parent can load its values. */
   onStringObjectKeyChange?: (key: string) => void;
   /** compact renders each condition as a wrapping block for width-constrained inline builders instead of the wide table. */
   compact?: boolean;
+  subtleAddButton?: boolean;
   aiFilter?: AiFilterConfig;
 }) {
   const [showAiFilter, setShowAiFilter] = useState(false);
@@ -653,7 +673,16 @@ function FilterBuilderForm({
     const stringObjectSuggest =
       column?.type === "stringObject" &&
       columnsWithCustomSelect.includes(column.id);
+    const stringSuggest =
+      column?.type === "string" &&
+      columnsWithCustomSelect.includes(column.id) &&
+      column.options !== undefined;
     const columnLabel = column ? column.name : "Column";
+    const columnsForPicker = getColumnOptionsForFilterRow(
+      columns,
+      filter.column,
+      columnsHiddenUnlessSelected,
+    );
 
     const columnCombobox = (
       <Popover
@@ -677,16 +706,7 @@ function FilterBuilderForm({
             <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent
-          align="start"
-          className="max-w-fit p-0"
-          onWheel={(e) => {
-            e.stopPropagation();
-          }}
-          onTouchMove={(e) => {
-            e.stopPropagation();
-          }}
-        >
+        <PopoverContent align="start" className="max-w-fit p-0">
           <InputCommand>
             <InputCommandInput
               placeholder="Search for column"
@@ -695,7 +715,7 @@ function FilterBuilderForm({
             <InputCommandList>
               <InputCommandEmpty>No options found.</InputCommandEmpty>
               <InputCommandGroup>
-                {columns.map((option) => {
+                {columnsForPicker.map((option) => {
                   const hasAlert = !!option.alert;
                   const severity = option.alert?.severity ?? "warning";
                   const alertStyles = getAlertStyles(severity);
@@ -890,8 +910,11 @@ function FilterBuilderForm({
             {
               ...filter,
               operator: value as any,
-              // Ensure null filters always have empty string value
-              value: filter.type === "null" ? "" : (filter.value as any),
+              // Value-less operators keep an empty string for schema compatibility.
+              value:
+                filter.type === "null" || value === "is not empty"
+                  ? ""
+                  : (filter.value as any),
             },
             i,
           );
@@ -915,7 +938,9 @@ function FilterBuilderForm({
 
     const valueControl = keyPending ? (
       <Input disabled />
-    ) : stringObjectSuggest && filter.type === "stringObject" ? (
+    ) : filter.type === "string" &&
+      filter.operator === "is not empty" ? null : stringObjectSuggest &&
+      filter.type === "stringObject" ? (
       <SingleSelect
         title="Value"
         className="min-w-[100px]"
@@ -924,6 +949,17 @@ function FilterBuilderForm({
         onValueChange={(value) => handleFilterChange({ ...filter, value }, i)}
         disabled={disabled}
         isCustomSelectEnabled
+      />
+    ) : stringSuggest && filter.type === "string" ? (
+      <SingleSelect
+        title="Value"
+        className="min-w-[100px]"
+        options={column?.type === "string" ? (column.options ?? []) : []}
+        value={filter.value ?? undefined}
+        onValueChange={(value) => handleFilterChange({ ...filter, value }, i)}
+        disabled={disabled}
+        isCustomSelectEnabled
+        showOptionValue={column?.id === "evaluatorId"}
       />
     ) : filter.type === "string" || filter.type === "stringObject" ? (
       <Input
@@ -1099,10 +1135,12 @@ function FilterBuilderForm({
     ) : (
       <tr key={i}>
         <td className="p-1 text-sm">{connector}</td>
-        <td className="flex gap-2 p-1">
-          {/* selector of the column to be filtered */}
-          {columnCombobox}
-          {keyControl}
+        <td className="p-1">
+          <div className="flex gap-2">
+            {/* selector of the column to be filtered */}
+            {columnCombobox}
+            {keyControl}
+          </div>
         </td>
         <td className="p-1">{operatorSelect}</td>
         <td className="p-1">{valueControl}</td>
@@ -1209,11 +1247,21 @@ function FilterBuilderForm({
             <Button
               onClick={() => addNewFilter()}
               type="button" // required as it will otherwise submit forms where this component is used
-              className={cn("mt-2", compact && "mt-4 self-start")}
-              variant="outline"
+              className={cn(
+                subtleAddButton
+                  ? "text-foreground hover:text-foreground mt-2 h-6 w-full justify-start gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
+                  : "mt-2",
+                compact && !subtleAddButton && "mt-4 self-start",
+              )}
+              variant={subtleAddButton ? "ghost" : "outline"}
               size="sm"
             >
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus
+                className={cn(
+                  "shrink-0",
+                  subtleAddButton ? "h-3.5 w-3.5" : "mr-2 h-4 w-4",
+                )}
+              />
               Add filter
             </Button>
           ) : null}

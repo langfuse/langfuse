@@ -1,30 +1,23 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { FilteredRunPills } from "@/src/components/table/filtered-run-pills";
-import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { useColumnVisibility } from "@/src/features/column-visibility";
 import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
 import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { api } from "@/src/utils/api";
-import { Button } from "@/src/components/ui/button";
-import { LayoutList } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import {
   DatasetCompareFieldsProvider,
   useDatasetCompareFields,
 } from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
-import { useColumnFilterState } from "@/src/features/filters/hooks/useColumnFilterState";
+import { useColumnFilterState } from "@/src/features/filters";
 import { type Prisma } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -44,8 +37,8 @@ function DatasetCompareRunsTableInternal(props: {
   datasetId: string;
   runIds: string[];
 }) {
-  const { toggleField, isFieldSelected } = useDatasetCompareFields();
-  const [isFieldsDropdownOpen, setIsFieldsDropdownOpen] = useState(false);
+  const { toggleField, isFieldSelected, setSelectedFields } =
+    useDatasetCompareFields();
   const {
     updateColumnFilters: updateRunFilters,
     getFiltersForColumnById: getFiltersForRun,
@@ -111,6 +104,8 @@ function DatasetCompareRunsTableInternal(props: {
     // reader) so a stray param cannot pin the peek to a foreign trace
     // (LFE-11041).
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: "datasetCompareRuns",
+    isV4: false,
     expandConfig: {
       basePath: `/project/${props.projectId}/traces`,
     },
@@ -121,6 +116,8 @@ function DatasetCompareRunsTableInternal(props: {
       itemType: "TRACE" as const,
       closePeek,
       expandPeek,
+      tableName: "datasetCompareRuns",
+      isV4: false,
       // openPeek is handled by DatasetAggregateTableCell's custom handleOpenPeek
     }),
     [closePeek, expandPeek],
@@ -136,74 +133,43 @@ function DatasetCompareRunsTableInternal(props: {
     });
 
   const columns: LangfuseColumnDef<DatasetCompareRunRowData>[] = [
-    {
+    createLinkTableColumn<DatasetCompareRunRowData>({
       accessorKey: "id",
       header: "Item id",
-      id: "id",
       size: 90,
       enableHiding: true,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const id: string = row.getValue("id");
-        return (
-          <TableLink
-            path={`/project/${props.projectId}/datasets/${props.datasetId}/items/${id}`}
-            value={id}
-          />
-        );
+      getCell: (id) => {
+        if (!id) return undefined;
+        return {
+          type: "link",
+          props: {
+            path: `/project/${props.projectId}/datasets/${props.datasetId}/items/${id}`,
+            value: id,
+          },
+        };
       },
-    },
-    {
+    }),
+    createIOTableColumn<DatasetCompareRunRowData>({
       accessorKey: "input",
       header: "Input",
-      id: "input",
       size: 200,
       enableHiding: true,
-      cell: ({ row }) => {
-        const input = row.getValue(
-          "input",
-        ) as DatasetCompareRunRowData["input"];
-        return input !== null ? (
-          <div className="h-full w-full">
-            <IOTableCell data={input} />
-          </div>
-        ) : null;
-      },
-    },
-    {
+    }),
+    createIOTableColumn<DatasetCompareRunRowData>({
       accessorKey: "expectedOutput",
       header: "Expected Output",
-      id: "expectedOutput",
       size: 200,
       enableHiding: true,
-      cell: ({ row }) => {
-        const expectedOutput = row.getValue(
-          "expectedOutput",
-        ) as DatasetCompareRunRowData["expectedOutput"];
-        return expectedOutput !== null ? (
-          <div className="h-full w-full">
-            <IOTableCell
-              data={expectedOutput}
-              className="bg-accent-light-green"
-            />
-          </div>
-        ) : null;
-      },
-    },
-    {
+      variant: "output",
+    }),
+    createIOTableColumn<DatasetCompareRunRowData>({
       accessorKey: "metadata",
       header: "Metadata",
-      id: "metadata",
       size: 200,
       enableHiding: true,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const metadata = row.getValue(
-          "metadata",
-        ) as DatasetCompareRunRowData["metadata"];
-        return metadata !== null ? <IOTableCell data={metadata} /> : null;
-      },
-    },
+    }),
     {
       ...getDatasetRunAggregateColumnProps(cellsLoading),
       columns: runAggregateColumns,
@@ -225,53 +191,56 @@ function DatasetCompareRunsTableInternal(props: {
   return (
     <>
       <DataTableToolbar
+        tableName="dataset-compare-runs"
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
-        actionButtons={
-          <DropdownMenu open={isFieldsDropdownOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                onClick={() => setIsFieldsDropdownOpen(!isFieldsDropdownOpen)}
-              >
-                <LayoutList className="mr-2 h-4 w-4" />
-                <span>Fields</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              onPointerDownOutside={() => setIsFieldsDropdownOpen(false)}
-            >
-              <DropdownMenuCheckboxItem
-                checked={isFieldSelected("output")}
-                onCheckedChange={() => toggleField("output")}
-              >
-                Output
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={isFieldSelected("scores")}
-                onCheckedChange={() => toggleField("scores")}
-              >
-                Scores
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={isFieldSelected("resourceMetrics")}
-                onCheckedChange={() => toggleField("resourceMetrics")}
-              >
-                Latency and cost
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        }
+        additionalColumnSettings={{
+          isDefault:
+            isFieldSelected("output") &&
+            isFieldSelected("scores") &&
+            isFieldSelected("resourceMetrics"),
+          content: (
+            <div className="px-3 py-2">
+              <p className="text-muted-foreground px-2 pb-1 text-xs">
+                Within each experiment
+              </p>
+              {(
+                [
+                  ["output", "Output"],
+                  ["scores", "Scores"],
+                  ["resourceMetrics", "Latency and cost"],
+                ] as const
+              ).map(([field, label]) => (
+                <label
+                  key={field}
+                  htmlFor={`dataset-compare-${field}`}
+                  className="hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded-md p-2 text-sm"
+                >
+                  <Checkbox
+                    id={`dataset-compare-${field}`}
+                    checked={isFieldSelected(field)}
+                    onCheckedChange={() => toggleField(field)}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          ),
+          onRestoreDefaults: () =>
+            setSelectedFields(["output", "scores", "resourceMetrics"]),
+        }}
       />
-      <FilteredRunPills
-        projectId={props.projectId}
-        datasetId={props.datasetId}
-        filteredRuns={activeRunFilters}
-        className="px-2 pb-2"
-      />
+      {hasActiveRunFilters && (
+        <FilteredRunPills
+          projectId={props.projectId}
+          datasetId={props.datasetId}
+          filteredRuns={activeRunFilters}
+          className="px-2 pb-2"
+        />
+      )}
       <DataTable
         tableName="datasetCompareRuns"
         columns={columns}

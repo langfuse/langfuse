@@ -53,6 +53,15 @@ restate them here so the security sweep stays self-contained.
 - Are new env vars added to `.env*.example` files and validated via the
   package `env.mjs/ts`, not read from `process.env` directly?
 
+- Does the change add a field to a config blob or entity that a read route
+  returns, or add a branch to a converter that shapes such a response?
+  - If yes, see [secret-read-paths.md](secret-read-paths.md).
+  - Required: one shared converter for every read route and mutation
+    response, exhaustive dispatch over the type union (`never` default), an
+    allowlist-built result, and a read-path negative test as VIEWER. A
+    catch-all branch that returns the stored value for "other types" is a
+    finding, as is `as Safe*` in place of a sanitizer.
+
 ## Audit Logging
 
 - Do sensitive mutations (integration config changes, role or scope changes,
@@ -60,6 +69,16 @@ restate them here so the security sweep stays self-contained.
   `resourceType`? Match existing wiring in
   `web/src/features/blobstorage-integration/blobstorage-integration-router.ts`
   and similar routers.
+
+## Client Telemetry and Session Replay
+
+- Can analytics, browser monitoring, replay, logs, or network capture transmit
+  customer-controlled values or identifiers to a third party?
+  - If yes, see
+    [client-telemetry-privacy.md](client-telemetry-privacy.md). Required: an
+    explicit data boundary, deployment/compliance allowlisting, protection at
+    shared render boundaries including portals and attributes, negative tests,
+    and inspection of the emitted payload.
 
 ## Negative Tests
 

@@ -1,9 +1,9 @@
 import {
-  InAppAgentRunStatus,
   type Prisma,
   type PrismaClient,
   type Prompt,
 } from "../../../src/index";
+import { InAppAgentRunStatus } from "../../../src/features/inAppAgent/types";
 
 type SummaryPrompt = Pick<
   Prompt,

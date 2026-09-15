@@ -3,13 +3,11 @@ export const EVALS_TABS = {
   TEMPLATES: "templates",
 } as const;
 
-export type EvalsTab = (typeof EVALS_TABS)[keyof typeof EVALS_TABS];
-
 export const getEvalsTabs = (projectId: string) => [
   {
     value: EVALS_TABS.CONFIGS,
     label: "Running Evaluators",
-    href: `/project/${projectId}/evals`,
+    href: `/project/${projectId}/evals/legacy`,
   },
   {
     value: EVALS_TABS.TEMPLATES,

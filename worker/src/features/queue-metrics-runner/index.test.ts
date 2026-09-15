@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   getJobCounts: vi.fn(),
   recordGauge: vi.fn(),
   updateActiveIngestFailureProjectsMetric: vi.fn(),
+  emitV4LegacyApiUsageFreshnessMetrics: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/src/server", () => ({
@@ -50,6 +51,11 @@ vi.mock("../../queues/shardedQueueRegistry", () => ({
   })),
 }));
 
+vi.mock("../v4/v4LegacyApiUsageMetrics", () => ({
+  emitV4LegacyApiUsageFreshnessMetrics:
+    mocks.emitV4LegacyApiUsageFreshnessMetrics,
+}));
+
 import { QueueMetricsRunner } from ".";
 
 class TestQueueMetricsRunner extends QueueMetricsRunner {
@@ -69,6 +75,7 @@ describe("QueueMetricsRunner", () => {
       waiting: 7,
     });
     mocks.updateActiveIngestFailureProjectsMetric.mockResolvedValue(undefined);
+    mocks.emitV4LegacyApiUsageFreshnessMetrics.mockResolvedValue(undefined);
   });
 
   it("emits only the canonical gauges for a non-sharded queue", async () => {

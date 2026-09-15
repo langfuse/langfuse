@@ -60,5 +60,3 @@ export {
   usePanelRef,
   useDefaultLayout,
 };
-type ImperativePanelHandle = ResizablePrimitive.PanelImperativeHandle;
-export type { ImperativePanelHandle };

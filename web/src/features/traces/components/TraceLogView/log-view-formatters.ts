@@ -60,19 +60,6 @@ export function formatRelativeTime(ms: number, showMs = false): string {
 }
 
 /**
- * Formats depth as a visual indicator.
- *
- * @param depth - Tree depth (0 for root observations)
- * @returns Formatted depth string or empty for depth 0
- */
-export function formatDepthIndicator(depth: number): string {
-  if (depth <= 0) {
-    return "";
-  }
-  return `L${depth}`;
-}
-
-/**
  * Formats duration in milliseconds to a human-readable string.
  *
  * Examples:

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 "use client";
 
 import * as React from "react";
@@ -15,7 +15,6 @@ import Link from "next/link";
 
 import { cn } from "@/src/utils/tailwind";
 import { useLayerContainer } from "@/src/components/ui/layer";
-import { Skeleton } from "@/src/components/ui/skeleton";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
@@ -49,7 +48,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
   <DropdownMenuPrimitive.SubTrigger
     ref={ref}
     className={cn(
-      "focus:bg-accent data-[state=open]:bg-accent flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-hidden select-none",
+      "focus:bg-accent data-[state=open]:bg-accent flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-disabled:cursor-not-allowed",
       inset && "pl-8",
       className,
     )}
@@ -137,20 +136,28 @@ const DropdownContentWrapper = React.forwardRef<
     const { register, recompute, top, bottom } = useScrollGradients<
       React.ComponentRef<typeof DropdownMenuPrimitive.Content>
     >(maxHeight !== undefined);
+    const setContentRef = React.useCallback(
+      (
+        element: React.ComponentRef<
+          typeof DropdownMenuPrimitive.Content
+        > | null,
+      ) => {
+        register(element);
+        if (typeof ref === "function") {
+          ref(element);
+        } else if (ref) {
+          ref.current = element;
+        }
+      },
+      [ref, register],
+    );
     const content =
       typeof children === "function" ? children({ top, bottom }) : children;
 
     return (
       <DropdownMenuPrimitive.Portal container={container}>
         <DropdownMenuPrimitive.Content
-          ref={(element) => {
-            register(element);
-            if (typeof ref === "function") {
-              ref(element);
-            } else if (ref) {
-              ref.current = element;
-            }
-          }}
+          ref={setContentRef}
           sideOffset={sideOffset}
           className={cn(
             dropdownMenuContentVariants({
@@ -253,6 +260,48 @@ const DropdownMenuContent = React.forwardRef<
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 
 /**
+ * Owns dropdown open state while callers retain trigger and menu presentation.
+ * Use the supplied primitives in each render prop to preserve Radix behavior.
+ */
+type DropdownMenuControllerProps = {
+  align: React.ComponentProps<typeof DropdownMenuContent>["align"];
+  children: (control: {
+    isOpen: boolean;
+    Trigger: typeof DropdownMenuTrigger;
+  }) => React.ReactNode;
+  maxWidth?: React.CSSProperties["maxWidth"];
+  /** Customizes Radix focus restoration after the menu closes. */
+  onCloseAutoFocus?: React.ComponentProps<
+    typeof DropdownMenuContent
+  >["onCloseAutoFocus"];
+  renderMenu: () => React.ReactNode;
+};
+
+const DropdownMenuController = ({
+  align,
+  children,
+  maxWidth,
+  onCloseAutoFocus,
+  renderMenu,
+}: DropdownMenuControllerProps) => {
+  const [isOpen, setIsOpen] = React.useState(false);
+
+  return (
+    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+      {children({ isOpen, Trigger: DropdownMenuTrigger })}
+      <DropdownMenuContent
+        align={align}
+        style={maxWidth === undefined ? undefined : { maxWidth }}
+        onClick={(event) => event.stopPropagation()}
+        onCloseAutoFocus={onCloseAutoFocus}
+      >
+        {renderMenu()}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
+/**
  * Prefer `DropdownMenuItemWithSecondaryAction` for items that do not require JSX content.
  */
 const DropdownMenuItem = React.forwardRef<
@@ -265,7 +314,7 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-hidden transition-colors select-none data-disabled:opacity-50",
+      "focus:bg-accent focus:text-accent-foreground relative flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-hidden transition-colors select-none data-disabled:cursor-not-allowed data-disabled:opacity-50",
       !allowPointerEventsWhenDisabled && "data-disabled:pointer-events-none",
       inset && "pl-8",
       className,
@@ -284,10 +333,12 @@ type DropdownMenuItemAction = {
 } & (
   | {
       href: React.ComponentProps<typeof Link>["href"];
+      target?: React.ComponentProps<typeof Link>["target"];
       onClick?: never;
     }
   | {
       href?: never;
+      target?: never;
       onClick: () => void;
     }
 );
@@ -301,6 +352,9 @@ type DropdownMenuItemWithSecondaryActionProps = {
     icon: LucideIcon;
   };
 } & DropdownMenuItemAction;
+
+const relForTarget = (target: React.ComponentProps<typeof Link>["target"]) =>
+  target === "_blank" ? "noopener noreferrer" : undefined;
 
 const dropdownMenuItemPrimaryActionVariants = cva(
   "flex min-w-0 flex-1 cursor-pointer items-center px-2 py-1.5",
@@ -342,6 +396,8 @@ const DropdownMenuItemWithSecondaryAction = (
       secondaryActionContent = (
         <Link
           href={secondaryAction.href}
+          target={secondaryAction.target}
+          rel={relForTarget(secondaryAction.target)}
           aria-label={secondaryAction.ariaLabel}
           aria-disabled={isDisabled}
           tabIndex={isDisabled ? -1 : undefined}
@@ -407,6 +463,8 @@ const DropdownMenuItemWithSecondaryAction = (
             primaryActionRef.current = element;
           }}
           href={props.href}
+          target={props.target}
+          rel={relForTarget(props.target)}
           aria-disabled={isDisabled}
           tabIndex={isDisabled ? -1 : undefined}
           className={dropdownMenuItemPrimaryActionVariants()}
@@ -451,12 +509,6 @@ const DropdownMenuItemWithSecondaryAction = (
   );
 };
 
-const DropdownMenuLoadingItem = () => (
-  <DropdownMenuItem disabled aria-label="Loading">
-    <Skeleton variant="contrast" className="h-4 w-24" />
-  </DropdownMenuItem>
-);
-
 const DropdownMenuCheckboxItem = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.CheckboxItem>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>
@@ -464,7 +516,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden transition-colors select-none data-disabled:pointer-events-none data-disabled:opacity-50",
+      "focus:bg-accent focus:text-accent-foreground relative flex cursor-pointer items-center rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden transition-colors select-none data-disabled:pointer-events-none data-disabled:opacity-50",
       className,
     )}
     checked={checked}
@@ -489,7 +541,7 @@ const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden transition-colors select-none data-disabled:pointer-events-none data-disabled:opacity-50",
+      "focus:bg-accent focus:text-accent-foreground relative flex cursor-pointer items-center rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden transition-colors select-none data-disabled:pointer-events-none data-disabled:opacity-50",
       className,
     )}
     {...props}
@@ -545,16 +597,15 @@ DropdownMenuShortcut.displayName = "DropdownMenuShortcut";
 
 export {
   DropdownMenu,
+  DropdownMenuController,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuItemWithSecondaryAction,
-  DropdownMenuLoadingItem,
   DropdownMenuCheckboxItem,
   DropdownMenuRadioItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuGroup,
   DropdownMenuPortal,
   DropdownMenuSub,

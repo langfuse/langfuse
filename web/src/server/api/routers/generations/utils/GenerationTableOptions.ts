@@ -4,8 +4,8 @@ import {
   singleFilter,
   TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
   TracingSearchType,
+  orderBy,
 } from "@langfuse/shared";
-import { orderBy } from "@langfuse/shared";
 
 export const GenerationTableOptions = z
   .object({

@@ -52,3 +52,29 @@ test("a right drawer's absolutely-positioned content does not scroll the documen
 
   expect(await documentOverflow(page)).toEqual({ y: 0, x: 0 });
 });
+
+test("a vertical document scrollbar does not spawn a horizontal one", async ({
+  page,
+}) => {
+  await page.setViewportSize(SHORT_VIEWPORT);
+  await signIn(page);
+  // Viewport units ignore scrollbars, so a shell sized off `100vw` overshoots
+  // the space beside the sidebar by the scrollbar's width once one is showing.
+  // Sizing `::-webkit-scrollbar` opts out of overlay scrollbars where the
+  // platform defaults to them, the way Windows and Linux behave natively.
+  await page.addStyleTag({
+    content: "::-webkit-scrollbar { width: 15px; height: 15px }",
+  });
+  await page.evaluate(() => {
+    document.documentElement.style.overflowY = "scroll";
+  });
+  const scrollbarWidth = await page.evaluate(
+    () => window.innerWidth - document.documentElement.clientWidth,
+  );
+  test.skip(
+    scrollbarWidth === 0,
+    "this browser refuses space-taking scrollbars, so there is nothing to overshoot",
+  );
+
+  expect((await documentOverflow(page)).x).toBe(0);
+});

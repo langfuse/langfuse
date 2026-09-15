@@ -264,8 +264,9 @@ export function OutlierBarStrip({
           ticks.map((tick) => (
             <text
               key={`label-${tick.index}`}
-              x={tick.index * slotPx + 3}
+              x={tick.x}
               y={heightPx + 9}
+              textAnchor={tick.textAnchor}
               className="fill-muted-foreground/80 font-sans"
               fontSize={9}
             >

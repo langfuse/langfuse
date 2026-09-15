@@ -10,6 +10,7 @@
 
 import type { ScoreTypeContext } from "./adapter";
 import type { ASTNode, CompareOp, FilterNode, Span, TextNode } from "./ast";
+import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "./fields";
 import { lexTokens, type Diagnostic } from "./langQ";
 import { validateQuery } from "./validate";
 
@@ -30,7 +31,7 @@ export type FilterSegment = {
   editable: true;
 };
 
-export type PlainSegment = {
+type PlainSegment = {
   id: string;
   kind: "freeText" | "operator" | "paren";
   from: number;
@@ -39,7 +40,7 @@ export type PlainSegment = {
   editable: boolean;
 };
 
-export type InvalidSegment = {
+type InvalidSegment = {
   id: string;
   kind: "invalid";
   from: number;
@@ -67,7 +68,12 @@ type Leaf =
   | { span: Span; kind: "filter"; node: FilterNode; negated: boolean }
   | { span: Span; kind: "text"; node: TextNode };
 
-function collectLeaves(node: ASTNode, text: string, out: Leaf[]): void {
+function collectLeaves(
+  node: ASTNode,
+  text: string,
+  out: Leaf[],
+  registry: FieldRegistry,
+): void {
   switch (node.kind) {
     case "filter":
       if (node.span)
@@ -93,11 +99,11 @@ function collectLeaves(node: ASTNode, text: string, out: Leaf[]): void {
         });
         return;
       }
-      collectLeaves(node.child, text, out);
+      collectLeaves(node.child, text, out, registry);
       return;
     case "and":
     case "or":
-      for (const c of node.children) collectLeaves(c, text, out);
+      for (const c of node.children) collectLeaves(c, text, out, registry);
       return;
   }
 }
@@ -125,6 +131,7 @@ function overlappingErrors(diagnostics: Diagnostic[], span: Span): string[] {
 // memoized scoreTypes so the cache still hits across renders).
 let cacheKey: string | null = null;
 let cacheScoreTypes: ScoreTypeContext | undefined;
+let cacheRegistry: FieldRegistry = EVENTS_FIELD_REGISTRY;
 let cacheVal: ComposerSegment[] = [];
 
 /**
@@ -141,12 +148,18 @@ let cacheVal: ComposerSegment[] = [];
 export function deriveComposerSegments(
   draftText: string,
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): ComposerSegment[] {
-  if (draftText === cacheKey && scoreTypes === cacheScoreTypes) return cacheVal;
+  if (
+    draftText === cacheKey &&
+    scoreTypes === cacheScoreTypes &&
+    registry === cacheRegistry
+  )
+    return cacheVal;
 
-  const { ast, diagnostics } = validateQuery(draftText, scoreTypes);
+  const { ast, diagnostics } = validateQuery(draftText, scoreTypes, registry);
   const leaves: Leaf[] = [];
-  if (ast !== null) collectLeaves(ast, draftText, leaves);
+  if (ast !== null) collectLeaves(ast, draftText, leaves, registry);
   const leafByFrom = new Map<number, Leaf>();
   for (const leaf of leaves) leafByFrom.set(leaf.span.from, leaf);
 
@@ -231,6 +244,7 @@ export function deriveComposerSegments(
   const coalesced = coalesceFreeText(segments, draftText);
   cacheKey = draftText;
   cacheScoreTypes = scoreTypes;
+  cacheRegistry = registry;
   cacheVal = coalesced;
   return coalesced;
 }

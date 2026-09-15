@@ -4,7 +4,7 @@ import { env } from "@/src/env.mjs";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 
 const BACKEND_ACTIVITY_EVENT = "backend:activity";
-const DEDUPLICATION_TTL_SECONDS = 2 * 24 * 60 * 60;
+const DEDUPLICATION_TTL_SECONDS = 60 * 60;
 const LOCAL_CACHE_MAX_ENTRIES = 100_000;
 
 type BackendActivity = {
@@ -46,11 +46,12 @@ export const createBackendActivityTracker = ({
     const timestamp = now();
     const activityScope = projectId ? "project" : "organization";
     const scopeId = projectId ?? organizationId;
-    const utcDate = timestamp.toISOString().slice(0, 10);
+    const utcHour = timestamp.toISOString().slice(0, 13);
     const deduplicationKey = [
       "langfuse",
       "backend-activity",
-      utcDate,
+      "v2",
+      utcHour,
       userId,
       activityScope,
       scopeId,
@@ -77,6 +78,7 @@ export const createBackendActivityTracker = ({
           cloudRegion,
           organizationId,
           ...(projectId ? { projectId } : {}),
+          userId,
         },
         timestamp,
         disableGeoip: true,

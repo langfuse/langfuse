@@ -8,21 +8,10 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/src/env.mjs", () => ({ env: h.env }));
-// The container only reads the offset and registers its height; neither
-// affects the rendered content under test.
-vi.mock("@/src/features/top-banner", () => ({
-  useTopBanner: () => ({ getTopBannerOffset: () => 0 }),
-  useTopBannerRegistration: () => {},
-}));
 
 describe("PreviewDeploymentBanner", () => {
   afterEach(() => {
     for (const key of Object.keys(h.env)) delete h.env[key];
-  });
-
-  it("renders nothing when the preview env vars are unset", () => {
-    const { container } = render(<PreviewDeploymentBanner />);
-    expect(container).toBeEmptyDOMElement();
   });
 
   it("links the PR and the author and shows the update time", () => {
@@ -33,7 +22,11 @@ describe("PreviewDeploymentBanner", () => {
       Date.now() - 2 * 60 * 60 * 1000,
     ).toISOString();
 
-    render(<PreviewDeploymentBanner />);
+    render(
+      <PreviewDeploymentBanner
+        prUrl={h.env.NEXT_PUBLIC_PREVIEW_PR_URL as string}
+      />,
+    );
 
     expect(screen.getByRole("link", { name: "PR #15580" })).toHaveAttribute(
       "href",
@@ -51,7 +44,11 @@ describe("PreviewDeploymentBanner", () => {
       "https://github.com/langfuse/langfuse/pull/1";
     h.env.NEXT_PUBLIC_PREVIEW_LAST_UPDATED = "not-a-date";
 
-    render(<PreviewDeploymentBanner />);
+    render(
+      <PreviewDeploymentBanner
+        prUrl={h.env.NEXT_PUBLIC_PREVIEW_PR_URL as string}
+      />,
+    );
 
     expect(screen.getByRole("link", { name: "PR #1" })).toBeInTheDocument();
     expect(screen.queryByText(/updated/)).not.toBeInTheDocument();
@@ -60,7 +57,11 @@ describe("PreviewDeploymentBanner", () => {
   it("falls back to a generic link label when the URL has no PR number", () => {
     h.env.NEXT_PUBLIC_PREVIEW_PR_URL = "https://github.com/langfuse/langfuse";
 
-    render(<PreviewDeploymentBanner />);
+    render(
+      <PreviewDeploymentBanner
+        prUrl={h.env.NEXT_PUBLIC_PREVIEW_PR_URL as string}
+      />,
+    );
 
     expect(
       screen.getByRole("link", { name: "a pull request" }),

@@ -10,17 +10,32 @@ const SENSITIVE_REDIRECT_HEADERS = new Set([
   WebhookSignatureHeader,
 ]);
 
+// A Location header may carry userinfo, so a rejected target can hold a
+// password. Strip it before the URL reaches a log line or a retained error.
+// Anchored on `://` rather than on a scheme pattern: a leading `[a-z][a-z0-9+.-]*`
+// rescans and backtracks at every offset of an attacker-supplied string, which
+// is quadratic, and the scheme itself contributes nothing to the match.
+const URL_CREDENTIALS = /:\/\/[^/?#\s@]*@/g;
+
+export const redactUrlCredentials = (text: string): string =>
+  text.replace(URL_CREDENTIALS, "://***@");
+
 /**
- * Custom error for redirect validation failures
+ * Custom error for redirect validation failures. `cause` is required so the
+ * inner error's typed `code` survives for classification, and goes through the
+ * options bag so it stays non-enumerable — a structured logger serializes every
+ * enumerable field, and the rejected target may carry credentials.
  */
 export class RedirectValidationError extends Error {
   constructor(
     message: string,
     public redirectUrl: string,
     public redirectDepth: number,
+    cause: unknown,
   ) {
     super(
       `Redirect validation failed at depth ${redirectDepth} for url ${redirectUrl}: ${message}`,
+      { cause },
     );
     this.name = "RedirectValidationError";
   }
@@ -229,16 +244,20 @@ export async function fetchWithSecureRedirects(
         );
       } catch (error) {
         logger.warn("Redirect validation failed", {
-          from: currentUrl,
-          to: redirectUrl,
+          from: redactUrlCredentials(currentUrl),
+          to: redactUrlCredentials(redirectUrl),
           redirectDepth,
-          error: error instanceof Error ? error.message : "Unknown error",
+          error:
+            error instanceof Error
+              ? redactUrlCredentials(error.message)
+              : "Unknown error",
         });
 
         throw new RedirectValidationError(
           error instanceof Error ? error.message : "Validation failed",
           redirectUrl,
           redirectDepth,
+          error,
         );
       }
     }

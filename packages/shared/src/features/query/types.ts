@@ -46,7 +46,13 @@ export const viewDeclaration = z.object({
         .optional(),
       highCardinality: z.boolean().optional(),
       uiHidden: z.boolean().optional(),
+      // Expands dimension.sql independently with arrayJoin(), producing one row
+      // per array element. Duplicate elements duplicate the source row; use
+      // arrayDistinct(...) in sql when the intended grain is entity + distinct value.
       explodeArray: z.boolean().optional(),
+      // Expands dimension.sql and valuesSql together in one ARRAY JOIN, pairing
+      // elements by position and exposing valueAlias to a dependent measure.
+      // Only one pairExpand dimension is supported per query, and it cannot be filtered.
       pairExpand: z
         .object({
           valuesSql: z.string(),
@@ -64,6 +70,11 @@ export const viewDeclaration = z.object({
       description: z.string().optional(),
       type: z.string().optional(),
       unit: z.string().optional(),
+      // Natural aggregation the widget builder preselects when the user
+      // switches to this measure (e.g. `sum` for toolCalls, where a carried-over
+      // `count` would count observations instead of tool calls). UI-only
+      // default; the query builder never reads it.
+      defaultAggregation: metricAggregations.optional(),
       aggs: z.record(z.string(), z.string()).optional(),
       // Override query semantics for specific user-selected aggregations while
       // keeping the base declaration as the UI/default compatibility contract.
@@ -78,9 +89,8 @@ export const viewDeclaration = z.object({
           }),
         )
         .optional(),
-      // When set, the query builder will auto-include this dimension if it is absent.
-      // Used for pairExpand value-alias measures (e.g. costByType requires costType so
-      // the ARRAY JOIN is emitted and "cost_value" is in scope).
+      // Auto-includes a dimension needed to evaluate the measure, including its
+      // explodeArray or pairExpand behavior and resulting aliases.
       requiresDimension: z.string().optional(),
     }),
   ),
@@ -128,6 +138,14 @@ export const viewsV2 = z.enum([
   "scores-categorical",
   "scores-boolean",
 ]);
+
+/**
+ * Internal-only view name (see `dataModel.ts`), deliberately NOT a member of
+ * `views`/`viewsV2` — those are iterated by the public metrics API and the
+ * widget-builder view picker, and this powers only one internal call site.
+ * Unioned onto the internal `query` schema below instead.
+ */
+export const SCORES_LISTABLE_COUNT_VIEW = "scores-listable-count" as const;
 
 /**
  * Persisted dashboard-widget view ids → query view ids. Lives here (not with
@@ -196,7 +214,11 @@ export type QueryType = z.infer<typeof query>;
 
 export const query = z
   .object({
-    view: views,
+    // See `SCORES_LISTABLE_COUNT_VIEW`'s doc comment: unioned on here (the
+    // internal query schema) rather than added to `views` itself, so it
+    // stays out of the public metrics API and the widget-builder view
+    // picker, both of which read `views`/`viewsV2` directly.
+    view: z.union([views, z.literal(SCORES_LISTABLE_COUNT_VIEW)]),
     dimensions: z.array(dimension),
     metrics: z.array(metric),
     filters: z.array(singleFilter),

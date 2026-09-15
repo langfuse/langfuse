@@ -32,12 +32,14 @@ export function ThinkingBlock({
         />
         <span className="text-xs font-bold">Thinking</span>
         {!expanded && (
-          <span className="line-clamp-1 text-xs italic">{displayContent}</span>
+          <span className="ph-no-capture line-clamp-1 text-xs italic">
+            {displayContent}
+          </span>
         )}
       </button>
 
       {expanded && (
-        <div className="text-muted-foreground mt-1 ml-4 text-sm whitespace-pre-wrap italic">
+        <div className="ph-no-capture text-muted-foreground mt-1 ml-4 text-sm whitespace-pre-wrap italic">
           {content}
         </div>
       )}
@@ -78,7 +80,7 @@ export function RedactedThinkingBlock({
       </button>
 
       {expanded && (
-        <div className="bg-muted/50 text-muted-foreground mt-1 ml-4 rounded p-2 font-mono text-xs break-all">
+        <div className="ph-no-capture bg-muted/50 text-muted-foreground mt-1 ml-4 rounded p-2 font-mono text-xs break-all">
           {data}
         </div>
       )}

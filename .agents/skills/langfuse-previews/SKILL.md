@@ -45,6 +45,18 @@ Pushing updates it; closing the PR tears it down.
   shared seed identity is `demo@langfuse.com` / `password`, with API keys
   `pk-lf-1234567890` / `sk-lf-1234567890` — shared and synthetic, so never
   treat a preview as private.
+- **Open it from Linear** — on any Linear issue linked to the PR, the preview
+  sits behind the issue's **Preview** shortcut. Linear builds that shortcut by
+  parsing the PR description and bot comments for markdown links whose label
+  ends in "preview", so both preview surfaces label their link that way
+  (`pr-<N> app preview`, `pr-<N> storybook preview`) — keep that suffix when
+  editing either comment, or the shortcut disappears. A bare URL is not
+  matched.
+- **Read captured email** — each preview has an in-namespace Mailpit SMTP
+  sink (invites, password reset, batch-export, spend alerts, mentions). It
+  does not send real mail. The UI is not public; port-forward it:
+  `kubectl -n langfuse-pr-<N> port-forward svc/preview-mailpit 8025:8025`
+  then open `http://localhost:8025`.
 - **Know where you are** — every preview page shows a top strip linking back
   to the PR, with the author and when the preview content last changed.
 - **Update** — push to the PR; it rebuilds and rolls to the new image (~5 min,
@@ -181,8 +193,8 @@ kubectl annotate ns $NS downscaler/force-uptime-                   # undo later 
   your labeled PRs deploy — no admin needed.
 - **Cluster access — available to all Langfuse engineers** (only needed to
   debug with `kubectl`, not to *use* a preview). Set up local access using the
-  `~/.aws/config` profile block from the internal Langfuse doc:
-  https://linear.app/langfuse/document/connect-to-aws-instances-aurora-redis-from-local-machine-896fe46ff797
+  `~/.aws/config` profile block from the internal Langfuse tracker document
+  *"Connect to AWS instances (Aurora, Redis) from local machine"*.
   1. Open `~/.aws/config` and add the `[sso-session langfuse]` + `[profile preview]`
      blocks from that doc (keep any `[sso-session langfuse]` you already have).
   2. `aws sso login --profile preview`

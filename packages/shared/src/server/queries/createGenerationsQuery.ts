@@ -21,7 +21,7 @@ type AdditionalObservationFields = {
   toolCallsCount: number | null;
 } & ObservationPriceFields;
 
-export type FullObservation = AdditionalObservationFields & Observation;
+type FullObservation = AdditionalObservationFields & Observation;
 
 export type FullObservations = Array<FullObservation>;
 

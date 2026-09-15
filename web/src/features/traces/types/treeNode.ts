@@ -5,7 +5,10 @@
  * TraceSearchListItem: Flattened representation of tree nodes for search/list views.
  */
 
-import { type ObservationType } from "@langfuse/shared";
+import {
+  type ObservationLevelType,
+  type ObservationType,
+} from "@langfuse/shared";
 import type Decimal from "decimal.js";
 
 /**
@@ -18,7 +21,7 @@ export type TreeNode = {
   name: string;
   startTime: Date;
   endTime?: Date | null;
-  level?: string;
+  level?: ObservationLevelType;
   children: TreeNode[];
   // Token usage
   inputUsage?: number | null;

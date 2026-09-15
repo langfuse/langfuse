@@ -5,7 +5,10 @@ on:
     branches:
       - main
     paths:
+      - ".github/workflows/sdk-api-spec.yml"
       - "fern/**"
+      - "web/scripts/python-sdk/patch-generated-deprecations.ts"
+      - "web/scripts/typescript-sdk/patch-generated-deprecations.ts"
   workflow_dispatch:
 
 concurrency:
@@ -17,7 +20,7 @@ permissions:
 
 jobs:
   generate-sdk-api-specs:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       python_has_changes: ${{ steps.prepare-python-sdk.outputs.has_changes }}
       python_branch_name: ${{ steps.prepare-python-sdk.outputs.branch_name }}
@@ -30,9 +33,10 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
-          version: 11.10.0
+          install: false
+          cache: false
 
       # Keep this secret-bearing job cache-cold to avoid exposing Fern
       # credentials to potentially poisoned shared package-manager state.
@@ -49,6 +53,20 @@ jobs:
         env:
           FERN_TOKEN: ${{ secrets.FERN_TOKEN }}
         run: npx fern-api generate --api server --force
+
+      - name: Add Python SDK deprecation warnings
+        working-directory: web
+        run: >-
+          pnpm exec tsx scripts/python-sdk/patch-generated-deprecations.ts
+          --definition-root ../fern/apis/server/definition
+          --api-root ../generated/python
+
+      - name: Add TypeScript SDK deprecation warnings
+        working-directory: web
+        run: >-
+          pnpm exec tsx scripts/typescript-sdk/patch-generated-deprecations.ts
+          --definition-root ../fern/apis/server/definition
+          --api-root ../generated/typescript
 
       - name: Install uv
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
@@ -75,7 +93,12 @@ jobs:
           # (could not find the right option to prevent this in generation step)
           rm -rf langfuse/api/tests
 
-          # Install dependencies, preserve backwards-compatible score creation aliases, and format
+          # Declare the PEP 702 decorator dependency when the SDK does not
+          # already own a constraint, then install dependencies, preserve
+          # backwards-compatible score creation aliases, and format.
+          if ! sed -n '/^dependencies = \[/,/^\]/p' pyproject.toml | grep -Eqi '^[[:space:]]*"typing[-_.]extensions([<>=!~;@[:space:]]|")'; then
+            uv add --no-sync "typing-extensions>=4.12.2,<5"
+          fi
           uv sync --all-extras --frozen
           uv run python scripts/patch_generated_score_compat.py
           uv run ruff format langfuse/api
@@ -137,7 +160,6 @@ jobs:
 
           # Install dependencies and format
           corepack enable
-          corepack prepare pnpm@11.10.0 --activate
           pnpm install
           pnpm format
 
@@ -170,7 +192,7 @@ jobs:
   push-python-sdk:
     needs: generate-sdk-api-specs
     if: needs.generate-sdk-api-specs.outputs.python_has_changes == 'true'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Download Python SDK update
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -227,7 +249,7 @@ jobs:
   push-typescript-sdk:
     needs: generate-sdk-api-specs
     if: needs.generate-sdk-api-specs.outputs.typescript_has_changes == 'true'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Download TypeScript SDK update
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -287,7 +309,7 @@ jobs:
       - push-python-sdk
       - push-typescript-sdk
     if: failure()
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
       actions: read

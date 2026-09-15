@@ -36,7 +36,7 @@ import {
 } from "@/src/components/ui/popover";
 import { WebhookSecretRender } from "../WebhookSecretRender";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 
 export const webhookSchema = z.object({
   url: z.url(),
@@ -59,8 +59,6 @@ export const webhookSchema = z.object({
     }),
   ),
 });
-
-export type WebhookFormValues = z.infer<typeof webhookSchema>;
 
 interface WebhookActionFormProps {
   form: UseFormReturn<any>;
@@ -308,7 +306,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
   );
 };
 
-export const RegenerateWebhookSecretButton = ({
+const RegenerateWebhookSecretButton = ({
   projectId,
   action,
 }: {

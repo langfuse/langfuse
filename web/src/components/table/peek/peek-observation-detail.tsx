@@ -9,7 +9,7 @@ import {
   traceDetailTitle,
 } from "@/src/features/traces";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
-import { buildTraceDetailPath } from "@/src/utils/navigation";
+import { buildTracePath } from "@langfuse/shared";
 import { useRouter } from "next/router";
 import { useRef } from "react";
 
@@ -48,9 +48,8 @@ export const TablePeekViewObservationDetail = (
     ? {
         traceId: trace.data.id,
         projectId: trace.data.projectId,
-        bookmarked: trace.data.bookmarked,
         isPublic: trace.data.public,
-        shareUrl: buildTraceDetailPath({
+        shareUrl: buildTracePath({
           projectId: trace.data.projectId,
           traceId: trace.data.id,
           observationId:

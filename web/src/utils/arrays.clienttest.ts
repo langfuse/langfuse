@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { deduplicateBy } from "@/src/utils/arrays";
 
 describe("deduplicateBy", () => {

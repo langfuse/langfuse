@@ -23,6 +23,12 @@ const OVERLAY_FAMILIES = [
     contents: ["DropdownMenuContent", "DropdownMenuSubContent"],
   },
   {
+    module: "@/src/components/ui/drawer",
+    root: "Drawer",
+    trigger: "DrawerTrigger",
+    contents: ["DrawerContent"],
+  },
+  {
     module: "@/src/components/ui/popover",
     root: "Popover",
     trigger: "PopoverTrigger",

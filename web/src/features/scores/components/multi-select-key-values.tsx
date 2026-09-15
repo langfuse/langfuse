@@ -256,7 +256,7 @@ export function MultiSelectKeyValues<
 
             return (
               <DropdownMenuSub key={group.label}>
-                <DropdownMenuSubTrigger className="flex w-full cursor-default items-center select-none">
+                <DropdownMenuSubTrigger className="flex w-full items-center select-none">
                   <Component className="mr-2 h-4 w-4 opacity-50" />
                   <span>{group.label}</span>
                 </DropdownMenuSubTrigger>

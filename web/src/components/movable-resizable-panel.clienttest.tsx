@@ -17,6 +17,7 @@ type TestPanelProps = {
   minSize?: MovableResizablePanelSize;
   ignoreOutsideInteraction?: boolean;
   onActionClick?: () => void;
+  onDragHandleDoubleClick?: () => void;
   onGeometryChange?: (geometry: MovableResizablePanelGeometry) => void;
 };
 
@@ -28,6 +29,7 @@ function TestPanel({
   maxSize,
   minSize = { width: 200, height: 160 },
   onActionClick,
+  onDragHandleDoubleClick,
   onGeometryChange,
 }: TestPanelProps) {
   const handle = useMovableResizablePanelControl({
@@ -52,6 +54,7 @@ function TestPanel({
         },
       }}
       ignoreOutsideInteraction={ignoreOutsideInteraction}
+      onDragHandleDoubleClick={onDragHandleDoubleClick}
     >
       <div className="h-full w-full">
         <div data-drag-handle="true" data-testid="drag-handle">
@@ -76,7 +79,7 @@ function TestPanel({
 function firePointerEvent(
   element: Element,
   type: "pointerdown" | "pointermove" | "pointerup",
-  init: MouseEventInit & { pointerId: number },
+  init: MouseEventInit & { pointerId: number; timeStamp?: number },
 ) {
   const event = new MouseEvent(type, {
     bubbles: true,
@@ -86,6 +89,11 @@ function firePointerEvent(
   });
 
   Object.defineProperty(event, "pointerId", { value: init.pointerId });
+
+  if (init.timeStamp !== undefined) {
+    Object.defineProperty(event, "timeStamp", { value: init.timeStamp });
+  }
+
   fireEvent(element, event);
 }
 
@@ -125,6 +133,60 @@ describe("MovableResizablePanel", () => {
 
     expect(screen.getByTestId("panel-state")).toHaveTextContent(
       "150,130,300,240",
+    );
+  });
+
+  // Starting a drag has to `preventDefault()` the pointerdown, which suppresses
+  // the browser's own `dblclick`, so the panel detects the pair itself.
+  it("reports a double-click on the drag handle without moving the panel", () => {
+    const onDragHandleDoubleClick = vi.fn();
+    render(<TestPanel onDragHandleDoubleClick={onDragHandleDoubleClick} />);
+
+    const panel = screen.getByTestId("movable-resizable-panel");
+    const handle = screen.getByTestId("drag-handle");
+
+    firePointerEvent(handle, "pointerdown", {
+      pointerId: 1,
+      clientX: 140,
+      clientY: 150,
+      timeStamp: 1_000,
+    });
+    firePointerEvent(panel, "pointerup", { pointerId: 1 });
+    firePointerEvent(handle, "pointerdown", {
+      pointerId: 2,
+      clientX: 141,
+      clientY: 151,
+      timeStamp: 1_120,
+    });
+    firePointerEvent(panel, "pointermove", {
+      pointerId: 2,
+      clientX: 220,
+      clientY: 220,
+    });
+    firePointerEvent(panel, "pointerup", { pointerId: 2 });
+
+    expect(onDragHandleDoubleClick).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("panel-state")).toHaveTextContent(
+      "100,100,300,240",
+    );
+
+    // Too slow to be a pair, so it drags instead.
+    firePointerEvent(handle, "pointerdown", {
+      pointerId: 3,
+      clientX: 141,
+      clientY: 151,
+      timeStamp: 3_000,
+    });
+    firePointerEvent(panel, "pointermove", {
+      pointerId: 3,
+      clientX: 161,
+      clientY: 171,
+    });
+    firePointerEvent(panel, "pointerup", { pointerId: 3 });
+
+    expect(onDragHandleDoubleClick).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("panel-state")).toHaveTextContent(
+      "120,120,300,240",
     );
   });
 

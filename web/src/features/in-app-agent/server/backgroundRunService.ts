@@ -1,14 +1,7 @@
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 
-import {
-  BaseError,
-  InAppAgentRunErrorCode,
-  InAppAgentRunStatus,
-  InAppAgentRunStatusSchema,
-  LangfuseNotFoundError,
-  type Plan,
-} from "@langfuse/shared";
+import { BaseError, LangfuseNotFoundError, type Plan } from "@langfuse/shared";
 import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
   InAppAgentRunQueue,
@@ -16,20 +9,21 @@ import {
   QueueJobs,
   redis,
 } from "@langfuse/shared/src/server";
-import { deleteApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { deleteInAppAgentMcpApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
-  createInAppAgentMessageId,
-  createInAppAgentRunId,
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+  InAppAgentRunStatusSchema,
   parseInAppAgentApprovalDecisionEvent,
-  type AgUiRunAgentInput,
+  parseInAppAgentInterruptEvent,
+  type AgUiContext,
 } from "@langfuse/shared/in-app-agent";
-import { parseInAppAgentInterruptEvent } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
-import { getInAppAgentPrefixedToolName } from "@langfuse/shared/in-app-agent/server/tools";
+import { getInAppAgentPrefixedToolName } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
+import { createInAppAgentMessageId, createInAppAgentRunId } from "../ids";
 import {
   ensureOwnedConversation,
   getConversationEvents,
   getOwnedConversationOrThrow,
-  isInAppAgentConversationWriteLocked,
   maybeInferAndPersistConversationTitle,
   serializeConversation,
   type PersistedConversationEvent,
@@ -41,6 +35,7 @@ import {
   createQueuedRun,
   decideToolApproval,
   reconcileConversationRuns,
+  recordImmediateCancelOutcomes,
   requestRunCancellation,
 } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 
@@ -48,9 +43,6 @@ import { serializeInAppAgentDisplayState } from "@/src/features/in-app-agent/lib
 import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
 import { resolveInAppAgentRunContext } from "@/src/features/in-app-agent/server/runContext";
 import { getConversationSnapshotFromEvents } from "@/src/features/in-app-agent/server/conversationSnapshot";
-
-const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
-  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 
 export async function getBackgroundConversationSnapshot(params: {
   prisma: PrismaClient;
@@ -73,11 +65,10 @@ export async function getBackgroundConversationSnapshot(params: {
     projectId: params.projectId,
     conversationId: params.conversationId,
     deleteApiKey: async (apiKeyId) => {
-      await deleteApiKeyFromDb({
+      await deleteInAppAgentMcpApiKeyFromDb({
         prisma: params.prisma,
         id: apiKeyId,
-        entityId: params.projectId,
-        scope: "PROJECT",
+        projectId: params.projectId,
         redis,
       });
     },
@@ -114,12 +105,7 @@ export async function getBackgroundConversationSnapshot(params: {
   const latestRun = runs.at(-1) ?? null;
 
   return {
-    conversation: serializeConversation(conversation, {
-      isWriteLocked: isInAppAgentConversationWriteLocked({
-        conversation,
-        events,
-      }),
-    }),
+    conversation: serializeConversation(conversation),
     messages,
     displayState: serializeInAppAgentDisplayState(displayState),
     eventCursor: events.reduce(
@@ -201,7 +187,7 @@ export async function startBackgroundRun(params: {
   conversationId: string;
   userId: string;
   message: string;
-  context: AgUiRunAgentInput["context"];
+  context: AgUiContext;
   isV4Enabled: boolean;
   model: string | undefined;
   aiTelemetryEnabled: boolean;
@@ -229,21 +215,6 @@ export async function startBackgroundRun(params: {
     plan: params.plan,
     userId: params.userId,
   });
-
-  const events = await getConversationEvents({
-    prisma: params.prisma,
-    projectId: params.projectId,
-    conversationId: params.conversationId,
-  });
-
-  if (isInAppAgentConversationWriteLocked({ conversation, events })) {
-    throw new BaseError(
-      "PreconditionFailedError",
-      412,
-      SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-      true,
-    );
-  }
 
   if (!params.model) {
     throw new BaseError(
@@ -320,7 +291,7 @@ export async function deleteBackgroundConversation(params: {
     userId: params.userId,
   });
 
-  const cancelledRunIds = await params.prisma.$transaction(async (tx) => {
+  const cancelledRuns = await params.prisma.$transaction(async (tx) => {
     const cancelledImmediately = await cancelConversationRunsInTransaction({
       tx,
       projectId: params.projectId,
@@ -343,8 +314,12 @@ export async function deleteBackgroundConversation(params: {
     return cancelledImmediately;
   });
 
+  recordImmediateCancelOutcomes(cancelledRuns);
+
   // Avoid spending a worker slot on jobs whose runs are already cancelled.
-  await Promise.all(cancelledRunIds.map(removeInAppAgentRunJob));
+  await Promise.all(
+    cancelledRuns.map((run) => removeInAppAgentRunJob(run.runId)),
+  );
 
   return { success: true };
 }
@@ -388,7 +363,7 @@ export async function decideBackgroundApproval(params: {
   userId: string;
   model: string | undefined;
 }) {
-  const conversation = await getOwnedConversationOrThrow({
+  await getOwnedConversationOrThrow({
     prisma: params.prisma,
     projectId: params.projectId,
     conversationId: params.conversationId,
@@ -400,15 +375,6 @@ export async function decideBackgroundApproval(params: {
     projectId: params.projectId,
     conversationId: params.conversationId,
   });
-
-  if (isInAppAgentConversationWriteLocked({ conversation, events })) {
-    throw new BaseError(
-      "PreconditionFailedError",
-      412,
-      SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-      true,
-    );
-  }
 
   let approvalRequest: ReturnType<typeof parseInAppAgentInterruptEvent>;
   for (const persisted of events) {

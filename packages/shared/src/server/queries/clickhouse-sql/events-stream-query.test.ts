@@ -2,6 +2,7 @@ import type { FilterCondition } from "../../../types";
 import type { OrderByState } from "../../../interfaces/orderBy";
 import { InvalidRequestError } from "../../../errors";
 import { describe, expect, it } from "vitest";
+import { convertDateToClickhouseDateTime } from "../../clickhouse/client";
 import {
   buildEventsObservationRowSelection,
   groupEventsObservationFilters,
@@ -67,6 +68,7 @@ describe("buildEventsStreamQuery", () => {
     expect(query).toContain("e.project_id = {projectId: String}");
     expect(query).toContain("e.is_deleted = 0");
     expect(query).toContain('e.is_app_root as "is_app_root"');
+    expect(query).toContain('e.experiment_name as "experiment_name"');
 
     const orderIndex = query.lastIndexOf("ORDER BY ");
     const deduplicationIndex = query.lastIndexOf("LIMIT 1 BY ");
@@ -81,7 +83,9 @@ describe("buildEventsStreamQuery", () => {
       limit: 17,
     });
     expect(Object.values(params)).toContainEqual(["GENERATION"]);
-    expect(Object.values(params)).toContain(cutoffCreatedAt.getTime());
+    expect(Object.values(params)).toContain(
+      convertDateToClickhouseDateTime(cutoffCreatedAt),
+    );
   });
 
   it("omits the optional cutoff when it is absent", () => {

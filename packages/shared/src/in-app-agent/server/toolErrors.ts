@@ -25,16 +25,32 @@ export function getToolFailureMessage(
     return explicitError;
   }
 
-  const normalizedOutput = normalizeToolOutput(output);
-  if (!isRecord(normalizedOutput)) {
+  // The MCP `isError` marker lives on the envelope, which normalizeToolOutput
+  // discards when it unwraps a single text item. Check both, or a conventional
+  // failure whose text is not JSON reads as a success.
+  const parsedOutput =
+    typeof output === "string" ? parseJsonOrString(output) : output;
+  const normalizedOutput = normalizeToolOutput(parsedOutput);
+
+  if (!hasFailureMarker(normalizedOutput) && !hasFailureMarker(parsedOutput)) {
     return undefined;
   }
 
-  if (normalizedOutput.error === true || normalizedOutput.isError === true) {
-    return getStringValue(normalizedOutput.message) ?? "Tool returned an error";
-  }
+  // Prefer the unwrapped text, then either envelope's own message.
+  return (
+    getStringValue(normalizedOutput) ??
+    getMessageValue(normalizedOutput) ??
+    getMessageValue(parsedOutput) ??
+    "Tool returned an error"
+  );
+}
 
-  return undefined;
+function hasFailureMarker(value: unknown): boolean {
+  return isRecord(value) && (value.error === true || value.isError === true);
+}
+
+function getMessageValue(value: unknown): string | undefined {
+  return isRecord(value) ? getStringValue(value.message) : undefined;
 }
 
 export function normalizeToolOutput(output: unknown): unknown {
