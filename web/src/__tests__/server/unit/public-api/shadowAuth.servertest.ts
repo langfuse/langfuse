@@ -322,6 +322,20 @@ describe("project-family dispatch (allowedAccessLevels ['project'])", () => {
         "traces:read",
       );
     });
+
+    it("threads the new pipeline's context to shadow the per-item check", async () => {
+      legacyAllows();
+      mockEnforceAuth.mockResolvedValue({
+        success: true,
+        scope: projectScope("privateKey"),
+        ctx: { principal: {}, policies: [] },
+      });
+      expect(await call()).toMatchObject({
+        success: true,
+        scope: legacyScope.scope,
+        ctx: { policies: [] },
+      });
+    });
   });
 
   describe("enforce mode is the new pipeline's sole authority", () => {

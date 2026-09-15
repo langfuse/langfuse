@@ -7,6 +7,7 @@ export const [getEvaluationRuleTool, handleGetEvaluationRule] = defineTool({
   name: "getEvaluationRule",
   description:
     "Fetch an observation evaluation rule by ID, including all evaluator assignments, filters, sampling, and status.",
+  action: "evaluationRule:read",
   baseSchema: EvaluationRuleIdInputSchema,
   inputSchema: EvaluationRuleIdInputSchema,
   handler: async (input, context) =>

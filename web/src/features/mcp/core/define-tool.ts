@@ -7,6 +7,7 @@
 
 import { z } from "zod";
 import { wrapErrorHandling } from "./error-formatting";
+import type { ProjectAction } from "@/src/features/auth/policy/types";
 import type { ServerContext } from "../types";
 
 /**
@@ -36,6 +37,9 @@ export interface DefineToolOptions<TInput, TName extends string = string> {
   /** Handler function that executes the tool logic */
   handler: ToolHandler<TInput>;
 
+  /** Project action the caller must hold to run this tool; null leaves the tool ungated. */
+  action: ProjectAction | null;
+
   /** Hint: This tool only reads data, does not modify anything */
   readOnlyHint?: boolean;
 
@@ -52,6 +56,7 @@ export interface DefineToolOptions<TInput, TName extends string = string> {
 export interface ToolDefinition<TName extends string = string> {
   name: TName;
   description: string;
+  action: ProjectAction | null;
   inputSchema: Record<string, unknown>;
   annotations?: {
     readOnlyHint?: boolean;
@@ -115,6 +120,7 @@ export function defineTool<TInput, const TName extends string>(
   const {
     name,
     description,
+    action,
     baseSchema,
     inputSchema,
     handler,
@@ -154,6 +160,7 @@ export function defineTool<TInput, const TName extends string>(
   const toolDefinition: ToolDefinition<TName> = {
     name,
     description,
+    action,
     inputSchema: jsonSchemaObject,
   };
 

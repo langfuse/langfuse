@@ -51,8 +51,10 @@ async function legacyWithShadow(
 ): Promise<ShadowAuthResult> {
   const legacyAuth = await runLegacyAuth(params);
   const newAuth = await runNewAuth(params);
-  shadowAuthDiff(newAuth, legacyAuth, params.action);
-  return legacyResult(legacyAuth);
+  shadowAuthDiff(newAuth, legacyAuth, params.action ?? "none");
+  const result = legacyResult(legacyAuth);
+  if (result.success && newAuth.success) return { ...result, ctx: newAuth.ctx };
+  return result;
 }
 
 /** legacyOnly authorizes solely with the legacy verify. */
