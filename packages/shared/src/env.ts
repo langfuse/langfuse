@@ -534,12 +534,17 @@ const EnvSchema = z.object({
   // apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
   // LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.
   // LANGFUSE_AI_USE_RESPONSES_API applies to openai only.
+  // LANGFUSE_AI_REASONING_EFFORT applies to Assistant requests on openai
+  // Chat Completions; the other AI features send no reasoning_effort.
   LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic", "openai"]).optional(),
   LANGFUSE_AI_MODEL: z.string().optional(),
   LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
   LANGFUSE_AI_API_KEY: z.string().optional(),
   LANGFUSE_AI_BASE_URL: z.string().optional(),
   LANGFUSE_AI_USE_RESPONSES_API: z.enum(["true", "false"]).optional(),
+  LANGFUSE_AI_REASONING_EFFORT: z
+    .enum(["none", "minimal", "low", "medium", "high", "xhigh", "max", "off"])
+    .optional(),
   LANGFUSE_AI_EXTRA_HEADERS: z
     .string()
     .optional()
