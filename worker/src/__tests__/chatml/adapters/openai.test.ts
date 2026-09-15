@@ -710,4 +710,46 @@ describe("OpenAI Adapter", () => {
       );
     });
   });
+
+  describe("legacy {completion, reasoning} output (#15343)", () => {
+    it("should surface reasoning as a top-level field when completion is empty", () => {
+      // Regression test for #15343: reasoning models via OpenRouter may emit
+      // a reasoning trace alongside an empty completion. The reasoning value
+      // must be a top-level field on the normalized message so the renderer
+      // can show the reasoning block rather than nesting it under `json`.
+      const output = {
+        completion: "",
+        reasoning: "thought process",
+      };
+
+      const result = normalizeOutput(output, { framework: "openai" });
+      expect(result.success).toBe(true);
+      expect(result.data?.[0].content).toBe("");
+      expect(result.data?.[0].reasoning).toBe("thought process");
+      // The reasoning value should not be wrapped in `json` — it must reach
+      // the renderer as a first-class field.
+      expect(result.data?.[0].json).toBeUndefined();
+    });
+
+    it("should preserve non-empty completion alongside reasoning", () => {
+      const output = {
+        completion: "the answer",
+        reasoning: "thought process",
+      };
+
+      const result = normalizeOutput(output, { framework: "openai" });
+      expect(result.success).toBe(true);
+      expect(result.data?.[0].content).toBe("the answer");
+      expect(result.data?.[0].reasoning).toBe("thought process");
+    });
+
+    it("should not set reasoning when only completion is present", () => {
+      const output = { completion: "the answer" };
+
+      const result = normalizeOutput(output, { framework: "openai" });
+      expect(result.success).toBe(true);
+      expect(result.data?.[0].content).toBe("the answer");
+      expect(result.data?.[0].reasoning).toBeUndefined();
+    });
+  });
 });

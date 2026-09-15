@@ -228,6 +228,21 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
     };
   }
 
+  // Handle legacy Chat Completions shape {completion, reasoning}.
+  // Reasoning models (e.g., via OpenRouter) may emit a reasoning trace
+  // alongside an empty completion; surface `reasoning` as a top-level
+  // field so the renderer shows the reasoning block rather than nesting
+  // it under `json` (#15343).
+  if (typeof working.completion === "string") {
+    return {
+      role: working.role ?? "assistant",
+      content: working.completion,
+      ...(typeof working.reasoning === "string" && working.reasoning.length > 0
+        ? { reasoning: working.reasoning }
+        : {}),
+    };
+  }
+
   // Convert direct function call message to tool_calls array format
   // Format: { type: "function_call", name: "...", arguments: {...}, call_id: "..." }
   // Convert to: { role: "assistant", tool_calls: [{ id, name, arguments, type }] }
@@ -494,6 +509,18 @@ function preprocessData(data: unknown): unknown {
 
   // Single message
   if (typeof data === "object" && "role" in data) {
+    return normalizeMessage(data);
+  }
+
+  // Legacy {completion, reasoning} output (OpenRouter broadcast and
+  // similar). Promote the reasoning value to a top-level message field so
+  // the chatml renderer can show the reasoning block rather than nesting
+  // it under `json` (#15343).
+  if (
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    typeof (data as Record<string, unknown>).completion === "string"
+  ) {
     return normalizeMessage(data);
   }
 
