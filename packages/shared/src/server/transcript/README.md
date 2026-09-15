@@ -50,7 +50,7 @@ and decides which, if any, is the main conversation.
   establish threads and register output tool-call IDs; tools enrich registered
   calls. Input messages are processed before output messages for generations.
 - Generations producing no messages are skipped and do not create empty threads.
-- Each registered call has at most one response. A tool observation with a
+- Each registered tool call has at most one tool result response. A tool observation with a
   response adds or replaces it, referencing the tool's `observationId` and
   `traceId`. Later generation replay cannot overwrite it or add another copy.
   If multiple tool observations respond to one call, the first response wins.
