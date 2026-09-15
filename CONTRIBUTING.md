@@ -586,9 +586,11 @@ Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [d
 
 When contributing to the Langfuse codebase, you need to agree to the [Contributor License Agreement](https://cla-assistant.io/langfuse/langfuse). You only need to do this once and the CLA bot will remind you if you haven't signed it yet.
 
+Members of the `langfuse-maintainers` GitHub team do not need to sign. Their PRs mark the `license/cla` check successful automatically.
+
 ### Troubleshoot CLA License Check
 
-If the CLA check still isn't passing after signing, it may be due to this [known cla-assistant bug](https://github.com/cla-assistant/cla-assistant/issues/520). Comment `/check-cla` on your PR to retrigger the license check.
+If the CLA check still isn't passing after signing, it may be due to this [known cla-assistant bug](https://github.com/cla-assistant/cla-assistant/issues/520). Comment `/check-cla` on your PR to retrigger the license check. Maintainers can use the same command; it also re-applies the team skip.
 
 If it still isn't passing, the author header in your commits is likely missing your GitHub email address ([example patch](https://github.com/langfuse/langfuse/commit/f301bb528f5ca6944bd04afae3c1a87390f9b92e.patch)). To fix this, set your email address in your git config and rebase.
 

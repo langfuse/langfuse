@@ -1,22 +1,239 @@
-# Workaround for a known cla-assistant bug where the CLA check gets stuck and
-# never re-runs after a contributor signs the CLA.
-# See: https://github.com/cla-assistant/cla-assistant/issues/528
+# CLA assistant posts the `license/cla` commit status. That check is required
+# and regularly gets stuck (https://github.com/cla-assistant/cla-assistant/issues/528).
 #
-# Usage: comment `/check-cla` on any PR to manually retrigger the CLA check.
+# Two jobs:
+# 1. `/check-cla` retriggers the hosted CLA assistant.
+# 2. PRs authored by the `langfuse-maintainers` team skip `license/cla` by
+#    posting a successful status. Employees already assign IP in their
+#    employment agreements; this keeps a stuck CLA bot from blocking them.
+#
+# No checkout: both jobs only call the GitHub / CLA-assistant HTTP APIs.
 name: CLA Assistant
 
 on:
   issue_comment:
     types: [created]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
+  # Re-apply the maintainer skip if cla-assistant later overwrites our status.
+  # No checkout and no secrets beyond GITHUB_TOKEN.
+  status:
 
 permissions: {}
 
 jobs:
   retrigger_cla:
     # Only run on PR comments (not issue comments) with the /check-cla command
-    if: github.event.issue.pull_request && github.event.comment.body == '/check-cla'
+    if: github.event_name == 'issue_comment' && github.event.issue.pull_request && github.event.comment.body == '/check-cla'
     runs-on: ubuntu-latest
     steps:
       - name: Retrigger CLA check
         run: |
           curl -s "https://cla-assistant.io/check/langfuse/langfuse?pullRequest=${{ github.event.issue.number }}"
+
+  skip_cla_for_maintainers:
+    name: Skip CLA for langfuse-maintainers
+    if: >
+      github.event_name == 'pull_request' ||
+      github.event_name == 'merge_group' ||
+      (github.event_name == 'status' && github.event.context == 'license/cla' && github.event.state != 'success') ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && github.event.comment.body == '/check-cla')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
+    steps:
+      - name: Mark license/cla success for maintainers
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const ORG = context.repo.owner;
+            const TEAM_SLUG = "langfuse-maintainers";
+            const CLA_CONTEXT = "license/cla";
+            const CLA_TARGET = `https://cla-assistant.io/${ORG}/${context.repo.repo}`;
+            const WRITE_PERMISSIONS = new Set(["write", "admin"]);
+
+            async function canReadTeam() {
+              try {
+                await github.rest.teams.getByName({
+                  org: ORG,
+                  team_slug: TEAM_SLUG,
+                });
+                return true;
+              } catch (error) {
+                // Private teams return 404 (not 403) when the token cannot see them.
+                if (error.status === 404 || error.status === 403) {
+                  return false;
+                }
+                throw error;
+              }
+            }
+
+            async function isTeamMaintainer(username) {
+              try {
+                const { data } = await github.rest.teams.getMembershipForUserInOrg({
+                  org: ORG,
+                  team_slug: TEAM_SLUG,
+                  username,
+                });
+                return data.state === "active";
+              } catch (error) {
+                if (error.status === 404) {
+                  return false;
+                }
+                throw error;
+              }
+            }
+
+            async function resolvePull() {
+              const { owner, repo } = context.repo;
+
+              if (context.eventName === "pull_request") {
+                const pull = context.payload.pull_request;
+                return {
+                  number: pull.number,
+                  sha: pull.head.sha,
+                  author: pull.user.login,
+                  association: pull.author_association,
+                };
+              }
+
+              if (context.eventName === "issue_comment") {
+                const number = context.payload.issue.number;
+                const { data: pull } = await github.rest.pulls.get({
+                  owner,
+                  repo,
+                  pull_number: number,
+                });
+                return {
+                  number,
+                  sha: pull.head.sha,
+                  author: pull.user.login,
+                  association: pull.author_association,
+                };
+              }
+
+              if (context.eventName === "merge_group") {
+                const headRef = context.payload.merge_group.head_ref ?? "";
+                const match = headRef.match(/\/pr-(\d+)-/);
+                if (!match) {
+                  core.info(`Could not parse PR number from merge group ref ${headRef}`);
+                  return null;
+                }
+                const number = Number(match[1]);
+                const { data: pull } = await github.rest.pulls.get({
+                  owner,
+                  repo,
+                  pull_number: number,
+                });
+                return {
+                  number,
+                  sha: context.payload.merge_group.head_sha,
+                  author: pull.user.login,
+                  association: pull.author_association,
+                };
+              }
+
+              if (context.eventName === "status") {
+                const sha = context.payload.sha;
+                const pulls = await github.paginate(
+                  github.rest.repos.listPullRequestsAssociatedWithCommit,
+                  { owner, repo, commit_sha: sha, per_page: 100 },
+                );
+                const openPulls = pulls.filter((pull) => pull.state === "open");
+                if (openPulls.length === 0) {
+                  core.info(`No open PR associated with ${sha}`);
+                  return null;
+                }
+                // Same commit can be on stacked PRs; any maintainer-authored
+                // open PR is enough to skip the shared commit status.
+                return openPulls.map((pull) => ({
+                  number: pull.number,
+                  sha,
+                  author: pull.user.login,
+                  association: pull.author_association,
+                }));
+              }
+
+              return null;
+            }
+
+            async function hasRepoWrite(username) {
+              if (username.endsWith("[bot]")) {
+                return false;
+              }
+              try {
+                const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  username,
+                });
+                return WRITE_PERMISSIONS.has(data.permission);
+              } catch (error) {
+                if (error.status === 404) {
+                  return false;
+                }
+                throw error;
+              }
+            }
+
+            async function shouldSkip(pull, teamReadable) {
+              if (teamReadable) {
+                const isMember = await isTeamMaintainer(pull.author);
+                return {
+                  skip: isMember,
+                  reason: isMember
+                    ? `${pull.author} is an active ${TEAM_SLUG} member`
+                    : `${pull.author} is not in ${TEAM_SLUG}`,
+                };
+              }
+
+              // Token cannot see the private team. Private org members often
+              // show as CONTRIBUTOR, so repo write/admin is the usable proxy.
+              const canWrite = await hasRepoWrite(pull.author);
+              if (canWrite) {
+                core.warning(
+                  `Cannot read ${TEAM_SLUG}; skipping CLA via repo write access for ${pull.author}.`,
+                );
+                return {
+                  skip: true,
+                  reason: `${pull.author} has repo write access`,
+                };
+              }
+
+              return {
+                skip: false,
+                reason: `${pull.author} has no repo write access; ${TEAM_SLUG} is not readable`,
+              };
+            }
+
+            async function markSuccess(sha, pullNumber) {
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha,
+                state: "success",
+                context: CLA_CONTEXT,
+                description: `CLA skipped for ${TEAM_SLUG}.`,
+                target_url: `${CLA_TARGET}?pullRequest=${pullNumber}`,
+              });
+              core.info(`Posted ${CLA_CONTEXT}=success on ${sha} for PR #${pullNumber}`);
+            }
+
+            const resolved = await resolvePull();
+            if (!resolved) {
+              return;
+            }
+
+            const pulls = Array.isArray(resolved) ? resolved : [resolved];
+            const teamReadable = await canReadTeam();
+            core.info(`${TEAM_SLUG} readable=${teamReadable}`);
+            for (const pull of pulls) {
+              const decision = await shouldSkip(pull, teamReadable);
+              core.info(`PR #${pull.number}: ${decision.reason}`);
+              if (decision.skip) {
+                await markSuccess(pull.sha, pull.number);
+              }
+            }
