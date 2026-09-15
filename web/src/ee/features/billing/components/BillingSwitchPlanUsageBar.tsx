@@ -2,19 +2,12 @@ import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
 import { formatLocalIsoDate } from "@/src/utils/dates";
 import type { RouterOutput } from "@/src/utils/types";
 
-import {
-  planTierLabel,
-  type PlanTier,
-} from "@/src/ee/features/billing/utils/planComparison";
-
 export function BillingSwitchPlanUsageBar({
-  currentTier,
   includedUnits,
   usage,
   usageLoading = false,
   usageError = false,
 }: {
-  currentTier: PlanTier;
   includedUnits: number;
   usage: Exclude<RouterOutput["cloudBilling"]["getUsage"], null> | undefined;
   usageLoading?: boolean;
@@ -29,10 +22,7 @@ export function BillingSwitchPlanUsageBar({
     : 0;
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <p className="text-muted-foreground text-sm">
-        {`Current plan: ${planTierLabel(currentTier)}`}
-      </p>
+    <div className="flex flex-col gap-1">
       {usageLoading ? (
         <p className="text-muted-foreground text-xs">Loading usage…</p>
       ) : hasUsage ? (

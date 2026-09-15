@@ -249,19 +249,33 @@ export const suggestedUpgradeTier = (current: PlanTier): PlanTier | null => {
   }
 };
 
-export const suggestedUpgradeReason = (current: PlanTier): string | null => {
-  switch (current) {
-    case "hobby":
-      return "More included usage, longer history, and unlimited users.";
+export const planChoiceReason = (
+  displayTier: DisplayPlanTier,
+): string | null => {
+  switch (displayTier) {
     case "core":
-      return "Longer history, higher limits, and compliance reports.";
+      return "More usage and room to grow.";
     case "pro":
-    case "team":
-      return "Custom limits, audit logs, and named support.";
+      return "Longer history, higher limits, and advanced controls.";
     case "enterprise":
+      return "Custom terms and dedicated support.";
+    case "hobby":
       return null;
   }
 };
+
+export const PAID_USAGE_OVERAGE_LABEL =
+  "Additional usage from $8 / 100k units*";
+
+export const VOLUME_DISCOUNT_NOTE =
+  "* Volume discounts apply as usage grows. See the full comparison for the schedule.";
+
+const ENTERPRISE_VALUE_LEAD = [
+  "Negotiated usage on yearly terms",
+  "Support SLA",
+  "Uptime SLA",
+  "Named lead support engineer",
+] as const;
 
 export const checkoutProductForTier = (tier: Exclude<PlanTier, "hobby">) =>
   stripeProducts.find((product) => product.mappedPlan === TIER_TO_PLAN[tier]);
@@ -418,11 +432,6 @@ const capabilityDiff = (
         polarity,
         text: "Negotiated usage on yearly terms",
       });
-    } else {
-      lines.push({
-        polarity,
-        text: "Additional usage billed beyond included units",
-      });
     }
   }
 
@@ -501,6 +510,33 @@ const capabilityDiff = (
   return lines;
 };
 
+const ENTERPRISE_VALUE_LEAD_INDEX = new Map(
+  ENTERPRISE_VALUE_LEAD.map((text, index) => [text, index]),
+);
+
+const leadWithEnterpriseValue = (
+  lines: PlanComparisonLine[],
+): PlanComparisonLine[] => {
+  const lead: PlanComparisonLine[] = [];
+  const rest: PlanComparisonLine[] = [];
+
+  for (const line of lines) {
+    if (ENTERPRISE_VALUE_LEAD_INDEX.has(line.text)) {
+      lead.push(line);
+    } else {
+      rest.push(line);
+    }
+  }
+
+  lead.sort(
+    (left, right) =>
+      (ENTERPRISE_VALUE_LEAD_INDEX.get(left.text) ?? 0) -
+      (ENTERPRISE_VALUE_LEAD_INDEX.get(right.text) ?? 0),
+  );
+
+  return [...lead, ...rest];
+};
+
 export const additiveUpgradeFrom = (
   displayTier: DisplayPlanTier,
 ): PlanTier | null => {
@@ -556,9 +592,16 @@ export const getPlanComparison = ({
 
   if (isUpgrade) {
     const from = upgradeFrom ?? currentTier;
+    const lines = capabilityDiff(
+      LIMITS[from],
+      targetLimits,
+      "plus",
+      memberCount,
+    );
     return {
       heading: `Everything in ${planTierLabel(from)}, plus`,
-      lines: capabilityDiff(LIMITS[from], targetLimits, "plus", memberCount),
+      lines:
+        targetTier === "enterprise" ? leadWithEnterpriseValue(lines) : lines,
     };
   }
 

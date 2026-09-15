@@ -30,12 +30,14 @@ import {
   DISPLAY_PLAN_TIERS,
   getPlanComparison,
   includingTeamsPriceLabel,
+  PAID_USAGE_OVERAGE_LABEL,
+  planChoiceReason,
   planTierFromPlan,
   planTierLabel,
-  suggestedUpgradeReason,
   suggestedUpgradeTier,
   teamsAddonBenefitLines,
   teamsAddonPriceLabel,
+  VOLUME_DISCOUNT_NOTE,
   type DisplayPlanTier,
   type PlanTier,
 } from "@/src/ee/features/billing/utils/planComparison";
@@ -186,27 +188,23 @@ function BillingSwitchPlanDialogContent() {
   return (
     <>
       <DialogHeader>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
             <DialogTitle>Plans</DialogTitle>
-            <DialogDescription>
-              Compare included usage, history, limits, support, and enterprise
-              features.
+            <DialogDescription className="sr-only">
+              Compare included usage, history, limits, and support.
             </DialogDescription>
-            <div className="mt-2">
-              <BillingSwitchPlanUsageBar
-                currentTier={currentTier}
-                includedUnits={includedUnits}
-                usage={usage.data ?? undefined}
-                usageLoading={usage.isLoading}
-                usageError={usage.isError}
-              />
-            </div>
           </div>
           <ActionButton variant="secondary" href={PRICING_COMPARISON_HREF}>
             Full comparison of plans
           </ActionButton>
         </div>
+        <BillingSwitchPlanUsageBar
+          includedUnits={includedUnits}
+          usage={usage.data ?? undefined}
+          usageLoading={usage.isLoading}
+          usageError={usage.isError}
+        />
       </DialogHeader>
       <DialogBody>
         <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -235,6 +233,9 @@ function BillingSwitchPlanDialogContent() {
             />
           ))}
         </div>
+        <p className="text-muted-foreground mt-3 text-xs">
+          {VOLUME_DISCOUNT_NOTE}
+        </p>
       </DialogBody>
     </>
   );
@@ -304,9 +305,7 @@ function PlanCard({
   const scheduledHere =
     Boolean(product) && scheduledNewPlanId === product?.stripeProductId;
   const hobbyScheduled = displayTier === "hobby" && cancellationScheduled;
-  const upgradeReason = isSuggested
-    ? suggestedUpgradeReason(currentTier)
-    : null;
+  const choiceReason = planChoiceReason(displayTier);
 
   const priceLabel =
     displayTier === "hobby"
@@ -323,7 +322,7 @@ function PlanCard({
   const usageDetail =
     displayTier === "hobby"
       ? "No additional usage — capped"
-      : "Then $8 / 100k units, lower with increasing usage";
+      : PAID_USAGE_OVERAGE_LABEL;
 
   return (
     <div
@@ -333,7 +332,7 @@ function PlanCard({
         isSuggested && "border-primary border-2",
       )}
     >
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <div className="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1">
         <h3 className="text-2xl font-bold">{planTierLabel(displayTier)}</h3>
         {isCurrentTarget ? (
           <Badge variant="secondary" size="sm">
@@ -350,29 +349,8 @@ function PlanCard({
       <p className="mt-2 text-2xl font-bold">{priceLabel}</p>
       <p className="text-muted-foreground mt-1 text-sm">{usageLabel}</p>
       <p className="text-muted-foreground text-sm">{usageDetail}</p>
-      {upgradeReason ? <p className="mt-2 text-sm">{upgradeReason}</p> : null}
-      {displayTier === "pro" ? (
-        <label className="mt-3 flex items-start gap-2">
-          <Switch
-            size="sm"
-            checked={teamsAddonOn}
-            onCheckedChange={onTeamsAddonChange}
-          />
-          <span className="text-sm">
-            <span className="whitespace-nowrap">
-              <span className="font-bold">Teams add-on</span>
-              <span className="text-muted-foreground">
-                {" "}
-                · {teamsAddonPriceLabel()}
-              </span>
-            </span>
-            <span className="text-muted-foreground mt-0.5 block">
-              {teamsAddonBenefitLines().join(". ")}.
-            </span>
-          </span>
-        </label>
-      ) : null}
-      <div className="mt-4 border-t pt-4">
+      <p className="mt-2 min-h-10 text-sm">{choiceReason}</p>
+      <div className="mt-3 flex-1 border-t pt-3">
         <p className="mb-2 text-xs font-bold tracking-wide uppercase">
           {comparison.heading}
         </p>
@@ -390,6 +368,27 @@ function PlanCard({
         </ul>
       </div>
       <div className="mt-auto pt-4">
+        {displayTier === "pro" ? (
+          <div className="mb-3 rounded-lg border px-3 py-2">
+            <label className="flex items-center justify-between gap-3">
+              <span className="text-sm">
+                <span className="font-bold">Teams add-on</span>
+                <span className="text-muted-foreground">
+                  {" "}
+                  · {teamsAddonPriceLabel()}
+                </span>
+              </span>
+              <Switch
+                size="sm"
+                checked={teamsAddonOn}
+                onCheckedChange={onTeamsAddonChange}
+              />
+            </label>
+            <p className="text-muted-foreground mt-1 text-xs">
+              {teamsAddonBenefitLines().join(" · ")}
+            </p>
+          </div>
+        ) : null}
         <PlanCardAction
           displayTier={displayTier}
           targetTier={targetTier}
@@ -539,9 +538,7 @@ function PlanCardAction({
           {continueLabel}
         </ActionButton>
         {displayTier === "enterprise" && salesHref ? (
-          <ActionButton variant="secondary" href={salesHref}>
-            Talk to sales →
-          </ActionButton>
+          <TalkToSalesLink href={salesHref} />
         ) : null}
       </div>
     );
@@ -570,11 +567,19 @@ function PlanCardAction({
         buttonVariant={isSuggested ? "default" : "secondary"}
       />
       {displayTier === "enterprise" && salesHref ? (
-        <ActionButton variant="secondary" href={salesHref}>
-          Talk to sales →
-        </ActionButton>
+        <TalkToSalesLink href={salesHref} />
       ) : null}
     </div>
+  );
+}
+
+function TalkToSalesLink({ href }: { href: string }) {
+  return (
+    <Button variant="link" asChild className="h-auto w-full p-0">
+      <a href={href} target="_blank" rel="noreferrer">
+        Talk to sales
+      </a>
+    </Button>
   );
 }
 

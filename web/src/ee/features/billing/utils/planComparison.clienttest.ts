@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   getPlanComparison,
   includingTeamsPriceLabel,
+  planChoiceReason,
   planTierFromPlan,
-  suggestedUpgradeReason,
   suggestedUpgradeTier,
   teamsAddonBenefitLines,
   teamsAddonPriceLabel,
@@ -28,9 +28,14 @@ describe("planComparison", () => {
     expect(suggestedUpgradeTier("enterprise")).toBeNull();
   });
 
-  it("explains why the suggested step is the recommended upgrade", () => {
-    expect(suggestedUpgradeReason("hobby")).toBe(
-      "More included usage, longer history, and unlimited users.",
+  it("gives every paid plan a short reason to choose it", () => {
+    expect(planChoiceReason("hobby")).toBeNull();
+    expect(planChoiceReason("core")).toBe("More usage and room to grow.");
+    expect(planChoiceReason("pro")).toBe(
+      "Longer history, higher limits, and advanced controls.",
+    );
+    expect(planChoiceReason("enterprise")).toBe(
+      "Custom terms and dedicated support.",
     );
   });
 
@@ -90,12 +95,14 @@ describe("planComparison", () => {
     expect(comparison.lines.map((line) => line.text)).toEqual([
       "90 days of history",
       "Unlimited users",
-      "Additional usage billed beyond included units",
       "4,000 ingestion requests/min",
       "20 alerts",
       "3 annotation queues",
       "In-app support, 48h response",
     ]);
+    expect(comparison.lines.map((line) => line.text)).not.toContain(
+      "Additional usage billed beyond included units",
+    );
   });
 
   it("describes Hobby losses from Core, including seats that would be removed", () => {
@@ -158,14 +165,14 @@ describe("planComparison", () => {
     );
   });
 
-  it("describes leaving negotiated Enterprise usage when moving to Core", () => {
+  it("does not restate billed overage when leaving negotiated Enterprise usage", () => {
     const comparison = getPlanComparison({
       currentTier: "enterprise",
       targetTier: "core",
     });
 
-    expect(comparison.lines.map((line) => line.text)).toEqual(
-      expect.arrayContaining(["Additional usage billed beyond included units"]),
+    expect(comparison.lines.map((line) => line.text)).not.toContain(
+      "Additional usage billed beyond included units",
     );
   });
 
@@ -179,12 +186,12 @@ describe("planComparison", () => {
     expect(comparison.heading).toBe("Everything in Pro + Teams, plus");
     expect(texts).toEqual([
       "Negotiated usage on yearly terms",
-      "Custom rate limits",
-      "100 alerts",
       "Support SLA",
-      "Audit logs and SCIM provisioning",
       "Uptime SLA",
       "Named lead support engineer",
+      "Custom rate limits",
+      "100 alerts",
+      "Audit logs and SCIM provisioning",
     ]);
     expect(new Set(texts).size).toBe(texts.length);
   });
@@ -200,12 +207,12 @@ describe("planComparison", () => {
     expect(comparison.heading).toBe("Everything in Pro + Teams, plus");
     expect(texts).toEqual([
       "Negotiated usage on yearly terms",
-      "Custom rate limits",
-      "100 alerts",
       "Support SLA",
-      "Audit logs and SCIM provisioning",
       "Uptime SLA",
       "Named lead support engineer",
+      "Custom rate limits",
+      "100 alerts",
+      "Audit logs and SCIM provisioning",
     ]);
     expect(texts).not.toContain("3 years of history");
     expect(texts).not.toContain("Unlimited users");
