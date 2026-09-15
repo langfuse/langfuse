@@ -64,7 +64,7 @@ import {
   tooltipPlacement,
   type TooltipPlacement,
 } from "../../fns/timeline/tooltipPlacement";
-import { Layer } from "@/src/components/ui/layer";
+import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { TimelineRowMetrics, type RowMetrics } from "./TimelineRowMetrics";
 import { cn } from "@/src/utils/tailwind";
 import { type Density, type PointerModality } from "../../fns/timeline/density";

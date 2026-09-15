@@ -4,28 +4,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItemWithSecondaryAction,
 } from "@/src/components/ui/dropdown-menu";
-import { LAYER_ORDER } from "@/src/components/ui/layer";
-
-const installOverlayLayers = () => {
-  const overlayRoot = document.createElement("div");
-  overlayRoot.setAttribute("data-overlay-root", "");
-  for (const layer of LAYER_ORDER) {
-    const layerNode = document.createElement("div");
-    layerNode.setAttribute("data-layer", layer);
-    overlayRoot.appendChild(layerNode);
-  }
-  document.body.appendChild(overlayRoot);
-};
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 describe("DropdownMenuItemWithSecondaryAction", () => {
-  beforeEach(() => {
-    installOverlayLayers();
-  });
-
-  afterEach(() => {
-    document.querySelector("[data-overlay-root]")?.remove();
-  });
-
   it("opens href items in a new tab when target is _blank", () => {
     render(
       <DropdownMenu open>
@@ -37,6 +18,7 @@ describe("DropdownMenuItemWithSecondaryAction", () => {
           />
         </DropdownMenuContent>
       </DropdownMenu>,
+      { wrapper: LayerProvider },
     );
 
     const link = screen.getByRole("link", { name: "Manage score configs" });

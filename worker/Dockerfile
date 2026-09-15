@@ -33,6 +33,19 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS builder
 
 WORKDIR /app
 
+# @langfuse/native is a Rust addon (napi-rs) compiled by `turbo run build`.
+# The toolchain comes from the official Rust image for the same Alpine release,
+# so the addon compiles with the exact version pinned in
+# packages/native/rust-toolchain.toml; bump the two together. gcc and musl-dev
+# provide the linker and C runtime objects the build needs.
+COPY --from=rust:1.98.0-alpine3.24 /usr/local/rustup /usr/local/rustup
+COPY --from=rust:1.98.0-alpine3.24 /usr/local/cargo /usr/local/cargo
+ENV RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo PATH=/usr/local/cargo/bin:$PATH
+# rustc's musl targets default to a `<arch>-linux-musl-gcc` linker name that
+# Alpine does not ship; its gcc is reachable as `cc`.
+ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=cc CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=cc
+RUN apk add --no-cache gcc musl-dev
+
 # First install the dependencies (as they change less often)
 COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY --from=pruner /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml

@@ -2,7 +2,10 @@ import { useRouter } from "next/router";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { CardDescription } from "@/src/components/ui/card";
-import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
+import {
+  EvaluatorForm,
+  useEvaluatorFormTemplate,
+} from "@/src/features/evals/components/evaluator-form";
 import { usePeekEvalConfigData } from "@/src/components/table/peek/hooks/usePeekEvalConfigData";
 import {
   Tooltip,
@@ -45,6 +48,10 @@ const PeekViewEvaluatorConfigDetail = ({
   const { data: evalConfig } = usePeekEvalConfigData({
     jobConfigurationId: peekId,
     projectId,
+  });
+  const evalTemplate = useEvaluatorFormTemplate({
+    evalTemplates: [],
+    evalTemplate: evalConfig?.evalTemplate ?? undefined,
   });
   const lazyExecutionCounts = useLazyEvaluatorExecutionCounts({
     projectId,
@@ -184,27 +191,29 @@ const PeekViewEvaluatorConfigDetail = ({
       </CardDescription>
       <div className="flex max-h-full w-full flex-col items-start justify-between space-y-2 overflow-y-auto pb-4">
         {evalConfig.evalTemplate ? (
-          <EvaluatorForm
-            key={`${evalConfig.id}-${evalConfig.updatedAt}-${isEditMode}`}
-            projectId={projectId}
-            evalTemplates={[evalConfig.evalTemplate]}
-            existingEvaluator={{
-              ...evalConfig,
-              evalTemplate: evalConfig.evalTemplate,
-            }}
-            mode="edit"
-            disabled={!isEditMode}
-            shouldWrapVariables={true}
-            useDialog={false}
-            onFormSuccess={() => {
-              setIsEditMode(false);
-              utils.evals.invalidate();
-              showSuccessToast({
-                title: "Running Evaluator updated",
-                description: "The evaluator configuration has been updated.",
-              });
-            }}
-          />
+          evalTemplate ? (
+            <EvaluatorForm
+              key={`${evalConfig.id}-${evalConfig.updatedAt}-${isEditMode}`}
+              projectId={projectId}
+              evalTemplate={evalTemplate}
+              existingEvaluator={{
+                ...evalConfig,
+                evalTemplate: evalConfig.evalTemplate,
+              }}
+              mode="edit"
+              disabled={!isEditMode}
+              shouldWrapVariables={true}
+              useDialog={false}
+              onFormSuccess={() => {
+                setIsEditMode(false);
+                utils.evals.invalidate();
+                showSuccessToast({
+                  title: "Running Evaluator updated",
+                  description: "The evaluator configuration has been updated.",
+                });
+              }}
+            />
+          ) : null
         ) : (
           <Alert icon={AlertTriangle}>
             <Alert.Title>Referenced evaluator unavailable</Alert.Title>

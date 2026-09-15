@@ -170,6 +170,11 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     // Derived, not hardcoded: the page renders one switch per registered
     // preview, so a new preview must not fail this test.
     expect(switches).toHaveLength(featurePreviewFlags.length);
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Toggle Session Timeline organization default",
+      }),
+    ).toBeInTheDocument();
     switches.forEach((featureSwitch) => {
       expect(featureSwitch).toBeChecked();
       expect(featureSwitch).toBeDisabled();

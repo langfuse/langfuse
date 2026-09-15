@@ -5,21 +5,11 @@ import {
 } from "@/src/features/navigation/utils/dataset-tabs";
 import { DatasetItemsTable } from "@/src/features/datasets/components/DatasetItemsTable";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { UpdateDatasetDialogController } from "@/src/features/datasets/components/UpdateDatasetDialogController";
-import { DeleteDatasetButton } from "@/src/components/deleteButton";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
-import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 import { UploadDatasetCsvButton } from "@/src/features/datasets/components/UploadDatasetCsvButton";
 import { Button } from "@/src/components/ui/button";
-import { Edit, History, LockIcon, MoreVertical } from "lucide-react";
+import { History, MoreVertical } from "lucide-react";
 import Page from "@/src/components/layouts/page";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuItemWithSecondaryAction,
-} from "@/src/components/ui/dropdown-menu";
 import { DatasetItemsOnboarding } from "@/src/components/onboarding/DatasetItemsOnboarding";
 import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
 import { DatasetVersionHistoryPanel } from "@/src/features/datasets/components/DatasetVersionHistoryPanel";
@@ -31,6 +21,7 @@ import {
   RouteParamsPendingFallback,
   useReadyRouteParams,
 } from "@/src/hooks/useReadyRouteParams";
+import { DatasetActionMenu } from "@/src/features/datasets/components/DatasetActionMenu";
 
 export default function DatasetItemsPage() {
   const route = useReadyRouteParams(["projectId", "datasetId"]);
@@ -127,7 +118,7 @@ function DatasetItemsView({
               }
               listKey="datasets"
             />
-            <UpdateDatasetDialogController
+            <DatasetActionMenu
               projectId={projectId}
               datasetId={datasetId}
               datasetName={dataset.data?.name ?? ""}
@@ -137,46 +128,18 @@ function DatasetItemsView({
               datasetExpectedOutputSchema={
                 dataset.data?.expectedOutputSchema ?? undefined
               }
-              source="dataset"
             >
-              {({ disabled, openDialog }) => (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
-                    <DropdownMenuItemWithSecondaryAction
-                      disabled={disabled}
-                      icon={disabled === undefined ? Edit : LockIcon}
-                      title="Edit"
-                      onClick={openDialog}
-                    />
-                    <DropdownMenuItem asChild>
-                      <DuplicateDatasetButton
-                        datasetId={datasetId}
-                        projectId={projectId}
-                      />
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      asChild
-                      onSelect={(event) => {
-                        event.preventDefault();
-                        return false;
-                      }}
-                    >
-                      <DeleteDatasetButton
-                        itemId={datasetId}
-                        projectId={projectId}
-                        redirectUrl={`/project/${projectId}/datasets`}
-                        deleteConfirmation={dataset.data?.name}
-                      />
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+              {({ getTriggerProps }) => (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="Dataset actions"
+                  {...getTriggerProps()}
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
               )}
-            </UpdateDatasetDialogController>
+            </DatasetActionMenu>
             <Button
               variant="outline"
               size="icon"

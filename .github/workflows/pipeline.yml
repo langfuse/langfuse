@@ -269,7 +269,11 @@ jobs:
           cp .env.dev.example .env
       - name: lint web
         # Three packages with four ESLint workers leave headroom on 16 vCPUs.
-        run: pnpm turbo run lint --filter=!ai-gateway --concurrency=3 -- --concurrency=4
+        run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3 -- --concurrency=4
+      # Rust packages lint with cargo, which rejects the trailing ESLint flag
+      # above, so they run outside that invocation (ai-gateway in its own job).
+      - name: lint native addon (rustfmt, clippy)
+        run: pnpm --filter @langfuse/native run lint
       - name: typecheck
         run: pnpm run typecheck --filter=!ai-gateway
 

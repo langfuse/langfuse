@@ -11,6 +11,7 @@ import {
   markProjectIngestFailure,
   createIngestionAttribution,
   processEventBatch,
+  redactLangfuseSecretKeys,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
@@ -81,9 +82,13 @@ export default async function handler(
         header.toLowerCase().startsWith("x-langfuse") ||
         header.toLowerCase().startsWith("x_langfuse")
       ) {
+        const value = req.headers[header];
+        if (value === undefined) return;
         currentSpan?.setAttributes({
           [`langfuse.header.${header.slice(11).toLowerCase().replaceAll("_", "-")}`]:
-            req.headers[header],
+            Array.isArray(value)
+              ? value.map(redactLangfuseSecretKeys)
+              : redactLangfuseSecretKeys(value),
         });
       }
     });

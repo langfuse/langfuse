@@ -1,7 +1,9 @@
+import { ExternalLink } from "lucide-react";
 import { type ReactNode } from "react";
 import { useRouter } from "next/router";
 
-import { DialogController } from "@/src/components/ui/dialog";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useQueryProject } from "@/src/features/projects/hooks";
@@ -51,26 +53,37 @@ export function DeleteProjectDialogController({
 
   return (
     <DialogController
-      closeOnInteractionOutside={false}
-      size="default"
-      renderContent={() =>
-        deletionProtection.data?.isGatewayIngestionProject && organization ? (
-          <DeleteProjectDialog
-            blocked
-            onOpenGatewaySettings={() =>
-              router.push(
-                `/organization/${organization.id}/settings/ai-gateway`,
-              )
-            }
-          />
-        ) : (
+      renderDialog={() => {
+        if (
+          deletionProtection.data?.isGatewayIngestionProject &&
+          organization
+        ) {
+          return (
+            <Dialog
+              title="Project cannot be deleted"
+              text="This project is used as the AI Gateway ingestion project. Select another ingestion project before deleting it."
+              actions={[
+                {
+                  label: "Open AI Gateway settings",
+                  icon: ExternalLink,
+                  onClick: () =>
+                    router.push(
+                      `/organization/${organization.id}/settings/ai-gateway`,
+                    ),
+                },
+              ]}
+            />
+          );
+        }
+
+        return (
           <DeleteProjectDialog
             confirmMessage={confirmMessage}
             isPending={deleteProject.isPending}
             onSubmit={handleDelete}
           />
-        )
-      }
+        );
+      }}
     >
       {({ openDialog }) =>
         children({

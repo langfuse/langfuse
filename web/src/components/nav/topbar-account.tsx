@@ -1,8 +1,8 @@
-/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/no-null-render */
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 "use client";
 
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import type { Session } from "next-auth";
 import { signOutCleanly } from "@/src/features/auth/lib/signOut";
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
@@ -22,12 +22,14 @@ import { cn } from "@/src/utils/tailwind";
  * a small menu (settings, theme, sign out). The sidebar keeps the full NavUser;
  * this is the always-visible shell-level shortcut in the minimal mobile chrome.
  */
-export const TopbarAccount = ({ className }: { className?: string }) => {
-  const session = useSession();
+export const TopbarAccount = ({
+  user,
+  className,
+}: {
+  user: NonNullable<Session["user"]>;
+  className?: string;
+}) => {
   const showV4Migration = useV4UpgradeUiFlag();
-  const user = session.data?.user;
-
-  if (!user) return null;
 
   const name = user.name ?? "";
   const email = user.email ?? "";

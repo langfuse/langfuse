@@ -1,13 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/ui/button";
-import {
-  DialogBody,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
   Form,
   FormControl,
@@ -18,14 +12,8 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import { TriangleAlert } from "lucide-react";
+import { useId } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
@@ -34,7 +22,7 @@ type TransferProjectDialogOrganization = {
   name: string;
 };
 
-export interface TransferProjectDialogContentProps {
+export interface TransferProjectDialogProps {
   projectName: string;
   organizationName: string;
   organizations: TransferProjectDialogOrganization[];
@@ -42,13 +30,14 @@ export interface TransferProjectDialogContentProps {
   onConfirm: (organizationId: string) => void;
 }
 
-export function TransferProjectDialogContent({
+export function TransferProjectDialog({
   projectName,
   organizationName,
   organizations,
   isPending,
   onConfirm,
-}: TransferProjectDialogContentProps) {
+}: TransferProjectDialogProps) {
+  const formId = useId();
   const confirmMessage = `${organizationName}/${projectName}`
     .replaceAll(" ", "-")
     .toLowerCase();
@@ -67,18 +56,26 @@ export function TransferProjectDialogContent({
   });
 
   return (
-    <DialogContent className="sm:max-w-[425px]">
-      <DialogHeader>
-        <DialogTitle>Transfer Project</DialogTitle>
-      </DialogHeader>
+    <Dialog
+      title="Transfer Project"
+      actions={[
+        {
+          label: "Transfer project",
+          type: "submit",
+          form: formId,
+          variant: "destructive",
+          loading: isPending,
+        },
+      ]}
+    >
       <Form {...form}>
         <form
+          id={formId}
           onSubmit={form.handleSubmit(({ organizationId }) =>
             onConfirm(organizationId),
           )}
-          className="flex flex-col gap-8"
         >
-          <DialogBody>
+          <Dialog.Body>
             <Alert variant="warning" icon={TriangleAlert}>
               <Alert.Title>Warning</Alert.Title>
               <Alert.Description>
@@ -105,25 +102,16 @@ export function TransferProjectDialogContent({
                 <FormItem>
                   <FormLabel>Select New Organization</FormLabel>
                   <FormControl>
-                    <Select
+                    <SelectInput
                       onValueChange={field.onChange}
                       value={field.value}
                       disabled={isPending}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select organization" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {organizations.map((organization) => (
-                          <SelectItem
-                            key={organization.id}
-                            value={organization.id}
-                          >
-                            {organization.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Select organization"
+                      options={organizations.map((organization) => ({
+                        value: organization.id,
+                        label: organization.name,
+                      }))}
+                    />
                   </FormControl>
                   <FormDescription>
                     Transfer this project to another organization where you have
@@ -149,19 +137,9 @@ export function TransferProjectDialogContent({
                 </FormItem>
               )}
             />
-          </DialogBody>
-          <DialogFooter>
-            <Button
-              type="submit"
-              variant="destructive"
-              loading={isPending}
-              className="w-full"
-            >
-              Transfer project
-            </Button>
-          </DialogFooter>
+          </Dialog.Body>
         </form>
       </Form>
-    </DialogContent>
+    </Dialog>
   );
 }

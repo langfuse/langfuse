@@ -26,7 +26,7 @@ import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
 import { AnnotationPanel } from "@/src/features/datasets/components/AnnotationPanel";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { toExperimentsResultsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 function DatasetCompareLegacy() {
   const router = useRouter();

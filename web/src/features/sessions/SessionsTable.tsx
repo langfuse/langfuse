@@ -68,6 +68,7 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 import { sessionsFieldRegistry } from "@/src/features/filters/config/sessionsSearchRegistry";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export type SessionTableRow = {
   id: string;
@@ -113,6 +114,10 @@ export default function SessionsTable({
   );
   const { setDetailPageList } = useDetailPageLists();
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
+  const hasBatchExportAccess = useHasProjectAccess({
+    projectId,
+    scope: "batchExports:create",
+  });
 
   // Convert timeRange to absolute date range for compatibility
   const dateRange = useMemo(() => {
@@ -808,15 +813,17 @@ export default function SessionsTable({
                   }}
                 />
               ) : null,
-              <BatchExportTableButton
-                {...{
-                  projectId,
-                  filterState: backendFilterState,
-                  orderByState,
-                }}
-                tableName={BatchExportTableName.Sessions}
-                key="batchExport"
-              />,
+              hasBatchExportAccess ? (
+                <BatchExportTableButton
+                  {...{
+                    projectId,
+                    filterState: backendFilterState,
+                    orderByState,
+                  }}
+                  tableName={BatchExportTableName.Sessions}
+                  key="batchExport"
+                />
+              ) : null,
             ]}
             columns={columns}
             columnVisibility={columnVisibility}

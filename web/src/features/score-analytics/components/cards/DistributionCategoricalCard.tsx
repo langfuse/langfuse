@@ -11,7 +11,7 @@ import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { ScoreDistributionCategoricalChart } from "../charts/ScoreDistributionCategoricalChart";
 import { getScoreCategoryColors } from "../../lib/color-scales";
 import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 type DistributionTab = "score1" | "score2" | "all" | "matched";
 

@@ -17,7 +17,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import Link from "next/link";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 interface CorrectedOutputFieldProps {
   projectId: string;

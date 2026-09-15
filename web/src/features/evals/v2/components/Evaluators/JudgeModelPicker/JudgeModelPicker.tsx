@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { forwardRef, type ReactNode } from "react";
 
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Badge } from "@/src/components/ui/badge";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {

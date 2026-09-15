@@ -1,5 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/no-null-render */
-import { useState } from "react";
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -10,7 +9,6 @@ import {
 } from "@/src/components/ui/dialog";
 import { CreateLLMApiKeyForm } from "./CreateLLMApiKeyForm";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
-import { useHasProjectAccess } from "@/src/features/rbac";
 import { PencilIcon } from "lucide-react";
 import { type RouterOutputs } from "@/src/utils/api";
 
@@ -24,25 +22,13 @@ export function UpdateLLMApiKeyDialog({
 }: {
   apiKey: LlmApiKeyListItem;
   projectId: string;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
-  const [internalOpen, setInternalOpen] = useState(false);
   const uiCustomization = useUiCustomization();
 
-  // Use external state if provided, otherwise use internal state
-  const isOpen = open !== undefined ? open : internalOpen;
-  const setIsOpen = onOpenChange || setInternalOpen;
-
-  const hasAccess = useHasProjectAccess({
-    projectId,
-    scope: "llmApiKeys:update",
-  });
-
-  if (!hasAccess) return null;
-
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon">
           <PencilIcon className="h-4 w-4" />
@@ -55,10 +41,10 @@ export function UpdateLLMApiKeyDialog({
         <DialogHeader>
           <DialogTitle>Update LLM Connection</DialogTitle>
         </DialogHeader>
-        {isOpen && (
+        {open && (
           <CreateLLMApiKeyForm
             projectId={projectId}
-            onSuccess={() => setIsOpen(false)}
+            onSuccess={() => onOpenChange(false)}
             customization={uiCustomization}
             mode="update"
             existingKey={apiKey}

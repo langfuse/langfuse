@@ -31,7 +31,7 @@ type Variant = NonNullable<ClassProps["variant"]>;
 type Size = NonNullable<ClassProps["size"]>;
 type Display = NonNullable<ClassProps["display"]>;
 
-export default function Spinner({
+export function Spinner({
   variant,
   size,
   display,

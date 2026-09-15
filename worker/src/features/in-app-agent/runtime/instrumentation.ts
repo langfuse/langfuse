@@ -913,6 +913,7 @@ export class InAppAgentInstrumentation {
       ...body,
       userId: this.userId,
       sessionId: this.sessionId,
+      metadata: { ...this.metadata, ...body.metadata },
     });
   }
 

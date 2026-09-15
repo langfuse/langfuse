@@ -113,4 +113,4 @@ const CodeBlock: FC<Props> = memo(
 );
 CodeBlock.displayName = "CodeBlock";
 
-export { CodeBlock };
+export { CodeBlock as Codeblock };

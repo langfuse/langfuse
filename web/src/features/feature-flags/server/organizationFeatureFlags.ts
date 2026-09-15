@@ -185,14 +185,25 @@ async function setUserFeaturePreviewInTransaction({
   const user = rows[0];
   if (!user) throw new LangfuseNotFoundError("User not found");
 
-  const optOutFlag = getFeaturePreviewOptOutFlag(flag);
+  const affectedFlags: FeaturePreviewFlag[] = [flag];
+  if (flag === "sessionTimeline" && enabled) {
+    affectedFlags.push("modernSession");
+  }
+  if (flag === "modernSession" && !enabled) {
+    affectedFlags.push("sessionTimeline");
+  }
   const nextFeatureFlags = user.featureFlags.filter(
-    (currentFlag) => currentFlag !== flag && currentFlag !== optOutFlag,
+    (currentFlag) =>
+      !affectedFlags.some(
+        (affectedFlag) =>
+          currentFlag === affectedFlag ||
+          currentFlag === getFeaturePreviewOptOutFlag(affectedFlag),
+      ),
   );
   if (enabled) {
-    nextFeatureFlags.push(flag);
+    nextFeatureFlags.push(...affectedFlags);
   } else {
-    nextFeatureFlags.push(optOutFlag);
+    nextFeatureFlags.push(...affectedFlags.map(getFeaturePreviewOptOutFlag));
   }
 
   const before = getFeaturePreviewOverrideState(user.featureFlags, flag);
@@ -310,10 +321,18 @@ export async function setOrganizationFeatureFlagDefault({
     const before = filterFeaturePreviewFlags(
       organization.featureFlagOrgDefaults,
     );
+    const affectedFlags: FeaturePreviewFlag[] = [flag];
+    if (flag === "sessionTimeline" && enabled) {
+      affectedFlags.push("modernSession");
+    }
+    if (flag === "modernSession" && !enabled) {
+      affectedFlags.push("sessionTimeline");
+    }
     const nextStoredDefaults = organization.featureFlagOrgDefaults.filter(
-      (currentFlag) => currentFlag !== flag,
+      (currentFlag) =>
+        !affectedFlags.some((affectedFlag) => currentFlag === affectedFlag),
     );
-    if (enabled) nextStoredDefaults.push(flag);
+    if (enabled) nextStoredDefaults.push(...affectedFlags);
     const after = filterFeaturePreviewFlags(nextStoredDefaults);
 
     await tx.organization.update({

@@ -1,5 +1,6 @@
 import { globalIgnores } from "eslint/config";
 import boundaries from "eslint-plugin-boundaries";
+import checkFile from "eslint-plugin-check-file";
 import reactYouMightNotNeedAnEffect from "eslint-plugin-react-you-might-not-need-an-effect";
 import storybook from "eslint-plugin-storybook";
 import eslintPluginTailwindcss from "eslint-plugin-tailwindcss";
@@ -203,6 +204,55 @@ export default [
     },
   },
 
+  // Root design-system components follow `Name/Name.tsx`, optionally alongside
+  // `Name/Name.stories.tsx`. Files must be directly inside a PascalCase folder,
+  // match that folder's name, and expose a matching named runtime export. The
+  // table subtree is a domain-specific exception with its own structure.
+  {
+    name: "langfuse/web/design-system-component-structure",
+    files: ["src/components/design-system/**/*.{ts,tsx}"],
+    ignores: ["src/components/design-system/table/**"],
+    plugins: {
+      "check-file": checkFile,
+    },
+    rules: {
+      "check-file/folder-match-with-fex": [
+        "error",
+        {
+          "*.{ts,tsx}": "src/components/design-system/*/",
+        },
+      ],
+      "check-file/folder-naming-convention": [
+        "error",
+        {
+          "src/components/design-system/*/": "PASCAL_CASE",
+        },
+      ],
+      "check-file/filename-naming-convention": [
+        "error",
+        {
+          "src/components/design-system/*/*.{ts,tsx}": "<0>",
+        },
+        {
+          ignoreMiddleExtensions: true,
+        },
+      ],
+    },
+  },
+
+  {
+    name: "langfuse/web/design-system-component-exports",
+    files: ["src/components/design-system/*/*.{ts,tsx}"],
+    ignores: [
+      "src/components/design-system/**/*.stories.{ts,tsx}",
+      "src/components/design-system/table/**",
+    ],
+    rules: {
+      "@repo/filename-matches-export": "error",
+      "import/no-default-export": "error",
+    },
+  },
+
   {
     ...reactYouMightNotNeedAnEffect.configs.recommended,
     name: "langfuse/web/design-system-rules",
@@ -331,7 +381,7 @@ export default [
   },
 
   // Overlay primitive wrappers must stack via the app layer system (route the
-  // portal into a layer container, see components/ui/layer.tsx), never by
+  // portal into a layer container, see context/LayerContext/LayerContext.tsx), never by
   // escalating z-index to escape to the top. On these wrapper files, ban a
   // high/arbitrary z-index ANYWHERE (mode "wrapper") — every high z-index here
   // is an escape. z-index stays a local, within-layer tool elsewhere.

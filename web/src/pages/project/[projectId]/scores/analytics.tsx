@@ -20,7 +20,7 @@ import {
 } from "@/src/features/score-analytics/components/ScoreAnalyticsProvider";
 import { ScoreAnalyticsHeader } from "@/src/features/score-analytics/components/ScoreAnalyticsHeader";
 import { ScoreAnalyticsDashboard } from "@/src/features/score-analytics/components/ScoreAnalyticsDashboard";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 /**
  * Score Analytics V2 - Refactored Architecture

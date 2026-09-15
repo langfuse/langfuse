@@ -13,7 +13,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 /**
  * Props for the SlackDisconnectButton component

@@ -1,16 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ExternalLink } from "lucide-react";
+import { useId } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
-import { Button } from "@/src/components/ui/button";
-import {
-  DialogBody,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import {
   Form,
   FormControl,
@@ -24,59 +17,14 @@ type DeleteProjectForm = {
   name: string;
 };
 
-export type DeleteProjectDialogProps =
-  | {
-      blocked: true;
-      onOpenGatewaySettings: () => void;
-    }
-  | {
-      blocked?: false;
-      confirmMessage: string;
-      isPending: boolean;
-      onSubmit: () => void;
-    };
-
-export function DeleteProjectDialog(props: DeleteProjectDialogProps) {
-  return props.blocked ? (
-    <BlockedDeleteProjectDialog
-      onOpenGatewaySettings={props.onOpenGatewaySettings}
-    />
-  ) : (
-    <DeleteProjectConfirmationDialog {...props} />
-  );
-}
-
-function BlockedDeleteProjectDialog({
-  onOpenGatewaySettings,
-}: {
-  onOpenGatewaySettings: () => void;
-}) {
-  return (
-    <>
-      <DialogHeader>
-        <DialogTitle className="text-lg font-bold">
-          Project cannot be deleted
-        </DialogTitle>
-        <DialogDescription>
-          This project is used as the AI Gateway ingestion project. Select
-          another ingestion project before deleting it.
-        </DialogDescription>
-      </DialogHeader>
-      <DialogFooter>
-        <Button className="w-full" onClick={onOpenGatewaySettings}>
-          Open AI Gateway settings
-          <ExternalLink className="relative -top-px ml-1.5 size-3.5 shrink-0" />
-        </Button>
-      </DialogFooter>
-    </>
-  );
-}
-
-function DeleteProjectConfirmationDialog(props: {
+export type DeleteProjectDialogProps = {
   confirmMessage: string;
   isPending: boolean;
   onSubmit: () => void;
-}) {
+};
+
+export function DeleteProjectDialog(props: DeleteProjectDialogProps) {
+  const formId = useId();
   const formSchema = z.object({
     name: z.string().includes(props.confirmMessage, {
       message: `Please confirm with "${props.confirmMessage}"`,
@@ -91,16 +39,22 @@ function DeleteProjectConfirmationDialog(props: {
   });
 
   return (
-    <>
-      <DialogHeader>
-        <DialogTitle className="text-lg font-bold">Delete Project</DialogTitle>
-        <DialogDescription>
-          {`To confirm, type "${props.confirmMessage}" in the input box`}
-        </DialogDescription>
-      </DialogHeader>
+    <Dialog
+      title="Delete Project"
+      actions={[
+        {
+          label: "Delete project",
+          type: "submit",
+          form: formId,
+          variant: "destructive",
+          loading: props.isPending,
+        },
+      ]}
+    >
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(props.onSubmit)}>
-          <DialogBody>
+        <form id={formId} onSubmit={form.handleSubmit(props.onSubmit)}>
+          <Dialog.Body>
+            <p>{`To confirm, type "${props.confirmMessage}" in the input box`}</p>
             <FormField
               control={form.control}
               name="name"
@@ -113,19 +67,9 @@ function DeleteProjectConfirmationDialog(props: {
                 </FormItem>
               )}
             />
-          </DialogBody>
-          <DialogFooter>
-            <Button
-              type="submit"
-              variant="destructive"
-              loading={props.isPending}
-              className="w-full"
-            >
-              Delete project
-            </Button>
-          </DialogFooter>
+          </Dialog.Body>
         </form>
       </Form>
-    </>
+    </Dialog>
   );
 }

@@ -270,48 +270,6 @@ export function DeleteTraceButton(props: DeleteButtonProps) {
   );
 }
 
-export function DeleteDatasetButton(props: DeleteButtonProps) {
-  const utils = api.useUtils();
-  const {
-    itemId,
-    projectId,
-    scope = "datasets:CUD",
-    invalidateFunc = () => utils.datasets.invalidate(),
-  } = props;
-  const datasetMutation = api.datasets.deleteDataset.useMutation();
-  const executeDeleteMutation = async (onSuccess: () => void) => {
-    try {
-      await datasetMutation.mutateAsync({
-        datasetId: itemId,
-        projectId,
-      });
-    } catch (error) {
-      return Promise.reject(error);
-    }
-    onSuccess();
-  };
-  return (
-    <DeleteButton
-      {...props}
-      scope={scope}
-      invalidateFunc={invalidateFunc}
-      captureDeleteOpen={(capture, isTableAction) =>
-        capture("datasets:delete_form_open", {
-          source: isTableAction ? "table-single-row" : "dataset",
-        })
-      }
-      captureDeleteSuccess={(capture, isTableAction) =>
-        capture("datasets:delete_dataset_button_click", {
-          source: isTableAction ? "table-single-row" : "dataset",
-        })
-      }
-      entityToDeleteName="dataset"
-      executeDeleteMutation={executeDeleteMutation}
-      isDeleteMutationLoading={datasetMutation.isPending}
-    />
-  );
-}
-
 /** DeleteMonitorButton deletes a monitor through the shared confirm-then-delete pattern. */
 export function DeleteMonitorButton(props: DeleteButtonProps) {
   const utils = api.useUtils();

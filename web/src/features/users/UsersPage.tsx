@@ -541,8 +541,11 @@ const UsersTable = ({
     "users",
     columns,
   );
+  // Its own key: "users" is the visibility state's, and one key cannot hold
+  // two shapes (an object and a string list) without them overwriting each
+  // other and being read back as the wrong type.
   const [columnOrder, setColumnOrder] = useColumnOrder<RowData>(
-    "users",
+    "usersColumnOrder",
     columns,
   );
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({

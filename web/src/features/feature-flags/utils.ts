@@ -58,6 +58,10 @@ export const parseFlags = (
     parsedFlags[flag] = dbFlags.includes(flag);
   });
 
+  if (!parsedFlags.modernSession) {
+    parsedFlags.sessionTimeline = false;
+  }
+
   return parsedFlags;
 };
 

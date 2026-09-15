@@ -4,7 +4,7 @@ import {
   type DeleteDatasetDialogDataProps,
 } from "@/src/features/datasets/components/DeleteDatasetDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { type ReactNode, useState } from "react";
+import { type ReactNode } from "react";
 
 export type DeleteDatasetDialogSource = "dataset" | "table-single-row";
 
@@ -20,7 +20,6 @@ export function DeleteDatasetDialogController({
   }) => ReactNode;
 }) {
   const capture = usePostHogClientCapture();
-  const [open, setOpen] = useState(false);
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "datasets:CUD",
@@ -30,21 +29,19 @@ export function DeleteDatasetDialogController({
     ? undefined
     : { reason: "You don't have permission to delete this dataset." };
 
-  const openDialog = () => {
-    if (!hasAccess) return;
-
-    setOpen(true);
-    capture("datasets:delete_form_open", { source });
-  };
-
   return (
-    <>
-      {children({ disabled, openDialog })}
-      <DeleteDatasetDialog
-        {...props}
-        open={hasAccess && open}
-        onOpenChange={setOpen}
-      />
-    </>
+    <DeleteDatasetDialog {...props}>
+      {({ openDialog }) =>
+        children({
+          disabled,
+          openDialog: () => {
+            if (!hasAccess) return;
+
+            openDialog();
+            capture("datasets:delete_form_open", { source });
+          },
+        })
+      }
+    </DeleteDatasetDialog>
   );
 }

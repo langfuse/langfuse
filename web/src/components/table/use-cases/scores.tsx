@@ -63,6 +63,7 @@ import React, { useState, useRef, useCallback, useMemo } from "react";
 import type { TableAction } from "@/src/features/table/types";
 import type { RowSelectionState } from "@tanstack/react-table";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -165,6 +166,10 @@ export default function ScoresTable({
   showAllEnvironments = false,
 }: ScoresTableProps) {
   const peekContext = usePeekTableState();
+  const hasBatchExportAccess = useHasProjectAccess({
+    projectId,
+    scope: "batchExports:create",
+  });
 
   const scoresFilterConfig = useMemo(
     () => getScoreFilterConfig(hiddenColumns),
@@ -1154,11 +1159,17 @@ export default function ScoresTable({
                 }}
               />
             ) : null,
-            <BatchExportTableButton
-              {...{ projectId, filterState: backendFilterState, orderByState }}
-              tableName={BatchExportTableName.Scores}
-              key="batchExport"
-            />,
+            hasBatchExportAccess ? (
+              <BatchExportTableButton
+                {...{
+                  projectId,
+                  filterState: backendFilterState,
+                  orderByState,
+                }}
+                tableName={BatchExportTableName.Scores}
+                key="batchExport"
+              />
+            ) : null,
           ]}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}

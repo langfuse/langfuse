@@ -17,7 +17,8 @@ import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 
 const BATCH_IO_SIZE = 50;
 
-type EventObservation = RouterOutputs["events"]["all"]["observations"][number];
+type EventObservation =
+  RouterOutputs["events"]["sessionAll"]["observations"][number];
 type SessionBatchIOQueryResult = {
   data: RouterOutputs["events"]["sessionBatchIO"] | undefined;
   isError: boolean;
@@ -43,6 +44,7 @@ export function ConnectedSessionConversationTimeline({
   openPeek,
   controller,
   scrollTarget,
+  onClearFilters,
   onFilterObservationByName,
   onLoadMoreObservations,
 }: {
@@ -58,6 +60,7 @@ export function ConnectedSessionConversationTimeline({
   ) => void;
   controller: SessionConversationTimelineController;
   scrollTarget: SessionConversationTimelineScrollTarget | null;
+  onClearFilters: () => void;
   onFilterObservationByName: (
     name: string,
     operator: "any of" | "none of",
@@ -196,12 +199,14 @@ export function ConnectedSessionConversationTimeline({
       })),
     [hydratedObservationGroups, traces],
   );
-  const emptyMessage =
+  const emptyState =
     filterState.length === 0
-      ? "This trace has no observations."
-      : viewLabel
-        ? `No observation matches the “${viewLabel}” view in this trace.`
-        : "No observation matches the current filters in this trace.";
+      ? ({ type: "empty" } as const)
+      : ({
+          type: "filtered-empty",
+          viewLabel,
+          onClearFilters,
+        } as const);
 
   return (
     <AnnotateDrawerController projectId={projectId}>
@@ -215,7 +220,7 @@ export function ConnectedSessionConversationTimeline({
                 <SessionConversationTimeline
                   traces={timelineTraces}
                   filterMeasurementKey={filterMeasurementKey}
-                  emptyMessage={emptyMessage}
+                  emptyState={emptyState}
                   onOpenTrace={(trace) => openPeek(trace.id, trace)}
                   onOpenObservation={(trace, observationId) =>
                     openPeek(trace.id, { ...trace, observationId })

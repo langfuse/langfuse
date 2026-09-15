@@ -4,6 +4,7 @@ import {
   CLICKHOUSE_QUERY_OUTCOME_METRIC,
   CLICKHOUSE_RESOURCE_ERROR_OUTCOMES,
   clickHouseQueryOutcomeRouteLabel,
+  clickHouseQueryShape,
   clickHouseQueryTableLabel,
   recordClickHouseQueryOutcome,
 } from "./queryOutcome";
@@ -133,6 +134,85 @@ describe("ClickHouse query outcome metric", () => {
     });
   });
 
+  describe("query shape labels", () => {
+    // The two shapes the FTS compiler emits for an input/output search, plus a
+    // bare (I)LIKE fallback. See fts.ts.
+    it.each([
+      "SELECT id FROM events_full e WHERE position(lower(e.output), lower({p: String})) > 0",
+      "SELECT id FROM events_full e WHERE hasAllTokens(lower(e.input), arraySlice(arrayDistinct(tokens(lower({p: String}))), 1, 64))",
+      "SELECT id FROM observations o WHERE o.input ILIKE {p: String}",
+      "SELECT id FROM events_full e WHERE output LIKE {p: String}",
+      // "starts with" / "ends with" UI filters on the string input/output cols.
+      "SELECT id FROM events_full e WHERE startsWith(e.input, {p: String})",
+      "SELECT id FROM events_full e WHERE endsWith(e.output, {p: String})",
+    ])("labels an input/output content search as io_content: %s", (query) => {
+      expect(clickHouseQueryShape(query)).toBe("io_content");
+    });
+
+    // Metadata search runs the same functions over the _names/_values arrays.
+    it.each([
+      "SELECT id FROM events_full e WHERE has(e.metadata_names, {k: String}) AND (position(e.metadata_values[indexOf(e.metadata_names, {k: String})], {v: String}) > 0)",
+      "SELECT id FROM events_full e WHERE hasAllTokens(e.metadata_values, arraySlice({t: Array(String)}, 1, 64))",
+    ])("labels a metadata content search as metadata_content: %s", (query) => {
+      expect(clickHouseQueryShape(query)).toBe("metadata_content");
+    });
+
+    it("labels the OR-of-ILIKE id search arm as id_or_ilike", () => {
+      expect(
+        clickHouseQueryShape(
+          "SELECT id FROM events_full e WHERE e.project_id = {p: String} AND (e.span_id ILIKE {searchString: String} OR e.trace_id ILIKE {searchString: String})",
+        ),
+      ).toBe("id_or_ilike");
+    });
+
+    it.each([
+      "SELECT * FROM events_full e WHERE e.project_id = {p: String} AND span_id = {id: String}",
+      // Batch IO fetch uses the paren-less IN {param} form.
+      "SELECT * FROM events_full e WHERE e.span_id IN {observationIds: Array(String)}",
+    ])("labels a span_id lookup as by_span_id: %s", (query) => {
+      expect(clickHouseQueryShape(query)).toBe("by_span_id");
+    });
+
+    // A span lookup that also bounds trace_id is a span lookup, not a
+    // by_trace_id scan: by_span_id outranks by_trace_id.
+    it("labels a span lookup that also bounds trace_id as by_span_id", () => {
+      expect(
+        clickHouseQueryShape(
+          "SELECT * FROM events_full e WHERE span_id = {id: String} AND trace_id = {traceId: String}",
+        ),
+      ).toBe("by_span_id");
+    });
+
+    it.each([
+      "SELECT * FROM events_full e WHERE trace_id IN ({traceIds: Array(String)})",
+      // Batch/event queries emit the paren-less IN {param} form.
+      "SELECT * FROM events_full e WHERE trace_id IN {traceIds: Array(String)}",
+      "SELECT * FROM events_full e WHERE trace_id = {traceId: String}",
+    ])("labels a trace_id lookup as by_trace_id: %s", (query) => {
+      expect(clickHouseQueryShape(query)).toBe("by_trace_id");
+    });
+
+    // A metadata search must not be counted as io_content, and an exact
+    // equality / unrelated query has no shape.
+    it.each([
+      "SELECT id FROM events_full e WHERE e.input = {p: String}",
+      "SELECT id FROM events_full e WHERE e.project_id = {p: String}",
+      "SELECT count() FROM traces",
+    ])("labels %s as other", (query) => {
+      expect(clickHouseQueryShape(query)).toBe("other");
+    });
+
+    // trace_id in the OR-ILIKE arm is a search predicate, not a by_trace_id
+    // lookup; the whole query is id_or_ilike.
+    it("does not mistake an ILIKE trace_id arm for a by_trace_id lookup", () => {
+      expect(
+        clickHouseQueryShape(
+          "SELECT id FROM events_full e WHERE (e.trace_id ILIKE {searchString: String})",
+        ),
+      ).toBe("id_or_ilike");
+    });
+  });
+
   it("maps every ClickHouse resource error type to an outcome", () => {
     expect(CLICKHOUSE_RESOURCE_ERROR_OUTCOMES).toEqual({
       TIMEOUT: "timeout",
@@ -154,6 +234,7 @@ describe("ClickHouse query outcome metric", () => {
         userAgent: "python-httpx/0.28.1",
       },
       "events_full",
+      "io_content",
     );
 
     expect(recordIncrement).toHaveBeenCalledTimes(1);
@@ -165,6 +246,7 @@ describe("ClickHouse query outcome metric", () => {
         surface: "publicapi",
         route: "get_/api/public/v2/observations",
         table: "events_full",
+        query_shape: "io_content",
       },
     );
   });
@@ -177,6 +259,7 @@ describe("ClickHouse query outcome metric", () => {
         surface: "unknown",
       },
       "other",
+      "other",
     );
 
     expect(recordIncrement).toHaveBeenCalledWith(
@@ -187,6 +270,7 @@ describe("ClickHouse query outcome metric", () => {
         surface: "unknown",
         route: "other",
         table: "other",
+        query_shape: "other",
       },
     );
   });

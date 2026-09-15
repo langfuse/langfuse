@@ -90,6 +90,10 @@ export function DatasetItemsTable({
     useFullTextSearch();
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "datasets:CUD" });
+  const hasBatchExportAccess = useHasProjectAccess({
+    projectId,
+    scope: "batchExports:create",
+  });
   const { selectedVersion } = useDatasetVersion();
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedItemForEdit, setSelectedItemForEdit] = useState<string | null>(
@@ -335,7 +339,7 @@ export function DatasetItemsTable({
     columns,
   );
 
-  const batchExportButton = (
+  const batchExportButton = hasBatchExportAccess ? (
     <BatchExportTableButton
       key="batchExport"
       projectId={projectId}
@@ -350,7 +354,7 @@ export function DatasetItemsTable({
         },
       ]}
     />
-  );
+  ) : null;
 
   const setFilterStateWithDebounce = useDebounce(setFilterState);
 

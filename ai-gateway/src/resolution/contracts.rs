@@ -1,4 +1,4 @@
-use super::{ResolveError, valid_token};
+use super::{ResolutionError, valid_token};
 use serde::{
     Deserialize, Deserializer, Serialize,
     de::{DeserializeOwned, IntoDeserializer},
@@ -47,7 +47,7 @@ struct Auth {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Connection {
+pub struct ProviderConnection {
     id: String,
     #[serde(rename = "provider", deserialize_with = "string_enum")]
     _provider: Provider,
@@ -57,7 +57,7 @@ pub struct Connection {
     auth: Auth,
 }
 
-impl Connection {
+impl ProviderConnection {
     pub fn id(&self) -> &str {
         &self.id
     }
@@ -74,7 +74,7 @@ impl Connection {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Attribution {
+pub struct RequestAttribution {
     organization_id: String,
     project_id: String,
     key_id: String,
@@ -82,7 +82,7 @@ pub struct Attribution {
     provider_connection_id: String,
 }
 
-impl Attribution {
+impl RequestAttribution {
     pub fn organization_id(&self) -> &str {
         &self.organization_id
     }
@@ -102,14 +102,14 @@ impl Attribution {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Ingestion {
+pub struct IngestionGrant {
     access_token: String,
     #[serde(rename = "token_type", deserialize_with = "string_enum")]
     _token_type: TokenType,
     expires_at: u64,
 }
 
-impl Ingestion {
+impl IngestionGrant {
     pub fn access_token(&self) -> &str {
         &self.access_token
     }
@@ -120,17 +120,17 @@ impl Ingestion {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Response {
+struct ResolutionResponse {
     version: u8,
-    connection: Connection,
-    attribution: Attribution,
+    connection: ProviderConnection,
+    attribution: RequestAttribution,
     #[serde(deserialize_with = "string_enum")]
     ingestion_mode: IngestionMode,
-    ingestion: Ingestion,
+    ingestion: IngestionGrant,
 }
 
 /// A validated v1 execution. Construction is restricted to successful resolution.
-pub struct ResolvedExecution(Response);
+pub struct ResolvedRequestContext(ResolutionResponse);
 
 // Web enums are JSON strings. Serde's externally tagged enums also accept objects.
 fn string_enum<'de, D: Deserializer<'de>, T: DeserializeOwned>(
@@ -139,24 +139,25 @@ fn string_enum<'de, D: Deserializer<'de>, T: DeserializeOwned>(
     T::deserialize(String::deserialize(deserializer)?.into_deserializer())
 }
 
-impl ResolvedExecution {
-    pub fn connection(&self) -> &Connection {
+impl ResolvedRequestContext {
+    pub fn connection(&self) -> &ProviderConnection {
         &self.0.connection
     }
-    pub fn attribution(&self) -> &Attribution {
+    pub fn attribution(&self) -> &RequestAttribution {
         &self.0.attribution
     }
     pub fn ingestion_mode(&self) -> IngestionMode {
         self.0.ingestion_mode
     }
-    pub fn ingestion(&self) -> &Ingestion {
+    pub fn ingestion(&self) -> &IngestionGrant {
         &self.0.ingestion
     }
 }
 
-impl fmt::Debug for ResolvedExecution {
+impl fmt::Debug for ResolvedRequestContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ResolvedExecution").finish_non_exhaustive()
+        f.debug_struct("ResolvedRequestContext")
+            .finish_non_exhaustive()
     }
 }
 
@@ -164,9 +165,9 @@ pub(super) fn decode(
     bytes: &[u8],
     expected_format: ApiFormat,
     now: u64,
-) -> Result<ResolvedExecution, ResolveError> {
-    let response: Response =
-        serde_json::from_slice(bytes).map_err(|_| ResolveError::InvalidResponse)?;
+) -> Result<ResolvedRequestContext, ResolutionError> {
+    let response: ResolutionResponse =
+        serde_json::from_slice(bytes).map_err(|_| ResolutionError::InvalidResponse)?;
     let connection = &response.connection;
     let attribution = &response.attribution;
     if response.version != 1
@@ -185,7 +186,7 @@ pub(super) fn decode(
         .iter()
         .any(|value| value.trim().is_empty())
     {
-        return Err(ResolveError::InvalidResponse);
+        return Err(ResolutionError::InvalidResponse);
     }
-    Ok(ResolvedExecution(response))
+    Ok(ResolvedRequestContext(response))
 }

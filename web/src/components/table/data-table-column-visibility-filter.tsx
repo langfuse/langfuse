@@ -417,7 +417,11 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   );
 
   const { count, total } = calculateColumnCounts(columns, columnVisibility);
-  const columnIdsOrder = columnOrder ?? columns.map((col) => col.accessorKey);
+  // Shape-checked, not just nullish-checked: ~30 tables share this picker and
+  // a persisted order can come back as anything.
+  const columnIdsOrder = Array.isArray(columnOrder)
+    ? columnOrder
+    : columns.map((col) => col.accessorKey);
   const isColumnOrderingEnabled = !!setColumnOrder;
   const hasOrderChanges =
     isColumnOrderingEnabled &&

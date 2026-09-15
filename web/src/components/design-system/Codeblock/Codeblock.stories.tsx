@@ -1,5 +1,5 @@
 import preview from "../../../../.storybook/preview";
-import { CodeBlock } from "./Codeblock";
+import { Codeblock as CodeBlock } from "./Codeblock";
 
 const meta = preview.meta({
   component: CodeBlock,

@@ -1,4 +1,3 @@
-/* eslint-disable boundaries/dependencies */
 "use client";
 
 import * as React from "react";
@@ -8,7 +7,8 @@ import { Check, ChevronDown, Search } from "lucide-react";
 
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { cn } from "@/src/utils/tailwind";
-import { stopScrollPropagation, useLayerContainer } from "../../ui/layer";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
 
 type MultiSelectOption<V> = {
   value: V;

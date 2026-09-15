@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { MobileRightDrawer } from "@/src/components/layouts/app-layout/right-drawer/MobileRightDrawer";
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 const mocks = vi.hoisted(() => ({
   supportOpen: true,
@@ -32,33 +33,10 @@ vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
   useV4MigrationTitle: () => "Ensure compatibility after November 16",
 }));
 
-function mountOverlayRoot() {
-  const overlayRoot = document.createElement("div");
-  overlayRoot.setAttribute("data-overlay-root", "");
-  for (const layer of [
-    "panel",
-    "agent",
-    "modal",
-    "popover",
-    "tooltip",
-    "toast",
-  ]) {
-    const layerNode = document.createElement("div");
-    layerNode.setAttribute("data-layer", layer);
-    overlayRoot.appendChild(layerNode);
-  }
-  document.body.appendChild(overlayRoot);
-}
-
 describe("MobileRightDrawer", () => {
   beforeEach(() => {
     mocks.supportOpen = true;
     mocks.migrationOpen = false;
-    mountOverlayRoot();
-  });
-
-  afterEach(() => {
-    document.querySelector("[data-overlay-root]")?.remove();
   });
 
   it("does not stretch the support sheet to the full viewport", () => {
@@ -66,6 +44,7 @@ describe("MobileRightDrawer", () => {
       <MobileRightDrawer>
         <div>page</div>
       </MobileRightDrawer>,
+      { wrapper: LayerProvider },
     );
 
     const drawer = document.querySelector("#support-drawer");
@@ -81,6 +60,7 @@ describe("MobileRightDrawer", () => {
       <MobileRightDrawer>
         <div>page</div>
       </MobileRightDrawer>,
+      { wrapper: LayerProvider },
     );
 
     expect(

@@ -33,6 +33,7 @@ import {
 } from "../clickhouse/queryTags";
 import {
   CLICKHOUSE_RESOURCE_ERROR_OUTCOMES,
+  clickHouseQueryShape,
   clickHouseQueryTableLabel,
   recordClickHouseQueryOutcome,
 } from "../clickhouse/queryOutcome";
@@ -628,6 +629,7 @@ function recordSummaryOnSpan(
 
 function setSpanQueryAttributes(span: Span, query: string): void {
   span.setAttribute("ch.query.text", query);
+  span.setAttribute("ch.query.shape", clickHouseQueryShape(query));
   span.setAttribute("db.system", "clickhouse");
   span.setAttribute("db.query.text", query);
   span.setAttribute("db.operation.name", "SELECT");
@@ -702,6 +704,7 @@ export async function queryClickhouse<T>(
   if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
   const table = clickHouseQueryTableLabel(opts.query);
+  const shape = clickHouseQueryShape(opts.query);
   return await instrumentAsync(
     { name: "clickhouse-query", spanKind: SpanKind.CLIENT },
     async (span) => {
@@ -764,11 +767,12 @@ export async function queryClickhouse<T>(
             : "error",
           normalizedTags,
           table,
+          shape,
         );
         throw wrapped;
       });
 
-      recordClickHouseQueryOutcome("success", normalizedTags, table);
+      recordClickHouseQueryOutcome("success", normalizedTags, table, shape);
       return rows;
     },
   );

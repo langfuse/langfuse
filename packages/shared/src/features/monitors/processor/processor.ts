@@ -204,12 +204,16 @@ export class MonitorProcessor {
     completions: MonitorCompletion[];
   }): Promise<void> {
     if (args.completions.length === 0) return;
-    await this.db.$executeRaw(
-      buildCompleteQuery({
-        projectId: args.projectId,
-        completions: args.completions,
-      }),
-    );
+    await this.db.$transaction([
+      // tz-naive columns are read back as UTC by Prisma; pin the session so raw casts store UTC wall-clock
+      this.db.$executeRawUnsafe(`SET LOCAL TIME ZONE 'UTC'`),
+      this.db.$executeRaw(
+        buildCompleteQuery({
+          projectId: args.projectId,
+          completions: args.completions,
+        }),
+      ),
+    ]);
   }
 }
 

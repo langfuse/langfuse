@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CheckIcon, ChevronDown } from "lucide-react";
 
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,

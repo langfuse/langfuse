@@ -14,14 +14,8 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import {
   Tooltip,
   TooltipTrigger,
@@ -326,26 +320,25 @@ const PostHogIntegrationSettings = ({
                     </TooltipContent>
                   </Tooltip>
                 </FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select data to export" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {exportSourceOptions.map((option) => (
-                      <SelectItem
-                        key={option.value}
-                        value={option.value}
-                        disabled={option.unavailable}
-                      >
-                        {option.unavailable
-                          ? `${option.label} (not available on this deployment)`
-                          : option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  <SelectInput
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    placeholder="Select data to export"
+                    options={exportSourceOptions.map((option) => {
+                      if (option.unavailable) {
+                        return {
+                          value: option.value,
+                          label: `${option.label} (not available on this deployment)`,
+                          disabled: true as const,
+                          disabledReason: "Not available on this deployment.",
+                        };
+                      }
+
+                      return { value: option.value, label: option.label };
+                    })}
+                  />
+                </FormControl>
                 <FormDescription>
                   Choose which data sources to export to PostHog. Scores are
                   always included.

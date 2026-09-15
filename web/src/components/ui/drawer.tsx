@@ -5,7 +5,8 @@ import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/src/utils/tailwind";
-import { useLayerContainer, type LayerName } from "@/src/components/ui/layer";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { type LayerName } from "@/src/context/LayerContext/layers";
 import { useMediaQuery } from "react-responsive";
 import { cva } from "class-variance-authority";
 

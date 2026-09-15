@@ -17,7 +17,7 @@ import { MatchedModelCard } from "./MatchedModelCard";
 import { MatchedTierCard } from "./MatchedTierCard";
 import { NoMatchDisplay } from "./NoMatchDisplay";
 import { CheckCircle, SquareArrowOutUpRight } from "lucide-react";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 type TestModelMatchDialogProps = {
   projectId: string;

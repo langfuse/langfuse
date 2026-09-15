@@ -23,14 +23,6 @@
 import React, { useMemo, useCallback, useState, useEffect } from "react";
 import { cn } from "@/src/utils/tailwind";
 import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableHead,
-  TableRow,
-  TableCell,
-} from "@/src/components/ui/table";
-import {
   transformToPivotTable,
   extractDimensionValues,
   extractMetricValues,
@@ -44,6 +36,7 @@ import {
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { valueFormatter } from "@/src/features/widgets/chart-library/utils";
 import { formatMetricName } from "@/src/features/widgets/utils";
+
 import { type OrderByState } from "@langfuse/shared";
 
 /**
@@ -76,13 +69,18 @@ const StaticHeader: React.FC<{
   className?: string;
 }> = ({ label, className }) => {
   return (
-    <TableHead className={cn("p-1", className)}>
+    <th
+      className={cn(
+        "bg-background text-muted-foreground relative h-10 border-b p-1 text-left align-middle font-bold [&:has([role=checkbox])]:pr-0",
+        className,
+      )}
+    >
       <div className="flex items-center select-none">
         <span className="truncate" title={label}>
           {label}
         </span>
       </div>
-    </TableHead>
+    </th>
   );
 };
 
@@ -110,8 +108,12 @@ const SortableHeader: React.FC<{
   );
 
   return (
-    <TableHead
-      className={cn("group/header cursor-pointer p-1 select-none", className)}
+    <th
+      className={cn(
+        "bg-background text-muted-foreground relative h-10 border-b p-1 text-left align-middle font-bold [&:has([role=checkbox])]:pr-0",
+        "group/header cursor-pointer select-none",
+        className,
+      )}
       onClick={handleClick}
     >
       <div
@@ -139,7 +141,7 @@ const SortableHeader: React.FC<{
         {/* Visual indicator that appears on hover - matches traces table behavior */}
         <div className="bg-secondary pointer-events-none absolute top-0 right-0 h-full w-1.5 touch-none opacity-0 select-none group-hover/header:opacity-100" />
       </div>
-    </TableHead>
+    </th>
   );
 };
 
@@ -153,17 +155,17 @@ const PivotTableRowComponent: React.FC<{
   units?: (string | undefined)[];
 }> = ({ row, metrics, units }) => {
   return (
-    <TableRow
+    <tr
       className={cn(
-        "hover:bg-muted/30 border-b transition-colors",
+        "data-[state=selected]:bg-muted hover:bg-muted/30 border-b transition-colors",
         row.isSubtotal && "bg-muted/30",
         row.isTotal && "bg-muted/50",
       )}
     >
       {/* Dimension column with indentation and styling */}
-      <TableCell
+      <td
         className={cn(
-          "p-2 align-middle font-normal",
+          "h-full border-b p-2 align-middle font-normal [&:has([role=checkbox])]:pr-0 [:last-child_>_&]:border-b-0",
           // Apply indentation based on level using explicit Tailwind classes
           row.level === 1 && "pl-6", // 1.5rem indentation for level 1
           row.level === 2 && "pl-10", // 2.5rem indentation for level 2
@@ -177,21 +179,21 @@ const PivotTableRowComponent: React.FC<{
         }}
       >
         {row.label}
-      </TableCell>
+      </td>
 
       {/* Metric columns */}
       {metrics.map((metric, i) => (
-        <TableCell
+        <td
           key={metric}
           className={cn(
-            "p-2 text-right align-middle tabular-nums",
+            "h-full border-b p-2 text-right align-middle tabular-nums [&:has([role=checkbox])]:pr-0 [:last-child_>_&]:border-b-0",
             (row.isSubtotal || row.isTotal) && "font-bold",
           )}
         >
           {valueFormatter(row.values[metric], units?.[i])}
-        </TableCell>
+        </td>
       ))}
-    </TableRow>
+    </tr>
   );
 };
 
@@ -373,9 +375,9 @@ export const PivotTable: React.FC<PivotTableProps> = ({
 
   return (
     <div className="h-full overflow-auto px-5 pb-2">
-      <Table>
-        <TableHeader className="sticky top-0 z-10">
-          <TableRow>
+      <table className="w-full table-fixed caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto text-sm">
+        <thead className="sticky top-0 z-10 [&_tr]:border-b">
+          <tr className="hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors">
             {/* Dimension column header */}
             <StaticHeader
               label={
@@ -398,10 +400,10 @@ export const PivotTable: React.FC<PivotTableProps> = ({
                 rightAlign={true}
               />
             ))}
-          </TableRow>
-        </TableHeader>
+          </tr>
+        </thead>
 
-        <TableBody>
+        <tbody className="text-xs [&_tr:last-child]:border-0">
           {sortedRows.map((row) => (
             <PivotTableRowComponent
               key={row.id}
@@ -410,8 +412,8 @@ export const PivotTable: React.FC<PivotTableProps> = ({
               units={units}
             />
           ))}
-        </TableBody>
-      </Table>
+        </tbody>
+      </table>
     </div>
   );
 };

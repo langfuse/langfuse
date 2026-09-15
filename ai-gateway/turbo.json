@@ -2,14 +2,78 @@
   "extends": ["//"],
   "tasks": {
     "dev": {
-      "dependsOn": [],
+      "dependsOn": ["build:dev"],
       "cache": false,
       "persistent": true,
       "interruptible": true
     },
-    "build": { "dependsOn": [], "cache": false, "outputs": [] },
-    "typecheck": { "dependsOn": [], "cache": false, "outputs": [] },
-    "lint": { "dependsOn": [], "cache": false, "outputs": [] },
-    "test": { "dependsOn": [], "cache": false, "outputs": [] }
+    "build": {
+      "dependsOn": [],
+      "cache": true,
+      "outputs": [
+        "target/**/release/ai-gateway",
+        "target/**/release/ai-gateway.exe"
+      ],
+      "env": [
+        "CARGO_BUILD_TARGET",
+        "CARGO_TARGET_DIR",
+        "CARGO_INCREMENTAL",
+        "RUSTC",
+        "RUSTFLAGS",
+        "CARGO_ENCODED_RUSTFLAGS"
+      ]
+    },
+    "build:dev": {
+      "dependsOn": [],
+      "cache": true,
+      "outputs": [
+        "target/**/debug/ai-gateway",
+        "target/**/debug/ai-gateway.exe"
+      ],
+      "env": [
+        "CARGO_BUILD_TARGET",
+        "CARGO_TARGET_DIR",
+        "CARGO_INCREMENTAL",
+        "RUSTC",
+        "RUSTFLAGS",
+        "CARGO_ENCODED_RUSTFLAGS"
+      ]
+    },
+    "typecheck": {
+      "dependsOn": [],
+      "cache": true,
+      "outputs": [],
+      "env": [
+        "CARGO_BUILD_TARGET",
+        "CARGO_INCREMENTAL",
+        "RUSTC",
+        "RUSTFLAGS",
+        "CARGO_ENCODED_RUSTFLAGS"
+      ]
+    },
+    "lint": {
+      "dependsOn": [],
+      "cache": true,
+      "outputs": [],
+      "env": [
+        "CARGO_BUILD_TARGET",
+        "CARGO_INCREMENTAL",
+        "RUSTC",
+        "RUSTFLAGS",
+        "CARGO_ENCODED_RUSTFLAGS"
+      ]
+    },
+    "test": {
+      "dependsOn": [],
+      "cache": true,
+      "outputs": [],
+      "env": [
+        "CARGO_BUILD_TARGET",
+        "CARGO_INCREMENTAL",
+        "RUSTC",
+        "RUSTFLAGS",
+        "CARGO_ENCODED_RUSTFLAGS"
+      ]
+    }
   }
 }

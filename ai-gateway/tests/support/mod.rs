@@ -1,6 +1,6 @@
 use std::{io, net::SocketAddr, time::Duration};
 
-use ai_gateway::server::{self, AppState};
+use ai_gateway::server::{self, GatewayLifecycleState};
 use axum::Router;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -11,13 +11,13 @@ use tokio::{
 
 pub struct TestServer {
     pub address: SocketAddr,
-    pub state: AppState,
+    pub state: GatewayLifecycleState,
     shutdown: Option<oneshot::Sender<()>>,
     task: Option<JoinHandle<io::Result<()>>>,
 }
 
 impl TestServer {
-    pub async fn start(app: Router, state: AppState, budget: Duration) -> Self {
+    pub async fn start(app: Router, state: GatewayLifecycleState, budget: Duration) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let (shutdown, receiver) = oneshot::channel();

@@ -14,3 +14,5 @@ README.md
 .git
 **/node_modules
 ai-gateway/target
+packages/native/target
+packages/native/*.node

@@ -1,0 +1,26 @@
+[package]
+name = "langfuse-native"
+version = "0.0.0"
+edition = "2021"
+# napi-rs 3 needs at least Rust 1.88.
+rust-version = "1.88"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+metrics = "0.24"
+metrics-exporter-dogstatsd = "0.9"
+napi = { version = "3", default-features = false, features = ["napi9"] }
+napi-derive = "3"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = true
+strip = "symbols"

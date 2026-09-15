@@ -52,6 +52,29 @@ const trace = {
 } satisfies TraceProps["trace"];
 
 describe("SessionConversationTimelineTrace", () => {
+  it("clears filters from a filtered empty state", () => {
+    const onClearFilters = vi.fn();
+
+    render(
+      <SessionConversationTimelineTrace
+        trace={trace}
+        turnNumber={1}
+        state={{
+          type: "filtered-empty",
+          viewLabel: null,
+          onClearFilters,
+        }}
+        onOpenTrace={vi.fn()}
+        onOpenObservation={vi.fn()}
+        scrollTarget={null}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    expect(onClearFilters).toHaveBeenCalledOnce();
+  });
+
   it("expands every parent when an observation scroll is requested", async () => {
     const props = {
       trace,

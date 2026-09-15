@@ -995,6 +995,7 @@ const LoadedSessionEventsPage: React.FC<{
     projectId,
   });
   const isSessionTimelineEnabled = useIsFeatureEnabled("sessionTimeline", {
+    enableForAdmins: false,
     projectId,
   });
   const isMobile = useIsMobile();
@@ -1543,12 +1544,15 @@ const LoadedSessionEventsPage: React.FC<{
     const presetToApply = getSessionDetailPresetToApply({
       selectedViewId: null,
       hasFilters: visibleFilterState.length > 0,
+      isTimelineEnabled: isSessionTimelineEnabled && isModernSessionEnabled,
     });
     if (!presetToApply) return;
     applySystemPreset(presetToApply);
   }, [
     applySystemPreset,
     arrivedOnVisitedHistoryEntry,
+    isModernSessionEnabled,
+    isSessionTimelineEnabled,
     isViewLoading,
     selectedViewId,
     sessionId,
@@ -2065,6 +2069,7 @@ const LoadedSessionEventsPage: React.FC<{
           tableName="session-events"
           isV4={true}
           projectId={projectId}
+          layout={isModernSessionEnabled ? "observation-focused" : "default"}
         />
       </Page>
     </SessionDetailStoreProvider>

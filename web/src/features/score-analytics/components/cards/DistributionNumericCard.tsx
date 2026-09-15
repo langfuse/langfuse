@@ -10,7 +10,7 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { ScoreDistributionNumericChart } from "../charts/ScoreDistributionNumericChart";
 import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 type DistributionTab = "score1" | "score2" | "all" | "matched";
 

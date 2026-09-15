@@ -2,6 +2,7 @@ import { assertUnreachable } from "@langfuse/shared";
 
 export const featurePreviewFlags = [
   "modernSession",
+  "sessionTimeline",
   "normalizedIoPreview",
 ] as const;
 
@@ -25,6 +26,7 @@ export const filterFeaturePreviewFlags = (
 
 export const featurePreviewLabels = {
   modernSession: "Compact Session View",
+  sessionTimeline: "Session Timeline",
   normalizedIoPreview: "Improved Message Rendering",
 } satisfies Record<FeaturePreviewFlag, string>;
 
@@ -36,7 +38,7 @@ export const isFeaturePreviewAvailable = (
   flag: FeaturePreviewFlag,
   context: FeaturePreviewAvailabilityContext,
 ) => {
-  if (flag === "modernSession") {
+  if (flag === "modernSession" || flag === "sessionTimeline") {
     return context.v4BetaEnabled;
   }
 
@@ -56,7 +58,4 @@ export const availableFlags = [
   "v4BetaToggleVisible",
   "observationEvals",
   "experimentsV4Enabled",
-  // Internal flag (deliberately NOT in featurePreviewFlags): gates the
-  // redesigned compact session timeline for admins/flagged users only.
-  "sessionTimeline",
 ] as const;

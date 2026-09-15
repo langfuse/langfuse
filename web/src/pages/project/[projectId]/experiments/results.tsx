@@ -12,7 +12,7 @@ import { useCallback, useEffect } from "react";
 import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
 import { ExperimentFormatSetting } from "@/src/features/experiments/components/ExperimentFormatSetting";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { ExperimentSelectionControls } from "@/src/features/experiments/components/ExperimentSelectionControls";
 import { useIoRenderModeLocalStorage } from "@/src/components/table/data-table-io-render-mode-switch";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";

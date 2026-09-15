@@ -487,15 +487,23 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
         {!isAnnotationMode && (
           <CollapsibleBadgeRow>
             <LatencyBadge latencySeconds={trace.latency ?? null} />
-            <SessionBadge sessionId={trace.sessionId} projectId={projectId} />
-            <UserIdBadge userId={trace.userId} projectId={projectId} />
-            <TargetTraceBadge
-              targetTraceId={targetTraceId}
-              projectId={projectId}
-            />
-            <EnvironmentBadge environment={trace.environment} />
-            <ReleaseBadge release={trace.release} />
-            <VersionBadge version={trace.version} />
+            {trace.sessionId && (
+              <SessionBadge sessionId={trace.sessionId} projectId={projectId} />
+            )}
+            {trace.userId && (
+              <UserIdBadge userId={trace.userId} projectId={projectId} />
+            )}
+            {targetTraceId && (
+              <TargetTraceBadge
+                targetTraceId={targetTraceId}
+                projectId={projectId}
+              />
+            )}
+            {trace.environment && (
+              <EnvironmentBadge environment={trace.environment} />
+            )}
+            {trace.release && <ReleaseBadge release={trace.release} />}
+            {trace.version && <VersionBadge version={trace.version} />}
             {aggregatedMetrics.totalCost != null &&
               aggregatedMetrics.costDetails && (
                 <CostBadge
