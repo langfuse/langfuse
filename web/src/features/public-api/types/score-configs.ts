@@ -7,6 +7,7 @@ import {
   paginationMetaResponseZod,
   publicApiPaginationZod,
   ScoreConfigCategory,
+  ScoreConfigDataType,
   ScoreConfigNameSchema,
   validateCategories,
   validateNumericRangeFields,
@@ -149,6 +150,12 @@ export const PutScoreConfigResponse = APIScoreConfig;
 
 // GET /score-configs
 export const GetScoreConfigsQuery = z.object({
+  // Optional categorical filter on the score config row's `dataType`
+  // (one of CATEGORICAL, NUMERIC, BOOLEAN, TEXT). The `dataType` column
+  // is indexed (`@@index([dataType])` in `packages/shared/prisma/schema.prisma`)
+  // so the filter is cheap. Omitting the param preserves the historical
+  // "all configs" behavior.
+  dataType: z.enum(ScoreConfigDataType).nullish(),
   ...publicApiPaginationZod,
 });
 

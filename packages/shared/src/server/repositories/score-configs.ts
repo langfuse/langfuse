@@ -5,29 +5,38 @@ import {
 } from "../../features/scoreConfigs/validation";
 import { LangfuseNotFoundError, InternalServerError } from "../../errors";
 import { traceException } from "../instrumentation";
+import type { ScoreConfigDataType } from "@prisma/client";
 
 export const listScoreConfigs = async ({
   projectId,
+  dataType,
   page,
   limit,
 }: {
   projectId: string;
+  dataType?: ScoreConfigDataType;
   page: number;
   limit: number;
 }) => {
+  // Optional categorical filter on `dataType`. The column is indexed
+  // (`@@index([dataType])` in `packages/shared/prisma/schema.prisma`),
+  // so the filter is cheap.
+  const dataTypeFilter = dataType ? { dataType } : {};
+
+  const where = {
+    projectId,
+    ...dataTypeFilter,
+  };
+
   const [rawConfigs, totalItems] = await Promise.all([
     prisma.scoreConfig.findMany({
-      where: {
-        projectId,
-      },
+      where,
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
       take: limit,
       skip: (page - 1) * limit,
     }),
     prisma.scoreConfig.count({
-      where: {
-        projectId,
-      },
+      where,
     }),
   ]);
 
