@@ -585,7 +585,7 @@ export const ValueCell = memo(
                   aria-label="Value actions"
                   title="Actions"
                   className={cn(
-                    "bg-background/80 hover:bg-background absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 border p-0 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100",
+                    "text-muted-foreground hover:text-foreground absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 p-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:bg-transparent",
                     isOpen && "opacity-100",
                   )}
                   onClick={(event) => event.stopPropagation()}
@@ -599,7 +599,7 @@ export const ValueCell = memo(
           <Button
             variant="ghost"
             size="icon"
-            className="bg-background/80 hover:bg-background absolute top-0 right-0 h-5 w-5 border p-0.5 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100"
+            className="text-muted-foreground hover:text-foreground absolute top-0 right-0 h-5 w-5 p-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:bg-transparent"
             onClick={handleCopy}
             title="Copy value"
             aria-label="Copy cell value"
