@@ -41,6 +41,7 @@
     "@aws-sdk/client-lambda-microvms": "catalog:",
     "@mastra/core": "1.46.0",
     "@mastra/mcp": "1.8.1",
+    "@node-rs/xxhash": "1.7.7",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.220.0",
     "@opentelemetry/instrumentation-aws-sdk": "^0.75.0",

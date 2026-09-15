@@ -15,6 +15,51 @@
 
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
+- Trace-read micro-batching: `src/features/traces/traceBatching.ts` tracks
+  successful direct-v4 writer submissions and dispatches ready traces across projects
+  to `trace-batch`; `src/queues/traceBatchQueue.ts` reads their event payloads.
+  The cross-project experiment collects the entire due cohort at a fixed cutoff,
+  sorts the due ID list by project ID in worker memory, and packs batches
+  capped by `LANGFUSE_TRACE_BATCH_MAX_SIZE` (default 60, max 10,000). Upgrade every consumer
+  before enabling cross-project dispatch; consumers also accept legacy jobs.
+  `LANGFUSE_TRACE_BATCH_STRATEGY=locality` optionally groups each bounded
+  hydration window plus globally bounded retained partials in `events_full`
+  sort-key order: project, observed start-time minute range, then
+  `xxHash32(trace_id)`;
+  `project` remains the default and immediate rollback path. The locality
+  selector keeps the fewest jobs that stay within one hour or 125% of the
+  first trace's span, uses dynamic programming to minimize cross-project
+  boundaries, minute/hash scan cells, then retained hash gaps. Same-project
+  partials with overlapping buffered intervals can coalesce across hydration
+  windows; at most `max batch size - 1` total traces are carried, and every
+  candidate flushes in the same run.
+  One Redis range read collects all due IDs; state hydration and expiry cleanup
+  are bounded. The complete run has no trace-count/time cutoff. Worker memory
+  and the ID response size scale with the due backlog; no scratch disk is used.
+  Intake, dispatcher, and consumer have independent disabled-by-default flags.
+  `LANGFUSE_TRACE_BATCH_READ_ENABLED` separately permits queries (default false).
+  A registered consumer with reads off discards jobs without parsing/querying and
+  removes them on completion. With reads on, jobs older than two hours are also
+  discarded before querying. Paused/stopped consumers do not drain; old failed
+  and completed history retains BullMQ's existing lazy retention policy.
+  `LANGFUSE_TRACE_BATCH_SAMPLING_RATE` is a 0–1 admission rate (default 1),
+  using evaluator sampling by trace ID before Redis; queued work is not resampled.
+  The consumer retains outer project, trace, pair, hash and batch-time pruning,
+  then groups exact project/trace pairs by identical buffered bounds so each
+  pair reads only its own recorded interval plus two minutes on either side.
+  Full `events_full` input, output, metadata and tools remain selected.
+  Consumer query controls and operator comparisons are documented in
+  `src/features/traces/trace-batch-experiment.md`; threads default to 1 and
+  an unset block override preserves the server profile. Env changes require restart.
+  Stop intake first and keep dispatcher/consumer running to drain pending work.
+  Pending entries are pruned atomically from due/state during ingestion and
+  dispatch after `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS` past readiness (default
+  two hours). Ingestion also sets matching native expiry on both shared keys
+  after two hours without admitted intake (independent of the idle window),
+  without shortening an existing later expiry from another writer policy.
+  Per-member cleanup remains opportunistic. Native expiry requires Redis 7+;
+  pause intake and drain before upgrading or rolling back writers, since old
+  writers do not extend installed TTLs. See the experiment runbook.
 - Feature processors: `src/features/*`
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`

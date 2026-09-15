@@ -1,4 +1,18 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { type Job } from "bullmq";
+import {
+  getS3EventStorageClient,
+  OtelIngestionProcessor,
+  QueueJobs,
+  type QueueName,
+  recordDistribution,
+  type TQueueJobTypes,
+} from "@langfuse/shared/src/server";
+import { env } from "../../env";
+import { IngestionService } from "../../services/IngestionService";
+import { ClickhouseWriter } from "../../services/ClickhouseWriter";
+import { fetchObservationEvalRules } from "../../features/evaluation/observationEval";
+import { trackTraceBatchActivity } from "../../features/traces/traceBatching";
 import {
   batchContainsLangfuseScope,
   checkHeaderBasedDirectWrite,
@@ -6,10 +20,141 @@ import {
   getSdkInfoFromResourceSpans,
   isLangfuseSdkTraffic,
   isOrgPastOtelDirectWriteCutoff,
+  otelIngestionQueueProcessorBuilder,
   resolveOtelWritePath,
   shouldProcessLegacyOtelMedia,
   type SdkInfo,
 } from "../otelIngestionQueue";
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
+  getS3EventStorageClient: vi.fn(),
+  recordDistribution: vi.fn(),
+}));
+vi.mock(
+  "../../features/evaluation/observationEval",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../features/evaluation/observationEval")
+    >()),
+    fetchObservationEvalRules: vi.fn(),
+  }),
+);
+vi.mock("../../features/traces/traceBatching", () => ({
+  trackTraceBatchActivity: vi.fn(),
+}));
+
+describe("direct-v4 trace batch tracking", () => {
+  it("tracks accepted writes together and excludes failed writes, disabled intake, and legacy writes", async () => {
+    const original = {
+      LANGFUSE_TRACE_BATCH_INGESTION_ENABLED:
+        env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED,
+      LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+      LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED:
+        env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED,
+    };
+    env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+    env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
+
+    try {
+      vi.mocked(getS3EventStorageClient).mockReturnValue({
+        download: vi.fn().mockResolvedValue("[]"),
+      } as unknown as ReturnType<typeof getS3EventStorageClient>);
+      vi.mocked(fetchObservationEvalRules).mockResolvedValue([]);
+      vi.spyOn(ClickhouseWriter, "getInstance").mockReturnValue(
+        {} as ClickhouseWriter,
+      );
+      vi.spyOn(
+        OtelIngestionProcessor.prototype,
+        "processToIngestionEvents",
+      ).mockResolvedValue([]);
+      const inputs = [
+        { traceId: "accepted", spanId: "first" },
+        { traceId: "accepted", spanId: "second" },
+        { traceId: "write-failed", spanId: "third" },
+        { traceId: "conversion-failed", spanId: "fourth" },
+      ].map((entry, index) => ({
+        ...entry,
+        projectId: "project",
+        startTimeISO: new Date(1_000 + index * 1_000).toISOString(),
+      }));
+      vi.spyOn(
+        OtelIngestionProcessor.prototype,
+        "processToEvent",
+      ).mockReturnValue(
+        inputs as ReturnType<OtelIngestionProcessor["processToEvent"]>,
+      );
+      vi.spyOn(
+        IngestionService.prototype,
+        "createEventRecord",
+      ).mockImplementation(async (input) => {
+        if (input.traceId === "conversion-failed") throw new Error("invalid");
+        return { span_id: input.spanId } as Awaited<
+          ReturnType<IngestionService["createEventRecord"]>
+        >;
+      });
+      const write = vi
+        .spyOn(IngestionService.prototype, "writeEventRecord")
+        .mockImplementation(async (record) => {
+          if (record.span_id === "third") throw new Error("write rejected");
+        });
+      const processor = otelIngestionQueueProcessorBuilder(false);
+      const job = {
+        data: {
+          id: "ingestion",
+          timestamp: new Date(),
+          name: QueueJobs.OtelIngestionJob,
+          payload: {
+            data: { fileKey: "synthetic.json" },
+            authCheck: {
+              validKey: true,
+              scope: {
+                projectId: "project",
+                orgId: "org",
+                accessLevel: "project",
+              },
+            },
+            ingestionVersion: "4",
+          },
+        },
+      } as Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>;
+
+      await processor(job, undefined);
+      expect(write).toHaveBeenCalledTimes(3);
+      expect(trackTraceBatchActivity).toHaveBeenCalledExactlyOnceWith(
+        "project",
+        inputs
+          .slice(0, 2)
+          .map(({ traceId, startTimeISO }) => ({ traceId, startTimeISO })),
+      );
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.trace_batch.ingestion_trace_count",
+        1,
+      );
+
+      vi.mocked(trackTraceBatchActivity).mockClear();
+      env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
+      await processor(job, undefined);
+      expect(trackTraceBatchActivity).not.toHaveBeenCalled();
+
+      env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
+      write.mockRejectedValue(new Error("all writes rejected"));
+      await processor(job, undefined);
+      expect(trackTraceBatchActivity).not.toHaveBeenCalled();
+
+      env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      write.mockClear();
+      await processor(job, undefined);
+      expect(write).not.toHaveBeenCalled();
+      expect(trackTraceBatchActivity).not.toHaveBeenCalled();
+    } finally {
+      Object.assign(env, original);
+      vi.restoreAllMocks();
+      vi.clearAllMocks();
+    }
+  });
+});
 
 describe("isOrgPastOtelDirectWriteCutoff", () => {
   const cutoff = "2026-08-06";
