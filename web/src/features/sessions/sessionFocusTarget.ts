@@ -194,8 +194,14 @@ export function useScrollToFocusedSessionTrace({
   virtualizer: Virtualizer<HTMLDivElement, Element>;
 }) {
   const appliedKeyRef = useRef<string | null>(null);
+  const pinnedKeyRef = useRef<string | null>(null);
   const pinDoneRef = useRef(false);
   const stopPinRef = useRef<(() => void) | null>(null);
+
+  const currentKey =
+    enabled && focusTarget
+      ? `${focusTarget.traceId}:${focusTarget.observationId ?? ""}`
+      : null;
 
   useEffect(
     () => () => {
@@ -213,12 +219,25 @@ export function useScrollToFocusedSessionTrace({
   );
 
   useEffect(() => {
-    if (!enabled || !focusTarget || !traceIds) return;
-    const key = `${focusTarget.traceId}:${focusTarget.observationId ?? ""}`;
-    if (appliedKeyRef.current === key) return;
+    // A pin whose target moved on must not keep scrolling: the loop holds a row
+    // index from the list it started on, and the feed outlives both the focus
+    // params (a sibling session replaces the traces without remounting it) and
+    // the loaded state that gates this hook. Left running it would drag the new
+    // list to the old row for the rest of MAX_PIN_MS.
+    if (pinnedKeyRef.current !== null && pinnedKeyRef.current !== currentKey) {
+      stopPinRef.current?.();
+      stopPinRef.current = null;
+      pinnedKeyRef.current = null;
+    }
+
+    if (currentKey === null || !focusTarget || !traceIds) return;
+    if (appliedKeyRef.current === currentKey) return;
     const index = traceIds.indexOf(focusTarget.traceId);
+    // Not in the list yet: leave a pin for this same target running, the rows
+    // it is waiting for may still arrive.
     if (index === -1) return;
-    appliedKeyRef.current = key;
+    appliedKeyRef.current = currentKey;
+    pinnedKeyRef.current = currentKey;
     pinDoneRef.current = false;
 
     stopPinRef.current?.();
@@ -228,7 +247,8 @@ export function useScrollToFocusedSessionTrace({
       focusTarget,
       () => {
         pinDoneRef.current = true;
+        pinnedKeyRef.current = null;
       },
     );
-  }, [enabled, focusTarget, traceIds, virtualizer]);
+  }, [currentKey, focusTarget, traceIds, virtualizer]);
 }

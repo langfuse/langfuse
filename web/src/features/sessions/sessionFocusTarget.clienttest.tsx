@@ -2,7 +2,10 @@ import { act, renderHook } from "@testing-library/react";
 import { StrictMode } from "react";
 import { type Virtualizer } from "@tanstack/react-virtual";
 
-import { useScrollToFocusedSessionTrace } from "./sessionFocusTarget";
+import {
+  type SessionFocusTarget,
+  useScrollToFocusedSessionTrace,
+} from "./sessionFocusTarget";
 
 // The trace -> session link lands the session feed on the trace the user came
 // from by pinning a frame loop on that row until the rows above it stop
@@ -79,5 +82,33 @@ describe("useScrollToFocusedSessionTrace", () => {
     await runFrames();
 
     expect(scroller.scrollTop).toBe(TARGET_OFFSET);
+  });
+
+  it("stops pinning once the focus target is gone", async () => {
+    const { scroller, virtualizer } = createFakeFeed();
+
+    const { rerender } = renderHook(
+      ({ focusTarget }: { focusTarget: SessionFocusTarget | null }) =>
+        useScrollToFocusedSessionTrace({
+          focusTarget,
+          traceIds: TRACE_IDS,
+          virtualizer,
+        }),
+      {
+        initialProps: {
+          focusTarget: FOCUS_TARGET as SessionFocusTarget | null,
+        },
+      },
+    );
+    await runFrames();
+
+    // The feed outlives the focus params: a sibling session replaces its traces
+    // without remounting it. A pin left running would drag the new list back to
+    // the row index it started on.
+    rerender({ focusTarget: null });
+    scroller.scrollTop = 0;
+    await runFrames();
+
+    expect(scroller.scrollTop).toBe(0);
   });
 });
