@@ -13978,13 +13978,24 @@ components:
       title: TraceEvent
       type: object
       description: >-
-        Sunset warning: On Langfuse Cloud, this event type is rejected from
-        November 16, 2026; `score-create` is the only event type this endpoint
-        still accepts. Send traces and observations with a current Langfuse SDK,
-        or via the OpenTelemetry endpoint `POST /api/public/otel/v1/traces` for
-        custom auto-instrumentation; see the [Langfuse v4
-        documentation](https://langfuse.com/docs/v4) and the [SDK
-        overview](https://langfuse.com/docs/observability/sdk/overview).
+        Sunset warning: this is the deprecated Langfuse v3 ingestion API. It is
+        shut down on November 16, 2026, except for score events: from that date
+        it accepts only `score-create` events and rejects all other event types,
+        including this one. To write scores, prefer `POST /api/public/scores`;
+        see the [Scores API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/scores-api).
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs. If you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint (`POST /api/public/otel/v1/traces`), for
+        example with curl; see the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry). To read
+        data back, use the v4 read APIs; see the [Observations API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/observations-api)
+        and the [Metrics API
+        docs](https://langfuse.com/docs/metrics/features/metrics-api). The only
+        path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`. All other
+        public APIs may have data delays of several minutes.
       properties:
         body:
           $ref: '#/components/schemas/TraceBody'
@@ -13996,13 +14007,24 @@ components:
       title: CreateObservationEvent
       type: object
       description: >-
-        Sunset warning: On Langfuse Cloud, this event type is rejected from
-        November 16, 2026; `score-create` is the only event type this endpoint
-        still accepts. Send traces and observations with a current Langfuse SDK,
-        or via the OpenTelemetry endpoint `POST /api/public/otel/v1/traces` for
-        custom auto-instrumentation; see the [Langfuse v4
-        documentation](https://langfuse.com/docs/v4) and the [SDK
-        overview](https://langfuse.com/docs/observability/sdk/overview).
+        Sunset warning: this is the deprecated Langfuse v3 ingestion API. It is
+        shut down on November 16, 2026, except for score events: from that date
+        it accepts only `score-create` events and rejects all other event types,
+        including this one. To write scores, prefer `POST /api/public/scores`;
+        see the [Scores API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/scores-api).
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs. If you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint (`POST /api/public/otel/v1/traces`), for
+        example with curl; see the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry). To read
+        data back, use the v4 read APIs; see the [Observations API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/observations-api)
+        and the [Metrics API
+        docs](https://langfuse.com/docs/metrics/features/metrics-api). The only
+        path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`. All other
+        public APIs may have data delays of several minutes.
       properties:
         body:
           $ref: '#/components/schemas/ObservationBody'
@@ -14014,13 +14036,24 @@ components:
       title: UpdateObservationEvent
       type: object
       description: >-
-        Sunset warning: On Langfuse Cloud, this event type is rejected from
-        November 16, 2026; `score-create` is the only event type this endpoint
-        still accepts. Send traces and observations with a current Langfuse SDK,
-        or via the OpenTelemetry endpoint `POST /api/public/otel/v1/traces` for
-        custom auto-instrumentation; see the [Langfuse v4
-        documentation](https://langfuse.com/docs/v4) and the [SDK
-        overview](https://langfuse.com/docs/observability/sdk/overview).
+        Sunset warning: this is the deprecated Langfuse v3 ingestion API. It is
+        shut down on November 16, 2026, except for score events: from that date
+        it accepts only `score-create` events and rejects all other event types,
+        including this one. To write scores, prefer `POST /api/public/scores`;
+        see the [Scores API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/scores-api).
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs. If you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint (`POST /api/public/otel/v1/traces`), for
+        example with curl; see the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry). To read
+        data back, use the v4 read APIs; see the [Observations API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/observations-api)
+        and the [Metrics API
+        docs](https://langfuse.com/docs/metrics/features/metrics-api). The only
+        path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`. All other
+        public APIs may have data delays of several minutes.
       properties:
         body:
           $ref: '#/components/schemas/ObservationBody'
@@ -14042,13 +14075,24 @@ components:
       title: CreateGenerationEvent
       type: object
       description: >-
-        Sunset warning: On Langfuse Cloud, this event type is rejected from
-        November 16, 2026; `score-create` is the only event type this endpoint
-        still accepts. Send traces and observations with a current Langfuse SDK,
-        or via the OpenTelemetry endpoint `POST /api/public/otel/v1/traces` for
-        custom auto-instrumentation; see the [Langfuse v4
-        documentation](https://langfuse.com/docs/v4) and the [SDK
-        overview](https://langfuse.com/docs/observability/sdk/overview).
+        Sunset warning: this is the deprecated Langfuse v3 ingestion API. It is
+        shut down on November 16, 2026, except for score events: from that date
+        it accepts only `score-create` events and rejects all other event types,
+        including this one. To write scores, prefer `POST /api/public/scores`;
+        see the [Scores API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/scores-api).
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs. If you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint (`POST /api/public/otel/v1/traces`), for
+        example with curl; see the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry). To read
+        data back, use the v4 read APIs; see the [Observations API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/observations-api)
+        and the [Metrics API
+        docs](https://langfuse.com/docs/metrics/features/metrics-api). The only
+        path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`. All other
+        public APIs may have data delays of several minutes.
       properties:
         body:
           $ref: '#/components/schemas/CreateGenerationBody'
@@ -14060,13 +14104,24 @@ components:
       title: UpdateGenerationEvent
       type: object
       description: >-
-        Sunset warning: On Langfuse Cloud, this event type is rejected from
-        November 16, 2026; `score-create` is the only event type this endpoint
-        still accepts. Send traces and observations with a current Langfuse SDK,
-        or via the OpenTelemetry endpoint `POST /api/public/otel/v1/traces` for
-        custom auto-instrumentation; see the [Langfuse v4
-        documentation](https://langfuse.com/docs/v4) and the [SDK
-        overview](https://langfuse.com/docs/observability/sdk/overview).
+        Sunset warning: this is the deprecated Langfuse v3 ingestion API. It is
+        shut down on November 16, 2026, except for score events: from that date
+        it accepts only `score-create` events and rejects all other event types,
+        including this one. To write scores, prefer `POST /api/public/scores`;
+        see the [Scores API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/scores-api).
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs. If you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint (`POST /api/public/otel/v1/traces`), for
+        example with curl; see the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry). To read
+        data back, use the v4 read APIs; see the [Observations API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/observations-api)
+        and the [Metrics API
+        docs](https://langfuse.com/docs/metrics/features/metrics-api). The only
+        path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`. All other
+        public APIs may have data delays of several minutes.
       properties:
         body:
           $ref: '#/components/schemas/UpdateGenerationBody'
@@ -14078,13 +14133,24 @@ components:
       title: CreateSpanEvent
       type: object
       description: >-
-        Sunset warning: On Langfuse Cloud, this event type is rejected from
-        November 16, 2026; `score-create` is the only event type this endpoint
-        still accepts. Send traces and observations with a current Langfuse SDK,
-        or via the OpenTelemetry endpoint `POST /api/public/otel/v1/traces` for
-        custom auto-instrumentation; see the [Langfuse v4
-        documentation](https://langfuse.com/docs/v4) and the [SDK
-        overview](https://langfuse.com/docs/observability/sdk/overview).
+        Sunset warning: this is the deprecated Langfuse v3 ingestion API. It is
+        shut down on November 16, 2026, except for score events: from that date
+        it accepts only `score-create` events and rejects all other event types,
+        including this one. To write scores, prefer `POST /api/public/scores`;
+        see the [Scores API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/scores-api).
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs. If you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint (`POST /api/public/otel/v1/traces`), for
+        example with curl; see the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry). To read
+        data back, use the v4 read APIs; see the [Observations API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/observations-api)
+        and the [Metrics API
+        docs](https://langfuse.com/docs/metrics/features/metrics-api). The only
+        path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`. All other
+        public APIs may have data delays of several minutes.
       properties:
         body:
           $ref: '#/components/schemas/CreateSpanBody'
@@ -14096,13 +14162,24 @@ components:
       title: UpdateSpanEvent
       type: object
       description: >-
-        Sunset warning: On Langfuse Cloud, this event type is rejected from
-        November 16, 2026; `score-create` is the only event type this endpoint
-        still accepts. Send traces and observations with a current Langfuse SDK,
-        or via the OpenTelemetry endpoint `POST /api/public/otel/v1/traces` for
-        custom auto-instrumentation; see the [Langfuse v4
-        documentation](https://langfuse.com/docs/v4) and the [SDK
-        overview](https://langfuse.com/docs/observability/sdk/overview).
+        Sunset warning: this is the deprecated Langfuse v3 ingestion API. It is
+        shut down on November 16, 2026, except for score events: from that date
+        it accepts only `score-create` events and rejects all other event types,
+        including this one. To write scores, prefer `POST /api/public/scores`;
+        see the [Scores API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/scores-api).
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs. If you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint (`POST /api/public/otel/v1/traces`), for
+        example with curl; see the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry). To read
+        data back, use the v4 read APIs; see the [Observations API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/observations-api)
+        and the [Metrics API
+        docs](https://langfuse.com/docs/metrics/features/metrics-api). The only
+        path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`. All other
+        public APIs may have data delays of several minutes.
       properties:
         body:
           $ref: '#/components/schemas/UpdateSpanBody'
@@ -14114,13 +14191,24 @@ components:
       title: CreateEventEvent
       type: object
       description: >-
-        Sunset warning: On Langfuse Cloud, this event type is rejected from
-        November 16, 2026; `score-create` is the only event type this endpoint
-        still accepts. Send traces and observations with a current Langfuse SDK,
-        or via the OpenTelemetry endpoint `POST /api/public/otel/v1/traces` for
-        custom auto-instrumentation; see the [Langfuse v4
-        documentation](https://langfuse.com/docs/v4) and the [SDK
-        overview](https://langfuse.com/docs/observability/sdk/overview).
+        Sunset warning: this is the deprecated Langfuse v3 ingestion API. It is
+        shut down on November 16, 2026, except for score events: from that date
+        it accepts only `score-create` events and rejects all other event types,
+        including this one. To write scores, prefer `POST /api/public/scores`;
+        see the [Scores API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/scores-api).
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs. If you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint (`POST /api/public/otel/v1/traces`), for
+        example with curl; see the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry). To read
+        data back, use the v4 read APIs; see the [Observations API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/observations-api)
+        and the [Metrics API
+        docs](https://langfuse.com/docs/metrics/features/metrics-api). The only
+        path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`. All other
+        public APIs may have data delays of several minutes.
       properties:
         body:
           $ref: '#/components/schemas/CreateEventBody'

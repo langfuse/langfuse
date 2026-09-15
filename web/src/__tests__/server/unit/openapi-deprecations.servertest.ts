@@ -52,8 +52,6 @@ const openApiPath = path.resolve(
 
 const MESSAGE = "Use `GET /api/public/v2/observations?from=<from>` instead.";
 
-const V4_DOCS_URL = "https://langfuse.com/docs/v4";
-
 /** Spec fixture in the shape `fern export` produces, aliased `security` included. */
 const SPEC = `openapi: 3.0.1
 paths:
@@ -288,16 +286,26 @@ describe("OpenAPI deprecations", () => {
         continue;
       }
 
+      // Every rejected event type carries the full endpoint guidance, so a
+      // caller reading one variant does not have to find the endpoint docs.
       for (const description of [event.docs, generatedSchema.description]) {
         expect(description, eventType).toContain("Sunset warning");
-        expect(description, eventType).toContain(V3_SUNSET_HUMAN);
         expect(description, eventType).toContain(
-          "this event type is rejected from",
+          `shut down on ${V3_SUNSET_HUMAN}`,
         );
         expect(description, eventType).toContain(
-          "`score-create` is the only event type this endpoint still accepts",
+          "rejects all other event types, including this one",
         );
-        expect(description, eventType).toContain(V4_DOCS_URL);
+        expect(description, eventType).toContain("POST /api/public/scores");
+        expect(description, eventType).toContain(
+          "POST /api/public/otel/v1/traces",
+        );
+        expect(description, eventType).toContain(
+          "The only path to live data is OpenTelemetry ingestion",
+        );
+        expect(description, eventType).toContain(
+          "other public APIs may have data delays of several minutes",
+        );
       }
     }
   });
