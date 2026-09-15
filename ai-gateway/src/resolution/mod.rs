@@ -116,7 +116,11 @@ impl ControlPlaneClient {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| ResolutionError::Unavailable)?;
-        self.resolve_at(gateway_key, api_format, timestamp).await
+        crate::observability::client(
+            "resolver",
+            self.resolve_at(gateway_key, api_format, timestamp),
+        )
+        .await
     }
 
     async fn resolve_at(
@@ -163,6 +167,7 @@ impl ControlPlaneClient {
         let mut response = self
             .client
             .post(self.config.endpoint(RESOLVE_PATH))
+            .headers(crate::observability::web_context())
             .header(AUTHORIZATION, credential)
             .header("langfuse-gateway-authorization", signature)
             .header(CONTENT_TYPE, "application/json")
@@ -170,6 +175,7 @@ impl ControlPlaneClient {
             .send()
             .await
             .map_err(|_| ResolutionError::Transport)?;
+        crate::observability::response_status(response.status().as_u16());
         match response.status().as_u16() {
             200 => {}
             401 => return Err(ResolutionError::Authentication),

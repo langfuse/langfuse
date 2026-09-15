@@ -98,6 +98,7 @@ impl Uploader {
         let mut response = self
             .client
             .post(self.endpoint.clone())
+            .headers(crate::observability::web_context())
             .header(header::AUTHORIZATION, authorization)
             .header("langfuse-gateway-authorization", signature)
             .header(header::CONTENT_TYPE, "application/json")
@@ -110,6 +111,7 @@ impl Uploader {
             .send()
             .await
             .map_err(|_| ExportError::Transport)?;
+        crate::observability::response_status(response.status().as_u16());
         if response.status().as_u16() != 200 {
             return Err(ExportError::Rejected);
         }

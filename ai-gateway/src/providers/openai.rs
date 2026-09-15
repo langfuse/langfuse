@@ -40,6 +40,7 @@ impl Default for ProviderLimits {
 /// An admitted execution. Dropping it releases capacity; there is no waiting queue.
 pub struct RequestPermit {
     _permit: OwnedSemaphorePermit,
+    _active: crate::observability::Active,
     deadline: Instant,
 }
 
@@ -102,13 +103,13 @@ impl OpenAiProvider {
     /// # Errors
     /// Returns [`ProviderError::Busy`] immediately when all execution slots are occupied.
     pub fn try_admit(&self) -> Result<RequestPermit, ProviderError> {
-        let permit = self
-            .capacity
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| ProviderError::Busy)?;
+        let permit = self.capacity.clone().try_acquire_owned().map_err(|_| {
+            crate::observability::rejected("execution");
+            ProviderError::Busy
+        })?;
         Ok(RequestPermit {
             _permit: permit,
+            _active: crate::observability::Active::new("execution"),
             deadline: Instant::now() + self.limits.execution_timeout,
         })
     }
@@ -139,30 +140,34 @@ impl OpenAiProvider {
         if let Some(telemetry) = &self.telemetry {
             capture.deliver_to(telemetry.clone(), &context);
         }
-        let response = tokio::time::timeout_at(
-            permit
-                .deadline
-                .min(Instant::now() + self.limits.headers_timeout),
-            self.client
-                .post(endpoint)
-                .headers(transport::request_headers(headers))
-                // Observe plain JSON/SSE while relaying the provider bytes unchanged.
-                .header(header::ACCEPT_ENCODING, "identity")
-                .header(header::AUTHORIZATION, authorization)
-                .body(body)
-                .send(),
-        )
-        .await
-        .map_err(|_| ProviderError::Timeout)
-        .and_then(|result| {
-            result.map_err(|error| {
-                if error.is_timeout() {
-                    ProviderError::Timeout
-                } else {
-                    ProviderError::Transport
-                }
+        let response = crate::observability::client("provider.headers", async {
+            tokio::time::timeout_at(
+                permit
+                    .deadline
+                    .min(Instant::now() + self.limits.headers_timeout),
+                self.client
+                    .post(endpoint)
+                    .headers(transport::request_headers(headers))
+                    // Observe plain JSON/SSE while relaying the provider bytes unchanged.
+                    .header(header::ACCEPT_ENCODING, "identity")
+                    .header(header::AUTHORIZATION, authorization)
+                    .body(body)
+                    .send(),
+            )
+            .await
+            .map_err(|_| ProviderError::Timeout)
+            .and_then(|result| {
+                result.map_err(|error| {
+                    if error.is_timeout() {
+                        ProviderError::Timeout
+                    } else {
+                        ProviderError::Transport
+                    }
+                })
             })
-        });
+            .inspect(|response| crate::observability::response_status(response.status().as_u16()))
+        })
+        .await;
         let response = match response {
             Ok(response) => response,
             Err(error) => {

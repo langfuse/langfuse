@@ -1,0 +1,120 @@
+use std::{sync::LazyLock, time::Instant};
+
+use crate::capture::RelayOutcome;
+use opentelemetry::{
+    KeyValue, global,
+    metrics::{Counter, Histogram, UpDownCounter},
+};
+
+struct Metrics {
+    active: UpDownCounter<i64>,
+    requests: Counter<u64>,
+    duration: Histogram<f64>,
+    phases: Histogram<f64>,
+    rejections: Counter<u64>,
+    delivery: Counter<u64>,
+    executions: Counter<u64>,
+}
+
+static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
+    let meter = global::meter("ai-gateway");
+    let seconds = vec![
+        0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0, 600.0,
+    ];
+    Metrics {
+        active: meter.i64_up_down_counter("gateway.active").build(),
+        requests: meter.u64_counter("gateway.requests").build(),
+        duration: meter
+            .f64_histogram("gateway.request.duration")
+            .with_unit("s")
+            .with_boundaries(seconds.clone())
+            .build(),
+        phases: meter
+            .f64_histogram("gateway.phase.duration")
+            .with_unit("s")
+            .with_boundaries(seconds)
+            .build(),
+        rejections: meter.u64_counter("gateway.admission.rejected").build(),
+        delivery: meter.u64_counter("gateway.telemetry.records").build(),
+        executions: meter.u64_counter("gateway.executions").build(),
+    }
+});
+
+pub(crate) struct Active(&'static str);
+
+impl Active {
+    pub(crate) fn new(phase: &'static str) -> Self {
+        METRICS.active.add(1, &[KeyValue::new("phase", phase)]);
+        Self(phase)
+    }
+}
+
+impl Drop for Active {
+    fn drop(&mut self) {
+        METRICS.active.add(-1, &[KeyValue::new("phase", self.0)]);
+    }
+}
+
+pub(crate) fn request_finished(
+    route: &'static str,
+    status: u16,
+    outcome: &'static str,
+    started: Instant,
+) {
+    let attributes = [
+        KeyValue::new("http.route", route),
+        KeyValue::new("http.response.status_code", i64::from(status)),
+        KeyValue::new("outcome", outcome),
+    ];
+    METRICS.requests.add(1, &attributes);
+    METRICS
+        .duration
+        .record(started.elapsed().as_secs_f64(), &attributes);
+}
+
+pub(crate) fn phase_finished(phase: &'static str, duration: std::time::Duration) {
+    METRICS
+        .phases
+        .record(duration.as_secs_f64(), &[KeyValue::new("phase", phase)]);
+}
+
+pub(crate) fn rejected(phase: &'static str) {
+    METRICS.rejections.add(1, &[KeyValue::new("phase", phase)]);
+}
+
+pub(crate) fn delivery(outcome: &'static str, reason: &'static str) {
+    METRICS.delivery.add(
+        1,
+        &[
+            KeyValue::new("outcome", outcome),
+            KeyValue::new("reason", reason),
+        ],
+    );
+}
+
+pub(crate) fn execution_finished(facts: &crate::capture::InferenceFacts) {
+    if let Some(request_id) = &facts.inference.provider_request_id {
+        tracing::Span::current().record("provider_request_id", request_id.as_str());
+    }
+    let outcome = match facts.outcome {
+        RelayOutcome::Eof => "complete",
+        RelayOutcome::Cancelled => "cancelled",
+        RelayOutcome::Timeout => "timeout",
+        RelayOutcome::TransportError => "transport_error",
+    };
+    METRICS
+        .executions
+        .add(1, &[KeyValue::new("outcome", outcome)]);
+    if let Some(first_byte_ms) = facts.first_byte_ms {
+        phase_finished(
+            "provider.first_byte",
+            std::time::Duration::from_millis(u64::try_from(first_byte_ms).unwrap_or(u64::MAX)),
+        );
+    }
+    if matches!(
+        facts.outcome,
+        RelayOutcome::Timeout | RelayOutcome::TransportError
+    ) {
+        tracing::warn!(phase = "provider", outcome, "gateway stream failed");
+    }
+}
