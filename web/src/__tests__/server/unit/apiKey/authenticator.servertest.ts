@@ -60,6 +60,7 @@ const store = (key: ApiKey): ApiKeyRepository =>
 
 const orgRow = {
   id: ORG,
+  createdAt: new Date("2026-09-16T00:00:00.000Z"),
   cloudConfig: null,
   cloudFreeTierUsageThresholdState: null,
   projects: [{ id: PRJ }],

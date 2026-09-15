@@ -672,6 +672,7 @@ describe("Authenticate API calls", () => {
           },
         ],
         createdAt: apiKey?.createdAt.toISOString(),
+        organizationCreatedAt: expect.any(String),
         isIngestionSuspended: expect.anything(),
       });
 
@@ -802,6 +803,7 @@ describe("Authenticate API calls", () => {
         orgId: testApiKey.orgId,
         plan: "cloud:hobby",
         scope: "PROJECT",
+        organizationCreatedAt: expect.any(String),
       });
     });
 
@@ -889,6 +891,7 @@ describe("Authenticate API calls", () => {
         orgId: testApiKey.orgId,
         plan: "cloud:hobby",
         createdAt: apiKey?.createdAt.toISOString(),
+        organizationCreatedAt: expect.any(String),
         scope: "PROJECT",
         isIngestionSuspended: expect.anything(),
       });
