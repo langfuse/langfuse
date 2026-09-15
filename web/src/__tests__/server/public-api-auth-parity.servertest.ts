@@ -14,8 +14,8 @@ import {
 
 // Pins the public-API authorization seam to legacy: sweeps every route across
 // migration modes and key kinds, recording each cell's status. Shadow and
-// enforce must equal legacy (cross-mode); a main-captured snapshot pins legacy
-// across the refactor (cross-branch). Value is status only.
+// enforce must equal legacy, save documented enforce divergences; a snapshot
+// pins legacy itself. Value is status only.
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -306,14 +306,12 @@ function walkRoutes(): string[] {
   return routes;
 }
 
-// Accepted divergences from the main baseline; every other cell matches main in
-// every mode. `main` is the pre-seam status the snapshot pins; `enforce` is the
-// enforce-mode status.
-const divergences: Record<string, { main?: number; enforce?: number }> = {
+// enforceDivergences lists cells whose enforce-mode status differs from legacy; every other cell matches.
+const enforceDivergences: Record<string, number> = {
   // Org keys hold project:read, which legacy's ["project"] tier gate refused.
-  "GET projects/index | org/basic": { enforce: 200 },
-  // Ingestion joined the seam this PR: legacy normalizes an org key 401->403 (the standard project-route status) and enforce admits it past auth (400) via its project-id header.
-  "POST ingestion | org/basic": { main: 401, enforce: 400 },
+  "GET projects/index | org/basic": 200,
+  // Enforce admits an org key past auth (400) via its project-id header.
+  "POST ingestion | org/basic": 400,
 };
 
 describe("public-api auth parity", () => {
@@ -353,12 +351,8 @@ describe("public-api auth parity", () => {
     (env as any).ADMIN_API_KEY = originalAdminApiKey;
   });
 
-  it("legacy matches the main-captured baseline", () => {
-    const baseline = { ...matrices.legacy };
-    for (const [cell, { main }] of Object.entries(divergences)) {
-      if (main !== undefined) baseline[cell] = main;
-    }
-    expect(baseline).toMatchSnapshot();
+  it("legacy matches the captured baseline", () => {
+    expect(matrices.legacy).toMatchSnapshot();
   });
 
   it("shadow is byte-identical to legacy", () => {
@@ -367,8 +361,8 @@ describe("public-api auth parity", () => {
 
   it("enforce matches legacy except documented divergences", () => {
     const expected = { ...matrices.legacy };
-    for (const [cell, { enforce }] of Object.entries(divergences)) {
-      if (enforce !== undefined) expected[cell] = enforce;
+    for (const [cell, status] of Object.entries(enforceDivergences)) {
+      expected[cell] = status;
     }
     expect(matrices.enforce).toEqual(expected);
   });
