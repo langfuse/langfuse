@@ -47,6 +47,7 @@ import {
   jsonViewToggleTab,
   normalizeJsonViewPreference,
 } from "@/src/components/ui/jsonViewPreference";
+import { JsonTableValueFaceToggle } from "@/src/components/ui/JsonTableValueFaceToggle";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
@@ -366,6 +367,9 @@ export function TraceDetailView({
                           </Tabs.List>
                         </Tabs>
                       </div>
+                      {selectedViewTab === "pretty" && (
+                        <JsonTableValueFaceToggle />
+                      )}
                       {/* Beta toggle - only show when JSON is selected and not in virtualized log view */}
                       {selectedViewTab === "json" &&
                         !(selectedTab === "log" && isLogViewVirtualized) && (

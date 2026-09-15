@@ -56,6 +56,7 @@ import {
   jsonViewToggleTab,
   normalizeJsonViewPreference,
 } from "@/src/components/ui/jsonViewPreference";
+import { JsonTableValueFaceToggle } from "@/src/components/ui/JsonTableValueFaceToggle";
 
 // Contexts and hooks
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
@@ -456,6 +457,9 @@ export function ConnectedObservationDetailView({
                           </Tabs.List>
                         </Tabs>
                       </div>
+                      {selectedViewTab === "pretty" && (
+                        <JsonTableValueFaceToggle />
+                      )}
                       {selectedViewTab === "json" &&
                         !(selectedTab === "log" && isLogViewVirtualized) && (
                           <div className="mr-1 flex items-center gap-1.5">

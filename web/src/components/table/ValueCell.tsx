@@ -23,6 +23,7 @@ import {
   type MetadataFilterOperator,
 } from "@/src/features/events/lib/eventsTablePaths";
 import { Copy, Check, EllipsisVertical, Filter, FilterX } from "lucide-react";
+import { useJsonTableValueFace } from "@/src/components/ui/jsonTableValueFace";
 
 /**
  * Enables the per-row actions menu in a metadata JSON view: copy value/
@@ -38,7 +39,6 @@ export type MetadataFilterActions = {
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
 const MAX_CELL_DISPLAY_CHARS = 2000;
 const ARRAY_PREVIEW_ITEMS = 3;
-const VALUE_TEXT_CLASSES = "text-sm/5 wrap-break-word";
 const PREVIEW_TEXT_CLASSES = "text-gray-500 dark:text-gray-400";
 
 function renderStringWithLinks(text: string): React.ReactNode {
@@ -352,6 +352,7 @@ export const ValueCell = memo(
     metadataActions?: MetadataFilterActions;
   }) => {
     const { value, type } = row.original;
+    const { classes: valueTextClasses } = useJsonTableValueFace();
     const cellId = `${row.id}-value`;
     const isCellExpanded = expandedCells.has(cellId);
     const [showCopySuccess, setShowCopySuccess] = useState(false);
@@ -508,7 +509,7 @@ export const ValueCell = memo(
       // table: the cell contributes no intrinsic width, then fills its column.
       <div
         className={cn(
-          VALUE_TEXT_CLASSES,
+          valueTextClasses,
           "group relative max-w-full",
           singleLine && "w-0 min-w-full",
         )}
