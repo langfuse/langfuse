@@ -214,6 +214,40 @@ export const GetModelV1Query = z.object({
 });
 export const GetModelV1Response = APIModelDefinition.strict();
 
+// PATCH /models/{modelId}
+// Partial update of a model definition. Only the mutable matchPattern /
+// tokenizer / startDate / unit fields are accepted; modelName and pricing
+// are intentionally not patchable (modelName is a stable identity, pricing
+// is replaced via DELETE+POST or a future dedicated pricing endpoint).
+export const PatchModelV1Query = z.object({
+  modelId: z.string(),
+});
+export const PatchModelV1Body = z
+  .object({
+    matchPattern: z.string().optional(),
+    tokenizerId: z.enum(["openai", "claude"]).nullish(),
+    tokenizerConfig: jsonSchema.nullish(),
+    startDate: z.coerce.date().nullish(),
+    unit: APIModelUsageUnit.optional(),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    if (
+      data.matchPattern === undefined &&
+      data.tokenizerId === undefined &&
+      data.tokenizerConfig === undefined &&
+      data.startDate === undefined &&
+      data.unit === undefined
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "At least one of matchPattern, tokenizerId, tokenizerConfig, startDate, or unit must be provided",
+      });
+    }
+  });
+export const PatchModelV1Response = APIModelDefinition.strict();
+
 // PUT /models/{modelId}
 export const PutModelV1Response = APIModelDefinition.strict();
 
