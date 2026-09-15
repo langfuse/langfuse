@@ -159,10 +159,10 @@
   --text-sm: 0.825rem;
   --text-sm--font-weight: var(--font-weight-regular);
   /* Mono partner of text-sm: mono glyphs read larger than sans at equal
-     size, so mono next to text-sm takes 12px with text-sm's line box, and
+     size, so mono next to text-sm takes 11.6px with text-sm line box, and
      the two columns align on one baseline. Add text-mono-xs only when a
      surface needs it. */
-  --text-mono-sm: 0.75rem;
+  --text-mono-sm: 0.725rem;
   --text-mono-sm--line-height: calc(var(--text-sm) * 10 / 7);
   --text-mono-sm--font-weight: var(--font-weight-regular);
   --text-base: 0.9rem;
