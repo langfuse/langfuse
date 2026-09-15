@@ -542,7 +542,7 @@ describe("MCP public API tools", () => {
       additionalProperties: false,
     };
     const datasetExpectedOutputSchema = {
-      type: "object",
+      type: ["object", "null"],
       properties: { answer: { type: "string" } },
       required: ["answer"],
       additionalProperties: false,
@@ -644,6 +644,17 @@ describe("MCP public API tools", () => {
     )) as { id: string; datasetName: string };
     expect(datasetItem.datasetName).toBe(renamedDatasetName);
 
+    await expect(
+      handleUpsertDatasetItem(
+        {
+          datasetId: dataset.id,
+          id: datasetItem.id,
+          expectedOutput: null,
+        },
+        context,
+      ),
+    ).resolves.toMatchObject({ expectedOutput: null });
+
     const firstBatchItemId = uuidv4();
     const batchResult = (await handleBatchUpsertDatasetItems(
       {
@@ -679,6 +690,7 @@ describe("MCP public API tools", () => {
             {
               id: firstBatchItemId,
               input: { question: "updated batch question" },
+              expectedOutput: null,
             },
           ],
         },
@@ -689,6 +701,7 @@ describe("MCP public API tools", () => {
         {
           id: firstBatchItemId,
           input: { question: "updated batch question" },
+          expectedOutput: null,
         },
       ],
     });
