@@ -21,6 +21,8 @@ export default withMiddlewares({
     fn: async ({ query, auth }) =>
       await listAnnotationQueuesForApi({
         projectId: auth.scope.projectId,
+        fromTimestamp: query.fromTimestamp,
+        toTimestamp: query.toTimestamp,
         page: query.page,
         limit: query.limit,
       }),

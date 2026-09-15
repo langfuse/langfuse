@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   paginationMetaResponseZod,
   publicApiPaginationZod,
+  stringDateTime,
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
 } from "@langfuse/shared";
@@ -44,6 +45,15 @@ export type AnnotationQueue = z.infer<typeof AnnotationQueueSchema>;
 // GET /annotation-queues
 export const GetAnnotationQueuesQuery = z
   .object({
+    // Optional ISO-8601 time window on the annotation queue row's
+    // `createdAt`. Both params are independently optional and compose into
+    // a half-open `[fromTimestamp, toTimestamp)` range. Omitting both
+    // preserves the historical "all queues" behavior. Pattern matches
+    // `GET /api/public/comments` (PR #15692), `GET /api/public/models`
+    // (PR #16952), `GET /api/public/datasets` (PR #17002), and
+    // `GET /api/public/llm-connections` (PR #17070).
+    fromTimestamp: stringDateTime,
+    toTimestamp: stringDateTime,
     ...publicApiPaginationZod,
   })
   .strict();

@@ -119,15 +119,33 @@ const getAnnotationQueueRecordOrThrow = async ({
 
 export const listAnnotationQueuesForApi = async ({
   projectId,
+  fromTimestamp,
+  toTimestamp,
   page,
   limit,
 }: {
   projectId: string;
 } & GetAnnotationQueuesInput) => {
+  // Build the time-window filter on `createdAt`. Both params are
+  // independently optional; together they form a half-open
+  // `[fromTimestamp, toTimestamp)` range. The window composes with the
+  // existing project scope — it can only narrow the result set, never
+  // widen it.
+  const createdAtFilter =
+    fromTimestamp || toTimestamp
+      ? {
+          createdAt: {
+            ...(fromTimestamp ? { gte: new Date(fromTimestamp) } : {}),
+            ...(toTimestamp ? { lt: new Date(toTimestamp) } : {}),
+          },
+        }
+      : {};
+
   const [queues, totalItems] = await Promise.all([
     prisma.annotationQueue.findMany({
       where: {
         projectId,
+        ...createdAtFilter,
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: limit,
@@ -136,6 +154,7 @@ export const listAnnotationQueuesForApi = async ({
     prisma.annotationQueue.count({
       where: {
         projectId,
+        ...createdAtFilter,
       },
     }),
   ]);
