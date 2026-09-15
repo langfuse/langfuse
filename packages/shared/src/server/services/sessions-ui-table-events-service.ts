@@ -328,8 +328,19 @@ const getSessionsTableFromEventsGeneric = async <T>(
     queryBuilder.whereRaw(sessionsFilterRes.query, sessionsFilterRes.params);
   }
 
+  // Append the unique session_id as a tiebreaker so offset-based pagination
+  // is stable when sessions share the same sort-column value. The count
+  // query is a single aggregate row, so it must not receive the extra clause.
+  const eventsSessionsOrderBy: OrderByState[] = [];
+  if (orderBy) {
+    eventsSessionsOrderBy.push(orderBy);
+  }
+  if (select !== "count" && orderBy?.column !== "id") {
+    eventsSessionsOrderBy.push({ column: "id", order: "DESC" });
+  }
+
   const orderBySql = orderByToClickhouseSql(
-    orderBy ?? null,
+    eventsSessionsOrderBy.length > 0 ? eventsSessionsOrderBy : null,
     sessionEventsOrderByCols,
   );
   if (orderBySql) {
