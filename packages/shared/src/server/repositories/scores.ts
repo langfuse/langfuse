@@ -1485,16 +1485,10 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   );
   const scoreOnlyFilterRes = scoreOnlyFilters.apply();
 
-  // Coarse partition/granule prune for the count path's pre-dedup subquery.
-  // A score's exact `timestamp` is mutable across ReplacingMergeTree versions
-  // of the same id, so the exact bound must NOT filter raw rows before dedup:
-  // dropping the latest-event_ts version would let argMax reconstruct a stale
-  // one, diverging from the FINAL row path. Instead prune whole
-  // toDate(timestamp) buckets — the dedup/sorting-key granularity, so a bucket
-  // is kept or dropped as a unit and the reconstructed latest is never lost.
-  // The exact bound is re-applied on the reconstructed value in the outer WHERE
-  // (via scoreOnlyFilterRes), matching FINAL. Relax > / < to >= / <= at date
-  // granularity so boundary-day rows survive to the exact outer check.
+  // Coarse toDate(timestamp) prune for the count subquery's pre-dedup scan
+  // (partition/granule pruning only; the exact bound is re-applied post-dedup —
+  // see the count query below). Relax > / < to >= / <= at date granularity so
+  // boundary-day rows survive to that exact outer check.
   const timestampColumn = scoresTableUiColumnDefinitionsFromEvents.find(
     (c) => c.uiTableId === "timestamp",
   );
@@ -1611,17 +1605,24 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       AND s.data_type IN ({dataTypes: Array(String)})
       ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}`;
 
-  // Row reads use FINAL to dedup the ReplacingMergeTree. Count dedups with a
-  // single argMax(col, event_ts) aggregation pass instead, reconstructing each
-  // score's latest version — matching FINAL without its multi-part merge. The
-  // GROUP BY mirrors the table sorting key (project_id, toDate(timestamp), name,
-  // id) — the key FINAL collapses on; the user-provided id is not unique alone.
-  // All filters (value, comment, timestamp, ...) and the trace-level join are
-  // applied AFTER dedup, on the reconstructed latest values, so the count
-  // matches the row list; the inner query carries only a coarse
-  // toDate(timestamp) prune (see above). The join uses the argMax'd trace_id,
-  // so a stale version's trace_id can neither drop nor resurrect a score —
-  // matching the FINAL row path, which joins after dedup too.
+  // ── Count path: dedup without FINAL ──────────────────────────────────────
+  // Row reads dedup the ReplacingMergeTree with FINAL; for counts that is too
+  // slow. Instead reconstruct each score's latest version with one argMax pass:
+  //   GROUP BY project_id, toDate(timestamp), name, id  -- the sorting key
+  //                                                         FINAL collapses on
+  //   argMax(col, event_ts)                             -- latest value per col
+  //
+  // Rule: filter AFTER dedup, never before. value / comment / timestamp /
+  // trace_id are all mutable across a score's versions, so filtering raw rows
+  // can drop the true-latest version and let argMax rebuild a stale one — a
+  // count that disagrees with the row list. Example, filter `value > 0.5`:
+  //   v1 @10:02 value=0.9,  v2 @10:07 value=0.1 (latest)
+  //   filter-then-dedup -> v1 counted     (WRONG)
+  //   dedup-then-filter -> 0.1 excluded   (matches FINAL)
+  //
+  // So every filter and the trace join runs in the OUTER query. The inner scan
+  // carries only a coarse toDate(timestamp) prune (see innerDatePruneQuery):
+  // whole buckets are kept or dropped, so the latest is never lost pre-dedup.
   const query =
     props.select === "count"
       ? `
