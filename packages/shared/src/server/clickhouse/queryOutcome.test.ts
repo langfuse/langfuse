@@ -142,6 +142,9 @@ describe("ClickHouse query outcome metric", () => {
       "SELECT id FROM events_full e WHERE hasAllTokens(lower(e.input), arraySlice(arrayDistinct(tokens(lower({p: String}))), 1, 64))",
       "SELECT id FROM observations o WHERE o.input ILIKE {p: String}",
       "SELECT id FROM events_full e WHERE output LIKE {p: String}",
+      // "starts with" / "ends with" UI filters on the string input/output cols.
+      "SELECT id FROM events_full e WHERE startsWith(e.input, {p: String})",
+      "SELECT id FROM events_full e WHERE endsWith(e.output, {p: String})",
     ])("labels an input/output content search as io_content: %s", (query) => {
       expect(clickHouseQueryShape(query)).toBe("io_content");
     });
@@ -162,12 +165,12 @@ describe("ClickHouse query outcome metric", () => {
       ).toBe("id_or_ilike");
     });
 
-    it("labels a span_id point lookup as by_span_id", () => {
-      expect(
-        clickHouseQueryShape(
-          "SELECT * FROM events_full e WHERE e.project_id = {p: String} AND span_id = {id: String}",
-        ),
-      ).toBe("by_span_id");
+    it.each([
+      "SELECT * FROM events_full e WHERE e.project_id = {p: String} AND span_id = {id: String}",
+      // Batch IO fetch uses the paren-less IN {param} form.
+      "SELECT * FROM events_full e WHERE e.span_id IN {observationIds: Array(String)}",
+    ])("labels a span_id lookup as by_span_id: %s", (query) => {
+      expect(clickHouseQueryShape(query)).toBe("by_span_id");
     });
 
     // A span lookup that also bounds trace_id is a span lookup, not a
@@ -182,6 +185,8 @@ describe("ClickHouse query outcome metric", () => {
 
     it.each([
       "SELECT * FROM events_full e WHERE trace_id IN ({traceIds: Array(String)})",
+      // Batch/event queries emit the paren-less IN {param} form.
+      "SELECT * FROM events_full e WHERE trace_id IN {traceIds: Array(String)}",
       "SELECT * FROM events_full e WHERE trace_id = {traceId: String}",
     ])("labels a trace_id lookup as by_trace_id: %s", (query) => {
       expect(clickHouseQueryShape(query)).toBe("by_trace_id");

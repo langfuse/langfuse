@@ -161,9 +161,10 @@ const OTHER_SHAPE_LABEL = "other" as const;
  * filter shape through every call site is impractical. Patterns match the SQL
  * the filter compilers emit:
  *
- * - `io_content`: a substring/token/(I)LIKE search over the `input`/`output`
- *   columns — the largest `events_full` columns and the confirmed full-scan
- *   class. Anchored to `input`/`output` so a metadata search never counts.
+ * - `io_content`: a substring/token/prefix/(I)LIKE search over the `input`/
+ *   `output` columns — the largest `events_full` columns and the confirmed
+ *   full-scan class. Anchored to `input`/`output` so a metadata search never
+ *   counts.
  * - `metadata_content`: the same search family over the `metadata_names`/
  *   `metadata_values` arrays, distinguished by the array-column suffix and the
  *   `has(names, key)` / `indexOf(names, key)` key-lookup wrapper. Only filter
@@ -171,14 +172,15 @@ const OTHER_SHAPE_LABEL = "other" as const;
  *   the `mapFromArrays`/`argMax`/`arrayReverse` projection helpers.
  * - `id_or_ilike`: the OR-of-`ILIKE` id search arm, matched on its distinctive
  *   `searchString` parameter.
- * - `by_span_id`: the point `span_id = {…}` lookup (`getObservationById`).
- *   Ranked above `by_trace_id` so a span lookup that also bounds `trace_id`
- *   counts as the span lookup.
- * - `by_trace_id`: a `trace_id IN (…)` / `trace_id = {…}` lookup — the
- *   unbounded variant is a distinct timeout class.
+ * - `by_span_id`: a `span_id = {…}` point lookup (`getObservationById`) or a
+ *   `span_id IN {…}` batch lookup. Ranked above `by_trace_id` so a span lookup
+ *   that also bounds `trace_id` counts as the span lookup.
+ * - `by_trace_id`: a `trace_id IN (…)` / `trace_id IN {…}` / `trace_id = {…}`
+ *   lookup — the unbounded variant is a distinct timeout class. The `IN` form
+ *   appears both parenthesized (inline list) and bare (`{param: Array(...)}`).
  */
 const IO_CONTENT_FUNCTION_PATTERN =
-  /\b(?:position(?:caseinsensitive)?|hasalltokens|hasanytokens|hastoken)\s*\(\s*(?:lower\s*\(\s*)?(?:\w+\.)?(?:input|output)\b/i;
+  /\b(?:position(?:caseinsensitive)?|hasalltokens|hasanytokens|hastoken|startswith|endswith)\s*\(\s*(?:lower\s*\(\s*)?(?:\w+\.)?(?:input|output)\b/i;
 
 const IO_CONTENT_LIKE_PATTERN =
   /\b(?:\w+\.)?(?:input|output)\s+(?:not\s+)?i?like\b/i;
@@ -188,9 +190,10 @@ const METADATA_CONTENT_PATTERN =
 
 const ID_OR_ILIKE_PATTERN = /\bilike\s*\{\s*searchString\b/i;
 
-const BY_SPAN_ID_PATTERN = /\bspan_id\s*=\s*\{/i;
+const BY_SPAN_ID_PATTERN = /\bspan_id\s*=\s*\{|\bspan_id\s+in\s*(?:\(\s*)?\{/i;
 
-const BY_TRACE_ID_PATTERN = /\btrace_id\s+in\s*\(\s*\{|\btrace_id\s*=\s*\{/i;
+const BY_TRACE_ID_PATTERN =
+  /\btrace_id\s*=\s*\{|\btrace_id\s+in\s*(?:\(\s*)?\{/i;
 
 const QUERY_SHAPE_PATTERNS: ReadonlyArray<[ClickHouseQueryShape, RegExp]> = [
   ["io_content", IO_CONTENT_FUNCTION_PATTERN],
