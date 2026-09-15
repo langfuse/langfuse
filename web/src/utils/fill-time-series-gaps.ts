@@ -228,7 +228,7 @@ function aggregateIntoMultiUnitBuckets<
     let bucketStart = bucketEnd;
 
     // Go back `count` units
-    for (let i = 0; i < count - 1; i++) {
+    for (let i = 0; i < count; i++) {
       bucketStart = subtractSingleUnit(bucketStart);
     }
 
@@ -247,12 +247,13 @@ function aggregateIntoMultiUnitBuckets<
     }
   }
 
-  // Assign data points to buckets
+  // Assign data points to buckets (newest-first so boundary points fall into later bucket)
   for (const dataPoint of data) {
     const ts = toStartOfSingleUnit(dataPoint.timestamp);
 
-    for (const bucket of buckets) {
-      if (ts >= bucket.start && ts <= bucket.end) {
+    for (let i = buckets.length - 1; i >= 0; i--) {
+      const bucket = buckets[i];
+      if (bucket && ts >= bucket.start && ts <= bucket.end) {
         bucket.dataPoints.push(dataPoint);
         break;
       }
@@ -536,7 +537,7 @@ function aggregateCategoricalIntoMultiUnitBuckets<
     let bucketStart = bucketEnd;
 
     // Go back `count` units
-    for (let i = 0; i < count - 1; i++) {
+    for (let i = 0; i < count; i++) {
       bucketStart = subtractSingleUnit(bucketStart);
     }
 
@@ -555,12 +556,13 @@ function aggregateCategoricalIntoMultiUnitBuckets<
     }
   }
 
-  // Assign data points to buckets
+  // Assign data points to buckets (newest-first so boundary points fall into later bucket)
   for (const dataPoint of data) {
     const ts = toStartOfSingleUnit(dataPoint.timestamp);
 
-    for (const bucket of buckets) {
-      if (ts >= bucket.start && ts <= bucket.end) {
+    for (let i = buckets.length - 1; i >= 0; i--) {
+      const bucket = buckets[i];
+      if (bucket && ts >= bucket.start && ts <= bucket.end) {
         bucket.dataPoints.push(dataPoint);
         break;
       }
