@@ -48,6 +48,7 @@ pub struct OpenAiProvider {
     client: Client,
     capacity: Arc<Semaphore>,
     limits: ProviderLimits,
+    telemetry: Option<crate::telemetry::Telemetry>,
     #[cfg(test)]
     endpoint: String,
 }
@@ -85,9 +86,15 @@ impl OpenAiProvider {
             client,
             capacity: Arc::new(Semaphore::new(limits.active)),
             limits,
+            telemetry: None,
             #[cfg(test)]
             endpoint: "https://api.openai.com/v1/responses".to_owned(),
         })
+    }
+
+    pub(crate) fn with_telemetry(mut self, telemetry: crate::telemetry::Telemetry) -> Self {
+        self.telemetry = Some(telemetry);
+        self
     }
 
     /// Reserve capacity for an authenticated request before reading its body.
@@ -129,6 +136,9 @@ impl OpenAiProvider {
                 .map_err(|_| ProviderError::Configuration)?;
         authorization.set_sensitive(true);
         let mut capture = ExecutionCapture::openai_responses(&context, headers, &body);
+        if let Some(telemetry) = &self.telemetry {
+            capture.deliver_to(telemetry.clone(), &context);
+        }
         let response = tokio::time::timeout_at(
             permit
                 .deadline

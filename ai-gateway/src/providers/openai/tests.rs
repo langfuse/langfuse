@@ -331,3 +331,209 @@ async fn deadlines_bound_headers_and_stalled_bodies_without_exposing_transport_d
     assert!(!error.to_string().contains("provider-secret"));
     assert!(relay.try_admit().is_ok());
 }
+
+#[tokio::test]
+async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
+    use crate::{
+        resolution::ControlPlaneConfig, telemetry::Telemetry,
+        test_support::resolved_request_context_with_mode,
+    };
+    use serde_json::Value;
+
+    for (content_type, native, sink_status) in [
+        (
+            "application/json",
+            r#"{"id":"resp-1","model":"actual","status":"completed","output":[],"usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3}}"#,
+            200,
+        ),
+        (
+            "text/event-stream",
+            "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp-1\",\"model\":\"actual\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":2,\"output_tokens\":1,\"total_tokens\":3}}}\n\n",
+            503,
+        ),
+    ] {
+        let (sent, mut received) = tokio::sync::mpsc::channel(2);
+        let release = Arc::new(Notify::new());
+        let sink_release = release.clone();
+        let sink = FakeServer::start(move |request| {
+            let sent = sent.clone();
+            let release = sink_release.clone();
+            async move {
+                let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+                sent.send(serde_json::from_slice::<Value>(&bytes).unwrap())
+                    .await
+                    .unwrap();
+                release.notified().await;
+                Response::builder()
+                    .status(sink_status)
+                    .body(Body::from("{}"))
+                    .unwrap()
+            }
+        })
+        .await;
+        let telemetry =
+            Telemetry::new(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap()).unwrap();
+        let upstream = FakeServer::start(move |_| async move {
+            Response::builder()
+                .header("content-type", content_type)
+                .body(Body::from(native))
+                .unwrap()
+        })
+        .await;
+        let relay = provider(&upstream, 1).with_telemetry(telemetry.clone());
+        let context = resolved_request_context_with_mode("provider-secret", "full").await;
+        let response = relay
+            .forward(
+                relay.try_admit().unwrap(),
+                context,
+                &HeaderMap::new(),
+                Bytes::from_static(br#"{"model":"requested","input":"hello"}"#),
+            )
+            .await
+            .unwrap();
+        // Neither the last byte nor the provider permit waits for the sink response.
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(1), to_bytes(response.into_body(), 4096))
+                .await
+                .unwrap()
+                .unwrap(),
+            native
+        );
+        assert!(relay.try_admit().is_ok());
+        let payload = tokio::time::timeout(Duration::from_secs(1), received.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_completed_upload(&payload);
+        release.notify_one();
+        telemetry
+            .shutdown(Instant::now() + Duration::from_secs(1))
+            .await;
+        assert!(received.try_recv().is_err());
+        assert_eq!(sink.calls(), 1);
+        assert_eq!(upstream.calls(), 1);
+    }
+}
+
+#[tokio::test]
+async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_released() {
+    use crate::{resolution::ControlPlaneConfig, telemetry::Telemetry};
+    use serde_json::Value;
+
+    for cancelled in [true, false] {
+        let (sent, mut received) = tokio::sync::mpsc::channel(2);
+        let sink = FakeServer::start(move |request| {
+            let sent = sent.clone();
+            async move {
+                assert_eq!(
+                    request.headers()[header::AUTHORIZATION],
+                    "Bearer private-ingestion-token"
+                );
+                let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+                sent.send(serde_json::from_slice::<Value>(&bytes).unwrap())
+                    .await
+                    .unwrap();
+                Response::new(Body::from("{}"))
+            }
+        })
+        .await;
+        let telemetry =
+            Telemetry::new(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap()).unwrap();
+        let dropped = Arc::new(Notify::new());
+        let upstream = stalled_provider(dropped).await;
+        let relay = OpenAiProvider::for_test(
+            upstream.url.clone(),
+            ProviderLimits {
+                active: 1,
+                execution_timeout: Duration::from_millis(150),
+                ..ProviderLimits::default()
+            },
+        )
+        .with_telemetry(telemetry.clone());
+        let context = resolved_request_context("provider-secret").await;
+        let response = relay
+            .forward(
+                relay.try_admit().unwrap(),
+                context,
+                &HeaderMap::new(),
+                Bytes::from_static(br#"{"model":"requested","input":"prompt-canary"}"#),
+            )
+            .await
+            .unwrap();
+        let mut body = response.into_body().into_data_stream();
+        assert_eq!(body.next().await.unwrap().unwrap(), "first");
+        assert_eq!(sink.calls(), 0);
+        if cancelled {
+            drop(body);
+        } else {
+            assert!(body.next().await.unwrap().is_err());
+            drop(body);
+        }
+        let payload = tokio::time::timeout(Duration::from_secs(1), received.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(relay.try_admit().is_ok());
+        assert!(!payload.to_string().contains("prompt-canary"));
+        let attrs = payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["attributes"]
+            .as_array()
+            .unwrap();
+        let metadata: Value = serde_json::from_str(
+            attrs
+                .iter()
+                .find(|a| a["key"] == "langfuse.observation.metadata")
+                .unwrap()["value"]["stringValue"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            metadata["relay_outcome"],
+            if cancelled { "cancelled" } else { "timeout" }
+        );
+        telemetry
+            .shutdown(Instant::now() + Duration::from_secs(1))
+            .await;
+        assert!(received.try_recv().is_err());
+        assert_eq!(sink.calls(), 1);
+    }
+}
+
+fn assert_completed_upload(payload: &serde_json::Value) {
+    use serde_json::{Value, json};
+    let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+    let attrs = span["attributes"].as_array().unwrap();
+    assert!(
+        attrs
+            .iter()
+            .any(|a| a["key"] == "langfuse.observation.model.name"
+                && a["value"]["stringValue"] == "actual")
+    );
+    assert!(
+        attrs
+            .iter()
+            .any(|a| a["key"] == "langfuse.observation.completion_start_time")
+    );
+    let metadata: Value = serde_json::from_str(
+        attrs
+            .iter()
+            .find(|a| a["key"] == "langfuse.observation.metadata")
+            .unwrap()["value"]["stringValue"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(metadata["relay_outcome"], "eof");
+    assert_eq!(
+        metadata["native_usage"],
+        json!({"input_tokens":2,"output_tokens":1,"total_tokens":3})
+    );
+    for secret in [
+        "provider-secret",
+        "private-ingestion-token",
+        "gateway-secret",
+        "service-key",
+    ] {
+        assert!(!payload.to_string().contains(secret));
+    }
+}

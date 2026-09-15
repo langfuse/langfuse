@@ -13,7 +13,7 @@ use crate::{
     resolution::{IngestionMode, MetadataValue, ResolvedRequestContext},
     telemetry,
 };
-use facts::ProviderFacts;
+pub(crate) use facts::ProviderFacts;
 pub(crate) use facts::{InferenceFacts, RelayOutcome};
 use openai_responses::OpenAiResponsesCapture;
 
@@ -61,6 +61,7 @@ pub(crate) struct ExecutionCapture {
     first_byte_ms: Option<u128>,
     http_status: Option<u16>,
     metadata: Value,
+    delivery: Option<(telemetry::Telemetry, telemetry::DeliveryContext)>,
 }
 
 impl ExecutionCapture {
@@ -106,7 +107,19 @@ impl ExecutionCapture {
                 "key_metadata": key_metadata,
                 "ingestion_mode": if full { "full" } else { "usage" },
             }),
+            delivery: None,
         }
+    }
+
+    pub fn deliver_to(
+        &mut self,
+        telemetry: telemetry::Telemetry,
+        context: &ResolvedRequestContext,
+    ) {
+        self.delivery = Some((
+            telemetry,
+            telemetry::DeliveryContext::from_resolved(context),
+        ));
     }
 
     pub fn response(&mut self, status: u16, headers: &HeaderMap) {
@@ -137,7 +150,7 @@ impl ExecutionCapture {
             return;
         };
         let (api_format, inference) = protocol.into_facts();
-        telemetry::record(InferenceFacts {
+        let facts = InferenceFacts {
             api_format,
             start_time_unix_ms: self.start_time_unix_ms,
             duration_ms: self.started.elapsed().as_millis(),
@@ -146,7 +159,11 @@ impl ExecutionCapture {
             metadata: std::mem::take(&mut self.metadata),
             outcome,
             inference,
-        });
+        };
+        telemetry::debug_record(&facts);
+        if let Some((telemetry, context)) = self.delivery.take() {
+            telemetry.record(context, facts);
+        }
     }
 }
 
