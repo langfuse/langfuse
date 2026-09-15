@@ -544,9 +544,6 @@ importers:
       '@ferrucc-io/emoji-picker':
         specifier: ^0.1.2
         version: 0.1.2(@babel/core@7.29.7(supports-color@8.1.1))(@babel/template@7.29.7)(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(tailwindcss@4.2.2)
-      '@fontsource/iosevka':
-        specifier: 5.3.0
-        version: 5.3.0
       '@hookform/resolvers':
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.72.0(react@19.2.4))
@@ -2237,9 +2234,6 @@ packages:
 
   '@floating-ui/vue@1.1.9':
     resolution: {integrity: sha512-BfNqNW6KA83Nexspgb9DZuz578R7HT8MZw1CfK9I6Ah4QReNWEJsXWHN+SdmOVLNGmTPDi+fDT535Df5PzMLbQ==}
-
-  '@fontsource/iosevka@5.3.0':
-    resolution: {integrity: sha512-RcG0v/65e4PTuThR/d7n9jj6PLlex7YUGaLa4ZpL+NnqArWQmD8Z+6gYBTxPMVWxYMRcEw6OF4rdt8XisnC5zA==}
 
   '@google-cloud/paginator@5.0.2':
     resolution: {integrity: sha512-DJS3s0OVH4zFDB1PzjxAsHqJT6sKVbRwwML0ZBP9PbU7Yebtu/7SWMRzvO2J3nUi9pRNITCfu4LJeooM2w4pjg==}
@@ -13465,8 +13459,6 @@ snapshots:
     transitivePeerDependencies:
       - '@vue/composition-api'
       - vue
-
-  '@fontsource/iosevka@5.3.0': {}
 
   '@google-cloud/paginator@5.0.2':
     dependencies:

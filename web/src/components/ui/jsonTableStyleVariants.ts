@@ -549,77 +549,7 @@ export function clearStoredJsonTableStyleVariants() {
   }
   writeStoredVariant(LEGACY_JSON_TABLE_STYLE_STORAGE_KEY, null);
   writeStoredClassMode(null);
-  writeStoredMonoFont(null);
   notifyChange();
-}
-
-/** Mono families under trial for JSON table values. `system` is the app's
-    stack; the others come from next/font variables set on <html>. */
-export const JSON_TABLE_MONO_FONTS = [
-  "system",
-  "plex",
-  "jetbrains",
-  "geist",
-  "iosevka",
-  "iosevka-extended",
-  "iosevka-extended-light",
-] as const;
-export type JsonTableMonoFont = (typeof JSON_TABLE_MONO_FONTS)[number];
-
-export const JSON_TABLE_MONO_FONT_LABELS: Record<JsonTableMonoFont, string> = {
-  system: "System (SF Mono / Consolas)",
-  plex: "IBM Plex Mono",
-  jetbrains: "JetBrains Mono",
-  geist: "Geist Mono",
-  iosevka: "Iosevka",
-  "iosevka-extended": "Iosevka Extended",
-  "iosevka-extended-light": "Iosevka Extended Light",
-};
-
-const JSON_TABLE_MONO_FONT_STORAGE_KEY = "lf-json-mono";
-
-function isJsonTableMonoFont(value: unknown): value is JsonTableMonoFont {
-  return (
-    typeof value === "string" &&
-    (JSON_TABLE_MONO_FONTS as readonly string[]).includes(value)
-  );
-}
-
-function readStoredMonoFont(): JsonTableMonoFont {
-  if (typeof window === "undefined") return "system";
-  try {
-    const value = window.localStorage.getItem(JSON_TABLE_MONO_FONT_STORAGE_KEY);
-    return isJsonTableMonoFont(value) ? value : "system";
-  } catch {
-    return "system";
-  }
-}
-
-function writeStoredMonoFont(font: JsonTableMonoFont | null) {
-  try {
-    if (font && font !== "system") {
-      window.localStorage.setItem(JSON_TABLE_MONO_FONT_STORAGE_KEY, font);
-    } else {
-      window.localStorage.removeItem(JSON_TABLE_MONO_FONT_STORAGE_KEY);
-    }
-  } catch {
-    // Storage unavailable: the in-memory event still updates this tab.
-  }
-}
-
-/** Store the debug pick for the JSON table mono family. */
-export function writeStoredJsonTableMonoFont(font: JsonTableMonoFont) {
-  writeStoredMonoFont(font);
-  notifyChange();
-}
-
-function getServerMonoFont(): JsonTableMonoFont {
-  return "system";
-}
-
-/** Mono family for JSON table values, `system` unless the debug picker set one. */
-export function useJsonTableMonoFont(): JsonTableMonoFont {
-  return useSyncExternalStore(subscribe, readStoredMonoFont, getServerMonoFont);
 }
 
 function subscribe(onChange: () => void) {

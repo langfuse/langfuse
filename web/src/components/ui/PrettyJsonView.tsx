@@ -62,11 +62,6 @@ import {
   writeStoredJsonTableClassMode,
   writeStoredJsonTableStylePick,
   writeStoredJsonTableStyleVariant,
-  JSON_TABLE_MONO_FONTS,
-  JSON_TABLE_MONO_FONT_LABELS,
-  useJsonTableMonoFont,
-  writeStoredJsonTableMonoFont,
-  type JsonTableMonoFont,
 } from "@/src/components/ui/jsonTableStyleVariants";
 import { usePinnedJsonTableStyleVariant } from "@/src/components/ui/jsonViewPreference";
 import {
@@ -1021,7 +1016,6 @@ function JsonTableStyleFinalistMenuContent({
   const auto =
     classMode === "shape" && ioStored === LONG_CONTENT_JSON_TABLE_STYLE_VARIANT;
   const hasStoredPick = useHasStoredJsonTableStylePick();
-  const monoFont = useJsonTableMonoFont();
   return (
     <>
       <DropdownMenuLabel>
@@ -1072,22 +1066,6 @@ function JsonTableStyleFinalistMenuContent({
           </span>
         </span>
       </DropdownMenuCheckboxItem>
-      <DropdownMenuSeparator />
-      <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
-        Mono font (values)
-      </DropdownMenuLabel>
-      <DropdownMenuRadioGroup
-        value={monoFont}
-        onValueChange={(next) =>
-          writeStoredJsonTableMonoFont(next as JsonTableMonoFont)
-        }
-      >
-        {JSON_TABLE_MONO_FONTS.map((font) => (
-          <DropdownMenuRadioItem key={font} value={font}>
-            {JSON_TABLE_MONO_FONT_LABELS[font]}
-          </DropdownMenuRadioItem>
-        ))}
-      </DropdownMenuRadioGroup>
       {hasStoredPick && (
         <>
           <DropdownMenuSeparator />

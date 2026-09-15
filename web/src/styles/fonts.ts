@@ -1,33 +1,10 @@
-import { Geist_Mono, IBM_Plex_Mono, JetBrains_Mono } from "next/font/google";
-// Iosevka is not on Google Fonts; Fontsource ships it as a plain @font-face
-// under the family name "Iosevka".
-import "@fontsource/iosevka/400.css";
+import { IBM_Plex_Mono } from "next/font/google";
 
-/** Trial monos for the JSON table values. Each is exposed as a CSS variable
-    on <html>; the table swaps `--font-mono` in its own subtree. */
-const plexMono = IBM_Plex_Mono({
+/** The app's mono. next/font bundles it at build time; the CSS variable is
+    set on <html> in _document and consumed by `--font-mono` in globals.css. */
+export const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
-  weight: ["400"],
+  weight: ["400", "700"],
   variable: "--font-plex-mono",
   display: "swap",
 });
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["400"],
-  variable: "--font-jetbrains-mono",
-  display: "swap",
-});
-
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  weight: ["400"],
-  variable: "--font-geist-mono",
-  display: "swap",
-});
-
-export const trialMonoFontClasses = [
-  plexMono.variable,
-  jetbrainsMono.variable,
-  geistMono.variable,
-];

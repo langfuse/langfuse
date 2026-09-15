@@ -21,8 +21,6 @@ import { NextAdapterPagesWithReadyGuard } from "@/src/utils/nextAdapterPagesWith
 import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
-import { trialMonoFontClasses } from "@/src/styles/fonts";
-import { useJsonTableMonoFont } from "@/src/components/ui/jsonTableStyleVariants";
 import { AppLayout } from "@/src/components/layouts/app-layout";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
@@ -148,22 +146,6 @@ const MyApp: AppType<{ session: Session | null }> = ({
   const skipAppLayout =
     "skipAppLayout" in Component && Component.skipAppLayout === true;
   const authBasePath = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`;
-
-  // next/font exposes each family through a class; putting them on <html>
-  // makes the `--font-*-mono` variables available without a wrapper element.
-  useEffect(() => {
-    document.documentElement.classList.add(...trialMonoFontClasses);
-    return () =>
-      document.documentElement.classList.remove(...trialMonoFontClasses);
-  }, []);
-
-  // The debug picker's mono choice applies app-wide: `--font-mono` is
-  // swapped on <html> via a data attribute (rules in globals.css).
-  const monoFont = useJsonTableMonoFont();
-  useEffect(() => {
-    if (monoFont === "system") delete document.documentElement.dataset.monoFont;
-    else document.documentElement.dataset.monoFont = monoFont;
-  }, [monoFont]);
 
   useEffect(() => {
     // PostHog (cloud.langfuse.com)

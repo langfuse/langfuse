@@ -26,8 +26,8 @@
     ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
     "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
+    var(--font-plex-mono), ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
 
   /* Weight ROLES — exactly TWO weights exist in this app: regular and bold.
      Both are font-relative, so components never hardcode numbers.
@@ -807,45 +807,4 @@
   -webkit-user-select: text !important;
   -moz-user-select: text !important;
   -ms-user-select: text !important;
-}
-
-/* Iosevka Extended is not on any package registry; the trial loads the
-   woff2 from /fonts when present (kept out of git) and falls back silently. */
-@font-face {
-  font-family: "Iosevka Extended";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/fonts/Iosevka-Extended.woff2") format("woff2");
-}
-
-/* Light cut registered as its own family so the trial needs no weight
-   utility (the app allows only the regular and bold roles). */
-@font-face {
-  font-family: "Iosevka Extended Light";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/fonts/Iosevka-ExtendedLight.woff2") format("woff2");
-}
-
-/* Mono family under trial, chosen in the JSON table debug picker and applied
-   app-wide through a data attribute on <html>. Plain rules per option. */
-html[data-mono-font="plex"] {
-  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
-}
-html[data-mono-font="jetbrains"] {
-  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
-}
-html[data-mono-font="geist"] {
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-}
-html[data-mono-font="iosevka"] {
-  --font-mono: Iosevka, ui-monospace, monospace;
-}
-html[data-mono-font="iosevka-extended"] {
-  --font-mono: "Iosevka Extended", ui-monospace, monospace;
-}
-html[data-mono-font="iosevka-extended-light"] {
-  --font-mono: "Iosevka Extended Light", ui-monospace, monospace;
 }
