@@ -187,8 +187,8 @@ describe("OpenAPI deprecations", () => {
   });
 
   // Every family that already stamps `_deprecation` shares V3_NOTICE, so a new
-  // family that forgets it would ship without the delay warning.
-  it("puts the 10-minute delay on every legacy `_deprecation.message`", () => {
+  // family that forgets it would ship without the live-read delay warning.
+  it("puts the live-read delay notice on every legacy `_deprecation.message`", () => {
     const families = [
       OBSERVATIONS_V1_DEPRECATION,
       TRACES_DEPRECATION,
@@ -238,6 +238,12 @@ describe("OpenAPI deprecations", () => {
     expect(ingestion?.message).toContain("v4-only write mode");
     expect(ingestion?.message).toContain(
       "Dual and legacy write modes continue to accept",
+    );
+    expect(ingestion?.message).toContain(
+      "`GET /api/public/v2/observations` and `GET /api/public/v2/metrics` are live",
+    );
+    expect(ingestion?.message).toContain(
+      "all other public APIs may have data delays of several minutes",
     );
   });
 
