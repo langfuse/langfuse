@@ -1007,9 +1007,12 @@ function JsonTableStyleRadioGroup({
     `lf-json-style-all`. */
 function JsonTableStyleFinalistMenuContent({
   active,
+  pinned,
 }: {
   /** Variant the table that opened the menu renders right now. */
   active: JsonTableStyleVariant;
+  /** The Formatted / JSON toggle pins the style; the style group is read-only. */
+  pinned: boolean;
 }) {
   const factsStored = useStoredJsonTableStyleVariant("facts");
   const ioStored = useStoredJsonTableStyleVariant("io");
@@ -1030,15 +1033,20 @@ function JsonTableStyleFinalistMenuContent({
       <DropdownMenuSeparator />
       <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
         Style
+        {pinned ? " (set by the Formatted / JSON toggle)" : null}
       </DropdownMenuLabel>
       <DropdownMenuRadioGroup
-        value={style}
+        value={pinned ? active : style}
         onValueChange={(next) =>
           writeStoredJsonTableStylePick(next as JsonTableStyleVariant, auto)
         }
       >
         {FINALIST_JSON_TABLE_STYLE_VARIANTS.map((variant) => (
-          <DropdownMenuRadioItem key={variant} value={variant}>
+          <DropdownMenuRadioItem
+            key={variant}
+            value={variant}
+            disabled={pinned}
+          >
             <span className="flex flex-col gap-0.5">
               <span>{JSON_TABLE_STYLES[variant].label}</span>
               <span className="text-muted-foreground text-xs">
@@ -1051,6 +1059,7 @@ function JsonTableStyleFinalistMenuContent({
       <DropdownMenuSeparator />
       <DropdownMenuCheckboxItem
         checked={auto}
+        disabled={pinned}
         onCheckedChange={(checked) =>
           writeStoredJsonTableStylePick(style, checked === true)
         }
@@ -1304,19 +1313,20 @@ export function PrettyJsonView(props: {
     props.styleVariant,
   );
   // Caller lock (review pages) > style pinned by the app-wide view toggle >
-  // stored debug pick > caller prop > default. A pinned style also locks the
-  // table: the picker's picks are not consulted and it is hidden.
+  // stored debug pick > caller prop > default. A pinned style locks the
+  // table's style; the picker stays reachable for its other knobs (mono
+  // font) and greys the style group out.
   const pinnedStyleVariant = usePinnedJsonTableStyleVariant();
   const styleVariant = props.lockStyleVariant
     ? (props.styleVariant ?? DEFAULT_JSON_TABLE_STYLE_VARIANT)
     : (pinnedStyleVariant ?? resolvedStyleVariant);
-  const styleVariantLocked =
-    Boolean(props.lockStyleVariant) || pinnedStyleVariant !== null;
   const tableStyle = JSON_TABLE_STYLES[styleVariant];
   const monoFont = useJsonTableMonoFont();
   const tableHasContentSizedKeys =
     tableStyle.layout === "columns" && tableStyle.keyColumn === "content";
-  const showStylePicker = useShowJsonTableStylePicker() && !styleVariantLocked;
+  const showStylePicker =
+    useShowJsonTableStylePicker() && !props.lockStyleVariant;
+  const stylePinnedByToggle = pinnedStyleVariant !== null;
   const showAllStyles = useShowAllJsonTableStyles();
   const hasTitle = Boolean(props.title);
   // Untitled tables have no section header to hang copy and expand all on,
@@ -1978,6 +1988,7 @@ export function PrettyJsonView(props: {
                     ) : (
                       <JsonTableStyleFinalistMenuContent
                         active={styleVariant}
+                        pinned={stylePinnedByToggle}
                       />
                     )
                   }
