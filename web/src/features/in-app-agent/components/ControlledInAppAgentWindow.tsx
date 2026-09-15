@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
+import { useSession } from "next-auth/react";
 import {
   InAppAgentWindow,
   type InAppAgentWindowConversation,
@@ -20,6 +21,8 @@ import {
   getSettledActivityOutcome,
   isCancellableBackgroundRun,
 } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
+import { getInAppAgentTraceHref } from "@/src/features/in-app-agent/lib/traceLink";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import {
   InAppAgentRunStatus,
   isUnsettledInAppAgentRunStatus,
@@ -48,6 +51,19 @@ export function ControlledInAppAgentWindow(
   props: ControlledInAppAgentWindowProps,
 ) {
   const router = useRouter();
+  const session = useSession();
+  const showAgentTraceLink = useIsFeatureEnabled("inAppAgentTraceLink");
+  const aiFeaturesProjectId = session.data?.environment.aiFeaturesProjectId;
+  const getAssistantTraceHref = useCallback(
+    (runId: string) =>
+      showAgentTraceLink
+        ? getInAppAgentTraceHref({
+            aiFeaturesProjectId,
+            runId,
+          })
+        : undefined,
+    [aiFeaturesProjectId, showAgentTraceLink],
+  );
   const {
     activityByConversationId,
     conversations,
@@ -190,6 +206,7 @@ export function ControlledInAppAgentWindow(
       isLoadingMoreConversations={isLoadingMoreConversations}
       selectedConversationId={selectedConversationId}
       selectedConversationTitle={selectedConversationTitle}
+      getAssistantTraceHref={getAssistantTraceHref}
       onLoadMoreConversations={loadMoreConversations}
       onOpenConversationHistory={invalidateConversations}
       onDeleteConversation={props.onDeleteConversation}

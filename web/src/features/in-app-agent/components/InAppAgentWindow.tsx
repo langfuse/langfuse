@@ -906,6 +906,8 @@ export type InAppAgentWindowProps = {
   /** Titles the window. Null until the server has named the conversation,
    * which is when the product name shows instead. */
   selectedConversationTitle: string | null;
+  /** When set, the settled answer of a turn can link to its product trace. */
+  getAssistantTraceHref?: (runId: string) => string | undefined;
 } & InAppAgentWindowCloseButtonProps;
 
 function InAppAgentRateLimitError({
@@ -998,6 +1000,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     screenContextDescription,
     selectedConversationId,
     selectedConversationTitle,
+    getAssistantTraceHref,
   } = props;
   const screenContextNotice = formatScreenContextNotice(
     screenContextDescription,
@@ -1458,6 +1461,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   message.content.type === "text" && item.isFinalAnswer
                     ? message.runId
                     : undefined;
+                const traceHref =
+                  item.isFinalAnswer && message.runId
+                    ? getAssistantTraceHref?.(message.runId)
+                    : undefined;
 
                 return (
                   <li
@@ -1471,6 +1478,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       isFeedbackDisabled={isConversationInteractionDisabled}
                       isFinalAnswer={item.isFinalAnswer}
                       timestamp={message.timestamp}
+                      traceHref={traceHref}
                       onSubmitFeedback={
                         feedbackRunId
                           ? (params) =>

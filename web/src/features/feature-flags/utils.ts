@@ -4,6 +4,7 @@ import {
   isRestrictedFlag,
   isFeaturePreviewFlag,
   isFeaturePreviewAvailable,
+  isInternalFlag,
   type FeaturePreviewAvailabilityContext,
   type FeaturePreviewFlag,
 } from "./available-flags";
@@ -12,13 +13,17 @@ import { type Flags } from "./types";
 export const getFeaturePreviewOptOutFlag = (flag: FeaturePreviewFlag) =>
   `feature-preview:${flag}:disabled`;
 
-const receivesFeaturePreviewsByDefault = (email: string | null | undefined) => {
+export const isLangfuseInternalUserEmail = (
+  email: string | null | undefined,
+) => {
   const normalizedEmail = email?.toLowerCase();
   return (
     normalizedEmail?.endsWith("@langfuse.com") === true ||
     normalizedEmail?.endsWith("@clickhouse.com") === true
   );
 };
+
+const receivesFeaturePreviewsByDefault = isLangfuseInternalUserEmail;
 
 export const parseFlags = (
   dbFlags: string[],
@@ -35,6 +40,12 @@ export const parseFlags = (
   availableFlags.forEach((flag) => {
     if (isRestrictedFlag(flag)) {
       parsedFlags[flag] = context.aiGatewayEnabled === true;
+      return;
+    }
+
+    if (isInternalFlag(flag)) {
+      parsedFlags[flag] =
+        isLangfuseInternalUserEmail(context.email) && dbFlags.includes(flag);
       return;
     }
 

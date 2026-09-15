@@ -34,4 +34,32 @@ describe("FeaturePreviewModal", () => {
       screen.queryByRole("button", { name: /Session Timeline/ }),
     ).not.toBeInTheDocument();
   });
+
+  it("renders employee-only internal flags when they are supplied", () => {
+    const onToggle = vi.fn();
+
+    render(
+      <FeaturePreviewModal
+        open
+        onOpenChange={vi.fn()}
+        state={{
+          modernSession: { enabled: false, onToggle: vi.fn() },
+        }}
+        internalFlags={[
+          {
+            flag: "inAppAgentTraceLink",
+            enabled: false,
+            onToggle,
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Toggle In-app agent trace links" }),
+    );
+
+    expect(onToggle).toHaveBeenCalledWith(true);
+    expect(screen.getByText("Internal")).toBeInTheDocument();
+  });
 });
