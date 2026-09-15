@@ -9,6 +9,7 @@ export const [upsertDatasetItemTool, handleUpsertDatasetItem] = defineTool({
   name: "upsertDatasetItem",
   description:
     "Upsert a dataset item (one example in a dataset) by dataset ID. Item IDs are unique per project across all datasets, so an ID used in one dataset cannot be reused in another.",
+  action: "datasets:CUD",
   baseSchema: PostDatasetItemMcpInput,
   inputSchema: PostDatasetItemMcpInput,
   handler: async (input, context) =>
