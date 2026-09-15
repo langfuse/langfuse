@@ -92,6 +92,7 @@ export * from "../server/queries/public-api-filter-builder";
 export * from "../server/pricing-tiers";
 export * from "./redis/redis";
 export * from "./redis/traceUpsert";
+export * from "./redis/traceExecution";
 export * from "./redis/createEvalQueue";
 export * from "./redis/cloudUsageMeteringQueue";
 export * from "./redis/cloudSpendAlertQueue";

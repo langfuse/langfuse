@@ -429,6 +429,9 @@ export const getObservationsForTraceFromEventsTable = async (params: {
   projectId: string;
   traceId: string;
   timestamp?: Date;
+  /** Explicit lower bound; otherwise timestamp uses the legacy one-hour lookback. */
+  minStartTime?: Date;
+  maxStartTime?: Date;
   selectIOAndMetadata?: boolean;
   selectToolData?: boolean;
 }): Promise<{ observations: FullEventsObservations; totalCount: number }> => {
@@ -436,6 +439,8 @@ export const getObservationsForTraceFromEventsTable = async (params: {
     projectId,
     traceId,
     timestamp,
+    minStartTime,
+    maxStartTime,
     selectIOAndMetadata = false,
     selectToolData = false,
   } = params;
@@ -449,13 +454,25 @@ export const getObservationsForTraceFromEventsTable = async (params: {
     },
   ];
 
-  if (timestamp) {
+  // Preserve TRACE_TO_OBSERVATIONS_INTERVAL for callers supplying a trace timestamp.
+  const lowerBound =
+    minStartTime ??
+    (timestamp ? new Date(timestamp.getTime() - 60 * 60 * 1000) : undefined);
+  if (lowerBound) {
     filter.push({
       column: "startTime",
       operator: ">=" as const,
-      // Equivalent to TRACE_TO_OBSERVATIONS_INTERVAL (INTERVAL 1 HOUR)
-      value: new Date(timestamp.getTime() - 60 * 60 * 1000),
+      value: lowerBound,
       type: "datetime" as const,
+    });
+  }
+
+  if (maxStartTime) {
+    filter.push({
+      column: "startTime",
+      operator: "<=",
+      value: maxStartTime,
+      type: "datetime",
     });
   }
 
