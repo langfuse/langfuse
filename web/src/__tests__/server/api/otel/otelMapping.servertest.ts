@@ -2023,6 +2023,39 @@ describe("OTel Resource Span Mapping", () => {
       ).toBeUndefined();
     });
 
+    it("should keep lk.pii.instructions as system input when the agent speaks first", async () => {
+      const events = await convertOtelSpanToIngestionEvent(
+        createLivekitSpan({
+          name: "agent_turn",
+          scopeName: "livekit-agents",
+          attributes: [
+            {
+              key: "lk.pii.instructions",
+              value: { stringValue: "Your name is Marin." },
+            },
+            {
+              key: "lk.pii.user_input",
+              value: { stringValue: "" },
+            },
+            {
+              key: "lk.pii.response.text",
+              value: { stringValue: "Hi, I am Marin." },
+            },
+          ],
+        }),
+        new Set([livekitTraceId]),
+      );
+
+      const observation = findObservationCreateEvent(events);
+      expect(observation?.body.input).toEqual([
+        { role: "system", content: "Your name is Marin." },
+      ]);
+      expect(observation?.body.output).toBe("Hi, I am Marin.");
+      expect(observation?.body.metadata?.attributes ?? {}).not.toHaveProperty(
+        "lk.pii.instructions",
+      );
+    });
+
     it("should not map LiveKit span names without livekit-agents scope", async () => {
       const events = await convertOtelSpanToIngestionEvent(
         createLivekitSpan({

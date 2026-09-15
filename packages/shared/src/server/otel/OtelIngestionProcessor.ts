@@ -2165,9 +2165,12 @@ export class OtelIngestionProcessor {
 
     // LiveKit. livekit-agents >= 1.8 marks content attributes with a `pii`
     // segment (`lk.pii.<name>`); older versions use the bare `lk.<name>`.
-    const livekitInstructions = attributes["lk.pii.instructions"];
+    const livekitInstructions = attributes["lk.pii.instructions"] || undefined;
+    // the agent may speak first, in which case user_input is empty
     const livekitUserInput =
-      attributes["lk.user_input"] ?? attributes["lk.pii.user_input"];
+      attributes["lk.user_input"] ||
+      attributes["lk.pii.user_input"] ||
+      undefined;
     input =
       attributes["lk.input_text"] ??
       attributes["lk.pii.input_text"] ??
@@ -2176,11 +2179,13 @@ export class OtelIngestionProcessor {
       attributes["lk.chat_ctx"] ??
       attributes["lk.pii.chat_ctx"] ??
       // agent_turn spans carry the system instructions and the user message
-      // separately; combine them into a chat-style input
-      (livekitInstructions && livekitUserInput
+      // separately; combine whatever is present into a chat-style input
+      (livekitInstructions
         ? [
             { role: "system", content: livekitInstructions },
-            { role: "user", content: livekitUserInput },
+            ...(livekitUserInput
+              ? [{ role: "user", content: livekitUserInput }]
+              : []),
           ]
         : livekitUserInput) ??
       attributes["lk.pii.function_tool.arguments"];
