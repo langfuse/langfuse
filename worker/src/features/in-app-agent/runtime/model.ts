@@ -6,6 +6,7 @@ import { createOpenAI } from "ai-sdk-openai-v4";
 import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   isOpenAICompatibleEndpoint,
+  type LangfuseAIReasoningEffort,
   resolveLangfuseAIOpenAICall,
 } from "@langfuse/shared/in-app-agent/server/openaiCompatibility";
 import { env } from "@langfuse/shared/src/env";
@@ -162,9 +163,16 @@ export function getInAppAgentReasoningProviderOptions(
 }
 
 function resolveLangfuseAIOpenAICallFromEnv(baseURL: string | undefined) {
+  // Narrowed to the shared union so an env value the resolver cannot accept
+  // fails to compile. The reverse is deliberately unchecked: a union member
+  // missing from the schema is simply not settable.
+  const reasoningEffort: LangfuseAIReasoningEffort | undefined =
+    env.LANGFUSE_AI_REASONING_EFFORT;
+
   return resolveLangfuseAIOpenAICall({
     baseURL,
     useResponsesApi: env.LANGFUSE_AI_USE_RESPONSES_API,
+    reasoningEffort,
   });
 }
 
