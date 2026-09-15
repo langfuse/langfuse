@@ -121,22 +121,32 @@ export const listAnnotationQueuesForApi = async ({
   projectId,
   page,
   limit,
+  fromTimestamp,
+  toTimestamp,
 }: {
   projectId: string;
 } & GetAnnotationQueuesInput) => {
+  const where = {
+    projectId,
+    ...(fromTimestamp || toTimestamp
+      ? {
+          createdAt: {
+            ...(fromTimestamp ? { gte: fromTimestamp } : {}),
+            ...(toTimestamp ? { lt: toTimestamp } : {}),
+          },
+        }
+      : {}),
+  };
+
   const [queues, totalItems] = await Promise.all([
     prisma.annotationQueue.findMany({
-      where: {
-        projectId,
-      },
+      where,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: limit,
       skip: (page - 1) * limit,
     }),
     prisma.annotationQueue.count({
-      where: {
-        projectId,
-      },
+      where,
     }),
   ]);
 

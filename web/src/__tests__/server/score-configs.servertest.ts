@@ -808,5 +808,24 @@ describe("/api/public/score-configs API Endpoint", () => {
         ],
       });
     });
+      it("should filter score configs by fromTimestamp and toTimestamp", async () => {
+      const from = "2024-05-10T12:00:00.000Z";
+      const to = "2024-05-12T00:00:00.000Z";
+
+      const response = await makeZodVerifiedAPICall(
+        GetScoreConfigsResponse,
+        "GET",
+        `/api/public/score-configs?fromTimestamp=${encodeURIComponent(from)}&toTimestamp=${encodeURIComponent(to)}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.length).toBeGreaterThan(0);
+      response.body.data.forEach((config) => {
+        expect(new Date(config.createdAt).getTime()).toBeGreaterThanOrEqual(new Date(from).getTime());
+        expect(new Date(config.createdAt).getTime()).toBeLessThan(new Date(to).getTime());
+      });
+    });
   });
 });
