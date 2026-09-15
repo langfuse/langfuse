@@ -41,6 +41,12 @@ const floatingPointCostDetails = {
   total: 0.000177499999,
 };
 
+const providedTotalCostDetails = {
+  input: 0,
+  output: 0,
+  total: 0.01,
+};
+
 const priceSource = {
   projectId: "project-1",
   modelId: "gpt-5.6/priority",
@@ -162,19 +168,21 @@ export const TestLinksMatchedPricingTier = meta.story({
 });
 
 export const TestProvidedAtIngestionLabel = meta.story({
-  name: "(Test) Shows provided at ingestion label",
+  name: "(Test) Preserves provided total cost",
   args: {
-    details: costDetails,
-    children: <span>$0.001725</span>,
+    details: providedTotalCostDetails,
+    children: <span>$0.01</span>,
     isCost: true,
     costSource: "provided",
   },
   play: async ({ canvasElement }) => {
-    const { content } = await openBreakdownTooltip(canvasElement, "$0.001725");
+    const { content } = await openBreakdownTooltip(canvasElement, "$0.01");
     await expect(
       content.getByText("Provided at ingestion"),
     ).toBeInTheDocument();
     await expect(content.queryByRole("link")).not.toBeInTheDocument();
+    await expect(content.getByText("$0.01")).toBeInTheDocument();
+    await expect(content.getAllByText("—")).toHaveLength(4);
   },
 });
 

@@ -90,9 +90,8 @@ export const BreakdownTooltip = ({
   };
   const waterfallSegments = createWaterfallSegments(contributionEntries);
   const displayedTotal =
-    isCost && contributionEntries.length > 0
-      ? sumEntries(contributionEntries)
-      : (aggregatedDetails.total ?? 0);
+    aggregatedDetails.total ??
+    (isCost ? sumEntries(contributionEntries) : new Decimal(0));
 
   const resolvedCostSource =
     costSource ?? (isCost && priceSource ? "calculated" : undefined);
