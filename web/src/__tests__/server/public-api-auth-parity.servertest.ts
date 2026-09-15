@@ -246,9 +246,7 @@ async function callRoute(
 
 type Cell = { key: string; run: () => Promise<number> };
 
-// otel/v1/traces drains the raw request stream in fn, which node-mocks-http
-// cannot supply, so any cell that passes connection auth hangs. Only the project
-// key passes, identically in every mode, so skipping it drops no seam signal.
+// node-mocks-http can't supply the raw request stream otel/v1/traces reads, so these cells hang; only the project key passes, identically in every mode.
 const streamReadingCells = new Set([
   "POST otel/v1/traces/index | project/basic",
   "POST otel/v1/traces/index | project/bearer",
