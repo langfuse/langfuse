@@ -172,9 +172,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
   );
 
   return (
-    // next/font only ships its @font-face when a client module references
-    // the font; _document alone (server) does not. `contents` keeps this
-    // wrapper out of layout; the variable itself is set on <html> in _document.
+    // Referenced here so next/font ships the @font-face; _document alone does not.
     <div className={`${plexMono.variable} contents`}>
       {/* Replaces Next's default `width=device-width` (next/head dedupes by
           name). `maximum-scale=1` stops iOS Safari auto-zooming a focused
