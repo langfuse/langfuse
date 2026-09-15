@@ -13,6 +13,7 @@ import {
 import { generateLangfuseAIText } from "../langfuseAiCompletion";
 import {
   createLLMOutput,
+  createLLMToolSet,
   generateLLMText,
   mapLegacyLLMCompletionParams,
 } from "../llmText";
@@ -179,6 +180,8 @@ async function runCompletion(params: {
   extraHeaders?: Record<string, string>;
   llmConnectionConfig?: Record<string, string | boolean>;
   output?: ReturnType<typeof createLLMOutput>;
+  tools?: Parameters<typeof generateLLMText>[0]["tools"];
+  providerOptions?: Parameters<typeof generateLLMText>[0]["providerOptions"];
   response: unknown;
   trace?: TraceSinkParams;
 }) {
@@ -199,6 +202,10 @@ async function runCompletion(params: {
     }),
     timeout: 10_000,
     output: params.output,
+    tools: params.tools,
+    ...(params.providerOptions !== undefined
+      ? { providerOptions: params.providerOptions }
+      : {}),
     trace: params.trace,
   });
 
@@ -246,7 +253,7 @@ describe("AI SDK request shapes", () => {
     ]);
   });
 
-  it("OpenAI responses mode: /v1/responses when useResponsesApi is set", async () => {
+  it("OpenAI responses mode: /v1/responses when useResponsesApi is set, system prompt hoisted to instructions", async () => {
     const { request } = await runCompletion({
       modelParams: {
         provider: "openai",
@@ -261,6 +268,71 @@ describe("AI SDK request shapes", () => {
     expect(request.url).toBe("https://api.openai.com/v1/responses");
     expect(request.headers.get("authorization")).toBe("Bearer sk-test");
     expect(request.body.model).toBe("gpt-4o");
+    // The Responses API rejects role-based system items on strict endpoints
+    // (e.g. Azure), so langfuse moves the system prompt to `instructions`.
+    expect(request.body.instructions).toBe("You are terse.");
+    const input = request.body.input as Array<Record<string, unknown>>;
+    expect(input.some((item) => item.role === "system")).toBe(false);
+    expect(input).toHaveLength(1);
+  });
+
+  it("OpenAI responses mode with tools: system prompt hoisted while tool definitions stay in the body", async () => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        model: "gpt-4o",
+      },
+      apiKey: "sk-test",
+      llmConnectionConfig: { useResponsesApi: true },
+      tools: createLLMToolSet([
+        {
+          name: "get_weather",
+          description: "Get the weather for a city",
+          parameters: {
+            type: "object",
+            properties: { city: { type: "string" } },
+            required: ["city"],
+            additionalProperties: false,
+          },
+        },
+      ]),
+      response: OPENAI_RESPONSES_RESPONSE,
+    });
+
+    expect(request.url).toBe("https://api.openai.com/v1/responses");
+    expect(request.body.instructions).toBe("You are terse.");
+    const input = request.body.input as Array<Record<string, unknown>>;
+    expect(input.some((item) => item.role === "system")).toBe(false);
+    const tools = request.body.tools as Array<Record<string, unknown>>;
+    expect(tools).toHaveLength(1);
+    expect(tools[0]).toMatchObject({
+      type: "function",
+      name: "get_weather",
+      description: "Get the weather for a city",
+    });
+    expect(tools[0]?.parameters).toEqual(
+      expect.objectContaining({ type: "object" }),
+    );
+  });
+
+  it("OpenAI responses mode: explicit instructions win and system items are still stripped", async () => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        model: "gpt-4o",
+      },
+      apiKey: "sk-test",
+      llmConnectionConfig: { useResponsesApi: true },
+      providerOptions: { openai: { instructions: "Use French." } },
+      response: OPENAI_RESPONSES_RESPONSE,
+    });
+
+    expect(request.body.instructions).toBe("Use French.");
+    const input = request.body.input as Array<Record<string, unknown>>;
+    expect(input.some((item) => item.role === "system")).toBe(false);
+    expect(input).toHaveLength(1);
   });
 
   it("Langfuse AI first-party OpenAI credentials hit /v1/responses", async () => {
