@@ -1,10 +1,12 @@
-import { EventEmitter } from "node:events";
-import type { IncomingMessage } from "node:http";
+import { EventEmitter, once } from "node:events";
+import { IncomingMessage, ServerResponse } from "node:http";
+import { Socket } from "node:net";
 import { PassThrough } from "node:stream";
 
 import type { NextApiResponse } from "next";
 import { Job } from "bullmq";
 import { describe, expect, it, vi } from "vitest";
+import { logger } from "@langfuse/shared/src/server";
 
 import {
   createOtelIngestionWorkerContext,
@@ -16,6 +18,26 @@ import { tryScheduleOtelIngestionWorkerLifecycle } from "@/src/server/otel/otelI
 
 function deferred() {
   return Promise.withResolvers<void>();
+}
+
+function bounded<T>(promise: Promise<T>, timeoutMs = 250): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`Promise did not settle within ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+function settle(promise?: Promise<unknown>) {
+  return bounded(promise?.catch(() => undefined) ?? Promise.resolve()).catch(
+    () => undefined,
+  );
 }
 
 describe("OTel ingestion worker admission", () => {
@@ -131,7 +153,119 @@ function expectContext(
   return result;
 }
 
+function createHttpPair() {
+  const socket = new Socket();
+  const req = new IncomingMessage(socket);
+  req.headers = {};
+  const res = new ServerResponse(req);
+  return { req, res, socket };
+}
+
 describe("OTel ingestion worker request context", () => {
+  it("returns empty before admission for a closed request or response", async () => {
+    const closePair = [
+      async (pair: ReturnType<typeof createHttpPair>) => {
+        const closed = once(pair.req, "close");
+        pair.req.destroy();
+        await closed;
+      },
+      async (pair: ReturnType<typeof createHttpPair>) => {
+        pair.res.end();
+        pair.res.emit("finish");
+      },
+    ];
+
+    for (const close of closePair) {
+      const firstRelease = deferred();
+      const firstStarted = deferred();
+      const first = tryScheduleOtelIngestionWorkerLifecycle(async () => {
+        firstStarted.resolve();
+        await firstRelease.promise;
+      });
+      expect(first).toBeDefined();
+      await bounded(firstStarted.promise);
+
+      const pair = createHttpPair();
+      let contextResult: Promise<OtelIngestionWorkerContextResult> | undefined;
+      let queued: Promise<void> | undefined;
+      let overflow: Promise<void> | undefined;
+      try {
+        await close(pair);
+        contextResult = createOtelIngestionWorkerContext(
+          pair.req,
+          pair.res as unknown as NextApiResponse,
+          "project-id",
+          64,
+        );
+        await expect(bounded(contextResult)).resolves.toEqual({
+          response: {},
+        });
+
+        queued = tryScheduleOtelIngestionWorkerLifecycle(async () => {});
+        overflow = tryScheduleOtelIngestionWorkerLifecycle(async () => {});
+        expect(queued).toBeDefined();
+        expect(overflow).toBeUndefined();
+      } finally {
+        pair.res.emit("close");
+        pair.req.destroy();
+        pair.socket.destroy();
+        firstRelease.resolve();
+        await Promise.all([
+          settle(first),
+          settle(contextResult),
+          settle(queued),
+          settle(overflow),
+        ]);
+      }
+    }
+  });
+
+  it("returns 408 on a body read deadline without aborting the request", async () => {
+    const realTimeout = AbortSignal.timeout;
+    vi.spyOn(AbortSignal, "timeout").mockImplementation(() =>
+      realTimeout.call(AbortSignal, 20),
+    );
+    const pair = createHttpPair();
+    const nextResponse = pair.res as typeof pair.res & NextApiResponse;
+    nextResponse.status = (statusCode: number) => {
+      pair.res.statusCode = statusCode;
+      return nextResponse;
+    };
+    const warning = vi.spyOn(logger, "warn");
+    let contextResult: Promise<OtelIngestionWorkerContextResult> | undefined;
+    let next: Promise<void> | undefined;
+
+    try {
+      contextResult = createOtelIngestionWorkerContext(
+        pair.req,
+        nextResponse,
+        "project-id",
+        64,
+      );
+      pair.req.push("partial");
+      await expect(bounded(contextResult)).resolves.toEqual({
+        response: { error: "Request body read timed out" },
+      });
+      expect(pair.res.statusCode).toBe(408);
+      expect(pair.req.destroyed).toBe(false);
+      expect(warning).toHaveBeenCalledWith(
+        "OTel request body read timed out",
+        expect.objectContaining({ projectId: "project-id" }),
+      );
+
+      pair.res.emit("finish");
+      next = tryScheduleOtelIngestionWorkerLifecycle(async () => {});
+      expect(next).toBeDefined();
+      await bounded(next!);
+    } finally {
+      pair.res.emit("finish");
+      pair.req.destroy();
+      pair.socket.destroy();
+      await Promise.all([settle(contextResult), settle(next)]);
+      vi.restoreAllMocks();
+    }
+  });
+
   it("keeps one waiting body unread and maps exhausted admission to 503", async () => {
     const first = createContext();
     const queued = createContext();

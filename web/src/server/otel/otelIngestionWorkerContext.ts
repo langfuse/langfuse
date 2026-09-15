@@ -18,6 +18,16 @@ const OTEL_REQUEST_BODY_READ_TIMEOUT_MS = 300_000;
 
 let workerCompletionLogged = false;
 
+function isRequestClosed(req: IncomingMessage): boolean {
+  return req.destroyed || req.readableAborted;
+}
+
+function isResponseClosed(res: NextApiResponse): boolean {
+  return (
+    res.destroyed || res.closed || res.writableEnded || res.writableFinished
+  );
+}
+
 export type OtelIngestionWorkerContext = {
   body: Buffer;
   process: (
@@ -40,6 +50,10 @@ export async function createOtelIngestionWorkerContext(
   projectId: string,
   maxBodyBytes: number,
 ): Promise<OtelIngestionWorkerContextResult> {
+  if (isRequestClosed(req) || isResponseClosed(res)) {
+    return { response: {} };
+  }
+
   req.pause();
   const requestAbortController = new AbortController();
   const queueAbortController = new AbortController();
@@ -74,22 +88,31 @@ export async function createOtelIngestionWorkerContext(
 
   req.once("aborted", onRequestAborted);
   req.once("close", onRequestClose);
+  res.once("close", onResponseClose);
 
-  if (requestAbortController.signal.aborted) {
+  if (
+    requestAbortController.signal.aborted ||
+    isRequestClosed(req) ||
+    isResponseClosed(res)
+  ) {
     cleanup();
-    return { response: {} };
+    resolveContext({ response: {} });
+    return contextResult;
   }
 
-  res.once("close", onResponseClose);
   const workerTask = tryScheduleOtelIngestionWorkerLifecycle(async (signal) => {
     queueTaskStarted = true;
-    if (signal?.aborted || requestAbortController.signal.aborted) {
+    res.once("finish", cleanup);
+    if (
+      signal?.aborted ||
+      requestAbortController.signal.aborted ||
+      isRequestClosed(req) ||
+      isResponseClosed(res)
+    ) {
       cleanup();
       resolveContext({ response: {} });
       return;
     }
-
-    res.once("finish", cleanup);
 
     let processPromise: Promise<OtelIngestionResult | undefined> =
       Promise.resolve(undefined);
@@ -103,22 +126,43 @@ export async function createOtelIngestionWorkerContext(
         const bodyPromise = readOtelRequestBody(
           req,
           maxBodyBytes,
-          AbortSignal.any([
-            requestAbortController.signal,
-            bodyReadTimeoutSignal,
-          ]),
+          requestAbortController.signal,
         );
+        let onBodyReadTimeout: (() => void) | undefined;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          onBodyReadTimeout = () => reject(bodyReadTimeoutSignal.reason);
+          if (bodyReadTimeoutSignal.aborted) {
+            onBodyReadTimeout();
+          } else {
+            bodyReadTimeoutSignal.addEventListener("abort", onBodyReadTimeout, {
+              once: true,
+            });
+          }
+        });
         req.resume();
-        body = await bodyPromise;
+        try {
+          body = await Promise.race([bodyPromise, timeoutPromise]);
+        } finally {
+          if (onBodyReadTimeout) {
+            bodyReadTimeoutSignal.removeEventListener(
+              "abort",
+              onBodyReadTimeout,
+            );
+          }
+        }
       } catch (error) {
         if (requestAbortController.signal.aborted) {
           cleanup();
           resolveContext({ response: {} });
         } else if (bodyReadTimeoutSignal.aborted) {
+          // Keep the request signal reserved for genuine client cancellation.
+          // Drain the timed-out body without aborting the IncomingMessage.
+          req.resume();
           logger.warn("OTel request body read timed out", {
             projectId,
             timeoutMs: OTEL_REQUEST_BODY_READ_TIMEOUT_MS,
           });
+          res.setHeader("Connection", "close");
           res.status(408);
           resolveContext({
             response: { error: "Request body read timed out" },
