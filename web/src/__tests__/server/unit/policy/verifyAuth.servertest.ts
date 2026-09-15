@@ -62,6 +62,7 @@ describe("project seam verifyAuth", () => {
 
   const principalOrg = {
     orgId: "o1",
+    organizationCreatedAt: "2026-09-16T00:00:00.000Z",
     plan: "Team" as const,
     rateLimitOverrides: [],
     projectIds: ["p1"],
@@ -206,6 +207,7 @@ describe("project seam verifyAuth", () => {
           projectId: "p1",
           accessLevel: "project",
           orgId: "o1",
+          organizationCreatedAt: "2026-09-16T00:00:00.000Z",
           plan: "Team",
           rateLimitOverrides: [],
           apiKeyId: "ak1",
