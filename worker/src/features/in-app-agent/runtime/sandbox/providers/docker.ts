@@ -4,6 +4,10 @@ import type Docker from "dockerode";
 import { logger } from "@langfuse/shared/src/server";
 
 import type { SandboxFile, SandboxProvider, SandboxSession } from "../types";
+import {
+  assertSandboxRuntimeProtocolVersion,
+  isSandboxRuntimeProtocolMismatchError,
+} from "../protocolVersion";
 
 type DockerExecResult = {
   exitCode: number;
@@ -273,6 +277,7 @@ async function waitForSandboxServer(container: DockerContainer) {
         "status" in result &&
         result.status === "ok"
       ) {
+        assertSandboxRuntimeProtocolVersion(result);
         logger.debug("In-app agent docker sandbox health probe ready", {
           containerId: container.id,
           attempt,
@@ -281,6 +286,9 @@ async function waitForSandboxServer(container: DockerContainer) {
         return;
       }
     } catch (error) {
+      if (isSandboxRuntimeProtocolMismatchError(error)) {
+        throw error;
+      }
       lastError = error;
       logger.debug("In-app agent docker sandbox health probe failed", {
         containerId: container.id,

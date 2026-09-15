@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+/** Bump when the guest HTTP contract changes. The worker refuses a sandbox whose /health protocolVersion does not match. */
+export const SANDBOX_RUNTIME_PROTOCOL_VERSION = 1;
+
 export const SandboxFileSchema = z.object({
   path: z.string(),
   content: z.string(),
