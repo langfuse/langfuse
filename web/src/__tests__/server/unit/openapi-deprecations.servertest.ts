@@ -125,6 +125,16 @@ describe("OpenAPI deprecations", () => {
     );
   });
 
+  // Score writes are the successor the ingestion sunset message points at, so
+  // deprecating them would contradict that guidance.
+  it("keeps the score write endpoint free of a deprecation", () => {
+    const openApi = parseSpec(fs.readFileSync(openApiPath, "utf8"));
+    const scoreCreate = openApi.paths["/api/public/scores"].post;
+
+    expect(scoreCreate.deprecated).toBeUndefined();
+    expect(scoreCreate.description ?? "").not.toContain("Deprecated:");
+  });
+
   it("carries every Fern deprecation message into the operation description", () => {
     const openApi = parseSpec(fs.readFileSync(openApiPath, "utf8"));
 
