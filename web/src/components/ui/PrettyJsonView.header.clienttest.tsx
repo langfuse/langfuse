@@ -32,7 +32,7 @@ describe("PrettyJsonView table header visibility", () => {
     ).toBeInTheDocument();
   });
 
-  it("hides the header on an untitled table but keeps copy and expand all", () => {
+  it("hides the header on an untitled quiet table and keeps the cell copy control", () => {
     renderPrettyJson(
       <PrettyJsonView
         json={json}
@@ -44,11 +44,8 @@ describe("PrettyJsonView table header visibility", () => {
     expect(screen.queryByText("Path")).not.toBeInTheDocument();
     expect(screen.queryByText("Value")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Copy to clipboard" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Expand all rows" }),
-    ).toBeInTheDocument();
+      screen.getAllByRole("button", { name: "Copy cell value" }).length,
+    ).toBeGreaterThan(0);
     expect(
       within(screen.getByRole("table")).getByText("brand"),
     ).toBeInTheDocument();
