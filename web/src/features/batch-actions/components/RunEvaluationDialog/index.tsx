@@ -20,7 +20,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip/Tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { ChevronLeft, ExternalLink, Plus } from "lucide-react";
 import {
