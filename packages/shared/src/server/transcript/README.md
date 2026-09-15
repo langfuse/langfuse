@@ -121,12 +121,11 @@ and observation provenance are excluded. All fields inside parts are included.
 - Root span I/O does not contribute to the transcript, unless it is of type `GENERATION`.
 - Do not include status messages and errors in the transcript for v1. Only revisit should we find strong evidence in production data that this is a valuable feature, or if consumers (e.g. Topics, Session UI) require this information.
 - Expose a helper method to get the first user message and final assistant message from a given thread. This is useful for consumers (e.g. Topics, Session UI) to display the user question and final assistant answer. Consumers must assess for which thread they want to display this information, and how to handle multiple threads.
+- Differences in part-level `providerMetadata` prevents deduplication when the visible message content is otherwise identical. Should production data show strong enough evidence to support this change, this decision should be revisited.
 
 ## Open questions
 
-- How should compacted histories and branches reconnect to existing threads?
-- Should differences in part-level `providerMetadata` prevent deduplication
-  when the visible message content is otherwise identical? They currently do.
+- How should compacted histories and branches reconnect to existing threads? Will venture to find solid examples in production data to guide this decision.
 
 ## Layout
 
