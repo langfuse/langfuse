@@ -119,9 +119,14 @@ trace's observed span if larger. Within that job count, it minimizes project
 boundaries, then minute × trace count, then gaps between trace hashes. These are
 read-locality proxies, not measured ClickHouse scan costs.
 
-Locality selections dispatch immediately per window of at most 1,000 candidates.
-Partials do not carry between windows, which can increase small jobs. The full
-ready-ID snapshot remains unchanged; only selector input is bounded. Selector
+Locality combines each window of at most 1,000 hydrated candidates with retained
+partials. Compatible same-project partials may merge when their buffered time
+intervals overlap and the combined batch respects the cap and envelope limits.
+At most `maxBatchSize - 1` traces are retained across all partials; oldest-due
+partials dispatch first when that budget is exceeded. The last window flushes
+all remaining partials, so carry never outlives the current dispatch run.
+
+The full ready-ID snapshot remains unchanged; only selector input is bounded. Selector
 cost is O(n × k × cap), where k is the fewest feasible jobs. Measure duration
 before increasing scale, especially with distant event times that force many jobs.
 
@@ -174,5 +179,4 @@ lazy retention rules. Drain and expired jobs are removed immediately on success.
 For an already enabled cloud experiment, explicitly set the new read flag to
 `true` when deploying this version if reads should continue; leaving it unset
 drains instead. Upgrade all producers before relying on native expiry: older
-producers do not install or refresh that TTL. Locality partial carry and
-load-test artifacts belong in separate follow-up changes.
+producers do not install or refresh that TTL.
