@@ -160,7 +160,7 @@ describe("evaluation rule v2 repository", () => {
       });
     });
 
-    it("paginates rules in descending update order", async () => {
+    it("uses stable creation order by default and supports explicit sorting", async () => {
       const [older, newer] = await Promise.all([
         createRule({ name: "Older" }),
         createRule({ name: "Newer" }),
@@ -168,11 +168,17 @@ describe("evaluation rule v2 repository", () => {
       await Promise.all([
         prisma.evaluationRule.update({
           where: { id: older.id },
-          data: { updatedAt: new Date("2026-01-01T00:00:00.000Z") },
+          data: {
+            createdAt: new Date("2026-01-01T00:00:00.000Z"),
+            updatedAt: new Date("2026-01-03T00:00:00.000Z"),
+          },
         }),
         prisma.evaluationRule.update({
           where: { id: newer.id },
-          data: { updatedAt: new Date("2026-01-02T00:00:00.000Z") },
+          data: {
+            createdAt: new Date("2026-01-02T00:00:00.000Z"),
+            updatedAt: new Date("2026-01-02T00:00:00.000Z"),
+          },
         }),
       ]);
 
@@ -192,6 +198,23 @@ describe("evaluation rule v2 repository", () => {
         }),
       ).resolves.toEqual({
         rules: [expect.objectContaining({ id: older.id })],
+        totalItems: 2,
+      });
+      await expect(
+        ruleRepository.listRules({
+          prisma,
+          input: {
+            projectId,
+            page: 1,
+            limit: 2,
+            orderBy: { column: "updatedAt", order: "DESC" },
+          },
+        }),
+      ).resolves.toEqual({
+        rules: [
+          expect.objectContaining({ id: older.id }),
+          expect.objectContaining({ id: newer.id }),
+        ],
         totalItems: 2,
       });
     });

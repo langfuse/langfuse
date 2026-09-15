@@ -25,12 +25,7 @@
 // are rejected), so a key observed with more than one type simply drops its
 // hint rather than changing any filter behavior.
 
-export type MetadataLeafType =
-  | "string"
-  | "number"
-  | "boolean"
-  | "array"
-  | "object";
+type MetadataLeafType = "string" | "number" | "boolean" | "array" | "object";
 
 /**
  * Stored per-key type: one observed value type, `"mixed"` once more than one

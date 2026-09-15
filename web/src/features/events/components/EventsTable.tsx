@@ -1,3 +1,6 @@
+import { eventsSearchRegistry } from "../config/eventsSearchRegistry";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -9,20 +12,21 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { startOfMinute } from "date-fns";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import {
-  type UseSidebarFilterStateOptions,
+  buildSidebarFilterSessionContextId,
   useSidebarFilterPresentation,
   useSidebarFilterStateCore,
-} from "@/src/features/filters/hooks/useSidebarFilterState";
+  type UseSidebarFilterStateOptions,
+} from "@/src/features/filters";
 import {
   getEventsColumnName,
   getObservationEventsFilterConfig,
   type ObservationEventsOmittableFilterColumn,
 } from "../config/filter-config";
-import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
 import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type ObservationLevelType,
   type FilterState,
+  type OrderByState,
   BatchExportTableName,
   type ObservationType,
   TableViewPresetTableName,
@@ -34,20 +38,38 @@ import {
   type TracingSearchType,
   type ScoreAggregate,
   buildTracePath,
+  getCachedInputCost,
+  getCachedInputMetric,
 } from "@langfuse/shared";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
-import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
-import { createDurationTableColumn } from "@/src/components/design-system/Table/columns/createDurationTableColumn";
-import { createItemBadgeTableColumn } from "@/src/components/design-system/Table/columns/createItemBadgeTableColumn";
-import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
-import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createDurationTableColumn } from "@/src/components/design-system/table/columns/createDurationTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { createItemBadgeTableColumn } from "@/src/components/design-system/table/columns/createItemBadgeTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
+import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+import {
+  buildAiContext,
+  EventsSearchBarRow,
+  filterStateToQueryText,
+  observedScoreNamesFromOptions,
+  toObservedOptions,
+  useSearchBarEnabled,
+  withMetadataPathOptions,
+} from "@/src/features/search-bar";
 import { cn } from "@/src/utils/tailwind";
-import { getLevelColors } from "@/src/components/level-colors";
-import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { getObservationLevelStatus } from "@/src/components/level-colors";
+import {
+  compactNumberFormatter,
+  numberFormatter,
+  usdFormatter,
+} from "@/src/utils/numbers";
 import {
   formatObservationCost,
   isObservationCostDisplayable,
@@ -59,7 +81,10 @@ import {
 } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
-import { usePaginationWindowPin } from "@/src/components/table/hooks/usePaginationWindowPin";
+import {
+  isLiveTailTimeSort,
+  usePaginationWindowPin,
+} from "@/src/components/table/hooks/usePaginationWindowPin";
 import {
   type TableDateRange,
   TABLE_AGGREGATION_OPTIONS,
@@ -70,13 +95,16 @@ import { DataTableRefreshButton } from "@/src/components/table/data-table-refres
 import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { type RowSelectionState } from "@tanstack/react-table";
-import TableIdOrName from "@/src/components/table/table-id";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
@@ -87,7 +115,6 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import {
   demoteViewOnUserFilterEdit,
   type ExplicitFilterStateChange,
-  type ViewDemotionControllers,
 } from "@/src/features/events/lib/demoteViewOnUserFilterEdit";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
@@ -95,10 +122,7 @@ import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { scoreFilters, useScoreColumns } from "@/src/features/scores";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
 import {
   useAppRootDefault,
@@ -114,7 +138,6 @@ import { getSafeRedirectPath } from "@/src/utils/redirect";
 // } from "@/src/features/events/hooks/useEventsViewMode";
 // import { EventsViewModeToggle } from "@/src/features/events/components/EventsViewModeToggle";
 // import { useObservationCountCheck } from "@/src/features/events/hooks/useObservationCountCheck";
-import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import {
   REFRESH_INTERVALS,
   type RefreshInterval,
@@ -123,18 +146,9 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBarEnabled";
-import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
-import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { useHasEntitlement } from "@/src/features/entitlements";
+import { showSuccessToast } from "@/src/features/notifications";
 import { MobileFullTextSearch } from "@/src/features/events/components/MobileFullTextSearch";
-import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
-import {
-  observedScoreNamesFromOptions,
-  toObservedOptions,
-  withMetadataPathOptions,
-} from "@/src/features/search-bar/lib/observed-options";
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
@@ -294,6 +308,10 @@ export default function ObservationsEventsTable({
   isolateTableState = false,
 }: EventsTableProps) {
   const peekContext = usePeekTableState();
+  const hasBatchExportAccess = useHasProjectAccess({
+    projectId,
+    scope: "batchExports:create",
+  });
   const eventsFilterConfig = useMemo(
     () => getObservationEventsFilterConfig(omittedFilter),
     [omittedFilter],
@@ -311,6 +329,9 @@ export default function ObservationsEventsTable({
   const tableStatePolicy = getEventsTableStatePolicy({
     hideControls,
     isolateTableState,
+    hasParentScope: Boolean(
+      peekContext || userId || sessionId || promptName || promptVersion,
+    ),
   });
   const searchQuery = tableStatePolicy.useIsolatedSearch
     ? isolatedSearchQuery
@@ -485,7 +506,11 @@ export default function ObservationsEventsTable({
   // row/count queries take the pinned upper bound instead, so offset paging does
   // not repeat or skip rows while the window keeps taking in newly ingested ones.
   const { range: rowsDateRange, pinOnLeavingFirstPage } =
-    usePaginationWindowPin(dateRange, limitRows ? 0 : paginationState.page - 1);
+    usePaginationWindowPin(
+      dateRange,
+      limitRows ? 0 : paginationState.page - 1,
+      { enabled: isLiveTailTimeSort(orderByState, "startTime") },
+    );
   const dateRangeFilter: FilterState = toStartTimeFilterState(rowsDateRange);
 
   const appRootDefault = useAppRootDefault({
@@ -497,7 +522,30 @@ export default function ObservationsEventsTable({
   // hook (and its onExplicitFilterStateChange) is created before
   // useTableViewManager runs, so reach the controllers through a ref (same
   // pattern as queryFilterRef).
-  const viewControllersRef = useRef<ViewDemotionControllers | null>(null);
+  const viewControllersRef = useRef<Pick<
+    ReturnType<typeof useTableViewManager>,
+    "selectedViewId" | "handleSetViewId" | "handleUserStateChange"
+  > | null>(null);
+  const resetSearchBarDraftRef = useRef<
+    ((filters: FilterState) => void) | null
+  >(null);
+
+  const handleSearchQueryChange = (query: string | null) => {
+    viewControllersRef.current?.handleUserStateChange(
+      searchQuery ?? "",
+      query ?? "",
+    );
+    setSearchQuery(query);
+  };
+  const handleSearchTypeChange = (next: TracingSearchType[]) => {
+    if (searchQuery?.trim()) {
+      viewControllersRef.current?.handleUserStateChange(
+        [...searchType].sort(),
+        [...next].sort(),
+      );
+    }
+    setSearchType(next);
+  };
 
   const onAppRootExplicitFilterStateChange =
     appRootDefault.onExplicitFilterStateChange;
@@ -508,6 +556,9 @@ export default function ObservationsEventsTable({
     (change: ExplicitFilterStateChange) => {
       onAppRootExplicitFilterStateChange(change);
       demoteViewOnUserFilterEdit(change, viewControllersRef.current);
+      if (change.origin === "user" && change.action === "clear") {
+        resetSearchBarDraftRef.current?.(change.nextFilters);
+      }
     },
     [onAppRootExplicitFilterStateChange],
   );
@@ -665,6 +716,7 @@ export default function ObservationsEventsTable({
       isV4: true,
     },
   );
+  const projectFiltersForSearchBar = queryFilter.projectFiltersForSearchBar;
 
   // Lazy filter-options: load a facet's values when its sidebar section is
   // expanded (also covers active filters, which auto-expand on mount). The
@@ -683,17 +735,19 @@ export default function ObservationsEventsTable({
   // sidebar and time/refresh controls stay.
   const searchBarEnabled = useSearchBarEnabled();
   const searchBarMode =
-    searchBarEnabled &&
-    !hideControls &&
-    !externalFilterState &&
-    !peekContext &&
-    tableStatePolicy.allowGrammarSearch &&
-    // Embedded user/session-detail tables are page-scoped (a userId/sessionId
-    // filter is AND-combined into the query); the bar reads the full FIELDS
-    // registry and would let e.g. `userId:other` fight that scope. Keep it to
-    // full-page surfaces, matching the documented embedded opt-out.
-    !userId &&
-    !sessionId;
+    searchBarEnabled && !hideControls && !externalFilterState;
+  const searchRegistry = eventsSearchRegistry(
+    [
+      ...(eventsFilterConfig.omittedFilterColumns ?? []),
+      ...(userId ? ["userId"] : []),
+      ...(sessionId ? ["sessionId"] : []),
+      ...(promptName ? ["promptName"] : []),
+      ...(promptVersion ? ["promptVersion"] : []),
+    ],
+    tableStatePolicy.useHostSearchScopes,
+  );
+  const sidebarAiFiltersEnabled =
+    !searchBarMode || !searchRegistry.aiFilterPrompt;
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
@@ -732,18 +786,27 @@ export default function ObservationsEventsTable({
     store: searchBarStore,
     commit: searchBarCommit,
     applyFilters: searchBarApplyFilters,
+    resetDraft: resetSearchBarDraft,
   } = useEventsSearchBar({
     projectId,
     tableName: eventsFilterConfig.tableName,
     enabled: searchBarMode,
-    filterState: queryFilter.explicitFilterState,
+    registry: searchRegistry,
+    filterState: queryFilter.searchBarFilterState,
     searchQuery,
     searchType,
     observed: observedOptions,
     setFilterState: setFiltersWrapper,
-    setSearchQuery,
-    setSearchType,
+    setSearchQuery: handleSearchQueryChange,
+    setSearchType: handleSearchTypeChange,
   });
+  resetSearchBarDraftRef.current = (filters) => {
+    resetSearchBarDraft({
+      filters: projectFiltersForSearchBar(filters),
+      searchQuery,
+      searchType,
+    });
+  };
 
   // Non-destructive preview: while a category-chip preset row is hovered or
   // focused, show the query it would apply as the store's preview overlay. The
@@ -755,12 +818,27 @@ export default function ObservationsEventsTable({
       if (!searchBarMode) return;
       const { actions } = searchBarStore.getState();
       if (state) {
-        actions.setPreview(filterStateToQueryText(state.filters).text);
+        actions.setPreview(
+          filterStateToQueryText(
+            projectFiltersForSearchBar(state.filters),
+            {
+              searchQuery: state.searchQuery,
+              searchType,
+            },
+            searchRegistry,
+          ).text,
+        );
       } else {
         actions.clearPreview();
       }
     },
-    [searchBarMode, searchBarStore],
+    [
+      searchBarMode,
+      searchBarStore,
+      projectFiltersForSearchBar,
+      searchRegistry,
+      searchType,
+    ],
   );
 
   // Disabled for now because perhaps confusing
@@ -1106,7 +1184,7 @@ export default function ObservationsEventsTable({
       disabled: isSelectAllCountUnavailable,
       disabledReason: selectAllCountUnavailableReason,
       accessCheck: {
-        scope: "evalJob:CUD",
+        scope: "evaluationRule:CUD",
       },
     },
   ];
@@ -1133,134 +1211,52 @@ export default function ObservationsEventsTable({
       size: 50,
       enableSorting,
     }),
-    {
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "name",
-      id: "name",
       header: getEventsColumnName("name"),
       size: 150,
       enableSorting,
-      cell: ({ row }) => {
-        const value: EventsTableRow["name"] = row.getValue("name");
-        return value ?? undefined;
-      },
-    },
-    {
+    }),
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "traceName",
-      id: "traceName",
       header: getEventsColumnName("traceName"),
       size: 150,
       enableSorting: true,
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("traceName");
-        return value ?? undefined;
-      },
-    },
-    {
+    }),
+    createIOTableColumn<EventsTableRow>({
       accessorKey: "input",
       header: getEventsColumnName("input"),
-      id: "input",
       size: 300,
-      loadingCell: () => (
-        <JsonSkeleton
-          numRows={rowHeight === "s" ? 1 : undefined}
-          borderless
-          className="h-full w-full overflow-hidden px-2 py-1"
-        />
-      ),
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("input");
-        if (isIoPending(row.original.id)) {
-          return (
-            <JsonSkeleton
-              numRows={rowHeight === "s" ? 1 : undefined}
-              borderless
-              className="h-full w-full overflow-hidden px-2 py-1"
-            />
-          );
-        }
-        return value ? (
-          <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
-            singleLine={rowHeight === "s"}
-          />
-        ) : null;
-      },
+      getCell: (value, { row }) =>
+        isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
+      singleLine: rowHeight === "s",
       enableHiding: true,
-    },
-    {
+    }),
+    createIOTableColumn<EventsTableRow>({
       accessorKey: "output",
-      id: "output",
       header: getEventsColumnName("output"),
       size: 300,
-      loadingCell: () => (
-        <JsonSkeleton
-          numRows={rowHeight === "s" ? 1 : undefined}
-          borderless
-          className="h-full w-full overflow-hidden px-2 py-1"
-        />
-      ),
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("output");
-        if (isIoPending(row.original.id)) {
-          return (
-            <JsonSkeleton
-              numRows={rowHeight === "s" ? 1 : undefined}
-              borderless
-              className="h-full w-full overflow-hidden px-2 py-1"
-            />
-          );
-        }
-        return value ? (
-          <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
-            className="bg-accent-light-green"
-            singleLine={rowHeight === "s"}
-          />
-        ) : null;
-      },
+      getCell: (value, { row }) =>
+        isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
+      singleLine: rowHeight === "s",
+      variant: "output",
       enableHiding: true,
-    },
-    {
+    }),
+    createIOTableColumn<EventsTableRow>({
       accessorKey: "metadata",
       header: "Metadata",
       size: 300,
-      loadingCell: () => (
-        <JsonSkeleton
-          numRows={rowHeight === "s" ? 1 : undefined}
-          borderless
-          className="h-full w-full overflow-hidden px-2 py-1"
-        />
-      ),
       headerTooltip: {
         description: "Add metadata to traces to track additional information.",
         href: "https://langfuse.com/docs/observability/features/metadata",
       },
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("metadata");
-        if (isIoPending(row.original.id)) {
-          return (
-            <JsonSkeleton
-              numRows={rowHeight === "s" ? 1 : undefined}
-              borderless
-              className="h-full w-full overflow-hidden px-2 py-1"
-            />
-          );
-        }
-        return value ? (
-          <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
-            singleLine={rowHeight === "s"}
-          />
-        ) : null;
-      },
+      getCell: (value, { row }) =>
+        isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
+      singleLine: rowHeight === "s",
       enableHiding: true,
-    },
-    {
+    }),
+    createStatusTableColumn<EventsTableRow, ObservationLevelType>({
       accessorKey: "level",
-      id: "level",
       header: getEventsColumnName("level"),
       size: 100,
       headerTooltip: {
@@ -1269,26 +1265,14 @@ export default function ObservationsEventsTable({
         href: "https://langfuse.com/docs/observability/features/log-levels",
       },
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: ObservationLevelType | undefined = row.getValue("level");
-        return value ? (
-          <span
-            className={cn(
-              "rounded-sm p-0.5 text-xs",
-              getLevelColors(value).bg,
-              getLevelColors(value).text,
-            )}
-          >
-            {value}
-          </span>
-        ) : undefined;
-      },
       enableSorting,
-    },
-    {
+      isLive: false,
+      getStatus: (level) =>
+        level ? getObservationLevelStatus(level) : undefined,
+    }),
+    createIOTableColumn<EventsTableRow>({
       accessorKey: "statusMessage",
       header: getEventsColumnName("statusMessage"),
-      id: "statusMessage",
       size: 150,
       headerTooltip: {
         description:
@@ -1297,17 +1281,9 @@ export default function ObservationsEventsTable({
       },
       enableHiding: true,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("statusMessage");
-        return value ? (
-          <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
-            singleLine={rowHeight === "s"}
-          />
-        ) : undefined;
-      },
-    },
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
     createDurationTableColumn<EventsTableRow>({
       accessorKey: "latency",
       header: getEventsColumnName("latency"),
@@ -1352,54 +1328,40 @@ export default function ObservationsEventsTable({
       defaultHidden: true,
       cell: () => {
         return observations.status === "loading" ? (
-          <TableTextLoadingCell />
+          <Skeleton className="h-4 w-1/2" />
         ) : null;
       },
       columns: [
-        {
-          accessorKey: "inputCost",
+        createTextTableColumn<EventsTableRow>({
+          accessorFn: (row) =>
+            formatObservationCost(row.cost.inputCost, row.type),
           id: "inputCost",
           header: getEventsColumnName("inputCost"),
           size: 120,
-          loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }) => {
-            const value = row.getValue("cost") as {
-              inputCost: number | undefined;
-              outputCost: number | undefined;
-            };
-
-            return (
-              <span>
-                {formatObservationCost(value.inputCost, row.original.type)}
-              </span>
-            );
-          },
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
-        {
-          accessorKey: "outputCost",
+        }),
+        createNumberTableColumn<EventsTableRow>({
+          accessorFn: (row) => getCachedInputCost(row.costDetails),
+          id: "cachedInputCost",
+          header: getEventsColumnName("cachedInputCost"),
+          size: 140,
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting,
+          formatter: (value) => usdFormatter(value),
+        }),
+        createTextTableColumn<EventsTableRow>({
+          accessorFn: (row) =>
+            formatObservationCost(row.cost.outputCost, row.type),
           id: "outputCost",
           header: getEventsColumnName("outputCost"),
           size: 120,
-          loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }) => {
-            const value = row.getValue("cost") as {
-              inputCost: number | undefined;
-              outputCost: number | undefined;
-            };
-
-            return (
-              <span>
-                {formatObservationCost(value.outputCost, row.original.type)}
-              </span>
-            );
-          },
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
+        }),
       ] satisfies LangfuseColumnDef<EventsTableRow>[],
     },
     createNumberTableColumn<EventsTableRow>({
@@ -1409,8 +1371,7 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      formatter: (value) => numberFormatter(value, 0, 0),
     }),
     createNumberTableColumn<EventsTableRow>({
       accessorKey: "toolCalls",
@@ -1419,8 +1380,7 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      formatter: (value) => numberFormatter(value, 0, 0),
     }),
     {
       accessorKey: "timeToFirstToken",
@@ -1435,7 +1395,11 @@ export default function ObservationsEventsTable({
 
         return (
           <span>
-            {timeToFirstToken ? formatIntervalSeconds(timeToFirstToken) : "-"}
+            {timeToFirstToken ? (
+              formatIntervalSeconds(timeToFirstToken)
+            ) : (
+              <EmptyValue />
+            )}
           </span>
         );
       },
@@ -1448,35 +1412,28 @@ export default function ObservationsEventsTable({
       defaultHidden: true,
       cell: () => {
         return observations.status === "loading" ? (
-          <TableTextLoadingCell />
+          <Skeleton className="h-4 w-1/2" />
         ) : null;
       },
       columns: [
-        {
-          accessorKey: "tokensPerSecond",
+        createNumberTableColumn<EventsTableRow>({
+          accessorFn: (row) => {
+            const { latency, usage } = row;
+            if (latency === undefined) return undefined;
+            if (usage.outputUsage === 0 && usage.totalUsage === 0)
+              return undefined;
+            if (!usage.outputUsage || !latency) return undefined;
+
+            return Number((usage.outputUsage / latency).toFixed(1));
+          },
           id: "tokensPerSecond",
           header: "Tokens per second",
           size: 200,
-          cell: ({ row }) => {
-            const latency: number | undefined = row.getValue("latency");
-            const usage = row.getValue("usage") as {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            };
-            return latency !== undefined &&
-              (usage.outputUsage !== 0 || usage.totalUsage !== 0) ? (
-              <span>
-                {usage.outputUsage && latency
-                  ? Number((usage.outputUsage / latency).toFixed(1))
-                  : undefined}
-              </span>
-            ) : undefined;
-          },
+          formatter: (value) => String(value),
           defaultHidden: true,
           enableHiding: true,
           enableSorting,
-        },
+        }),
         createNumberTableColumn<EventsTableRow>({
           id: "inputTokens",
           accessorFn: (row) => row.usage.inputUsage,
@@ -1485,8 +1442,17 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
+          formatter: (value) => numberFormatter(value, 0, 0),
+        }),
+        createNumberTableColumn<EventsTableRow>({
+          accessorFn: (row) => getCachedInputMetric(row.usageDetails),
+          id: "cachedInputTokens",
+          header: getEventsColumnName("cachedInputTokens"),
+          size: 140,
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting,
+          formatter: (value) => numberFormatter(value, 0, 0),
         }),
         createNumberTableColumn<EventsTableRow>({
           id: "outputTokens",
@@ -1496,8 +1462,7 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
+          formatter: (value) => numberFormatter(value, 0, 0),
         }),
         createNumberTableColumn<EventsTableRow>({
           id: "totalTokens",
@@ -1507,8 +1472,7 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
+          formatter: (value) => numberFormatter(value, 0, 0),
         }),
       ] satisfies LangfuseColumnDef<EventsTableRow>[],
     },
@@ -1520,22 +1484,24 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       cell: ({ row }) => {
-        const model = row.getValue("providedModelName") as string;
+        const model = row.getValue("providedModelName") as
+          | string
+          | null
+          | undefined;
         const modelId = row.getValue("modelId") as string | undefined;
 
-        return (
+        return model ? (
           <ProvidedModelNameCell
             modelName={model}
             modelId={modelId}
             projectId={projectId}
             usageDetails={row.original.usageDetails}
           />
-        );
+        ) : undefined;
       },
     },
-    {
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "promptName",
-      id: "promptName",
       header: getEventsColumnName("promptName"),
       headerTooltip: {
         description: "Link to prompt version in Langfuse prompt management.",
@@ -1544,13 +1510,14 @@ export default function ObservationsEventsTable({
       size: 200,
       enableHiding: true,
       enableSorting,
-      cell: ({ row }) => {
+      getValue: (_value, { row }) => {
         const promptName = row.original.promptName;
         const promptVersion = row.original.promptVersion;
-        const value = `${promptName} (v${promptVersion})`;
-        return promptName && promptVersion && <TableIdOrName value={value} />;
+        return promptName && promptVersion
+          ? `${promptName} (v${promptVersion})`
+          : undefined;
       },
-    },
+    }),
     createBadgeTableColumn<EventsTableRow>({
       accessorKey: "environment",
       header: getEventsColumnName("environment"),
@@ -1571,7 +1538,7 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return isColumnLoading ? <TableTextLoadingCell /> : null;
+        return isColumnLoading ? <Skeleton className="h-4 w-1/2" /> : null;
       },
       columns: scoreColumns,
     },
@@ -1583,32 +1550,23 @@ export default function ObservationsEventsTable({
       enableSorting,
       defaultHidden: true,
     }),
-    {
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "traceId",
-      id: "traceId",
       header: getEventsColumnName("traceId"),
       size: 100,
-      cell: ({ row }) => {
-        const value = row.getValue("traceId");
-        return typeof value === "string" ? (
-          <TableIdOrName value={value} />
-        ) : undefined;
-      },
       enableSorting,
       enableHiding: true,
       defaultHidden: true,
-    },
-    {
+    }),
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "modelId",
-      id: "modelId",
       header: getEventsColumnName("modelId"),
       size: 100,
       enableHiding: true,
       defaultHidden: true,
-    },
-    {
+    }),
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "version",
-      id: "version",
       header: getEventsColumnName("version"),
       size: 100,
       headerTooltip: {
@@ -1618,10 +1576,9 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-    },
-    {
+    }),
+    createTextTableColumn<EventsTableRow>({
       accessorKey: "release",
-      id: "release",
       header: getEventsColumnName("release"),
       size: 100,
       headerTooltip: {
@@ -1631,23 +1588,21 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-    },
-    {
+    }),
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "userId",
-      id: "userId",
       header: getEventsColumnName("userId"),
       size: 150,
       enableHiding: true,
       defaultHidden: true,
-    },
-    {
+    }),
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "sessionId",
-      id: "sessionId",
       header: getEventsColumnName("sessionId"),
       size: 150,
       enableHiding: true,
       defaultHidden: true,
-    },
+    }),
   ];
 
   const [columnVisibility, setColumnVisibilityState] =
@@ -1663,6 +1618,8 @@ export default function ObservationsEventsTable({
 
   const peekNavigationProps = usePeekNavigation({
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: eventsFilterConfig.tableName,
+    isV4: true,
     paramsToMirrorPeekValue: ["observation"],
     extractParamsValuesFromRow: (row: EventsTableRow) => ({
       traceId: row.traceId || "",
@@ -1700,8 +1657,32 @@ export default function ObservationsEventsTable({
     currentExpandedFilters: queryFilter.expanded,
     disabled: tableStatePolicy.disableSavedViews,
     allowBackendSystemPresets: true,
+    onViewApplied: (viewState) =>
+      resetSearchBarDraft({
+        filters: projectFiltersForSearchBar(viewState.filters),
+        searchQuery: viewState.searchQuery ?? null,
+        searchType,
+      }),
   });
   viewControllersRef.current = viewControllers;
+
+  const handleOrderByChange = (next: OrderByState) => {
+    viewControllers.handleUserStateChange(orderByState, next);
+    setOrderByState(next);
+  };
+  const handleColumnOrderChange: typeof setColumnOrder = (update) => {
+    const next = typeof update === "function" ? update(columnOrder) : update;
+    viewControllers.handleUserStateChange(columnOrder, next);
+    setColumnOrder(next);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibilityState = (
+    update,
+  ) => {
+    const next =
+      typeof update === "function" ? update(columnVisibility) : update;
+    viewControllers.handleUserStateChange(columnVisibility, next);
+    setColumnVisibilityState(next);
+  };
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
     if (hideControls) return undefined;
@@ -1842,42 +1823,52 @@ export default function ObservationsEventsTable({
               resultCount={totalCount}
               onClearAll={() => {
                 queryFilter.clearAll();
-                setSearchQuery("");
+                handleSearchQueryChange("");
+                resetSearchBarDraft({
+                  filters: projectFiltersForSearchBar([]),
+                  searchQuery: null,
+                  searchType,
+                });
               }}
               search={
                 searchBarMode ? (
-                  <EventsSearchBarRow
-                    projectId={projectId}
-                    tableName={eventsFilterConfig.tableName}
-                    store={searchBarStore}
-                    commit={searchBarCommit}
-                    observed={observedOptions}
-                    erroredColumns={erroredColumns}
-                    fieldReason={
-                      chartActive ? chartSearchFieldReason : undefined
-                    }
-                    freeTextReason={
-                      chartFreeTextIgnored
-                        ? CHART_SEARCH_QUERY_REASON
-                        : undefined
-                    }
-                    onApplyFilters={searchBarApplyFilters}
-                    onRequestColumns={requestColumns}
-                    aiDataContext={aiDataContext}
-                    aiScoreNames={aiScoreNames}
-                    // Flush inside the sheet: the section container owns the
-                    // padding, so the bar lines up with time range / presets.
-                    className="p-0"
-                  />
+                  <div className="flex min-w-0 flex-col gap-2">
+                    <EventsSearchBarRow
+                      key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+                      registry={searchRegistry}
+                      projectId={projectId}
+                      tableName={eventsFilterConfig.tableName}
+                      isV4={true}
+                      store={searchBarStore}
+                      commit={searchBarCommit}
+                      observed={observedOptions}
+                      erroredColumns={erroredColumns}
+                      fieldReason={
+                        chartActive ? chartSearchFieldReason : undefined
+                      }
+                      freeTextReason={
+                        chartFreeTextIgnored
+                          ? CHART_SEARCH_QUERY_REASON
+                          : undefined
+                      }
+                      onApplyFilters={searchBarApplyFilters}
+                      onRequestColumns={requestColumns}
+                      aiDataContext={aiDataContext}
+                      aiScoreNames={aiScoreNames}
+                      // Flush inside the sheet: the section container owns the
+                      // padding, so the bar lines up with time range / presets.
+                      className="p-0"
+                    />
+                  </div>
                 ) : (
-                  // No grammar bar (userId/sessionId-scoped tables): fall back
-                  // to the legacy full-text search so mobile keeps the search
-                  // desktop has via the toolbar's searchConfig (LFE-11067).
+                  // Externally controlled filters retain the host's search input.
                   <MobileFullTextSearch
                     currentQuery={searchQuery ?? undefined}
-                    updateQuery={setSearchQuery}
+                    updateQuery={handleSearchQueryChange}
                     tableAllowsFullTextSearch
                     metadataSearchFields={["ID", "Name", "Trace Name", "Model"]}
+                    tableName={eventsFilterConfig.tableName}
+                    isV4
                   />
                 )
               }
@@ -1935,9 +1926,9 @@ export default function ObservationsEventsTable({
               }
               facets={
                 <DataTableControls
-                  key={viewControllers.selectedViewId ?? "no-view"}
+                  key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                   queryFilter={queryFilter}
-                  filterWithAI={!searchBarMode}
+                  filterWithAI={sidebarAiFiltersEnabled}
                   blockedColumnReason={
                     chartActive ? chartFilterExclusionReason : undefined
                   }
@@ -1973,28 +1964,41 @@ export default function ObservationsEventsTable({
                 page header via TableHeaderControls; otherwise they remain in
                 the toolbar row below. */}
             {searchBarMode && (
-              <EventsSearchBarRow
-                projectId={projectId}
-                tableName={eventsFilterConfig.tableName}
-                store={searchBarStore}
-                commit={searchBarCommit}
-                observed={observedOptions}
-                erroredColumns={erroredColumns}
-                fieldReason={chartActive ? chartSearchFieldReason : undefined}
-                freeTextReason={
-                  chartFreeTextIgnored ? CHART_SEARCH_QUERY_REASON : undefined
-                }
-                onApplyFilters={searchBarApplyFilters}
-                onRequestColumns={requestColumns}
-                aiDataContext={aiDataContext}
-                aiScoreNames={aiScoreNames}
-              />
+              <div className="flex min-w-0 items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <EventsSearchBarRow
+                    key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+                    registry={searchRegistry}
+                    projectId={projectId}
+                    tableName={eventsFilterConfig.tableName}
+                    isV4={true}
+                    store={searchBarStore}
+                    commit={searchBarCommit}
+                    observed={observedOptions}
+                    erroredColumns={erroredColumns}
+                    fieldReason={
+                      chartActive ? chartSearchFieldReason : undefined
+                    }
+                    freeTextReason={
+                      chartFreeTextIgnored
+                        ? CHART_SEARCH_QUERY_REASON
+                        : undefined
+                    }
+                    onApplyFilters={searchBarApplyFilters}
+                    onRequestColumns={requestColumns}
+                    aiDataContext={aiDataContext}
+                    aiScoreNames={aiScoreNames}
+                  />
+                </div>
+              </div>
             )}
             {/* Toolbar spanning full width */}
             <DataTableToolbar
               columns={columns}
               rowClassName={searchBarMode ? "my-1" : undefined}
               filterState={queryFilter.explicitFilterState}
+              tableName={eventsFilterConfig.tableName}
+              isV4={true}
               searchConfig={
                 // In search-bar mode full-text search (bare text +
                 // content:/input:/output:) lives inline in the bar, so the
@@ -2008,10 +2012,10 @@ export default function ObservationsEventsTable({
                         "Trace Name",
                         "Model",
                       ],
-                      updateQuery: setSearchQuery,
+                      updateQuery: handleSearchQueryChange,
                       currentQuery: searchQuery ?? undefined,
                       searchType,
-                      setSearchType,
+                      setSearchType: handleSearchTypeChange,
                       tableAllowsFullTextSearch: true,
                     }
               }
@@ -2027,9 +2031,9 @@ export default function ObservationsEventsTable({
                 "promptName",
               ]}
               columnVisibility={columnVisibility}
-              setColumnVisibility={setColumnVisibilityState}
+              setColumnVisibility={handleColumnVisibilityChange}
               columnOrder={columnOrder}
-              setColumnOrder={setColumnOrder}
+              setColumnOrder={handleColumnOrderChange}
               orderByState={orderByState}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
@@ -2047,17 +2051,19 @@ export default function ObservationsEventsTable({
                 showControlsInPageHeader ? undefined : refreshConfig
               }
               actionButtons={[
-                <BatchExportTableButton
-                  {...{
-                    projectId,
-                    filterState,
-                    orderByState,
-                    searchQuery,
-                    searchType,
-                  }}
-                  tableName={BatchExportTableName.Events}
-                  key="batchExport"
-                />,
+                hasBatchExportAccess ? (
+                  <BatchExportTableButton
+                    {...{
+                      projectId,
+                      filterState,
+                      orderByState,
+                      searchQuery,
+                      searchType,
+                    }}
+                    tableName={BatchExportTableName.Events}
+                    key="batchExport"
+                  />
+                ) : null,
                 !chartActive &&
                 (selectedObservationIds.length > 0 || selectAll) ? (
                   <AddTracesToAnnotationQueueDialogController
@@ -2126,9 +2132,8 @@ export default function ObservationsEventsTable({
                       pageIndex: paginationState.page - 1,
                     }
               }
-              // In bar mode AI filtering lives in the search bar ("Ask AI"),
-              // so the legacy wand is only offered when the bar is absent.
-              filterWithAI={!searchBarMode}
+              // Scoped registries keep AI filtering in the sidebar.
+              filterWithAI={sidebarAiFiltersEnabled}
               // Category-preset chips + "My Views" pill share the toolbar row,
               // left-aligned, so they sit on the same line as the right-aligned
               // Columns/Export controls.
@@ -2174,12 +2179,9 @@ export default function ObservationsEventsTable({
               in the layout). */}
           {!hideControls && !isMobile && (
             <DataTableControls
-              // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
-              key={viewControllers.selectedViewId ?? "no-view"}
+              key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
               queryFilter={queryFilter}
-              // In bar mode AI filtering lives in the search bar; only offer the
-              // sidebar wand on non-bar surfaces (embedded scoped tables).
-              filterWithAI={!searchBarMode}
+              filterWithAI={sidebarAiFiltersEnabled}
               // In chart mode, block filters the chart can't apply — active or
               // not — dimmed + hover reason. Stateless per-column resolver,
               // matching the search bar.
@@ -2290,12 +2292,12 @@ export default function ObservationsEventsTable({
                 rowSelection={selectedRows}
                 highlightAllRows={selectAll}
                 setRowSelection={setSelectedRows}
-                setOrderBy={setOrderByState}
+                setOrderBy={handleOrderByChange}
                 orderBy={orderByState}
                 columnOrder={columnOrder}
-                onColumnOrderChange={setColumnOrder}
+                onColumnOrderChange={handleColumnOrderChange}
                 columnVisibility={columnVisibility}
-                onColumnVisibilityChange={setColumnVisibilityState}
+                onColumnVisibilityChange={handleColumnVisibilityChange}
                 rowHeight={rowHeight}
                 onRowClick={(row, event) => {
                   // Handle Command/Ctrl+click to open observation in new tab

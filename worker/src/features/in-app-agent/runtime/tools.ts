@@ -39,8 +39,8 @@ import {
   IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
 } from "@langfuse/shared/in-app-agent";
 import {
-  getInAppAgentSilentMcpOutputMessage,
   isSilentInAppAgentMcpToolOutput,
+  toAiSdkToolModelOutput,
   type CompletedInAppAgentMcpToolCall,
   type SilentInAppAgentMcpToolOutput,
 } from "@langfuse/shared/in-app-agent/server/toolResults";
@@ -219,19 +219,12 @@ export function withOptionalSilentMcpOutput(params: {
       };
       tool.toModelOutput = (output) => {
         if (isSilentInAppAgentMcpToolOutput(output)) {
-          if (!output.toolCallId) {
-            return output.output;
-          }
-
-          return output.toolName
-            ? getInAppAgentSilentMcpOutputMessage(
-                output.toolName,
-                output.toolCallId,
-              )
-            : output.output;
+          return toAiSdkToolModelOutput(output);
         }
 
-        return toModelOutput ? toModelOutput(output) : output;
+        return toAiSdkToolModelOutput(
+          toModelOutput ? toModelOutput(output) : output,
+        );
       };
 
       return [toolName, tool];
@@ -431,9 +424,11 @@ const InAppAgentRedirectParamsSchema = z.object({
   timeRange: InAppAgentTableTimeRangeSchema.optional(),
 });
 
+// Mastra's OpenAI compat layer duplicates each optional level; at three nested
+// optionals OpenAI silently rejects the tool set. Keep `params` required.
 const InAppAgentRedirectToolInputSchema = InAppAgentRedirectBaseSchema.extend({
   destination: InAppAgentRedirectDestinationSchema,
-  params: InAppAgentRedirectParamsSchema.optional(),
+  params: InAppAgentRedirectParamsSchema,
 }).superRefine((value, ctx) => {
   const result = InAppAgentRedirectToolInputStrictSchema.safeParse(value);
 
@@ -459,7 +454,7 @@ export function createRedirectActionTool({
   return createTool({
     id: IN_APP_AGENT_REDIRECT_TOOL_NAME,
     description:
-      "Propose a user-confirmed navigation action to a known Langfuse page. This does not navigate automatically.",
+      "Propose a user-confirmed navigation action to a known Langfuse page. This does not navigate automatically. Always include params; pass {} when the destination takes none.",
     inputSchema: InAppAgentRedirectToolInputSchema,
     execute: async (input) => {
       return getRedirectActionToolResult({

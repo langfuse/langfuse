@@ -1,6 +1,5 @@
 import { DatasetRunsTable } from "@/src/features/datasets/components/DatasetRunsTable";
 import { api } from "@/src/utils/api";
-import { useRouter } from "next/router";
 import Link from "next/link";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { UpdateDatasetDialogController } from "@/src/features/datasets/components/UpdateDatasetDialogController";
@@ -38,18 +37,39 @@ import { TemplateSelector } from "@/src/features/evals/components/template-selec
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
+import {
+  EvaluatorForm,
+  useEvaluatorFormTemplate,
+} from "@/src/features/evals/components/evaluator-form";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
 import { ExperimentsTable } from "@/src/features/experiments/components/table";
 import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import {
+  RouteParamsPendingFallback,
+  useReadyRouteParams,
+} from "@/src/hooks/useReadyRouteParams";
 
-export default function Dataset() {
-  const router = useRouter();
+export default function DatasetExperimentsPage() {
+  const route = useReadyRouteParams(["projectId", "datasetId"]);
+  if (!route.ready) return <RouteParamsPendingFallback />;
+  return (
+    <DatasetExperimentsView
+      projectId={route.params.projectId}
+      datasetId={route.params.datasetId}
+    />
+  );
+}
+
+function DatasetExperimentsView({
+  projectId,
+  datasetId,
+}: {
+  projectId: string;
+  datasetId: string;
+}) {
   const capture = usePostHogClientCapture();
-  const projectId = router.query.projectId as string;
-  const datasetId = router.query.datasetId as string;
   const utils = api.useUtils();
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
@@ -65,10 +85,13 @@ export default function Dataset() {
     }[]
   >([]);
 
-  const dataset = api.datasets.byId.useQuery({
-    datasetId,
-    projectId,
-  });
+  const dataset = api.datasets.byId.useQuery(
+    {
+      datasetId,
+      projectId,
+    },
+    { enabled: Boolean(projectId) && Boolean(datasetId) },
+  );
 
   const hasReadAccess = useHasProjectAccess({
     projectId,
@@ -93,6 +116,9 @@ export default function Dataset() {
     if (isExperimentsBetaActive) {
       utils.experiments.all.invalidate();
       utils.experiments.countAll.invalidate();
+      // The empty-window fallback is its own query, and a new run belongs in
+      // it: without this it keeps serving its cached list.
+      utils.experiments.mostRecent.invalidate();
     } else {
       utils.datasets.runsByDatasetId.invalidate();
       utils.datasets.baseRunDataByDatasetId.invalidate();
@@ -110,25 +136,36 @@ export default function Dataset() {
     });
   };
 
-  const hasEvalReadAccess = useHasProjectAccess({
+  const hasEvaluationRuleReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:read",
+    scope: "evaluationRule:read",
   });
 
-  const hasEvalWriteAccess = useHasProjectAccess({
+  const hasEvaluationRuleWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
+  });
+
+  const hasEvaluatorReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluator:read",
   });
 
   const evalTemplates = api.evals.latestTemplates.useQuery(
     { projectId },
-    { enabled: !isExperimentsBetaActive },
+    {
+      enabled:
+        !isExperimentsBetaActive &&
+        hasEvaluatorReadAccess &&
+        Boolean(projectId),
+    },
   );
 
   const evaluators = api.evals.jobConfigsByTarget.useQuery(
     { projectId, targetObject: ["dataset", "experiment"] },
     {
-      enabled: !isExperimentsBetaActive && hasEvalReadAccess && !!datasetId,
+      enabled:
+        !isExperimentsBetaActive && hasEvaluationRuleReadAccess && !!datasetId,
     },
   );
 
@@ -147,6 +184,11 @@ export default function Dataset() {
     evaluatorsData: evaluators.data,
     evalTemplatesData: evalTemplates.data,
     refetchEvaluators: evaluators.refetch,
+  });
+  const evalTemplate = useEvaluatorFormTemplate({
+    evalTemplates: evalTemplates.data?.templates ?? [],
+    evalTemplate: selectedEvaluatorData?.evaluator.evalTemplate,
+    templateId: selectedEvaluatorData?.templateId,
   });
   // Callback for preprocessing evaluator form values
   // For experiment evaluators, we only run on new data (not historic)
@@ -266,7 +308,7 @@ export default function Dataset() {
               </DialogContent>
             </Dialog>
 
-            {hasEvalReadAccess && (
+            {hasEvaluationRuleReadAccess && hasEvaluatorReadAccess ? (
               <div className="w-fit">
                 <TemplateSelector
                   projectId={projectId}
@@ -274,10 +316,10 @@ export default function Dataset() {
                   evalTemplates={evalTemplates.data?.templates ?? []}
                   onConfigureTemplate={handleConfigureEvaluator}
                   onSelectEvaluator={handleSelectEvaluator}
-                  disabled={!hasEvalWriteAccess}
+                  disabled={!hasEvaluationRuleWriteAccess}
                 />
               </div>
-            )}
+            ) : null}
 
             <DatasetAnalytics
               key="dataset-analytics"
@@ -364,7 +406,7 @@ export default function Dataset() {
         setScoreOptions={setScoreOptions}
       />
       {/* Dialog for configuring evaluators */}
-      {selectedEvaluatorData && (
+      {selectedEvaluatorData && evalTemplate && (
         <Dialog
           open={showEvaluatorForm}
           onOpenChange={(open) => {
@@ -383,8 +425,7 @@ export default function Dataset() {
             <EvaluatorForm
               useDialog={true}
               projectId={projectId}
-              evalTemplates={evalTemplates.data?.templates ?? []}
-              templateId={selectedEvaluatorData.templateId}
+              evalTemplate={evalTemplate}
               existingEvaluator={selectedEvaluatorData.evaluator}
               mode={selectedEvaluatorData.evaluator.id ? "edit" : "create"}
               hideTargetSection={!selectedEvaluatorData.evaluator.id}

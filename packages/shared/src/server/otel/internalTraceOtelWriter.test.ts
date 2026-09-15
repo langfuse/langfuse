@@ -37,7 +37,18 @@ const codeEvalRootInput: InternalOtelSpanInput = {
   statusMessage: "Code eval execution failed: boom",
   input: '{"item":{}}',
   output: '{"error":"boom"}',
-  metadata: { dispatcher_name: "test-dispatcher" },
+  metadata: {
+    dispatcher_name: "test-dispatcher",
+    evaluator_id: "evaluator-1",
+    evaluation_rule_id: "legacy-rule-1",
+    job_configuration_id: "legacy-rule-1",
+    evaluator_test: "true",
+  },
+  evaluationContext: {
+    evaluatorId: "evaluator-1",
+    evaluationRuleId: "legacy-rule-1",
+    evaluatorExecutionIsTest: true,
+  },
 };
 
 // Convert the published OTLP payload through the REAL OTel ingestion
@@ -92,6 +103,22 @@ describe("writeInternalTraceViaOtelIngestion", () => {
     });
     expect(root.metadata).toMatchObject({
       dispatcher_name: "test-dispatcher",
+      evaluator_id: "evaluator-1",
+      evaluation_rule_id: "legacy-rule-1",
+      job_configuration_id: "legacy-rule-1",
+      evaluator_test: "true",
+    });
+    expect(root).toMatchObject({
+      evaluationContext: {
+        evaluatorId: "evaluator-1",
+        evaluationRuleId: "legacy-rule-1",
+        evaluatorExecutionIsTest: true,
+      },
+    });
+    expect(root.metadata.attributes).toMatchObject({
+      "langfuse.evaluator.id": "evaluator-1",
+      "langfuse.evaluation.rule.id": "legacy-rule-1",
+      "langfuse.evaluator.execution.is_test": "true",
     });
   });
 

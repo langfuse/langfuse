@@ -22,13 +22,16 @@ export function useJsonBetaToggle(
       localStorage.getItem("jsonViewPreference") === '"json-beta"',
   );
 
-  // Derive UI tab selection (2 tabs: pretty or json)
+  // Derive UI tab selection (pretty or json). A previously persisted
+  // "pretty-beta" preference falls back to the Formatted tab.
   const selectedViewTab =
-    currentView === "pretty" ? ("pretty" as const) : ("json" as const);
+    currentView === "pretty" || (currentView as string) === "pretty-beta"
+      ? ("pretty" as const)
+      : ("json" as const);
 
   const handleViewTabChange = (tab: string) => {
     if (tab === "pretty") {
-      setCurrentView("pretty");
+      setCurrentView(tab);
     } else {
       // When switching to JSON, use beta preference
       setCurrentView(jsonBetaEnabled ? "json-beta" : "json");

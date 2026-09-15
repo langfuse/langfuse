@@ -1,13 +1,14 @@
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import Header from "@/src/components/layouts/header";
+import { Button } from "@/src/components/ui/button";
 import { MembershipInvitesPage } from "@/src/features/rbac/components/MembershipInvitesPage";
 import { MembersTable } from "@/src/features/rbac/components/MembersTable";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import RenameOrganization from "@/src/features/organizations/components/RenameOrganization";
+import { DeleteOrganizationDialogController } from "@/src/features/organizations/components/DeleteOrganizationDialogController";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
-import { DeleteOrganizationButton } from "@/src/features/organizations/components/DeleteOrganizationButton";
 import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
 import ContainerPage from "@/src/components/layouts/container-page";
@@ -22,10 +23,18 @@ import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/Org
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flags/components/OrganizationFeaturePreviewsSettings";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import {
+  GatewayApiKeysPage,
+  GatewayConfigurationPage,
+  GatewayModelsPage,
+  GatewayProvidersPage,
+} from "@/src/features/ai-gateway";
 
 type OrganizationSettingsPage = {
   title: string;
   slug: string;
+  section?: string;
   show?: boolean | (() => boolean);
   cmdKKeywords?: string[];
 } & ({ content: React.ReactNode } | { href: string });
@@ -44,10 +53,18 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     organizationId: organization?.id,
     scope: "organization:update",
   });
+  const canManageGateway = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "gateway:manage",
+  });
   const plan = usePlan();
   const isLangfuseCloud = isCloudPlan(plan) ?? false;
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
   const showV4Migration = useV4UpgradeUiFlag();
+  const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
+    enableForAdmins: false,
+    organizationId: organization?.id,
+  });
 
   if (!organization) return [];
 
@@ -58,6 +75,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     showAuditLogs,
     isLangfuseCloud,
     showV4Migration,
+    showAiGateway: canManageGateway && isAiGatewayEnabled,
     showFeaturePreviews:
       canUpdateOrganization && organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
   });
@@ -70,19 +88,31 @@ export const getOrganizationSettingsPages = ({
   showAuditLogs,
   isLangfuseCloud,
   showV4Migration,
+  showAiGateway,
   showFeaturePreviews,
 }: {
-  organization: { id: string; name: string; metadata: Record<string, unknown> };
+  organization: {
+    id: string;
+    name: string;
+    metadata: Record<string, unknown>;
+    projects: Array<{
+      id: string;
+      name: string;
+      deletedAt?: Date | string | null;
+    }>;
+  };
   showBillingSettings: boolean;
   showOrgApiKeySettings: boolean;
   showAuditLogs: boolean;
   isLangfuseCloud: boolean;
   showV4Migration: boolean;
+  showAiGateway: boolean;
   showFeaturePreviews: boolean;
 }): OrganizationSettingsPage[] => [
   {
     title: "General",
     slug: "index",
+    section: "Organization",
     cmdKKeywords: ["name", "id", "delete"],
     content: (
       <div className="flex flex-col gap-6">
@@ -108,7 +138,19 @@ export const getOrganizationSettingsPages = ({
               title: "Delete this organization",
               description:
                 "Once you delete an organization, there is no going back. Please be certain.",
-              button: <DeleteOrganizationButton />,
+              button: (
+                <DeleteOrganizationDialogController>
+                  {({ disabled, openDialog }) => (
+                    <Button
+                      variant="destructive-secondary"
+                      disabled={disabled !== undefined}
+                      onClick={openDialog}
+                    >
+                      Delete Organization
+                    </Button>
+                  )}
+                </DeleteOrganizationDialogController>
+              ),
             },
           ]}
         />
@@ -118,6 +160,7 @@ export const getOrganizationSettingsPages = ({
   {
     title: "Feature Previews",
     slug: "feature-previews",
+    section: "Organization",
     cmdKKeywords: ["feature", "preview", "flags", "beta"],
     content: <OrganizationFeaturePreviewsSettings orgId={organization.id} />,
     show: showFeaturePreviews,
@@ -125,6 +168,7 @@ export const getOrganizationSettingsPages = ({
   {
     title: "API Keys",
     slug: "api-keys",
+    section: "Organization",
     content: (
       <div className="flex flex-col gap-6">
         <ApiKeyList entityId={organization.id} scope="organization" />
@@ -135,6 +179,7 @@ export const getOrganizationSettingsPages = ({
   {
     title: "Members",
     slug: "members",
+    section: "Organization",
     cmdKKeywords: ["invite", "user", "rbac"],
     content: (
       <div className="flex flex-col gap-6">
@@ -151,6 +196,7 @@ export const getOrganizationSettingsPages = ({
   {
     title: "Audit Logs",
     slug: "audit-logs",
+    section: "Organization",
     cmdKKeywords: ["audit", "logs", "history", "changes"],
     content: <OrgAuditLogsSettingsPage orgId={organization.id} />,
     show: showAuditLogs,
@@ -158,6 +204,7 @@ export const getOrganizationSettingsPages = ({
   {
     title: "Billing",
     slug: "billing",
+    section: "Organization",
     cmdKKeywords: ["payment", "subscription", "plan", "invoice"],
     content: <BillingSettings />,
     show: showBillingSettings,
@@ -165,6 +212,7 @@ export const getOrganizationSettingsPages = ({
   {
     title: "SSO",
     slug: "sso",
+    section: "Organization",
     cmdKKeywords: [
       "sso",
       "login",
@@ -183,13 +231,58 @@ export const getOrganizationSettingsPages = ({
   {
     title: "Projects",
     slug: "projects",
+    section: "Organization",
     href: `/organization/${organization.id}`,
   },
   {
     title: "v4 Migration",
     slug: "v4-migration",
+    section: "Organization",
     href: "/v4-migration",
     show: showV4Migration,
+  },
+  {
+    title: "Configuration",
+    slug: "ai-gateway",
+    section: "AI Gateway",
+    cmdKKeywords: ["gateway", "llm", "configuration", "instrumentation"],
+    content: (
+      <GatewayConfigurationPage
+        organizationId={organization.id}
+        projects={organization.projects}
+      />
+    ),
+    show: showAiGateway,
+  },
+  {
+    title: "Provider credentials",
+    slug: "ai-gateway-providers",
+    section: "AI Gateway",
+    cmdKKeywords: [
+      "gateway",
+      "providers",
+      "credentials",
+      "openai",
+      "anthropic",
+    ],
+    content: <GatewayProvidersPage organizationId={organization.id} />,
+    show: showAiGateway,
+  },
+  {
+    title: "Models",
+    slug: "ai-gateway-models",
+    section: "AI Gateway",
+    cmdKKeywords: ["gateway", "models", "discovery", "sync"],
+    content: <GatewayModelsPage organizationId={organization.id} />,
+    show: showAiGateway,
+  },
+  {
+    title: "Gateway API keys",
+    slug: "ai-gateway-api-keys",
+    section: "AI Gateway",
+    cmdKKeywords: ["gateway", "api", "keys", "metadata", "credentials"],
+    content: <GatewayApiKeysPage organizationId={organization.id} />,
+    show: showAiGateway,
   },
 ];
 
@@ -206,10 +299,13 @@ const OrgSettingsPage = () => {
       headerProps={{
         title: "Organization Settings",
       }}
+      extendRight={router.query.page === "ai-gateway-models"}
+      fullHeight={router.query.page === "ai-gateway-models"}
     >
       <PagedSettingsContainer
         activeSlug={page as string | undefined}
         pages={pages}
+        fullHeight={router.query.page === "ai-gateway-models"}
       />
     </ContainerPage>
   );

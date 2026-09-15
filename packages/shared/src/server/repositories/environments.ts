@@ -1,5 +1,8 @@
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 import { env } from "../../env";
+import type { ExecutionContext } from "../query-ast/executionContext";
+import { compileClickhouseQuery } from "../query-ast/kysely/compile";
+import { getClickhouseKysely } from "../query-ast/kysely/dialect";
 import { queryClickhouse } from "./clickhouse";
 
 export type EnvironmentFilterProps = {
@@ -11,54 +14,69 @@ export const getEnvironmentsForProject = async (
   props: EnvironmentFilterProps,
 ): Promise<{ environment: string }[]> => {
   const { projectId, fromTimestamp } = props;
+  const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+  const db = getClickhouseKysely();
+  // Tenancy is applied at compile time: compileClickhouseQuery injects
+  // `project_id = {projectId}` into every tenanted relation and refuses to
+  // compile an unscoped query, so the query bodies below carry no project_id
+  // filter of their own.
+  const ctx: ExecutionContext = { projectId };
 
-  // In dual and events_only write modes all tracing data lands in the events
-  // tables: a single events_core scan covers traces and observations and is
-  // the only populated source under events_only. Scores keep their own table
-  // in every write mode. The events read may be routed to a dedicated
-  // ClickHouse service (CLICKHOUSE_EVENTS_READ_ONLY_URL), so it cannot share
-  // a query with the scores read.
-  const tracingEnvironmentsPromise =
-    env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy"
-      ? queryClickhouse<{ environment: string }>({
-          query: `
-            (
-              SELECT distinct environment
-              FROM traces
-              WHERE project_id = {projectId: String}
-              ${fromTimestamp ? "AND timestamp >= {fromTimestamp: DateTime64(3)}" : ""}
-            ) UNION ALL (
-              SELECT distinct environment
-              FROM observations
-              WHERE project_id = {projectId: String}
-              ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(3)}" : ""}
-            )
-          `,
-          params: { projectId, fromTimestamp },
-          tags: { projectId, route: "environments.getEnvironmentsForProject" },
-          preferredClickhouseService: "ReadOnly",
-        })
-      : queryClickhouse<{ environment: string }>({
-          query: `
-            SELECT distinct environment
-            FROM events_core
-            WHERE project_id = {projectId: String}
-            ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(3)}" : ""}
-          `,
-          params: { projectId, fromTimestamp },
-          tags: { projectId, route: "environments.getEnvironmentsForProject" },
-          preferredClickhouseService: "EventsReadOnly",
-        });
+  // In dual/events_only write modes all tracing data lands in events_core (the
+  // only populated source under events_only), so one scan covers traces and
+  // observations. Legacy still reads the two separate tables and unions them.
+  const tracingQuery =
+    writeMode === "legacy"
+      ? db
+          .selectFrom("traces")
+          .select("environment")
+          .distinct()
+          .$if(fromTimestamp != null, (qb) =>
+            qb.where("timestamp", ">=", fromTimestamp!),
+          )
+          .unionAll(
+            db
+              .selectFrom("observations")
+              .select("environment")
+              .distinct()
+              .$if(fromTimestamp != null, (qb) =>
+                qb.where("start_time", ">=", fromTimestamp!),
+              ),
+          )
+      : db
+          .selectFrom("events_core")
+          .select("environment")
+          .distinct()
+          .$if(fromTimestamp != null, (qb) =>
+            qb.where("start_time", ">=", fromTimestamp!),
+          );
+
+  const scoresQuery = db
+    .selectFrom("scores")
+    .select("environment")
+    .distinct()
+    .where("data_type", "in", [...LISTABLE_SCORE_TYPES])
+    .$if(fromTimestamp != null, (qb) =>
+      qb.where("timestamp", ">=", fromTimestamp!),
+    );
+
+  const tracing = compileClickhouseQuery(tracingQuery, ctx);
+  const scores = compileClickhouseQuery(scoresQuery, ctx);
+
+  // The events read may route to a dedicated ClickHouse service
+  // (CLICKHOUSE_EVENTS_READ_ONLY_URL) while scores always read the primary, so
+  // the two cannot share one query.
+  const tracingEnvironmentsPromise = queryClickhouse<{ environment: string }>({
+    query: tracing.sql,
+    params: tracing.params,
+    tags: { projectId, route: "environments.getEnvironmentsForProject" },
+    preferredClickhouseService:
+      writeMode === "legacy" ? "ReadOnly" : "EventsReadOnly",
+  });
 
   const scoreEnvironmentsPromise = queryClickhouse<{ environment: string }>({
-    query: `
-      SELECT distinct environment
-      FROM scores
-      WHERE project_id = {projectId: String}
-      AND data_type IN ({dataTypes: Array(String)})
-      ${fromTimestamp ? "AND timestamp >= {fromTimestamp: DateTime64(3)}" : ""}
-    `,
-    params: { projectId, fromTimestamp, dataTypes: LISTABLE_SCORE_TYPES },
+    query: scores.sql,
+    params: scores.params,
     tags: { projectId, route: "environments.getEnvironmentsForProject" },
     preferredClickhouseService: "ReadOnly",
   });
@@ -67,7 +85,8 @@ export const getEnvironmentsForProject = async (
     await Promise.all([tracingEnvironmentsPromise, scoreEnvironmentsPromise])
   ).flat();
 
-  // Always add default environment to list
+  // "default" always exists as a selectable environment even when no rows have
+  // been written under it, so it is not guaranteed to appear in the scan.
   results.push({ environment: "default" });
 
   return Array.from(new Set(results.map((e) => e.environment))).map(

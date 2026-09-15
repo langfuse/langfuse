@@ -4,13 +4,16 @@ import {
   Role,
   SurveyName,
 } from "@langfuse/shared/src/db";
-import { resolveProjectRole } from "@langfuse/shared/src/server";
+import {
+  resolveProjectRole,
+  invalidateCachedOrgApiKeys,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   organizationRoleAccessRights,
   type OrganizationScope,
-} from "@/src/features/rbac/constants/organizationAccessRights";
+} from "@/src/features/rbac";
 import { projectRoleAccessRights } from "@langfuse/shared";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 
@@ -210,7 +213,7 @@ export const resolveOnboardingRedirectTarget = async ({
   return null;
 };
 
-export const resolveOnboardingRedirectTargetWithFallback = async ({
+const resolveOnboardingRedirectTargetWithFallback = async ({
   prisma,
   userId,
   canCreateOrganizations,
@@ -431,6 +434,10 @@ export const provisionStarterOrganizationForNewUser = async ({
     },
     prisma,
   );
+
+  // After the tx commits: refresh org-scoped keys' baked projectIds for the
+  // new starter project.
+  await invalidateCachedOrgApiKeys(createdResources.organization.id);
 
   return createdResources;
 };

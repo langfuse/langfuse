@@ -12,7 +12,6 @@ import {
   publicApiPaginationZod,
   singleFilter,
   InvalidRequestError,
-  type ObservationFieldGroupPublicApi,
 } from "@langfuse/shared";
 import {
   reduceUsageOrCostDetails,
@@ -23,11 +22,6 @@ import { z } from "zod";
 import { useEventsTableSchema } from "@langfuse/shared/query";
 
 // Re-export for convenience
-export {
-  OBSERVATION_FIELD_GROUPS_PUBLIC_API,
-  type ObservationFieldGroupPublicApi,
-};
-
 /**
  * Objects
  */
@@ -245,6 +239,10 @@ export const GetObservationsV1Response = z
 // GET /observations/{observationId}
 export const GetObservationV1Query = z.object({
   observationId: z.string(),
+  // Optional timestamp on the observation's start (ISO 8601 with offset).
+  // When provided, it bounds the lookup to that UTC day, making the query
+  // dramatically cheaper. Omit it for the default full lookup.
+  startTime: stringDateTime,
   useEventsTable: useEventsTableSchema,
 });
 // `_deprecation` at the response level, not on the shared `APIObservation`
@@ -258,7 +256,7 @@ export const GetObservationV1Response = APIObservation.extend({
  * Encodes the position in the result set using the table's ordering:
  * (start_time, xxHash32(trace_id), span_id)
  */
-export const ObservationsCursorV2 = z.object({
+const ObservationsCursorV2 = z.object({
   lastStartTimeTo: z.coerce.date(),
   lastTraceId: z.string(),
   lastId: z.string(),
@@ -392,7 +390,7 @@ const APIObservationV2 = z
     metadata: z.any().optional(),
 
     // Model fields (field group: model)
-    providedModelName: z.string().nullable().optional(),
+    model: z.string().nullable().optional(),
     internalModelId: z.string().nullable().optional(),
     modelParameters: z.any().optional(),
 

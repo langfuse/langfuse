@@ -68,6 +68,10 @@ export function ModelSelector({
         onSelectCustom={state.actions.selectModel}
         onConfigureProviders={onConfigureProviders}
         onConfigureModel={() => setConfigurationOpen(true)}
+        hasModelConfiguration={
+          state.mode === "custom" &&
+          Object.keys(state.modelParams ?? {}).length > 0
+        }
         canSetProjectDefault={canSetProjectDefault}
         onSetProjectDefault={() => {
           if (selectedConfig) onSetProjectDefault(selectedConfig);

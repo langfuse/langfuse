@@ -42,6 +42,9 @@ export function PasswordInput({ ref, disabled, ...props }: PasswordInputProps) {
         aria-label={isPasswordVisible ? "Hide password" : "Show password"}
         aria-pressed={isPasswordVisible}
         disabled={disabled}
+        // Keep the reveal toggle out of the tab order so Tab moves between the
+        // form's inputs. It stays reachable for pointer and screen reader users.
+        tabIndex={-1}
         className="absolute top-1/2 right-3 -translate-y-1/2 transform cursor-pointer disabled:cursor-not-allowed"
         onClick={() => setIsPasswordVisible((visible) => !visible)}
       >

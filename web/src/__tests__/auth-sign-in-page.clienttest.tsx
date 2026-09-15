@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import SignIn, { type PageProps } from "@/src/pages/auth/sign-in";
+import SignInPage, { type PageProps } from "@/src/features/auth/SignInPage";
 
 const { captureExceptionMock, addBreadcrumbMock, signInMock, routerState } =
   vi.hoisted(() => ({
@@ -67,6 +67,7 @@ const authProviders: PageProps["authProviders"] = {
   auth0: false,
   clickhouseCloud: false,
   cognito: false,
+  jumpcloud: false,
   keycloak: false,
   workos: false,
   wordpress: false,
@@ -80,7 +81,7 @@ const renderSignIn = (
   } = {},
 ) =>
   render(
-    <SignIn
+    <SignInPage
       authProviders={authProviders}
       signUpDisabled={false}
       runningOnHuggingFaceSpaces={false}
@@ -219,5 +220,152 @@ describe("sign-in page NextAuth error classification", () => {
 
     expect(screen.getByText("Sign in to your account")).toBeInTheDocument();
     expect(captureExceptionMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("sign-in page JumpCloud provider button", () => {
+  beforeEach(() => {
+    signInMock.mockReset();
+    signInMock.mockResolvedValue(undefined);
+    routerState.query = {};
+    window.localStorage.clear();
+  });
+
+  it("does not render a JumpCloud button when the provider is disabled", () => {
+    renderSignIn();
+
+    expect(
+      screen.queryByRole("button", { name: /JumpCloud/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders a JumpCloud button and signs in with the jumpcloud provider", () => {
+    renderSignIn({
+      authProviders: {
+        ...authProviders,
+        jumpcloud: true,
+      },
+    });
+
+    const button = screen.getByRole("button", { name: /JumpCloud/ });
+    fireEvent.click(button);
+
+    expect(signInMock).toHaveBeenCalledWith("jumpcloud");
+  });
+
+  it("still renders JumpCloud when username/password auth is disabled", () => {
+    renderSignIn({
+      authProviders: {
+        ...authProviders,
+        credentials: false,
+        jumpcloud: true,
+      },
+    });
+
+    expect(
+      screen.getByRole("button", { name: /JumpCloud/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
+  });
+});
+
+describe("sign-in page SSO check transport errors", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    captureExceptionMock.mockClear();
+    addBreadcrumbMock.mockClear();
+    signInMock.mockReset();
+    routerState.query = {};
+    window.localStorage.clear();
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
+  it("breadcrumbs a JSON.parse failure on check-sso instead of capturing", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response("<html>gateway</html>", {
+          status: 200,
+          headers: { "Content-Type": "text/html" },
+        }),
+      ),
+    );
+
+    renderSignIn({
+      authProviders: { ...authProviders, sso: true },
+    });
+
+    fireEvent.change(screen.getByLabelText("Email"), {
+      target: { value: "jane@example.com" },
+    });
+    fireEvent.click(screen.getByTestId("submit-email-password-sign-in-form"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Unable to check SSO configuration/),
+      ).toBeInTheDocument();
+    });
+    expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
+    expect(addBreadcrumbMock.mock.calls[0]![0].category).toBe(
+      "auth.signIn.checkSso",
+    );
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+  });
+
+  // Negative fixture: unexpected check-sso failures must still capture.
+  it("still captures an unexpected check-sso failure", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("boom")));
+
+    renderSignIn({
+      authProviders: { ...authProviders, sso: true },
+    });
+
+    fireEvent.change(screen.getByLabelText("Email"), {
+      target: { value: "jane@example.com" },
+    });
+    fireEvent.click(screen.getByTestId("submit-email-password-sign-in-form"));
+
+    await waitFor(() => {
+      expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+    });
+    const [err, options] = captureExceptionMock.mock.calls[0]!;
+    expect(err.message).toBe("boom");
+    expect(options.tags.area).toBe("auth.signIn.checkSso");
+    expect(addBreadcrumbMock).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(/Unable to check SSO configuration/),
+    ).toBeInTheDocument();
+  });
+
+  // Non-JSON SyntaxErrors must still capture (classifier allowlist only).
+  it("still captures a non-JSON SyntaxError from check-sso", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new SyntaxError("Invalid regular expression")),
+    );
+
+    renderSignIn({
+      authProviders: { ...authProviders, sso: true },
+    });
+
+    fireEvent.change(screen.getByLabelText("Email"), {
+      target: { value: "jane@example.com" },
+    });
+    fireEvent.click(screen.getByTestId("submit-email-password-sign-in-form"));
+
+    await waitFor(() => {
+      expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+    });
+    const [err, options] = captureExceptionMock.mock.calls[0]!;
+    expect(err).toBeInstanceOf(SyntaxError);
+    expect(err.message).toBe("Invalid regular expression");
+    expect(options.tags.area).toBe("auth.signIn.checkSso");
+    expect(addBreadcrumbMock).not.toHaveBeenCalled();
   });
 });

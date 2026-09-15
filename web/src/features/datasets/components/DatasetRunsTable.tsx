@@ -1,6 +1,7 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
+import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -9,17 +10,20 @@ import { type RouterOutput } from "@/src/utils/types";
 import { useEffect, useMemo, useState } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import {
   type Prisma,
   datasetRunsTableColsWithOptions,
   type ScoreAggregate,
 } from "@langfuse/shared";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useQueryFilterState } from "@/src/features/filters";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
-import { ChevronDown, Columns3, MoreVertical, Trash } from "lucide-react";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { ChevronDown, Columns3, Trash } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,8 +32,6 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import { DeleteDatasetRunButton } from "@/src/features/datasets/components/DeleteDatasetRunButton";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { type RowSelectionState } from "@tanstack/react-table";
 import Link from "next/link";
@@ -43,13 +45,23 @@ import {
   compareViewChartDataToDataPoints,
   getCompareViewChartUnit,
 } from "@/src/features/dashboard/lib/chart-data-adapters";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { CompareViewAdapter } from "@/src/features/scores/adapters";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { Chart } from "@/src/features/widgets";
+import {
+  addPrefixToScoreKeys,
+  CompareViewAdapter,
+  convertScoreColumnsToAnalyticsData,
+  getScoreLabelFromKey,
+  scoreFilters,
+  useScoreColumns,
+} from "@/src/features/scores";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import {
   Dialog,
   DialogContent,
+  DialogController,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -61,23 +73,18 @@ import {
   ResizableHandle,
 } from "@/src/components/ui/resizable";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import {
-  scoreFilters,
-  addPrefixToScoreKeys,
-  convertScoreColumnsToAnalyticsData,
-} from "@/src/features/scores/lib/scoreColumns";
-import { getScoreLabelFromKey } from "@/src/features/scores/lib/aggregateScores";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { DeleteDatasetRunDialogContent } from "@/src/features/datasets/components/DeleteDatasetRunDialogContent";
 
-export type DatasetRunRowData = {
+type DatasetRunRowData = {
   id: string;
   name: string;
   createdAt: Date;
-  countRunItems: string;
+  countRunItems: bigint;
   avgLatency: number | undefined;
-  avgTotalCost: string | undefined;
-  totalCost: string | undefined;
+  avgTotalCost: number | undefined;
+  totalCost: number | undefined;
   // scores holds grouped column with individual scores
   runItemScores?: ScoreAggregate | undefined;
   runScores?: ScoreAggregate | undefined;
@@ -184,17 +191,27 @@ const DatasetRunTableMultiSelectAction = ({
   );
 };
 
-export function DatasetRunsTable(props: {
+type DatasetRunsTableProps = {
   projectId: string;
   datasetId: string;
   selectedMetrics: string[];
   setScoreOptions: (options: { key: string; value: string }[]) => void;
-}) {
+};
+
+function DatasetRunsTableInternal(
+  props: DatasetRunsTableProps & {
+    openDeleteDatasetRunDialog: (datasetRunId: string) => void;
+  },
+) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
+  const hasDeleteAccess = useHasProjectAccess({
+    projectId: props.projectId,
+    scope: "datasets:CUD",
+  });
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
@@ -220,6 +237,7 @@ export function DatasetRunsTable(props: {
     api.datasets.runFilterOptions.useQuery(
       { projectId: props.projectId, datasetId: props.datasetId },
       {
+        enabled: Boolean(props.projectId) && Boolean(props.datasetId),
         refetchOnMount: false,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
@@ -235,13 +253,16 @@ export function DatasetRunsTable(props: {
 
   const setFilterState = useDebounce(setUserFilterState);
 
-  const runs = api.datasets.runsByDatasetId.useQuery({
-    projectId: props.projectId,
-    datasetId: props.datasetId,
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
-    filter: userFilterState,
-  });
+  const runs = api.datasets.runsByDatasetId.useQuery(
+    {
+      projectId: props.projectId,
+      datasetId: props.datasetId,
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+      filter: userFilterState,
+    },
+    { enabled: Boolean(props.projectId) && Boolean(props.datasetId) },
+  );
 
   const runsMetrics = api.datasets.runsByDatasetIdMetrics.useQuery(
     {
@@ -417,74 +438,56 @@ export function DatasetRunsTable(props: {
         };
       },
     }),
-    {
+    createTextTableColumn<DatasetRunRowData>({
       accessorKey: "description",
       header: "Description",
-      id: "description",
       size: 300,
       enableHiding: true,
-      cell: ({ row }) => {
-        const description: DatasetRunRowData["description"] =
-          row.getValue("description");
-        return description;
-      },
-    },
-    {
+    }),
+    createNumberTableColumn<DatasetRunRowData, bigint>({
       accessorKey: "countRunItems",
       header: "Run Items",
-      id: "countRunItems",
       size: 90,
       enableHiding: true,
-      cell: ({ row }) => {
-        const countRunItems: DatasetRunRowData["countRunItems"] =
-          row.getValue("countRunItems");
-        if (countRunItems === undefined || runsMetrics.isPending)
-          return <Skeleton className="h-3 w-1/2" />;
-        return <>{countRunItems}</>;
-      },
-    },
-    {
+      formatter: (value) => String(value),
+      getValue: (value) =>
+        value === null || value === undefined || runsMetrics.isPending
+          ? { type: "loading" }
+          : value,
+    }),
+    createNumberTableColumn<DatasetRunRowData>({
       accessorKey: "avgLatency",
       header: "Latency (avg)",
-      id: "avgLatency",
       size: 120,
       enableHiding: true,
-      cell: ({ row }) => {
-        const avgLatency: DatasetRunRowData["avgLatency"] =
-          row.getValue("avgLatency");
-        if (avgLatency === undefined || runsMetrics.isPending)
-          return <Skeleton className="h-3 w-1/2" />;
-        return <>{formatIntervalSeconds(avgLatency)}</>;
-      },
-    },
-    {
+      formatter: (value) => formatIntervalSeconds(value),
+      getValue: (value) =>
+        value === null || value === undefined || runsMetrics.isPending
+          ? { type: "loading" }
+          : value,
+    }),
+    createNumberTableColumn<DatasetRunRowData>({
       accessorKey: "avgTotalCost",
       header: "Trace Cost (avg)",
-      id: "avgTotalCost",
       size: 130,
       enableHiding: true,
-      cell: ({ row }) => {
-        const avgTotalCost: DatasetRunRowData["avgTotalCost"] =
-          row.getValue("avgTotalCost");
-        if (!avgTotalCost || runsMetrics.isPending)
-          return <Skeleton className="h-3 w-1/2" />;
-        return <>{avgTotalCost}</>;
-      },
-    },
-    {
+      formatter: (value) => usdFormatter(value),
+      getValue: (value) =>
+        value === null || value === undefined || runsMetrics.isPending
+          ? { type: "loading" }
+          : value,
+    }),
+    createNumberTableColumn<DatasetRunRowData>({
       accessorKey: "totalCost",
       header: "Trace Cost (sum)",
-      id: "totalCost",
       size: 130,
       enableHiding: true,
-      cell: ({ row }) => {
-        const totalCost: DatasetRunRowData["totalCost"] =
-          row.getValue("totalCost");
-        if (!totalCost || runsMetrics.isPending)
-          return <Skeleton className="h-3 w-1/2" />;
-        return <>{totalCost}</>;
-      },
-    },
+      formatter: (value) => usdFormatter(value),
+      getValue: (value) =>
+        value === null || value === undefined || runsMetrics.isPending
+          ? { type: "loading" }
+          : value,
+    }),
     {
       accessorKey: "runScores",
       header: "Run-Level Scores",
@@ -515,48 +518,33 @@ export function DatasetRunsTable(props: {
       size: 150,
       enableHiding: true,
     }),
-    {
+    createIOTableColumn<DatasetRunRowData>({
       accessorKey: "metadata",
       header: "Metadata",
-      id: "metadata",
       size: 200,
       enableHiding: true,
-      cell: ({ row }) => {
-        const metadata: DatasetRunRowData["metadata"] =
-          row.getValue("metadata");
-        return !!metadata ? (
-          <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
-        ) : null;
-      },
-    },
-    {
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
+    createDropdownTableColumn<DatasetRunRowData, DatasetRunRowData["id"]>({
       id: "actions",
-      accessorKey: "actions",
+      accessorFn: (row) => row.id,
       header: "Actions",
       size: 70,
-      cell: ({ row }) => {
-        const id: DatasetRunRowData["id"] = row.getValue("id");
-
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only relative">Open menu</span>
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DeleteDatasetRunButton
-                projectId={props.projectId}
-                datasetRunId={id}
-                datasetId={props.datasetId}
-              />
-            </DropdownMenuContent>
-          </DropdownMenu>
-        );
-      },
-    },
+      renderMenu: (id) =>
+        id ? (
+          <>
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuItem
+              disabled={!hasDeleteAccess}
+              onSelect={() => props.openDeleteDatasetRunDialog(id)}
+            >
+              <Trash className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </>
+        ) : null,
+    }),
   ];
 
   const convertToTableRow = (
@@ -566,14 +554,10 @@ export function DatasetRunsTable(props: {
       id: item.id,
       name: item.name,
       createdAt: item.createdAt,
-      countRunItems: item.countRunItems?.toString() ?? "0",
+      countRunItems: BigInt(item.countRunItems ?? 0),
       avgLatency: item.avgLatency ?? 0,
-      avgTotalCost: item.avgTotalCost
-        ? usdFormatter(item.avgTotalCost.toNumber())
-        : usdFormatter(0),
-      totalCost: item.totalCost
-        ? usdFormatter(item.totalCost.toNumber())
-        : usdFormatter(0),
+      avgTotalCost: item.avgTotalCost?.toNumber() ?? 0,
+      totalCost: item.totalCost?.toNumber() ?? 0,
       runItemScores: item.scores,
       runScores: item.runScores
         ? addPrefixToScoreKeys(item.runScores, "Run-level")
@@ -833,5 +817,40 @@ export function DatasetRunsTable(props: {
         </>
       )}
     </>
+  );
+}
+
+export function DatasetRunsTable(props: DatasetRunsTableProps) {
+  const [datasetRunIdToDelete, setDatasetRunIdToDelete] = useState<
+    string | null
+  >(null);
+  const capture = usePostHogClientCapture();
+
+  return (
+    <DialogController
+      closeOnInteractionOutside
+      size="default"
+      renderContent={({ closeDialog }) =>
+        datasetRunIdToDelete ? (
+          <DeleteDatasetRunDialogContent
+            closeDialog={closeDialog}
+            projectId={props.projectId}
+            datasetId={props.datasetId}
+            datasetRunId={datasetRunIdToDelete}
+          />
+        ) : null
+      }
+    >
+      {({ openDialog }) => (
+        <DatasetRunsTableInternal
+          {...props}
+          openDeleteDatasetRunDialog={(datasetRunId) => {
+            capture("dataset_run:delete_form_open");
+            setDatasetRunIdToDelete(datasetRunId);
+            openDialog();
+          }}
+        />
+      )}
+    </DialogController>
   );
 }

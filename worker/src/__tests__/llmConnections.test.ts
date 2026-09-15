@@ -6,6 +6,7 @@ import {
   getLLMErrorInfo,
   mapLegacyLLMCompletionParams,
   streamLLMText,
+  type LLMModelMessage,
 } from "@langfuse/shared/src/server";
 import { encrypt } from "@langfuse/shared/encryption";
 import {
@@ -27,8 +28,10 @@ import { z } from "zod";
  * Each adapter is tested with:
  * 1. Simple completion
  * 2. Streaming completion
- * 3. Structured output (legacy eval schema, v2 numeric schema, v2 boolean schema, v2 categorical schema)
- * 4. Tool calling
+ * 3. Multi-message completion
+ * 4. Multi-part text and image completion
+ * 5. Structured output (legacy eval schema, v2 numeric schema, v2 boolean schema, v2 categorical schema)
+ * 6. Tool calling
  *
  * Required environment variables (tests will FAIL if not set):
  * - LANGFUSE_LLM_CONNECTION_OPENAI_KEY
@@ -82,6 +85,23 @@ function streamWithStoredConnection(
       connection: params.llmConnection,
     }),
   );
+}
+
+function generateWithModelMessages(params: {
+  messages: LLMModelMessage[];
+  modelParams: ModelParams;
+  llmConnection: TestLLMConnection;
+}) {
+  const mappedParams = mapLegacyLLMCompletionParams({
+    messages: [],
+    modelParams: params.modelParams,
+    connection: params.llmConnection,
+  });
+
+  return generateLLMText({
+    ...mappedParams,
+    messages: params.messages,
+  });
 }
 
 const googleAIStudioFallbackModels = [
@@ -213,6 +233,94 @@ const evalStructuredOutputTestCases: EvalStructuredOutputTestCase[] = [
     },
   },
 ];
+
+const redSquarePng = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGUlEQVR4nGP4z8DwnxLMMGrAqAGjBgwXAwAwxP4QHCfkAAAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+function registerMessageFormatTests(params: {
+  checkEnv: () => void;
+  getModelParams: (model?: string) => ModelParams;
+  getLLMConnection: () => TestLLMConnection;
+  timeoutMs: number;
+  runWithModel?: <T>(operation: (model?: string) => Promise<T>) => Promise<T>;
+}) {
+  const runWithModel =
+    params.runWithModel ?? ((operation) => operation(undefined));
+
+  test(
+    "multi-message completion",
+    async () => {
+      params.checkEnv();
+
+      const completion = await runWithModel((model) =>
+        generateWithStoredConnection({
+          messages: [
+            {
+              role: "system",
+              content: "Answer with only the requested number.",
+              type: ChatMessageType.System,
+            },
+            {
+              role: "user",
+              content: "The code is 7319. Remember it.",
+              type: ChatMessageType.PublicAPICreated,
+            },
+            {
+              role: "assistant",
+              content: "I will remember the code.",
+              type: ChatMessageType.AssistantText,
+            },
+            {
+              role: "user",
+              content: "What is the code?",
+              type: ChatMessageType.PublicAPICreated,
+            },
+          ],
+          modelParams: params.getModelParams(model),
+          llmConnection: params.getLLMConnection(),
+        }),
+      );
+
+      expect(completion.text).toContain("7319");
+    },
+    params.timeoutMs,
+  );
+
+  test(
+    "multi-part message completion",
+    async () => {
+      params.checkEnv();
+
+      const completion = await runWithModel((model) =>
+        generateWithModelMessages({
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: "What color is this square? Answer only with the color.",
+                },
+                {
+                  type: "file",
+                  data: redSquarePng,
+                  mediaType: "image/png",
+                },
+              ],
+            },
+          ],
+          modelParams: params.getModelParams(model),
+          llmConnection: params.getLLMConnection(),
+        }),
+      );
+
+      expect(completion.text.toLowerCase()).toContain("red");
+    },
+    params.timeoutMs,
+  );
+}
 
 function registerEvalStructuredOutputTests(params: {
   checkEnv: () => void;
@@ -349,6 +457,21 @@ describe("LLM Connection Tests", () => {
       expect(fullResponse).toContain("4");
     }, 30_000);
 
+    registerMessageFormatTests({
+      checkEnv: checkEnvVar,
+      getModelParams: () => ({
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        model: MODEL,
+        temperature: 0,
+        max_tokens: 50,
+      }),
+      getLLMConnection: () => ({
+        secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_OPENAI_KEY!),
+      }),
+      timeoutMs: 30_000,
+    });
+
     registerEvalStructuredOutputTests({
       checkEnv: checkEnvVar,
       getModelParams: () => ({
@@ -471,6 +594,21 @@ describe("LLM Connection Tests", () => {
       expect(chunkCount).toBeGreaterThan(0);
       expect(fullResponse).toContain("4");
     }, 30_000);
+
+    registerMessageFormatTests({
+      checkEnv: checkEnvVar,
+      getModelParams: () => ({
+        provider: "anthropic",
+        adapter: LLMAdapter.Anthropic,
+        model: MODEL,
+        temperature: 0,
+        max_tokens: 50,
+      }),
+      getLLMConnection: () => ({
+        secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY!),
+      }),
+      timeoutMs: 30_000,
+    });
 
     registerEvalStructuredOutputTests({
       checkEnv: checkEnvVar,
@@ -606,6 +744,22 @@ describe("LLM Connection Tests", () => {
       expect(chunkCount).toBeGreaterThan(0);
       expect(fullResponse).toContain("4");
     }, 60_000);
+
+    registerMessageFormatTests({
+      checkEnv: checkEnvVars,
+      getModelParams: () => ({
+        provider: "azure",
+        adapter: LLMAdapter.Azure,
+        model: process.env.LANGFUSE_LLM_CONNECTION_AZURE_MODEL!,
+        temperature: 0,
+        max_tokens: 50,
+      }),
+      getLLMConnection: () => ({
+        secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_AZURE_KEY!),
+        baseURL: process.env.LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL!,
+      }),
+      timeoutMs: 60_000,
+    });
 
     registerEvalStructuredOutputTests({
       checkEnv: checkEnvVars,
@@ -758,6 +912,22 @@ describe("LLM Connection Tests", () => {
       expect(chunkCount).toBeGreaterThan(0);
       expect(fullResponse).toContain("4");
     }, 30_000);
+
+    registerMessageFormatTests({
+      checkEnv: checkEnvVars,
+      getModelParams: () => ({
+        provider: "bedrock",
+        adapter: LLMAdapter.Bedrock,
+        model: MODEL,
+        temperature: 0,
+        max_tokens: 50,
+      }),
+      getLLMConnection: () => ({
+        secretKey: encrypt(getApiKey()),
+        config: getConfig(),
+      }),
+      timeoutMs: 30_000,
+    });
 
     // Flaky
     registerEvalStructuredOutputTests({
@@ -1028,6 +1198,22 @@ describe("LLM Connection Tests", () => {
       expect(fullResponse).toContain("4");
     }, 30_000);
 
+    registerMessageFormatTests({
+      checkEnv: checkEnvVar,
+      getModelParams: () => ({
+        provider: "google-vertex-ai",
+        adapter: LLMAdapter.VertexAI,
+        model: MODEL,
+        temperature: 0,
+        max_tokens: 50,
+      }),
+      getLLMConnection: () => ({
+        secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!),
+        config: null,
+      }),
+      timeoutMs: 30_000,
+    });
+
     registerEvalStructuredOutputTests({
       checkEnv: checkEnvVar,
       getModelParams: () => ({
@@ -1219,6 +1405,24 @@ describe("LLM Connection Tests", () => {
         expect(fullResponse).toContain("4");
       });
     }, 30_000);
+
+    registerMessageFormatTests({
+      checkEnv: checkEnvVar,
+      getModelParams: (model = googleAIStudioFallbackModels[0]) => ({
+        provider: "google-ai-studio",
+        adapter: LLMAdapter.GoogleAIStudio,
+        model,
+        temperature: 0,
+        max_tokens: 50,
+      }),
+      getLLMConnection: () => ({
+        secretKey: encrypt(
+          process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+        ),
+      }),
+      timeoutMs: 30_000,
+      runWithModel: runWithGoogleAIStudioModelFallback,
+    });
 
     registerEvalStructuredOutputTests({
       checkEnv: checkEnvVar,

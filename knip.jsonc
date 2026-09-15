@@ -4,17 +4,38 @@
   "rules": {
     "catalog": "off",
   },
-  "ignoreIssues": {
-    "web/**": ["files", "exports", "types"],
-    "packages/shared/**": ["files", "exports", "types"],
-    "worker/**": ["files", "exports", "types"],
-  },
   "workspaces": {
+    "packages/shared": {
+      "ignoreFiles": [
+        // Standalone helper invoked manually as documented in the adjacent framework-traces README.
+        "scripts/seeder/utils/framework-traces/merge-observations.ts",
+      ],
+    },
     "worker": {
-      // Tests intentionally load these from @langfuse/shared's dependency tree.
-      "ignoreDependencies": ["@aws-sdk/client-bedrock-runtime"],
+      "entry": [
+        // Migration implementations are loaded dynamically from script names persisted in the database.
+        "src/backgroundMigrations/*.ts",
+        // Loaded through a dynamic require from the tokenisation worker thread.
+        "src/features/tokenisation/usage.ts",
+      ],
+      "ignoreFiles": [
+        // Standalone fixture downloader invoked manually as documented in the adjacent README.
+        "src/__tests__/chatml/framework-traces/download_traces.js",
+        // Updated by release-it even though worker runtime code does not import it.
+        "src/constants/VERSION.ts",
+        // Runtime worker entry loaded by filename through node:worker_threads in source environments.
+        "src/features/tokenisation/worker-thread.js",
+        // Compiled runtime worker entry loaded by filename through node:worker_threads.
+        "src/features/tokenisation/worker-thread.ts",
+        // Operational and maintenance scripts are invoked directly or through package scripts, not imported.
+        "src/scripts/**/*.{ts,js}",
+      ],
     },
     "web": {
+      "ignoreFiles": [
+        // Standalone benchmark invoked directly with Node rather than imported by the application.
+        "src/features/traces/components/AdvancedJsonViewer/lazy/benchByteJsonIndex.ts",
+      ],
       // Include runtime JavaScript modules such as src/env.mjs in dependency analysis.
       "project": ["src/**/*.{ts,tsx,mjs}"],
       "ignoreDependencies": [

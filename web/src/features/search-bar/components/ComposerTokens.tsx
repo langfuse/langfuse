@@ -23,7 +23,7 @@ import {
 } from "@/src/features/search-bar/lib/composer-segments";
 import { indexOfOutsideQuotes } from "@/src/features/search-bar/lib/langQ";
 import { deactivationReason } from "@/src/features/search-bar/components/presentation";
-import { FilterToken } from "@/src/features/filters/components/FilterToken";
+import { FilterToken } from "@/src/features/filters";
 
 // Word joiner around pills: gives the DOM caret boundaries between tokens
 // without changing the query text. Stripped before the text reaches the model
@@ -38,7 +38,7 @@ export const WORD_JOINER = "⁠";
 // text caret to the inline box of the pill it sits in/next to, so taller pills
 // produce a caret that towers over the text. py-0.5 keeps the chip readable
 // while holding the Safari caret close to the text height.
-export const composerTokenVariants = cva("max-w-full", {
+const composerTokenVariants = cva("max-w-full", {
   variants: {
     kind: {
       filter: "",

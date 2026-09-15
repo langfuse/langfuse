@@ -2,13 +2,9 @@
 "use client";
 
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import type { Session } from "next-auth";
 import { signOutCleanly } from "@/src/features/auth/lib/signOut";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,24 +22,17 @@ import { cn } from "@/src/utils/tailwind";
  * a small menu (settings, theme, sign out). The sidebar keeps the full NavUser;
  * this is the always-visible shell-level shortcut in the minimal mobile chrome.
  */
-export const TopbarAccount = ({ className }: { className?: string }) => {
-  const session = useSession();
+export const TopbarAccount = ({
+  user,
+  className,
+}: {
+  user: NonNullable<Session["user"]>;
+  className?: string;
+}) => {
   const showV4Migration = useV4UpgradeUiFlag();
-  const user = session.data?.user;
-
-  if (!user) return null;
 
   const name = user.name ?? "";
   const email = user.email ?? "";
-  const initials =
-    name
-      .split(" ")
-      .slice(0, 2)
-      .map((word) => word[0])
-      .join("")
-      .toUpperCase() ||
-    email[0]?.toUpperCase() ||
-    "?";
 
   return (
     <DropdownMenu>
@@ -54,10 +43,11 @@ export const TopbarAccount = ({ className }: { className?: string }) => {
         )}
         aria-label="Account menu"
       >
-        <Avatar className="h-8 w-8">
-          <AvatarImage src={user.image ?? undefined} alt={name} />
-          <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-        </Avatar>
+        <Avatar
+          size="lg"
+          src={user.image ?? undefined}
+          displayName={name || email || "User"}
+        />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={4} className="min-w-56">
         <DropdownMenuLabel className="font-normal">

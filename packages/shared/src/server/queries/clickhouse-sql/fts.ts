@@ -10,15 +10,14 @@ export { FTS_MATCH_OPERATOR } from "../../../interfaces/filters";
 
 type StringOperator = (typeof filterOperators)["string"][number];
 export type FtsStringOperator = StringOperator | FtsMatchOperator;
-export type FtsAcceleratedStringOperator = "=" | FtsMatchOperator;
+type FtsAcceleratedStringOperator = "=" | FtsMatchOperator;
 
-export const FTS_MATCH_TOKEN_ERROR =
-  "`matches` requires at least one search token.";
-export const FTS_MATCH_TARGET_ERROR =
+const FTS_MATCH_TOKEN_ERROR = "`matches` requires at least one search token.";
+const FTS_MATCH_TARGET_ERROR =
   "`matches` is only supported for input, output, and metadata filters.";
 
-export const FTS_TEXT_NORMALIZER = "lower";
-export const FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS = 64;
+const FTS_TEXT_NORMALIZER = "lower";
+const FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS = 64;
 
 export const FTS_EVENTS_TABLES: ReadonlySet<string> = new Set(
   EVENTS_TABLE_NAMES,
@@ -95,10 +94,7 @@ const ftsTokenPrefilterPredicate = (
 ): string =>
   `hasAllTokens(${fieldExpr}, ${ftsSearchTokenPrefilterExpr(valueParam, normalizeValue)})`;
 
-export const ftsTextTokenPredicate = (
-  fieldExpr: string,
-  valueParam: string,
-): string =>
+const ftsTextTokenPredicate = (fieldExpr: string, valueParam: string): string =>
   ftsTokenPrefilterPredicate(normalizeFtsTextExpr(fieldExpr), valueParam, true);
 
 export const ftsTextTokenConjunct = (
@@ -107,21 +103,28 @@ export const ftsTextTokenConjunct = (
 ): string =>
   `(empty(${ftsSearchTokensExpr(valueParam, true)}) OR ${ftsTextTokenPredicate(fieldExpr, valueParam)})`;
 
-export const ftsTextIndexedSubstringCondition = (
+const ftsTextIndexedSubstringCondition = (
   fieldExpr: string,
   valueParam: string,
 ): string =>
   `(position(${normalizeFtsTextExpr(fieldExpr)}, ${normalizeFtsTextExpr(valueParam)}) > 0 AND ${ftsTextTokenPredicate(fieldExpr, valueParam)})`;
 
-export const ftsMetadataArrayHas = (
-  arrayExpr: string,
-  valueParam: string,
-): string => `has(${arrayExpr}, ${valueParam})`;
-
-export const ftsMetadataArrayTokenConjunct = (
+const ftsMetadataArrayTokenConjunct = (
   arrayExpr: string,
   valueParam: string,
 ): string => ftsTokenPrefilterPredicate(arrayExpr, valueParam, false);
+
+// Text-index prefilter for exact metadata equality. The stored value equals the
+// search value, so it trivially contains all of the value's tokens: a
+// correctness-safe superset that engages `idx_fts_metadata_values`. Guard against
+// tokenless values (e.g. "!!!"), where `tokens()` is empty and the prefilter
+// would otherwise exclude legitimate matches; the exact `= value` check remains
+// the precise post-filter. Metadata is case-sensitive, so tokens are not lowered.
+const ftsMetadataArrayEqualityTokenConjunct = (
+  arrayExpr: string,
+  valueParam: string,
+): string =>
+  `(empty(${ftsSearchTokensExpr(valueParam, false)}) OR ${ftsMetadataArrayTokenConjunct(arrayExpr, valueParam)})`;
 
 type FtsMetadataArrayConditionContext = {
   hasKey: string;
@@ -139,7 +142,7 @@ type FtsOperatorDescriptor = {
   metadataArrayCondition: (ctx: FtsMetadataArrayConditionContext) => string;
 };
 
-export const ftsMetadataArrayIndexedSubstringCondition = ({
+const ftsMetadataArrayIndexedSubstringCondition = ({
   hasKey,
   valuesColumn,
   valueAccessor,
@@ -161,7 +164,7 @@ export const FTS_OPERATOR_DESCRIPTORS = {
       valueAccessor,
       valueParam,
     }) =>
-      `${hasKey} AND ${ftsMetadataArrayHas(valuesColumn, valueParam)} AND (${valueAccessor} = ${valueParam})`,
+      `${hasKey} AND ${ftsMetadataArrayEqualityTokenConjunct(valuesColumn, valueParam)} AND (${valueAccessor} = ${valueParam})`,
   },
   [FTS_MATCH_OPERATOR]: {
     textCondition: (fieldExpr, valueParam, _exactCondition) =>

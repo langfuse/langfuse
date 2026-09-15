@@ -2,7 +2,12 @@ import { memo, type JSX, useState } from "react";
 import { useRouter } from "next/router";
 import { type Row } from "@tanstack/react-table";
 import { urlRegex } from "@langfuse/shared";
-import { type JsonTableRow } from "@/src/components/table/utils/jsonExpansionUtils";
+import {
+  SMALL_ARRAY_THRESHOLD,
+  SMALL_OBJECT_THRESHOLD,
+  objectFitsInSingleRowPreview,
+  type JsonTableRow,
+} from "@/src/components/table/utils/jsonExpansionUtils";
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
@@ -31,10 +36,8 @@ export type MetadataFilterActions = {
 };
 
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
-export const MAX_CELL_DISPLAY_CHARS = 2000;
-const SMALL_ARRAY_THRESHOLD = 5;
+const MAX_CELL_DISPLAY_CHARS = 2000;
 const ARRAY_PREVIEW_ITEMS = 3;
-const OBJECT_PREVIEW_KEYS = 2;
 const MONO_TEXT_CLASSES = "font-mono text-xs wrap-break-word";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
 
@@ -93,12 +96,12 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
     const displayItems = arr
       .map((item) => {
         const itemType = getValueType(item);
-        if (itemType === "string") return `"${String(item)}"`;
+        if (itemType === "string") return JSON.stringify(item);
         if (itemType === "object" && item !== null) {
           const obj = item as Record<string, unknown>;
           const keys = Object.keys(obj);
           if (keys.length === 0) return "{}";
-          if (keys.length <= OBJECT_PREVIEW_KEYS) {
+          if (keys.length <= SMALL_OBJECT_THRESHOLD) {
             const keyPreview = keys.map((k) => `"${k}": ...`).join(", ");
             return `{${keyPreview}}`;
           }
@@ -115,7 +118,7 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
     .slice(0, ARRAY_PREVIEW_ITEMS)
     .map((item) => {
       const itemType = getValueType(item);
-      if (itemType === "string") return `"${String(item)}"`;
+      if (itemType === "string") return JSON.stringify(item);
       if (itemType === "object" || itemType === "array") return "...";
       return String(item);
     })
@@ -127,10 +130,29 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
   );
 }
 
+function formatPreviewPrimitive(value: unknown): string {
+  if (typeof value === "string") return JSON.stringify(value);
+  if (value === null) return "null";
+  return String(value);
+}
+
+function formatShortObjectPreview(obj: Record<string, unknown>): string | null {
+  if (!objectFitsInSingleRowPreview(obj)) return null;
+  const fields = Object.entries(obj).map(
+    ([key, field]) =>
+      `${JSON.stringify(key)}: ${formatPreviewPrimitive(field)}`,
+  );
+  return `{${fields.join(", ")}}`;
+}
+
 function renderObjectValue(obj: Record<string, unknown>): JSX.Element {
   const keys = Object.keys(obj);
   if (keys.length === 0) {
     return <span className={PREVIEW_TEXT_CLASSES}>empty object</span>;
+  }
+  const shortPreview = formatShortObjectPreview(obj);
+  if (shortPreview) {
+    return <span className={PREVIEW_TEXT_CLASSES}>{shortPreview}</span>;
   }
   return <span className={PREVIEW_TEXT_CLASSES}>{keys.length} items</span>;
 }
@@ -426,6 +448,18 @@ export const ValueCell = memo(
             needsTruncation: false,
           };
         case "array": {
+          // Hide the parent preview only when expanded children are actually
+          // rendered. showNullValues={false} can filter every child out while
+          // leaving the expand chevron (hasChildren is computed on the raw
+          // array), and blanking the cell then loses the only remaining value.
+          const hasVisibleChildRows =
+            row.getIsExpanded() && row.subRows.length > 0;
+          if (hasVisibleChildRows) {
+            return {
+              content: null,
+              needsTruncation: false,
+            };
+          }
           const arrayValue = value as unknown[];
           // Arrays always show previews, never truncate
           return {
@@ -434,6 +468,14 @@ export const ValueCell = memo(
           };
         }
         case "object": {
+          const hasVisibleChildRows =
+            row.getIsExpanded() && row.subRows.length > 0;
+          if (hasVisibleChildRows) {
+            return {
+              content: null,
+              needsTruncation: false,
+            };
+          }
           const objectValue = value as Record<string, unknown>;
           // Objects always show previews, never truncate
           return {

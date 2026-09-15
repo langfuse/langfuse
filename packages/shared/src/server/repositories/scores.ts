@@ -225,7 +225,9 @@ const formatMetadataSelect = (
   includeHasMetadata: boolean,
 ) => {
   return [
-    !excludeMetadata ? "*" : "* EXCEPT (metadata)",
+    !excludeMetadata
+      ? "* EXCEPT (evaluator_id, evaluation_rule_id)"
+      : "* EXCEPT (metadata, evaluator_id, evaluation_rule_id)",
     includeHasMetadata
       ? "length(mapKeys(s.metadata)) > 0 AS has_metadata"
       : null,
@@ -644,14 +646,7 @@ export const getScoresForObservations = async <
     includeHasMetadata = false,
   } = props;
 
-  const select = [
-    !excludeMetadata ? "*" : "* EXCEPT (metadata)",
-    includeHasMetadata
-      ? "length(mapKeys(s.metadata)) > 0 AS has_metadata"
-      : null,
-  ]
-    .filter((s) => s != null)
-    .join(", ");
+  const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
 
   const query = `
       select
@@ -1559,7 +1554,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         s.source,
         s.data_type,
         s.comment,
-        s.metadata['evaluator_id'] AS evaluator_id,
+        s.evaluator_id,
         ${excludeMetadata ? "" : "s.metadata,"}
         s.trace_id,
         s.session_id,
@@ -2323,7 +2318,7 @@ const buildScoresForBlobStorageExportQuery = (
     FROM scores FINAL
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}
-    AND timestamp <= {maxTimestamp: DateTime64(3)}
+    AND timestamp < {maxTimestamp: DateTime64(3)}
     AND data_type IN ({dataTypes: Array(String)})
   `;
 

@@ -184,6 +184,48 @@ describe("toPrismaWhere", () => {
     });
   });
 
+  it("translates evaluator IDs into monitor-filter JSON predicates", () => {
+    const filter: ListMonitorFilter = [
+      {
+        type: "stringOptions",
+        column: "evaluatorId",
+        operator: "any of",
+        value: ["eval-1", "eval-2"],
+      },
+    ];
+
+    expect(
+      toPrismaWhere("proj_01", filter, ["monitor-1", "monitor-2"]),
+    ).toEqual({
+      projectId: "proj_01",
+      AND: [
+        {
+          id: { in: ["monitor-1", "monitor-2"] },
+        },
+      ],
+    });
+  });
+
+  it("negates excluded evaluator IDs", () => {
+    const filter: ListMonitorFilter = [
+      {
+        type: "stringOptions",
+        column: "evaluatorId",
+        operator: "none of",
+        value: ["eval-1"],
+      },
+    ];
+
+    expect(toPrismaWhere("proj_01", filter, ["monitor-1"])).toEqual({
+      projectId: "proj_01",
+      AND: [
+        {
+          id: { notIn: ["monitor-1"] },
+        },
+      ],
+    });
+  });
+
   it("translates tags operators to Prisma array predicates", () => {
     const filter: ListMonitorFilter = [
       {

@@ -7,6 +7,7 @@ import {
 import type {
   CreateEvaluatorInput,
   EvaluatorDefinitionForPersistence,
+  EvaluatorListOrderBy,
 } from "./evaluatorTypes";
 import { EvaluatorVersionConflictError } from "./evaluatorErrors";
 import { setRuleStatus } from "../rules/ruleRepository";
@@ -26,14 +27,35 @@ import { creatorOptionsWhere, creatorWhere } from "../creatorFilterPrisma";
 
 type PrismaTransaction = Prisma.TransactionClient;
 
+const createdByUser = {
+  select: { id: true, name: true, email: true },
+} as const;
+
 const latestVersion = {
   orderBy: { version: "desc" as const },
   take: 1,
 };
 
+const latestVersionWithCreator = {
+  ...latestVersion,
+  include: { createdByUser },
+};
+
 const eventEvaluatorFilterColumnIds = new Set(
   eventsEvalFilterColumns.map((column) => column.id),
 );
+
+const publicEvaluationRuleAssignments = (projectId: string) =>
+  ({
+    where: { projectId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      variableMapping: true,
+      evaluationRule: {
+        select: { id: true, targetObject: true },
+      },
+    },
+  }) satisfies Prisma.EvaluationRuleEvaluatorAssignmentFindManyArgs;
 
 export const batchEligibleEvaluatorWhere = {
   // Trace/dataset assignments carry rule-specific mappings that an
@@ -66,6 +88,7 @@ function versionData(
     ? {
         ...commonVersionData,
         prompt: definition.prompt,
+        promptMessages: definition.promptMessages,
         provider: definition.provider,
         model: definition.model,
         modelParams:
@@ -249,19 +272,22 @@ export async function listEvaluators(params: {
   projectId: string;
   page: number;
   limit: number;
+  orderBy?: EvaluatorListOrderBy;
   search?: string;
   filter?: FilterState;
 }) {
   const where = await evaluatorWhere(params);
+  const orderColumn = params.orderBy?.column ?? "updatedAt";
+  const orderDirection = params.orderBy?.order.toLowerCase() ?? "desc";
   const [evaluators, totalItems, defaultModel] = await Promise.all([
     params.prisma.evaluator.findMany({
       where,
-      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      orderBy: [{ [orderColumn]: orderDirection }, { id: "desc" }],
       skip: (params.page - 1) * params.limit,
       take: params.limit,
       include: {
-        versions: latestVersion,
-        createdByUser: { select: { name: true, email: true } },
+        versions: latestVersionWithCreator,
+        createdByUser,
         _count: {
           select: {
             assignments: { where: { projectId: params.projectId } },
@@ -270,7 +296,7 @@ export async function listEvaluators(params: {
         assignments: {
           where: { projectId: params.projectId },
           select: {
-            evaluationRule: { select: { id: true, status: true } },
+            evaluationRule: { select: { id: true, name: true, status: true } },
           },
         },
       },
@@ -284,6 +310,7 @@ export async function listEvaluators(params: {
   return {
     evaluators: evaluators.map(({ assignments, ...evaluator }) => ({
       ...evaluator,
+      assignments,
       assignedRuleIds: assignments.map(
         ({ evaluationRule }) => evaluationRule.id,
       ),
@@ -299,6 +326,59 @@ export async function listEvaluators(params: {
   };
 }
 
+export async function listEvaluatorsCursor(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  limit: number;
+  cursor?: { createdAt: Date; id: string };
+  search?: string;
+}) {
+  const baseWhere = await evaluatorWhere(params);
+  const where: Prisma.EvaluatorWhereInput = params.cursor
+    ? {
+        AND: [
+          baseWhere,
+          {
+            OR: [
+              { createdAt: { lt: params.cursor.createdAt } },
+              {
+                createdAt: params.cursor.createdAt,
+                id: { lt: params.cursor.id },
+              },
+            ],
+          },
+        ],
+      }
+    : baseWhere;
+  const records = await params.prisma.evaluator.findMany({
+    where,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: params.limit + 1,
+    include: {
+      versions: latestVersionWithCreator,
+      createdByUser,
+      assignments: publicEvaluationRuleAssignments(params.projectId),
+    },
+  });
+  const hasMore = records.length > params.limit;
+  const evaluators = records.slice(0, params.limit);
+  const last = evaluators.at(-1);
+  return {
+    evaluators,
+    nextCursor:
+      hasMore && last ? { createdAt: last.createdAt, id: last.id } : undefined,
+  };
+}
+
+export async function countEvaluators(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  search?: string;
+}) {
+  const where = await evaluatorWhere(params);
+  return params.prisma.evaluator.count({ where });
+}
+
 export async function listEvaluatorFilterOptions(params: {
   prisma: PrismaClient;
   projectId: string;
@@ -309,7 +389,7 @@ export async function listEvaluatorFilterOptions(params: {
       select: {
         name: true,
         type: true,
-        createdByUser: { select: { name: true, email: true } },
+        createdByUser,
         versions: {
           ...latestVersion,
           select: { model: true },
@@ -390,7 +470,7 @@ export async function listEvaluatorOptions(params: {
       name: true,
       type: true,
       updatedAt: true,
-      createdByUser: { select: { name: true, email: true } },
+      createdByUser,
       blockedAt: true,
       versions: {
         orderBy: { version: "desc" },
@@ -419,7 +499,9 @@ export function findEvaluator(params: {
   return params.prisma.evaluator.findFirst({
     where: { id: params.evaluatorId, projectId: params.projectId },
     include: {
-      versions: latestVersion,
+      versions: latestVersionWithCreator,
+      createdByUser,
+      assignments: publicEvaluationRuleAssignments(params.projectId),
     },
   });
 }
@@ -489,7 +571,8 @@ export async function listEvaluatorVersions(params: {
     orderBy: { version: "desc" },
     take: params.limit + 1,
     include: {
-      createdByUser: { select: { name: true, email: true } },
+      createdByUser,
+      evaluator: { select: { type: true } },
     },
   });
   const hasMore = versions.length > params.limit;
@@ -543,7 +626,11 @@ export function createEvaluator(params: {
         },
       },
     },
-    include: { versions: latestVersion },
+    include: {
+      versions: latestVersionWithCreator,
+      createdByUser,
+      assignments: publicEvaluationRuleAssignments(params.input.projectId),
+    },
   });
 }
 
@@ -583,12 +670,17 @@ export function updateEvaluatorMetadata(params: {
   tx: PrismaTransaction;
   projectId: string;
   evaluatorId: string;
-  name: string;
-  description: string | null;
+  name?: string;
+  description?: string | null;
 }) {
   return params.tx.evaluator.update({
     where: { id: params.evaluatorId, projectId: params.projectId },
-    data: { name: params.name, description: params.description },
+    data: {
+      ...(params.name === undefined ? {} : { name: params.name }),
+      ...(params.description === undefined
+        ? {}
+        : { description: params.description }),
+    },
   });
 }
 

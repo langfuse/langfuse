@@ -905,7 +905,7 @@ describe("legacy evaluator compatibility service", () => {
       },
       definition: {
         type: EvalTemplateType.LLM_AS_JUDGE,
-        prompt: "Judge {{input}}",
+        promptMessages: [{ role: "user", content: "Judge {{input}}" }],
         provider: null,
         model: null,
         modelParams: null,
@@ -963,7 +963,7 @@ describe("legacy evaluator compatibility service", () => {
       },
       definition: {
         type: EvalTemplateType.LLM_AS_JUDGE,
-        prompt: "Judge {{input}} strictly",
+        promptMessages: [{ role: "user", content: "Judge {{input}} strictly" }],
         provider: null,
         model: null,
         modelParams: null,
@@ -1019,7 +1019,12 @@ describe("legacy evaluator compatibility service", () => {
         },
         definition: {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: "Judge {{input}} and {{expected}}",
+          promptMessages: [
+            {
+              role: "user",
+              content: "Judge {{input}} and {{expected}}",
+            },
+          ],
           provider: null,
           model: null,
           modelParams: null,
@@ -1046,7 +1051,7 @@ describe("legacy evaluator compatibility service", () => {
         intent: { type: "new" },
         definition: {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: "Judge {{input}}",
+          promptMessages: [{ role: "user", content: "Judge {{input}}" }],
           provider: null,
           model: null,
           modelParams: null,

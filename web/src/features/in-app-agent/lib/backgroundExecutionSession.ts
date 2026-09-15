@@ -43,7 +43,7 @@ export type BackgroundExecutionApprovalView = {
   status: "pending" | "submitting";
 };
 
-export type BackgroundExecutionAttachment =
+type BackgroundExecutionAttachment =
   | { status: "detached" }
   | { status: "attaching" }
   | { status: "attached" }
@@ -589,16 +589,14 @@ const BACKGROUND_RUN_FAILURE_MESSAGES: Readonly<Record<string, string>> = {
   [InAppAgentRunErrorCode.CANCELLED]: "You stopped this run.",
 };
 
-export function getBackgroundRunFailureMessage(
-  errorCode: string | null,
-): string {
+function getBackgroundRunFailureMessage(errorCode: string | null): string {
   return (
     BACKGROUND_RUN_FAILURE_MESSAGES[errorCode ?? ""] ??
     "The run failed. Try again."
   );
 }
 
-export type BackgroundRunNoticeTone = "info" | "warning";
+type BackgroundRunNoticeTone = "info" | "warning";
 
 export type BackgroundRunNotice = {
   text: string;
@@ -607,6 +605,23 @@ export type BackgroundRunNotice = {
 
 const STEP_LIMIT_NOTICE =
   "The assistant had to stop before finishing this answer. Too many steps in one turn. Send another message to continue.";
+const OUTPUT_LIMIT_NOTICE =
+  "The assistant had to stop before finishing this answer. The response hit the model's output limit. Send another message to continue.";
+
+/** Notices for SUCCEEDED runs cut short before a final answer, by error code. */
+const TRUNCATION_NOTICES: Readonly<Record<string, string>> = {
+  [InAppAgentRunErrorCode.STEP_LIMIT]: STEP_LIMIT_NOTICE,
+  [InAppAgentRunErrorCode.OUTPUT_LIMIT]: OUTPUT_LIMIT_NOTICE,
+};
+
+/** A SUCCEEDED run that was cut short before producing a final answer. */
+function isTruncatedRun(run: BackgroundExecutionRunView): boolean {
+  return (
+    run.status === InAppAgentRunStatus.SUCCEEDED &&
+    !!run.errorCode &&
+    run.errorCode in TRUNCATION_NOTICES
+  );
+}
 
 export function getBackgroundRunNotice(
   run: BackgroundExecutionRunView | null,
@@ -626,11 +641,11 @@ export function getBackgroundRunNotice(
     };
   }
 
-  if (
-    run.status === InAppAgentRunStatus.SUCCEEDED &&
-    run.errorCode === InAppAgentRunErrorCode.STEP_LIMIT
-  ) {
-    return { text: STEP_LIMIT_NOTICE, tone: "warning" };
+  const truncationNotice = isTruncatedRun(run)
+    ? TRUNCATION_NOTICES[run.errorCode ?? ""]
+    : undefined;
+  if (truncationNotice !== undefined) {
+    return { text: truncationNotice, tone: "warning" };
   }
 
   return null;
@@ -645,11 +660,7 @@ export function getSettledActivityOutcome(
     return "worked";
   }
 
-  if (
-    (run.status === InAppAgentRunStatus.SUCCEEDED &&
-      run.errorCode === InAppAgentRunErrorCode.STEP_LIMIT) ||
-    run.status === InAppAgentRunStatus.CANCELLED
-  ) {
+  if (isTruncatedRun(run) || run.status === InAppAgentRunStatus.CANCELLED) {
     return "stopped";
   }
 

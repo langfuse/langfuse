@@ -24,7 +24,7 @@ import {
 } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type Redis, type Cluster } from "ioredis";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import { type z } from "zod";
 import { CloudConfigSchema, isPlan } from "@langfuse/shared";
 
@@ -154,7 +154,6 @@ export class ApiAuthService {
               logger.info("No project id found for key", publicKey);
               throw new Error("Invalid credentials");
             }
-
             const plan = finalApiKey.plan;
 
             if (!isPlan(plan)) {

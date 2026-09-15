@@ -1,14 +1,15 @@
+import { useHasProjectAccess } from "@/src/features/rbac";
 import Page from "@/src/components/layouts/page";
+import { ActionButton } from "@/src/components/ActionButton";
 import { Button } from "@/src/components/ui/button";
-import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
+import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
-import { ListTree, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { CopyIcon, ListTree, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { DatasetStatus } from "@langfuse/shared";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,10 +60,16 @@ export const DatasetItemDetailPage = ({
     (tab) => !isExperimentsBetaActive || tab.value !== DATASET_ITEM_TABS.RUNS,
   );
 
-  const dataset = api.datasets.byId.useQuery({
-    datasetId,
-    projectId,
-  });
+  const routeReady =
+    Boolean(projectId) && Boolean(datasetId) && Boolean(itemId);
+
+  const dataset = api.datasets.byId.useQuery(
+    {
+      datasetId,
+      projectId,
+    },
+    { enabled: routeReady },
+  );
   const item = api.datasets.itemByIdAtVersion.useQuery(
     {
       datasetId,
@@ -70,6 +77,7 @@ export const DatasetItemDetailPage = ({
       datasetItemId: itemId,
     },
     {
+      enabled: routeReady,
       refetchOnWindowFocus: false, // breaks dirty form state
     },
   );
@@ -122,6 +130,17 @@ export const DatasetItemDetailPage = ({
       });
     }
   };
+
+  const datasetItemDialogPayload = item.data
+    ? {
+        fromDatasetId: item.data.datasetId,
+        traceId: item.data.sourceTraceId ?? undefined,
+        observationId: item.data.sourceObservationId ?? undefined,
+        input: JSON.stringify(item.data.input),
+        output: JSON.stringify(item.data.expectedOutput),
+        metadata: JSON.stringify(item.data.metadata),
+      }
+    : null;
 
   return (
     <Page
@@ -211,17 +230,23 @@ export const DatasetItemDetailPage = ({
               }
               listKey="datasetItems"
             />
-            {item.data ? (
-              <NewDatasetItemFromExistingObject
+            {datasetItemDialogPayload ? (
+              <NewDatasetItemFromExistingObjectDialogController
                 projectId={projectId}
-                fromDatasetId={item.data.datasetId}
-                traceId={item.data.sourceTraceId ?? undefined}
-                observationId={item.data.sourceObservationId ?? undefined}
-                input={JSON.stringify(item.data.input)}
-                output={JSON.stringify(item.data.expectedOutput)}
-                metadata={JSON.stringify(item.data.metadata)}
-                isCopyItem
-              />
+              >
+                {({ openDialog }) => (
+                  <ActionButton
+                    variant="outline"
+                    size="icon"
+                    hasAccess={hasAccess}
+                    title="Copy item"
+                    aria-label="Copy item"
+                    onClick={() => openDialog(datasetItemDialogPayload)}
+                  >
+                    <CopyIcon className="size-3" />
+                  </ActionButton>
+                )}
+              </NewDatasetItemFromExistingObjectDialogController>
             ) : (
               <Button variant="outline" size="icon" disabled>
                 <Skeleton className="h-5 w-5" />

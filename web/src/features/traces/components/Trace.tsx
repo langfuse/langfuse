@@ -24,7 +24,7 @@ import { TracePanelNavigation } from "@/src/features/traces/components/TracePane
 import { TracePanelDetail } from "@/src/features/traces/components/TracePanelDetail";
 import { TracePanelNavigationLayoutDesktop } from "@/src/features/traces/components/TracePanelNavigationLayoutDesktop/TracePanelNavigationLayoutDesktop";
 import { TraceTree } from "@/src/features/traces/components/TraceTree";
-import { TraceTimeline } from "@/src/features/traces/components/TraceTimeline/TraceTimeline";
+import { TraceTimelineCompact } from "@/src/features/traces/components/TraceTimelineDense/TraceTimelineCompact";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
 import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
@@ -41,11 +41,12 @@ export type TraceProps = {
   corrections: ScoreDomain[];
   projectId: string;
   context?: "fullscreen" | "peek" | "annotation";
+  layout?: "default" | "observation-focused";
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
 };
 
-const DESKTOP_LAYOUT_BY_CONTEXT = {
+const DESKTOP_LAYOUTS = {
   fullscreen: {
     groupId: "trace-layout-v3",
     defaultNavigationCollapsed: false,
@@ -56,6 +57,11 @@ const DESKTOP_LAYOUT_BY_CONTEXT = {
     defaultNavigationCollapsed: false,
     expandDetailOnMount: false,
   },
+  "peek-observation-focused": {
+    groupId: "trace-layout-peek-navigation-collapsed-v1",
+    defaultNavigationCollapsed: true,
+    expandDetailOnMount: false,
+  },
   annotation: {
     groupId: "trace-layout-annotation-v1",
     defaultNavigationCollapsed: true,
@@ -63,24 +69,25 @@ const DESKTOP_LAYOUT_BY_CONTEXT = {
   },
 } as const;
 
-type DesktopLayout =
-  (typeof DESKTOP_LAYOUT_BY_CONTEXT)[keyof typeof DESKTOP_LAYOUT_BY_CONTEXT];
+type DesktopLayout = (typeof DESKTOP_LAYOUTS)[keyof typeof DESKTOP_LAYOUTS];
 
 /**
  * SelectionProvider sits ABOVE the trace data so the selected observation can be
  * resolved before the tree is built: past the observation cap the selected row is
  * missing from the loaded list and has to be fetched and merged in.
  */
-export function Trace({ context, ...props }: TraceProps) {
+export function Trace({ context, layout = "default", ...props }: TraceProps) {
   const traceContext = context ?? "fullscreen";
+  const desktopLayoutKey =
+    traceContext === "peek" && layout === "observation-focused"
+      ? "peek-observation-focused"
+      : traceContext;
+  const desktopLayout = DESKTOP_LAYOUTS[desktopLayoutKey];
 
   return (
     <ViewPreferencesProvider traceContext={traceContext}>
       <SelectionProvider>
-        <TraceWithSelection
-          {...props}
-          desktopLayout={DESKTOP_LAYOUT_BY_CONTEXT[traceContext]}
-        />
+        <TraceWithSelection {...props} desktopLayout={desktopLayout} />
       </SelectionProvider>
     </ViewPreferencesProvider>
   );
@@ -252,7 +259,7 @@ function MobileTraceContent({ shouldShowGraph }: { shouldShowGraph: boolean }) {
     <TraceLayoutMobile
       showGraph={shouldShowGraph}
       tree={<TraceTree />}
-      timeline={<TraceTimeline />}
+      timeline={<TraceTimelineCompact />}
       graph={shouldShowGraph ? <TraceGraphView /> : null}
       info={<TracePanelDetail />}
     />

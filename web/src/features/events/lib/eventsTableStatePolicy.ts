@@ -1,20 +1,22 @@
 export type EventsTableStatePolicy = {
   filterStateLocation: "memory" | "urlAndSessionStorage";
   useIsolatedSearch: boolean;
-  allowGrammarSearch: boolean;
   disableSavedViews: boolean;
+  useHostSearchScopes: boolean;
 };
 
 export const getEventsTableStatePolicy = ({
   hideControls,
   isolateTableState,
+  hasParentScope,
 }: {
   hideControls: boolean;
   isolateTableState: boolean;
+  hasParentScope: boolean;
 }): EventsTableStatePolicy => ({
   filterStateLocation:
     hideControls || isolateTableState ? "memory" : "urlAndSessionStorage",
   useIsolatedSearch: isolateTableState,
-  allowGrammarSearch: !isolateTableState,
   disableSavedViews: hideControls || isolateTableState,
+  useHostSearchScopes: isolateTableState || hasParentScope,
 });

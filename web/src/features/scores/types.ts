@@ -2,7 +2,6 @@ import {
   type AnnotationScoreDataSchema,
   type AnnotateFormSchema,
 } from "@/src/features/scores/schema";
-import { type ButtonProps } from "@/src/components/ui/button";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import {
   type ScoreSourceType,
@@ -10,22 +9,12 @@ import {
   type ScoreAggregate,
   type ScoreConfigDomain,
   type ScoreDomain,
-  ScoreConfigDataType,
+  type ScoreConfigDataType,
 } from "@langfuse/shared";
 import { type z } from "zod";
 
-export type HistogramBin = { binLabel: string; count: number };
 export type CategoryCounts = Record<string, number>;
 export type ChartBin = { binLabel: string } & CategoryCounts;
-
-export type TimeseriesChartProps = {
-  chartData: ChartBin[];
-  chartLabels: string[];
-  title: string;
-  type: "numeric" | "categorical";
-  index?: string;
-  maxFractionDigits?: number;
-};
 
 export type ChartData = {
   chartData: ChartBin[];
@@ -44,12 +33,12 @@ export interface TimeseriesDataTransformer {
   toChartData(): ChartData;
 }
 
-export type SessionScoreTarget = {
+type SessionScoreTarget = {
   type: "session";
   sessionId: string;
 };
 
-export type TraceScoreTarget = {
+type TraceScoreTarget = {
   type: "trace";
   traceId: string;
   observationId?: string;
@@ -81,27 +70,21 @@ export type AnalyticsData = {
     | "DatasetCompare";
 };
 
-export type AnnotateDrawerProps<Target extends ScoreTarget> = {
-  projectId: string;
-  scoreTarget: Target;
-  scores: WithStringifiedMetadata<ScoreDomain>[];
-  analyticsData?: AnalyticsData;
-  scoreMetadata: {
-    projectId: string;
-    queueId?: string;
-    environment?: string;
-  };
-  buttonVariant?: ButtonProps["variant"];
-};
-
 export type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;
 export type AnnotationScoreSchemaType = z.infer<
   typeof AnnotationScoreDataSchema
 >;
 
 export type AnnotationScoreDataType = ScoreConfigDataType;
-export const ANNOTATION_SCORE_DATA_TYPES_ARRAY =
-  Object.values(ScoreConfigDataType);
+// Client-safe mirror of the Prisma enum. Vite/Storybook resolve
+// `@langfuse/shared` from source and cannot turn `export * from "@prisma/client"`
+// into named ESM exports, so browser code must not value-import Prisma enums.
+export const ANNOTATION_SCORE_DATA_TYPES_ARRAY = [
+  "NUMERIC",
+  "CATEGORICAL",
+  "BOOLEAN",
+  "TEXT",
+] as const satisfies readonly ScoreConfigDataType[];
 
 export type ScoreColumn = {
   key: string;

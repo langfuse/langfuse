@@ -54,7 +54,7 @@ export const OUTLIER_STRIP_STEP_LADDER_SECONDS = [
  * excluded on purpose. Finer sub-minute steps need a backend addition —
  * tracked as a follow-up to LFE-14451.
  */
-export const OUTLIER_STRIP_GRANULARITIES = [
+const OUTLIER_STRIP_GRANULARITIES = [
   { granularity: "minute", stepSeconds: 60 },
   { granularity: "5m", stepSeconds: 300 },
   { granularity: "10m", stepSeconds: 600 },
@@ -115,8 +115,8 @@ export function pickChartGranularity(params: {
 // ---------------------------------------------------------------------------
 
 export type OutlierStripMetricKey = "count" | "cost" | "latency";
-export type OutlierStripLatencyAgg = "p95" | "p50";
-export type OutlierStripCostAgg = "sum";
+type OutlierStripLatencyAgg = "p95" | "p50";
+type OutlierStripCostAgg = "sum";
 export type OutlierStripAggKey =
   | "count"
   | OutlierStripLatencyAgg
@@ -260,7 +260,7 @@ export const outlierStripQueryMetrics = (): {
   );
 
 /** Resolves an aggregation option, falling back to the metric's default. */
-export const resolveAggregation = (
+const resolveAggregation = (
   metric: OutlierStripMetricKey,
   aggregation: string | undefined,
 ): AggregationDef => {

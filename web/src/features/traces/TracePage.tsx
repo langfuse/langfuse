@@ -7,7 +7,7 @@ import Page from "@/src/components/layouts/page";
 import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
 import { traceDetailTitle } from "@/src/features/traces/fns/traceDetailTitle";
 import { useSession } from "next-auth/react";
-import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";

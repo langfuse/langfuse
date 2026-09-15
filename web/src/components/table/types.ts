@@ -1,12 +1,7 @@
 import { type RowData, type ColumnDef } from "@tanstack/react-table";
-import { type LucideIcon } from "lucide-react";
-
-export type TableRowOptions = {
-  columnId: string;
-  options: { label: string; value: number; icon?: LucideIcon }[];
-};
 
 export type DataTableCellPadding = "compact" | "comfortable" | "none";
+export type DataTableCellBackground = "gray" | "green";
 
 declare module "@tanstack/react-table" {
   // extends tanstack ColumnDef to include additional properties
@@ -17,11 +12,24 @@ declare module "@tanstack/react-table" {
       description: React.ReactNode;
       href?: string;
     };
+    /**
+     * Render the header as a block instead of one truncated line, for a header
+     * that carries more than the column's name (e.g. a score column's
+     * aggregate over the rows in view).
+     */
+    headerBlock?: boolean;
+    /**
+     * Plain-text name of the column, for surfaces that want a label rather than
+     * the rendered header — the column picker. Only needed when `header` is not
+     * a string.
+     */
+    headerLabel?: string;
     isFixedPosition?: boolean; // if true, column cannot be reordered
     isPinnedLeft?: boolean; // if true, column will be pinned to left side
     isFlexWidth?: boolean; // if true, column absorbs leftover space (one per table)
     loadingCell?: React.ReactNode | (() => React.ReactNode);
     cellPadding?: DataTableCellPadding;
+    cellBackground?: DataTableCellBackground;
   }
 }
 

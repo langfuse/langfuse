@@ -10,7 +10,7 @@ import {
 } from "../types";
 import { measureNode } from "./measureNode";
 
-export interface PositionedNode {
+interface PositionedNode {
   id: string;
   x: number;
   y: number;
@@ -18,7 +18,7 @@ export interface PositionedNode {
   height: number;
 }
 
-export interface PositionedEdge {
+interface PositionedEdge {
   id: string;
   source: string;
   target: string;
@@ -33,10 +33,11 @@ export interface GraphLayout {
   width: number;
   height: number;
   /**
-   * Set when the graph got no layout: either past the count ceiling
-   * (MAX_GRAPH_LAYOUT_*, so ELK never ran) or past the worker's wall-clock
-   * deadline. `nodes`/`edges` are empty and the renderer shows a "too large to
-   * lay out" notice.
+   * Set when the graph got no layout: past the count ceiling
+   * (MAX_GRAPH_LAYOUT_*, so ELK never ran), past the worker's wall-clock
+   * deadline, or elkjs overflowed its call stack on a graph still inside the
+   * count budget (deep/cyclic layered graphs). `nodes`/`edges` are empty and
+   * the renderer shows a "too large to lay out" notice.
    */
   tooLarge?: boolean;
   /** Distinct node / deduped-edge counts — surfaced in the "too large" notice. */
@@ -126,7 +127,7 @@ export const MAX_GRAPH_LAYOUT_NODES = 2_500;
  * exemption included. Without this, the raised ceiling above would let a dense
  * graph freeze the tab for minutes on the fallback path.
  */
-export const MAX_MAIN_THREAD_LAYOUT_EDGES = 250;
+const MAX_MAIN_THREAD_LAYOUT_EDGES = 250;
 export const MAX_MAIN_THREAD_LAYOUT_NODES = 500;
 
 /** True when a request is too big to lay out on the calling thread. */
@@ -136,6 +137,48 @@ export function exceedsMainThreadBudget(request: GraphLayoutRequest): boolean {
     (request.nodes.length > MAX_MAIN_THREAD_LAYOUT_NODES ||
       request.edges.length > MAX_MAIN_THREAD_LAYOUT_EDGES)
   );
+}
+
+function elkErrorMessage(error: unknown): string {
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
+  }
+  return "";
+}
+
+/**
+ * elkjs's layered algorithm recurses per layer. On a deep or cyclic graph that
+ * still fits the count budget, that DFS overflows the (especially worker)
+ * stack: Chrome/Safari `RangeError: Maximum call stack size exceeded`,
+ * Firefox `InternalError: too much recursion`.
+ *
+ * Same user-visible outcome as the count/deadline gates — not an app crash.
+ */
+export function isElkCallStackOverflow(error: unknown): boolean {
+  const message = elkErrorMessage(error);
+  return (
+    /maximum call stack size exceeded/i.test(message) ||
+    /too much recursion/i.test(message)
+  );
+}
+
+function tooLargeLayout(request: GraphLayoutRequest): GraphLayout {
+  return {
+    nodes: [],
+    edges: [],
+    width: 0,
+    height: 0,
+    tooLarge: true,
+    nodeCount: request.nodes.length,
+    edgeCount: request.edges.length,
+  };
 }
 
 /**
@@ -330,13 +373,18 @@ export async function runGraphLayout(
   elk: ELK,
   request: GraphLayoutRequest,
 ): Promise<GraphLayout> {
-  // Defensive guard: elkjs can still throw on a graph inside the budget (e.g.
-  // RangeError "too much recursion"). Rethrow a real Error so the caller — the
-  // worker's message handler or the renderer — surfaces a recoverable state.
+  // Defensive guard: elkjs can still throw on a graph inside the budget.
+  // Stack overflow is an expected ELK limitation — same "too large" state as
+  // the count/deadline gates, so the renderer does not treat it as a crash.
+  // Any other throw is rethrown as a real Error so the caller surfaces a
+  // recoverable layoutError.
   let result: ElkNode;
   try {
     result = await elk.layout(buildElkGraph(request));
   } catch (error) {
+    if (isElkCallStackOverflow(error)) {
+      return tooLargeLayout(request);
+    }
     throw error instanceof Error ? error : new Error(String(error));
   }
 

@@ -673,6 +673,7 @@ describe("experiment prompt tool config", () => {
     expect(result).toEqual({ success: true });
     expect(vi.mocked(generateLLMText)).toHaveBeenCalledWith(
       expect.objectContaining({
+        maxRetries: 1,
         tools: expect.objectContaining({
           get_weather: expect.anything(),
           get_time: expect.anything(),

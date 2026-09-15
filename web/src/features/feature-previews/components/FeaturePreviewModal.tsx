@@ -17,10 +17,10 @@ import {
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
 
-import compactTimelineDarkIllustration from "../assets/compact-timeline-dark.svg";
-import compactTimelineLightIllustration from "../assets/compact-timeline-light.svg";
 import modernSessionDarkIllustration from "../assets/modern-session-dark.svg";
 import modernSessionLightIllustration from "../assets/modern-session-light.svg";
+import improvedMessageRenderingDarkIllustration from "../assets/improved-message-rendering-dark.svg";
+import improvedMessageRenderingLightIllustration from "../assets/improved-message-rendering-light.svg";
 
 /** Flags the Feature Preview modal can toggle. Keep in sync with the
  *  userAccount.setFeaturePreviewEnabled allowlist and available-flags.ts. */
@@ -69,16 +69,16 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
     },
   },
   {
-    flag: "compactTimeline",
+    flag: "normalizedIoPreview",
     description:
-      "See a whole trace at once — every observation a single dense line, coloured by type — then zoom and pan it like a map.",
+      "Render the Formatted view of trace and observation input/output more faithfully — chat messages, tool calls, and reasoning are recognized across a wide range of model providers and frameworks.",
     details:
-      "The Compact Timeline replaces the trace panel's Timeline view. It fits the entire trace into the space available on both axes instead of scrolling: rows shrink to a single-pixel line, and colour carries the observation type where there is no room for a name. Scroll to pan, pinch to zoom both time and rows together, and double-click an observation to fly to it at a readable size — at which point the rows grow their names back and the tree gutter returns. Hovering the left edge peeks the names without moving the bars.",
+      "A new parser understands the conventions of OpenAI, Anthropic, Gemini, LangChain, the Vercel AI SDK, OpenTelemetry GenAI, Pydantic AI, and more. Messages, tool calls, tool results, and reasoning render as structured blocks in the Formatted view instead of falling back to raw JSON. When enabled, the Formatted tab is powered by this parser everywhere trace and observation I/O is shown.",
     feedbackUrl: "https://github.com/orgs/langfuse/discussions",
     illustration: {
-      light: compactTimelineLightIllustration,
-      dark: compactTimelineDarkIllustration,
-      alt: "A whole trace as dense coloured lines, one per observation, cascading across a time axis.",
+      light: improvedMessageRenderingLightIllustration,
+      dark: improvedMessageRenderingDarkIllustration,
+      alt: "Formatted trace view rendering a user message, an assistant reply, a tool call, and a reasoning block as distinct structured cards.",
     },
   },
 ];
@@ -199,6 +199,34 @@ export function FeaturePreviewModal({
                     />
                   </div>
                 </div>
+
+                {selected.flag === "modernSession" && state.sessionTimeline ? (
+                  <div className="border-border mt-5 flex items-start justify-between gap-6 border-t pt-5">
+                    <div>
+                      <h3 className="text-foreground text-sm font-bold">
+                        {featurePreviewLabels.sessionTimeline}
+                      </h3>
+                      <p className="text-muted-foreground mt-1 max-w-2xl text-sm leading-5">
+                        Use the redesigned timeline to navigate session events
+                        in chronological order.
+                      </p>
+                      {state.sessionTimeline.warningReason ? (
+                        <p className="mt-2 text-xs text-yellow-800 dark:text-yellow-200">
+                          {state.sessionTimeline.warningReason}
+                        </p>
+                      ) : null}
+                    </div>
+                    <Switch
+                      checked={state.sessionTimeline.enabled}
+                      disabled={
+                        state.sessionTimeline.disabled === true ||
+                        state.sessionTimeline.isToggling === true
+                      }
+                      onCheckedChange={state.sessionTimeline.onToggle}
+                      aria-label={`Toggle ${featurePreviewLabels.sessionTimeline}`}
+                    />
+                  </div>
+                ) : null}
 
                 <PreviewMockupPanel illustration={selected.illustration} />
 

@@ -13,7 +13,7 @@ import { DayPicker, UI, SelectionState, DayFlag } from "react-day-picker";
 import { cn } from "@/src/utils/tailwind";
 import { buttonVariants } from "@/src/components/ui/button";
 
-export type CalendarProps = React.ComponentProps<typeof DayPicker>;
+type CalendarProps = React.ComponentProps<typeof DayPicker>;
 
 function Calendar({
   className,
@@ -77,19 +77,20 @@ function Calendar({
 }
 Calendar.displayName = "Calendar";
 
-const Chevron = ({ orientation = "left" }) => {
-  switch (orientation) {
-    case "left":
-      return <ChevronLeft className="h-4 w-4" />;
-    case "right":
-      return <ChevronRight className="h-4 w-4" />;
-    case "up":
-      return <ChevronUp className="h-4 w-4" />;
-    case "down":
-      return <ChevronDown className="h-4 w-4" />;
-    default:
-      return null;
-  }
+const chevronIcons = {
+  left: ChevronLeft,
+  right: ChevronRight,
+  up: ChevronUp,
+  down: ChevronDown,
+};
+
+const Chevron = ({
+  orientation = "left",
+}: {
+  orientation?: keyof typeof chevronIcons;
+}) => {
+  const Icon = chevronIcons[orientation];
+  return <Icon className="h-4 w-4" />;
 };
 
 export { Calendar };
