@@ -25,9 +25,12 @@
   --font-sans:
     ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
     "Segoe UI Symbol", "Noto Color Emoji";
+  /* --font-plex-mono is set on <html> by next/font in _document. The
+     fallback keeps the declaration valid where that never runs (Storybook,
+     tests), otherwise an undefined var() voids the whole font-family. */
   --font-mono:
-    var(--font-plex-mono), ui-monospace, SFMono-Regular, Menlo, Monaco,
-    Consolas, "Liberation Mono", "Courier New", monospace;
+    var(--font-plex-mono, "IBM Plex Mono"), ui-monospace, SFMono-Regular, Menlo,
+    Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
   /* Weight ROLES — exactly TWO weights exist in this app: regular and bold.
      Both are font-relative, so components never hardcode numbers.
@@ -156,7 +159,7 @@
      per token). */
   --text-xs: 0.7rem;
   --text-xs--font-weight: var(--font-weight-regular);
-  --text-sm: 0.8125rem;
+  --text-sm: 0.825rem;
   --text-sm--font-weight: var(--font-weight-regular);
   /* Mono partner of text-sm: mono glyphs read larger than sans at equal
      size, so mono next to text-sm takes 11.6px with text-sm line box, and
