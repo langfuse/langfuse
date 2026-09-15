@@ -2,6 +2,7 @@ import {
   CommentObjectType,
   paginationMetaResponseZod,
   publicApiPaginationZod,
+  stringDateTime,
 } from "@langfuse/shared";
 import { z } from "zod";
 
@@ -48,6 +49,8 @@ export const GetCommentsV1Query = z
     objectType: z.enum(CommentObjectType).nullish(),
     objectId: z.string().nullish(),
     authorUserId: z.string().nullish(),
+    fromTimestamp: stringDateTime,
+    toTimestamp: stringDateTime,
     ...publicApiPaginationZod,
   })
   .strict()
