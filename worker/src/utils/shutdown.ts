@@ -51,7 +51,7 @@ const runDrainAndClose = async () => {
   server?.close();
   logger.info("Server has been closed.");
 
-  // Finish any in-flight enqueue before draining consumers and closing Redis.
+  // Give in-flight dispatch up to five seconds before continuing shutdown.
   await traceBatchDispatcher?.drain();
 
   // Stop batch project cleaners
