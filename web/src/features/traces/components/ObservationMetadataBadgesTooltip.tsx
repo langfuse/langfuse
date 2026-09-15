@@ -15,11 +15,7 @@
 import { Coins, InfoIcon } from "lucide-react";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import { usdFormatter, numberFormatter } from "@/src/utils/numbers";
-
-// Matches the metrics-tier scale in ObservationMetadataBadgesSimple.tsx —
-// uniform muted mono text, no borders/boxes.
-const METRIC_TEXT_CLASS =
-  "text-muted-foreground inline-flex shrink-0 items-center gap-1 text-xs whitespace-nowrap";
+import { METRIC_TEXT_CLASS } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 
 // Values that own a hover breakdown get a faint underline at rest so
 // they read as "more here" next to plain metrics (latency) that have nothing.

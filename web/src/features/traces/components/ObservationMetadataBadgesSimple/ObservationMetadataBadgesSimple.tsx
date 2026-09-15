@@ -19,10 +19,9 @@ import {
   formatIntervalSeconds,
 } from "@/src/utils/dates";
 
-// Metrics tier (latency, time-to-first-token): uniform muted mono text,
-// matching the numeric feel of the session header without its pill box.
-// Exported so the session header's own metrics (trace/span counts, latency
-// percentiles) share ONE definition of the tier instead of copying it.
+// Metrics tier (latency, time-to-first-token, cost, usage): uniform muted
+// mono text, no pill box. The one definition of the tier, shared by the
+// observation header, the cost/usage badges and the session header metrics.
 export const METRIC_TEXT_CLASS =
   "text-muted-foreground inline-flex shrink-0 items-center gap-1 text-xs whitespace-nowrap";
 
