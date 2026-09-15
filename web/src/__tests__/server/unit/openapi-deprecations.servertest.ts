@@ -205,45 +205,52 @@ describe("OpenAPI deprecations", () => {
     }
   });
 
-  it("tells legacy ingestion callers to prefer Python and JS SDKs over curl", () => {
-    expect(INGESTION_DEPRECATION.message).toContain(
-      "Always prefer upgrading to the current Python and JS SDKs",
-    );
-    expect(INGESTION_DEPRECATION.message).toContain(
-      "custom auto-instrumentation",
-    );
-    expect(INGESTION_DEPRECATION.message).toContain("curl");
-
+  it("leads with the ingestion sunset and names the write successors", () => {
     const ingestion = getFernDeprecatedOperations(definitionDirectory).find(
       ({ method, endpointPath }) =>
         method === "post" && endpointPath === "/api/public/ingestion",
     );
-    expect(ingestion?.message).toContain(
-      "Always prefer upgrading to the current Python and JS SDKs",
-    );
-    expect(ingestion?.message).toContain("custom auto-instrumentation");
-    expect(ingestion?.message).toContain("curl");
-    expect(INGESTION_DEPRECATION.message).toContain("never shut down");
-    expect(INGESTION_DEPRECATION.message).toContain("score events");
+
+    for (const message of [INGESTION_DEPRECATION.message, ingestion?.message]) {
+      expect(message).toContain(`shut down on ${V3_SUNSET_HUMAN}`);
+      expect(message).toContain("except for score events");
+      expect(message).toContain("rejects all other event types");
+      expect(message).toContain("POST /api/public/scores");
+      expect(message).toContain(
+        "prefer upgrading to the current Python and JS SDKs",
+      );
+      expect(message).toContain("custom auto-instrumentation");
+      expect(message).toContain("curl");
+      expect(message).toContain("POST /api/public/otel/v1/traces");
+      expect(message).toContain(
+        "The only path to live data is OpenTelemetry ingestion",
+      );
+      expect(message).toContain(
+        "other public APIs may have data delays of several minutes",
+      );
+    }
+
+    // Read guidance points at the live v2 surfaces and their docs.
     expect(INGESTION_DEPRECATION.message).toContain(
-      "All other event types are rejected",
+      "GET /api/public/v2/observations",
     );
-    expect(INGESTION_DEPRECATION.message).toContain("v4-only write mode");
     expect(INGESTION_DEPRECATION.message).toContain(
-      "not in dual or legacy mode",
+      "GET /api/public/v2/metrics",
     );
-    expect(ingestion?.message).toContain("will not be shut down");
-    expect(ingestion?.message).toContain("only `score-create` events");
-    expect(ingestion?.message).toContain("all other event types are rejected");
-    expect(ingestion?.message).toContain("v4-only write mode");
-    expect(ingestion?.message).toContain(
-      "Dual and legacy write modes continue to accept",
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "https://langfuse.com/docs/api-and-data-platform/features/scores-api",
     );
-    expect(ingestion?.message).toContain(
-      "`GET /api/public/v2/observations` and `GET /api/public/v2/metrics` are live",
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "https://langfuse.com/docs/api-and-data-platform/features/observations-api",
     );
     expect(ingestion?.message).toContain(
-      "all other public APIs may have data delays of several minutes",
+      "https://langfuse.com/docs/api-and-data-platform/features/scores-api",
+    );
+    expect(ingestion?.message).toContain(
+      "https://langfuse.com/docs/api-and-data-platform/features/observations-api",
+    );
+    expect(ingestion?.message).toContain(
+      "https://langfuse.com/docs/metrics/features/metrics-api",
     );
   });
 
@@ -281,24 +288,17 @@ describe("OpenAPI deprecations", () => {
         continue;
       }
 
-      expect(event.docs, eventType).toContain("Sunset warning");
-      expect(event.docs, eventType).toContain(V3_SUNSET_HUMAN);
-      expect(event.docs, eventType).toContain("endpoint remains available");
-      expect(event.docs, eventType).toContain(
-        "only `score-create` events as ingestion data",
-      );
-      expect(event.docs, eventType).toContain(V4_DOCS_URL);
-      expect(generatedSchema.description, eventType).toContain(
-        "Sunset warning",
-      );
-      expect(generatedSchema.description, eventType).toContain(V3_SUNSET_HUMAN);
-      expect(generatedSchema.description, eventType).toContain(
-        "endpoint remains available",
-      );
-      expect(generatedSchema.description, eventType).toContain(
-        "only `score-create` events as ingestion data",
-      );
-      expect(generatedSchema.description, eventType).toContain(V4_DOCS_URL);
+      for (const description of [event.docs, generatedSchema.description]) {
+        expect(description, eventType).toContain("Sunset warning");
+        expect(description, eventType).toContain(V3_SUNSET_HUMAN);
+        expect(description, eventType).toContain(
+          "this event type is rejected from",
+        );
+        expect(description, eventType).toContain(
+          "`score-create` is the only event type this endpoint still accepts",
+        );
+        expect(description, eventType).toContain(V4_DOCS_URL);
+      }
     }
   });
 

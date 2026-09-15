@@ -2771,36 +2771,57 @@ paths:
   /api/public/ingestion:
     post:
       description: >-
-        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and v4-only
-        write mode begins on November 16, 2026. This endpoint will not be shut
-        down. In v4-only write mode, it accepts only `score-create` events; all
-        other event types are rejected. Dual and legacy write modes continue to
-        accept trace and observation events. Only `GET
-        /api/public/v2/observations` and `GET /api/public/v2/metrics` are live;
-        all other public APIs may have data delays of several minutes. Always
-        prefer upgrading to the current Python and JS SDKs. If you use custom
-        auto-instrumentation, only then send data via the OpenTelemetry endpoint
-        at `POST /api/public/otel/v1/traces` (for example with curl); see the
-        [OpenTelemetry integration
-        docs](https://langfuse.com/integrations/native/opentelemetry).
-        Self-hosted deployments are unaffected by the November 16 date; this
-        behavior begins only when they enable v4-only write mode. See the
-        [Langfuse v3 to v4 upgrade
+        **Deprecated:** On Langfuse Cloud, this is the deprecated Langfuse v3
+        ingestion API and it is shut down on November 16, 2026, except for score
+        events: from that date it accepts only `score-create` events and rejects
+        all other event types. To write scores, prefer `POST
+        /api/public/scores`; see the [Scores API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/scores-api).
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs; if you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint at `POST /api/public/otel/v1/traces` (for
+        example with curl); see the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry). To read
+        data back, use the v4 read APIs; see the [Observations API
+        docs](https://langfuse.com/docs/api-and-data-platform/features/observations-api)
+        and the [Metrics API
+        docs](https://langfuse.com/docs/metrics/features/metrics-api). The only
+        path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`; all other
+        public APIs may have data delays of several minutes. Self-hosted
+        deployments are unaffected by the November 16 date; this behavior begins
+        only when they enable v4-only write mode. See the [Langfuse v3 to v4
+        upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
         **Legacy endpoint for batch ingestion for Langfuse Observability.**
 
 
-        This endpoint will not be shut down. In v4-only write mode, it accepts
-        only `score-create` events; all other event types are rejected. Dual and
-        legacy write modes continue to accept trace and observation events. Only
-        `GET /api/public/v2/observations` and `GET /api/public/v2/metrics` are
-        live; all other public APIs may have data delays of several minutes.
-        Always prefer upgrading to the current Python and JS SDKs. If you use
-        custom auto-instrumentation, only then send traces via the OpenTelemetry
-        endpoint (`POST /api/public/otel/v1/traces`), for example with curl.
-        Learn more: https://langfuse.com/integrations/native/opentelemetry
+        This is the deprecated Langfuse v3 ingestion API. It is shut down on
+        November 16, 2026, except for score events: from that date it accepts
+        only `score-create` events and rejects all other event types.
+
+
+        To write scores, prefer `POST /api/public/scores`:
+        https://langfuse.com/docs/api-and-data-platform/features/scores-api
+
+
+        To write traces and observations, always prefer upgrading to the current
+        Python and JS SDKs. If you use custom auto-instrumentation, send them to
+        the OpenTelemetry endpoint (`POST /api/public/otel/v1/traces`), for
+        example with curl:
+        https://langfuse.com/integrations/native/opentelemetry
+
+
+        To read data back, use the v4 read APIs:
+        https://langfuse.com/docs/api-and-data-platform/features/observations-api
+        and https://langfuse.com/docs/metrics/features/metrics-api
+
+
+        The only path to live data is OpenTelemetry ingestion combined with `GET
+        /api/public/v2/observations` and `GET /api/public/v2/metrics`. All other
+        public APIs may have data delays of several minutes.
 
 
         Within each batch, there can be multiple events.
@@ -2882,8 +2903,9 @@ paths:
                     $ref: '#/components/schemas/IngestionEvent'
                   description: >-
                     Batch of events to be ingested, discriminated by attribute
-                    `type`. In v4-only write mode, only `score-create` events
-                    are accepted; all other event types are rejected.
+                    `type`. From November 16, 2026 on Langfuse Cloud, only
+                    `score-create` events are accepted; all other event types
+                    are rejected.
                 metadata:
                   nullable: true
                   description: >-
@@ -13956,10 +13978,11 @@ components:
       title: TraceEvent
       type: object
       description: >-
-        Sunset warning: This endpoint remains available, but in v4-only write
-        mode it accepts only `score-create` events as ingestion data. This event
-        type is rejected. Langfuse Cloud enters v4-only write mode on November
-        16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4
+        Sunset warning: On Langfuse Cloud, this event type is rejected from
+        November 16, 2026; `score-create` is the only event type this endpoint
+        still accepts. Send traces and observations with a current Langfuse SDK,
+        or via the OpenTelemetry endpoint `POST /api/public/otel/v1/traces` for
+        custom auto-instrumentation; see the [Langfuse v4
         documentation](https://langfuse.com/docs/v4) and the [SDK
         overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
@@ -13973,10 +13996,11 @@ components:
       title: CreateObservationEvent
       type: object
       description: >-
-        Sunset warning: This endpoint remains available, but in v4-only write
-        mode it accepts only `score-create` events as ingestion data. This event
-        type is rejected. Langfuse Cloud enters v4-only write mode on November
-        16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4
+        Sunset warning: On Langfuse Cloud, this event type is rejected from
+        November 16, 2026; `score-create` is the only event type this endpoint
+        still accepts. Send traces and observations with a current Langfuse SDK,
+        or via the OpenTelemetry endpoint `POST /api/public/otel/v1/traces` for
+        custom auto-instrumentation; see the [Langfuse v4
         documentation](https://langfuse.com/docs/v4) and the [SDK
         overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
@@ -13990,10 +14014,11 @@ components:
       title: UpdateObservationEvent
       type: object
       description: >-
-        Sunset warning: This endpoint remains available, but in v4-only write
-        mode it accepts only `score-create` events as ingestion data. This event
-        type is rejected. Langfuse Cloud enters v4-only write mode on November
-        16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4
+        Sunset warning: On Langfuse Cloud, this event type is rejected from
+        November 16, 2026; `score-create` is the only event type this endpoint
+        still accepts. Send traces and observations with a current Langfuse SDK,
+        or via the OpenTelemetry endpoint `POST /api/public/otel/v1/traces` for
+        custom auto-instrumentation; see the [Langfuse v4
         documentation](https://langfuse.com/docs/v4) and the [SDK
         overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
@@ -14017,10 +14042,11 @@ components:
       title: CreateGenerationEvent
       type: object
       description: >-
-        Sunset warning: This endpoint remains available, but in v4-only write
-        mode it accepts only `score-create` events as ingestion data. This event
-        type is rejected. Langfuse Cloud enters v4-only write mode on November
-        16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4
+        Sunset warning: On Langfuse Cloud, this event type is rejected from
+        November 16, 2026; `score-create` is the only event type this endpoint
+        still accepts. Send traces and observations with a current Langfuse SDK,
+        or via the OpenTelemetry endpoint `POST /api/public/otel/v1/traces` for
+        custom auto-instrumentation; see the [Langfuse v4
         documentation](https://langfuse.com/docs/v4) and the [SDK
         overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
@@ -14034,10 +14060,11 @@ components:
       title: UpdateGenerationEvent
       type: object
       description: >-
-        Sunset warning: This endpoint remains available, but in v4-only write
-        mode it accepts only `score-create` events as ingestion data. This event
-        type is rejected. Langfuse Cloud enters v4-only write mode on November
-        16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4
+        Sunset warning: On Langfuse Cloud, this event type is rejected from
+        November 16, 2026; `score-create` is the only event type this endpoint
+        still accepts. Send traces and observations with a current Langfuse SDK,
+        or via the OpenTelemetry endpoint `POST /api/public/otel/v1/traces` for
+        custom auto-instrumentation; see the [Langfuse v4
         documentation](https://langfuse.com/docs/v4) and the [SDK
         overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
@@ -14051,10 +14078,11 @@ components:
       title: CreateSpanEvent
       type: object
       description: >-
-        Sunset warning: This endpoint remains available, but in v4-only write
-        mode it accepts only `score-create` events as ingestion data. This event
-        type is rejected. Langfuse Cloud enters v4-only write mode on November
-        16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4
+        Sunset warning: On Langfuse Cloud, this event type is rejected from
+        November 16, 2026; `score-create` is the only event type this endpoint
+        still accepts. Send traces and observations with a current Langfuse SDK,
+        or via the OpenTelemetry endpoint `POST /api/public/otel/v1/traces` for
+        custom auto-instrumentation; see the [Langfuse v4
         documentation](https://langfuse.com/docs/v4) and the [SDK
         overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
@@ -14068,10 +14096,11 @@ components:
       title: UpdateSpanEvent
       type: object
       description: >-
-        Sunset warning: This endpoint remains available, but in v4-only write
-        mode it accepts only `score-create` events as ingestion data. This event
-        type is rejected. Langfuse Cloud enters v4-only write mode on November
-        16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4
+        Sunset warning: On Langfuse Cloud, this event type is rejected from
+        November 16, 2026; `score-create` is the only event type this endpoint
+        still accepts. Send traces and observations with a current Langfuse SDK,
+        or via the OpenTelemetry endpoint `POST /api/public/otel/v1/traces` for
+        custom auto-instrumentation; see the [Langfuse v4
         documentation](https://langfuse.com/docs/v4) and the [SDK
         overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
@@ -14085,10 +14114,11 @@ components:
       title: CreateEventEvent
       type: object
       description: >-
-        Sunset warning: This endpoint remains available, but in v4-only write
-        mode it accepts only `score-create` events as ingestion data. This event
-        type is rejected. Langfuse Cloud enters v4-only write mode on November
-        16, 2026. Upgrade to a current Langfuse SDK; see the [Langfuse v4
+        Sunset warning: On Langfuse Cloud, this event type is rejected from
+        November 16, 2026; `score-create` is the only event type this endpoint
+        still accepts. Send traces and observations with a current Langfuse SDK,
+        or via the OpenTelemetry endpoint `POST /api/public/otel/v1/traces` for
+        custom auto-instrumentation; see the [Langfuse v4
         documentation](https://langfuse.com/docs/v4) and the [SDK
         overview](https://langfuse.com/docs/observability/sdk/overview).
       properties:
