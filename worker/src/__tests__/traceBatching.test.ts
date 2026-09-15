@@ -34,6 +34,7 @@ import {
 } from "../features/traces/traceBatching";
 import { otelIngestionQueueProcessorBuilder } from "../queues/otelIngestionQueue";
 import { traceBatchQueueProcessor } from "../queues/traceBatchQueue";
+import * as shared from "@langfuse/shared/src/server";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
@@ -476,6 +477,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   const originalStrategy = env.LANGFUSE_TRACE_BATCH_STRATEGY;
   const originalPendingTtl = env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS;
   const originalIdle = env.LANGFUSE_TRACE_BATCH_IDLE_MS;
+  const originalReadEnabled = env.LANGFUSE_TRACE_BATCH_READ_ENABLED;
   let queue: Queue<TQueueJobTypes[QueueName.TraceBatch]>;
   let connection: NonNullable<ReturnType<typeof createNewRedisInstance>>;
   const runners: TraceBatchDispatcher[] = [];
@@ -504,6 +506,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   }
 
   beforeEach(async () => {
+    env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "true";
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 1;
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 60;
@@ -530,6 +533,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_STRATEGY = originalStrategy;
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = originalPendingTtl;
     env.LANGFUSE_TRACE_BATCH_IDLE_MS = originalIdle;
+    env.LANGFUSE_TRACE_BATCH_READ_ENABLED = originalReadEnabled;
     await queue.obliterate({ force: true });
     await queue.close();
     connection.disconnect();
@@ -1249,11 +1253,12 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   it("expires abandoned pending keys natively without another ingestion or dispatcher run", async () => {
-    env.LANGFUSE_TRACE_BATCH_IDLE_MS = 50;
-    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 150;
+    env.LANGFUSE_TRACE_BATCH_IDLE_MS = 10_000;
+    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 300;
     await trackTraceBatchActivity("project", [event("abandoned")]);
     for (const key of [dueKey, stateKey]) {
       expect(await client().pttl(key)).toBeGreaterThan(0);
+      expect(await client().pttl(key)).toBeLessThanOrEqual(300);
     }
     await vi.waitFor(async () => {
       expect(await client().exists(dueKey, stateKey)).toBe(0);
@@ -1266,6 +1271,9 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 60_000;
     await trackTraceBatchActivity("project", [event("long-idle")]);
     const initialDeadline = Number(await client().pexpiretime(dueKey));
+    await vi.waitFor(() =>
+      expect(Date.now()).toBeGreaterThan(initialDeadline - 60_000 + 10),
+    );
     env.LANGFUSE_TRACE_BATCH_IDLE_MS = 20_000;
     await trackTraceBatchActivity("project", [event("later")]);
     const extendedDeadline = Number(await client().pexpiretime(dueKey));
@@ -1283,6 +1291,63 @@ describe("trace micro-batch scheduling with Redis", () => {
     );
     expect(await client().zcard(dueKey)).toBe(3);
     expect(await client().hlen(stateKey)).toBe(3);
+  });
+
+  it("drains and removes queued jobs without queries when reads are disabled", async () => {
+    env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "false";
+    env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
+    const read = vi
+      .spyOn(shared, "getTraceBatchEventStream")
+      .mockImplementation(async function* () {
+        throw new Error("Drain mode must not query ClickHouse");
+      });
+    const payload = {
+      traces: [
+        {
+          projectId: "project",
+          traceId: "trace",
+          minStart: 0,
+          maxStart: 1,
+          revision: "r",
+        },
+      ],
+    };
+    const current = await queue.add(
+      QueueJobs.TraceBatch,
+      {
+        id: "current",
+        timestamp: new Date(),
+        name: QueueJobs.TraceBatch,
+        payload,
+      },
+      { jobId: "current", removeOnComplete: { age: 3600, count: 10000 } },
+    );
+    const old = await queue.add(
+      QueueJobs.TraceBatch,
+      {
+        id: "old",
+        timestamp: new Date(Date.now() - 3 * 60 * 60_000),
+        name: QueueJobs.TraceBatch,
+        payload,
+      },
+      { jobId: "old", removeOnComplete: { age: 3600, count: 10000 } },
+    );
+    const worker = new Worker(queue.name, traceBatchQueueProcessor, {
+      connection,
+      prefix: getQueuePrefix(queue.name),
+    });
+    try {
+      await vi.waitFor(async () => {
+        expect(await queue.getJob(current.id!)).toBeUndefined();
+        expect(await queue.getJob(old.id!)).toBeUndefined();
+      });
+      expect(
+        await queue.getJobCounts("wait", "active", "completed", "failed"),
+      ).toEqual({ wait: 0, active: 0, completed: 0, failed: 0 });
+      expect(read).not.toHaveBeenCalled();
+    } finally {
+      await worker.close();
+    }
   });
 
   it("expires bounded pending state during ingestion without dispatch and preserves refreshed traces", async () => {

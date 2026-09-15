@@ -31,6 +31,7 @@ not live runtime settings. Web processes do not consume these controls.
 | `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | `false`; `true` or `false`                                               | Direct-v4 ingestion; admit/update Redis state               |
 | `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`; `true` or `false`                                               | Dispatcher; enqueue ready traces                            |
 | `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`; `true` or `false`                                               | Batch consumer registration; pick up queued jobs            |
+| `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | `false`; `true` or `false`                                               | Consumer; query when true, discard/remove jobs when false   |
 
 Defaults are source defaults, not evidence of running configuration. An absent
 block setting is omitted from the query, preserving the ClickHouse profile's
@@ -54,6 +55,11 @@ but do not extend it, so mixed-version intake can expire a late arrival too
 early. Use the same stop/drain sequence before rolling back writer code.
 This is separate from later consumer-only query-setting rollouts.
 
+For existing enabled consumers, install `LANGFUSE_TRACE_BATCH_READ_ENABLED=true`
+before or alongside the new image, or disable consumers until image and env
+are both installed. Old code ignores the flag; new code with the flag absent
+discards queued work. Do not introduce an unintended discard window during rollout.
+
 1. Record the actual deployed commit SHA, image/build ID, region, consumer
    process count, other enabled experimental readers, and every control above.
    Map `BUILD_ID` to the deployed SHA explicitly; a build ID is not necessarily
@@ -70,7 +76,9 @@ This is separate from later consumer-only query-setting rollouts.
 4. Deploy with enable flags off if introducing the experiment to a deployment.
    Upgrade every enabled consumer before dispatching the inherited cross-project
    payloads; old single-project consumers cannot process those jobs. Start a
-   known consumer fleet, then dispatcher, then eligible direct-v4 intake.
+   known consumer fleet with `LANGFUSE_TRACE_BATCH_READ_ENABLED=true`, then
+   dispatcher, then eligible direct-v4 intake. A registered consumer without
+   that explicit read flag discards jobs; set it on every intended reader.
    Multiple dispatchers may be enabled, but only the Redis lease owner runs.
 5. Establish arm A separately if the previous deployment used one thread or
    different query code. That transition is not evidence for the block-size
@@ -213,7 +221,7 @@ and CPU tradeoffs motivate the comparison; they are not fleet-wide guarantees.
 - **Strategy rollback:** set dispatcher `LANGFUSE_TRACE_BATCH_STRATEGY=project`
   and roll dispatchers. This changes future selection only; queued jobs retain
   their membership, and it does not reverse inherited query code.
-- **Normal stop:** disable intake first; keep dispatcher and consumers enabled
+- **Normal stop:** disable intake first; keep dispatcher, consumers and reads enabled
   until pending/ready and waiting/active/delayed retry work drain. Inspect failed
   jobs separately. Then disable dispatchers and consumers. Intake off or sample
   rate `0` does not cancel/resample pending or queued work.
@@ -223,6 +231,30 @@ and CPU tradeoffs motivate the comparison; they are not fleet-wide guarantees.
   jobs remain subject to queue retention/retry policy and can resume with the
   configuration of the next consumer. Keep compatible reader code deployed.
 
+For a fast stop that **discards** queued experiment work instead of retaining
+it, roll consumers with:
+
+```sh
+LANGFUSE_TRACE_BATCH_INGESTION_ENABLED=false
+LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED=false
+QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED=true
+LANGFUSE_TRACE_BATCH_READ_ENABLED=false
+```
+
+The running consumer completes and immediately removes picked-up jobs without
+querying. Leave the dispatcher on if pending traces should also be enqueued and
+discarded as they become ready; otherwise the pending map expires natively.
+Resume a paused queue to drain it. Delayed retries wait until eligible. Existing
+failed/completed history is not purged by this mode; BullMQ retention remains
+lazy. There is no separate housekeeping runner. No worker running means no
+queue cleanup. Active reads finish during graceful rollout.
+
+With reads enabled, jobs at least two hours old (from their payload timestamp)
+are also discarded/removed before querying, including retries. The fixed job-age
+policy prevents stale replay after a long stop but is not autonomous queue TTL.
+`langfuse.trace_batch.discarded_jobs{reason:reads_disabled|expired}` counts these
+discards; they are excluded from read-success distributions.
+
 Stop/revert on the pre-agreed resource/SLO criteria, persistent backlog growth,
 or rising failures; investigate before resuming. Do not invent thresholds from
 the two sampled benchmark cases.
@@ -230,8 +262,9 @@ the two sampled benchmark cases.
 Pending TTL is retention after the due timestamp. Admitted ingestion chunks
 and dispatcher activity prune individual expired entries from the shared
 due/state keys. Each admitted chunk also sets the same native expiry on both
-whole keys: at least the latest due timestamp plus retention, preserving any
-later existing expiry. Abandoned state expires without another writer or
+whole keys: current Redis time plus retention, preserving any later existing
+expiry. Thus the default backstop is two hours without admitted intake, without
+adding the idle delay. Abandoned state expires without another writer or
 dispatcher run. Per-trace pruning is still needed during continuous intake;
 whole-key expiry is not a per-trace memory bound. Native expirations do not
 increment `expired_traces`, and backlog gauges may stay stale while dispatch

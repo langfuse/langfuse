@@ -458,15 +458,12 @@ const TRACK_SCRIPT = `
   end
   local retention = tonumber(ARGV[2])
   local expired = expirePending(now, retention, ${CHUNK_SIZE})
-  local latest = redis.call('ZRANGE', KEYS[1], -1, -1, 'WITHSCORES')
-  if latest[2] then
-    -- Keep both structures until every pending trace's retention deadline.
-    -- A shorter policy on another writer must not shorten an existing expiry.
-    local expiresAt = math.max(tonumber(latest[2]) + retention,
-      redis.call('PEXPIRETIME', KEYS[1]), redis.call('PEXPIRETIME', KEYS[2]))
-    redis.call('PEXPIREAT', KEYS[1], expiresAt)
-    redis.call('PEXPIREAT', KEYS[2], expiresAt)
-  end
+  -- Bound abandoned state from the last admitted activity, independent of idle.
+  -- A shorter policy on another writer must not shorten an existing expiry.
+  local expiresAt = math.max(now + retention,
+    redis.call('PEXPIRETIME', KEYS[1]), redis.call('PEXPIRETIME', KEYS[2]))
+  redis.call('PEXPIREAT', KEYS[1], expiresAt)
+  redis.call('PEXPIREAT', KEYS[2], expiresAt)
   return expired
 `;
 

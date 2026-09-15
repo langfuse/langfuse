@@ -109,6 +109,7 @@ enabled intake tracks every eligible trace unless a lower rate is configured.
 | `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`          | `1`       | Stable trace admission fraction, 0–1 (`0.1` = 10%)          |
 | `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`   | Turn ready state into queue jobs                            |
 | `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`   | Consume existing `trace-batch` jobs                         |
+| `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | `false`   | Permit reads; otherwise a running consumer discards jobs    |
 | `LANGFUSE_TRACE_BATCH_CONCURRENCY`            | `2`       | Concurrent reads **per enabled worker process**             |
 | `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`      | Cross-project trace cap per job (1–10,000)                  |
 | `LANGFUSE_TRACE_BATCH_STRATEGY`               | `project` | Rollback baseline (`project`) or experimental `locality`    |
@@ -134,11 +135,12 @@ back consumers, stop cross-project dispatch and drain waiting/active jobs;
 handle retained failed cross-project jobs with the newer consumer as well.
 The Redis readiness layout, intake flag and sampling cohort are unchanged.
 
-For a normal stop, disable **intake** first and keep dispatcher and consumers
+For a normal stop, disable **intake** first and keep dispatcher, consumers and reads
 running until Redis pending/ready counts and the queue's waiting/active counts
 reach zero. Then disable the dispatcher and consumers. For an immediate stop
 to reads, disable consumers and disable intake/dispatcher to stop backlog
-growth; existing jobs remain available to resume. These are startup env flags,
+growth; jobs younger than two hours remain eligible to read on resume. Older
+jobs are discarded. These are startup env flags,
 so changing them requires a worker rollout. Keep this code deployed while
 draining; reverting consumer code cannot drain its queue.
 
@@ -273,8 +275,10 @@ the cap is an experiment setting, not an established production optimum.
   Expiry cleanup remains bounded per Lua call and continues across pages.
 - Per-trace cleanup is opportunistic and can lag behind a large backlog;
   continuously active traces keep extending readiness. Each admitted ingestion
-  chunk also sets matching native expiry on both shared keys, no earlier than
-  the latest due timestamp plus retention or either existing expiry. Redis
+  chunk also sets matching native expiry on both shared keys at the current
+  Redis time plus retention, preserving either existing later expiry. The idle
+  delay does not extend this inactivity backstop: with the default retention,
+  both keys expire after two hours without admitted intake. Redis
   therefore removes abandoned pending state even if ingestion and dispatch stop.
   This whole-key backstop does not expire individual members during continuous
   intake and is not a hard memory cap. Native expiry is not counted in the
@@ -289,6 +293,30 @@ the cap is an experiment setting, not an established production optimum.
   require this writer migration sequence.
 - No query cache, materialized view, SQL transcript generation, or LLM calls
   are involved in this experiment.
+
+### Discarding queued work without reads
+
+Keep `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED=true` and set
+`LANGFUSE_TRACE_BATCH_READ_ENABLED=false` (also the default when absent).
+The consumer returns without parsing the payload or querying ClickHouse and
+sets `removeOnComplete=true` on that job. BullMQ removes it on successful
+completion rather than retaining completed-job metadata. Normal ingestion is
+unaffected. Discarded experiment work will not be replayed automatically.
+On existing readers, install the explicit read flag before or alongside the
+new image, or keep the consumer disabled until both are present.
+
+Even with reads enabled, jobs whose payload timestamp is at least two hours old
+are discarded and removed before querying, including retries. This age policy
+is fixed and separate from pending-map retention. Discards emit
+`langfuse.trace_batch.discarded_jobs` with reason `reads_disabled` or `expired`;
+they do not emit read-success distributions.
+
+There is no housekeeping runner. The worker must run and its queue must be
+unpaused to drain; delayed retries drain when eligible. Active reads finish
+during graceful rollout. Existing failed/completed history and jobs failed
+before entering the processor keep the queue's existing lazy retention policy.
+If every worker stops, queued jobs remain until a consumer resumes; native
+pending-map expiry still works independently.
 
 ## Local checks
 

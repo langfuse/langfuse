@@ -37,6 +37,11 @@
   are bounded. The complete run has no trace-count/time cutoff. Worker memory
   and the ID response size scale with the due backlog; no scratch disk is used.
   Intake, dispatcher, and consumer have independent disabled-by-default flags.
+  `LANGFUSE_TRACE_BATCH_READ_ENABLED` separately permits queries (default false).
+  A registered consumer with reads off discards jobs without parsing/querying and
+  removes them on completion. With reads on, jobs older than two hours are also
+  discarded before querying. Paused/stopped consumers do not drain; old failed
+  and completed history retains BullMQ's existing lazy retention policy.
   `LANGFUSE_TRACE_BATCH_SAMPLING_RATE` is a 0–1 admission rate (default 1),
   using evaluator sampling by trace ID before Redis; queued work is not resampled.
   The consumer retains outer project, trace, pair, hash and batch-time pruning,
@@ -50,7 +55,8 @@
   Pending entries are pruned atomically from due/state during ingestion and
   dispatch after `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS` past readiness (default
   two hours). Ingestion also sets matching native expiry on both shared keys
-  after the latest pending deadline, without shortening existing expiry.
+  after two hours without admitted intake (independent of the idle window),
+  without shortening an existing later expiry from another writer policy.
   Per-member cleanup remains opportunistic. Native expiry requires Redis 7+;
   pause intake and drain before upgrading or rolling back writers, since old
   writers do not extend installed TTLs. See the experiment runbook.

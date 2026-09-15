@@ -3,16 +3,35 @@ import {
   getTraceBatchEventStream,
   logger,
   recordDistribution,
+  recordIncrement,
   TraceBatchEventSchema,
   type QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
 
+const JOB_MAX_AGE_MS = 2 * 60 * 60_000;
+
 export const traceBatchQueueProcessor: Processor<
   TQueueJobTypes[QueueName.TraceBatch]
 > = async (job) => {
-  const batch = TraceBatchEventSchema.parse(job.data).payload;
+  if (env.LANGFUSE_TRACE_BATCH_READ_ENABLED !== "true") {
+    // BullMQ reads these options after the processor returns, then removes atomically.
+    job.opts.removeOnComplete = true;
+    recordIncrement("langfuse.trace_batch.discarded_jobs", 1, {
+      reason: "reads_disabled",
+    });
+    return { discarded: "reads_disabled" };
+  }
+  const event = TraceBatchEventSchema.parse(job.data);
+  if (Date.now() - event.timestamp.getTime() >= JOB_MAX_AGE_MS) {
+    job.opts.removeOnComplete = true;
+    recordIncrement("langfuse.trace_batch.discarded_jobs", 1, {
+      reason: "expired",
+    });
+    return { discarded: "expired" };
+  }
+  const batch = event.payload;
   const foundTraces = new Set<string>();
   const foundProjects = new Set<string>();
   let observationCount = 0;

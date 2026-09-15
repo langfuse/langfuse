@@ -120,6 +120,7 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_TRACE_BATCH_READ_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_TRACE_BATCH_CONCURRENCY: z.coerce
     .number()
     .int()

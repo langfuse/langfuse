@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type Job } from "bullmq";
 import {
   getTraceBatchEventStream,
@@ -17,12 +17,47 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   recordDistribution: vi.fn(),
 }));
 
+const originalReadEnabled = env.LANGFUSE_TRACE_BATCH_READ_ENABLED;
+beforeEach(() => {
+  env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "true";
+});
 afterEach(() => {
+  env.LANGFUSE_TRACE_BATCH_READ_ENABLED = originalReadEnabled;
   vi.restoreAllMocks();
   vi.clearAllMocks();
 });
 
 describe("trace batch queue", () => {
+  it("discards an expired batch before querying, including on retry", async () => {
+    const job = {
+      opts: {},
+      data: {
+        id: "expired",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(Date.now() - 3 * 60 * 60_000).toISOString(),
+        payload: {
+          traces: [
+            {
+              projectId: "project",
+              traceId: "trace",
+              minStart: 0,
+              maxStart: 1,
+              revision: "r",
+            },
+          ],
+        },
+      },
+    } as unknown as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual({
+        discarded: "expired",
+      });
+    }
+    expect(getTraceBatchEventStream).not.toHaveBeenCalled();
+    expect(recordDistribution).not.toHaveBeenCalled();
+    expect(job.opts.removeOnComplete).toBe(true);
+  });
+
   it("forwards operator overrides and logs the attempt configuration even if the stream fails", async () => {
     const originalEnv = { ...env };
     Object.assign(env, {
