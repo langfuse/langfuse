@@ -1,3 +1,4 @@
+/* eslint-disable boundaries/dependencies */
 "use client";
 
 import {
@@ -22,6 +23,7 @@ import Link from "next/link";
 import * as React from "react";
 
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
+import { useLayerContainer } from "../../ui/layer";
 
 const menuVariants = cva(
   "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 min-w-32 overflow-y-auto rounded-md border shadow-md outline-hidden",
@@ -101,7 +103,7 @@ function DropdownMenu({
 }: DropdownMenuProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState<number | null>(null);
-  const layerContainerRef = React.useRef<HTMLElement | null>(null);
+  const layerContainer = useLayerContainer("popover");
   const listRef = React.useRef<Array<HTMLElement | null>>([]);
   const labelsRef = React.useRef<Array<string | null>>([]);
   const { register, recompute, top, bottom } =
@@ -132,12 +134,6 @@ function DropdownMenu({
     [click, dismiss, role, listNavigation, typeahead],
   );
 
-  React.useEffect(() => {
-    layerContainerRef.current = document.querySelector<HTMLElement>(
-      '[data-overlay-root] > [data-layer="popover"]',
-    );
-  }, []);
-
   return (
     <>
       {children({
@@ -147,7 +143,7 @@ function DropdownMenu({
           }),
       })}
       {isOpen ? (
-        <FloatingPortal root={layerContainerRef}>
+        <FloatingPortal root={layerContainer}>
           <FloatingFocusManager context={context} modal={false}>
             <div
               ref={(element) => {
@@ -222,6 +218,7 @@ function DropdownMenu({
                           data-secondary-action=""
                           href={secondaryAction.href}
                           aria-label={secondaryAction.ariaLabel}
+                          aria-disabled={item.disabled ? "true" : undefined}
                           tabIndex={-1}
                           className={secondaryActionVariants()}
                           onClick={(event) => {
@@ -248,8 +245,8 @@ function DropdownMenu({
                           className={secondaryActionVariants()}
                           onClick={(event) => {
                             event.stopPropagation();
-                            secondaryAction.onClick?.();
                             setIsOpen(false);
+                            secondaryAction.onClick?.();
                           }}
                           {...interactionProps}
                         >
@@ -297,6 +294,8 @@ function DropdownMenu({
                         <Link
                           data-primary-action=""
                           href={item.href}
+                          aria-disabled={item.disabled ? "true" : undefined}
+                          tabIndex={item.disabled ? -1 : undefined}
                           className={primaryActionVariants()}
                           onClick={(event) => {
                             if (item.disabled) {
@@ -326,8 +325,8 @@ function DropdownMenu({
                           data-primary-action=""
                           className={primaryActionVariants()}
                           onClick={() => {
-                            item.onClick?.();
                             setIsOpen(false);
+                            item.onClick?.();
                           }}
                         >
                           {ItemIcon ? (

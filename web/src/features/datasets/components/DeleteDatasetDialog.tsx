@@ -34,15 +34,19 @@ export function DeleteDatasetDialog({
 
     try {
       await deleteMutation.mutateAsync({ projectId, datasetId });
-      if (redirectUrl) {
-        await router.push(redirectUrl);
-      } else {
-        await utils.datasets.invalidate();
-      }
-      setDeleteConfirmationInput("");
-      close();
     } catch {
       // The tRPC error handler owns mutation failures; keep the dialog open.
+      return;
+    }
+
+    capture("datasets:delete_dataset_button_click");
+    setDeleteConfirmationInput("");
+    close();
+
+    if (redirectUrl) {
+      await router.push(redirectUrl);
+    } else {
+      await utils.datasets.invalidate();
     }
   };
 

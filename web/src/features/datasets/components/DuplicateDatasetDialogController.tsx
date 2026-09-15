@@ -23,11 +23,7 @@ export function DuplicateDatasetDialogController({
     projectId,
     scope: "datasets:CUD",
   });
-  const duplicateDataset = api.datasets.duplicateDataset.useMutation({
-    onSuccess: ({ id }) => {
-      router.push(`/project/${projectId}/datasets/${id}/items`);
-    },
-  });
+  const duplicateDataset = api.datasets.duplicateDataset.useMutation();
 
   const disabled = hasAccess
     ? undefined
@@ -45,7 +41,17 @@ export function DuplicateDatasetDialogController({
           description="This creates a copy of the dataset and all of its items."
           confirmLabel="Duplicate dataset"
           loading={duplicateDataset.isPending}
-          onConfirm={() => duplicateDataset.mutate({ projectId, datasetId })}
+          onConfirm={() =>
+            duplicateDataset.mutate(
+              { projectId, datasetId },
+              {
+                onSuccess: ({ id }) => {
+                  close();
+                  router.push(`/project/${projectId}/datasets/${id}/items`);
+                },
+              },
+            )
+          }
         />
       )}
     >

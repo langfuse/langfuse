@@ -184,6 +184,7 @@ export const TestClickActions = meta.story({
     await userEvent.click(trigger);
     await userEvent.click(body.getByRole("button", { name: "Run action" }));
     await expect(onPrimaryAction).toHaveBeenCalledOnce();
+    await expect(body.queryByRole("menu", { name: "Actions" })).toBeNull();
   },
 });
 
@@ -217,5 +218,29 @@ export const TestDisabledAction = meta.story({
 
     await userEvent.click(body.getByRole("button", { name: "Edit" }));
     await expect(onDisabledAction).not.toHaveBeenCalled();
+  },
+});
+
+export const TestDisabledLink = meta.story({
+  name: "(Test) Disabled link",
+  args: {
+    items: [
+      {
+        type: "item",
+        id: "disabled-link",
+        title: "View item",
+        disabled: { reason: "You don't have permission to view this item." },
+        href: "/items/example",
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "Open menu" }));
+    const link = await body.findByRole("link", { name: "View item" });
+    await expect(link).toHaveAttribute("aria-disabled", "true");
+    await expect(link).toHaveAttribute("tabindex", "-1");
   },
 });
