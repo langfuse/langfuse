@@ -11,7 +11,7 @@ Score rendering, annotation forms, mutations, and the project Scores search bar.
   numeric ranges, boolean values, and categorical values retain their existing
   filter shapes. There is no independent full-text search or aggregate-score
   namespace.
-- `components/table/use-cases/scores.tsx` (under `src/`) owns data fetching,
+- `ScoresTable.tsx` owns data fetching,
   URL/saved-view filters, and the table. Sidebar tables share the bar and pass
   their filter configuration so the grammar matches their available facets.
 
