@@ -117,16 +117,26 @@ describe("dashboard widget minVersion", () => {
       // v2-only dimensions
       ["observations", [{ field: "costType" }], [], [], true],
       ["observations", [{ field: "usageType" }], [], [], true],
+      ["observations", [{ field: "inputCacheStatus" }], [], [], true],
       // v2-only measures
       ["observations", [], [{ measure: "costByType" }], [], true],
       ["observations", [], [{ measure: "usageByType" }], [], true],
       ["observations", [], [{ measure: "traceId" }], [], true],
+      ["observations", [], [{ measure: "cachedInputTokens" }], [], true],
+      ["observations", [], [{ measure: "cachedInputCost" }], [], true],
       // v2-only filters
       [
         "observations",
         [],
         [{ measure: "count" }],
         [{ column: "release" }],
+        true,
+      ],
+      [
+        "observations",
+        [],
+        [{ measure: "inputCost" }],
+        [{ column: "cachedInputTokens" }],
         true,
       ],
       // v2-only experiment filters

@@ -189,6 +189,21 @@ const OBSERVATIONS_EVENTS_SYSTEM_TABLE_VIEW_PRESETS: SystemTableViewPreset[] = [
     ],
     orderBy: { column: "totalTokens", order: "DESC" },
   }),
+  buildSystemPreset({
+    id: `${SYSTEM_TABLE_VIEW_PRESET_ID_PREFIX}no_cache_used`,
+    name: "No cache used",
+    description: "Observations reporting zero cached input tokens",
+    tableName: TableViewPresetTableName.ObservationsEvents,
+    category: SystemTableViewPresetCategory.CostRegression,
+    filters: [
+      {
+        column: "cachedInputTokens",
+        type: "number",
+        operator: "<=",
+        value: 0,
+      },
+    ],
+  }),
 ];
 
 const SYSTEM_TABLE_VIEW_PRESETS: Partial<

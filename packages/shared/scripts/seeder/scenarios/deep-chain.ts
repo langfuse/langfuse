@@ -141,7 +141,8 @@ const run = async (
 
     // Usage model mirrors the reported rows: prompt ~2.2-3.1k (occasionally
     // tiny), completion ~90-350 with rare large outliers, plus reasoning
-    // tokens. total = input + output + reasoning (Gemini-style accounting).
+    // tokens. Cache-read metrics rotate through missing, zero, and positive
+    // values so presence filters stay reproducible.
     const smallInput = jitter(ctx.seed, i * 11 + 5, 19) === 0;
     const usageInput = smallInput
       ? 300 + jitter(ctx.seed, i * 11 + 6, 120)
@@ -151,23 +152,33 @@ const run = async (
       ? 800 + jitter(ctx.seed, i * 11 + 8, 3600)
       : 90 + jitter(ctx.seed, i * 11 + 8, 260);
     const usageReasoning = 500 + jitter(ctx.seed, i * 11 + 9, 400);
-    const usageTotal = usageInput + usageOutput + usageReasoning;
+    const hasCachedInputMetric = i % 3 !== 0;
+    const usageCacheRead = i % 3 === 2 ? 200 + jitter(ctx.seed, i, 500) : 0;
+    const usageTotal =
+      usageInput + usageCacheRead + usageOutput + usageReasoning;
     const usageDetails = {
       input: usageInput,
       output: usageOutput,
       total: usageTotal,
-      input_cache_read: 0,
+      ...(hasCachedInputMetric
+        ? { input_cache_read: usageCacheRead }
+        : undefined),
       output_reasoning: usageReasoning,
     };
-    // Flash-tier pricing: $0.5/M prompt, $3/M completion + reasoning.
+    // Synthetic Flash-tier pricing: $0.5/M prompt, $0.05/M cache read,
+    // $3/M completion + reasoning.
     const costInput = usageInput * 0.5e-6;
+    const costCacheRead = usageCacheRead * 0.05e-6;
     const costOutput = usageOutput * 3e-6;
     const costReasoning = usageReasoning * 3e-6;
     const costDetails = {
       input: costInput,
+      ...(hasCachedInputMetric
+        ? { input_cache_read: costCacheRead }
+        : undefined),
       output: costOutput,
       output_reasoning: costReasoning,
-      total: costInput + costOutput + costReasoning,
+      total: costInput + costCacheRead + costOutput + costReasoning,
     };
 
     observations.push(
