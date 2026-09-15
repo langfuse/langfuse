@@ -46,8 +46,16 @@ function setResponse(
     call.response = response;
   }
   call.fromTool = fromTool;
-  if (!call.state.thread.observationIds.includes(observation.id)) {
-    call.state.thread.observationIds.push(observation.id);
+  if (
+    !call.state.thread.observations.some(
+      ({ id, traceId }) =>
+        id === observation.id && traceId === observation.traceId,
+    )
+  ) {
+    call.state.thread.observations.push({
+      id: observation.id,
+      traceId: observation.traceId,
+    });
   }
 }
 
@@ -146,10 +154,7 @@ function append(
   isNewThread: boolean,
 ) {
   const { thread, shownCounts } = state;
-  thread.observationIds.push(generation.id);
-  if (!thread.traceIds.includes(generation.traceId)) {
-    thread.traceIds.push(generation.traceId);
-  }
+  thread.observations.push({ id: generation.id, traceId: generation.traceId });
   if (isNewThread) {
     // Append all input messages, no deduplication checks required
     for (const entry of input) appendMessage(state, generation, entry);
@@ -208,7 +213,7 @@ export function getTranscript(observations: Observation[]): Transcript | null {
     if (!state) {
       // Open new thread
       state = {
-        thread: { messages: [], observationIds: [], traceIds: [] },
+        thread: { messages: [], observations: [] },
         messages: [],
         shownCounts: new Map(),
       };

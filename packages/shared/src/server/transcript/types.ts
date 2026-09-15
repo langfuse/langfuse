@@ -16,10 +16,7 @@ export type ThreadMessage = NormalizedMessage & {
 export type Thread = {
   messages: ThreadMessage[];
   /** Observations that contributed to this thread, in contribution order. */
-  observationIds: string[];
-  /** Distinct traces the contributing generations belong to, in first-seen
-   * order. A thread spans traces when a later trace replays the history. */
-  traceIds: string[];
+  observations: { id: string; traceId: string }[];
 };
 
 export type Transcript = {

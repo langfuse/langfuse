@@ -90,8 +90,8 @@ export function formatTranscript(
   transcript.threads.forEach((thread, threadIndex) => {
     lines.push(
       "",
-      `┌ thread ${threadIndex + 1} · trace(s) ${thread.traceIds.join(", ")}`,
-      `│ generations: ${thread.observationIds.map(label).join(", ")}`,
+      `┌ thread ${threadIndex + 1} · trace(s) ${[...new Set(thread.observations.map(({ traceId }) => traceId))].join(", ")}`,
+      `│ generations: ${thread.observations.map(({ id }) => label(id)).join(", ")}`,
     );
 
     for (const message of thread.messages) {

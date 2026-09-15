@@ -19,8 +19,7 @@ type Transcript = { threads: Thread[] };
 
 type Thread = {
   messages: ThreadMessage[];
-  observationIds: string[]; // observations that contributed, in order
-  traceIds: string[]; // distinct traces of those generations, in order
+  observations: { id: string; traceId: string }[]; // observations that contributed, in order
 };
 
 type ThreadMessage = NormalizedMessage & {
