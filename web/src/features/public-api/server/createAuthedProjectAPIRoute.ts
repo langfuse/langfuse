@@ -6,6 +6,7 @@ import {
   traceException,
   logger,
   contextWithLangfuseProps,
+  recordIncrement,
 } from "@langfuse/shared/src/server";
 import {
   PayloadTooLargeError,
@@ -414,6 +415,25 @@ export const createAuthedProjectAPIRoute = <
         organization &&
         organization.createdAt >= LEGACY_API_ORGANIZATION_CUTOFF
       ) {
+        const rejectionContext = {
+          orgId: auth.scope.orgId,
+          projectId: auth.scope.projectId,
+          apiRoute: routeConfig.name,
+        };
+        recordIncrement(
+          "langfuse.public_api.legacy_get_rejected",
+          1,
+          rejectionContext,
+        );
+        logger.info(
+          "Rejected legacy GET API request for organization created at or after cutoff",
+          {
+            ...rejectionContext,
+            apiPath: clickHouseRouteForRequest(req),
+            organizationCreatedAt: organization.createdAt.toISOString(),
+            cutoff: LEGACY_API_ORGANIZATION_CUTOFF.toISOString(),
+          },
+        );
         res.status(410).json(
           attachDeprecation(
             {

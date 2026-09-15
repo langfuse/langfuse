@@ -9,6 +9,8 @@ const {
   mockRateLimitRequest,
   mockTraceException,
   mockLoggerDebug,
+  mockLoggerInfo,
+  mockRecordIncrement,
   mockFindOrganization,
   mockCreateStructuredPublicApiAuthError,
   mockSendStructuredPublicApiErrorResponse,
@@ -19,6 +21,8 @@ const {
   mockRateLimitRequest: vi.fn(),
   mockTraceException: vi.fn(),
   mockLoggerDebug: vi.fn(),
+  mockLoggerInfo: vi.fn(),
+  mockRecordIncrement: vi.fn(),
   mockFindOrganization: vi.fn(),
   mockCreateStructuredPublicApiAuthError: vi.fn((value) => value),
   mockSendStructuredPublicApiErrorResponse: vi.fn(),
@@ -56,10 +60,11 @@ vi.mock("@langfuse/shared/src/server", () => ({
   redis: null,
   logger: {
     debug: mockLoggerDebug,
-    info: vi.fn(),
+    info: mockLoggerInfo,
     warn: vi.fn(),
     error: vi.fn(),
   },
+  recordIncrement: mockRecordIncrement,
   traceException: mockTraceException,
   contextWithLangfuseProps: vi.fn(() => ({})),
   ClickHouseClientManager: {
@@ -165,6 +170,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
 
     const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
       method: options?.method ?? "GET",
+      url: "/api/public/test",
       headers: {
         authorization: "Basic test",
       },
@@ -202,6 +208,26 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       _deprecation: deprecation,
     });
     expect(mockRateLimitRequest).toHaveBeenCalledOnce();
+    expect(mockRecordIncrement).toHaveBeenCalledWith(
+      "langfuse.public_api.legacy_get_rejected",
+      1,
+      {
+        orgId: "org-id",
+        projectId: "project-id",
+        apiRoute: "Test Route",
+      },
+    );
+    expect(mockLoggerInfo).toHaveBeenCalledWith(
+      "Rejected legacy GET API request for organization created at or after cutoff",
+      {
+        orgId: "org-id",
+        projectId: "project-id",
+        apiRoute: "Test Route",
+        apiPath: "GET /api/public/test",
+        organizationCreatedAt: "2026-09-16T00:00:00.000Z",
+        cutoff: "2026-09-16T00:00:00.000Z",
+      },
+    );
   });
 
   it("keeps deprecated GET routes available when the cutoff is disabled", async () => {
@@ -212,6 +238,8 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
 
     expect(res.statusCode).toBe(200);
     expect(mockFindOrganization).not.toHaveBeenCalled();
+    expect(mockRecordIncrement).not.toHaveBeenCalled();
+    expect(mockLoggerInfo).not.toHaveBeenCalled();
   });
 
   it("keeps deprecated GET routes available to older Cloud organizations", async () => {
