@@ -1,6 +1,9 @@
 import { AST_NODE_TYPES, type TSESTree } from "@typescript-eslint/utils";
 
-import { createComponentReturnExpressionVisitors } from "../react-components.js";
+import {
+  createComponentReturnExpressionVisitors,
+  visitFunctionReturnExpressions,
+} from "../react-components.js";
 import { createRule } from "../util.js";
 
 type Options = [
@@ -105,12 +108,18 @@ function expressionRendersJsx(node: TSESTree.Expression): boolean {
 
 function controllerOwnsPresentation(node: TSESTree.JSXElement): boolean {
   const child = getMeaningfulChild(node.children);
-  return (
-    (child?.type === AST_NODE_TYPES.ArrowFunctionExpression ||
-      child?.type === AST_NODE_TYPES.FunctionExpression) &&
-    child.body.type !== AST_NODE_TYPES.BlockStatement &&
-    expressionRendersJsx(child.body)
-  );
+  if (
+    child?.type !== AST_NODE_TYPES.ArrowFunctionExpression &&
+    child?.type !== AST_NODE_TYPES.FunctionExpression
+  ) {
+    return false;
+  }
+
+  let ownsPresentation = false;
+  visitFunctionReturnExpressions(child, (returnExpression) => {
+    if (expressionRendersJsx(returnExpression)) ownsPresentation = true;
+  });
+  return ownsPresentation;
 }
 
 function jsxSubtreeContainsName(

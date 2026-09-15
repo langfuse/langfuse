@@ -275,7 +275,7 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
   invalid: [
     {
       code: `
-        import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+          import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 
         export function DeletePrompt() {
           return (
@@ -308,7 +308,28 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
     },
     {
       code: `
-        import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+          import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+
+          export function DeletePrompt() {
+            return (
+              <DialogController>
+                {({ openDialog }) => {
+                  return <button onClick={openDialog}>Delete</button>;
+                }}
+              </DialogController>
+            );
+          }
+        `,
+      errors: [
+        {
+          messageId: "abstractedTrigger",
+          data: { overlay: "DialogController" },
+        },
+      ],
+    },
+    {
+      code: `
+          import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
         export function ArchiveButton({ children }) {
           return (
