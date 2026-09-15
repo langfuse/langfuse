@@ -3,6 +3,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import {
   traceException,
+  redis,
   logger,
   getCurrentSpan,
   contextWithLangfuseProps,
@@ -18,9 +19,11 @@ import {
   jsonSchema,
   MethodNotAllowedError,
   BaseError,
-  InternalServerError,
+  UnauthorizedError,
   ForbiddenError,
 } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import * as opentelemetry from "@opentelemetry/api";
@@ -104,26 +107,38 @@ export default async function handler(
 
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
-    // CHECK AUTH FOR ALL EVENTS
-    const authResult = await shadowAuth({
-      req,
-      allowedAccessLevels: ["project", "scores"],
-      allowInAppAgentKey: true,
-    });
-    if (!authResult.success) throw authResult.error;
-    const { scope, ctx: authCtx } = authResult;
-    // shadowAuth's project/scores gating guarantees a projectId; narrow the invariant.
-    if (!scope.projectId) {
-      throw new InternalServerError("Missing projectId on an authorized scope");
+    // CHECK AUTH FOR ALL EVENTS. Connection auth is identical across migration
+    // modes and mirrors the pre-policy handler; the policy core only resolves
+    // the context that per-event authorization needs.
+    const authCheck = await new ApiAuthService(
+      prisma,
+      redis,
+    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
+    if (!authCheck.validKey) {
+      throw new UnauthorizedError(authCheck.error);
     }
-    const projectId = scope.projectId;
+    if (!authCheck.scope.projectId) {
+      throw new UnauthorizedError(
+        "Missing projectId in scope. Are you using an organization key?",
+      );
+    }
+    const projectId = authCheck.scope.projectId;
     projectIdForIngestFailure = projectId;
-    if (scope.isIngestionSuspended) {
+    if (authCheck.scope.isIngestionSuspended) {
       throw new ForbiddenError(
         "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
       );
     }
-    const authCheck = { validKey: true as const, scope };
+
+    let authCtx: AuthorizationContext | undefined;
+    if (env.API_AUTH_MIGRATION !== "legacy") {
+      const policy = await shadowAuth({
+        req,
+        allowedAccessLevels: ["project", "scores"],
+        allowInAppAgentKey: true,
+      });
+      authCtx = policy.success ? policy.ctx : undefined;
+    }
 
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
@@ -199,7 +214,7 @@ export default async function handler(
         const authorized = authorizeIngestionBatch(
           batchForProcessing,
           authCtx,
-          scope.accessLevel,
+          authCheck.scope.accessLevel,
           projectId,
         );
 
