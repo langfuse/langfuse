@@ -53,8 +53,15 @@ import { verifyGatewayIngestionAuthorization } from "@/src/features/ai-gateway/s
 const isJsonStringTooLargeError = (error: unknown): error is RangeError =>
   error instanceof RangeError && error.message === "Invalid string length";
 
-const LEGACY_API_ORGANIZATION_CUTOFF = new Date("2026-09-16T00:00:00.000Z");
-const LEGACY_API_ORGANIZATION_CUTOFF_HUMAN = "September 16, 2026";
+const LEGACY_API_ORGANIZATION_CUTOFF = new Date(
+  env.LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF,
+);
+const LEGACY_API_ORGANIZATION_CUTOFF_HUMAN = new Intl.DateTimeFormat("en-US", {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+  timeZone: "UTC",
+}).format(LEGACY_API_ORGANIZATION_CUTOFF);
 
 export type AuthedProjectAPIRouteConfig<
   TQuery extends ZodType<any>,
