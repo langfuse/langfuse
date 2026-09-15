@@ -1981,6 +1981,48 @@ describe("OTel Resource Span Mapping", () => {
       },
     );
 
+    it("should build chat input from lk.pii.instructions and lk.pii.user_input on a realtime agent_turn", async () => {
+      const events = await convertOtelSpanToIngestionEvent(
+        createLivekitSpan({
+          name: "agent_turn",
+          scopeName: "livekit-agents",
+          attributes: [
+            {
+              key: "lk.pii.instructions",
+              value: { stringValue: "Your name is Marin." },
+            },
+            {
+              key: "lk.pii.user_input",
+              value: { stringValue: "What is Langfuse?" },
+            },
+            {
+              key: "lk.pii.response.text",
+              value: {
+                stringValue: "Langfuse is an LLM engineering platform.",
+              },
+            },
+            {
+              key: "lk.pii.response.function_calls",
+              value: { stringValue: "[]" },
+            },
+          ],
+        }),
+        new Set([livekitTraceId]),
+      );
+
+      const observation = findObservationCreateEvent(events);
+      expect(observation?.body.input).toEqual([
+        { role: "system", content: "Your name is Marin." },
+        { role: "user", content: "What is Langfuse?" },
+      ]);
+      expect(observation?.body.output).toBe(
+        "Langfuse is an LLM engineering platform.",
+      );
+      expect(
+        observation?.body.metadata?.attributes?.["lk.pii.response.text"],
+      ).toBeUndefined();
+    });
+
     it("should not map LiveKit span names without livekit-agents scope", async () => {
       const events = await convertOtelSpanToIngestionEvent(
         createLivekitSpan({
@@ -3942,6 +3984,105 @@ describe("OTel Resource Span Mapping", () => {
           },
           entityAttributeKey: "output",
           entityAttributeValue: '{"temperature": 75, "condition": "sunny"}',
+        },
+      ],
+      // livekit-agents >= 1.8 marks content attributes with a `pii` segment
+      [
+        "should map lk.pii.input_text to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.input_text",
+          otelAttributeValue: {
+            stringValue: "What is the weather today?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: "What is the weather today?",
+        },
+      ],
+      [
+        "should map lk.pii.user_transcript to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.user_transcript",
+          otelAttributeValue: {
+            stringValue: "Hey there. What's the weather?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: "Hey there. What's the weather?",
+        },
+      ],
+      [
+        "should map lk.pii.chat_ctx to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.chat_ctx",
+          otelAttributeValue: {
+            stringValue: '{"items": [{"role": "user", "content": ["Hi"]}]}',
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue:
+            '{"items": [{"role": "user", "content": ["Hi"]}]}',
+        },
+      ],
+      [
+        "should map lk.pii.user_input to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.user_input",
+          otelAttributeValue: {
+            stringValue: "What is Langfuse?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: "What is Langfuse?",
+        },
+      ],
+      [
+        "should map lk.pii.function_tool.arguments to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.function_tool.arguments",
+          otelAttributeValue: {
+            stringValue: '{"query": "langfuse sessions"}',
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: '{"query": "langfuse sessions"}',
+        },
+      ],
+      [
+        "should map lk.pii.response.text to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.response.text",
+          otelAttributeValue: {
+            stringValue: "The weather is sunny with a high of 75°F.",
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: "The weather is sunny with a high of 75°F.",
+        },
+      ],
+      [
+        "should map lk.pii.function_tool.output to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.function_tool.output",
+          otelAttributeValue: {
+            stringValue: '{"temperature": 75, "condition": "sunny"}',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: '{"temperature": 75, "condition": "sunny"}',
+        },
+      ],
+      [
+        "should map lk.pii.response.function_calls to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.pii.response.function_calls",
+          otelAttributeValue: {
+            stringValue: '[{"name": "searchLangfuseDocs", "arguments": "{}"}]',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue:
+            '[{"name": "searchLangfuseDocs", "arguments": "{}"}]',
         },
       ],
       [

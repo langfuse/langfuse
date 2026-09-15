@@ -1828,13 +1828,22 @@ export class OtelIngestionProcessor {
       "prompt",
       "all_messages_events",
       "events",
-      // LiveKit
+      // LiveKit (livekit-agents >= 1.8 marks content attributes with `lk.pii.`)
       "lk.input_text",
       "lk.user_transcript",
       "lk.chat_ctx",
       "lk.user_input",
       "lk.function_tool.output",
       "lk.response.text",
+      "lk.pii.input_text",
+      "lk.pii.user_transcript",
+      "lk.pii.chat_ctx",
+      "lk.pii.user_input",
+      "lk.pii.instructions",
+      "lk.pii.function_tool.arguments",
+      "lk.pii.function_tool.output",
+      "lk.pii.response.text",
+      "lk.pii.response.function_calls",
       // MLFlow
       "mlflow.spanInputs",
       "mlflow.spanOutputs",
@@ -2154,13 +2163,37 @@ export class OtelIngestionProcessor {
       return { input, output, filteredAttributes };
     }
 
-    // LiveKit
+    // LiveKit. livekit-agents >= 1.8 marks content attributes with a `pii`
+    // segment (`lk.pii.<name>`); older versions use the bare `lk.<name>`.
+    const livekitInstructions = attributes["lk.pii.instructions"];
+    const livekitUserInput =
+      attributes["lk.user_input"] ?? attributes["lk.pii.user_input"];
     input =
       attributes["lk.input_text"] ??
+      attributes["lk.pii.input_text"] ??
       attributes["lk.user_transcript"] ??
-      attributes["lk.chat_ctx"];
+      attributes["lk.pii.user_transcript"] ??
+      attributes["lk.chat_ctx"] ??
+      attributes["lk.pii.chat_ctx"] ??
+      // agent_turn spans carry the system instructions and the user message
+      // separately; combine them into a chat-style input
+      (livekitInstructions && livekitUserInput
+        ? [
+            { role: "system", content: livekitInstructions },
+            { role: "user", content: livekitUserInput },
+          ]
+        : livekitUserInput) ??
+      attributes["lk.pii.function_tool.arguments"];
+    const livekitFunctionCalls = attributes["lk.pii.response.function_calls"];
     output =
-      attributes["lk.function_tool.output"] || attributes["lk.response.text"];
+      attributes["lk.function_tool.output"] ||
+      attributes["lk.pii.function_tool.output"] ||
+      attributes["lk.response.text"] ||
+      attributes["lk.pii.response.text"] ||
+      // a turn that only produced tool calls has no response text
+      (livekitFunctionCalls && livekitFunctionCalls !== "[]"
+        ? livekitFunctionCalls
+        : undefined);
     if (input || output) {
       return { input, output, filteredAttributes };
     }
