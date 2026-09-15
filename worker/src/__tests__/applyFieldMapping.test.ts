@@ -134,6 +134,21 @@ describe("applyFieldMapping", () => {
         evaluateJsonPath(sampleObservation.metadata, "$.tags[1:]"),
       ).toEqual(["simple", "hello"]);
     });
+
+    it("should return all results for array slice syntax", () => {
+      expect(evaluateJsonPath(sampleObservation.metadata, "$.tags[1:]")).toEqual(
+        ["simple", "hello"],
+      );
+      expect(evaluateJsonPath(sampleObservation.metadata, "$.tags[0:2]")).toEqual(
+        ["math", "simple"],
+      );
+    });
+
+    it("should return all results when multiple matches exist", () => {
+      expect(evaluateJsonPath(sampleObservation.input, "$.messages[*].role")).toEqual(
+        ["system", "user"],
+      );
+    });
   });
 
   describe("applyFieldMappingConfig - full mode", () => {
