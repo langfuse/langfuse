@@ -165,7 +165,7 @@ const PageHeader = ({
               <div className="mr-2 flex items-center gap-1">
                 {itemType && (
                   <div className="flex items-center">
-                    <ItemBadge type={itemType} showLabel />
+                    <ItemBadge type={itemType} showLabel hideIcon />
                   </div>
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">
