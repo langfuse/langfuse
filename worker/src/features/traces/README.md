@@ -33,7 +33,7 @@ processing, and the shared queue accessor, including admin queue inspection.
 - `{trace-batch}:state`: hash with the same members and JSON
   `{minStart, maxStart, revision}` values. Bounds describe observed event start
   times; revision protects newer ingestion from an older dispatch acknowledgment.
-- `{trace-batch}:lock`: renewable dispatcher lease.
+- `{trace-batch}:dispatcher`: renewable dispatcher lease.
 
 No event payloads, per-trace byte counts or observation counts are stored here.
 Atomic Lua updates refresh bounds, revision and readiness. Each admitted intake
