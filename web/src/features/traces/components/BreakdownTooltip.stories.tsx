@@ -34,6 +34,13 @@ const longUsageTypeCostDetails = {
   total: 0.03824809,
 };
 
+const floatingPointCostDetails = {
+  input: 0.0000275,
+  input_cached_tokens: 0,
+  output: 0.00015,
+  total: 0.000177499999,
+};
+
 const priceSource = {
   projectId: "project-1",
   modelId: "gpt-5.6/priority",
@@ -172,29 +179,25 @@ export const TestProvidedAtIngestionLabel = meta.story({
 });
 
 export const TestCostFormattingAndTruncation = meta.story({
-  name: "(Test) Formats costs without padded decimals",
+  name: "(Test) Aligns cost precision and hides zero costs",
   args: {
-    details: cacheCostDetails,
-    children: <span>$0.03782809</span>,
+    details: floatingPointCostDetails,
+    children: <span>$0.0001775</span>,
     isCost: true,
   },
   play: async ({ canvasElement }) => {
-    const { content } = await openBreakdownTooltip(
-      canvasElement,
-      "$0.03782809",
-    );
+    const { content } = await openBreakdownTooltip(canvasElement, "$0.0001775");
 
-    await expect(content.getAllByText("$0.0066")).not.toHaveLength(0);
-    await expect(content.queryByText("$0.0066000")).not.toBeInTheDocument();
-    await expect(content.getByText("$0.03782809")).toBeInTheDocument();
-    await expect(content.queryByText("$0.0378280")).not.toBeInTheDocument();
-    await expect(content.getAllByText("$0.00000009")).not.toHaveLength(0);
+    await expect(content.getAllByText("$0.0000275")).toHaveLength(2);
+    await expect(content.getAllByText("$0.0001500")).toHaveLength(2);
+    await expect(content.getByText("$0.0001775")).toBeInTheDocument();
+    await expect(
+      content.queryByText("$0.000177499999"),
+    ).not.toBeInTheDocument();
+    await expect(content.getByText("—")).toBeInTheDocument();
 
-    const longLabel = content.getByText("cache_creation_input_tokens");
+    const longLabel = content.getByText("input_cached_tokens");
     await expect(longLabel).toHaveClass("truncate");
-    await expect(longLabel).toHaveAttribute(
-      "title",
-      "cache_creation_input_tokens",
-    );
+    await expect(longLabel).toHaveAttribute("title", "input_cached_tokens");
   },
 });
