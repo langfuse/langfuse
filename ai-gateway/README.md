@@ -2,7 +2,8 @@
 
 A standalone Rust gateway for `POST /openai/v1/responses`. Web resolves the gateway
 key to a trusted provider connection; Rust relays native JSON or SSE without
-parsing the request or rewriting provider bytes. Customer telemetry is not exported
+rewriting provider bytes. A bounded capture layer captures request/response facts and
+logs the finalized record at debug level. Customer telemetry is not exported
 yet. Building and testing need no real Web, database or provider credentials.
 
 ## Run locally
@@ -81,8 +82,10 @@ Both formats use the same log level and preserve event fields. For example:
 2026-09-10T13:20:00Z INFO gateway listening address=0.0.0.0:8080
 ```
 
-Invalid values fail startup without echoing their contents. Logs contain service
-lifecycle events, not request bodies or headers. For direct
+Invalid values fail startup without echoing their contents. At the default `info`
+level, logs contain service lifecycle events. Debug logging also includes the
+captured request and completed output when Web resolves `ingestion_mode: full`;
+see capture details below. For direct
 host-only development, set `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS=127.0.0.1:8080`.
 
 ## Call the gateway
@@ -122,7 +125,8 @@ print(response.output_text)
 ```
 
 The gateway forwards to the official OpenAI Responses endpoint only. It does not
-retry, follow redirects, parse `model`/`stream`, or accept client routing overrides.
+retry, follow redirects, or accept client routing overrides. Request parsing is
+best-effort capture only; Web still selects the provider connection.
 Provider errors retain their status and body. Gateway errors use an OpenAI-style
 `{"error":{"message":"...","type":"...","param":null,"code":"..."}}` envelope.
 
@@ -146,11 +150,78 @@ There is no separate downstream stall timeout; a client that stops reading can
 retain execution capacity until the overall deadline. A progress-based downstream
 stall policy is deferred to a separate change.
 
-Only request content type/encoding and accept/accept-encoding cross the provider
-boundary, plus the resolved Bearer token. Response content type/encoding, cache
-control, retry-after, request ID and selected OpenAI timing/version/rate-limit
+Only request content type/encoding and accept cross the provider boundary, plus
+the resolved Bearer token. The gateway sets `Accept-Encoding: identity` upstream
+so client compression preferences cannot disable JSON/SSE capture. Response
+content type/encoding, cache control, retry-after, request ID and selected OpenAI
+timing/version/rate-limit
 headers are retained. Cookies, routing overrides, gateway/ingestion credentials,
 hop-by-hop headers and upstream framing are excluded.
+
+## Response capture
+
+Set `LANGFUSE_LOG_LEVEL=debug` to print one `gateway response captured` event at
+execution end. Its `capture` field is JSON with `input`, `output`, model,
+parameters, usage, attribution, timestamps, capture completeness and relay outcome.
+Text logs pretty-print the captured JSON across multiple lines.
+`LANGFUSE_LOG_FORMAT=json` keeps each surrounding log event on one line, with
+newlines escaped inside the `capture` string.
+
+Web's resolved ingestion mode controls content capture:
+
+- `full`: input is the native request JSON object, including `input`, `instructions`,
+  tools, parameters, context references and unknown fields. Output is an ordered
+  array of native completed items. Debug logs intentionally contain this content.
+- `usage`: input and output are null. Model, scalar parameters, native usage,
+  timing and trusted attribution are retained; request schemas/content are omitted.
+
+In both modes, `usage_details` preserves the provider's entire usage object,
+including nested and unknown fields. The gateway does not rename counters,
+subtract cached tokens, or synthesize totals. Missing usage stays null.
+`api_format` identifies the payload format (`openai.responses` today).
+
+For SSE, only `response.output_item.done` adds output. Terminal Responses events
+provide model, service tier, status and usage; their repeated output is not copied.
+Deltas are never stitched or retained. A disconnect midway through an item loses
+that unfinished item; already completed items remain in the partial record. Item
+completion alone is not response completion. JSON responses capture their native
+output array at EOF. Missing usage remains null, rather than invented zeros.
+
+`outcome` describes the relay (`eof`, `cancelled`, `timeout`, `transport_error`);
+`provider_status` is separate. For example, a completed provider response can
+still end with downstream cancellation. `first_byte_ms` measures the first body
+bytes observed by the gateway, not first-token latency. No completion-start time
+is fabricated from completed items.
+
+`input_complete` means the full native request was captured; it is false when
+content is omitted in usage mode. `output_complete` means response inspection
+finished without capture gaps for the configured mode (including a terminal event
+and all expected completed items for full-mode SSE). It does not promise that the
+provider succeeded or that delivery to the client finished. `capture_complete`
+combines request inspection and output completeness; intentionally omitted usage-mode
+content does not make it false. Request inspection failure does not invalidate a
+fully captured response, and downstream cancellation does not erase completed capture.
+
+The implementation separates shared `ExecutionCapture` lifecycle/timing, the
+`OpenAiResponsesCapture` adapter and bounded `SseDecoder`. A private `ProtocolCapture`
+enum dispatches to the adapter. Finalization hands an owned `InferenceFacts` record
+to `telemetry::record`, which currently only pretty-prints at debug level. Another
+provider can supply native facts through the same interface without changing the
+relay or final sink. No Anthropic adapter or Langfuse observation/span mapping is
+implemented yet. Capture runs independently of log level; only emission is gated.
+
+Capture is limited to 1 MiB request inspection, 1 MiB JSON/SSE event inspection,
+1 MiB retained output and 256 output items per execution. The active-request limit
+bounds the number of captures. Trusted key metadata is bounded by the resolver's
+256 KiB response limit. Oversized input is omitted; oversized output items
+are skipped and completeness is false. Malformed, truncated or compressed bodies
+do not interrupt the relay. Capture buffers are independent of forwarding, so
+these limits never cap the actual provider response. Media is not fetched/uploaded.
+
+Provider credentials, the gateway credential and ingestion tokens are not part of
+the capture record; raw headers are not logged. Full captured content and resolved
+key metadata may themselves be sensitive. Keep debug logging enabled only where
+that content is intended to be recorded. No data is posted to Langfuse yet.
 
 ## Process lifecycle
 

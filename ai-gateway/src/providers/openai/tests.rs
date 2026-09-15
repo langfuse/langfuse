@@ -27,6 +27,7 @@ async fn preserves_opaque_bytes_and_isolates_request_and_response_headers() {
             "Bearer provider-secret"
         );
         assert_eq!(request.headers()[header::CONTENT_TYPE], "application/json");
+        assert_eq!(request.headers()[header::ACCEPT_ENCODING], "identity");
         for name in [
             "cookie",
             "langfuse-gateway-authorization",
@@ -34,7 +35,6 @@ async fn preserves_opaque_bytes_and_isolates_request_and_response_headers() {
             "openai-project",
             "x-api-key",
             "x-forwarded-host",
-            "accept-encoding",
         ] {
             assert!(!request.headers().contains_key(name), "forwarded {name}");
         }
