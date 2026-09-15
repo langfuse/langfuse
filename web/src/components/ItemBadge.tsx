@@ -133,6 +133,27 @@ export function ItemTypeChip({ type }: { type: LangfuseItemType }) {
   );
 }
 
+/**
+ * Bare type icon without the badge chrome (background/border) — for rows where
+ * an opaque box would fight the row's own hover/selection highlight.
+ */
+export function ItemIcon({
+  type,
+  className,
+}: {
+  type: LangfuseItemType;
+  className?: string;
+}) {
+  const Icon = iconMap[type] || ListTree;
+  const { label } = itemTypeLabels(type);
+  return (
+    <Icon
+      aria-label={label}
+      className={cn("shrink-0", iconVariants({ type }), className)}
+    />
+  );
+}
+
 export function ItemBadge({
   type,
   showLabel = false,

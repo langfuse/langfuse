@@ -93,7 +93,7 @@ export const BreakdownTooltip = ({
           <div className="grid min-w-0 grid-cols-[max-content_7rem_max-content] gap-x-3 gap-y-4 max-sm:w-full max-sm:grid-cols-[minmax(0,1fr)_6rem_max-content]">
             <div className="col-span-3 flex min-w-0 flex-col gap-1">
               <span className="font-bold">
-                {isCost ? "Cost breakdown" : "Usage breakdown"}
+                {isCost ? "Cost breakdown" : "Token breakdown"}
               </span>
 
               {isCost && resolvedCostSource === "provided" ? (

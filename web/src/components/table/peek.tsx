@@ -82,13 +82,8 @@ type TablePeekViewProps = Pick<
 > & {
   title?: string;
   /**
-   * Item-specific header actions (star / publish / delete …), shared with the
-   * full detail page so the peek and the page expose the same controls.
-   */
-  actions?: React.ReactNode;
-  /**
-   * The same actions rendered as labeled menu rows — shown in the header's
-   * overflow "…" menu when the peek is too narrow for the inline icon row.
+   * Item-specific header actions (delete …) as labeled menu rows — always
+   * shown in the header's "…" menu.
    */
   actionsMenu?: React.ReactNode;
   // Content
@@ -270,7 +265,6 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
       itemId={itemId}
       detailNavigationKey={props.detailNavigationKey}
       resolveDetailNavigationPath={props.resolveDetailNavigationPath}
-      actions={props.actions}
       actionsMenu={props.actionsMenu}
       expand={
         isHandheld
