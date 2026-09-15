@@ -337,13 +337,19 @@ key metadata remain in Langfuse ingestion and are excluded from operational logs
 From the repository root:
 
 ```sh
-docker build --target runtime -t langfuse-ai-gateway:dev ./ai-gateway
+docker build --target runtime \
+  --build-arg NEXT_PUBLIC_BUILD_ID="$(git rev-parse HEAD)" \
+  -t langfuse-ai-gateway:dev ./ai-gateway
 docker run --rm --name langfuse-ai-gateway-dev \
   -e LANGFUSE_LOG_FORMAT=json -p 127.0.0.1:8080:8080 langfuse-ai-gateway:dev
 # In another terminal:
 docker stop --time 15 langfuse-ai-gateway-dev
 bash ai-gateway/scripts/smoke-image.sh langfuse-ai-gateway:dev
 ```
+
+`NEXT_PUBLIC_BUILD_ID` is stored as runtime `BUILD_ID`, matching Web and worker
+images, so operational telemetry identifies the built commit. Omit the build
+argument to use the Cargo package version, or override `BUILD_ID` at runtime.
 
 The runtime image runs as UID/GID 10001, includes CA certificates, and executes
 the binary directly so it receives signals. Set the container/orchestrator stop
