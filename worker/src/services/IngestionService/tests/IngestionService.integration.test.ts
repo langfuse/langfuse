@@ -2178,6 +2178,95 @@ describe("Ingestion end-to-end tests", () => {
     expect(generation.provided_cost_details.total).toEqual(0.001412);
   });
 
+  it("should preserve an explicitly provided zero total token count", async () => {
+    const generationId = randomUUID();
+    const traceId = randomUUID();
+
+    await ingestionService.processObservationEventList({
+      projectId,
+      entityId: generationId,
+      createdAtTimestamp: new Date(),
+      observationEventList: [
+        {
+          id: randomUUID(),
+          type: "generation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            traceId,
+            name: "zero-token-generation",
+            startTime: new Date().toISOString(),
+            usage: {
+              input: 0,
+              output: 0,
+              total: 0,
+              unit: "TOKENS",
+            },
+            environment,
+          },
+        },
+      ],
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    const generation = await getClickhouseRecord(
+      TableName.Observations,
+      generationId,
+    );
+
+    expect(generation.provided_usage_details).toMatchObject({
+      input: 0,
+      output: 0,
+      total: 0,
+    });
+    expect(generation.usage_details.total).toBe(0);
+  });
+
+  it("should derive the total token count when one of the counts is zero", async () => {
+    const generationId = randomUUID();
+    const traceId = randomUUID();
+
+    await ingestionService.processObservationEventList({
+      projectId,
+      entityId: generationId,
+      createdAtTimestamp: new Date(),
+      observationEventList: [
+        {
+          id: randomUUID(),
+          type: "generation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            traceId,
+            name: "zero-input-generation",
+            startTime: new Date().toISOString(),
+            usage: {
+              input: 0,
+              output: 50,
+              unit: "TOKENS",
+            },
+            environment,
+          },
+        },
+      ],
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    const generation = await getClickhouseRecord(
+      TableName.Observations,
+      generationId,
+    );
+
+    expect(generation.provided_usage_details).toMatchObject({
+      input: 0,
+      output: 50,
+      total: 50,
+    });
+    expect(generation.usage_details.total).toBe(50);
+  });
+
   it("should update all token counts if update does not contain model name", async () => {
     const traceId = randomUUID();
     const generationId = randomUUID();
