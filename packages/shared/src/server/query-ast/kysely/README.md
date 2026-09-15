@@ -57,10 +57,12 @@ is where tenancy is enforced:
    `final` is fail-closed until an emitter exists. The pass restamps the
    rewritten root.
 4. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is
-   present, so `qb.compile()` without the plugin also fails.
+   present, so `qb.compile()` without the plugin also fails. Value binds take
+   their ClickHouse type from the compared column's registry entry when one is
+   in scope (`total_cost > 1` → `{p:Float64}`).
 5. Raw-SQL table sources (`selectFrom(sql\`...\`)`) and raw fragments embedding a
-   `SELECT`/`FROM`/`JOIN` in SELECT/WHERE throw `UnscopedRelationError`. Kysely's
-   own keyword fragments (`asc`/`desc`) are not relations.
+`SELECT`/`FROM`/`JOIN`in SELECT/WHERE throw`UnscopedRelationError`. Kysely's
+own keyword fragments (`asc`/`desc`) are not relations.
 
 So query bodies here never filter `project_id` by hand — it is redundant, and
 forgetting it is impossible. Call sites like `repositories/environments.ts` pass
@@ -74,12 +76,17 @@ Kysely's public `$call`:
 ```ts
 db.selectFrom("observations")
   .select("environment")
-  .$call(arrayJoin({ cost_key: mapKeys("cost_details"), cost: mapValues("cost_details") }))
+  .$call(
+    arrayJoin({
+      cost_key: mapKeys("cost_details"),
+      cost: mapValues("cost_details"),
+    }),
+  );
 
 db.selectFrom("events_core")
   .select(["span_id", "project_id"])
   .orderBy("event_ts", "desc")
-  .$call(limitBy({ count: 1, columns: ["span_id", "project_id"] }))
+  .$call(limitBy({ count: 1, columns: ["span_id", "project_id"] }));
 ```
 
 **Why `$call(...)` and not a fluent `.arrayJoin(...)` method:** a real method
