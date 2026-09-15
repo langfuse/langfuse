@@ -109,6 +109,8 @@ const projectRoutes: Route[] = [
     methods: ["GET", "PATCH", "DELETE"],
   },
   { route: "ingestion", methods: ["POST"] },
+  { route: "otel/v1/traces/index", methods: ["POST"] },
+  { route: "otel/v1/metrics/index", methods: ["POST"] },
 ];
 
 // Org and misc routes call shadowAuth directly from the handler body.
@@ -144,7 +146,7 @@ const denylistPrefixes = [
   "prompts", // prompt handlers, own auth path
   "v2/prompts", // prompt list/name handlers, own auth path
   "mcp", // MCP server, own auth path
-  "otel", // ingestion handlers read the raw request stream, not drivable via node-mocks-http
+  "otel/otlp-proto", // generated protobuf, not a route
   "slack", // Slack OAuth, own auth path
 ];
 
@@ -244,6 +246,14 @@ async function callRoute(
 
 type Cell = { key: string; run: () => Promise<number> };
 
+// otel/v1/traces drains the raw request stream in fn, which node-mocks-http
+// cannot supply, so any cell that passes connection auth hangs. Only the project
+// key passes, identically in every mode, so skipping it drops no seam signal.
+const streamReadingCells = new Set([
+  "POST otel/v1/traces/index | project/basic",
+  "POST otel/v1/traces/index | project/bearer",
+]);
+
 /** matrixCells lists every route × method × key kind × header kind cell in source order. */
 function matrixCells(routes: Route[]): Cell[] {
   const cells: Cell[] = [];
@@ -251,10 +261,9 @@ function matrixCells(routes: Route[]): Cell[] {
     for (const method of methods) {
       for (const apiKeyKind of apiKeyKinds) {
         for (const { headerKind, headers } of getHeaders(apiKeyKind, route)) {
-          cells.push({
-            key: `${method} ${route} | ${apiKeyKind}/${headerKind}`,
-            run: () => callRoute(route, method, headers),
-          });
+          const key = `${method} ${route} | ${apiKeyKind}/${headerKind}`;
+          if (streamReadingCells.has(key)) continue;
+          cells.push({ key, run: () => callRoute(route, method, headers) });
         }
       }
     }
@@ -306,12 +315,12 @@ function walkRoutes(): string[] {
   return routes;
 }
 
-// enforceDivergences lists cells whose enforce-mode status differs from legacy; every other cell matches.
-const enforceDivergences: Record<string, number> = {
-  // Org keys hold project:read, which legacy's ["project"] tier gate refused.
-  "GET projects/index | org/basic": 200,
-  // Enforce admits an org key past auth (400) via its project-id header.
-  "POST ingestion | org/basic": 400,
+// divergences lists cells whose status differs from the main baseline the
+// snapshot records; `legacy`/`enforce` give that mode's actual status.
+const divergences: Record<string, { legacy?: number; enforce?: number }> = {
+  "GET projects/index | org/basic": { enforce: 200 },
+  // ingestion had no tier gate on main (org key -> 401); shadowAuth adds one -> 403.
+  "POST ingestion | org/basic": { legacy: 403, enforce: 400 },
 };
 
 describe("public-api auth parity", () => {
@@ -351,8 +360,14 @@ describe("public-api auth parity", () => {
     (env as any).ADMIN_API_KEY = originalAdminApiKey;
   });
 
-  it("legacy matches the captured baseline", () => {
-    expect(matrices.legacy).toMatchSnapshot();
+  it("legacy matches the captured baseline except documented divergences", () => {
+    const baseline = { ...matrices.legacy };
+    for (const [cell, { legacy }] of Object.entries(divergences)) {
+      if (legacy === undefined) continue;
+      expect(baseline[cell]).toBe(legacy);
+      delete baseline[cell];
+    }
+    expect(baseline).toMatchSnapshot();
   });
 
   it("shadow is byte-identical to legacy", () => {
@@ -361,8 +376,8 @@ describe("public-api auth parity", () => {
 
   it("enforce matches legacy except documented divergences", () => {
     const expected = { ...matrices.legacy };
-    for (const [cell, status] of Object.entries(enforceDivergences)) {
-      expected[cell] = status;
+    for (const [cell, { enforce }] of Object.entries(divergences)) {
+      if (enforce !== undefined) expected[cell] = enforce;
     }
     expect(matrices.enforce).toEqual(expected);
   });
