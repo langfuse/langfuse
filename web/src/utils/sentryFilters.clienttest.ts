@@ -578,6 +578,33 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(true);
     });
 
+    // Firefox rejects HTMLMediaElement fetch abort as an unhandled AbortError
+    // when the UA cancels the download (navigate away, unmount, src change).
+    // Session-page inline players and splash videos already degrade; the
+    // native rejection has no app stack. Exact wording + global handler only.
+    it("drops Firefox HTMLMediaElement AbortError (LANGFUSE-61M)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          unsupportedMediaResourceEvent(
+            "The fetching process for the media resource was aborted by the user agent at the user's request.",
+            "AbortError",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same Firefox media abort from the global onerror handler", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          unsupportedMediaResourceEvent(
+            "The fetching process for the media resource was aborted by the user agent at the user's request.",
+            "AbortError",
+            "auto.browser.global_handlers.onerror",
+          ),
+        ),
+      ).toBe(true);
+    });
+
     // PostHog logs a string via console.error, so it arrives as a MESSAGE event
     // (captureConsoleIntegration) — assert against that production shape.
     it("drops a third-party [PostHog.js] notice (message event)", () => {
@@ -1181,11 +1208,44 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(false);
     });
 
+    it("keeps an app-captured AbortError even with the Firefox media-abort wording", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "The fetching process for the media resource was aborted by the user agent at the user's request.",
+            "AbortError",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a PostHog request-timeout AbortError (not a media abort)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "PostHog request timed out after 3000ms",
+            "AbortError",
+          ),
+        ),
+      ).toBe(false);
+    });
+
     it("keeps a TypeError that merely quotes the media wording", () => {
       expect(
         isDenylistedNoiseEvent(
           exceptionEvent(
             "The media resource indicated by the src attribute or assigned media provider object was not suitable.",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a TypeError that merely quotes the Firefox media-abort wording", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "The fetching process for the media resource was aborted by the user agent at the user's request.",
             "TypeError",
           ),
         ),
