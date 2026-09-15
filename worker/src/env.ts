@@ -126,11 +126,27 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(2),
+  LANGFUSE_TRACE_BATCH_MAX_THREADS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2),
+  LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional(),
+  LANGFUSE_TRACE_BATCH_EXPERIMENT_ID: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)
+    .optional(),
   LANGFUSE_TRACE_BATCH_MAX_SIZE: z.coerce
     .number()
     .int()
     .positive()
-    .max(1_000)
+    .max(10_000)
     .default(60),
   LANGFUSE_TRACE_BATCH_IDLE_MS: z.coerce
     .number()
