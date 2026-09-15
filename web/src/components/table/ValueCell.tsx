@@ -38,9 +38,9 @@ export type MetadataFilterActions = {
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
 const MAX_CELL_DISPLAY_CHARS = 2000;
 const ARRAY_PREVIEW_ITEMS = 3;
-// Values are text-xs on a 1.25rem line box; keys are text-sm on the same
-// box, so both columns sit on one baseline without a custom size token.
-const MONO_TEXT_CLASSES = "font-mono text-xs/5 wrap-break-word";
+// text-mono-sm is the mono partner of the text-sm keys: 12px on the same
+// 1.25rem line box, so both columns sit on one baseline.
+const MONO_TEXT_CLASSES = "font-mono text-mono-sm wrap-break-word";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
 
 function renderStringWithLinks(text: string): React.ReactNode {

@@ -161,6 +161,13 @@
   --text-xs--font-weight: var(--font-weight-regular);
   --text-sm: 0.825rem;
   --text-sm--font-weight: var(--font-weight-regular);
+  /* Mono partner of text-sm. Mono glyphs read larger than sans at equal
+     size, so mono set beside text-sm keys takes 12px on the same 1.25rem
+     line box and the two columns share one baseline. Only the mono token
+     moves if the mono face changes. */
+  --text-mono-sm: 0.75rem;
+  --text-mono-sm--line-height: 1.25rem;
+  --text-mono-sm--font-weight: var(--font-weight-regular);
   --text-base: 0.9rem;
   --text-base--font-weight: var(--font-weight-regular);
   --text-lg: 1.1rem;
