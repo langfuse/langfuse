@@ -399,7 +399,12 @@ export const createAuthedProjectAPIRoute = <
       });
     }
 
-    if (req.method === "GET" && deprecation && auth.scope.orgId) {
+    if (
+      env.LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF_ENABLED === "true" &&
+      req.method === "GET" &&
+      deprecation &&
+      auth.scope.orgId
+    ) {
       const organization = await prisma.organization.findUnique({
         where: { id: auth.scope.orgId },
         select: { createdAt: true },

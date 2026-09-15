@@ -25,6 +25,9 @@ const {
   mockEnv: {
     NODE_ENV: "test",
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined as string | undefined,
+    LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF_ENABLED: "false" as
+      | "true"
+      | "false",
   },
 }));
 
@@ -133,6 +136,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       isRateLimited: () => false,
     });
     mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    mockEnv.LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF_ENABLED = "false";
   });
 
   async function callRoute(options?: {
@@ -183,6 +187,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
 
   it("rejects deprecated GET routes for Cloud organizations created at the cutoff", async () => {
     mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockEnv.LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF_ENABLED = "true";
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
     mockFindOrganization.mockResolvedValueOnce({
       createdAt: new Date("2026-09-16T00:00:00.000Z"),
@@ -199,8 +204,19 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(mockRateLimitRequest).toHaveBeenCalledOnce();
   });
 
+  it("keeps deprecated GET routes available when the cutoff is disabled", async () => {
+    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+
+    const res = await callRoute({ deprecation });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockFindOrganization).not.toHaveBeenCalled();
+  });
+
   it("keeps deprecated GET routes available to older Cloud organizations", async () => {
     mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockEnv.LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF_ENABLED = "true";
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
     mockFindOrganization.mockResolvedValueOnce({
       createdAt: new Date("2026-09-15T23:59:59.999Z"),
@@ -216,6 +232,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
   });
 
   it("does not apply the organization cutoff outside Langfuse Cloud", async () => {
+    mockEnv.LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF_ENABLED = "true";
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
 
     const res = await callRoute({ deprecation });
@@ -226,6 +243,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
 
   it("does not apply the organization cutoff to current GET routes", async () => {
     mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockEnv.LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF_ENABLED = "true";
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
 
     const res = await callRoute();
@@ -236,6 +254,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
 
   it("does not apply the organization cutoff to deprecated write routes", async () => {
     mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockEnv.LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF_ENABLED = "true";
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
 
     const res = await callRoute({ deprecation, method: "POST" });
@@ -330,6 +349,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     });
 
     mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockEnv.LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF_ENABLED = "true";
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
     mockRateLimitRequest.mockResolvedValueOnce({
       isRateLimited: () => true,
