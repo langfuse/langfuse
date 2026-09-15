@@ -59,8 +59,7 @@ export const GetDatasetItemsMcpInput = GetDatasetItemsMcpRuntimeInput.refine(
   },
 );
 
-export const PostDatasetItemMcpInput = z.object({
-  datasetId: z.string(),
+const DatasetItemMcpInput = z.object({
   input: z.any().optional(),
   expectedOutput: z.any().optional(),
   metadata: z.any().optional(),
@@ -68,6 +67,15 @@ export const PostDatasetItemMcpInput = z.object({
   sourceTraceId: z.string().optional(),
   sourceObservationId: z.string().optional(),
   status: z.enum(["ACTIVE", "ARCHIVED"]).optional(),
+});
+
+export const PostDatasetItemMcpInput = DatasetItemMcpInput.extend({
+  datasetId: z.string(),
+});
+
+export const BatchUpsertDatasetItemsMcpInput = z.object({
+  datasetId: z.string(),
+  items: z.array(DatasetItemMcpInput).min(1).max(100),
 });
 
 export const GetDatasetItemsMcpBaseSchema = GetDatasetItemsMcpBaseInput;

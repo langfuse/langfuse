@@ -1,9 +1,5 @@
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { RagasLogoIcon } from "@/src/features/evals/components/ragas-logo";
 import { UserCircle2Icon } from "lucide-react";
 
@@ -18,11 +14,17 @@ function MaintainerIcon({ maintainer }: { maintainer: string }) {
 
 export function MaintainerTooltip({ maintainer }: { maintainer: string }) {
   return (
-    <Tooltip>
-      <TooltipTrigger>
-        <MaintainerIcon maintainer={maintainer} />
-      </TooltipTrigger>
-      <TooltipContent>{maintainer}</TooltipContent>
+    <Tooltip label={maintainer}>
+      {({ getTriggerProps }) => (
+        <button
+          {...getTriggerProps()}
+          type="button"
+          aria-label={`Maintained by ${maintainer}`}
+          className="inline-flex"
+        >
+          <MaintainerIcon maintainer={maintainer} />
+        </button>
+      )}
     </Tooltip>
   );
 }

@@ -16,6 +16,7 @@ pub struct InferenceService {
     control_plane: ControlPlaneClient,
     provider: OpenAiProvider,
     resolution_capacity: Semaphore,
+    telemetry: Option<crate::telemetry::Telemetry>,
 }
 
 pub(crate) enum RequestPreparationError {
@@ -36,12 +37,19 @@ impl InferenceService {
         if !(1..=Semaphore::MAX_PERMITS).contains(&max_concurrent_resolutions) {
             return Err(ResolutionError::Configuration);
         }
+        let telemetry = crate::telemetry::Telemetry::new(&config)?;
         Ok(Self {
             control_plane: ControlPlaneClient::new(config)?,
             provider: OpenAiProvider::new(max_active_requests)
-                .map_err(|_| ResolutionError::Configuration)?,
+                .map_err(|_| ResolutionError::Configuration)?
+                .with_telemetry(telemetry.clone()),
             resolution_capacity: Semaphore::new(max_concurrent_resolutions),
+            telemetry: Some(telemetry),
         })
+    }
+
+    pub fn telemetry(&self) -> Option<crate::telemetry::Telemetry> {
+        self.telemetry.clone()
     }
 
     /// Authenticate with a separate bounded budget before reserving execution capacity.
@@ -86,6 +94,7 @@ impl InferenceService {
             control_plane,
             provider,
             resolution_capacity: Semaphore::new(resolutions),
+            telemetry: None,
         }
     }
 }
