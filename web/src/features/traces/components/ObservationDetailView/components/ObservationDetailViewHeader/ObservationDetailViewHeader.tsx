@@ -47,12 +47,12 @@ import {
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,
-  METRIC_TEXT_CLASS,
   StartTimeBadge,
   TimeToFirstTokenBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
+import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/ModelBadge/ModelBadge";
 import {
   CostUsageBadge,
   hasCostOrUsage,
@@ -782,12 +782,19 @@ export const ObservationDetailViewHeader = memo(
                   usageDetails={displayedUsageDetails}
                 />
               ) : null}
-              {/* Model as quiet text, like the tree row: the attributes table
-                  below has it too, but that can be a scroll away. */}
+              {/* Model as a reference link, like Session/User in the summary
+                  strip: the attributes table below has the name too, but that
+                  can be a scroll away, and only here can you reach the model
+                  definition (or add one when the project has none). */}
               {observation.model ? (
-                <span title="Model" className={METRIC_TEXT_CLASS}>
-                  {observation.model}
-                </span>
+                <ModelBadge
+                  model={observation.model}
+                  internalModelId={observation.internalModelId}
+                  projectId={projectId}
+                  // The add-model dialog prefills price rows from this
+                  // observation's own usage keys, not the subtree roll-up.
+                  usageDetails={observation.usageDetails}
+                />
               ) : null}
               {evaluatorId &&
                 isEvaluatorExecution &&

@@ -12,7 +12,9 @@ import Link from "next/link";
 
 // Same scale as the metrics tier; link affordance (hover color + underline)
 // is the only thing that sets a reference apart from a plain metric.
-const REFERENCE_LINK_CLASS =
+// Exported so observation-level references (the header's model link) share ONE
+// definition of the tier instead of copying it.
+export const REFERENCE_LINK_CLASS =
   "text-muted-foreground hover:text-link inline-flex min-w-0 max-w-[280px] shrink-0 items-center gap-0.5 text-xs whitespace-nowrap hover:underline";
 
 type ReferenceLinkProps = Omit<
