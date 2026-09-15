@@ -510,7 +510,7 @@ const capabilityDiff = (
   return lines;
 };
 
-const ENTERPRISE_VALUE_LEAD_INDEX = new Map(
+const ENTERPRISE_VALUE_LEAD_INDEX = new Map<string, number>(
   ENTERPRISE_VALUE_LEAD.map((text, index) => [text, index]),
 );
 
