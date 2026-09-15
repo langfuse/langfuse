@@ -58,10 +58,14 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
     maintainer guidance, and an id there is provenance an engineer can follow —
     "the shape from LFE-10959", "the worked example". Tracker URLs stay out even
     here: they cannot be opened from a fork and they carry the workspace name.
-- Code comments document behavior for future readers, not the reasoning
-  behind the current change. Do not reference PR/review history ("changed X
-  to Y", "now also handles", "per review", "was previously") or describe
-  code that no longer exists.
+- Default to no comment. Do not narrate the next line, restate a name or
+  className, or leave a note that will rot when the code moves. Add a
+  comment only when the human asked for one, or when it carries intent a
+  later reader cannot recover from the code (a trap, a deliberate
+  non-obvious choice). Comments document current behavior, not the
+  reasoning behind the current change. Do not reference PR/review history
+  ("changed X to Y", "now also handles", "per review", "was previously")
+  or describe code that no longer exists.
 - Never commit secrets or credentials. Keep `.env*.example` files in
   sync with required env vars.
 - Tracker writes default to short. "Create a subticket", "file this", or
