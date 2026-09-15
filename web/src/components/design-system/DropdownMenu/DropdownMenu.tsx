@@ -1,4 +1,3 @@
-/* eslint-disable boundaries/dependencies */
 "use client";
 
 import {
@@ -22,8 +21,8 @@ import { type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
-import { useLayerContainer } from "../../ui/layer";
 
 const menuVariants = cva(
   "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 min-w-32 overflow-y-auto rounded-md border shadow-md outline-hidden",
