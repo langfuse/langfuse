@@ -176,7 +176,6 @@ export function MarkdownJsonView({
   controlButtons,
   afterHeader,
   isSystemPrompt,
-  hoverControls,
 }: {
   content?: unknown;
   title?: string;
@@ -190,8 +189,6 @@ export function MarkdownJsonView({
   /** Collapse long content to a preview (from raw `role === "system"`, since
       the title can carry a message `name` instead of the role). */
   isSystemPrompt?: boolean;
-  /** Header controls reveal on section hover instead of rendering always. */
-  hoverControls?: boolean;
 }) {
   const characterLimit = useMarkdownRenderCharacterLimit();
   // Boxed so a renderable `null` content stays distinguishable from
@@ -216,7 +213,6 @@ export function MarkdownJsonView({
           controlButtons={controlButtons}
           afterHeader={afterHeader}
           isSystemPrompt={isSystemPrompt}
-          hoverControls={hoverControls}
         />
       ) : (
         <PrettyJsonView
@@ -224,7 +220,7 @@ export function MarkdownJsonView({
           title={title}
           titleIcon={titleIcon}
           className={className}
-          hoverControls={hoverControls}
+          hoverControls
           media={media}
           currentView="pretty"
           controlButtons={controlButtons}

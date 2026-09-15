@@ -34,8 +34,6 @@ export function JSONView(props: {
   json?: unknown;
   title?: string;
   hideTitle?: boolean;
-  /** Header controls (copy, expand) reveal on section hover instead of always. */
-  hoverControls?: boolean;
   className?: string;
   isLoading?: boolean;
   codeClassName?: string;
@@ -185,14 +183,14 @@ export function JSONView(props: {
   return (
     <div
       className={cn(
-        "flex max-h-full min-h-0 max-w-full min-w-0 flex-col",
+        "group/iosection flex max-h-full min-h-0 max-w-full min-w-0 flex-col",
         props.className,
         props.scrollable ? "overflow-hidden" : "",
       )}
     >
       {props.title && !props.hideTitle ? (
         <MarkdownJsonViewHeader
-          hoverRevealControls={props.hoverControls}
+          hoverRevealControls
           title={props.title}
           handleOnCopy={handleOnCopy}
           controlButtons={
