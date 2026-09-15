@@ -46,11 +46,8 @@ maybe("getEventsExactFilterOptionsForColumns (execution)", () => {
   it("returns exact facet values and counts for every column kind", async () => {
     const projectId = randomUUID();
 
-    // A: root (is_app_root), two tags. B: non-root, shares user/experiment/tag.
-    // C: distinct user/experiment/tag. D: exercises the include filters — null
-    // user_id and null experiment_id are excluded; the empty-string tag is
-    // dropped by arrayFilter(length > 0) while "delta" survives.
     await createEventsCh([
+      // Root observation (is_app_root); contributes user u1, exp1, tags alpha+beta.
       createEvent({
         project_id: projectId,
         user_id: "u1",
@@ -59,6 +56,7 @@ maybe("getEventsExactFilterOptionsForColumns (execution)", () => {
         experiment_name: "Exp One",
         is_app_root: true,
       }),
+      // Non-root; shares user u1, exp1 and tag beta so their counts sum across rows.
       createEvent({
         project_id: projectId,
         user_id: "u1",
@@ -67,6 +65,7 @@ maybe("getEventsExactFilterOptionsForColumns (execution)", () => {
         experiment_name: "Exp One",
         parent_span_id: "span-b",
       }),
+      // Non-root; distinct user u2, exp2 and tag gamma (each count 1).
       createEvent({
         project_id: projectId,
         user_id: "u2",
@@ -75,6 +74,9 @@ maybe("getEventsExactFilterOptionsForColumns (execution)", () => {
         experiment_name: "Exp Two",
         parent_span_id: "span-c",
       }),
+      // Exercises the include filters: null user_id and null experiment_id are
+      // excluded; the empty-string tag is dropped by arrayFilter(length > 0)
+      // while "delta" survives.
       createEvent({
         project_id: projectId,
         user_id: null,

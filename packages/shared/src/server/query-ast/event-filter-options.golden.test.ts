@@ -93,7 +93,7 @@ describeWithClickhouse(
 
     // The scope semi-join is the only input that branches the emitted SQL for a
     // fixed column set, so enumerate present vs. absent.
-    it("scope=unset", async () => {
+    it("scope=unset — project-only WHERE, no scores semi-join", async () => {
       await getEventsExactFilterOptionsForColumns({
         projectId: FIXED_PROJECT_ID,
         filter: [],
@@ -103,7 +103,7 @@ describeWithClickhouse(
       expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
     });
 
-    it("scope=scoredTraces (both-sided window)", async () => {
+    it("scope=scoredTraces — project + scores.timestamp window semi-join", async () => {
       await getEventsExactFilterOptionsForColumns({
         projectId: FIXED_PROJECT_ID,
         filter: [],

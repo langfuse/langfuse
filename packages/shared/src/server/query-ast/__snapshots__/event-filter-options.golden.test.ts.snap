@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`golden: events.getEventsExactFilterOptionsForColumns > scope=scoredTraces (both-sided window) 1`] = `
+exports[`golden: events.getEventsExactFilterOptionsForColumns > scope=scoredTraces — project + scores.timestamp window semi-join 1`] = `
 [
   {
     "fn": "queryClickhouse",
@@ -180,7 +180,7 @@ ORDER BY
 ]
 `;
 
-exports[`golden: events.getEventsExactFilterOptionsForColumns > scope=unset 1`] = `
+exports[`golden: events.getEventsExactFilterOptionsForColumns > scope=unset — project-only WHERE, no scores semi-join 1`] = `
 [
   {
     "fn": "queryClickhouse",
