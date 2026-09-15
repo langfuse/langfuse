@@ -1,13 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import {
-  Fragment,
-  useMemo,
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-  memo,
-} from "react";
+import { useMemo, useState, useEffect, useRef, useCallback, memo } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { deepParseJson } from "@langfuse/shared";
 import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
@@ -25,45 +17,7 @@ import {
   ChevronRight,
   UnfoldVertical,
   FoldVertical,
-  Palette,
 } from "lucide-react";
-import {
-  DropdownMenuCheckboxItem,
-  DropdownMenuController,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-} from "@/src/components/ui/dropdown-menu";
-import {
-  classifyJsonShape,
-  clearStoredJsonTableStyleVariants,
-  DEFAULT_JSON_TABLE_DATA_CLASS,
-  DEFAULT_JSON_TABLE_STYLE_VARIANT,
-  FINALIST_JSON_TABLE_STYLE_VARIANTS,
-  JSON_TABLE_CLASS_MODE_LABELS,
-  JSON_TABLE_CLASS_MODES,
-  JSON_TABLE_DATA_CLASS_LABELS,
-  JSON_TABLE_DATA_CLASSES,
-  JSON_TABLE_STYLE_VARIANTS,
-  JSON_TABLE_STYLES,
-  type JsonTableClassMode,
-  type JsonTableDataClass,
-  type JsonTableStyle,
-  type JsonTableStyleVariant,
-  LONG_CONTENT_JSON_TABLE_STYLE_VARIANT,
-  useJsonTableClassMode,
-  useJsonTableStyleVariant,
-  useShowAllJsonTableStyles,
-  useShowJsonTableStylePicker,
-  useStoredJsonTableClassMode,
-  useStoredJsonTableStyleVariant,
-  writeStoredJsonTableClassMode,
-  writeStoredJsonTableStylePick,
-  writeStoredJsonTableStyleVariant,
-} from "@/src/components/ui/jsonTableStyleVariants";
-import { usePinnedJsonTableStyleVariant } from "@/src/components/ui/jsonViewPreference";
 import {
   useReactTable,
   getCoreRowModel,
@@ -80,8 +34,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
-  TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
@@ -111,12 +63,16 @@ import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { isLargeRenderString } from "@/src/components/ui/largeStringGate";
 import { LargeStringFallback } from "@/src/components/ui/LargeStringFallback";
 
-// Constants for table layout (the level-0 chevron column width comes from the
-// active style direction, see jsonTableStyleVariants.ts)
+// Table layout: the key column is sized to its keys (capped at 40 % of the
+// table), each row carries a hairline divider, and dotted keys wrap at the
+// dots. Keys sit one step up the type scale from the mono values, which read
+// larger than sans at an equal size.
 const INDENTATION_PER_LEVEL = 16;
-const BUTTON_WIDTH = 16;
-const MARGIN_LEFT_1 = 4;
-const CELL_PADDING_X = 8; // px-2
+/** Width in px reserved for the chevron column at level 0. */
+const INDENTATION_BASE = 16;
+const KEY_CLASSES = "text-muted-foreground text-sm wrap-break-word";
+const CELL_CLASSES =
+  "border-border/60 py-1 pr-2 pl-1 align-top whitespace-normal";
 
 // Constants for smart expansion logic
 // Used for nested objects to control smart expansion depth
@@ -379,9 +335,7 @@ interface JsonTableRowProps {
   expandedCells: Set<string>;
   toggleCellExpansion: (cellId: string) => void;
   stickyTopLevelKey: boolean;
-  stickyOffsets: { header: number; row: number };
   toneClasses?: (typeof PRETTY_JSON_VIEW_TONE_CLASSES)[PrettyJsonViewTone];
-  style: JsonTableStyle;
 }
 
 const JsonTableRowComponent = memo(
@@ -393,9 +347,7 @@ const JsonTableRowComponent = memo(
     expandedCells,
     toggleCellExpansion,
     stickyTopLevelKey,
-    stickyOffsets,
     toneClasses,
-    style,
   }: JsonTableRowProps) => {
     // Hook is now at top level of this component ✅
     const isExpandable =
@@ -425,32 +377,20 @@ const JsonTableRowComponent = memo(
         {...rowClickProps}
         className={cn(
           isExpandable ? "cursor-pointer" : "",
-          style.row,
           row.original.level === 0 && stickyTopLevelKey
-            ? "bg-background sticky z-10 shadow-xs"
+            ? "bg-background sticky top-0 z-10 shadow-xs"
             : "",
           toneClasses?.row,
         )}
-        style={
-          row.original.level === 0 && stickyTopLevelKey
-            ? { top: `${stickyOffsets.header}px` }
-            : undefined
-        }
       >
         {row.getVisibleCells().map((cell) => (
           <TableCell
             key={cell.id}
             className={cn(
-              style.cell,
-              style.zebra &&
-                rowIndex % 2 === 1 &&
-                "bg-muted/40 first:rounded-l-md last:rounded-r-md",
+              CELL_CLASSES,
               // Auto table layout sizes the key column to content; unbreakable
               // value tokens (URLs, paths) must not push the table wider.
-              style.layout === "columns" &&
-                style.keyColumn === "content" &&
-                cell.column.id === "value" &&
-                "[&>div]:wrap-anywhere",
+              cell.column.id === "value" && "[&>div]:wrap-anywhere",
               toneClasses?.cell,
             )}
             style={{ width: `${cell.column.columnDef.size}%` }}
@@ -470,7 +410,6 @@ function JsonPrettyTable({
   expandAllRef,
   onExpandStateChange,
   noBorder = false,
-  hideHeader = false,
   expanded,
   onExpandedChange,
   onLazyLoadChildren,
@@ -482,13 +421,11 @@ function JsonPrettyTable({
   showObservationTypeBadge = false,
   metadataActions,
   toneClasses,
-  style,
 }: {
   data: JsonTableRow[];
   expandAllRef?: React.RefObject<(() => void) | null>;
   onExpandStateChange?: (allExpanded: boolean) => void;
   noBorder?: boolean;
-  hideHeader?: boolean;
   expanded: ExpandedState;
   onExpandedChange: (
     updater: ExpandedState | ((prev: ExpandedState) => ExpandedState),
@@ -502,46 +439,23 @@ function JsonPrettyTable({
   showObservationTypeBadge?: boolean;
   metadataActions?: MetadataFilterActions;
   toneClasses?: (typeof PRETTY_JSON_VIEW_TONE_CLASSES)[PrettyJsonViewTone];
-  style: JsonTableStyle;
 }) {
-  const headerRef = useRef<HTMLTableRowElement>(null);
   const topLevelRowRef = useRef<HTMLTableRowElement>(null);
-  const [stickyOffsets, setStickyOffsets] = useState({ header: 32, row: 32 });
+  const [topLevelRowHeight, setTopLevelRowHeight] = useState(32);
 
-  // calculate height of top row to calculate offsets for other headings to not go beneath sticky rows
+  // Sticky top-level rows sit at the top of the scroll container (there is no
+  // header row); nested sticky keys clear one top-level row below them.
   useEffect(() => {
-    if (stickyTopLevelKey) {
-      // Header may be hidden (title-owned tables): then rows stick at 0.
-      const headerHeight = headerRef.current?.offsetHeight ?? 0;
-
-      // get first top-level row height (if it exists)
-      let rowHeight = 32; // default fallback
-      if (topLevelRowRef.current) {
-        rowHeight = topLevelRowRef.current.offsetHeight;
-      }
-
-      setStickyOffsets({
-        header: headerHeight,
-        row: rowHeight,
-      });
+    if (stickyTopLevelKey && topLevelRowRef.current) {
+      setTopLevelRowHeight(topLevelRowRef.current.offsetHeight);
     }
-  }, [stickyTopLevelKey, hideHeader, data, expanded]);
+  }, [stickyTopLevelKey, data, expanded]);
 
   const indentationWidthFor = (row: Row<JsonTableRow>) =>
-    row.original.level * INDENTATION_PER_LEVEL + style.indentBase;
-
-  // Content-sized key column: the table switches to auto layout and the key
-  // cell shrinks to its longest key, capped at 40 % of the table (`cqw`
-  // resolves against the `@container` set by PrettyJsonView).
-  const contentSizedKeys =
-    style.layout === "columns" && style.keyColumn === "content";
-
-  // Guide-line variants move the row's vertical padding from the cell onto
-  // the key / value content so the guides run edge to edge between rows.
-  const contentPadY = style.indentGuides ? "py-1" : "";
+    row.original.level * INDENTATION_PER_LEVEL + INDENTATION_BASE;
 
   const renderKeyText = (key: string) =>
-    style.breakKeysAtDots && key.includes(".")
+    key.includes(".")
       ? key.split(".").map((segment, index, segments) => (
           <span key={index}>
             {segment}
@@ -554,12 +468,8 @@ function JsonPrettyTable({
         ))
       : key;
 
-  const renderKey = (row: Row<JsonTableRow>, constrainWidth: boolean) => {
-    // we need to calculate the indentation here for a good line break
-    // because of the padding, we don't know when to break the line otherwise
+  const renderKey = (row: Row<JsonTableRow>) => {
     const indentationWidth = indentationWidthFor(row);
-    const buttonWidth = row.original.hasChildren ? BUTTON_WIDTH : 0;
-    const availableTextWidth = `calc(100% - ${indentationWidth + buttonWidth + CELL_PADDING_X + MARGIN_LEFT_1}px)`;
 
     const itemBadgeType =
       showObservationTypeBadge &&
@@ -575,33 +485,15 @@ function JsonPrettyTable({
 
     return (
       <div
-        className={cn(
-          "flex wrap-break-word",
-          style.indentGuides ? "items-stretch" : "items-start",
-          // w-max keeps the column at the longest key (up to the cap) instead
-          // of letting long values squeeze it to its narrowest wrap; the
-          // floor keeps the value column at a steady x across stacked tables.
-          contentSizedKeys && "w-max max-w-[40cqw] min-w-40",
-        )}
+        // w-max keeps the column at the longest key (up to the cap) instead
+        // of letting long values squeeze it to its narrowest wrap; the
+        // floor keeps the value column at a steady x across stacked tables.
+        className="flex w-max max-w-[40cqw] min-w-40 items-start wrap-break-word"
       >
         <div
-          className={cn(
-            "relative flex shrink-0 justify-end",
-            style.indentGuides ? "items-start pt-1" : "items-center",
-          )}
+          className="flex shrink-0 items-center justify-end"
           style={{ width: `${indentationWidth}px` }}
         >
-          {style.indentGuides &&
-            Array.from({ length: row.original.level }, (_, level) => (
-              <span
-                key={level}
-                aria-hidden
-                className="bg-border absolute inset-y-0 w-px"
-                style={{
-                  left: `${style.indentBase + level * INDENTATION_PER_LEVEL - BUTTON_WIDTH / 2}px`,
-                }}
-              />
-            ))}
           {row.original.hasChildren ? (
             <Button
               variant="ghost"
@@ -623,32 +515,14 @@ function JsonPrettyTable({
                 <ChevronRight className="h-3 w-3" />
               )}
             </Button>
-          ) : style.leafDot ? (
-            <span className="flex h-4 w-4 items-center justify-center">
-              <span
-                aria-hidden
-                className="bg-muted-foreground/50 h-1 w-1 rounded-full"
-              />
-            </span>
           ) : null}
         </div>
         <span
-          className={cn(
-            "ml-1 cursor-text",
-            style.key,
-            contentPadY,
-            // A flex item cannot shrink below its min-content width, and an
-            // undotted key is one unbreakable word: without min-w-0 a key
-            // longer than the column cap overflows the cell into the value.
-            contentSizedKeys && "min-w-0",
-          )}
-          style={constrainWidth ? { maxWidth: availableTextWidth } : undefined}
+          // A flex item cannot shrink below its min-content width, and an
+          // undotted key is one unbreakable word: without min-w-0 a key
+          // longer than the column cap overflows the cell into the value.
+          className={cn("ml-1 min-w-0 cursor-text", KEY_CLASSES)}
         >
-          {style.connector && row.original.level > 0 && (
-            <span aria-hidden className="text-muted-foreground mr-1">
-              └
-            </span>
-          )}
           {itemBadgeType && (
             <span className="mr-1 inline-block align-middle">
               <ItemBadge type={itemBadgeType} isSmall={true} />
@@ -667,39 +541,15 @@ function JsonPrettyTable({
       toggleCellExpansion={toggleCellExpansion}
       preserveStringWhitespace={row.original.key === "code_eval_source_code"}
       metadataActions={metadataActions}
-      collapsedPreview={style.collapsedPreview}
-      expandedParentSummary={style.expandedParentSummary}
-      valueSize={style.valueSize}
-      quoteStrings={style.quoteStrings}
     />
   );
-
-  // key above value, value indented to the key.
-  const renderStackedCell = (row: Row<JsonTableRow>) => (
-    <div className="flex flex-col gap-1 wrap-break-word">
-      {renderKey(row, false)}
-      {row.getIsExpanded() && row.subRows.length > 0 ? null : (
-        <div
-          style={{
-            paddingLeft: `${indentationWidthFor(row) + MARGIN_LEFT_1}px`,
-          }}
-        >
-          {renderValue(row)}
-        </div>
-      )}
-    </div>
-  );
-
-  const isLongString = (row: Row<JsonTableRow>) =>
-    typeof row.original.value === "string" &&
-    (row.original.value.length > 80 || row.original.value.includes("\n"));
 
   const keyColumn: LangfuseColumnDef<JsonTableRow, unknown> = {
     accessorKey: "key",
     header: "Path",
-    size: contentSizedKeys ? 1 : 35,
+    size: 1,
     cell: ({ row }) => {
-      const content = renderKey(row, !contentSizedKeys);
+      const content = renderKey(row);
       const valueLength = getValueStringLength(row.original.value);
       const isLongValue = valueLength > MAX_CELL_DISPLAY_CHARS / 3; // already long if we don't truncate
 
@@ -707,12 +557,9 @@ function JsonPrettyTable({
         // calculate sticky position based on level and stickyTopLevelKey setting
         let topPosition = "0";
         if (stickyTopLevelKey) {
-          // Level 0: position below header
-          // Level > 0: position below header + one top-level row
+          // Level 0 sticks at the top; deeper levels clear one top-level row.
           topPosition =
-            row.original.level === 0
-              ? `${stickyOffsets.header}px`
-              : `${stickyOffsets.header + stickyOffsets.row}px`;
+            row.original.level === 0 ? "0" : `${topLevelRowHeight}px`;
         }
 
         return (
@@ -732,60 +579,14 @@ function JsonPrettyTable({
   const valueColumn: LangfuseColumnDef<JsonTableRow, unknown> = {
     accessorKey: "value",
     header: "Value",
-    size: contentSizedKeys ? 99 : 65,
+    size: 99,
     cell: ({ row }) => renderValue(row),
   };
 
-  // tree: `key: value` on one line, no columns.
-  const inlineColumn: LangfuseColumnDef<JsonTableRow, unknown> = {
-    accessorKey: "key",
-    header: "Field",
-    size: 100,
-    cell: ({ row }) => {
-      if (style.longValuesBelowKey && isLongString(row)) {
-        return renderStackedCell(row);
-      }
-      return (
-        <div
-          className={cn(
-            "flex wrap-break-word",
-            style.indentGuides ? "items-stretch" : "items-start",
-          )}
-        >
-          {renderKey(row, false)}
-          {style.inlineSeparator ? (
-            <span
-              className={cn(
-                "text-muted-foreground mr-1.5 text-xs",
-                contentPadY,
-              )}
-            >
-              :
-            </span>
-          ) : (
-            <span className="w-2 shrink-0" />
-          )}
-          <div className={cn("min-w-0 flex-1", contentPadY)}>
-            {renderValue(row)}
-          </div>
-        </div>
-      );
-    },
-  };
-
-  const stackedColumn: LangfuseColumnDef<JsonTableRow, unknown> = {
-    accessorKey: "key",
-    header: "Field",
-    size: 100,
-    cell: ({ row }) => renderStackedCell(row),
-  };
-
-  const columns: LangfuseColumnDef<JsonTableRow, unknown>[] =
-    style.layout === "columns"
-      ? [keyColumn, valueColumn]
-      : style.layout === "inline"
-        ? [inlineColumn]
-        : [stackedColumn];
+  const columns: LangfuseColumnDef<JsonTableRow, unknown>[] = [
+    keyColumn,
+    valueColumn,
+  ];
 
   const table = useReactTable({
     data,
@@ -900,40 +701,10 @@ function JsonPrettyTable({
 
   return (
     <div className={cn("w-full", !noBorder && "rounded-sm border")}>
-      <Table className={cn(contentSizedKeys && "table-auto")}>
-        {hideHeader ? null : (
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup, index) => (
-              <TableRow
-                key={headerGroup.id}
-                ref={index === 0 ? headerRef : undefined}
-                className={cn(
-                  stickyTopLevelKey ? "sticky top-0 z-20" : "",
-                  toneClasses?.row,
-                )}
-              >
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    className={cn(
-                      "h-8 px-2 py-1",
-                      stickyTopLevelKey ? "bg-background" : "bg-transparent",
-                      toneClasses?.cell,
-                    )}
-                    style={{ width: `${header.column.columnDef.size}%` }}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-        )}
+      {/* Auto layout so the key column sizes to its keys. The table carries
+          no header row: the section title, or the surface around an untitled
+          table, is the only frame. */}
+      <Table className="table-auto">
         <TableBody>
           {table.getRowModel().rows.map((row, rowIndex) => (
             <JsonTableRowComponent
@@ -949,222 +720,13 @@ function JsonPrettyTable({
               expandedCells={expandedCells}
               toggleCellExpansion={toggleCellExpansion}
               stickyTopLevelKey={stickyTopLevelKey}
-              stickyOffsets={stickyOffsets}
               toneClasses={toneClasses}
-              style={style}
             />
           ))}
         </TableBody>
       </Table>
     </div>
   );
-}
-
-/** One radio group of the debug menu: every style direction for `dataClass`. */
-function JsonTableStyleRadioGroup({
-  dataClass,
-  value,
-}: {
-  dataClass: JsonTableDataClass;
-  value: JsonTableStyleVariant;
-}) {
-  return (
-    <>
-      <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
-        {JSON_TABLE_DATA_CLASS_LABELS[dataClass]}
-      </DropdownMenuLabel>
-      <DropdownMenuRadioGroup
-        value={value}
-        onValueChange={(next) =>
-          writeStoredJsonTableStyleVariant(
-            dataClass,
-            next as JsonTableStyleVariant,
-          )
-        }
-      >
-        {JSON_TABLE_STYLE_VARIANTS.map((variant) => (
-          <DropdownMenuRadioItem key={variant} value={variant}>
-            {JSON_TABLE_STYLES[variant].label}
-            <span className="text-muted-foreground ml-1">
-              {JSON_TABLE_STYLES[variant].reference}
-            </span>
-          </DropdownMenuRadioItem>
-        ))}
-      </DropdownMenuRadioGroup>
-    </>
-  );
-}
-
-/** Debug-only menu for the three finalist directions: one "Style" radio
-    group (applies to both classes) and one "Auto (Table or Tree by content)"
-    switch that puts IO tables on the tree direction with the class derived
-    from the data. The full twelve-direction menu is behind localStorage
-    `lf-json-style-all`. */
-function JsonTableStyleFinalistMenuContent({
-  active,
-  pinned,
-}: {
-  /** Variant the table that opened the menu renders right now. */
-  active: JsonTableStyleVariant;
-  /** The Formatted / JSON toggle pins the style; the style group is read-only. */
-  pinned: boolean;
-}) {
-  const factsStored = useStoredJsonTableStyleVariant("facts");
-  const ioStored = useStoredJsonTableStyleVariant("io");
-  const classMode = useJsonTableClassMode();
-  const style = factsStored ?? DEFAULT_JSON_TABLE_STYLE_VARIANT;
-  const auto =
-    classMode === "shape" && ioStored === LONG_CONTENT_JSON_TABLE_STYLE_VARIANT;
-  const hasStoredPick = useHasStoredJsonTableStylePick();
-  return (
-    <>
-      <DropdownMenuLabel>
-        JSON table style (debug)
-        <span className="text-muted-foreground ml-1 font-normal">
-          this table: {JSON_TABLE_STYLES[active].label}
-        </span>
-      </DropdownMenuLabel>
-      <DropdownMenuSeparator />
-      <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
-        Style
-        {pinned ? " (set by the Formatted / JSON toggle)" : null}
-      </DropdownMenuLabel>
-      <DropdownMenuRadioGroup
-        value={pinned ? active : style}
-        onValueChange={(next) =>
-          writeStoredJsonTableStylePick(next as JsonTableStyleVariant, auto)
-        }
-      >
-        {FINALIST_JSON_TABLE_STYLE_VARIANTS.map((variant) => (
-          <DropdownMenuRadioItem
-            key={variant}
-            value={variant}
-            disabled={pinned}
-          >
-            <span className="flex flex-col gap-0.5">
-              <span>{JSON_TABLE_STYLES[variant].label}</span>
-              <span className="text-muted-foreground text-xs">
-                {JSON_TABLE_STYLES[variant].reference}
-              </span>
-            </span>
-          </DropdownMenuRadioItem>
-        ))}
-      </DropdownMenuRadioGroup>
-      <DropdownMenuSeparator />
-      <DropdownMenuCheckboxItem
-        checked={auto}
-        disabled={pinned}
-        onCheckedChange={(checked) =>
-          writeStoredJsonTableStylePick(style, checked === true)
-        }
-      >
-        <span className="flex flex-col gap-0.5">
-          <span>Auto (Table or Tree by content)</span>
-          <span className="text-muted-foreground text-xs">
-            Fact sheets (flat, short values) keep the style above; content
-            (lists, long text, deep nesting) uses Tree
-          </span>
-        </span>
-      </DropdownMenuCheckboxItem>
-      {hasStoredPick && (
-        <>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={() => clearStoredJsonTableStyleVariants()}
-          >
-            Reset to default
-          </DropdownMenuItem>
-        </>
-      )}
-    </>
-  );
-}
-
-/** Debug-only menu for every table style direction (`lf-json-style-all`).
-    Facts and IO tables each store their own pick in localStorage so the two
-    classes can be compared live in one panel; the pick applies app-wide and
-    survives reloads. "Class by" switches between the caller's class (field)
-    and one derived from the data (shape). */
-function JsonTableStyleMenuContent({
-  dataClass,
-  fieldDataClass,
-  classMode,
-  active,
-}: {
-  /** Class of the table that opened the menu, after the class mode. */
-  dataClass: JsonTableDataClass;
-  /** Class the caller passed for that table. */
-  fieldDataClass: JsonTableDataClass;
-  classMode: JsonTableClassMode;
-  /** Variant that table renders right now. */
-  active: JsonTableStyleVariant;
-}) {
-  const otherClass: JsonTableDataClass = dataClass === "facts" ? "io" : "facts";
-  const otherStored = useStoredJsonTableStyleVariant(otherClass);
-  const otherActive = otherStored ?? DEFAULT_JSON_TABLE_STYLE_VARIANT;
-  const hasStoredPick = useHasStoredJsonTableStylePick();
-  const valueFor = (group: JsonTableDataClass) =>
-    group === dataClass ? active : otherActive;
-  return (
-    <>
-      <DropdownMenuLabel>
-        JSON table style (debug)
-        <span className="text-muted-foreground ml-1 font-normal">
-          this table: {dataClass} (by {classMode}
-          {dataClass !== fieldDataClass ? `, ${fieldDataClass} by field` : ""})
-        </span>
-      </DropdownMenuLabel>
-      <DropdownMenuSeparator />
-      <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
-        Class by
-      </DropdownMenuLabel>
-      <DropdownMenuRadioGroup
-        value={classMode}
-        onValueChange={(next) =>
-          writeStoredJsonTableClassMode(next as JsonTableClassMode)
-        }
-      >
-        {JSON_TABLE_CLASS_MODES.map((mode) => (
-          <DropdownMenuRadioItem key={mode} value={mode}>
-            {JSON_TABLE_CLASS_MODE_LABELS[mode].label}
-            <span className="text-muted-foreground ml-1">
-              {JSON_TABLE_CLASS_MODE_LABELS[mode].reference}
-            </span>
-          </DropdownMenuRadioItem>
-        ))}
-      </DropdownMenuRadioGroup>
-      {JSON_TABLE_DATA_CLASSES.map((group) => (
-        <Fragment key={group}>
-          <DropdownMenuSeparator />
-          <JsonTableStyleRadioGroup dataClass={group} value={valueFor(group)} />
-        </Fragment>
-      ))}
-      <DropdownMenuSeparator />
-      <DropdownMenuItem
-        disabled={active === otherActive}
-        onSelect={() => writeStoredJsonTableStyleVariant(otherClass, active)}
-      >
-        Same for both
-        <span className="text-muted-foreground ml-1">
-          {JSON_TABLE_STYLES[active].label} for {otherClass} too
-        </span>
-      </DropdownMenuItem>
-      {hasStoredPick && (
-        <DropdownMenuItem onSelect={() => clearStoredJsonTableStyleVariants()}>
-          Reset to default
-        </DropdownMenuItem>
-      )}
-    </>
-  );
-}
-
-/** True once any debug pick is stored (either class, the legacy key, or the
-    class mode). */
-function useHasStoredJsonTableStylePick(): boolean {
-  const facts = useStoredJsonTableStyleVariant("facts");
-  const io = useStoredJsonTableStyleVariant("io");
-  const classMode = useStoredJsonTableClassMode();
-  return facts !== null || io !== null || classMode !== null;
 }
 
 export function PrettyJsonView(props: {
@@ -1190,23 +752,6 @@ export function PrettyJsonView(props: {
   showObservationTypeBadge?: boolean;
   tone?: PrettyJsonViewTone;
   inset?: boolean;
-  /** Hide the Path / Value header row of the table view. Defaults to the
-      active style direction (hidden under a title for all but `current`);
-      pass `false` to opt back in. */
-  hideHeader?: boolean;
-  /** What the table shows: facts (metadata, attributes, model parameters)
-      or IO (input, output, messages, tool calls). Each class has its own
-      stored debug pick; defaults to facts. Ignored while the stored class
-      mode is "shape" (`classifyJsonShape` decides from the data). */
-  dataClass?: JsonTableDataClass;
-  /** Table style direction. A stored debug pick for `dataClass` (localStorage
-      `lf-json-style-facts` / `lf-json-style-io`, or the legacy `lf-json-style`)
-      overrides this unless `lockStyleVariant` is set; see
-      jsonTableStyleVariants.ts. */
-  styleVariant?: JsonTableStyleVariant;
-  /** Render exactly `styleVariant`, ignoring the stored debug pick, and hide
-      the picker (review page). */
-  lockStyleVariant?: boolean;
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
   /** When set, rows show an actions menu with copy + add-to-filter shortcuts
@@ -1277,48 +822,9 @@ export function PrettyJsonView(props: {
     return decodeUnicodeInJson(result);
   }, [props.json, props.parsedJson, props.isParsing, largeStringValue]);
 
-  // Data class: the caller's by default (by field); in shape mode the parsed
-  // value decides, so a flat output reads as facts and a chat input as IO.
-  const fieldDataClass = props.dataClass ?? DEFAULT_JSON_TABLE_DATA_CLASS;
-  const classMode = useJsonTableClassMode();
-  const dataClass = useMemo(
-    () =>
-      classMode === "shape" ? classifyJsonShape(parsedJson) : fieldDataClass,
-    [classMode, parsedJson, fieldDataClass],
-  );
-  const resolvedStyleVariant = useJsonTableStyleVariant(
-    dataClass,
-    props.styleVariant,
-  );
-  // Caller lock (review pages) > style pinned by the app-wide view toggle >
-  // stored debug pick > caller prop > default. A pinned style locks the
-  // table's style; the picker stays reachable for its other knobs (mono
-  // font) and greys the style group out.
-  const pinnedStyleVariant = usePinnedJsonTableStyleVariant();
-  const styleVariant = props.lockStyleVariant
-    ? (props.styleVariant ?? DEFAULT_JSON_TABLE_STYLE_VARIANT)
-    : (pinnedStyleVariant ?? resolvedStyleVariant);
-  const tableStyle = JSON_TABLE_STYLES[styleVariant];
-  const tableHasContentSizedKeys =
-    tableStyle.layout === "columns" && tableStyle.keyColumn === "content";
-  const showStylePicker =
-    useShowJsonTableStylePicker() && !props.lockStyleVariant;
-  const stylePinnedByToggle = pinnedStyleVariant !== null;
-  const showAllStyles = useShowAllJsonTableStyles();
-  const hasTitle = Boolean(props.title);
-  // Untitled tables have no section header to hang copy and expand all on,
-  // so styles that drop the Path / Value row there get them as hover-revealed
-  // controls anchored to the table instead.
-  const untitledHeaderDropped = !hasTitle && !tableStyle.headerWhenUntitled;
-  // Title-owned tables drop the Path / Value header and the outer box (the
-  // section title is the frame) unless the style keeps them. Single-column
-  // layouts never show the header. Toned containers keep their tinted border.
-  const hideTableHeader =
-    props.hideHeader ??
-    (tableStyle.layout !== "columns" ||
-      (hasTitle && !tableStyle.headerUnderTitle) ||
-      untitledHeaderDropped);
-  const tableBorderless = hasTitle && !tableStyle.boxUnderTitle && !props.tone;
+  // Title-owned tables drop the outer box: the section title is the frame.
+  // Toned containers keep their tinted border.
+  const tableBorderless = Boolean(props.title) && !props.tone;
 
   // JSONView internally calls deepParseJson (with maxDepth:3) which mutates
   // nested string fields in place. Because baseTableData[].rawChildData holds
@@ -1805,7 +1311,7 @@ export function PrettyJsonView(props: {
                 // Container for the key column's 40cqw cap. Inline-size
                 // containment zeroes this flex item's intrinsic width, so it
                 // takes the row width explicitly.
-                tableHasContentSizedKeys && "@container w-full",
+                "@container w-full",
               )}
             >
               {props.isLoading ? (
@@ -1816,7 +1322,6 @@ export function PrettyJsonView(props: {
                   expandAllRef={expandAllRef}
                   onExpandStateChange={setAllRowsExpanded}
                   noBorder={true}
-                  hideHeader={hideTableHeader}
                   expanded={
                     actualExpansionState === false ? {} : actualExpansionState
                   }
@@ -1830,7 +1335,6 @@ export function PrettyJsonView(props: {
                   showObservationTypeBadge={props.showObservationTypeBadge}
                   metadataActions={props.metadataActions}
                   toneClasses={toneClasses}
-                  style={tableStyle}
                 />
               )}
             </div>
@@ -1910,27 +1414,7 @@ export function PrettyJsonView(props: {
     >
       {props.title ? (
         <MarkdownJsonViewHeader
-          title={
-            tableStyle.titleCount &&
-            shouldUseTableView &&
-            tableData.length > 0 ? (
-              <>
-                {props.title}
-                <span className="text-muted-foreground text-xs font-normal normal-case">
-                  {tableData.length}{" "}
-                  {Array.isArray(parsedJson)
-                    ? tableData.length === 1
-                      ? "item"
-                      : "items"
-                    : tableData.length === 1
-                      ? "key"
-                      : "keys"}
-                </span>
-              </>
-            ) : (
-              props.title
-            )
-          }
+          title={props.title}
           titleIcon={props.titleIcon}
           canEnableMarkdown={false}
           handleOnValueChange={() => {}} // No-op, parent handles state
@@ -1948,42 +1432,6 @@ export function PrettyJsonView(props: {
           inset={props.inset}
           controlButtons={
             <>
-              {shouldUseTableView && showStylePicker && (
-                <DropdownMenuController
-                  align="end"
-                  maxWidth={showAllStyles ? undefined : 360}
-                  maxHeight="var(--radix-dropdown-menu-content-available-height)"
-                  renderMenu={() =>
-                    showAllStyles ? (
-                      <JsonTableStyleMenuContent
-                        dataClass={dataClass}
-                        fieldDataClass={fieldDataClass}
-                        classMode={classMode}
-                        active={styleVariant}
-                      />
-                    ) : (
-                      <JsonTableStyleFinalistMenuContent
-                        active={styleVariant}
-                        pinned={stylePinnedByToggle}
-                      />
-                    )
-                  }
-                >
-                  {({ Trigger }) => (
-                    <Trigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        className="hover:bg-border -mr-2"
-                        title={`JSON table style (${dataClass} by ${classMode}): ${JSON_TABLE_STYLES[styleVariant].label}`}
-                        aria-label="JSON table style"
-                      >
-                        <Palette className="h-3 w-3" />
-                      </Button>
-                    </Trigger>
-                  )}
-                </DropdownMenuController>
-              )}
               {shouldUseTableView && (
                 <Button
                   variant="ghost"

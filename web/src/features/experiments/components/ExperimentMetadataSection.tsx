@@ -35,7 +35,6 @@ export const ExperimentMetadataSection = ({
             json={metadata}
             currentView="pretty"
             className="w-full"
-            dataClass="facts"
           />
         </CollapsibleContent>
       </div>

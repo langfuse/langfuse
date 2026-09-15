@@ -153,7 +153,6 @@ export function ChatMessageList({
             title="Additional Input"
             json={additionalInput}
             currentView={shouldRenderMarkdown ? "pretty" : "json"}
-            dataClass="io"
           />
         )}
 

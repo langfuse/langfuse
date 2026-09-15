@@ -15,15 +15,8 @@ function renderPrettyJson(ui: ReactNode) {
 const json = { brand: "Acme", count: 2 };
 
 describe("PrettyJsonView table header visibility", () => {
-  it("hides the Path / Value header when a title frames a quiet table", () => {
-    renderPrettyJson(
-      <PrettyJsonView
-        json={json}
-        title="Metadata"
-        styleVariant="quiet"
-        lockStyleVariant
-      />,
-    );
+  it("renders no Path / Value header under a title", () => {
+    renderPrettyJson(<PrettyJsonView json={json} title="Metadata" />);
 
     expect(screen.queryByText("Path")).not.toBeInTheDocument();
     expect(screen.queryByText("Value")).not.toBeInTheDocument();
@@ -32,14 +25,8 @@ describe("PrettyJsonView table header visibility", () => {
     ).toBeInTheDocument();
   });
 
-  it("hides the header on an untitled quiet table and keeps the cell copy control", () => {
-    renderPrettyJson(
-      <PrettyJsonView
-        json={json}
-        styleVariant="dense-dotbreak"
-        lockStyleVariant
-      />,
-    );
+  it("renders no header on an untitled table and keeps the cell copy control", () => {
+    renderPrettyJson(<PrettyJsonView json={json} />);
 
     expect(screen.queryByText("Path")).not.toBeInTheDocument();
     expect(screen.queryByText("Value")).not.toBeInTheDocument();
@@ -49,27 +36,5 @@ describe("PrettyJsonView table header visibility", () => {
     expect(
       within(screen.getByRole("table")).getByText("brand"),
     ).toBeInTheDocument();
-  });
-
-  it("keeps the header for standalone tables, the current style, and explicit opt-in", () => {
-    const standalone = renderPrettyJson(<PrettyJsonView json={json} />);
-    expect(screen.getByText("Path")).toBeInTheDocument();
-    standalone.unmount();
-
-    const current = renderPrettyJson(
-      <PrettyJsonView
-        json={json}
-        title="Metadata"
-        styleVariant="current"
-        lockStyleVariant
-      />,
-    );
-    expect(screen.getByText("Path")).toBeInTheDocument();
-    current.unmount();
-
-    renderPrettyJson(
-      <PrettyJsonView json={json} title="Metadata" hideHeader={false} />,
-    );
-    expect(screen.getByText("Path")).toBeInTheDocument();
   });
 });

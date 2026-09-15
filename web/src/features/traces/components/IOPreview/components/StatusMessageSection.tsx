@@ -41,7 +41,6 @@ export function StatusMessageSection({
         parsedJson={parsedStatusMessage}
         currentView={currentView}
         tone={presentation.tone}
-        dataClass="io"
         inset
       />
     );

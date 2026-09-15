@@ -34,11 +34,7 @@ function SessionTimelineReasoning({ part }: { part: ReasoningPart }) {
         variant="plain"
         alignment="row"
       >
-        <PrettyJsonView
-          json={content.value}
-          currentView="pretty"
-          dataClass="io"
-        />
+        <PrettyJsonView json={content.value} currentView="pretty" />
       </SessionTimelineCollapsiblePart>
     );
   }
@@ -103,7 +99,7 @@ function SessionTimelineFile({ part }: { part: FilePart }) {
           {safeUrl}
         </a>
       ) : (
-        <PrettyJsonView json={part} currentView="pretty" dataClass="io" />
+        <PrettyJsonView json={part} currentView="pretty" />
       )}
     </div>
   );
@@ -134,9 +130,7 @@ export function SessionTimelinePart({
   }
 
   if (part.type === "data") {
-    return (
-      <PrettyJsonView json={part.value} currentView="pretty" dataClass="io" />
-    );
+    return <PrettyJsonView json={part.value} currentView="pretty" />;
   }
 
   if (part.type === "custom") {
@@ -145,7 +139,6 @@ export function SessionTimelinePart({
         title={part.kind}
         json={part.value}
         currentView="pretty"
-        dataClass="io"
       />
     );
   }

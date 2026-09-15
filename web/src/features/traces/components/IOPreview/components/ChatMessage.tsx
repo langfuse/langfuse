@@ -94,7 +94,6 @@ export function ChatMessage({
           <MarkdownJsonView
             title="Placeholder"
             content={message.name || "Unnamed placeholder"}
-            dataClass="io"
           />
         </div>
         <div style={{ display: shouldRenderMarkdown ? "none" : "block" }}>
@@ -102,7 +101,6 @@ export function ChatMessage({
             title="Placeholder"
             json={message.name || "Unnamed placeholder"}
             currentView={currentView}
-            dataClass="io"
           />
         </div>
       </div>
@@ -117,7 +115,6 @@ export function ChatMessage({
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={message.json}
           currentView={currentView}
-          dataClass="io"
         />
       </div>
     );
@@ -132,7 +129,6 @@ export function ChatMessage({
           json={message.json}
           currentView="pretty"
           controlButtons={passthroughToggleButton}
-          dataClass="io"
         />
       </div>
     );
@@ -222,7 +218,6 @@ export function ChatMessage({
             controlButtons={passthroughToggleButton}
             afterHeader={thinkingBlocks}
             isSystemPrompt={isSystemPrompt}
-            dataClass="io"
           />
           {showData && toolCalls.length > 0 && (
             <div className="mt-2">
@@ -245,7 +240,6 @@ export function ChatMessage({
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={withoutUnsetFields(message)}
           currentView={currentView}
-          dataClass="io"
         />
       </div>
     );

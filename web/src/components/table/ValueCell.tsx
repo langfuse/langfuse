@@ -38,8 +38,9 @@ export type MetadataFilterActions = {
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
 const MAX_CELL_DISPLAY_CHARS = 2000;
 const ARRAY_PREVIEW_ITEMS = 3;
-const MONO_TEXT_CLASSES = "font-mono wrap-break-word";
-const VALUE_SIZE_CLASSES = { xs: "text-xs", sm: "text-mono-sm" } as const;
+// text-mono-sm is the mono partner of the text-sm keys: both columns then
+// share one line box and sit on the same baseline.
+const MONO_TEXT_CLASSES = "font-mono text-mono-sm wrap-break-word";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
 
 function renderStringWithLinks(text: string): React.ReactNode {
@@ -131,23 +132,10 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
   );
 }
 
-/** `{N items}` / `[N items]` preview used by the tree style direction. */
-function renderBracesPreview(value: unknown[] | Record<string, unknown>) {
-  const isArray = Array.isArray(value);
-  const count = isArray ? value.length : Object.keys(value).length;
-  const [open, close] = isArray ? ["[", "]"] : ["{", "}"];
-  return (
-    <span className={PREVIEW_TEXT_CLASSES}>
-      {open}
-      {count} items{close}
-    </span>
-  );
-}
-
-/** "N items" shown by style directions on expanded parents, in the same
-    mono preview style as the collapsed row so the two states read alike;
-    the chevron carries the open / closed distinction. Objects count keys
-    but say "items" too, matching the collapsed preview's wording. */
+/** "N items" shown on an expanded parent, in the same mono preview style as
+    the collapsed row so the two states read alike; the chevron carries the
+    open / closed distinction. Objects count keys but say "items" too,
+    matching the collapsed preview's wording. */
 function renderCountSummary(count: number) {
   return (
     <span className={PREVIEW_TEXT_CLASSES}>
@@ -376,25 +364,12 @@ export const ValueCell = memo(
     toggleCellExpansion,
     preserveStringWhitespace = false,
     metadataActions,
-    collapsedPreview = "default",
-    expandedParentSummary = false,
-    valueSize = "xs",
-    quoteStrings = true,
   }: {
     row: Row<JsonTableRow>;
     expandedCells: Set<string>;
     toggleCellExpansion: (cellId: string) => void;
     preserveStringWhitespace?: boolean;
     metadataActions?: MetadataFilterActions;
-    /** Collapsed object / array preview format (style directions). */
-    collapsedPreview?: "default" | "braces";
-    /** Expanded parents show a muted "N keys" / "N items" instead of an
-        empty cell (style directions). */
-    expandedParentSummary?: boolean;
-    /** Value text tier: `xs` (default) or `sm`, the mono partner of text-sm keys. */
-    valueSize?: keyof typeof VALUE_SIZE_CLASSES;
-    /** Show string values with their JSON double quotes (default) or bare. */
-    quoteStrings?: boolean;
   }) => {
     const { value, type } = row.original;
     const cellId = `${row.id}-value`;
@@ -444,9 +419,8 @@ export const ValueCell = memo(
                     : "whitespace-pre-line"
                 }`}
               >
-                {quoteStrings ? '"' : null}
+                {/* Bare in the table; copy still yields the raw JSON. */}
                 {renderStringWithLinks(displayValue)}
-                {quoteStrings ? '"' : null}
               </span>
             ),
             needsTruncation,
@@ -497,19 +471,13 @@ export const ValueCell = memo(
             row.getIsExpanded() && row.subRows.length > 0;
           if (hasVisibleChildRows) {
             return {
-              content: expandedParentSummary
-                ? renderCountSummary((value as unknown[]).length)
-                : null,
+              content: renderCountSummary((value as unknown[]).length),
               needsTruncation: false,
             };
           }
-          const arrayValue = value as unknown[];
           // Arrays always show previews, never truncate
           return {
-            content:
-              collapsedPreview === "braces"
-                ? renderBracesPreview(arrayValue)
-                : renderArrayValue(arrayValue),
+            content: renderArrayValue(value as unknown[]),
             needsTruncation: false,
           };
         }
@@ -518,21 +486,15 @@ export const ValueCell = memo(
             row.getIsExpanded() && row.subRows.length > 0;
           if (hasVisibleChildRows) {
             return {
-              content: expandedParentSummary
-                ? renderCountSummary(
-                    Object.keys(value as Record<string, unknown>).length,
-                  )
-                : null,
+              content: renderCountSummary(
+                Object.keys(value as Record<string, unknown>).length,
+              ),
               needsTruncation: false,
             };
           }
-          const objectValue = value as Record<string, unknown>;
           // Objects always show previews, never truncate
           return {
-            content:
-              collapsedPreview === "braces"
-                ? renderBracesPreview(objectValue)
-                : renderObjectValue(objectValue),
+            content: renderObjectValue(value as Record<string, unknown>),
             needsTruncation: false,
           };
         }
@@ -559,13 +521,7 @@ export const ValueCell = memo(
     const { content, needsTruncation } = getDisplayValue();
 
     return (
-      <div
-        className={cn(
-          MONO_TEXT_CLASSES,
-          VALUE_SIZE_CLASSES[valueSize],
-          "group relative max-w-full",
-        )}
-      >
+      <div className={cn(MONO_TEXT_CLASSES, "group relative max-w-full")}>
         <span className="cursor-text">{content}</span>
         {needsTruncation && !row.original.hasChildren && (
           <div

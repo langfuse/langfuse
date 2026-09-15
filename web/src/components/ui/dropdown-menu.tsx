@@ -271,8 +271,6 @@ type DropdownMenuControllerProps = {
     Trigger: typeof DropdownMenuTrigger;
   }) => React.ReactNode;
   maxWidth?: React.CSSProperties["maxWidth"];
-  /** Scrolls the menu body past this height (see `DropdownMenuContent`). */
-  maxHeight?: React.CSSProperties["maxHeight"];
   /** Customizes Radix focus restoration after the menu closes. */
   onCloseAutoFocus?: React.ComponentProps<
     typeof DropdownMenuContent
@@ -284,7 +282,6 @@ const DropdownMenuController = ({
   align,
   children,
   maxWidth,
-  maxHeight,
   onCloseAutoFocus,
   renderMenu,
 }: DropdownMenuControllerProps) => {
@@ -296,7 +293,6 @@ const DropdownMenuController = ({
       <DropdownMenuContent
         align={align}
         style={maxWidth === undefined ? undefined : { maxWidth }}
-        maxHeight={maxHeight}
         onClick={(event) => event.stopPropagation()}
         onCloseAutoFocus={onCloseAutoFocus}
       >

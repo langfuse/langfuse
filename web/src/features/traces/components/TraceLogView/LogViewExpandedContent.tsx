@@ -95,7 +95,6 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
           stickyTopLevelKey={false}
           showObservationTypeBadge={true}
           scrollable={true}
-          dataClass="io"
           externalExpansionState={externalExpansionState}
           onExternalExpansionChange={onExternalExpansionChange}
           className="w-full [&_.border]:border-0 [&_.io-message-content]:p-0 [&_.rounded-sm]:rounded-none [&_td:first-child]:pl-6 [&_th]:h-6 [&_th]:text-xs [&_th:first-child]:pl-6"
