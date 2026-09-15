@@ -74,7 +74,7 @@ const ChbWebhookEventSchema = z.object({
   data: z.object({
     // ClickHouse Organization ID owning the attached plan
     organizationId: z.uuid(),
-    // Attached plan id, stored as `clickhouse.bundleId`
+    // Attached plan id, stored as `clickhouse.attachedPlanId`
     id: z.string().nullish(),
     planCode: z.string().nullish(),
     startDate: z.string().nullish(),
@@ -502,7 +502,7 @@ async function handleAttachedPlanCreated(
     // previously cancelled plan.
     clickhouse: {
       organizationId: event.data.organizationId,
-      bundleId: data.id,
+      attachedPlanId: data.id,
       planCode: data.planCode,
       paymentStatus: data.payment?.status,
       nextPaymentDate: data.payment?.dueDate,
@@ -572,7 +572,7 @@ async function handleAttachedPlanUpdated(
   const { data } = event;
   const existing = parsedOrg.cloudConfig?.clickhouse;
 
-  if (!existing?.bundleId && !data.id) {
+  if (!existing?.attachedPlanId && !data.id) {
     logger.error(
       `[CHB Webhook] attachedplan.updated for org ${parsedOrg.id} without any attached plan id, skipping`,
     );
@@ -591,7 +591,7 @@ async function handleAttachedPlanUpdated(
     clickhouse: {
       ...existing,
       organizationId: event.data.organizationId,
-      ...(data.id !== undefined ? { bundleId: data.id } : {}),
+      ...(data.id !== undefined ? { attachedPlanId: data.id } : {}),
       ...(data.planCode !== undefined ? { planCode: data.planCode } : {}),
       ...(data.payment?.status !== undefined
         ? { paymentStatus: data.payment.status }

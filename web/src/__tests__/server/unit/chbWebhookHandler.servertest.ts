@@ -365,7 +365,7 @@ describe("chbWebhookHandler", () => {
     expect(orgColumnsOfUpdate().cloudConfig).toMatchObject({
       clickhouse: {
         organizationId: CHB_ORG_ID,
-        bundleId: "plan_1",
+        attachedPlanId: "plan_1",
         planCode: "LANGFUSE_PRO",
         lastEventCreatedAt: "2026-07-01T00:00:00Z",
       },
@@ -480,7 +480,7 @@ describe("chbWebhookHandler", () => {
 
   it("persists a scheduled cancellation with its end date", async () => {
     mocks.findOrg.mockResolvedValue(
-      orgRow({ organizationId: CHB_ORG_ID, bundleId: "plan_1" }),
+      orgRow({ organizationId: CHB_ORG_ID, attachedPlanId: "plan_1" }),
     );
 
     const response = await chbWebhookHandler(
