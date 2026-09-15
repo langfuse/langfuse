@@ -42,7 +42,7 @@ const ARRAY_PREVIEW_ITEMS = 3;
 // keys sit one step down on the same 1.25rem line box, so both columns
 // share a baseline.
 const VALUE_TEXT_CLASSES = "text-sm/5 wrap-break-word";
-const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
+const PREVIEW_TEXT_CLASSES = "text-gray-500 dark:text-gray-400";
 
 function renderStringWithLinks(text: string): React.ReactNode {
   if (text.length >= MAX_STRING_LENGTH_FOR_LINK_DETECTION) {
@@ -425,9 +425,7 @@ export const ValueCell = memo(
         case "null":
           return {
             content: (
-              <span className="text-gray-500 italic dark:text-gray-400">
-                null
-              </span>
+              <span className="text-gray-500 dark:text-gray-400">null</span>
             ),
             needsTruncation: false,
           };

@@ -89,7 +89,7 @@ const MAX_CELL_DISPLAY_CHARS = 2000;
 const ASSISTANT_TITLES = ["assistant", "Output", "model"];
 const SYSTEM_TITLES = ["system", "Input"];
 
-const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
+const PREVIEW_TEXT_CLASSES = "text-gray-500 dark:text-gray-400";
 
 type PrettyJsonViewTone = "danger" | "warning" | "muted" | "neutral";
 
