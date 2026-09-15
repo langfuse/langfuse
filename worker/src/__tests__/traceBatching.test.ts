@@ -837,6 +837,106 @@ describe("trace micro-batch scheduling with Redis", () => {
     },
   );
 
+  it("coalesces a non-final compatible partial across a hydration boundary", async () => {
+    env.LANGFUSE_TRACE_BATCH_STRATEGY = "locality";
+    const minute = 60_000;
+    const early = Array.from({ length: 30 }, (_, index) => ({
+      traceId: `early-${String(index).padStart(2, "0")}`,
+      start: 10 * minute,
+    }));
+    const filler = Array.from({ length: 960 }, (_, index) => ({
+      traceId: `filler-${String(index).padStart(3, "0")}`,
+      start: 12 * 60 * minute,
+    }));
+    const late = Array.from({ length: 12 }, (_, index) => ({
+      traceId: `late-${String(index).padStart(2, "0")}`,
+      start: 24 * 60 * minute,
+    }));
+    const firstWindow = [...early.slice(0, 28), ...filler, ...late];
+    const traces = [...firstWindow, ...early.slice(28)];
+
+    await trackTraceBatchActivity(
+      "project",
+      traces.map(({ traceId, start }) => event(traceId, start)),
+    );
+    const due = Date.now() - 10_000;
+    await client().zadd(
+      dueKey,
+      ...traces.flatMap(({ traceId }, index) => [
+        due + index,
+        member("project", traceId),
+      ]),
+    );
+    const targetMember = member("project", early[0].traceId);
+    const hydratedRevision = JSON.parse(
+      (await client().hget(stateKey, targetMember))!,
+    ).revision;
+    const evaluate = client().eval.bind(client());
+    let reactivated = false;
+    vi.spyOn(client(), "eval").mockImplementation(async (...args) => {
+      const result = await evaluate(...args);
+      if (
+        !reactivated &&
+        typeof args[0] === "string" &&
+        args[0].includes("local result = {}")
+      ) {
+        reactivated = true;
+        await trackTraceBatchActivity("project", [
+          event(early[0].traceId, 11 * minute),
+        ]);
+      }
+      return result;
+    });
+    const add = vi.spyOn(queue, "add");
+
+    await runner().processBatch();
+
+    expect(reactivated).toBe(true);
+    const batches = add.mock.calls.map(([, job]) => job.payload.traces);
+    expect(
+      batches
+        .filter((batch) =>
+          batch.some(({ traceId }) => traceId.startsWith("early-")),
+        )
+        .map((batch) => batch.map(({ traceId }) => traceId).sort()),
+    ).toEqual([early.map(({ traceId }) => traceId)]);
+    expect(batches.map((batch) => batch.length).sort((a, b) => a - b)).toEqual([
+      12,
+      30,
+      ...Array(16).fill(60),
+    ]);
+    const assigned = batches
+      .flatMap((batch) => batch)
+      .map(({ projectId, traceId }) => member(projectId, traceId));
+    expect(assigned).toHaveLength(traces.length);
+    expect(new Set(assigned)).toEqual(
+      new Set(traces.map(({ traceId }) => member("project", traceId))),
+    );
+    const candidateBufferSizes = vi
+      .mocked(recordDistribution)
+      .mock.calls.filter(
+        ([name]) => name === "langfuse.trace_batch.candidate_buffer_size",
+      )
+      .map(([, value]) => Number(value));
+    expect(candidateBufferSizes).toContain(42);
+    expect(Math.max(...candidateBufferSizes)).toBeLessThanOrEqual(1_059);
+    const current = JSON.parse((await client().hget(stateKey, targetMember))!);
+    const dispatched = batches
+      .flat()
+      .find(({ traceId }) => traceId === early[0].traceId);
+    expect(dispatched?.revision).toBe(hydratedRevision);
+    expect(current.revision).not.toBe(hydratedRevision);
+    expect(current.maxStart).toBe(11 * minute);
+    expect(await client().zcard(dueKey)).toBe(1);
+    expect(await client().hlen(stateKey)).toBe(1);
+
+    await makeDue("project", early[0].traceId);
+    await runner().processBatch();
+    expect(await queue.getWaitingCount()).toBe(batches.length + 1);
+    expect(await client().zcard(dueKey)).toBe(0);
+    expect(await client().hlen(stateKey)).toBe(0);
+  });
+
   it("revalidates the due ID list after deletion, missing state, reactivation and new arrivals", async () => {
     const traces = Array.from(
       { length: 2_001 },
