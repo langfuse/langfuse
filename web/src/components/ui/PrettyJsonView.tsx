@@ -715,7 +715,10 @@ function JsonPrettyTable({
         }
 
         return (
-          <div className="sticky z-5 py-1" style={{ top: topPosition }}>
+          // py-1 with -my-1 keeps the sticky box padded when it sticks under
+          // the header without adding height, so the key stays on the value's
+          // baseline instead of sitting one padding step lower.
+          <div className="sticky z-5 -my-1 py-1" style={{ top: topPosition }}>
             {content}
           </div>
         );
