@@ -38,9 +38,6 @@ export type MetadataFilterActions = {
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
 const MAX_CELL_DISPLAY_CHARS = 2000;
 const ARRAY_PREVIEW_ITEMS = 3;
-// Values are the content, so they carry the sans face at text-sm; the mono
-// keys sit one step down on the same 1.25rem line box, so both columns
-// share a baseline.
 const VALUE_TEXT_CLASSES = "text-sm/5 wrap-break-word";
 const PREVIEW_TEXT_CLASSES = "text-gray-500 dark:text-gray-400";
 
@@ -396,17 +393,20 @@ export const ValueCell = memo(
               ? getTruncatedValue(stringValue, MAX_CELL_DISPLAY_CHARS)
               : stringValue;
 
+          const isWhitespaceOnly = /^\s*$/.test(stringValue);
+
           return {
             content: (
               <span
-                className={`text-foreground-secondary ${
+                className={`text-blue-700 ${
                   preserveStringWhitespace
                     ? "whitespace-pre-wrap"
                     : "whitespace-pre-line"
                 }`}
               >
-                {/* Bare in the table; copy still yields the raw JSON. */}
-                {renderStringWithLinks(displayValue)}
+                {isWhitespaceOnly
+                  ? JSON.stringify(stringValue)
+                  : renderStringWithLinks(displayValue)}
               </span>
             ),
             needsTruncation,

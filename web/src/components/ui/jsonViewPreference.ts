@@ -1,13 +1,5 @@
-/**
- * The app-wide Formatted / JSON choice. Persisted under
- * `JSON_VIEW_PREFERENCE_STORAGE_KEY` (JSON-encoded, via useLocalStorage) by
- * every toggle instance, so one switch changes every JSON view in the app.
- */
-
-/** localStorage key of the app-wide view choice (JSON-encoded string). */
 export const JSON_VIEW_PREFERENCE_STORAGE_KEY = "jsonViewPreference";
 
-/** Formatted (pretty), raw JSON, or the advanced JSON viewer (json-beta). */
 export type JsonViewPreference = "pretty" | "json" | "json-beta";
 
 export const DEFAULT_JSON_VIEW_PREFERENCE: JsonViewPreference = "pretty";
@@ -18,8 +10,6 @@ const JSON_VIEW_PREFERENCES: readonly string[] = [
   "json-beta",
 ];
 
-/** A value read back from storage or a toggle. Unknown values (retired view
-    modes included) degrade to Formatted rather than breaking a view. */
 export function normalizeJsonViewPreference(
   value: unknown,
 ): JsonViewPreference {
@@ -28,25 +18,18 @@ export function normalizeJsonViewPreference(
     : DEFAULT_JSON_VIEW_PREFERENCE;
 }
 
-/** True for the Formatted view; only the two JSON views differ. Gates pane
-    layout, so json-beta counts as a JSON view: it fills the pane with the
-    advanced viewer rather than the Formatted table. */
+/** json-beta is a JSON view for pane layout (fills with the advanced viewer). */
 export function isPrettyLikeJsonView(view: JsonViewPreference): boolean {
   return view !== "json" && view !== "json-beta";
 }
 
-/** The two-state view that PrettyJsonView, MarkdownJsonView and the chat
-    renderer distinguish. Deliberately NOT isPrettyLikeJsonView: those
-    components have no advanced viewer, so only raw JSON renders as JSON and
-    json-beta falls back to the Formatted table. */
+/** PrettyJsonView / MarkdownJsonView / chat have no advanced viewer, so json-beta is Formatted. */
 export function toPrettyOrJsonView(
   view: JsonViewPreference,
 ): "pretty" | "json" {
   return view === "json" ? "json" : "pretty";
 }
 
-/** Segment of the Formatted / JSON toggle that `view` selects (both JSON
-    views share the JSON segment; the Beta switch picks between them). */
 export function jsonViewToggleTab(
   view: JsonViewPreference,
 ): Exclude<JsonViewPreference, "json-beta"> {

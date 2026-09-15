@@ -1,10 +1,18 @@
-import { IBM_Plex_Mono } from "next/font/google";
+import localFont from "next/font/local";
 
-/** The app's mono. next/font bundles it at build time; the CSS variable is
-    set on <html> in _document and consumed by `--font-mono` in globals.css. */
-export const plexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "700"],
+export const plexMono = localFont({
+  src: [
+    {
+      path: "./IBMPlexMono-Regular.woff2",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "./IBMPlexMono-Bold.woff2",
+      weight: "700",
+      style: "normal",
+    },
+  ],
   variable: "--font-plex-mono",
   display: "swap",
 });

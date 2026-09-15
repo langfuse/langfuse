@@ -489,16 +489,8 @@ function JsonPrettyTable({
         : null;
 
     return (
-      <div
-        // w-max keeps the column at the longest key (up to the cap) instead
-        // of letting long values squeeze it to its narrowest wrap; the
-        // floor keeps the value column at a steady x across stacked tables.
-        className="flex w-max max-w-[40cqw] min-w-40 items-start text-xs/5 wrap-break-word"
-      >
+      <div className="flex w-max max-w-[40cqw] min-w-40 items-start text-xs/5 wrap-break-word">
         <div
-          // One key line tall (the 1.25rem line box inherited from the key
-          // classes on the wrapper) so the chevron centres on the first line
-          // of the key instead of the top of the row.
           className="flex h-[1lh] shrink-0 items-center justify-end"
           style={{ width: `${indentationWidth}px` }}
         >
@@ -525,12 +517,7 @@ function JsonPrettyTable({
             </Button>
           ) : null}
         </div>
-        <span
-          // A flex item cannot shrink below its min-content width, and an
-          // undotted key is one unbreakable word: without min-w-0 a key
-          // longer than the column cap overflows the cell into the value.
-          className={cn("min-w-0 cursor-text", KEY_CLASSES)}
-        >
+        <span className={cn("min-w-0 cursor-text", KEY_CLASSES)}>
           {itemBadgeType && (
             <span className="mr-1 inline-block align-middle">
               <ItemBadge type={itemBadgeType} isSmall={true} />
@@ -830,8 +817,6 @@ export function PrettyJsonView(props: {
     return decodeUnicodeInJson(result);
   }, [props.json, props.parsedJson, props.isParsing, largeStringValue]);
 
-  // Title-owned tables drop the outer box: the section title is the frame.
-  // Toned containers keep their tinted border.
   const tableBorderless = Boolean(props.title) && !props.tone;
 
   // JSONView internally calls deepParseJson (with maxDepth:3) which mutates
@@ -1316,9 +1301,6 @@ export function PrettyJsonView(props: {
                   "flex text-xs wrap-break-word whitespace-pre-wrap",
                   tableBorderless,
                 ),
-                // Container for the key column's 40cqw cap. Inline-size
-                // containment zeroes this flex item's intrinsic width, so it
-                // takes the row width explicitly.
                 "@container w-full",
               )}
             >
