@@ -144,7 +144,7 @@ function DatasetCompareRunsTableInternal(props: {
         return {
           type: "link",
           props: {
-            path: `/project/${props.projectId}/datasets/${props.datasetId}/items/${id}`,
+            path: `/project/${props.projectId}/datasets/${props.datasetId}/items/${encodeURIComponent(id)}`,
             value: id,
           },
         };
