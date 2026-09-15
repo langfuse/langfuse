@@ -1,11 +1,7 @@
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useJsonBetaToggle } from "@/src/features/traces/hooks/useJsonBetaToggle";
-import {
-  type JsonViewPreference,
-  PINNED_STYLE_JSON_VIEWS,
-  pinnedStyleJsonViewLabel,
-} from "@/src/components/ui/jsonViewPreference";
+import { type JsonViewPreference } from "@/src/components/ui/jsonViewPreference";
 
 export type ViewMode = JsonViewPreference;
 
@@ -13,23 +9,6 @@ export interface ViewModeToggleProps {
   selectedView: ViewMode;
   onViewChange: (view: ViewMode) => void;
   compensateScrollRef: React.RefObject<HTMLDivElement | null>;
-}
-
-/** Review-only segments after Formatted / JSON: the Formatted view with one
-    table style direction pinned. Removed before merge. */
-export function PinnedStyleViewTriggers() {
-  return (
-    <>
-      {PINNED_STYLE_JSON_VIEWS.map((view) => (
-        <Tabs.Trigger
-          key={view}
-          value={view}
-          size="sm"
-          label={pinnedStyleJsonViewLabel(view)}
-        />
-      ))}
-    </>
-  );
 }
 
 export function ViewModeToggle({
@@ -55,7 +34,6 @@ export function ViewModeToggle({
           <Tabs.List size="sm">
             <Tabs.Trigger value="pretty" size="sm" label="Formatted" />
             <Tabs.Trigger value="json" size="sm" label="JSON" />
-            <PinnedStyleViewTriggers />
           </Tabs.List>
         </Tabs>
       </div>

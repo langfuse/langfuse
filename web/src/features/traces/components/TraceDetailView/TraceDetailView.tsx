@@ -42,7 +42,6 @@ import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 // Contexts and hooks
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { PinnedStyleViewTriggers } from "@/src/features/traces/components/IOPreview/components/ViewModeToggle";
 import {
   isPrettyLikeJsonView,
   jsonViewToggleTab,
@@ -364,7 +363,6 @@ export function TraceDetailView({
                                 label="JSON"
                               />
                             )}
-                            <PinnedStyleViewTriggers />
                           </Tabs.List>
                         </Tabs>
                       </div>

@@ -52,7 +52,6 @@ import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { PinnedStyleViewTriggers } from "@/src/features/traces/components/IOPreview/components/ViewModeToggle";
 import {
   jsonViewToggleTab,
   normalizeJsonViewPreference,
@@ -454,7 +453,6 @@ export function ConnectedObservationDetailView({
                                 label="JSON"
                               />
                             )}
-                            <PinnedStyleViewTriggers />
                           </Tabs.List>
                         </Tabs>
                       </div>
