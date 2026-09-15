@@ -378,11 +378,25 @@ export const getDatasetByIdForApi = async ({
 
 export const listDatasetsByProjectForApi = async ({
   projectId,
+  name,
   page,
   limit,
 }: ListDatasetsV1Input) => {
   const shouldReadLegacyDatasetRuns =
     env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only";
+
+  // Optional case-insensitive substring filter on `name`. The `name`
+  // column is the second part of the unique key `(projectId, name)` so
+  // the filter is index-friendly.
+  const nameFilter = name
+    ? { name: { contains: name, mode: "insensitive" as const } }
+    : {};
+
+  const where = {
+    projectId,
+    ...nameFilter,
+  };
+
   const datasets = await prisma.dataset.findMany({
     select: {
       name: true,
@@ -405,7 +419,7 @@ export const listDatasetsByProjectForApi = async ({
           }
         : {}),
     },
-    where: { projectId },
+    where,
     orderBy: [{ createdAt: "desc" }, { id: "asc" }],
     take: limit,
     skip: (page - 1) * limit,
@@ -430,7 +444,7 @@ export const listDatasetsByProjectForApi = async ({
   }
 
   const totalItems = await prisma.dataset.count({
-    where: { projectId },
+    where,
   });
 
   return {
