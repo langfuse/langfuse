@@ -122,6 +122,18 @@ service:
         - commons.UnauthorizedError
         - commons.MethodNotAllowedError
 
+    getOrganizationsByUserEmail:
+      docs: Get all organizations for a user by email address
+      method: GET
+      path: /users/{email}/organizations
+      path-parameters:
+        email: string
+      response: UserOrganizations
+      errors:
+        - commons.Error
+        - commons.UnauthorizedError
+        - commons.MethodNotAllowedError
+
 types:
   Organizations:
     docs: List of organizations
@@ -180,3 +192,20 @@ types:
       secretKey: string
       displaySecretKey: string
       note: optional<string>
+
+  UserOrganizations:
+    docs: Organizations a user belongs to
+    properties:
+      email: string
+      organizations: list<UserOrganization>
+
+  UserOrganization:
+    docs: Organization membership for a user
+    properties:
+      id: string
+      name: string
+      role: string
+      createdAt: datetime
+      metadata:
+        type: map<string, unknown>
+        docs: Metadata for the organization

@@ -423,6 +423,50 @@ paths:
               schema:
                 type: string
       security: *ref_0
+  /api/admin/users/{email}/organizations:
+    get:
+      description: Get all organizations for a user by email address
+      operationId: organizations_getOrganizationsByUserEmail
+      tags:
+        - Organizations
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserOrganizations'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: *ref_0
 components:
   schemas:
     Organizations:
@@ -562,6 +606,44 @@ components:
         - publicKey
         - secretKey
         - displaySecretKey
+    UserOrganizations:
+      title: UserOrganizations
+      type: object
+      description: Organizations a user belongs to
+      properties:
+        email:
+          type: string
+        organizations:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserOrganization'
+      required:
+        - email
+        - organizations
+    UserOrganization:
+      title: UserOrganization
+      type: object
+      description: Organization membership for a user
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Metadata for the organization
+      required:
+        - id
+        - name
+        - role
+        - createdAt
+        - metadata
   securitySchemes:
     BearerAuth:
       type: http
