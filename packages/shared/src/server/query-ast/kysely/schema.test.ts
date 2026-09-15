@@ -46,7 +46,6 @@ describe("table registry derivation", () => {
     expect(COLUMN_BIND_TYPES.metadata_names).toBe("Array(String)");
   });
 
-
   // The assertions themselves are compile-time (`tsc` is the test); this only
   // anchors the file so its `@ts-expect-error` checks stay in the build graph.
   it("keeps the compile-time type assertions in the build graph", () => {

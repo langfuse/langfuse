@@ -76,7 +76,12 @@ a required check once it has proven stable.
 ```ts
 db.selectFrom("observations")
   .select("environment")
-  .$call(arrayJoin({ cost_key: mapKeys("cost_details"), cost: mapValues("cost_details") }));
+  .$call(
+    arrayJoin({
+      cost_key: mapKeys("cost_details"),
+      cost: mapValues("cost_details"),
+    }),
+  );
 // … array join mapKeys(cost_details) as cost_key, mapValues(cost_details) as cost
 ```
 
