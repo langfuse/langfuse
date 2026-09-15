@@ -39,7 +39,7 @@ function DatasetItemRuns({
   useEffect(() => {
     if (isInitializing || !isExperimentsBetaActive || !projectId) return;
     router.replace(
-      `/project/${projectId}/datasets/${datasetId}/items/${itemId}`,
+      `/project/${projectId}/datasets/${datasetId}/items/${encodeURIComponent(itemId)}`,
     );
   }, [
     isExperimentsBetaActive,

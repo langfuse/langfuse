@@ -52,6 +52,12 @@ const sentryCapturePattern = {
     "Do not capture directly — route through the reportError seam (@/src/utils/reportError) or a helper that wraps it (captureUnknownError, reportParserWorkerError), so one seam owns error classification. See the reportError doc comment and .agents/skills/sentry-instrumentation/SKILL.md.",
 };
 
+const designSystemInternalPattern = {
+  regex: "(^|/)design-system/internal(?:/|$)",
+  message:
+    "Design-system internals may only be imported by other design-system components.",
+};
+
 // eslint-plugin-tailwindcss types this as Config | ConfigArray, but the
 // recommended export is a single flat config object with rules at runtime.
 const tailwindcssRecommendedConfig =
@@ -207,11 +213,15 @@ export default [
   // Root design-system components follow `Name/Name.tsx`, optionally alongside
   // `Name/Name.stories.tsx`. Files must be directly inside a PascalCase folder,
   // match that folder's name, and expose a matching named runtime export. The
-  // table subtree is a domain-specific exception with its own structure.
+  // table and internal subtrees are domain-specific exceptions with their own
+  // structure.
   {
     name: "langfuse/web/design-system-component-structure",
     files: ["src/components/design-system/**/*.{ts,tsx}"],
-    ignores: ["src/components/design-system/table/**"],
+    ignores: [
+      "src/components/design-system/internal/**",
+      "src/components/design-system/table/**",
+    ],
     plugins: {
       "check-file": checkFile,
     },
@@ -420,7 +430,41 @@ export default [
       "no-restricted-imports": [
         "error",
         {
+          patterns: [
+            ...restrictedImportPatterns,
+            sentryCapturePattern,
+            designSystemInternalPattern,
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    name: "langfuse/web/design-system-allow-internal-imports",
+    files: ["src/components/design-system/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
           patterns: [...restrictedImportPatterns, sentryCapturePattern],
+        },
+      ],
+    },
+  },
+
+  {
+    name: "langfuse/web/design-system-internal-naming",
+    files: ["src/components/design-system/internal/**/*.{ts,tsx}"],
+    plugins: {
+      "check-file": checkFile,
+    },
+    rules: {
+      "check-file/folder-naming-convention": [
+        "warn",
+        {
+          "src/components/design-system/*/": "KEBAB_CASE",
+          "src/components/design-system/internal/*/": "PASCAL_CASE",
         },
       ],
     },
@@ -437,7 +481,7 @@ export default [
       "no-restricted-imports": [
         "error",
         {
-          patterns: restrictedImportPatterns,
+          patterns: [...restrictedImportPatterns, designSystemInternalPattern],
         },
       ],
     },

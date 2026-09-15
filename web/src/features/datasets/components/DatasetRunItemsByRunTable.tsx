@@ -115,7 +115,7 @@ export function DatasetRunItemsByRunTable(props: {
         return {
           type: "link",
           props: {
-            path: `/project/${projectId}/datasets/${datasetId}/items/${datasetItemId}${versionParam}`,
+            path: `/project/${projectId}/datasets/${datasetId}/items/${encodeURIComponent(datasetItemId)}${versionParam}`,
             value: datasetItemId,
           },
         };

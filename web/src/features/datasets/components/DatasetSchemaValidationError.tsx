@@ -68,7 +68,7 @@ export const DatasetSchemaValidationError: React.FC<
                           #{idx + 1}
                         </span>
                         <Link
-                          href={`/project/${projectId}/datasets/${datasetId}/items/${error.datasetItemId}`}
+                          href={`/project/${projectId}/datasets/${datasetId}/items/${encodeURIComponent(error.datasetItemId)}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-1 text-sm font-bold hover:underline"
