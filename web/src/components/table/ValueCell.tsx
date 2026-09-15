@@ -89,10 +89,9 @@ function getValueType(value: unknown): JsonTableRow["type"] {
   return typeof value as JsonTableRow["type"];
 }
 
-function renderArrayValue(arr: unknown[]): JSX.Element {
-  if (arr.length === 0) {
-    return <span className={PREVIEW_TEXT_CLASSES}>empty list</span>;
-  }
+/** Plain-text collapsed preview of an array; also the `title` of the cell. */
+function arrayPreviewText(arr: unknown[]): string {
+  if (arr.length === 0) return "empty list";
 
   if (arr.length <= SMALL_ARRAY_THRESHOLD) {
     // Show inline values for small arrays
@@ -114,7 +113,7 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
         return String(item);
       })
       .join(", ");
-    return <span className={PREVIEW_TEXT_CLASSES}>[{displayItems}]</span>;
+    return `[${displayItems}]`;
   }
   // Show truncated values for large arrays
   const preview = arr
@@ -126,11 +125,11 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
       return String(item);
     })
     .join(", ");
-  return (
-    <span className={PREVIEW_TEXT_CLASSES}>
-      [{preview}, ...{arr.length - ARRAY_PREVIEW_ITEMS} more]
-    </span>
-  );
+  return `[${preview}, ...${arr.length - ARRAY_PREVIEW_ITEMS} more]`;
+}
+
+function renderPreview(text: string): JSX.Element {
+  return <span className={PREVIEW_TEXT_CLASSES}>{text}</span>;
 }
 
 function formatPreviewPrimitive(value: unknown): string {
@@ -148,16 +147,11 @@ function formatShortObjectPreview(obj: Record<string, unknown>): string | null {
   return `{${fields.join(", ")}}`;
 }
 
-function renderObjectValue(obj: Record<string, unknown>): JSX.Element {
+/** Plain-text collapsed preview of an object; also the `title` of the cell. */
+function objectPreviewText(obj: Record<string, unknown>): string {
   const keys = Object.keys(obj);
-  if (keys.length === 0) {
-    return <span className={PREVIEW_TEXT_CLASSES}>empty object</span>;
-  }
-  const shortPreview = formatShortObjectPreview(obj);
-  if (shortPreview) {
-    return <span className={PREVIEW_TEXT_CLASSES}>{shortPreview}</span>;
-  }
-  return <span className={PREVIEW_TEXT_CLASSES}>{keys.length} items</span>;
+  if (keys.length === 0) return "empty object";
+  return formatShortObjectPreview(obj) ?? `${keys.length} items`;
 }
 
 function getValueStringLength(value: unknown): number {
@@ -459,10 +453,13 @@ export const ValueCell = memo(
               needsTruncation: false,
             };
           }
-          // Arrays always show previews, never truncate
+          // Arrays always show previews, never truncate. A collapsed preview
+          // stays on one line and ellipsises; the row expands on click.
+          const arrayPreview = arrayPreviewText(value as unknown[]);
           return {
-            content: renderArrayValue(value as unknown[]),
+            content: renderPreview(arrayPreview),
             needsTruncation: false,
+            previewTitle: arrayPreview,
           };
         }
         case "object": {
@@ -474,10 +471,14 @@ export const ValueCell = memo(
               needsTruncation: false,
             };
           }
-          // Objects always show previews, never truncate
+          // Objects always show previews, never truncate; single line like arrays.
+          const objectPreview = objectPreviewText(
+            value as Record<string, unknown>,
+          );
           return {
-            content: renderObjectValue(value as Record<string, unknown>),
+            content: renderPreview(objectPreview),
             needsTruncation: false,
+            previewTitle: objectPreview,
           };
         }
         default: {
@@ -500,11 +501,26 @@ export const ValueCell = memo(
       }
     };
 
-    const { content, needsTruncation } = getDisplayValue();
+    const { content, needsTruncation, previewTitle } = getDisplayValue();
+    // Collapsed array / object previews stay on one line and ellipsise.
+    const singleLine = previewTitle !== undefined;
 
     return (
-      <div className={cn(MONO_TEXT_CLASSES, "group relative max-w-full")}>
-        <span className="cursor-text">{content}</span>
+      // `w-0 min-w-full` keeps a nowrap preview from widening an auto-layout
+      // table: the cell contributes no intrinsic width, then fills its column.
+      <div
+        className={cn(
+          MONO_TEXT_CLASSES,
+          "group relative max-w-full",
+          singleLine && "w-0 min-w-full",
+        )}
+      >
+        <span
+          className={cn("cursor-text", singleLine && "block truncate")}
+          title={previewTitle}
+        >
+          {content}
+        </span>
         {needsTruncation && !row.original.hasChildren && (
           <div
             className="inline cursor-pointer opacity-50"
