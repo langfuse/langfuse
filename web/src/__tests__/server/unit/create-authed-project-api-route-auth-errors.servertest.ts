@@ -12,6 +12,7 @@ const {
   mockFindOrganization,
   mockCreateStructuredPublicApiAuthError,
   mockSendStructuredPublicApiErrorResponse,
+  mockEnv,
 } = vi.hoisted(() => ({
   mockVerifyAuthHeaderAndReturnScope: vi.fn(),
   mockIsPrismaException: vi.fn(),
@@ -21,6 +22,10 @@ const {
   mockFindOrganization: vi.fn(),
   mockCreateStructuredPublicApiAuthError: vi.fn((value) => value),
   mockSendStructuredPublicApiErrorResponse: vi.fn(),
+  mockEnv: {
+    NODE_ENV: "test",
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined as string | undefined,
+  },
 }));
 
 vi.mock("@/src/features/public-api/server/apiAuth", () => ({
@@ -84,12 +89,7 @@ vi.mock(
   }),
 );
 
-vi.mock("@/src/env.mjs", () => ({
-  env: {
-    NODE_ENV: "test",
-    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined as string | undefined,
-  },
-}));
+vi.mock("@/src/env.mjs", () => ({ env: mockEnv }));
 
 vi.mock("@opentelemetry/api", () => ({
   context: {
@@ -102,7 +102,6 @@ vi.mock("@/src/utils/exceptions", () => ({
 }));
 
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { env } from "@/src/env.mjs";
 
 describe("createAuthedProjectAPIRoute auth error handling", () => {
   const deprecation = {
@@ -133,7 +132,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     mockRateLimitRequest.mockResolvedValue({
       isRateLimited: () => false,
     });
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
   });
 
   async function callRoute(options?: {
@@ -145,7 +144,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     };
     mockResponseSerializationError?: boolean;
     deprecation?: typeof deprecation;
-    method?: string;
+    method?: "GET" | "POST";
   }) {
     const handler = createAuthedProjectAPIRoute({
       name: "Test Route",
@@ -183,7 +182,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
   }
 
   it("rejects deprecated GET routes for Cloud organizations created at the cutoff", async () => {
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
     mockFindOrganization.mockResolvedValueOnce({
       createdAt: new Date("2026-09-16T00:00:00.000Z"),
@@ -201,7 +200,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
   });
 
   it("keeps deprecated GET routes available to older Cloud organizations", async () => {
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
     mockFindOrganization.mockResolvedValueOnce({
       createdAt: new Date("2026-09-15T23:59:59.999Z"),
@@ -226,7 +225,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
   });
 
   it("does not apply the organization cutoff to current GET routes", async () => {
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
 
     const res = await callRoute();
@@ -236,7 +235,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
   });
 
   it("does not apply the organization cutoff to deprecated write routes", async () => {
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
 
     const res = await callRoute({ deprecation, method: "POST" });
