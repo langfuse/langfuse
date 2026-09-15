@@ -154,7 +154,7 @@
      text opts in via `font-bold` (the bold role) — never a raw number.
      Any other weight utility is drift (the theme-lab tool samples drift
      per token). */
-  --text-xs: 0.7rem;
+  --text-xs: 0.725rem;
   --text-xs--font-weight: var(--font-weight-regular);
   --text-sm: 0.825rem;
   --text-sm--font-weight: var(--font-weight-regular);
