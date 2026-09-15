@@ -115,16 +115,16 @@ and observation provenance are excluded. All fields inside parts are included.
 - **Performance:** replayed history is normalized and serialized for each
   generation.
 
+## Preliminary decisions
+
+- Tool observations contribute to thread messages rather than just enriching generation messages with tool responses. In some cases, the generations messages do not contain any reference of the tool call or the tool result, but tool-observations can provide this information. Recommendation: let tool observations only enrich generation messages with tool responses. Sampled production data does not show strong enough evidence to support this change. Should we find more evidence in production data, this decision should be revisited.
+- Root span I/O does not contribute to the transcript, unless it is of type `GENERATION`.
+- Do not include status messages and errors in the transcript for v1. Only revisit should we find strong evidence in production data that this is a valuable feature, or if consumers (e.g. Topics, Session UI) require this information.
+- Expose a helper method to get the first user message and final assistant message from a given thread. This is useful for consumers (e.g. Topics, Session UI) to display the user question and final assistant answer. Consumers must assess for which thread they want to display this information, and how to handle multiple threads.
+
 ## Open questions
 
-- Should tool observations also contribute tool inputs, or only enrich
-  generations with responses as they do now? Reconstructing calls from tool
-  inputs and supporting tools without explicit call IDs remain future work.
-- Should root-span I/O contribute without duplicating generation content?
 - How should compacted histories and branches reconnect to existing threads?
-- Should status messages and errors become transcript content?
-- How should consumers select the user question and final assistant answer
-  rather than all intermediate generations?
 - Should differences in part-level `providerMetadata` prevent deduplication
   when the visible message content is otherwise identical? They currently do.
 
