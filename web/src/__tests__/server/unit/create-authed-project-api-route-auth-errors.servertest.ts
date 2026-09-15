@@ -29,9 +29,7 @@ const {
   mockEnv: {
     NODE_ENV: "test",
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined as string | undefined,
-    LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF_ENABLED: "false" as
-      | "true"
-      | "false",
+    LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF_ENABLED: "false" as "true" | "false",
   },
 }));
 
