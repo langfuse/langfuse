@@ -676,6 +676,7 @@ function JsonPrettyTable({
       collapsedPreview={style.collapsedPreview}
       expandedParentSummary={style.expandedParentSummary}
       valueSize={style.valueSize}
+      quoteStrings={style.quoteStrings}
     />
   );
 

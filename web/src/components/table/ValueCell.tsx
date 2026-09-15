@@ -379,6 +379,7 @@ export const ValueCell = memo(
     collapsedPreview = "default",
     expandedParentSummary = false,
     valueSize = "xs",
+    quoteStrings = true,
   }: {
     row: Row<JsonTableRow>;
     expandedCells: Set<string>;
@@ -392,6 +393,8 @@ export const ValueCell = memo(
     expandedParentSummary?: boolean;
     /** Value text tier: `xs` (default) or `sm`, the mono partner of text-sm keys. */
     valueSize?: keyof typeof VALUE_SIZE_CLASSES;
+    /** Show string values with their JSON double quotes (default) or bare. */
+    quoteStrings?: boolean;
   }) => {
     const { value, type } = row.original;
     const cellId = `${row.id}-value`;
@@ -441,7 +444,9 @@ export const ValueCell = memo(
                     : "whitespace-pre-line"
                 }`}
               >
-                &quot;{renderStringWithLinks(displayValue)}&quot;
+                {quoteStrings ? '"' : null}
+                {renderStringWithLinks(displayValue)}
+                {quoteStrings ? '"' : null}
               </span>
             ),
             needsTruncation,

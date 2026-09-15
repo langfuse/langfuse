@@ -184,6 +184,9 @@ export type JsonTableStyle = {
       title). False moves copy and expand all onto the table itself, revealed
       on hover. */
   headerWhenUntitled: boolean;
+  /** Wrap string values in the JSON double quotes. Off reads cleaner in a
+      table; copy still yields the raw JSON. */
+  quoteStrings: boolean;
   /** Value text tier. `sm` pairs text-sm keys with text-mono-sm values so
       both columns share one line box. */
   valueSize: "xs" | "sm";
@@ -235,6 +238,7 @@ const QUIET_KEY = "text-muted-foreground text-sm wrap-break-word";
 
 const BASE_FLAGS = {
   headerWhenUntitled: true,
+  quoteStrings: true,
   valueSize: "xs",
   zebra: false,
   leafDot: false,
@@ -284,6 +288,7 @@ export const JSON_TABLE_STYLES: Record<JsonTableStyleVariant, JsonTableStyle> =
       layout: "columns",
       headerUnderTitle: false,
       headerWhenUntitled: false,
+      quoteStrings: false,
       valueSize: "sm",
       boxUnderTitle: false,
       indentBase: 16,
@@ -301,6 +306,7 @@ export const JSON_TABLE_STYLES: Record<JsonTableStyleVariant, JsonTableStyle> =
       layout: "columns",
       headerUnderTitle: false,
       headerWhenUntitled: false,
+      quoteStrings: false,
       valueSize: "sm",
       boxUnderTitle: false,
       indentBase: 16,
@@ -555,6 +561,8 @@ export const JSON_TABLE_MONO_FONTS = [
   "jetbrains",
   "geist",
   "iosevka",
+  "iosevka-extended",
+  "iosevka-extended-light",
 ] as const;
 export type JsonTableMonoFont = (typeof JSON_TABLE_MONO_FONTS)[number];
 
@@ -564,6 +572,8 @@ export const JSON_TABLE_MONO_FONT_LABELS: Record<JsonTableMonoFont, string> = {
   jetbrains: "JetBrains Mono",
   geist: "Geist Mono",
   iosevka: "Iosevka",
+  "iosevka-extended": "Iosevka Extended",
+  "iosevka-extended-light": "Iosevka Extended Light",
 };
 
 /** Tailwind arbitrary properties that swap `--font-mono` for one subtree. */
@@ -573,6 +583,7 @@ export const JSON_TABLE_MONO_FONT_CLASSES: Record<JsonTableMonoFont, string> = {
   jetbrains: "[--font-mono:var(--font-jetbrains-mono),ui-monospace,monospace]",
   geist: "[--font-mono:var(--font-geist-mono),ui-monospace,monospace]",
   iosevka: "[--font-mono:Iosevka,ui-monospace,monospace]",
+  "iosevka-extended": "[--font-mono:'Iosevka_Extended',ui-monospace,monospace]",
 };
 
 const JSON_TABLE_MONO_FONT_STORAGE_KEY = "lf-json-mono";

@@ -808,3 +808,23 @@
   -moz-user-select: text !important;
   -ms-user-select: text !important;
 }
+
+/* Iosevka Extended is not on any package registry; the trial loads the
+   woff2 from /fonts when present (kept out of git) and falls back silently. */
+@font-face {
+  font-family: "Iosevka Extended";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/Iosevka-Extended.woff2") format("woff2");
+}
+
+/* Light cut registered as its own family so the trial needs no weight
+   utility (the app allows only the regular and bold roles). */
+@font-face {
+  font-family: "Iosevka Extended Light";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/Iosevka-ExtendedLight.woff2") format("woff2");
+}
