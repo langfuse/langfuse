@@ -33,7 +33,7 @@ describe("transcript fixtures", () => {
     expect(getTranscript([empty])).toBeNull();
     const transcript = getTranscript([empty, generation("2", ["A"], [])]);
     expect(transcript?.threads).toHaveLength(1);
-    expect(transcript?.threads[0].generationIds).toEqual(["2"]);
+    expect(transcript?.threads[0].observationIds).toEqual(["2"]);
   });
 
   it("continues the newest matching thread without duplicating history", () => {
@@ -42,12 +42,12 @@ describe("transcript fixtures", () => {
       generation("2", ["B"], []),
       generation("3", ["B", "A"], ["C"]),
     ]);
-    expect(transcript?.threads.map((thread) => thread.generationIds)).toEqual([
+    expect(transcript?.threads.map((thread) => thread.observationIds)).toEqual([
       ["1"],
       ["2", "3"],
     ]);
     expect(
-      transcript?.threads[1].messages.map((message) => message.generationId),
+      transcript?.threads[1].messages.map((message) => message.observationId),
     ).toEqual(["2", "3", "3"]);
   });
 

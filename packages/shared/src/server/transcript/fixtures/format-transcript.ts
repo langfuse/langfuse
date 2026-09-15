@@ -91,7 +91,7 @@ export function formatTranscript(
     lines.push(
       "",
       `┌ thread ${threadIndex + 1} · trace(s) ${thread.traceIds.join(", ")}`,
-      `│ generations: ${thread.generationIds.map(label).join(", ")}`,
+      `│ generations: ${thread.observationIds.map(label).join(", ")}`,
     );
 
     for (const message of thread.messages) {
@@ -102,7 +102,7 @@ export function formatTranscript(
       const sender = message.senderName ? ` (${message.senderName})` : "";
       lines.push(
         "│",
-        `│ ${ROLE_LABEL[message.role]}${sender} · ${label(message.generationId)} · ${message.source}`,
+        `│ ${ROLE_LABEL[message.role]}${sender} · ${label(message.observationId)} · ${message.source}`,
       );
       for (const part of parts) {
         for (const line of partLines(part)) lines.push(`│   ${line}`);
