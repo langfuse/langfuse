@@ -1277,6 +1277,42 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(await dispatcher.processBatch()).toBe(0);
   });
 
+  it("bounds shutdown when an in-flight enqueue stalls and remains stopped after recovery", async () => {
+    await trackTraceBatchActivity("project", [event("trace")]);
+    await makeDue("project", "trace");
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const add = queue.add.bind(queue);
+    vi.spyOn(queue, "add").mockImplementationOnce(async (...args) => {
+      entered.resolve();
+      await release.promise;
+      return add(...args);
+    });
+    const dispatcher = runner();
+    const active = dispatcher.processBatch();
+    await entered.promise;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    let drained = false;
+    const drain = dispatcher.drain().then(() => {
+      drained = true;
+    });
+    try {
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(drained).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(drained).toBe(true);
+    } finally {
+      vi.useRealTimers();
+      release.resolve();
+      await Promise.all([active, drain]);
+    }
+    await trackTraceBatchActivity("project", [event("next")]);
+    await makeDue("project", "next");
+    await dispatcher.processBatch();
+    expect(queue.add).toHaveBeenCalledTimes(1);
+    expect(await client().hlen(stateKey)).toBe(1);
+  });
+
   it("allows only one dispatcher and waits for its in-flight enqueue before shutdown", async () => {
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 1;
     const traces = ["trace"];
