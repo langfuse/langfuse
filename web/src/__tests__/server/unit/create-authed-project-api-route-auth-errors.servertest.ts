@@ -212,16 +212,16 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       "langfuse.public_api.legacy_get_rejected",
       1,
       {
-        orgId: "org-id",
-        projectId: "project-id",
+        orgId: "org-1",
+        projectId: "project-1",
         apiRoute: "Test Route",
       },
     );
     expect(mockLoggerInfo).toHaveBeenCalledWith(
       "Rejected legacy GET API request for organization created at or after cutoff",
       {
-        orgId: "org-id",
-        projectId: "project-id",
+        orgId: "org-1",
+        projectId: "project-1",
         apiRoute: "Test Route",
         apiPath: "GET /api/public/test",
         organizationCreatedAt: "2026-09-16T00:00:00.000Z",
