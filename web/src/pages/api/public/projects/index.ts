@@ -1,10 +1,15 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 import { handleCreateProject } from "@/src/ee/features/admin-api/server/projects/createProject";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { writeProjectError } from "@/src/features/public-api/server/writeError";
+
+/** projectKeyRequired is the 403 body when the project-scoped GET receives a non-project key. */
+const projectKeyRequired =
+  "Invalid API key. Are you using an organization key?";
 
 export default async function handler(
   req: NextApiRequest,
@@ -19,27 +24,20 @@ export default async function handler(
     return res.status(405).json({ message: "Method not allowed" });
   }
 
-  // CHECK AUTH
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-  if (!authCheck.validKey) {
-    return res.status(401).json({
-      message: authCheck.error,
-    });
-  }
-  // END CHECK AUTH
-
   if (req.method === "GET") {
-    if (
-      authCheck.scope.accessLevel !== "project" ||
-      !authCheck.scope.projectId
-    ) {
-      return res.status(403).json({
-        message: "Invalid API key. Are you using an organization key?",
+    const auth = await shadowAuth({
+      req,
+      action: "project:read",
+      allowedAccessLevels: ["project"],
+    });
+    if (!auth.success) {
+      const status = auth.error.httpCode;
+      return res.status(status).json({
+        message: status === 403 ? projectKeyRequired : auth.error.message,
       });
     }
+    // project:read guarantees a project-scoped key, so projectId is always set.
+    const projectId = auth.scope.projectId as string;
 
     try {
       // Do not apply rate limits as it can break applications on lower tier plans when using auth_check in prod
@@ -58,7 +56,7 @@ export default async function handler(
           },
         },
         where: {
-          id: authCheck.scope.projectId,
+          id: projectId,
           deletedAt: null,
         },
       });
@@ -84,15 +82,13 @@ export default async function handler(
   }
 
   if (req.method === "POST") {
-    // Check if using an organization API key
-    if (
-      authCheck.scope.accessLevel !== "organization" ||
-      !authCheck.scope.orgId
-    ) {
-      return res.status(403).json({
-        message:
-          "Invalid API key. Organization-scoped API key required for this operation.",
-      });
+    const authCheck = await shadowAuth({
+      req,
+      action: "projects:create",
+      allowedAccessLevels: ["organization"],
+    });
+    if (!authCheck.success) {
+      return writeProjectError(res, authCheck.error);
     }
 
     if (
