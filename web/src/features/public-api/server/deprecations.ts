@@ -102,7 +102,7 @@ export const DATASET_RUNS_DEPRECATION: ApiDeprecationInfo = {
 };
 
 // Legacy batch writes of traces/observations → OTLP. This route is never
-// removed: scores (and sdk-log) stay accepted. Trace/observation events are
+// removed: score events stay accepted. Trace/observation events are
 // rejected only in v4-only write mode, not dual or legacy — so this family
 // does not use V3_NOTICE ("endpoint will be removed").
 export const INGESTION_DEPRECATION: ApiDeprecationInfo = {

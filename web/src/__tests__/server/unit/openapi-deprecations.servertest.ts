@@ -230,12 +230,8 @@ describe("OpenAPI deprecations", () => {
       "not in dual or legacy mode",
     );
     expect(ingestion?.message).toContain("will not be shut down");
-    expect(ingestion?.message).toContain(
-      "only `score-create` events as ingestion data",
-    );
-    expect(ingestion?.message).toContain(
-      "all non-score ingestion data is rejected",
-    );
+    expect(ingestion?.message).toContain("only `score-create` events");
+    expect(ingestion?.message).toContain("all other event types are rejected");
     expect(ingestion?.message).toContain("v4-only write mode");
     expect(ingestion?.message).toContain(
       "Dual and legacy write modes continue to accept",
@@ -250,7 +246,7 @@ describe("OpenAPI deprecations", () => {
     };
     const ingestionEvents = ingestionDefinition.types.IngestionEvent.union;
     const openApi = parseSpec(fs.readFileSync(openApiPath, "utf8"));
-    const supportedEventTypes = new Set(["score-create", "sdk-log"]);
+    const supportedEventTypes = new Set(["score-create"]);
     const expectedEventTypes = new Set([
       "trace-create",
       "score-create",
@@ -266,7 +262,6 @@ describe("OpenAPI deprecations", () => {
       "embedding-create",
       "guardrail-create",
       "event-create",
-      "sdk-log",
       "observation-create",
       "observation-update",
     ]);

@@ -166,9 +166,9 @@ export default async function handler(
 
         await telemetry();
 
-        // V4 events_only mode: refuse trace/observation events because their
-        // writes would land in the legacy ClickHouse tables this deployment no
-        // longer reads. Scores and SDK logs are unaffected and pass through.
+        // V4 events_only mode: refuse every non-score event because trace and
+        // observation writes target legacy ClickHouse tables this deployment
+        // no longer reads. SDK logs are no longer accepted in this mode.
         // Reject per-event so a mixed batch still processes its score events.
         const isEventsOnlyMode =
           env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only";
@@ -271,13 +271,9 @@ export default async function handler(
   }
 }
 
-// Event types that may continue to ingest in V4 events_only mode. Scores keep
-// their own ClickHouse table (no legacy traces/observations write); SDK logs
-// are non-persisting.
-const EVENTS_ONLY_ALLOWED_TYPES = new Set<string>([
-  eventTypes.SCORE_CREATE,
-  eventTypes.SDK_LOG,
-]);
+// Scores keep their own ClickHouse table and are the only event type accepted
+// by this endpoint in V4 events_only mode.
+const EVENTS_ONLY_ALLOWED_TYPES = new Set<string>([eventTypes.SCORE_CREATE]);
 
 const TRACE_OR_OBSERVATION_EVENT_TYPES = new Set<string>(
   Object.values(eventTypes).filter(
@@ -297,7 +293,7 @@ const EVENTS_ONLY_INGESTION_REMEDIATION = [
   `Docs: ${EVENTS_ONLY_INGESTION_DOCS_URL}`,
 ].join(" ");
 
-function filterBatchForEventsOnly(
+export function filterBatchForEventsOnly(
   batch: unknown[],
   isEventsOnlyMode: boolean,
 ): {
@@ -338,7 +334,7 @@ function filterBatchForEventsOnly(
         id,
         status: 400,
         message: "Event type not accepted",
-        error: `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score and log events. ${EVENTS_ONLY_INGESTION_REMEDIATION}`,
+        error: `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score events. ${EVENTS_ONLY_INGESTION_REMEDIATION}`,
       });
     }
   }

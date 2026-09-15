@@ -2773,9 +2773,8 @@ paths:
       description: >-
         **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and v4-only
         write mode begins on November 16, 2026. This endpoint will not be shut
-        down. In v4-only write mode, it accepts only `score-create` events as
-        ingestion data; all non-score ingestion data is rejected. SDK logs are
-        non-persisting diagnostics. Dual and legacy write modes continue to
+        down. In v4-only write mode, it accepts only `score-create` events; all
+        other event types are rejected. Dual and legacy write modes continue to
         accept trace and observation events. Always prefer upgrading to the
         current Python and JS SDKs. If you use custom auto-instrumentation, only
         then send data via the OpenTelemetry endpoint at `POST
@@ -2792,8 +2791,7 @@ paths:
 
 
         This endpoint will not be shut down. In v4-only write mode, it accepts
-        only `score-create` events as ingestion data; all non-score ingestion
-        data is rejected. SDK logs are non-persisting diagnostics. Dual and
+        only `score-create` events; all other event types are rejected. Dual and
         legacy write modes continue to accept trace and observation events.
         Always prefer upgrading to the current Python and JS SDKs. If you use
         custom auto-instrumentation, only then send traces via the OpenTelemetry
@@ -2881,8 +2879,7 @@ paths:
                   description: >-
                     Batch of events to be ingested, discriminated by attribute
                     `type`. In v4-only write mode, only `score-create` events
-                    are accepted as ingestion data; all non-score ingestion data
-                    is rejected. SDK logs are non-persisting diagnostics.
+                    are accepted; all other event types are rejected.
                 metadata:
                   nullable: true
                   description: >-
@@ -13651,18 +13648,6 @@ components:
                 type:
                   type: string
                   enum:
-                    - sdk-log
-            - $ref: '#/components/schemas/SDKLogEvent'
-          required:
-            - type
-          title: SDKLogEvent
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                type:
-                  type: string
-                  enum:
                     - observation-create
             - $ref: '#/components/schemas/CreateObservationEvent'
           required:
@@ -13964,13 +13949,6 @@ components:
           type: boolean
           nullable: true
           description: Make trace publicly accessible via url
-    SDKLogBody:
-      title: SDKLogBody
-      type: object
-      properties:
-        log: {}
-      required:
-        - log
     ScoreBody:
       title: ScoreBody
       type: object
@@ -14111,16 +14089,6 @@ components:
       properties:
         body:
           $ref: '#/components/schemas/ScoreBody'
-      required:
-        - body
-      allOf:
-        - $ref: '#/components/schemas/BaseEvent'
-    SDKLogEvent:
-      title: SDKLogEvent
-      type: object
-      properties:
-        body:
-          $ref: '#/components/schemas/SDKLogBody'
       required:
         - body
       allOf:
