@@ -42,10 +42,7 @@ exports[`golden: events.getEventsExactFilterOptionsForColumns > scope=scoredTrac
                 ),
                 arrayMap(
                     value -> toUInt64(1),
-                    arrayMap(
-                        value -> toString(value),
-                        arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
-                    )
+                    arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
                 )
             ) AS traceTags_hist,
             arraySort(
@@ -167,10 +164,7 @@ exports[`golden: events.getEventsExactFilterOptionsForColumns > scope=unset — 
                 ),
                 arrayMap(
                     value -> toUInt64(1),
-                    arrayMap(
-                        value -> toString(value),
-                        arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
-                    )
+                    arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
                 )
             ) AS traceTags_hist,
             arraySort(

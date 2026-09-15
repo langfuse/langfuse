@@ -293,15 +293,22 @@ const eventFilterOptionColumnSqlLiteral = (column: EventFilterOptionColumn) =>
 const stringValueExpression = (expression: string) =>
   `toString(ifNull(${expression}, ''))`;
 
-const optionValuesArrayExpression = (
+// Shared by the sumMap keys and the parallel "ones" counts array so both derive
+// their length from one filter and cannot drift apart.
+const optionValuesFilteredExpression = (
   definition: Extract<EventFilterOptionDefinition, { kind: "array" }>,
 ): string => {
   const valuesExpression = definition.distinct
     ? `arrayDistinct(${definition.expression})`
     : definition.expression;
 
-  return `arrayMap(value -> toString(value), arrayFilter(value -> length(toString(value)) > 0, ${valuesExpression}))`;
+  return `arrayFilter(value -> length(toString(value)) > 0, ${valuesExpression})`;
 };
+
+const optionValuesArrayExpression = (
+  definition: Extract<EventFilterOptionDefinition, { kind: "array" }>,
+): string =>
+  `arrayMap(value -> toString(value), ${optionValuesFilteredExpression(definition)})`;
 
 const optionPresenceCondition = (column: EventFilterOptionColumn): string => {
   const definition = EVENTS_FILTER_OPTION_DEFINITIONS[column];
@@ -582,8 +589,10 @@ const exactOptionAggSelectExpressions = (
       : definition.kind === "labeledScalar"
         ? `sumMapIf([tuple(${stringValueExpression(definition.expression)}, ${stringValueExpression(definition.labelExpression)})], [toUInt64(1)], ${definition.includeWhen})`
         : (() => {
-            const values = optionValuesArrayExpression(definition);
-            return `sumMap(${values}, arrayMap(value -> toUInt64(1), ${values}))`;
+            const filtered = optionValuesFilteredExpression(definition);
+            const keys = `arrayMap(value -> toString(value), ${filtered})`;
+            const ones = `arrayMap(value -> toUInt64(1), ${filtered})`;
+            return `sumMap(${keys}, ${ones})`;
           })();
 
   const zipped = `arrayZip(tupleElement(${histAlias}, 1), tupleElement(${histAlias}, 2))`;
