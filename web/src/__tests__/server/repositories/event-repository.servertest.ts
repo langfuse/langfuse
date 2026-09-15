@@ -14,6 +14,7 @@ import {
   getLatestSdkVersionInfoFromEvents,
   getTracesIdentifierForSessionFromEvents,
   getEventsFilterOptionsForColumns,
+  getEventsExactFilterOptionsForColumns,
   getEventsFilterOptionValuesPage,
   getLatestEvaluatorRunCost,
   getRecentEvaluatorExecutionTraces,
@@ -1937,6 +1938,485 @@ describe("Clickhouse Events Repository Test", () => {
         expect(
           Number(findFilterOption(rows, "calledToolNames", "search")?.count),
         ).toBe(2);
+      });
+    });
+
+    it("returns exact scores-view event facets scoped to scored traces", async () => {
+      const uniqueProjectId = randomUUID();
+      const scoredTraceA = randomUUID();
+      const scoredTraceB = randomUUID();
+      const unscoredTrace = randomUUID();
+      const now = Date.now();
+      const nowMicro = now * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: scoredTraceA,
+          type: "SPAN",
+          trace_name: "exact-trace-a",
+          user_id: "user-a",
+          tags: ["alpha", "beta"],
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: scoredTraceA,
+          type: "SPAN",
+          trace_name: "exact-trace-a",
+          user_id: "user-a",
+          tags: ["alpha", "beta"],
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: scoredTraceB,
+          type: "SPAN",
+          trace_name: "exact-trace-b",
+          user_id: "user-b",
+          tags: ["beta"],
+          start_time: nowMicro + 2_000,
+          event_ts: nowMicro + 2_000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: unscoredTrace,
+          type: "SPAN",
+          trace_name: "exact-trace-c",
+          user_id: "user-c",
+          tags: ["gamma"],
+          start_time: nowMicro + 3_000,
+          event_ts: nowMicro + 3_000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: scoredTraceA,
+          observation_id: null,
+          name: "quality",
+          data_type: "NUMERIC",
+          value: 1,
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: scoredTraceB,
+          observation_id: null,
+          name: "quality",
+          data_type: "NUMERIC",
+          value: 1,
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      const scope = {
+        type: "scoredTraces" as const,
+        fromTime: {
+          operator: ">=" as const,
+          value: new Date(now - 60_000),
+        },
+        toTime: {
+          operator: "<=" as const,
+          value: new Date(now + 60_000),
+        },
+      };
+
+      await waitForExpect(async () => {
+        const rows = await getEventsExactFilterOptionsForColumns({
+          projectId: uniqueProjectId,
+          filter: [],
+          columns: ["traceTags", "traceName", "userId"],
+          scope,
+        });
+
+        // Exact per-value counts, scoped to the two scored traces only.
+        expect(
+          Number(findFilterOption(rows, "traceName", "exact-trace-a")?.count),
+        ).toBe(2);
+        expect(
+          Number(findFilterOption(rows, "traceName", "exact-trace-b")?.count),
+        ).toBe(1);
+        expect(Number(findFilterOption(rows, "userId", "user-a")?.count)).toBe(
+          2,
+        );
+        expect(Number(findFilterOption(rows, "userId", "user-b")?.count)).toBe(
+          1,
+        );
+
+        // The unscored trace is outside the scope and must not appear.
+        expect(
+          findFilterOption(rows, "traceName", "exact-trace-c"),
+        ).toBeUndefined();
+        expect(findFilterOption(rows, "userId", "user-c")).toBeUndefined();
+
+        // Tags: exact distinct set, alphabetical, no gamma.
+        expect(
+          rows
+            .filter((row) => row.column === "traceTags")
+            .map((row) => row.value),
+        ).toEqual(["alpha", "beta"]);
+      });
+    });
+
+    it("scopes scored-trace facets by the score timestamp window, not event time", async () => {
+      const uniqueProjectId = randomUUID();
+      const inWindowTrace = randomUUID();
+      const outOfWindowTrace = randomUUID();
+      const now = Date.now();
+      const nowMicro = now * 1000;
+
+      // Both events sit at "now", so the events themselves are inside any
+      // sensible window; the scope must key off the score timestamp instead.
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: inWindowTrace,
+          type: "SPAN",
+          trace_name: "in-window",
+          user_id: "user-in",
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: outOfWindowTrace,
+          type: "SPAN",
+          trace_name: "out-window",
+          user_id: "user-out",
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: inWindowTrace,
+          observation_id: null,
+          name: "quality",
+          data_type: "NUMERIC",
+          value: 1,
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        // Scored, but the score predates the window's fromTime.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: outOfWindowTrace,
+          observation_id: null,
+          name: "quality",
+          data_type: "NUMERIC",
+          value: 1,
+          timestamp: now - 120_000,
+          event_ts: now - 120_000,
+          created_at: now - 120_000,
+          updated_at: now - 120_000,
+        }),
+      ]);
+
+      const scope = {
+        type: "scoredTraces" as const,
+        fromTime: { operator: ">=" as const, value: new Date(now - 60_000) },
+        toTime: { operator: "<=" as const, value: new Date(now + 60_000) },
+      };
+
+      await waitForExpect(async () => {
+        const rows = await getEventsExactFilterOptionsForColumns({
+          projectId: uniqueProjectId,
+          filter: [],
+          columns: ["traceName", "userId"],
+          scope,
+        });
+
+        expect(
+          Number(findFilterOption(rows, "traceName", "in-window")?.count),
+        ).toBe(1);
+        // The event is inside the time window, but its score is older than
+        // fromTime, so the scored-trace scope drops it.
+        expect(
+          findFilterOption(rows, "traceName", "out-window"),
+        ).toBeUndefined();
+        expect(findFilterOption(rows, "userId", "user-out")).toBeUndefined();
+      });
+    });
+
+    it("does not leak scored-trace facets across projects sharing a trace_id", async () => {
+      const projectA = randomUUID();
+      const projectB = randomUUID();
+      const sharedTrace = randomUUID();
+      const scopedTrace = randomUUID();
+      const now = Date.now();
+      const nowMicro = now * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: projectA,
+          trace_id: sharedTrace,
+          type: "SPAN",
+          trace_name: "cross-project",
+          user_id: "user-cross",
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: projectA,
+          trace_id: scopedTrace,
+          type: "SPAN",
+          trace_name: "same-project",
+          user_id: "user-same",
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+      ]);
+      await createScoresCh([
+        // Score for the shared trace lives in project B only.
+        createTraceScore({
+          project_id: projectB,
+          trace_id: sharedTrace,
+          observation_id: null,
+          name: "quality",
+          data_type: "NUMERIC",
+          value: 1,
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: projectA,
+          trace_id: scopedTrace,
+          observation_id: null,
+          name: "quality",
+          data_type: "NUMERIC",
+          value: 1,
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      const scope = {
+        type: "scoredTraces" as const,
+        fromTime: { operator: ">=" as const, value: new Date(now - 60_000) },
+        toTime: { operator: "<=" as const, value: new Date(now + 60_000) },
+      };
+
+      await waitForExpect(async () => {
+        const rows = await getEventsExactFilterOptionsForColumns({
+          projectId: projectA,
+          filter: [],
+          columns: ["traceName", "userId"],
+          scope,
+        });
+
+        expect(
+          Number(findFilterOption(rows, "traceName", "same-project")?.count),
+        ).toBe(1);
+        // The only score for `sharedTrace` is in project B, so project A's
+        // scope subquery (project_id = A) must not match it.
+        expect(
+          findFilterOption(rows, "traceName", "cross-project"),
+        ).toBeUndefined();
+        expect(findFilterOption(rows, "userId", "user-cross")).toBeUndefined();
+      });
+    });
+
+    it("derives traceName from the trace_name/observation-name fallback and never offers empty", async () => {
+      const uniqueProjectId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        // Explicit trace name wins.
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          trace_name: "explicit-name",
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        // Root observation with no trace name falls back to the observation name.
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          trace_name: "",
+          name: "root-obs-name",
+          parent_span_id: "",
+          is_app_root: true,
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+        // Non-root observation with no trace name resolves to NULL, so it
+        // contributes no trace name option (and its name is not used).
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          trace_name: "",
+          name: "child-obs-name",
+          parent_span_id: "parent-span",
+          is_app_root: false,
+          start_time: nowMicro + 2_000,
+          event_ts: nowMicro + 2_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const rows = await getEventsExactFilterOptionsForColumns({
+          projectId: uniqueProjectId,
+          filter: [],
+          columns: ["traceName"],
+        });
+
+        expect(
+          Number(findFilterOption(rows, "traceName", "explicit-name")?.count),
+        ).toBe(1);
+        expect(
+          Number(findFilterOption(rows, "traceName", "root-obs-name")?.count),
+        ).toBe(1);
+        expect(
+          findFilterOption(rows, "traceName", "child-obs-name"),
+        ).toBeUndefined();
+        // The empty-string trace name is mapped to NULL by the facet
+        // expression, so it is never offered as an option.
+        expect(findFilterOption(rows, "traceName", "")).toBeUndefined();
+      });
+    });
+
+    it("counts array facets per event: distinct for traceTags, raw for calledToolNames", async () => {
+      const uniqueProjectId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          tags: ["alpha", "alpha"],
+          tool_call_names: ["lookup", "lookup"],
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          tags: ["alpha"],
+          tool_call_names: ["lookup"],
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const rows = await getEventsExactFilterOptionsForColumns({
+          projectId: uniqueProjectId,
+          filter: [],
+          columns: ["traceTags", "calledToolNames"],
+        });
+
+        // arrayDistinct collapses the duplicate tag within each event before
+        // counting: 1 per event, 2 total.
+        expect(
+          Number(findFilterOption(rows, "traceTags", "alpha")?.count),
+        ).toBe(2);
+        // calledToolNames is not distinct, so repeated calls within one event
+        // all count: 2 + 1 = 3.
+        expect(
+          Number(findFilterOption(rows, "calledToolNames", "lookup")?.count),
+        ).toBe(3);
+      });
+    });
+
+    it("suppresses empty boolean buckets in exact facets", async () => {
+      const uniqueProjectId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      // Every event is a root observation, so the opposite bucket is empty.
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          parent_span_id: "",
+          is_app_root: true,
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          parent_span_id: "",
+          is_app_root: true,
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const rows = await getEventsExactFilterOptionsForColumns({
+          projectId: uniqueProjectId,
+          filter: [],
+          columns: ["isRootObservation", "hasParentObservation"],
+        });
+
+        expect(
+          Number(findFilterOption(rows, "isRootObservation", "true")?.count),
+        ).toBe(2);
+        expect(
+          findFilterOption(rows, "isRootObservation", "false"),
+        ).toBeUndefined();
+        expect(
+          Number(
+            findFilterOption(rows, "hasParentObservation", "false")?.count,
+          ),
+        ).toBe(2);
+        expect(
+          findFilterOption(rows, "hasParentObservation", "true"),
+        ).toBeUndefined();
       });
     });
 
