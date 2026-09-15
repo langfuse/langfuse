@@ -2,6 +2,7 @@ import { prisma } from "../../db";
 import {
   TupleParam,
   type ClickHouseClientConfigOptions,
+  type ClickHouseSettings,
 } from "@clickhouse/client";
 import type {
   EventsObservation,
@@ -1376,6 +1377,7 @@ type PublicApiObservationsQuery = {
 
 type BuildObservationsQueryComponentsOptions = {
   allowUnindexedIoFilters?: boolean;
+  clickhouseSettings?: ClickHouseSettings;
 };
 
 const EVENTS_IO_FILTER_TYPE_ERROR =
@@ -1580,6 +1582,7 @@ async function getObservationsRowsFromBuilder<T>(
   projectId: string,
   queryBuilder: QueryWithParams,
   extraTags: Record<string, string> = {},
+  clickhouseSettings?: ClickHouseSettings,
 ): Promise<Array<T>> {
   const { query, params } = queryBuilder.buildWithParams();
 
@@ -1588,6 +1591,7 @@ async function getObservationsRowsFromBuilder<T>(
     params,
     tags: { projectId, ...extraTags },
     preferredClickhouseService: "EventsReadOnly",
+    clickhouseSettings,
   });
 }
 
@@ -1739,6 +1743,8 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
     await getObservationsRowsFromBuilder<EventsObservationQueryResult>(
       projectId,
       builder,
+      {},
+      options.clickhouseSettings,
     );
 
   return await enrichObservationsWithModelData(

@@ -27,6 +27,7 @@ import {
   InvalidRequestError,
   BaseError,
 } from "@langfuse/shared";
+import { ClickHouseResourceError } from "@langfuse/shared/src/server";
 
 describe("MCP Error Formatting", () => {
   describe("formatErrorForUser", () => {
@@ -164,6 +165,33 @@ describe("MCP Error Formatting", () => {
     });
 
     describe("Langfuse standard errors", () => {
+      it("should format ClickHouse timeouts with actionable guidance", () => {
+        const error = new ClickHouseResourceError(
+          "TIMEOUT",
+          new Error("ClickHouse internal timeout details"),
+        );
+        const mcpError = formatErrorForUser(error);
+
+        expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
+        expect(mcpError.message).toContain("ClickHouse query timed out");
+        expect(mcpError.message).toContain("Narrow the query");
+        expect(mcpError.message).not.toContain("internal timeout details");
+      });
+
+      it("should format other ClickHouse resource errors without internal details", () => {
+        const error = new ClickHouseResourceError(
+          "MEMORY_LIMIT",
+          new Error("Memory limit exceeded at 215 GiB"),
+        );
+        const mcpError = formatErrorForUser(error);
+
+        expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
+        expect(mcpError.message).toContain(
+          ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
+        );
+        expect(mcpError.message).not.toContain("215 GiB");
+      });
+
       it("should format UnauthorizedError with auth message", () => {
         const error = new UnauthorizedError("Invalid API key");
         const mcpError = formatErrorForUser(error);
