@@ -15,97 +15,44 @@ exports[`golden: events.getEventsExactFilterOptionsForColumns > scope=scoredTrac
     aggregated_options AS
     (
         SELECT
-            arraySlice(
-                arraySort(
-                    pair -> tuple(-toInt64(tupleElement(pair, 2)), tupleElement(pair, 1)),
-                    arrayZip(
-                        tupleElement(
-                            sumMapIf(
-                                [toString(ifNull(e.user_id, ''))],
-                                [toUInt64(1)],
-                                (e.user_id IS NOT NULL) AND (length(e.user_id) > 0)
-                            ),
-                            1
-                        ),
-                        tupleElement(
-                            sumMapIf(
-                                [toString(ifNull(e.user_id, ''))],
-                                [toUInt64(1)],
-                                (e.user_id IS NOT NULL) AND (length(e.user_id) > 0)
-                            ),
-                            2
-                        )
-                    )
+            sumMapIf(
+                [toString(ifNull(e.user_id, ''))],
+                [toUInt64(1)],
+                (e.user_id IS NOT NULL) AND (length(e.user_id) > 0)
+            ) AS userId_hist,
+            arraySort(
+                pair -> tuple(-toInt64(tupleElement(pair, 2)), tupleElement(pair, 1)),
+                arrayZip(tupleElement(userId_hist, 1), tupleElement(userId_hist, 2))
+            ) AS userId_ranked,
+            arraySlice(userId_ranked, 1, {param1:UInt64}) AS userIdTopOptions,
+            sumMapIf(
+                [tuple(toString(ifNull(e.experiment_id, '')), toString(ifNull(e.experiment_name, '')))],
+                [toUInt64(1)],
+                (e.experiment_id IS NOT NULL) AND (length(e.experiment_id) > 0)
+            ) AS experimentId_hist,
+            arraySort(
+                pair -> tuple(-toInt64(tupleElement(pair, 2)), tupleElement(pair, 1)),
+                arrayZip(tupleElement(experimentId_hist, 1), tupleElement(experimentId_hist, 2))
+            ) AS experimentId_ranked,
+            arraySlice(experimentId_ranked, 1, {param1:UInt64}) AS experimentIdTopOptions,
+            sumMap(
+                arrayMap(
+                    value -> toString(value),
+                    arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
                 ),
-                1,
-                {param1:UInt64}
-            ) AS userIdTopOptions,
-            arraySlice(
-                arraySort(
-                    pair -> tuple(-toInt64(tupleElement(pair, 2)), tupleElement(pair, 1)),
-                    arrayZip(
-                        tupleElement(
-                            sumMapIf(
-                                [tuple(toString(ifNull(e.experiment_id, '')), toString(ifNull(e.experiment_name, '')))],
-                                [toUInt64(1)],
-                                (e.experiment_id IS NOT NULL) AND (length(e.experiment_id) > 0)
-                            ),
-                            1
-                        ),
-                        tupleElement(
-                            sumMapIf(
-                                [tuple(toString(ifNull(e.experiment_id, '')), toString(ifNull(e.experiment_name, '')))],
-                                [toUInt64(1)],
-                                (e.experiment_id IS NOT NULL) AND (length(e.experiment_id) > 0)
-                            ),
-                            2
-                        )
+                arrayMap(
+                    value -> toUInt64(1),
+                    arrayMap(
+                        value -> toString(value),
+                        arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
                     )
-                ),
-                1,
-                {param1:UInt64}
-            ) AS experimentIdTopOptions,
-            arraySlice(
-                arraySort(
-                    pair -> tupleElement(pair, 1),
-                    arrayZip(
-                        tupleElement(
-                            sumMap(
-                                arrayMap(
-                                    value -> toString(value),
-                                    arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
-                                ),
-                                arrayMap(
-                                    value -> toUInt64(1),
-                                    arrayMap(
-                                        value -> toString(value),
-                                        arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
-                                    )
-                                )
-                            ),
-                            1
-                        ),
-                        tupleElement(
-                            sumMap(
-                                arrayMap(
-                                    value -> toString(value),
-                                    arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
-                                ),
-                                arrayMap(
-                                    value -> toUInt64(1),
-                                    arrayMap(
-                                        value -> toString(value),
-                                        arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
-                                    )
-                                )
-                            ),
-                            2
-                        )
-                    )
-                ),
-                1,
-                {param1:UInt64}
-            ) AS traceTagsTopOptions,
+                )
+            ) AS traceTags_hist,
+            arraySort(
+                pair -> tupleElement(pair, 1),
+                arrayZip(tupleElement(traceTags_hist, 1), tupleElement(traceTags_hist, 2))
+            ) AS traceTags_ranked,
+            arraySlice(traceTags_ranked, 1, {param1:UInt64}) AS traceTagsTopOptions,
             arrayFilter(
                 option -> (tupleElement(option, 2) > 0),
                 [
@@ -193,97 +140,44 @@ exports[`golden: events.getEventsExactFilterOptionsForColumns > scope=unset — 
     aggregated_options AS
     (
         SELECT
-            arraySlice(
-                arraySort(
-                    pair -> tuple(-toInt64(tupleElement(pair, 2)), tupleElement(pair, 1)),
-                    arrayZip(
-                        tupleElement(
-                            sumMapIf(
-                                [toString(ifNull(e.user_id, ''))],
-                                [toUInt64(1)],
-                                (e.user_id IS NOT NULL) AND (length(e.user_id) > 0)
-                            ),
-                            1
-                        ),
-                        tupleElement(
-                            sumMapIf(
-                                [toString(ifNull(e.user_id, ''))],
-                                [toUInt64(1)],
-                                (e.user_id IS NOT NULL) AND (length(e.user_id) > 0)
-                            ),
-                            2
-                        )
-                    )
+            sumMapIf(
+                [toString(ifNull(e.user_id, ''))],
+                [toUInt64(1)],
+                (e.user_id IS NOT NULL) AND (length(e.user_id) > 0)
+            ) AS userId_hist,
+            arraySort(
+                pair -> tuple(-toInt64(tupleElement(pair, 2)), tupleElement(pair, 1)),
+                arrayZip(tupleElement(userId_hist, 1), tupleElement(userId_hist, 2))
+            ) AS userId_ranked,
+            arraySlice(userId_ranked, 1, {param1:UInt64}) AS userIdTopOptions,
+            sumMapIf(
+                [tuple(toString(ifNull(e.experiment_id, '')), toString(ifNull(e.experiment_name, '')))],
+                [toUInt64(1)],
+                (e.experiment_id IS NOT NULL) AND (length(e.experiment_id) > 0)
+            ) AS experimentId_hist,
+            arraySort(
+                pair -> tuple(-toInt64(tupleElement(pair, 2)), tupleElement(pair, 1)),
+                arrayZip(tupleElement(experimentId_hist, 1), tupleElement(experimentId_hist, 2))
+            ) AS experimentId_ranked,
+            arraySlice(experimentId_ranked, 1, {param1:UInt64}) AS experimentIdTopOptions,
+            sumMap(
+                arrayMap(
+                    value -> toString(value),
+                    arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
                 ),
-                1,
-                {param1:UInt64}
-            ) AS userIdTopOptions,
-            arraySlice(
-                arraySort(
-                    pair -> tuple(-toInt64(tupleElement(pair, 2)), tupleElement(pair, 1)),
-                    arrayZip(
-                        tupleElement(
-                            sumMapIf(
-                                [tuple(toString(ifNull(e.experiment_id, '')), toString(ifNull(e.experiment_name, '')))],
-                                [toUInt64(1)],
-                                (e.experiment_id IS NOT NULL) AND (length(e.experiment_id) > 0)
-                            ),
-                            1
-                        ),
-                        tupleElement(
-                            sumMapIf(
-                                [tuple(toString(ifNull(e.experiment_id, '')), toString(ifNull(e.experiment_name, '')))],
-                                [toUInt64(1)],
-                                (e.experiment_id IS NOT NULL) AND (length(e.experiment_id) > 0)
-                            ),
-                            2
-                        )
+                arrayMap(
+                    value -> toUInt64(1),
+                    arrayMap(
+                        value -> toString(value),
+                        arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
                     )
-                ),
-                1,
-                {param1:UInt64}
-            ) AS experimentIdTopOptions,
-            arraySlice(
-                arraySort(
-                    pair -> tupleElement(pair, 1),
-                    arrayZip(
-                        tupleElement(
-                            sumMap(
-                                arrayMap(
-                                    value -> toString(value),
-                                    arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
-                                ),
-                                arrayMap(
-                                    value -> toUInt64(1),
-                                    arrayMap(
-                                        value -> toString(value),
-                                        arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
-                                    )
-                                )
-                            ),
-                            1
-                        ),
-                        tupleElement(
-                            sumMap(
-                                arrayMap(
-                                    value -> toString(value),
-                                    arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
-                                ),
-                                arrayMap(
-                                    value -> toUInt64(1),
-                                    arrayMap(
-                                        value -> toString(value),
-                                        arrayFilter(value -> (length(toString(value)) > 0), arrayDistinct(e.tags))
-                                    )
-                                )
-                            ),
-                            2
-                        )
-                    )
-                ),
-                1,
-                {param1:UInt64}
-            ) AS traceTagsTopOptions,
+                )
+            ) AS traceTags_hist,
+            arraySort(
+                pair -> tupleElement(pair, 1),
+                arrayZip(tupleElement(traceTags_hist, 1), tupleElement(traceTags_hist, 2))
+            ) AS traceTags_ranked,
+            arraySlice(traceTags_ranked, 1, {param1:UInt64}) AS traceTagsTopOptions,
             arrayFilter(
                 option -> (tupleElement(option, 2) > 0),
                 [

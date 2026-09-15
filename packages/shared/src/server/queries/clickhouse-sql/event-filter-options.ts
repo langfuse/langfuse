@@ -551,20 +551,31 @@ ORDER BY column ASC, tupleElement(option, 4) ASC, tupleElement(option, 2) ASC
 // applied before the optionLimit cap so the top-N stays deterministic at the
 // boundary, matching the single-column ORDER BY count() DESC, value ASC. Booleans
 // carry only two buckets, always under the cap, so they skip the rank/slice.
-const exactOptionAggSelectExpression = (
+//
+// Non-boolean facets emit the pipeline as three named columns of the one-row
+// aggregate — `<column>_hist` (the value→count Map), `<column>_ranked` (zipped
+// and sorted), and `<column>TopOptions` (capped) — so the SQL reads as named
+// stages and the histogram is written once instead of inlined per tupleElement
+// read. The intermediate columns are only consumed by the next stage's alias;
+// the rows builder reads `<column>TopOptions`.
+const exactOptionAggSelectExpressions = (
   column: EventFilterOptionColumn,
-): string => {
+): string[] => {
   const definition = EVENTS_FILTER_OPTION_DEFINITIONS[column];
-  const alias = optionTopAlias(column);
+  const topAlias = optionTopAlias(column);
 
   if (definition.kind === "boolean") {
-    return `arrayFilter(option -> tupleElement(option, 2) > 0, [tuple('false', countIf(NOT (${definition.expression})), toUInt64(0)), tuple('true', countIf(${definition.expression}), toUInt64(0))]) AS ${alias}`;
+    return [
+      `arrayFilter(option -> tupleElement(option, 2) > 0, [tuple('false', countIf(NOT (${definition.expression})), toUInt64(0)), tuple('true', countIf(${definition.expression}), toUInt64(0))]) AS ${topAlias}`,
+    ];
   }
 
-  // sumMap returns (keys[], counts[]); zip into (key, count) pairs so the alias
-  // shape matches the boolean branch. The sumMap subexpression appears twice for
-  // the two tupleElement reads — ClickHouse dedupes identical aggregate states,
-  // so this stays a single aggregation pass.
+  const histAlias = `${column}_hist`;
+  const rankedAlias = `${column}_ranked`;
+
+  // The array values expression stays inlined here: it is a per-row (non-
+  // aggregate) array, so it cannot be projected as its own CTE column without a
+  // GROUP BY. `<column>_hist` is aggregate state and is projectable.
   const histogram =
     definition.kind === "scalar"
       ? `sumMapIf([${stringValueExpression(definition.expression)}], [toUInt64(1)], ${definition.includeWhen})`
@@ -575,12 +586,17 @@ const exactOptionAggSelectExpression = (
             return `sumMap(${values}, arrayMap(value -> toUInt64(1), ${values}))`;
           })();
 
-  const zipped = `arrayZip(tupleElement(${histogram}, 1), tupleElement(${histogram}, 2))`;
+  const zipped = `arrayZip(tupleElement(${histAlias}, 1), tupleElement(${histAlias}, 2))`;
   const ranked =
     definition.sort === "countDesc"
       ? `arraySort(pair -> tuple(-toInt64(tupleElement(pair, 2)), tupleElement(pair, 1)), ${zipped})`
       : `arraySort(pair -> tupleElement(pair, 1), ${zipped})`;
-  return `arraySlice(${ranked}, 1, {optionLimit: UInt64}) AS ${alias}`;
+
+  return [
+    `${histogram} AS ${histAlias}`,
+    `${ranked} AS ${rankedAlias}`,
+    `arraySlice(${rankedAlias}, 1, {optionLimit: UInt64}) AS ${topAlias}`,
+  ];
 };
 
 const exactOptionRowsArrayExpression = (
@@ -641,7 +657,7 @@ export const buildEventsExactFilterOptionsForColumnsQuery = (params: {
   const sampled = sampleRows > 0;
 
   aggregatedOptionsBuilder.selectRaw(
-    ...columns.map(exactOptionAggSelectExpression),
+    ...columns.flatMap(exactOptionAggSelectExpressions),
     ...(sampled ? [EVENTS_SAMPLE_FACTOR_SELECT] : []),
   );
   aggregatedOptionsBuilder.sampleRows(sampleRows);
