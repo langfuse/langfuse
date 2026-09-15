@@ -20,7 +20,7 @@ export default defineConfig({
     pool: "forks",
     server: {
       deps: {
-        inline: ["@langfuse/shared"],
+        inline: ["@langfuse/shared", /google-vertex/],
       },
     },
     coverage: {
