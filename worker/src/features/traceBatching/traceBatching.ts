@@ -463,7 +463,23 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
 
   public async drain(): Promise<void> {
     this.stop();
-    await this.activeDispatch;
+    if (!this.activeDispatch) return;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        this.activeDispatch,
+        new Promise<void>((resolve) => {
+          timeout = setTimeout(() => {
+            logger.warn(
+              "Trace batch dispatcher drain timed out after 5 seconds; continuing shutdown",
+            );
+            resolve();
+          }, 5_000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   protected async execute(): Promise<number | void> {
