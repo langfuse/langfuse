@@ -108,6 +108,7 @@ const projectRoutes: Route[] = [
     route: "v2/evaluation-rules/[evaluationRuleId]",
     methods: ["GET", "PATCH", "DELETE"],
   },
+  { route: "ingestion", methods: ["POST"] },
 ];
 
 // Org and misc routes call shadowAuth directly from the handler body.
@@ -140,7 +141,6 @@ const orgRoutes: Route[] = [
 const denylistPrefixes = [
   "health", // liveness probe
   "ready", // readiness probe
-  "ingestion", // batch ingestion, own auth path
   "prompts", // prompt handlers, own auth path
   "v2/prompts", // prompt list/name handlers, own auth path
   "mcp", // MCP server, own auth path
@@ -306,10 +306,14 @@ function walkRoutes(): string[] {
   return routes;
 }
 
-// Enforce cells that intentionally diverge from legacy; every other cell must match.
-const enforceDivergences: Record<string, number> = {
-  // org keys hold project:read, which legacy's ["project"] tier gate refused
-  "GET projects/index | org/basic": 200,
+// Accepted divergences from the main baseline; every other cell matches main in
+// every mode. `main` is the pre-seam status the snapshot pins; `enforce` is the
+// enforce-mode status.
+const divergences: Record<string, { main?: number; enforce?: number }> = {
+  // Org keys hold project:read, which legacy's ["project"] tier gate refused.
+  "GET projects/index | org/basic": { enforce: 200 },
+  // Ingestion joined the seam this PR: legacy normalizes an org key 401->403 (the standard project-route status) and enforce admits it past auth (400) via its project-id header.
+  "POST ingestion | org/basic": { main: 401, enforce: 400 },
 };
 
 describe("public-api auth parity", () => {
@@ -350,7 +354,11 @@ describe("public-api auth parity", () => {
   });
 
   it("legacy matches the main-captured baseline", () => {
-    expect(matrices.legacy).toMatchSnapshot();
+    const baseline = { ...matrices.legacy };
+    for (const [cell, { main }] of Object.entries(divergences)) {
+      if (main !== undefined) baseline[cell] = main;
+    }
+    expect(baseline).toMatchSnapshot();
   });
 
   it("shadow is byte-identical to legacy", () => {
@@ -358,10 +366,11 @@ describe("public-api auth parity", () => {
   });
 
   it("enforce matches legacy except documented divergences", () => {
-    expect(matrices.enforce).toEqual({
-      ...matrices.legacy,
-      ...enforceDivergences,
-    });
+    const expected = { ...matrices.legacy };
+    for (const [cell, { enforce }] of Object.entries(divergences)) {
+      if (enforce !== undefined) expected[cell] = enforce;
+    }
+    expect(matrices.enforce).toEqual(expected);
   });
 
   it("covers every public route", () => {
