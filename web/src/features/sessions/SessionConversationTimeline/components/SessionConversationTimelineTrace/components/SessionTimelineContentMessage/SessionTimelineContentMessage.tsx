@@ -109,7 +109,14 @@ export function SessionTimelineContentMessage({
             className={cn("flex w-full", presentation.wrapper)}
           >
             <article
-              className={cn("min-w-0 overflow-hidden", presentation.container)}
+              className={cn(
+                "min-w-0 overflow-hidden",
+                presentation.container,
+                // An expanded JSON table shrink-wraps to its narrowest column
+                // widths inside a fit-content bubble; give it the bubble's full
+                // width cap so keys and values get room instead of wrapping.
+                isJsonOnly && isJsonExpanded && "w-full",
+              )}
             >
               {showSender && groupIndex === firstContentGroupIndex ? (
                 <div className="text-foreground mb-1 flex min-w-0 items-center gap-1.5 font-mono text-[11px]">

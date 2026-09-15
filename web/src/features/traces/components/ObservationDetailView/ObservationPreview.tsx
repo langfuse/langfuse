@@ -2,6 +2,7 @@ import { useState, type ComponentProps, type Key } from "react";
 
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
 import TagList from "@/src/features/tag/components/TagList";
+import { isPrettyLikeJsonView } from "@/src/components/ui/jsonViewPreference";
 
 export interface ObservationPreviewProps {
   currentView?: ComponentProps<typeof IOPreview>["currentView"];
@@ -34,12 +35,12 @@ export function ObservationPreview({
       {tags && tags.length > 0 ? (
         <>
           <div
-            className={`px-2 pt-2 text-sm font-bold ${currentView && currentView !== "pretty" ? "shrink-0" : ""}`}
+            className={`px-2 pt-2 text-sm font-bold ${currentView && !isPrettyLikeJsonView(currentView) ? "shrink-0" : ""}`}
           >
             Tags
           </div>
           <div
-            className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${currentView && currentView !== "pretty" ? "shrink-0" : ""}`}
+            className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${currentView && !isPrettyLikeJsonView(currentView) ? "shrink-0" : ""}`}
           >
             <TagList selectedTags={tags} isLoading={false} />
           </div>

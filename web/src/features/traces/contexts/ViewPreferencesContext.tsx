@@ -19,15 +19,18 @@ import {
   GRAPH_VIEW_MODES,
   type GraphViewMode,
 } from "@/src/features/trace-graph-view/types";
+import {
+  DEFAULT_JSON_VIEW_PREFERENCE,
+  JSON_VIEW_PREFERENCE_STORAGE_KEY,
+  type JsonViewPreference,
+  normalizeJsonViewPreference,
+} from "@/src/components/ui/jsonViewPreference";
 
 /** Log view ordering mode */
 export type LogViewMode = "chronological" | "tree-order";
 
 /** Log view tree visualization style (only applies in tree-order mode) */
 export type LogViewTreeStyle = "flat" | "indented";
-
-/** JSON view preference (formatted/pretty vs raw JSON vs advanced JSON beta). */
-export type JsonViewPreference = "pretty" | "json" | "json-beta";
 
 /** Context in which trace is rendered - affects feature availability */
 type TraceRenderContext = "fullscreen" | "peek" | "annotation";
@@ -135,19 +138,21 @@ export function ViewPreferencesProvider({
   const [logViewTreeStyle, setLogViewTreeStyle] =
     useLocalStorage<LogViewTreeStyle>("logViewTreeStyle", "flat");
   const [storedJsonViewPreference, setJsonViewPreference] =
-    useLocalStorage<JsonViewPreference>("jsonViewPreference", "pretty");
-  // A previously persisted "pretty-beta" preference is no longer a view mode;
-  // degrade it to the Formatted view rather than breaking the toggle.
-  const jsonViewPreference: JsonViewPreference =
-    (storedJsonViewPreference as string) === "pretty-beta"
-      ? "pretty"
-      : storedJsonViewPreference;
+    useLocalStorage<JsonViewPreference>(
+      JSON_VIEW_PREFERENCE_STORAGE_KEY,
+      DEFAULT_JSON_VIEW_PREFERENCE,
+    );
+  // A stale persisted value (e.g. the retired "pretty-beta") degrades to the
+  // Formatted view rather than breaking the toggle.
+  const jsonViewPreference = normalizeJsonViewPreference(
+    storedJsonViewPreference,
+  );
   // Migration: default to true if user had json-beta selected previously
   // TODO: Remove migration logic after 2025-01-26 (2 weeks) when user settings are migrated
   const [jsonBetaEnabled, setJsonBetaEnabled] = useLocalStorage<boolean>(
     "jsonBetaEnabled",
     typeof window !== "undefined" &&
-      localStorage.getItem("jsonViewPreference") === '"json-beta"',
+      localStorage.getItem(JSON_VIEW_PREFERENCE_STORAGE_KEY) === '"json-beta"',
   );
   // Shared with the inline expand/collapse toggle on system prompt messages;
   // instances sync via useLocalStorage's localStorageChange events.
