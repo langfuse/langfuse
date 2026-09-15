@@ -197,6 +197,8 @@ type TabProps = {
 };
 
 function ScoresTab({ userId, projectId }: TabProps) {
+  const { isV4 } = useReadPath();
+
   return (
     <ScoresTable
       projectId={projectId}
@@ -209,6 +211,7 @@ function ScoresTab({ userId, projectId }: TabProps) {
           tableName="scores"
           closePeek={closePeek}
           expandPeek={expandPeek}
+          isV4={isV4}
         />
       )}
     />

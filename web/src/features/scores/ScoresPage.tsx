@@ -8,10 +8,12 @@ import {
   getScoresTabs,
   SCORES_TABS,
 } from "@/src/features/navigation/utils/scores-tabs";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 export default function ScoresPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const { isV4 } = useReadPath();
 
   // Check if the user has any scores
   const { data: hasAnyScore, isLoading } = api.scores.hasAny.useQuery(
@@ -60,6 +62,7 @@ export default function ScoresPage() {
               tableName="scores"
               closePeek={closePeek}
               expandPeek={expandPeek}
+              isV4={isV4}
             />
           )}
         />
