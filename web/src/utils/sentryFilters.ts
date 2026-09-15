@@ -432,7 +432,7 @@ export function isReactDevtoolsInternalEvent(event: ErrorEvent): boolean {
  * True for known-benign CLIENT-side noise that cannot be a real Langfuse app
  * bug: browser-level network/transport failures, transient framework/vendor
  * poll logs, expected browser-permission / cancellation artifacts, and
- * native HTMLMediaElement codec failures. Returning `true` drops the event
+ * native HTMLMediaElement codec and fetch-abort failures. Returning `true` drops the event
  * in `beforeSend`.
  *
  * Design rule (safety first): only signatures that CANNOT represent a real app
@@ -535,6 +535,24 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       exceptionType === "AbortError" &&
       (exceptionValue.includes("signal is aborted") ||
         exceptionValue.includes("The operation was aborted"))
+    ) {
+      return true;
+    }
+
+    // Browser aborted an <audio>/<video> fetch (navigate away, unmount, src
+    // change). Firefox rejects HTMLMediaElement resource cancellation as an
+    // unhandled AbortError with no app stack. Session-page inline players
+    // and splash videos already degrade in the UI; this is expected UA
+    // cancellation, not an application bug. Guarded to the global handler
+    // so an app-captured AbortError with the same wording is KEPT. Other
+    // AbortError families (fetch signal abort above, PostHog timeouts) have
+    // different messages and are unchanged.
+    if (
+      isGlobalHandlerAbortedMediaResourceEvent(
+        exceptionType,
+        exceptionValue,
+        exception?.mechanism?.type,
+      )
     ) {
       return true;
     }
@@ -687,6 +705,36 @@ function isGlobalHandlerUnsupportedMediaResourceEvent(
     return false;
   }
   return UNSUPPORTED_MEDIA_RESOURCE_MESSAGES.includes(exceptionValue);
+}
+
+/**
+ * Exact browser-generated HTMLMediaElement abort messages. Whole-string
+ * match only: an app error that quotes a phrase is longer and is therefore
+ * KEPT.
+ */
+const ABORTED_MEDIA_RESOURCE_MESSAGES: readonly string[] = [
+  // Firefox
+  "The fetching process for the media resource was aborted by the user agent at the user's request.",
+];
+
+/**
+ * True for a native HTMLMediaElement AbortError delivered by the browser
+ * global handlers (`onunhandledrejection` / `onerror`). See the call site
+ * in {@link isDenylistedNoiseEvent} for why this is dropped.
+ */
+function isGlobalHandlerAbortedMediaResourceEvent(
+  exceptionType: string | undefined,
+  exceptionValue: string,
+  mechanismType: string | undefined,
+): boolean {
+  if (exceptionType !== "AbortError") return false;
+  if (
+    typeof mechanismType !== "string" ||
+    !mechanismType.startsWith("auto.browser.global_handlers")
+  ) {
+    return false;
+  }
+  return ABORTED_MEDIA_RESOURCE_MESSAGES.includes(exceptionValue);
 }
 
 /**
