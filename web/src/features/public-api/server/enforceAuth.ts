@@ -32,7 +32,7 @@ const orgIdHeader = "x-langfuse-organization-id";
 /** projectIdHeader selects the target project for keys without a bound project. */
 const projectIdHeader = "x-langfuse-project-id";
 
-/** enforceAuth authenticates the request and authorizes the action for the given endpoint, or resolves context without a connection-level check when no action is given (combines authz and authn). */
+/** enforceAuth authenticates the request and authorizes the action for the given endpoint (combines authz and authn). */
 export async function enforceAuth({
   req,
   action,

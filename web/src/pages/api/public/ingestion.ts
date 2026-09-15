@@ -3,7 +3,6 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import {
   traceException,
-  redis,
   logger,
   getCurrentSpan,
   contextWithLangfuseProps,
@@ -11,6 +10,7 @@ import {
   markProjectIngestFailure,
   createIngestionAttribution,
   processEventBatch,
+  type ApiAccessLevel,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
@@ -18,12 +18,10 @@ import {
   jsonSchema,
   MethodNotAllowedError,
   BaseError,
-  UnauthorizedError,
+  InternalServerError,
   ForbiddenError,
 } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
-import { prisma } from "@langfuse/shared/src/db";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
@@ -36,6 +34,14 @@ import {
   SDK_VERSION_ATTRIBUTE,
   extractSdkAttributes,
 } from "@langfuse/shared/instrumentation/bootstrap";
+import {
+  shadowAuth,
+  shadowAuthorize,
+} from "@/src/features/public-api/server/shadowAuth";
+import {
+  type AuthorizationContext,
+  type ProjectAction,
+} from "@/src/features/auth/policy/types";
 
 export const config = {
   api: {
@@ -99,27 +105,24 @@ export default async function handler(
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
     // CHECK AUTH FOR ALL EVENTS
-    const authCheck = await new ApiAuthService(
-      prisma,
-      redis,
-    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-
-    if (!authCheck.validKey) {
-      throw new UnauthorizedError(authCheck.error);
+    const authResult = await shadowAuth({
+      req,
+      allowedAccessLevels: ["project", "scores"],
+    });
+    if (!authResult.success) throw authResult.error;
+    const { scope, ctx: authCtx } = authResult;
+    // shadowAuth's project/scores gating guarantees a projectId; narrow the invariant.
+    if (!scope.projectId) {
+      throw new InternalServerError("Missing projectId on an authorized scope");
     }
-    if (!authCheck.scope.projectId) {
-      throw new UnauthorizedError(
-        "Missing projectId in scope. Are you using an organization key?",
-      );
-    }
-    const projectId = authCheck.scope.projectId;
+    const projectId = scope.projectId;
     projectIdForIngestFailure = projectId;
-
-    if (authCheck.scope.isIngestionSuspended) {
+    if (scope.isIngestionSuspended) {
       throw new ForbiddenError(
         "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
       );
     }
+    const authCheck = { validKey: true as const, scope };
 
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
@@ -192,12 +195,23 @@ export default async function handler(
           );
         }
 
-        const result = await processEventBatch(batchForProcessing, authCheck, {
-          attribution,
-        });
-        if (rejectedErrors.length > 0) {
-          result.errors = [...result.errors, ...rejectedErrors];
-        }
+        const authorized = authorizeIngestionBatch(
+          batchForProcessing,
+          authCtx,
+          scope.accessLevel,
+          projectId,
+        );
+
+        const result = await processEventBatch(
+          authorized.batchForProcessing,
+          authCheck,
+          { attribution },
+        );
+        result.errors = [
+          ...result.errors,
+          ...rejectedErrors,
+          ...authorized.rejectedErrors,
+        ];
 
         // Cloud-only: a 207 with every event 201 is how agents conclude the
         // legacy write path is healthy. Stamp when the original batch asked
@@ -300,26 +314,13 @@ const EVENTS_ONLY_INGESTION_REMEDIATION = [
 function filterBatchForEventsOnly(
   batch: unknown[],
   isEventsOnlyMode: boolean,
-): {
-  batchForProcessing: unknown[];
-  rejectedErrors: {
-    id: string;
-    status: number;
-    message: string;
-    error: string;
-  }[];
-} {
+): IngestionBatchFilter {
   if (!isEventsOnlyMode) {
     return { batchForProcessing: batch, rejectedErrors: [] };
   }
 
   const batchForProcessing: unknown[] = [];
-  const rejectedErrors: {
-    id: string;
-    status: number;
-    message: string;
-    error: string;
-  }[] = [];
+  const rejectedErrors: IngestionEventRejection[] = [];
 
   for (const event of batch) {
     const eventObj =
@@ -346,6 +347,56 @@ function filterBatchForEventsOnly(
   return { batchForProcessing, rejectedErrors };
 }
 
+/** authorizeIngestionBatch authorizes each event against the resolved context, dropping enforce-mode denials as 207 rejections; legacy and shadow keep every event. */
+function authorizeIngestionBatch(
+  batch: unknown[],
+  ctx: AuthorizationContext | undefined,
+  accessLevel: ApiAccessLevel,
+  projectId: string,
+): IngestionBatchFilter {
+  const batchForProcessing: unknown[] = [];
+  const rejectedErrors: IngestionEventRejection[] = [];
+
+  for (const event of batch) {
+    const decision = shadowAuthorize({
+      ctx,
+      action: ingestionActionForEventType(eventTypeOf(event)),
+      resource: { projectId },
+      accessLevel,
+    });
+    if (!decision.success) {
+      rejectedErrors.push({
+        id: idOf(event),
+        status: 401,
+        message: "Authentication error",
+        error: "Access Scope Denied",
+      });
+      continue;
+    }
+    batchForProcessing.push(event);
+  }
+  return { batchForProcessing, rejectedErrors };
+}
+
+/** ingestionActionForEventType maps an event type to the project action its write asserts; SDK logs assert nothing. */
+function ingestionActionForEventType(
+  type: string | null,
+): ProjectAction | null {
+  if (type === eventTypes.SDK_LOG) return null;
+  if (type === eventTypes.SCORE_CREATE) return "scores:create";
+  return "traces:create";
+}
+
+/** idOf reads an event's `id`, defaulting to `unknown` for a malformed event. */
+function idOf(event: unknown): string {
+  return typeof event === "object" &&
+    event !== null &&
+    "id" in event &&
+    typeof (event as { id: unknown }).id === "string"
+    ? (event as { id: string }).id
+    : "unknown";
+}
+
 function eventTypeOf(event: unknown): string | null {
   if (typeof event !== "object" || event === null) {
     return null;
@@ -360,3 +411,17 @@ function batchContainsTraceOrObservationEvent(batch: unknown[]): boolean {
     return type !== null && TRACE_OR_OBSERVATION_EVENT_TYPES.has(type);
   });
 }
+
+/** IngestionEventRejection is one event dropped from a batch, rendered in the 207 result's errors. */
+type IngestionEventRejection = {
+  id: string;
+  status: number;
+  message: string;
+  error: string;
+};
+
+/** IngestionBatchFilter is a batch split into the events to process and the events rejected. */
+type IngestionBatchFilter = {
+  batchForProcessing: unknown[];
+  rejectedErrors: IngestionEventRejection[];
+};

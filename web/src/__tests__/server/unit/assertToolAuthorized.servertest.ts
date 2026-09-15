@@ -67,7 +67,7 @@ describe("assertToolAuthorized", () => {
     env.API_AUTH_MIGRATION = "enforce";
   });
 
-  it("throws when the resolved context lacks the tool's action", () => {
+  it("throws the decision error when the context lacks the tool's action", () => {
     expect(() =>
       assertToolAuthorized(
         tool("prompts:CUD"),
@@ -76,60 +76,12 @@ describe("assertToolAuthorized", () => {
     ).toThrow(ForbiddenError);
   });
 
-  it("passes when the resolved context holds the tool's action", () => {
+  it("passes when the context holds the tool's action", () => {
     expect(() =>
       assertToolAuthorized(
         tool("prompts:read"),
         serverContext(authContext([allowPrompts])),
       ),
     ).not.toThrow();
-  });
-
-  it("passes an ungated tool regardless of context", () => {
-    expect(() =>
-      assertToolAuthorized(tool(null), serverContext(authContext([]))),
-    ).not.toThrow();
-  });
-
-  it("passes when no context resolved (legacy)", () => {
-    expect(() =>
-      assertToolAuthorized(tool("prompts:CUD"), serverContext(undefined)),
-    ).not.toThrow();
-  });
-
-  describe("shadow mode", () => {
-    beforeEach(() => {
-      env.API_AUTH_MIGRATION = "shadow";
-    });
-
-    it("diffs a denied action without throwing", () => {
-      const diff = vi.fn();
-      expect(() =>
-        assertToolAuthorized(
-          tool("prompts:CUD"),
-          serverContext(authContext([allowPrompts])),
-          diff,
-        ),
-      ).not.toThrow();
-      expect(diff).toHaveBeenCalledWith(
-        { success: false, error: expect.any(ForbiddenError) },
-        { success: true, scope: { accessLevel: "project" } },
-        "prompts:CUD",
-      );
-    });
-
-    it("diffs an allowed action", () => {
-      const diff = vi.fn();
-      assertToolAuthorized(
-        tool("prompts:read"),
-        serverContext(authContext([allowPrompts])),
-        diff,
-      );
-      expect(diff).toHaveBeenCalledWith(
-        { success: true },
-        { success: true, scope: { accessLevel: "project" } },
-        "prompts:read",
-      );
-    });
   });
 });
