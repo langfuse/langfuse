@@ -431,12 +431,12 @@ export const ValueCell = memo(
         }
         case "number":
           return {
-            content: <span className="text-code-literal">{String(value)}</span>,
+            content: <span className="text-dark-teal">{String(value)}</span>,
             needsTruncation: false,
           };
         case "boolean":
           return {
-            content: <span className="text-code-literal">{String(value)}</span>,
+            content: <span className="text-dark-teal">{String(value)}</span>,
             needsTruncation: false,
           };
         case "null":

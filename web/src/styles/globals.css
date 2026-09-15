@@ -90,10 +90,6 @@
   --color-dark-green: var(--dark-green);
   --color-light-blue: hsl(var(--light-blue));
   --color-dark-blue: hsl(var(--dark-blue));
-  /* Numbers and booleans in JSON tables: a slate-blue a third as saturated as
-     the link blue so literals read as "not text" without competing with links
-     or the observation blue. */
-  --color-code-literal: hsl(var(--code-literal));
   --color-accent-light-blue: hsl(var(--accent-light-blue));
   --color-accent-dark-blue: hsl(var(--accent-dark-blue));
   --color-light-violet: hsl(var(--light-violet));
@@ -378,7 +374,6 @@
 
     --light-blue: 214 94.6% 92.7%;
     --dark-blue: 219 85% 52%;
-    --code-literal: 215 28% 42%;
 
     --accent-light-blue: 251 95.2% 91.8%;
     --accent-dark-blue: 224 76.3% 38%;
@@ -556,7 +551,6 @@
 
     --light-blue: 209 45% 15%;
     --dark-blue: 209 88% 60%;
-    --code-literal: 213 32% 70%;
 
     /* accent-light-green doubles as a full-height output/diff surface
        (PrettyJsonView), so it stays a whisper above --card, not chip-strength. */
