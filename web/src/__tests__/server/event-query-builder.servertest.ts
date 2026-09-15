@@ -125,7 +125,7 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(built.query).toContain("FROM events_core e SAMPLE 6000000");
     expect(built.query).toContain("any(e._sample_factor) AS sample_factor");
     expect(built.query).toContain(
-      "toUInt64(round(tupleElement(option, 3) * sample_factor)) AS count",
+      "toUInt64(round(option.count * sample_factor)) AS count",
     );
   });
 
@@ -144,7 +144,7 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(built.query).not.toContain("SAMPLE");
     expect(built.query).not.toContain("_sample_factor");
     expect(built.query).not.toContain("sample_factor");
-    expect(built.query).toContain("tupleElement(option, 3) AS count");
+    expect(built.query).toContain("option.count AS count");
   });
 
   it("orders bulk filter option rows by per-column sort key and value", () => {
@@ -168,7 +168,7 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       "tuple('isRootObservation', tupleElement(option, 1), tupleElement(option, 2), if(tupleElement(option, 1) = 'true', toInt64(1), toInt64(0)), '')",
     );
     expect(built.query).toContain(
-      "ORDER BY column ASC, tupleElement(option, 4) ASC, tupleElement(option, 2) ASC",
+      "ORDER BY column ASC, option.sortKey ASC, option.value ASC",
     );
   });
 
@@ -205,7 +205,7 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(built.query).toContain(
       "tuple('experimentId', tupleElement(tupleElement(option, 1), 1), tupleElement(option, 2), -toInt64(tupleElement(option, 2)), tupleElement(tupleElement(option, 1), 2))",
     );
-    expect(built.query).toContain("tupleElement(option, 5) AS displayValue");
+    expect(built.query).toContain("option.displayValue AS displayValue");
   });
 
   it("applies events filters to the single base scan", () => {
