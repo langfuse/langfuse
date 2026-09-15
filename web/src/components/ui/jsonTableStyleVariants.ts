@@ -554,6 +554,7 @@ export const JSON_TABLE_MONO_FONTS = [
   "plex",
   "jetbrains",
   "geist",
+  "iosevka",
 ] as const;
 export type JsonTableMonoFont = (typeof JSON_TABLE_MONO_FONTS)[number];
 
@@ -562,6 +563,7 @@ export const JSON_TABLE_MONO_FONT_LABELS: Record<JsonTableMonoFont, string> = {
   plex: "IBM Plex Mono",
   jetbrains: "JetBrains Mono",
   geist: "Geist Mono",
+  iosevka: "Iosevka",
 };
 
 /** Tailwind arbitrary properties that swap `--font-mono` for one subtree. */
@@ -570,6 +572,7 @@ export const JSON_TABLE_MONO_FONT_CLASSES: Record<JsonTableMonoFont, string> = {
   plex: "[--font-mono:var(--font-plex-mono),ui-monospace,monospace]",
   jetbrains: "[--font-mono:var(--font-jetbrains-mono),ui-monospace,monospace]",
   geist: "[--font-mono:var(--font-geist-mono),ui-monospace,monospace]",
+  iosevka: "[--font-mono:Iosevka,ui-monospace,monospace]",
 };
 
 const JSON_TABLE_MONO_FONT_STORAGE_KEY = "lf-json-mono";

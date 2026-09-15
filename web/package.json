@@ -54,6 +54,7 @@
     "@dnd-kit/sortable": "^8.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@ferrucc-io/emoji-picker": "^0.1.2",
+    "@fontsource/iosevka": "5.3.0",
     "@hookform/resolvers": "^5.2.2",
     "@langfuse/shared": "workspace:*",
     "@lezer/highlight": "^1.2.3",
