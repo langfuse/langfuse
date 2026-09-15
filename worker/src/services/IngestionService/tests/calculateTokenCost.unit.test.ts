@@ -159,6 +159,10 @@ describe("Token Cost Calculation", () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    tokenisationMocks.tokenCountAsyncOverride = null;
+  });
+
   it("should correctly calculate token costs with provided model prices", async () => {
     const prices = await prisma.price.findMany({
       where: {
@@ -1343,6 +1347,74 @@ describe("Token Cost Calculation", () => {
     expect(generation.usage_details.output).toBeUndefined();
     expect(generation.usage_details.total).toBeUndefined();
   });
+
+  // The two events-path generations below are identical except for `level`,
+  // so the ERROR guard is the only thing that can separate their outcomes.
+  const eventsPathGeneration = (level: string) => ({
+    projectId,
+    traceId: uuidv4(),
+    spanId: generationId,
+    startTimeISO: new Date().toISOString(),
+    type: "GENERATION",
+    modelName,
+    input: "hello world",
+    output: "hey whassup",
+    level,
+  });
+
+  it("should skip tokenization on the events path if generation status is ERROR", async () => {
+    const tokenCountAsyncSpy = vi.fn();
+    tokenisationMocks.tokenCountAsyncOverride = tokenCountAsyncSpy;
+
+    const eventRecord = await (mockIngestionService as any).createEventRecord(
+      eventsPathGeneration("ERROR"),
+      "testfile.txt",
+    );
+    await (mockIngestionService as any).writeEventRecord(eventRecord);
+
+    expect(mockAddToClickhouseWriter).toHaveBeenCalled();
+    const args = mockAddToClickhouseWriter.mock.calls[0];
+    const tableName = args[0];
+    const generation = args[1];
+
+    expect(tableName).toBe("events_full");
+    expect(generation.type).toBe("GENERATION");
+    expect(generation.level).toBe("ERROR");
+    // Model name is still matched, as on the legacy path
+    expect(generation.model_id).toBe(tokenModelData.id);
+
+    // The ERROR guard must short-circuit before the tokenizer is invoked
+    expect(tokenCountAsyncSpy).not.toHaveBeenCalled();
+    expect(generation.usage_details.input).toBeUndefined();
+    expect(generation.usage_details.output).toBeUndefined();
+    expect(generation.usage_details.total).toBeUndefined();
+  });
+
+  // Real tokenization: input and output are counted on worker threads that
+  // load the encoder on first use, which can exceed vitest's default 5s under
+  // a loaded suite. Match the tokenizer's own 30s operation timeout.
+  it("should tokenize on the events path when generation status is not ERROR", async () => {
+    const eventRecord = await (mockIngestionService as any).createEventRecord(
+      eventsPathGeneration("DEFAULT"),
+      "testfile.txt",
+    );
+    await (mockIngestionService as any).writeEventRecord(eventRecord);
+
+    expect(mockAddToClickhouseWriter).toHaveBeenCalled();
+    const args = mockAddToClickhouseWriter.mock.calls[0];
+    const tableName = args[0];
+    const generation = args[1];
+
+    expect(tableName).toBe("events_full");
+    expect(generation.type).toBe("GENERATION");
+    expect(generation.level).toBe("DEFAULT");
+    expect(generation.model_id).toBe(tokenModelData.id);
+    expect(generation.usage_details.input).toBeGreaterThan(0);
+    expect(generation.usage_details.output).toBeGreaterThan(0);
+    expect(generation.usage_details.total).toBe(
+      generation.usage_details.input + generation.usage_details.output,
+    );
+  }, 30_000);
 
   it("should skip tokenization and leave usage details blank when cost details are provided", async () => {
     const generationUsage1 = {
