@@ -170,6 +170,20 @@ export default defineConfig({
       // interop breaks when the package is inlined (server.deps.inline
       // below, needed so vi.mock("next/router") intercepts the adapter's
       // own router import). Point at the ESM bundle instead.
+      // next/font/google is a build-time loader; outside `next` it throws.
+      // Tests that import the app shell get inert font handles instead.
+      {
+        find: /^next\/font\/google$/,
+        replacement: join(
+          import.meta.dirname,
+          "src/__tests__/mocks/nextFontGoogle.ts",
+        ),
+      },
+      // Fontsource CSS entries are plain stylesheets, irrelevant in jsdom.
+      {
+        find: /^@fontsource\/.*\.css$/,
+        replacement: join(import.meta.dirname, "src/__tests__/mocks/empty.ts"),
+      },
       {
         find: /^next-query-params\/pages$/,
         replacement: join(
