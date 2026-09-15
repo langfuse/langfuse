@@ -2,39 +2,32 @@ import { type ComponentProps } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 
-import { CreateProjectMemberDialogContent } from "./CreateProjectMemberDialogContent";
+import { CreateProjectMemberDialog } from "./CreateProjectMemberDialog";
 
 const defaultArgs = {
   project: undefined,
   hasOnlySingleProjectAccess: false,
   hasProjectRoleEntitlement: false,
-  isSubmitting: false,
+  isPending: false,
   createProjectMember: fn().mockResolvedValue(undefined),
   onSuccess: fn(),
-} satisfies ComponentProps<typeof CreateProjectMemberDialogContent>;
+} satisfies ComponentProps<typeof CreateProjectMemberDialog>;
 
 const meta = preview.meta({
-  component: CreateProjectMemberDialogContent,
+  component: CreateProjectMemberDialog,
   parameters: {
     layout: "fullscreen",
   },
   decorators: [
     (Story) => (
-      <Dialog open onOpenChange={fn()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add member</DialogTitle>
-          </DialogHeader>
-          <Story />
-        </DialogContent>
-      </Dialog>
+      <DialogController
+        initialState={() => true}
+        renderDialog={() => <Story />}
+      >
+        {() => null}
+      </DialogController>
     ),
   ],
 });
@@ -57,13 +50,6 @@ export const SingleProjectAccess = meta.story({
     project: { id: "project-1", name: "Support assistant" },
     hasOnlySingleProjectAccess: true,
     hasProjectRoleEntitlement: true,
-  },
-});
-
-export const Submitting = meta.story({
-  args: {
-    ...defaultArgs,
-    isSubmitting: true,
   },
 });
 

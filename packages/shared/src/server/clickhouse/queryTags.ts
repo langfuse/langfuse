@@ -8,6 +8,7 @@ export const clickHouseQuerySurfaces = [
   "worker",
   "publicapi",
   "mcp",
+  "ssr",
 ] as const;
 
 export type ClickHouseQuerySurface = (typeof clickHouseQuerySurfaces)[number];

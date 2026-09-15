@@ -153,7 +153,7 @@ export function ResetPasswordPage({
     );
 
   const title = isSetMode ? "Set your password" : "Reset your password";
-  const pageTitle = isSetMode ? "Set Password" : "Reset Password";
+  const pageTitle = isSetMode ? "Set password" : "Reset password";
   const submitLabel = isSetMode ? "Set password" : "Update Password";
   const successMessage = isSetMode
     ? "Password set successfully. Redirecting ..."

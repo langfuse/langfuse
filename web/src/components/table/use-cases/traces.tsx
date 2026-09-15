@@ -53,6 +53,7 @@ import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
@@ -185,6 +186,10 @@ function TracesTableInternal({
   const hasTraceDeleteAccess = useHasProjectAccess({
     projectId,
     scope: "traces:delete",
+  });
+  const hasBatchExportAccess = useHasProjectAccess({
+    projectId,
+    scope: "batchExports:create",
   });
   const tracesFilterConfig = useMemo(
     () => getTraceFilterConfig(omittedFilter),
@@ -847,7 +852,7 @@ function TracesTableInternal({
               {cost ? (
                 <span>{usdFormatter(cost.toNumber())}</span>
               ) : (
-                <span>-</span>
+                <EmptyValue />
               )}
               <InfoIcon className="h-3 w-3" />
             </div>
@@ -1023,7 +1028,6 @@ function TracesTableInternal({
       enableHiding: true,
       enableSorting,
       isLive: false,
-      emptyValue: "-",
       getStatus: (level, { row }) =>
         isMetricPending(row.original.id)
           ? { type: "loading" }
@@ -1109,7 +1113,6 @@ function TracesTableInternal({
           id: "inputCost",
           header: "Input Cost",
           size: 100,
-          emptyValue: "-",
           formatter: (value) => usdFormatter(value),
           getValue: (value, { row }) => {
             if (isMetricPending(row.original.id)) return { type: "loading" };
@@ -1124,7 +1127,6 @@ function TracesTableInternal({
           id: "outputCost",
           header: "Output Cost",
           size: 100,
-          emptyValue: "-",
           formatter: (value) => usdFormatter(value),
           getValue: (value, { row }) => {
             if (isMetricPending(row.original.id)) return { type: "loading" };
@@ -1460,17 +1462,19 @@ function TracesTableInternal({
                     )}
                   </AddTracesToAnnotationQueueDialogController>
                 ) : null,
-                <BatchExportTableButton
-                  {...{
-                    projectId,
-                    filterState,
-                    orderByState,
-                    searchQuery,
-                    searchType,
-                  }}
-                  tableName={BatchExportTableName.Traces}
-                  key="batchExport"
-                />,
+                hasBatchExportAccess ? (
+                  <BatchExportTableButton
+                    {...{
+                      projectId,
+                      filterState,
+                      orderByState,
+                      searchQuery,
+                      searchType,
+                    }}
+                    tableName={BatchExportTableName.Traces}
+                    key="batchExport"
+                  />
+                ) : null,
               ]}
               orderByState={orderByState}
               columnVisibility={columnVisibility}

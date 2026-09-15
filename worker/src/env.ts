@@ -446,6 +446,23 @@ const EnvSchema = z.object({
     .positive()
     .default(8),
 
+  // Optional propagation-only overrides; unset values use ClickHouse profile settings.
+  LANGFUSE_EVENT_PROPAGATION_MAX_BLOCK_SIZE: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional(),
+  LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_ROWS: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .optional(),
+  LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_BYTES: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .optional(),
+
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
@@ -678,7 +695,7 @@ const EnvSchema = z.object({
   // slot is wedged. The heartbeat is refreshed at the top of every invocation and
   // per-chunk during the experiment backfill, so the threshold only needs to
   // exceed the longest un-heartbeated step — a single CH INSERT (request_timeout
-  // 10 min). 15 min leaves headroom.
+  // 30 min). 35 min leaves headroom.
   //
   // Probes using this flag MUST set initialDelaySeconds >= 60s (one cron cycle):
   // the heartbeat is only refreshed when the minute-boundary cron next runs, so a
@@ -688,7 +705,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .int()
-    .default(15),
+    .default(35),
 
   // Liveness threshold for the opt-in ?failIfQueueConsumptionStuck=true health
   // check: fail once this container's BullMQ workers have neither picked up nor

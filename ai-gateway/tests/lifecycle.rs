@@ -1,6 +1,6 @@
 mod support;
 
-use ai_gateway::server::{self, AppState};
+use ai_gateway::server::{self, GatewayLifecycleState};
 use axum::{
     Router,
     body::{Body, to_bytes},
@@ -17,7 +17,7 @@ use tower::ServiceExt;
 
 #[tokio::test]
 async fn probes_and_unimplemented_routes_over_http() {
-    let state = AppState::default();
+    let state = GatewayLifecycleState::default();
     let mut server =
         TestServer::start(server::router(state.clone()), state, Duration::from_secs(1)).await;
     let health = support::get(server.address, "/health").await;
@@ -43,7 +43,7 @@ async fn probes_and_unimplemented_routes_over_http() {
 async fn shutdown_marks_unready_and_waits_for_in_flight_request() {
     let entered = Arc::new(Notify::new());
     let release = Arc::new(Notify::new());
-    let state = AppState::default();
+    let state = GatewayLifecycleState::default();
     let app = server::router(state.clone()).route(
         "/slow",
         get({
@@ -106,7 +106,12 @@ async fn shutdown_deadline_bounds_a_stuck_handler() {
             }
         }),
     );
-    let mut server = TestServer::start(app, AppState::default(), Duration::from_millis(50)).await;
+    let mut server = TestServer::start(
+        app,
+        GatewayLifecycleState::default(),
+        Duration::from_millis(50),
+    )
+    .await;
     let request = tokio::spawn(support::get(server.address, "/stuck"));
     tokio::time::timeout(Duration::from_secs(2), entered.notified())
         .await
@@ -139,7 +144,12 @@ async fn fake_dependency_records_requests_and_returns_scripted_response() {
             }
         }
     });
-    let mut fake = TestServer::start(app, AppState::default(), Duration::from_secs(1)).await;
+    let mut fake = TestServer::start(
+        app,
+        GatewayLifecycleState::default(),
+        Duration::from_secs(1),
+    )
+    .await;
     let response = support::get(fake.address, "/example").await;
     assert!(response.starts_with("HTTP/1.1 429"));
     assert!(response.contains("retry-after: 1\r\n"));

@@ -1627,5 +1627,68 @@ describe("Clickhouse Experiment Items Repository Test", () => {
         ),
       ).toBe(true);
     });
+
+    it("passes a payload of the four characters null through untouched", async () => {
+      // A native experiment writes I/O through stringifyValue, which returns a
+      // string unchanged — so an expected output that legitimately IS the
+      // string "null" is byte-identical to a serialized JSON null. Guessing
+      // would erase the real value, and the baseline fallback below would then
+      // reach for ANOTHER run's value and show that instead. So the text is
+      // passed through, and the baseline still wins.
+      const baselineExpId = randomUUID();
+      const compExpId = randomUUID();
+      const datasetId = randomUUID();
+      const itemId = randomUUID();
+
+      const root1Id = randomUUID();
+      const root2Id = randomUUID();
+
+      await createEventsCh([
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          span_id: root1Id,
+          experimentId: baselineExpId,
+          experimentName: "baseline-exp",
+          datasetId,
+          itemId,
+          experimentItemRootSpanId: root1Id,
+          input: "null",
+          output: "null",
+          experiment_item_expected_output: "null",
+          start_time: Date.now() * 1000,
+        }),
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          span_id: root2Id,
+          experimentId: compExpId,
+          experimentName: "comp-exp",
+          datasetId,
+          itemId,
+          experimentItemRootSpanId: root2Id,
+          input: "a real input",
+          output: "a real output",
+          experiment_item_expected_output: "a real expected output",
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+
+      const result = await getExperimentItemsBatchIO({
+        projectId,
+        itemIds: [itemId],
+        baseExperimentId: baselineExpId,
+        compExperimentIds: [compExpId],
+      });
+
+      expect(result[0]).toMatchObject({
+        itemId,
+        input: "null",
+        expectedOutput: "null",
+      });
+      expect(
+        result[0].outputs.find((o) => o.experimentId === baselineExpId)?.output,
+      ).toBe("null");
+    });
   });
 });

@@ -1,5 +1,6 @@
 import { eventsSearchRegistry } from "../config/eventsSearchRegistry";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -99,6 +100,7 @@ import {
   useColumnVisibility,
 } from "@/src/features/column-visibility";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
@@ -306,6 +308,10 @@ export default function ObservationsEventsTable({
   isolateTableState = false,
 }: EventsTableProps) {
   const peekContext = usePeekTableState();
+  const hasBatchExportAccess = useHasProjectAccess({
+    projectId,
+    scope: "batchExports:create",
+  });
   const eventsFilterConfig = useMemo(
     () => getObservationEventsFilterConfig(omittedFilter),
     [omittedFilter],
@@ -1345,7 +1351,6 @@ export default function ObservationsEventsTable({
           defaultHidden: true,
           enableSorting,
           formatter: (value) => usdFormatter(value),
-          emptyValue: "-",
         }),
         createTextTableColumn<EventsTableRow>({
           accessorFn: (row) =>
@@ -1390,7 +1395,11 @@ export default function ObservationsEventsTable({
 
         return (
           <span>
-            {timeToFirstToken ? formatIntervalSeconds(timeToFirstToken) : "-"}
+            {timeToFirstToken ? (
+              formatIntervalSeconds(timeToFirstToken)
+            ) : (
+              <EmptyValue />
+            )}
           </span>
         );
       },
@@ -2042,17 +2051,19 @@ export default function ObservationsEventsTable({
                 showControlsInPageHeader ? undefined : refreshConfig
               }
               actionButtons={[
-                <BatchExportTableButton
-                  {...{
-                    projectId,
-                    filterState,
-                    orderByState,
-                    searchQuery,
-                    searchType,
-                  }}
-                  tableName={BatchExportTableName.Events}
-                  key="batchExport"
-                />,
+                hasBatchExportAccess ? (
+                  <BatchExportTableButton
+                    {...{
+                      projectId,
+                      filterState,
+                      orderByState,
+                      searchQuery,
+                      searchType,
+                    }}
+                    tableName={BatchExportTableName.Events}
+                    key="batchExport"
+                  />
+                ) : null,
                 !chartActive &&
                 (selectedObservationIds.length > 0 || selectAll) ? (
                   <AddTracesToAnnotationQueueDialogController

@@ -7,6 +7,7 @@ import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-head
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
 import { TopbarBrand } from "@/src/components/nav/topbar-brand";
 import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
@@ -77,6 +78,7 @@ const PageHeader = ({
 }: PageHeaderProps) => {
   const hasAppSidebar = useHasAppSidebar();
   const envLabel = useEnvLabel();
+  const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   // The sidebar trigger + brand mark only make sense where a real AppSidebar
   // exists to toggle/mirror. On the sidebar-less MinimalLayout (public/shared
   // trace and session views) show the page's own leadingControl instead — no
@@ -145,7 +147,7 @@ const PageHeader = ({
                 Empty on pages that don't use it. */}
             <div className="flex flex-wrap items-center gap-2">
               <PageHeaderControlsSlotTarget />
-              <InAppAiAgentButton />
+              {isInAppAgentLauncherVisible && <InAppAiAgentButton />}
             </div>
           </div>
         </div>

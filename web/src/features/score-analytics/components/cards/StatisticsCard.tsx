@@ -20,7 +20,7 @@ import {
   interpretMAE,
   interpretRMSE,
 } from "@/src/features/score-analytics/lib/statistics-utils";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 /**
  * StatisticsCard - Smart card component for displaying score statistics

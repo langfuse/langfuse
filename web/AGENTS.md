@@ -171,7 +171,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   in `_document.tsx`, ordered by that array (later = on top), carrying NO z-index.
   `panel` is for docked side surfaces like Sheet, Drawer, and the table peek;
   `modal` is for true blocking Dialog and AlertDialog surfaces.
-  **THE RULE (see `src/components/ui/layer.tsx` JSDoc — source of truth): every
+  **THE RULE (see `src/context/LayerContext/LayerContext.tsx` JSDoc — source of truth): every
   overlay portals through a layer container; never let a Radix/Vaul `*.Portal`
   fall back to `<body>`.** Radix/Vaul primitives route via their `*.Portal`'s
   `container` (the `ui/*` wrappers do this with `useLayerContainer`); bespoke

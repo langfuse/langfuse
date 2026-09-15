@@ -1,5 +1,11 @@
 # Topics trace-batch operator runbook
 
+This feature can ship with no infrastructure change: all four enable flags
+default to false. Without opt-in, ingestion does not track experimental Redis
+state, and neither the dispatcher nor the batch worker starts. No schema
+migration or new service is required. The separate regional infrastructure
+configuration is only needed to activate an experiment.
+
 Compare query block size on one deployed reader revision before changing
 threads, batching or concurrency. These are operator-run experiments; adding
 the controls does not deploy code or change production configuration. This
@@ -16,22 +22,22 @@ All values are read from worker process environment at startup. Change the
 deployment configuration and roll the affected worker processes; these are
 not live runtime settings. Web processes do not consume these controls.
 
-| Variable                                      | Code default / accepted values                                           | Consuming worker role                                       |
-| --------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------- |
-| `LANGFUSE_TRACE_BATCH_MAX_THREADS`            | `1`; positive integer                                                    | Batch consumer; ClickHouse query threads                    |
-| `LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE`         | Unset; optional positive integer                                         | Batch consumer; query block-size override                   |
-| `LANGFUSE_TRACE_BATCH_EXPERIMENT_ID`          | Unset; 1–64 characters, matching `^[A-Za-z0-9][A-Za-z0-9._-]*$` when set | Batch consumer; structured logs and query attribution       |
-| `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`; integer 1–10,000                                                   | Dispatcher; maximum traces per job                          |
-| `LANGFUSE_TRACE_BATCH_CONCURRENCY`            | `2`; positive integer                                                    | Batch consumer registration; simultaneous jobs per process  |
-| `LANGFUSE_TRACE_BATCH_STRATEGY`               | `project`; `project` or `locality`                                       | Dispatcher; batch selection                                 |
-| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`          | `1`; number from 0 to 1                                                  | Direct-v4 ingestion; stable trace admission                 |
-| `LANGFUSE_TRACE_BATCH_IDLE_MS`                | `600000`; positive integer                                               | Direct-v4 ingestion; delay from activity to readiness       |
-| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`   | `30000`; positive integer                                                | Dispatcher; target interval between starts                  |
-| `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`         | `7200000`; positive integer                                              | Ingestion and dispatcher; pending retention after readiness |
-| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | `false`; `true` or `false`                                               | Direct-v4 ingestion; admit/update Redis state               |
-| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`; `true` or `false`                                               | Dispatcher; enqueue ready traces                            |
-| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`; `true` or `false`                                               | Batch consumer registration; pick up queued jobs            |
-| `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | `false`; `true` or `false`                                               | Consumer; query when true, discard/remove jobs when false   |
+| Variable                                      | Code default / accepted values                                           | Consuming worker role                                                          |
+| --------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `LANGFUSE_TRACE_BATCH_MAX_THREADS`            | `1`; positive integer                                                    | Batch consumer; ClickHouse query threads                                       |
+| `LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE`         | Unset; optional positive integer                                         | Batch consumer; query block-size override                                      |
+| `LANGFUSE_TRACE_BATCH_EXPERIMENT_ID`          | Unset; 1–64 characters, matching `^[A-Za-z0-9][A-Za-z0-9._-]*$` when set | Batch consumer; structured logs and query attribution                          |
+| `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`; integer 1–10,000                                                   | Dispatcher; maximum traces per job                                             |
+| `LANGFUSE_TRACE_BATCH_CONCURRENCY`            | `2`; positive integer                                                    | Batch consumer registration; simultaneous jobs per process                     |
+| `LANGFUSE_TRACE_BATCH_STRATEGY`               | `project`; `project` or `locality`                                       | Dispatcher; batch selection                                                    |
+| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`          | `1`; number from 0 to 1                                                  | Direct-v4 ingestion; stable trace admission                                    |
+| `LANGFUSE_TRACE_BATCH_IDLE_MS`                | `600000`; positive integer                                               | Direct-v4 ingestion; delay from activity to readiness                          |
+| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`   | `30000`; positive integer                                                | Dispatcher; target interval between starts                                     |
+| `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`         | `7200000`; positive integer                                              | Per-trace retention after readiness; native map expiry after intake inactivity |
+| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | `false`; `true` or `false`                                               | Direct-v4 ingestion; admit/update Redis state                                  |
+| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`; `true` or `false`                                               | Dispatcher; enqueue ready traces                                               |
+| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`; `true` or `false`                                               | Batch consumer registration; pick up queued jobs                               |
+| `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | `false`; `true` or `false`                                               | Consumer; query when true, discard/remove jobs when false                      |
 
 Defaults are source defaults, not evidence of running configuration. An absent
 block setting is omitted from the query, preserving the ClickHouse profile's

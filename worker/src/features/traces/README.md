@@ -103,19 +103,19 @@ counts and logical I/O/metadata bytes are retained in job results.
 All enablement flags default to `false`. Sampling defaults to `1` (100%), so
 enabled intake tracks every eligible trace unless a lower rate is configured.
 
-| Setting                                       | Default   | Purpose                                                     |
-| --------------------------------------------- | --------- | ----------------------------------------------------------- |
-| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | `false`   | Track accepted direct-v4 event writes in Redis              |
-| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`          | `1`       | Stable trace admission fraction, 0–1 (`0.1` = 10%)          |
-| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`   | Turn ready state into queue jobs                            |
-| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`   | Consume existing `trace-batch` jobs                         |
-| `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | `false`   | Permit reads; otherwise a running consumer discards jobs    |
-| `LANGFUSE_TRACE_BATCH_CONCURRENCY`            | `2`       | Concurrent reads **per enabled worker process**             |
-| `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`      | Cross-project trace cap per job (1–10,000)                  |
-| `LANGFUSE_TRACE_BATCH_STRATEGY`               | `project` | Rollback baseline (`project`) or experimental `locality`    |
-| `LANGFUSE_TRACE_BATCH_IDLE_MS`                | `600000`  | Inactivity before a trace becomes due                       |
-| `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`         | `7200000` | Retention after readiness, pruned during ingestion/dispatch |
-| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`   | `30000`   | Target start interval; catches up after overruns            |
+| Setting                                       | Default   | Purpose                                                                        |
+| --------------------------------------------- | --------- | ------------------------------------------------------------------------------ |
+| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | `false`   | Track accepted direct-v4 event writes in Redis                                 |
+| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`          | `1`       | Stable trace admission fraction, 0–1 (`0.1` = 10%)                             |
+| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`   | Turn ready state into queue jobs                                               |
+| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`   | Consume existing `trace-batch` jobs                                            |
+| `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | `false`   | Permit reads; otherwise a running consumer discards jobs                       |
+| `LANGFUSE_TRACE_BATCH_CONCURRENCY`            | `2`       | Concurrent reads **per enabled worker process**                                |
+| `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`      | Cross-project trace cap per job (1–10,000)                                     |
+| `LANGFUSE_TRACE_BATCH_STRATEGY`               | `project` | Rollback baseline (`project`) or experimental `locality`                       |
+| `LANGFUSE_TRACE_BATCH_IDLE_MS`                | `600000`  | Inactivity before a trace becomes due                                          |
+| `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`         | `7200000` | Per-trace retention after readiness; native map expiry after intake inactivity |
+| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`   | `30000`   | Target start interval; catches up after overruns                               |
 
 Deploy with flags off. Start consumers on a small, known number of worker
 processes, enable the dispatcher, then enable intake on direct-v4 ingestion
