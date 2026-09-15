@@ -26,6 +26,7 @@ import {
   recordIncrement,
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
+  convertDateToClickhouseDateTime,
   QueueJobs,
   enrichObservationWithModelData,
   createModelCache,
@@ -276,6 +277,83 @@ const getMinTimestampForExport = async (
     exportStartDate,
     historicalMinTimestampMs,
   });
+};
+
+// The ClickHouse source table + timestamp column each export table reads from.
+// Events are counted from events_full (the base insert target) rather than
+// events_core (its materialized-view projection, which can lag): the events
+// export reads events_full for full I/O, and events_full ⊇ events_core, so the
+// probe never undercounts what the export would stream.
+type BlobExportProbeTable = { table: string; timestampColumn: string };
+
+// The source tables a run will actually upload for, given its export source and
+// the trace-only override. The existence probe counts exactly these so a window
+// is only skipped when every table this run would write is empty — a broader
+// probe would keep writing empty files for a table the window happens to lack
+// while another (unexported) table has rows.
+const exportedProbeTables = (
+  exportSource: string,
+  isTraceOnlyProject: boolean,
+): BlobExportProbeTable[] => {
+  if (isTraceOnlyProject) {
+    return [{ table: "traces", timestampColumn: "timestamp" }];
+  }
+  // Scores are always exported for non-trace-only runs.
+  const tables: BlobExportProbeTable[] = [
+    { table: "scores", timestampColumn: "timestamp" },
+  ];
+  if (
+    exportSource === "TRACES_OBSERVATIONS" ||
+    exportSource === "TRACES_OBSERVATIONS_EVENTS"
+  ) {
+    tables.push(
+      { table: "traces", timestampColumn: "timestamp" },
+      { table: "observations", timestampColumn: "start_time" },
+    );
+  }
+  if (
+    exportSource === "EVENTS" ||
+    exportSource === "TRACES_OBSERVATIONS_EVENTS"
+  ) {
+    tables.push({ table: "events_full", timestampColumn: "start_time" });
+  }
+  return tables;
+};
+
+// Cheap existence probe over the tables this run will export for the window.
+// Lets a window with no rows skip its uploads so a project with no exportable
+// data (or a gap in a project's data) does not litter the customer bucket with
+// empty ~1 KB files, one per table per window. The window is half-open
+// [minTimestamp, maxTimestamp), matching the export queries, so a zero result
+// guarantees every table this run would write is empty and a non-empty window
+// is never skipped.
+const windowHasExportableRows = async (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+  tables: BlobExportProbeTable[],
+): Promise<boolean> => {
+  if (tables.length === 0) return false;
+  // Table names are from the fixed set in exportedProbeTables (never user
+  // input), so interpolating them into the query is safe.
+  const perTableCounts = tables
+    .map(
+      ({ table, timestampColumn }) => `(SELECT count() FROM ${table}
+          WHERE project_id = {projectId: String}
+          AND ${timestampColumn} >= {minTimestamp: DateTime64(3)}
+          AND ${timestampColumn} < {maxTimestamp: DateTime64(3)})`,
+    )
+    .join("\n        + ");
+  const result = await queryClickhouse<{ total: string | number }>({
+    query: `SELECT ${perTableCounts} AS total`,
+    params: {
+      projectId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+    tags: { projectId, surface: "worker", route: "blob_export" },
+  });
+  return Number(result[0]?.total ?? 0) > 0;
 };
 
 /**
@@ -1378,6 +1456,20 @@ export const handleBlobStorageIntegrationProjectJob = async (
         projectId,
       );
 
+    // Skip the S3/Azure/GCS table uploads for a window with no rows so an empty
+    // window does not write empty ~1 KB files to the customer bucket. Probe only
+    // the tables this run would export (see exportedProbeTables); the cursor /
+    // watermark still advance below exactly as on a normal run.
+    const windowHasRows = await windowHasExportableRows(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      exportedProbeTables(
+        blobStorageIntegration.exportSource,
+        isTraceOnlyProject,
+      ),
+    );
+
     // Warn once per run if rawPassthrough is enabled but no table will actually
     // use it. Passthrough only applies to JSONL exports of observations /
     // observations_v2; every non-trace-only export source includes one of those,
@@ -1399,69 +1491,88 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    let runFiles: BlobExportManifestFile[];
-    if (isTraceOnlyProject) {
-      // Only process traces table for projects in the trace-only list (legacy behavior)
+    if (!windowHasRows) {
+      // No rows in this window: skip the table uploads and manifest so nothing
+      // empty lands in the bucket. The deprecation-notice lifecycle below still
+      // runs, and the cursor advance further below runs unchanged, so the run
+      // still records success and lastSyncAt moves forward exactly as it would
+      // after a real export.
       logger.info(
-        `[BLOB INTEGRATION] Project ${projectId} is configured for trace-only export via env var, skipping observations, scores, and events`,
+        `[BLOB INTEGRATION] Skipping upload for project ${projectId}: export window has no rows ` +
+          `(min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()}); advancing cursor without writing empty files`,
       );
-      runFiles = [
-        await processBlobStorageExport({ ...executionConfig, table: "traces" }),
-      ];
     } else {
-      // Process tables based on exportSource setting
-      const processPromises: Promise<BlobExportManifestFile>[] = [];
-
-      // Always include scores
-      processPromises.push(
-        processBlobStorageExport({ ...executionConfig, table: "scores" }),
-      );
-
-      // Traces and observations - for TRACES_OBSERVATIONS and TRACES_OBSERVATIONS_EVENTS
-      if (
-        blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS" ||
-        blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
-      ) {
-        processPromises.push(
-          processBlobStorageExport({ ...executionConfig, table: "traces" }),
-          processBlobStorageExport({
-            ...executionConfig,
-            table: "observations",
-          }),
+      let runFiles: BlobExportManifestFile[];
+      if (isTraceOnlyProject) {
+        // Only process traces table for projects in the trace-only list (legacy behavior)
+        logger.info(
+          `[BLOB INTEGRATION] Project ${projectId} is configured for trace-only export via env var, skipping observations, scores, and events`,
         );
+        runFiles = [
+          await processBlobStorageExport({
+            ...executionConfig,
+            table: "traces",
+          }),
+        ];
+      } else {
+        // Process tables based on exportSource setting
+        const processPromises: Promise<BlobExportManifestFile>[] = [];
+
+        // Always include scores
+        processPromises.push(
+          processBlobStorageExport({ ...executionConfig, table: "scores" }),
+        );
+
+        // Traces and observations - for TRACES_OBSERVATIONS and TRACES_OBSERVATIONS_EVENTS
+        if (
+          blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS" ||
+          blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+        ) {
+          processPromises.push(
+            processBlobStorageExport({ ...executionConfig, table: "traces" }),
+            processBlobStorageExport({
+              ...executionConfig,
+              table: "observations",
+            }),
+          );
+        }
+
+        // Events - for EVENTS and TRACES_OBSERVATIONS_EVENTS
+        // events are stored in the observations_v2 directory in blob storage
+        if (
+          blobStorageIntegration.exportSource === "EVENTS" ||
+          blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+        ) {
+          processPromises.push(
+            processBlobStorageExport({
+              ...executionConfig,
+              table: "observations_v2",
+            }),
+          );
+        }
+
+        runFiles = await Promise.all(processPromises);
       }
 
-      // Events - for EVENTS and TRACES_OBSERVATIONS_EVENTS
-      // events are stored in the observations_v2 directory in blob storage
-      if (
-        blobStorageIntegration.exportSource === "EVENTS" ||
-        blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
-      ) {
-        processPromises.push(
-          processBlobStorageExport({
-            ...executionConfig,
-            table: "observations_v2",
-          }),
-        );
-      }
-
-      runFiles = await Promise.all(processPromises);
+      // The manifest is the run's commit point: written strictly after every
+      // table upload succeeded. A failure here fails the run, so lastSyncAt does
+      // not advance and the retry idempotently overwrites the table files.
+      await writeBlobExportManifest({
+        storageService,
+        prefix: blobStorageIntegration.prefix || undefined,
+        projectId,
+        exportSource: blobStorageIntegration.exportSource,
+        minTimestamp,
+        maxTimestamp,
+        files: runFiles,
+      });
     }
 
-    // The manifest is the run's commit point: written strictly after every
-    // table upload succeeded. A failure here fails the run, so lastSyncAt does
-    // not advance and the retry idempotently overwrites the table files.
-    await writeBlobExportManifest({
-      storageService,
-      prefix: blobStorageIntegration.prefix || undefined,
-      projectId,
-      exportSource: blobStorageIntegration.exportSource,
-      minTimestamp,
-      maxTimestamp,
-      files: runFiles,
-    });
-
-    // Cloud-only v3-deprecation notice; both sides best-effort (never fail the run).
+    // Cloud-only v3-deprecation notice; both sides best-effort (never fail the
+    // run). Runs on every successful run independent of windowHasRows: the notice
+    // reflects the integration's export source, not this window's row count, so an
+    // idle project must still write it when on a legacy source and clear a stale
+    // one after migrating off legacy.
     if (isCloud) {
       if (isLegacyExportSource(blobStorageIntegration.exportSource)) {
         await writeBlobExportDeprecationNotice({
