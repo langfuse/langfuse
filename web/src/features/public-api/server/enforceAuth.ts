@@ -49,18 +49,18 @@ export async function enforceAuth({
   const { context } = auth;
   switch (context.principal.kind) {
     case "admin":
-      return enforceAdminAuth(context, req, action);
+      return enforceAdminAuthz(context, req, action);
     case "apiKey":
       return action !== undefined && isOrgAction(action)
-        ? enforceOrgAuth(context, req, action)
-        : enforceProjectAuth(context, req, action);
+        ? enforceOrgAuthz(context, req, action)
+        : enforceProjectAuthz(context, req, action);
     default:
       return internalServerError(`Unexpected principal on the public api`);
   }
 }
 
-/** enforceAdminAuth resolves, authorizes, and scopes a self-host admin-key request against its target project; the authenticator admits admin keys only on opted-in, non-Cloud routes. */
-async function enforceAdminAuth(
+/** enforceAdminAuthz resolves, authorizes, and scopes a self-host admin-key request against its target project; the authenticator admits admin keys only on opted-in, non-Cloud routes. */
+async function enforceAdminAuthz(
   context: AuthorizationContext,
   req: NextApiRequest,
   action: Action | undefined,
@@ -77,8 +77,8 @@ async function enforceAdminAuth(
   return access(context, org.orgId, projectId);
 }
 
-/** enforceOrgAuth resolves, authorizes, and scopes an organization-scoped api-key request. */
-function enforceOrgAuth(
+/** enforceOrgAuthz resolves, authorizes, and scopes an organization-scoped api-key request. */
+function enforceOrgAuthz(
   context: AuthorizationContext,
   req: NextApiRequest,
   action: Action | undefined,
@@ -92,8 +92,8 @@ function enforceOrgAuth(
   return access(context, org.orgId);
 }
 
-/** enforceProjectAuth resolves, authorizes, and scopes a project-scoped api-key request against its bound org; an organization key naming a project outside its org is told the project does not exist, as the route handlers do. */
-function enforceProjectAuth(
+/** enforceProjectAuthz resolves, authorizes, and scopes a project-scoped api-key request against its bound org; an organization key naming a project outside its org is told the project does not exist, as the route handlers do. */
+function enforceProjectAuthz(
   context: AuthorizationContext,
   req: NextApiRequest,
   action: Action | undefined,
