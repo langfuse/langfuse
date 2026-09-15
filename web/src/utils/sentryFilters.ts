@@ -367,6 +367,29 @@ const CHROME_EXTENSION_PORT_MESSAGES: readonly string[] = [
 ];
 
 /**
+ * Cursor / Electron computer-use stale snapshot refs. The injected page-world
+ * helper throws this exact wording when a previously snapshotted element id
+ * is reused after the DOM re-rendered. Observed as a global `onerror` with
+ * Electron sandbox frames (`assertDescriptionMatches`) and no Langfuse
+ * frames. Distinct from Selenium/Playwright stale-element wording, which
+ * does not include "Take a new snapshot."
+ *
+ * Trailing period is omitted because {@link coreMessage} strips one.
+ */
+const CURSOR_COMPUTER_USE_STALE_ELEMENT_RE =
+  /^Stale element reference: \S+ now points to .+ but was expected to be .+\. The page may have changed\. Take a new snapshot$/;
+
+function hasFirstPartyChunkFrame(
+  frames: Array<{ filename?: string }> | undefined,
+): boolean {
+  if (!frames) return false;
+  return frames.some((frame) => {
+    const filename = frame.filename;
+    return typeof filename === "string" && filename.includes("/_next/");
+  });
+}
+
+/**
  * A `TRPCClientError` re-wraps its cause's message. Depending on capture path
  * the Sentry `value` may be the bare cause message (`Failed to fetch`) or carry
  * the wrapper prefix (`TRPCClientError: Failed to fetch`). We strip ONLY this
@@ -616,8 +639,14 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // no stack, `denyUrls` cannot match. Sibling message is the other
     // documented lastError for a torn-down extension port.
     //
-    // Both are anchored to a Sentry browser-API / global-handler mechanism
-    // so an app-captured exception that merely quotes the phrase is KEPT.
+    // Cursor computer-use stale snapshot refs are the same class: the
+    // Electron helper throws `Stale element reference: … Take a new
+    // snapshot.` into the page. `denyUrls` cannot match Electron sandbox
+    // frames. A first-party `/_next/` frame keeps the event.
+    //
+    // All three are anchored to a Sentry browser-API / global-handler
+    // mechanism so an app-captured exception that merely quotes the phrase
+    // is KEPT.
     const mechanismType = exception?.mechanism?.type;
     if (
       typeof mechanismType === "string" &&
@@ -628,6 +657,14 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       }
       if (
         CHROME_EXTENSION_PORT_MESSAGES.includes(coreMessage(exceptionValue))
+      ) {
+        return true;
+      }
+      if (
+        CURSOR_COMPUTER_USE_STALE_ELEMENT_RE.test(
+          coreMessage(exceptionValue),
+        ) &&
+        !hasFirstPartyChunkFrame(exception.stacktrace?.frames)
       ) {
         return true;
       }
