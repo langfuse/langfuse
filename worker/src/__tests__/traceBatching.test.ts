@@ -28,7 +28,7 @@ import { env } from "../env";
 import {
   trackTraceBatchActivity,
   TraceBatchDispatcher,
-} from "../features/traces/traceBatching";
+} from "../features/traceBatching/traceBatching";
 import { otelIngestionQueueProcessorBuilder } from "../queues/otelIngestionQueue";
 import { traceBatchQueueProcessor } from "../queues/traceBatchQueue";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";

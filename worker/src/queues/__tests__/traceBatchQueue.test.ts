@@ -124,7 +124,7 @@ describe("trace batch queue", () => {
               name: "generation",
               input: "hello",
               output: "世界",
-              metadata: { a: "b" },
+              metadata: { é: "界🙂" },
               tool_definitions: {},
               tool_calls: [],
               tool_call_names: [],
@@ -139,13 +139,31 @@ describe("trace batch queue", () => {
             observationCount: 4,
             traceCount: 3,
             projectCount: 2,
-            ioMetadataBytes: 52,
+            inputBytes: 20,
+            outputBytes: 24,
+            metadataBytes: 36,
+            ioMetadataBytes: 80,
           },
         );
       }
       expect(getTraceBatchEventStream).toHaveBeenCalledTimes(2);
       expect(getTraceBatchEventStream).toHaveBeenCalledWith(payload);
       expect(yieldedRows).toBe(8);
+      for (const [name, bytes] of [
+        ["input_bytes", 20],
+        ["output_bytes", 24],
+        ["metadata_bytes", 36],
+        ["io_metadata_bytes", 80],
+      ] as const) {
+        expect(
+          vi
+            .mocked(recordDistribution)
+            .mock.calls.filter(
+              ([metric]) => metric === `langfuse.trace_batch.${name}`,
+            )
+            .map(([, value]) => value),
+        ).toEqual([bytes, bytes]);
+      }
       expect(
         vi
           .mocked(recordDistribution)
@@ -207,8 +225,23 @@ describe("trace batch queue", () => {
         observationCount: Number(hasRows),
         traceCount: Number(hasRows),
         projectCount: Number(hasRows),
+        inputBytes: hasRows ? 5 : 0,
+        outputBytes: hasRows ? 5 : 0,
+        metadataBytes: 0,
         ioMetadataBytes: hasRows ? 10 : 0,
       });
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.trace_batch.input_bytes",
+        hasRows ? 5 : 0,
+      );
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.trace_batch.output_bytes",
+        hasRows ? 5 : 0,
+      );
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.trace_batch.metadata_bytes",
+        0,
+      );
       expect(recordDistribution).toHaveBeenCalledWith(
         "langfuse.trace_batch.found_project_count",
         Number(hasRows),

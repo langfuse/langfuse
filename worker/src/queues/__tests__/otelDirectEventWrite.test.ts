@@ -12,7 +12,7 @@ import { env } from "../../env";
 import { IngestionService } from "../../services/IngestionService";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
 import { fetchObservationEvalRules } from "../../features/evaluation/observationEval";
-import { trackTraceBatchActivity } from "../../features/traces/traceBatching";
+import { trackTraceBatchActivity } from "../../features/traceBatching/traceBatching";
 import {
   batchContainsLangfuseScope,
   checkHeaderBasedDirectWrite,
@@ -40,7 +40,7 @@ vi.mock(
     fetchObservationEvalRules: vi.fn(),
   }),
 );
-vi.mock("../../features/traces/traceBatching", () => ({
+vi.mock("../../features/traceBatching/traceBatching", () => ({
   trackTraceBatchActivity: vi.fn(),
 }));
 

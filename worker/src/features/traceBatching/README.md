@@ -55,9 +55,18 @@ enqueues before acknowledging matching revisions, so concurrent intake stays
 pending and failed enqueueing can be retried. Stable job IDs limit duplicates.
 
 The worker streams full `events_full` payloads and records batch observation,
-trace, project and logical payload-byte metrics. Exact `(projectId, traceId)`
+trace, project and logical payload-byte metrics. The `input_bytes`, `output_bytes`
+and `metadata_bytes` distributions under `langfuse.trace_batch` each report one
+total per completed batch read; `io_metadata_bytes` retains their combined total.
+Sizes count UTF-8 bytes, including metadata keys and values, excluding JSON
+transport framing/escaping and compression. They do not measure ClickHouse bytes
+scanned or per-trace ingestion size; retries can record another batch sample.
+Exact `(projectId, traceId)`
 pairs protect tenant boundaries; project, trace hash and a shared batch time
-window prune reads. Query limits are fixed at two threads and 30 seconds with
+window prune reads. `TRACE_QUERY_BUFFER_MS` pads the earliest and latest recorded
+start times by two minutes each. This fixed query margin can include observations
+outside the recorded bounds; it neither waits for arrivals nor guarantees trace
+completeness. Query limits are fixed at two threads and 30 seconds with
 timeouts failing the job. This baseline has no hash-locality grouping,
 per-trace windows, query tuning controls or allocation based on trace size.
 

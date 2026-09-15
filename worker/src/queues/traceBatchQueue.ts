@@ -39,17 +39,19 @@ export const traceBatchQueueProcessor: Processor<
   const foundTraces = new Set<string>();
   const foundProjects = new Set<string>();
   let observationCount = 0;
-  let ioMetadataBytes = 0;
+  let inputBytes = 0;
+  let outputBytes = 0;
+  let metadataBytes = 0;
 
   for await (const event of getTraceBatchEventStream(batch)) {
     observationCount++;
     foundTraces.add(JSON.stringify([event.project_id, event.trace_id]));
     foundProjects.add(event.project_id);
     // Logical UTF-8 payload size, excluding JSON transport and compression.
-    ioMetadataBytes +=
-      Buffer.byteLength(event.input) + Buffer.byteLength(event.output);
+    inputBytes += Buffer.byteLength(event.input);
+    outputBytes += Buffer.byteLength(event.output);
     for (const [key, value] of Object.entries(event.metadata)) {
-      ioMetadataBytes += Buffer.byteLength(key) + Buffer.byteLength(value);
+      metadataBytes += Buffer.byteLength(key) + Buffer.byteLength(value);
     }
   }
 
@@ -61,6 +63,10 @@ export const traceBatchQueueProcessor: Processor<
     "langfuse.trace_batch.found_trace_count",
     foundTraces.size,
   );
+  const ioMetadataBytes = inputBytes + outputBytes + metadataBytes;
+  recordDistribution("langfuse.trace_batch.input_bytes", inputBytes);
+  recordDistribution("langfuse.trace_batch.output_bytes", outputBytes);
+  recordDistribution("langfuse.trace_batch.metadata_bytes", metadataBytes);
   recordDistribution("langfuse.trace_batch.io_metadata_bytes", ioMetadataBytes);
   recordDistribution(
     "langfuse.trace_batch.found_project_count",
@@ -76,6 +82,9 @@ export const traceBatchQueueProcessor: Processor<
     observationCount,
     traceCount: foundTraces.size,
     projectCount: foundProjects.size,
+    inputBytes,
+    outputBytes,
+    metadataBytes,
     ioMetadataBytes,
   };
 };
