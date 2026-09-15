@@ -70,7 +70,7 @@ import { LargeStringFallback } from "@/src/components/ui/LargeStringFallback";
 const INDENTATION_PER_LEVEL = 16;
 /** Width in px reserved for the chevron column at level 0. */
 const INDENTATION_BASE = 16;
-const KEY_CLASSES = "text-muted-foreground text-sm wrap-break-word";
+const KEY_CLASSES = "text-muted-foreground text-sm/5 wrap-break-word";
 const CELL_CLASSES =
   "border-border/60 py-1 pr-2 pl-1 align-top whitespace-normal";
 
@@ -488,7 +488,7 @@ function JsonPrettyTable({
         // w-max keeps the column at the longest key (up to the cap) instead
         // of letting long values squeeze it to its narrowest wrap; the
         // floor keeps the value column at a steady x across stacked tables.
-        className="flex w-max max-w-[40cqw] min-w-40 items-start text-sm wrap-break-word"
+        className="flex w-max max-w-[40cqw] min-w-40 items-start text-sm/5 wrap-break-word"
       >
         <div
           // One key line tall (text-sm's line box, inherited from the key
