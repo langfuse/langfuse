@@ -70,6 +70,29 @@ completeness. Query limits are fixed at two threads and 30 seconds with
 timeouts failing the job. This baseline has no hash-locality grouping,
 per-trace windows, query tuning controls or allocation based on trace size.
 
+## Monitor dispatcher memory
+
+The baseline intentionally snapshots the complete ready cohort. Batch size limits
+jobs, not snapshot memory. Retain this behavior for the initial experiment and
+watch memory alongside backlog growth before deciding whether to add paging.
+
+The worker enables Datadog Node runtime metrics. In Metrics Explorer, filter to
+the experiment environment and worker service, and inspect the maximum per
+worker/container rather than a fleet average:
+
+- `runtime.node.mem.rss`: total process memory; compare with the container limit.
+- `runtime.node.mem.heap_used`: JavaScript heap in use.
+- `langfuse.trace_batch.snapshot_size`, `pending_traces`, `ready_traces` and
+  `oldest_due_age_ms`: snapshot and backlog growth.
+- `langfuse.periodic_runner.duration_ms` and `completed`, filtered by
+  `runner:trace_batch_dispatcher`: run duration and outcome.
+
+Runtime memory is shared with other work in the process, so correlation with
+dispatch runs does not isolate the dispatcher's allocations. Periodic sampling
+can miss short peaks, and `snapshot_size` is emitted only after parsing/sorting
+finishes. Check worker restarts/OOM events as well. Verify live metric delivery
+and available instance tags in Datadog before relying on these signals.
+
 ## Stop and drain
 
 Disable ingestion and dispatch to stop new work. Leave the consumer enabled and
