@@ -172,7 +172,6 @@ const MyApp: AppType<{ session: Session | null }> = ({
   );
 
   return (
-    // Referenced here so next/font ships the @font-face; _document alone does not.
     <div className={`${plexMono.variable} contents`}>
       {/* Replaces Next's default `width=device-width` (next/head dedupes by
           name). `maximum-scale=1` stops iOS Safari auto-zooming a focused
