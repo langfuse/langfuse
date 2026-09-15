@@ -231,3 +231,15 @@ export const eventsTableSingleFilter = z.discriminatedUnion("type", [
 ]);
 
 export const eventsTableFilterState = z.array(eventsTableSingleFilter);
+
+// Coercing choke point for the events-table filter variant, mirroring
+// `singleFilterList`. Prefer this over a bare `z.array(eventsTableSingleFilter)`
+// when parsing external input so legacy empty-substring metadata filters are
+// rewritten to `is set` instead of throwing at the SQL layer.
+export const eventsTableSingleFilterList = z.preprocess(
+  coerceLegacyEmptyMetadataFilters,
+  eventsTableFilterState,
+) as z.ZodType<
+  z.output<typeof eventsTableSingleFilter>[],
+  z.input<typeof eventsTableSingleFilter>[]
+>;

@@ -4,6 +4,7 @@ import {
   singleFilter,
   singleFilterList,
   eventsTableSingleFilter,
+  eventsTableSingleFilterList,
   coerceLegacyEmptyMetadataFilters,
 } from "./filters";
 
@@ -68,6 +69,31 @@ describe("singleFilterList", () => {
 
   it("leaves a non-empty substring filter untouched", () => {
     const result = singleFilterList.safeParse([
+      metadataFilter("contains", "x"),
+    ]);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data[0].operator).toBe("contains");
+    }
+  });
+});
+
+describe("eventsTableSingleFilterList", () => {
+  it.each(["contains", "starts with", "ends with"])(
+    "coerces a legacy empty-value %s metadata filter to `is set`",
+    (operator) => {
+      const result = eventsTableSingleFilterList.safeParse([
+        metadataFilter(operator, ""),
+      ]);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data[0].operator).toBe("is set");
+      }
+    },
+  );
+
+  it("leaves a non-empty substring filter untouched", () => {
+    const result = eventsTableSingleFilterList.safeParse([
       metadataFilter("contains", "x"),
     ]);
     expect(result.success).toBe(true);

@@ -5,7 +5,7 @@ import {
   type EventsObservation,
   OBSERVATION_FIELD_GROUPS_PUBLIC_API,
   ObservationLevel,
-  eventsTableSingleFilter,
+  eventsTableSingleFilterList,
   optionalCommaSeparatedStringArray,
   optionalJsonParam,
   paginationMetaResponseZod,
@@ -346,7 +346,7 @@ export const GetObservationsV2Query = z.object({
   environment: z.union([z.array(z.string()), z.string()]).nullish(),
   fromStartTime: stringDateTime.optional(),
   toStartTime: stringDateTime.optional(),
-  filter: optionalJsonParam(z.array(eventsTableSingleFilter), "filter"),
+  filter: optionalJsonParam(eventsTableSingleFilterList, "filter"),
 });
 
 /**
