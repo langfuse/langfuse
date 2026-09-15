@@ -117,6 +117,7 @@ import {
 import {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
+  buildEventsExactFilterOptionsForColumnsQuery,
   buildEventsMetadataValuesQuery,
   EVENTS_FILTER_OPTION_SAMPLE_ROWS,
   EVENTS_FILTER_OPTION_TOP_N,
@@ -2065,12 +2066,16 @@ type BuiltEventsFilterOptionColumnQuery = NonNullable<
 type BuiltEventsFilterOptionsForColumnsQuery = NonNullable<
   ReturnType<typeof buildEventsFilterOptionsForColumnsQuery>
 >;
+type BuiltEventsExactFilterOptionsForColumnsQuery = NonNullable<
+  ReturnType<typeof buildEventsExactFilterOptionsForColumnsQuery>
+>;
 
 const queryEventsFilterOptionRows = async (
   projectId: string,
   queryWithParams:
     | BuiltEventsFilterOptionColumnQuery
-    | BuiltEventsFilterOptionsForColumnsQuery,
+    | BuiltEventsFilterOptionsForColumnsQuery
+    | BuiltEventsExactFilterOptionsForColumnsQuery,
 ) => {
   return queryClickhouse<EventFilterOptionRow>({
     query: queryWithParams.query,
@@ -2144,6 +2149,30 @@ export const getEventsFilterOptionsForColumns = async (params: {
     limit: params.topN ?? EVENTS_FILTER_OPTION_TOP_N,
   });
 
+/** Exact per-column facets in one events_core scan: sumMap/countIf aggregate state fanned out with arrayJoin (no GROUP BY / UNION ALL). */
+export const getEventsExactFilterOptionsForColumns = async (params: {
+  projectId: string;
+  filter: FilterState;
+  columns: readonly EventFilterOptionColumn[];
+  topN?: number;
+  scope?: EventFilterOptionScope;
+}) => {
+  const queryWithParams = buildEventsExactFilterOptionsForColumnsQuery({
+    projectId: params.projectId,
+    filter: params.filter,
+    columns: params.columns,
+    limit: params.topN ?? EVENTS_FILTER_OPTION_TOP_N,
+    scope: params.scope,
+    sampleRows: EVENTS_FILTER_OPTION_SAMPLE_ROWS,
+  });
+
+  if (!queryWithParams) {
+    return [];
+  }
+
+  return queryEventsFilterOptionRows(params.projectId, queryWithParams);
+};
+
 // Unsampled: the cursor contract lets MCP agents page the true distinct set.
 export const getEventsFilterOptionValuesPage = async (params: {
   projectId: string;
@@ -2204,20 +2233,6 @@ const getSingleEventsFilterOptionColumn = async (
     scope: opts?.scope,
     sampleRows: EVENTS_FILTER_OPTION_SAMPLE_ROWS,
   });
-
-export const getEventsGroupedByTraceName = async (
-  projectId: string,
-  filter: FilterState,
-  opts?: GroupedEventsFilterOptions,
-) => {
-  const rows = await getSingleEventsFilterOptionColumn(
-    projectId,
-    filter,
-    "traceName",
-    opts,
-  );
-  return rows.map((row) => ({ traceName: row.value, count: row.count }));
-};
 
 export const getEventsGroupedByTraceTags = async (
   projectId: string,
