@@ -202,6 +202,7 @@ const events = {
     "empty_state_template_select",
     "empty_state_browse_library",
     "empty_state_detect_topics",
+    "code_editor_mode_switch",
     "alert_create_clicked",
   ],
   evaluation_rules: [

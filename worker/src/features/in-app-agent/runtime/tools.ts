@@ -135,15 +135,16 @@ export function withOptionalSilentMcpOutput(params: {
       }
 
       const { execute, inputSchema, toModelOutput } = tool;
+      const supportsSilentOutput = toolName !== "langfuse_testEvaluator";
 
-      if (inputSchema instanceof z.ZodObject) {
+      if (supportsSilentOutput && inputSchema instanceof z.ZodObject) {
         tool.inputSchema = inputSchema.extend({
           silent: z
             .boolean()
             .optional()
             .describe(SILENT_MCP_TOOL_PARAMETER_DESCRIPTION),
         });
-      } else {
+      } else if (supportsSilentOutput) {
         const jsonInputSchema = standardSchemaToJSONSchema(inputSchema);
         if (jsonInputSchema.type !== "object") {
           return [toolName, tool];
@@ -205,7 +206,7 @@ export function withOptionalSilentMcpOutput(params: {
         // Never silence a failure. A tool that reports its error in the result
         // (the MCP `isError` convention) would otherwise be collapsed to a
         // pointer at a tool_calls file that is deliberately not written.
-        if (failureMessage || !silent || !toolCallId) {
+        if (failureMessage || !supportsSilentOutput || !silent || !toolCallId) {
           return result;
         }
 

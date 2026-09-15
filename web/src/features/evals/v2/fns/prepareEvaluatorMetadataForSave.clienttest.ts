@@ -75,6 +75,26 @@ describe("prepareEvaluatorMetadataForSave", () => {
     expect(setDescription).not.toHaveBeenCalled();
   });
 
+  it("uses a fallback name when an Assistant handoff must persist a draft", async () => {
+    const setName = vi.fn();
+
+    await expect(
+      prepareEvaluatorMetadataForSave({
+        currentName: "",
+        currentDescription: "",
+        generateName: null,
+        generateDescription: null,
+        fallbackName: "Draft code evaluator",
+        setName,
+        setDescription: vi.fn(),
+      }),
+    ).resolves.toEqual({
+      name: "Draft code evaluator",
+      description: null,
+    });
+    expect(setName).toHaveBeenCalledWith("Draft code evaluator");
+  });
+
   it("fills only missing metadata without overwriting existing text", async () => {
     const generateName = vi.fn().mockResolvedValue("Generated name");
     const generateDescription = vi
