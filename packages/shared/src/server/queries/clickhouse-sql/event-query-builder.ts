@@ -1962,7 +1962,7 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
   prompts:
     "groupUniqArrayIf(tuple(e.prompt_name, e.prompt_version), e.prompt_name != '') AS prompts",
   experimentMetadata:
-    "anyIf(mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values), e.span_id = e.experiment_item_root_span_id) AS experiment_metadata",
+    "any(mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values)) AS experiment_metadata",
 
   // Metrics fields
   totalCost: "SUM(e.total_cost) AS total_cost",

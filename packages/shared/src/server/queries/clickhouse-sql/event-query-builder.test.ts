@@ -172,7 +172,7 @@ describe("buildEventsFullTableSplitQuery", () => {
 });
 
 describe("ExperimentsAggregationQueryBuilder", () => {
-  it("reads experiment-level attributes from experiment item root spans", () => {
+  it("reads non propagated experiment-level attributes from experiment item root spans", () => {
     const { query } = new ExperimentsAggregationQueryBuilder({
       projectId: "test-project",
     })
@@ -181,9 +181,6 @@ describe("ExperimentsAggregationQueryBuilder", () => {
 
     expect(query).toContain(
       "anyIf(e.experiment_description, e.span_id = e.experiment_item_root_span_id) AS experiment_description",
-    );
-    expect(query).toContain(
-      "anyIf(mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values), e.span_id = e.experiment_item_root_span_id) AS experiment_metadata",
     );
   });
 });
