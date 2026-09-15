@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { useRouter } from "next/router";
 import { toast } from "sonner";
@@ -39,6 +39,10 @@ import {
   type DisplayPlanTier,
   type PlanTier,
 } from "@/src/ee/features/billing/utils/planComparison";
+import {
+  BILLING_PLAN_DIALOG_QUERY,
+  hasBillingPlanDialogQuery,
+} from "@/src/ee/features/billing/utils/planDialogQuery";
 import { isUpgrade } from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -53,6 +57,7 @@ export function BillingSwitchPlanDialogController({
   children,
   source,
   disabled = false,
+  autoOpenFromQuery = false,
 }: {
   children: (control: {
     openDialog: () => void;
@@ -60,9 +65,33 @@ export function BillingSwitchPlanDialogController({
   }) => ReactNode;
   source: DialogSource;
   disabled?: boolean;
+  autoOpenFromQuery?: boolean;
 }) {
+  const router = useRouter();
   const capture = usePostHogClientCapture();
   const [openNonce, setOpenNonce] = useState(0);
+  const radixOpenRef = useRef<() => void>(() => {});
+  const consumedQueryRef = useRef(false);
+
+  useEffect(() => {
+    if (!autoOpenFromQuery || !router.isReady || consumedQueryRef.current) {
+      return;
+    }
+    if (!hasBillingPlanDialogQuery(router.query[BILLING_PLAN_DIALOG_QUERY])) {
+      return;
+    }
+
+    consumedQueryRef.current = true;
+    setOpenNonce((nonce) => nonce + 1);
+    capture("project_settings:pricing_dialog_opened", { source: "sidebar" });
+    radixOpenRef.current();
+
+    const rest = { ...router.query };
+    delete rest[BILLING_PLAN_DIALOG_QUERY];
+    router.replace({ pathname: router.pathname, query: rest }, undefined, {
+      shallow: true,
+    });
+  }, [autoOpenFromQuery, capture, router]);
 
   return (
     <DialogController
@@ -70,16 +99,17 @@ export function BillingSwitchPlanDialogController({
       size="xl"
       renderContent={() => <BillingSwitchPlanDialogContent key={openNonce} />}
     >
-      {({ openDialog }) =>
-        children({
+      {({ openDialog }) => {
+        radixOpenRef.current = openDialog;
+        return children({
           disabled,
           openDialog: () => {
             setOpenNonce((nonce) => nonce + 1);
             capture("project_settings:pricing_dialog_opened", { source });
             openDialog();
           },
-        })
-      }
+        });
+      }}
     </DialogController>
   );
 }

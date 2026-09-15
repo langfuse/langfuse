@@ -1,24 +1,31 @@
+import Link from "next/link";
 import { Sparkle } from "lucide-react";
 
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
-import { BillingSwitchPlanDialogController } from "@/src/ee/features/billing/components/BillingSwitchPlanDialog";
+import { billingPlanDialogHref } from "@/src/ee/features/billing/utils/planDialogQuery";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 
 export function UpgradePlanNavItem() {
-  // Do not close the mobile sidebar Sheet before opening. This item is a
-  // descendant of SheetContent; unmounting the Sheet would take the dialog
-  // with it. The dialog portals into the modal layer above the Sheet.
+  const { organization } = useQueryProjectOrOrganization();
+  const href = organization
+    ? billingPlanDialogHref(organization.id)
+    : undefined;
+
+  if (!href) {
+    return (
+      <SidebarMenuButton disabled tooltip="Upgrade Plan">
+        <Sparkle />
+        <span>Upgrade Plan</span>
+      </SidebarMenuButton>
+    );
+  }
+
   return (
-    <BillingSwitchPlanDialogController source="sidebar">
-      {({ openDialog, disabled }) => (
-        <SidebarMenuButton
-          disabled={disabled}
-          tooltip="Upgrade Plan"
-          onClick={openDialog}
-        >
-          <Sparkle />
-          <span>Upgrade Plan</span>
-        </SidebarMenuButton>
-      )}
-    </BillingSwitchPlanDialogController>
+    <SidebarMenuButton asChild tooltip="Upgrade Plan">
+      <Link href={href}>
+        <Sparkle />
+        <span>Upgrade Plan</span>
+      </Link>
+    </SidebarMenuButton>
   );
 }
