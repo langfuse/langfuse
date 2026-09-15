@@ -61,7 +61,10 @@ export const GetDatasetItemsMcpInput = GetDatasetItemsMcpRuntimeInput.refine(
 
 const DatasetItemMcpInput = z.object({
   input: z.any().optional(),
-  expectedOutput: z.any().optional(),
+  expectedOutput: z
+    .any()
+    .optional()
+    .describe("Omit to keep the existing value. Set to null to clear it."),
   metadata: z.any().optional(),
   id: publicApiIdSchema.optional(),
   sourceTraceId: z.string().optional(),
