@@ -9,6 +9,7 @@ import {
   Copy,
   BookOpenText,
   Loader2,
+  SquareArrowOutUpRight,
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
@@ -156,6 +157,8 @@ export type InAppAgentMessageProps = {
    * withholds the whole trailing row: copy, feedback, sources and timestamp. */
   isFinalAnswer?: boolean;
   timestamp?: number;
+  /** Internal-only deep link to the product trace for this turn. */
+  traceHref?: string;
   onSubmitFeedback?: (params: {
     value: InAppAgentMessageFeedbackValue | null;
     comment?: string | null;
@@ -169,6 +172,7 @@ export function InAppAgentMessage({
   isFeedbackDisabled = false,
   isFinalAnswer = true,
   timestamp,
+  traceHref,
   onSubmitFeedback,
 }: InAppAgentMessageProps) {
   if (content.type === "redirectAction") {
@@ -198,6 +202,7 @@ export function InAppAgentMessage({
         onSubmitFeedback={onSubmitFeedback}
         isFinalAnswer={isFinalAnswer}
         timestamp={timestamp}
+        traceHref={traceHref}
       />
     );
   }
@@ -258,12 +263,14 @@ function TextMessageWithActions({
   onSubmitFeedback,
   isFinalAnswer,
   timestamp,
+  traceHref,
 }: {
   content: Extract<InAppAgentMessageContent, { type: "text" }>;
   isCompact: boolean;
   isFeedbackDisabled: boolean;
   isFinalAnswer: boolean;
   timestamp?: number;
+  traceHref?: string;
   onSubmitFeedback?: (params: {
     value: InAppAgentMessageFeedbackValue | null;
     comment?: string | null;
@@ -326,6 +333,17 @@ function TextMessageWithActions({
       ) : null}
       {hasSources ? (
         <SourcesPopover sources={sources} isCompact={isCompact} />
+      ) : null}
+      {traceHref ? (
+        <SmartLink
+          href={traceHref}
+          className="text-muted-foreground/70 hover:text-muted-foreground focus-visible:ring-ring inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-[0.6875rem] outline-none focus-visible:ring-2"
+        >
+          <SquareArrowOutUpRight
+            className={cn(isCompact ? "size-3" : "size-3.5")}
+          />
+          Langfuse trace
+        </SmartLink>
       ) : null}
     </>
   );
