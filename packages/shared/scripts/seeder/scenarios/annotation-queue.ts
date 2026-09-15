@@ -21,7 +21,7 @@ import {
   SeedError,
   SeedSummary,
 } from "./types";
-import { countRows } from "./verify";
+import { annotationQueueLink, countRows } from "./verify";
 
 // ---------------------------------------------------------------------------
 // Score-config catalog — one of every shape the annotation form can render, so
@@ -170,9 +170,6 @@ const ANSWERS = [
   "Der Build schlug fehl; bitte erneut versuchen.",
   "1) Send the report 2) Schedule a follow-up call.",
 ] as const;
-
-const annotationQueueLink = (ctx: ScenarioContext, queueId: string): string =>
-  `${ctx.baseUrl}/project/${ctx.projectId}/annotation-queues/${encodeURIComponent(queueId)}/items`;
 
 const run = async (
   ctx: ScenarioContext,
