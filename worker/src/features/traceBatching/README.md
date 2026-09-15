@@ -135,6 +135,10 @@ set the read flag to `false` to complete and remove jobs without querying or
 parsing their payloads. Jobs at least two hours old are also discarded on pickup.
 Reads already in progress finish under their query timeout.
 
+On process shutdown, the dispatcher stops scheduling and waits up to five seconds
+for its active dispatch. If Redis stalls, it logs a warning and lets the remaining
+shutdown steps proceed. This timeout does not cancel an already issued Redis command.
+
 BullMQ waiting jobs have no autonomous TTL: disabling all consumers leaves them
 queued until consumption resumes. Draining requires an active, unpaused worker;
 delayed jobs become eligible later. Normal completed jobs retain IDs for up to
