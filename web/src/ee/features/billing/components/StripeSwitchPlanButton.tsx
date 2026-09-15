@@ -26,6 +26,8 @@ export const StripeSwitchPlanButton = ({
   stripeProductId,
   onProcessing,
   processing,
+  buttonLabel = "Change plan",
+  buttonVariant = "default",
 }: {
   orgId: string | undefined;
   currentPlan: keyof typeof planLabels | undefined;
@@ -35,6 +37,8 @@ export const StripeSwitchPlanButton = ({
   stripeProductId: string;
   onProcessing: (id: string | null) => void;
   processing: boolean;
+  buttonLabel?: string;
+  buttonVariant?: "default" | "secondary";
 }) => {
   const [_opId, setOpId] = useState<string | null>(null);
 
@@ -58,7 +62,9 @@ export const StripeSwitchPlanButton = ({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button className="w-full">Change plan</Button>
+        <Button className="w-full" variant={buttonVariant}>
+          {buttonLabel}
+        </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

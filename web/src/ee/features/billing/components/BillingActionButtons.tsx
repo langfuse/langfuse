@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { StripeCustomerPortalButton } from "./StripeCustomerPortalButton";
-import { BillingSwitchPlanDialog } from "./BillingSwitchPlanDialog";
+import { BillingSwitchPlanDialogController } from "./BillingSwitchPlanDialog";
 import { useBillingInformation } from "./useBillingInformation";
 import { StripeCancellationButton } from "./StripeCancellationButton";
 
@@ -54,7 +54,16 @@ export const BillingActionButtons = () => {
     <div className="mt-4 flex flex-col gap-2">
       <div className="flex flex-row items-center gap-2">
         {/* Always show – also for people who are currently on hobby plan */}
-        <BillingSwitchPlanDialog disabled={shouldDisableChangePlan} />
+        <BillingSwitchPlanDialogController
+          source="billing"
+          disabled={shouldDisableChangePlan}
+        >
+          {({ openDialog, disabled }) => (
+            <Button disabled={disabled} onClick={openDialog}>
+              Change plan
+            </Button>
+          )}
+        </BillingSwitchPlanDialogController>
 
         {organization && hasActiveSubscription && (
           <>

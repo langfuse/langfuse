@@ -1,43 +1,126 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
-// Langfuse Cloud only
-import { useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/router";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { nanoid } from "nanoid";
+import { useRouter } from "next/router";
+import { toast } from "sonner";
+import { type Plan } from "@langfuse/shared";
 
+import { ActionButton } from "@/src/components/ActionButton";
+import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
+  DialogBody,
+  DialogController,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
-  DialogBody,
 } from "@/src/components/ui/dialog";
-import { toast } from "sonner";
-
-// planLabels used inside StripeSwitchPlanButton
-import {
-  stripeProducts,
-  isUpgrade,
-} from "@/src/ee/features/billing/utils/stripeCatalogue";
-import { ActionButton } from "@/src/components/ActionButton";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { BillingSwitchPlanUsageBar } from "@/src/ee/features/billing/components/BillingSwitchPlanUsageBar";
+import { StripeCancellationButton } from "@/src/ee/features/billing/components/StripeCancellationButton";
+import { StripeKeepPlanButton } from "@/src/ee/features/billing/components/StripeKeepPlanButton";
+import { StripeSwitchPlanButton } from "@/src/ee/features/billing/components/StripeSwitchPlanButton";
 import { useBillingInformation } from "@/src/ee/features/billing/components/useBillingInformation";
+import {
+  MAX_EVENTS_FREE_PLAN,
+  PAID_PLAN_INCLUDED_UNITS,
+} from "@/src/ee/features/billing/constants";
+import {
+  additiveUpgradeFrom,
+  checkoutProductForTier,
+  DISPLAY_PLAN_TIERS,
+  getPlanComparison,
+  includingTeamsPriceLabel,
+  PAID_USAGE_OVERAGE_LABEL,
+  planChoiceReason,
+  planTierFromPlan,
+  planTierLabel,
+  suggestedUpgradeTier,
+  teamsAddonBenefitLines,
+  teamsAddonPriceLabel,
+  VOLUME_DISCOUNT_NOTE,
+  type DisplayPlanTier,
+  type PlanTier,
+} from "@/src/ee/features/billing/utils/planComparison";
+import {
+  BILLING_PLAN_DIALOG_QUERY,
+  hasBillingPlanDialogQuery,
+} from "@/src/ee/features/billing/utils/planDialogQuery";
+import { isUpgrade } from "@/src/ee/features/billing/utils/stripeCatalogue";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
-import { StripeCancellationButton } from "./StripeCancellationButton";
-import { StripeSwitchPlanButton } from "./StripeSwitchPlanButton";
-import { StripeKeepPlanButton } from "./StripeKeepPlanButton";
+import { cn } from "@/src/utils/tailwind";
 
-export const BillingSwitchPlanDialog = ({
+const PRICING_COMPARISON_HREF = "https://langfuse.com/pricing";
+
+type DialogSource = "sidebar" | "billing";
+
+export function BillingSwitchPlanDialogController({
+  children,
+  source,
   disabled = false,
+  autoOpenFromQuery = false,
 }: {
+  children: (control: {
+    openDialog: () => void;
+    disabled: boolean;
+  }) => ReactNode;
+  source: DialogSource;
   disabled?: boolean;
-}) => {
-  const [processingPlanId, setProcessingPlanId] = useState<string | null>(null);
-  const [_opId, setOpId] = useState<string | null>(null);
-
+  autoOpenFromQuery?: boolean;
+}) {
   const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const [openNonce, setOpenNonce] = useState(0);
+  const radixOpenRef = useRef<() => void>(() => {});
+  const consumedQueryRef = useRef(false);
+
+  useEffect(() => {
+    if (!autoOpenFromQuery || !router.isReady || consumedQueryRef.current) {
+      return;
+    }
+    if (!hasBillingPlanDialogQuery(router.query[BILLING_PLAN_DIALOG_QUERY])) {
+      return;
+    }
+
+    consumedQueryRef.current = true;
+    setOpenNonce((nonce) => nonce + 1);
+    capture("project_settings:pricing_dialog_opened", { source: "sidebar" });
+    radixOpenRef.current();
+
+    const rest = { ...router.query };
+    delete rest[BILLING_PLAN_DIALOG_QUERY];
+    router.replace({ pathname: router.pathname, query: rest }, undefined, {
+      shallow: true,
+    });
+  }, [autoOpenFromQuery, capture, router]);
+
+  return (
+    <DialogController
+      closeOnInteractionOutside={false}
+      size="xl"
+      renderContent={() => <BillingSwitchPlanDialogContent key={openNonce} />}
+    >
+      {({ openDialog }) => {
+        radixOpenRef.current = openDialog;
+        return children({
+          disabled,
+          openDialog: () => {
+            setOpenNonce((nonce) => nonce + 1);
+            capture("project_settings:pricing_dialog_opened", { source });
+            openDialog();
+          },
+        });
+      }}
+    </DialogController>
+  );
+}
+
+function BillingSwitchPlanDialogContent() {
+  const [processingPlanId, setProcessingPlanId] = useState<string | null>(null);
+  const [opId, setOpId] = useState<string | null>(null);
+  const router = useRouter();
+  const capture = usePostHogClientCapture();
   const {
     organization,
     cancellation,
@@ -45,8 +128,28 @@ export const BillingSwitchPlanDialog = ({
     isLegacySubscription,
     hasValidPaymentMethod,
     currentProductId,
-  } = useBillingInformation();
-  const capture = usePostHogClientCapture();
+  } = useBillingInformation({ silentQueryErrors: true });
+
+  const currentTier = planTierFromPlan(organization?.plan);
+  const [teamsAddonOn, setTeamsAddonOn] = useState(currentTier === "team");
+
+  const hasMemberRead = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organizationMembers:read",
+  });
+  const memberCount = api.members.allFromOrg.useQuery(
+    { orgId: organization?.id ?? "", page: 0, limit: 1 },
+    { enabled: Boolean(organization?.id) && hasMemberRead },
+  ).data?.totalCount;
+
+  const usage = api.cloudBilling.getUsage.useQuery(
+    { orgId: organization?.id ?? "" },
+    {
+      enabled: Boolean(organization?.id),
+      trpc: { context: { skipBatch: true } },
+      meta: { silentAllErrors: true },
+    },
+  );
 
   const mutCreateCheckoutSession =
     api.cloudBilling.createStripeCheckoutSession.useMutation({
@@ -62,250 +165,424 @@ export const BillingSwitchPlanDialog = ({
       },
     });
 
+  const hobbyPlanLimit =
+    organization?.cloudConfig?.monthlyObservationLimit ?? MAX_EVENTS_FREE_PLAN;
+  const includedUnits =
+    currentTier === "hobby" ? hobbyPlanLimit : PAID_PLAN_INCLUDED_UNITS;
+
+  const startCheckout = (stripeProductId: string) => {
+    if (!organization) return;
+    setProcessingPlanId(stripeProductId);
+    let nextOpId = opId;
+    if (!nextOpId) {
+      nextOpId = nanoid();
+      setOpId(nextOpId);
+    }
+    mutCreateCheckoutSession.mutate({
+      orgId: organization.id,
+      stripeProductId,
+      opId: nextOpId,
+    });
+  };
+
   return (
-    <Dialog
-      onOpenChange={(open) => {
-        if (open) {
-          capture("project_settings:pricing_dialog_opened");
-        }
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button disabled={disabled}>Change plan</Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-5xl">
-        <DialogHeader>
-          <div className="flex flex-row items-center justify-between">
+    <>
+      <DialogHeader>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
             <DialogTitle>Plans</DialogTitle>
-            <ActionButton
-              variant="secondary"
-              href="https://langfuse.com/pricing"
-            >
-              Comparison of plans ↗
-            </ActionButton>
+            <DialogDescription className="sr-only">
+              Compare included usage, history, limits, and support.
+            </DialogDescription>
           </div>
-        </DialogHeader>
-        <DialogBody>
-          <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
-            {stripeProducts
-              .filter((product) => Boolean(product.checkout))
-              .map((product) => {
-                const isThisUpgrade = currentProductId
-                  ? isUpgrade(currentProductId, product.stripeProductId)
-                  : true;
-                const isCurrentPlan =
-                  currentProductId === product.stripeProductId;
-
-                return (
-                  <div
-                    key={product.stripeProductId}
-                    className="bg-card relative flex flex-col rounded-xl border p-4 shadow-xs transition-all hover:shadow-md"
-                  >
-                    <div className="mb-4">
-                      {/* Labels above plan title */}
-                      <div className="mb-1 h-5 text-xs font-bold text-blue-700">
-                        {isCurrentPlan && <span>Current Plan</span>}
-                        {scheduledPlanSwitch &&
-                          scheduledPlanSwitch.newPlanId ===
-                            product.stripeProductId && (
-                            <span className="ml-1">Starts next period</span>
-                          )}
-                        {scheduledPlanSwitch &&
-                          currentProductId === product.stripeProductId && (
-                            <span className="ml-1">(Until next period)</span>
-                          )}
-                        {!scheduledPlanSwitch &&
-                          cancellation?.isCancelled &&
-                          currentProductId === product.stripeProductId && (
-                            <span className="ml-1">(Until next period)</span>
-                          )}
-                      </div>
-                      <h3 className="text-2xl font-bold">
-                        {product.checkout?.title}
-                      </h3>
-                      <div className="mt-4 space-y-1">
-                        <div className="text-primary text-2xl font-bold">
-                          {product.checkout?.price}
-                        </div>
-                        <div className="text-muted-foreground text-sm">
-                          + {product.checkout?.usagePrice},{" "}
-                          <a
-                            href="https://langfuse.com/pricing#pricing-calculator"
-                            target="_blank"
-                            rel="noreferrer"
-                            className="underline"
-                          >
-                            usage calculator ↗
-                          </a>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-muted-foreground mb-4 text-sm">
-                      {product.checkout?.description}
-                    </div>
-                    <div className="space-y-2">
-                      <div className="text-sm font-bold">Main features:</div>
-                      <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
-                        {product.checkout?.mainFeatures.map(
-                          (feature, index) => (
-                            <li key={index}>{feature}</li>
-                          ),
-                        )}
-                      </ul>
-                    </div>
-                    <p className="text-muted-foreground mt-auto pt-4 text-xs">
-                      *price per 100k drops with increasing usage
-                    </p>
-                    <Link
-                      href="https://langfuse.com/pricing"
-                      target="_blank"
-                      className="text-muted-foreground hover:text-foreground block py-4 text-sm"
-                    >
-                      Learn more about this plan →
-                    </Link>
-                    {/* The default behavior the user is on a paid plan.*/}
-                    {currentProductId ? (
-                      // Change plan view
-                      <div className="mt-2 space-y-2">
-                        {isCurrentPlan && (
-                          <>
-                            {/* Reactivate button when cancellation is scheduled on current plan */}
-                            {cancellation?.isCancelled && (
-                              <StripeCancellationButton
-                                orgId={organization?.id}
-                                variant="default"
-                                className="w-full"
-                              />
-                            )}
-                            {!cancellation?.isCancelled &&
-                              scheduledPlanSwitch && (
-                                <StripeKeepPlanButton
-                                  orgId={organization?.id}
-                                  stripeProductId={product.stripeProductId}
-                                  onProcessing={setProcessingPlanId}
-                                  processing={
-                                    processingPlanId === product.stripeProductId
-                                  }
-                                />
-                              )}
-                            {!cancellation?.isCancelled &&
-                              !scheduledPlanSwitch && (
-                                <Button className="w-full" disabled>
-                                  {!hasValidPaymentMethod
-                                    ? "Payment method required"
-                                    : "Current plan"}
-                                </Button>
-                              )}
-                          </>
-                        )}
-                        {/* A downgrade is scheduled and this is the new plan */}
-                        {!isCurrentPlan &&
-                          scheduledPlanSwitch &&
-                          scheduledPlanSwitch.newPlanId ===
-                            product.stripeProductId && (
-                            <Button className="w-full" disabled>
-                              Scheduled
-                            </Button>
-                          )}
-
-                        {/* A downgrade is scheduled and this is not the new plan and not the current plan*/}
-                        {!isCurrentPlan &&
-                          scheduledPlanSwitch &&
-                          scheduledPlanSwitch.newPlanId !==
-                            product.stripeProductId &&
-                          (hasValidPaymentMethod ? (
-                            <StripeSwitchPlanButton
-                              orgId={organization?.id}
-                              currentPlan={organization?.plan}
-                              newPlanTitle={product.checkout?.title}
-                              isLegacySubscription={isLegacySubscription}
-                              isUpgrade={isThisUpgrade}
-                              stripeProductId={product.stripeProductId}
-                              onProcessing={setProcessingPlanId}
-                              processing={
-                                processingPlanId === product.stripeProductId
-                              }
-                            />
-                          ) : (
-                            <Button className="w-full" disabled>
-                              Payment method required
-                            </Button>
-                          ))}
-
-                        {/* The default behavior when it is not the current plan and no schedule exists*/}
-                        {!isCurrentPlan &&
-                          !scheduledPlanSwitch &&
-                          (hasValidPaymentMethod ? (
-                            <StripeSwitchPlanButton
-                              orgId={organization?.id}
-                              currentPlan={organization?.plan}
-                              newPlanTitle={product.checkout?.title}
-                              isLegacySubscription={isLegacySubscription}
-                              isUpgrade={isThisUpgrade}
-                              stripeProductId={product.stripeProductId}
-                              onProcessing={setProcessingPlanId}
-                              processing={
-                                processingPlanId === product.stripeProductId
-                              }
-                            />
-                          ) : (
-                            <Button className="w-full" disabled>
-                              Payment method required
-                            </Button>
-                          ))}
-                      </div>
-                    ) : (
-                      // The default behavior when the user is not on a paid plan.
-                      <div className="mt-2 flex gap-1">
-                        <div className="grid w-full">
-                          <ActionButton
-                            onClick={() => {
-                              if (organization) {
-                                setProcessingPlanId(product.stripeProductId);
-
-                                // idempotency key for mutation operations with the stripe api
-                                let opId = _opId;
-                                if (!opId) {
-                                  opId = nanoid();
-                                  setOpId(opId);
-                                }
-
-                                mutCreateCheckoutSession.mutate({
-                                  orgId: organization.id,
-                                  stripeProductId: product.stripeProductId,
-                                  opId: opId,
-                                });
-                              }
-                            }}
-                            disabled={
-                              currentProductId === product.stripeProductId
-                            }
-                            loading={
-                              processingPlanId === product.stripeProductId
-                            }
-                          >
-                            {product.checkout?.cta ? "Select" : "Select plan"}
-                          </ActionButton>
-                        </div>
-                        {/* Optional checkout CTA button for non-paid plan users */}
-                        {product.checkout?.cta && (
-                          <div className="grid w-full">
-                            <ActionButton
-                              variant="secondary"
-                              href={product.checkout.cta.href}
-                            >
-                              {product.checkout.cta.label}
-                            </ActionButton>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-          </div>
-        </DialogBody>
-      </DialogContent>
-    </Dialog>
+          <ActionButton variant="secondary" href={PRICING_COMPARISON_HREF}>
+            Full comparison of plans
+          </ActionButton>
+        </div>
+        <BillingSwitchPlanUsageBar
+          includedUnits={includedUnits}
+          usage={usage.data ?? undefined}
+          usageLoading={usage.isLoading}
+          usageError={usage.isError}
+        />
+      </DialogHeader>
+      <DialogBody>
+        <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {DISPLAY_PLAN_TIERS.map((displayTier) => (
+            <PlanCard
+              key={displayTier}
+              displayTier={displayTier}
+              currentTier={currentTier}
+              hobbyPlanLimit={hobbyPlanLimit}
+              teamsAddonOn={teamsAddonOn}
+              onTeamsAddonChange={(enabled) => {
+                setTeamsAddonOn(enabled);
+                capture("billing:teams_addon_toggled", { enabled });
+              }}
+              memberCount={memberCount}
+              currentProductId={currentProductId}
+              hasValidPaymentMethod={hasValidPaymentMethod}
+              isLegacySubscription={isLegacySubscription}
+              cancellationScheduled={Boolean(cancellation?.isCancelled)}
+              scheduledNewPlanId={scheduledPlanSwitch?.newPlanId ?? null}
+              orgId={organization?.id}
+              currentPlan={organization?.plan}
+              processingPlanId={processingPlanId}
+              onProcessing={setProcessingPlanId}
+              onCheckout={startCheckout}
+            />
+          ))}
+        </div>
+        <p className="text-muted-foreground mt-3 text-xs">
+          {VOLUME_DISCOUNT_NOTE}
+        </p>
+      </DialogBody>
+    </>
   );
-};
+}
+
+function PlanCard({
+  displayTier,
+  currentTier,
+  hobbyPlanLimit,
+  teamsAddonOn,
+  onTeamsAddonChange,
+  memberCount,
+  currentProductId,
+  hasValidPaymentMethod,
+  isLegacySubscription,
+  cancellationScheduled,
+  scheduledNewPlanId,
+  orgId,
+  currentPlan,
+  processingPlanId,
+  onProcessing,
+  onCheckout,
+}: {
+  displayTier: DisplayPlanTier;
+  currentTier: PlanTier;
+  hobbyPlanLimit: number;
+  teamsAddonOn: boolean;
+  onTeamsAddonChange: (enabled: boolean) => void;
+  memberCount?: number;
+  currentProductId: string | null;
+  hasValidPaymentMethod: boolean;
+  isLegacySubscription: boolean;
+  cancellationScheduled: boolean;
+  scheduledNewPlanId: string | null;
+  orgId: string | undefined;
+  currentPlan: Plan | undefined;
+  processingPlanId: string | null;
+  onProcessing: (id: string | null) => void;
+  onCheckout: (stripeProductId: string) => void;
+}) {
+  const targetTier: PlanTier =
+    displayTier === "pro" && teamsAddonOn ? "team" : displayTier;
+  const listTier: PlanTier = displayTier === "pro" ? "pro" : displayTier;
+  const comparison =
+    currentTier === targetTier
+      ? getPlanComparison({
+          currentTier: listTier,
+          targetTier: listTier,
+        })
+      : getPlanComparison({
+          currentTier,
+          targetTier: listTier,
+          memberCount,
+          upgradeFrom: additiveUpgradeFrom(displayTier) ?? undefined,
+        });
+  const product =
+    targetTier === "hobby" ? undefined : checkoutProductForTier(targetTier);
+  const isCurrentDisplay =
+    displayTier === "pro"
+      ? currentTier === "pro" || currentTier === "team"
+      : currentTier === displayTier;
+  const isCurrentTarget = currentTier === targetTier;
+  const suggested = suggestedUpgradeTier(currentTier);
+  const isSuggested =
+    suggested === displayTier ||
+    (displayTier === "pro" && (suggested === "pro" || suggested === "team"));
+  const scheduledHere =
+    Boolean(product) && scheduledNewPlanId === product?.stripeProductId;
+  const hobbyScheduled = displayTier === "hobby" && cancellationScheduled;
+  const choiceReason = planChoiceReason(displayTier);
+
+  const priceLabel =
+    displayTier === "hobby"
+      ? "Free"
+      : displayTier === "pro" && teamsAddonOn
+        ? includingTeamsPriceLabel()
+        : (product?.checkout?.price ?? "");
+
+  const usageLabel =
+    displayTier === "hobby"
+      ? `${hobbyPlanLimit.toLocaleString("en-US")} units included`
+      : `${PAID_PLAN_INCLUDED_UNITS.toLocaleString("en-US")} units included`;
+
+  const usageDetail =
+    displayTier === "hobby"
+      ? "No additional usage — capped"
+      : PAID_USAGE_OVERAGE_LABEL;
+
+  return (
+    <div
+      className={cn(
+        "bg-card relative flex h-full flex-col rounded-xl border p-4",
+        isCurrentDisplay && "border-border",
+        isSuggested && "border-primary border-2",
+      )}
+    >
+      <div className="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1">
+        <h3 className="text-2xl font-bold">{planTierLabel(displayTier)}</h3>
+        {isCurrentTarget ? (
+          <Badge variant="secondary" size="sm">
+            Current plan
+          </Badge>
+        ) : null}
+        {isSuggested ? <Badge size="sm">Recommended upgrade</Badge> : null}
+        {scheduledHere || hobbyScheduled ? (
+          <Badge variant="outline-solid" size="sm">
+            Starts next period
+          </Badge>
+        ) : null}
+      </div>
+      <p className="mt-2 text-2xl font-bold">{priceLabel}</p>
+      <p className="text-muted-foreground mt-1 text-sm">{usageLabel}</p>
+      <p className="text-muted-foreground text-sm">{usageDetail}</p>
+      <p className="mt-2 min-h-10 text-sm">{choiceReason}</p>
+      <div className="mt-3 flex-1 border-t pt-3">
+        <p className="mb-2 text-xs font-bold tracking-wide uppercase">
+          {comparison.heading}
+        </p>
+        <ul className="space-y-1.5 text-sm">
+          {comparison.lines.map((line) => (
+            <li key={line.text} className="flex gap-2">
+              {line.polarity === "plus" || line.polarity === "minus" ? (
+                <span className="w-3 shrink-0 font-bold">
+                  {line.polarity === "plus" ? "+" : "−"}
+                </span>
+              ) : null}
+              <span className="text-muted-foreground">{line.text}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="mt-auto pt-4">
+        {displayTier === "pro" ? (
+          <div className="mb-3 rounded-lg border px-3 py-2">
+            <label className="flex items-center justify-between gap-3">
+              <span className="text-sm">
+                <span className="font-bold">Teams add-on</span>
+                <span className="text-muted-foreground">
+                  {" "}
+                  · {teamsAddonPriceLabel()}
+                </span>
+              </span>
+              <Switch
+                size="sm"
+                checked={teamsAddonOn}
+                onCheckedChange={onTeamsAddonChange}
+              />
+            </label>
+            <p className="text-muted-foreground mt-1 text-xs">
+              {teamsAddonBenefitLines().join(" · ")}
+            </p>
+          </div>
+        ) : null}
+        <PlanCardAction
+          displayTier={displayTier}
+          targetTier={targetTier}
+          isCurrentTarget={isCurrentTarget}
+          isSuggested={isSuggested}
+          productId={product?.stripeProductId ?? null}
+          productTitle={product?.checkout?.title}
+          currentProductId={currentProductId}
+          hasValidPaymentMethod={hasValidPaymentMethod}
+          isLegacySubscription={isLegacySubscription}
+          cancellationScheduled={cancellationScheduled}
+          scheduledNewPlanId={scheduledNewPlanId}
+          orgId={orgId}
+          currentPlan={currentPlan}
+          processingPlanId={processingPlanId}
+          onProcessing={onProcessing}
+          onCheckout={onCheckout}
+        />
+      </div>
+    </div>
+  );
+}
+
+function PlanCardAction({
+  displayTier,
+  targetTier,
+  isCurrentTarget,
+  isSuggested,
+  productId,
+  productTitle,
+  currentProductId,
+  hasValidPaymentMethod,
+  isLegacySubscription,
+  cancellationScheduled,
+  scheduledNewPlanId,
+  orgId,
+  currentPlan,
+  processingPlanId,
+  onProcessing,
+  onCheckout,
+}: {
+  displayTier: DisplayPlanTier;
+  targetTier: PlanTier;
+  isCurrentTarget: boolean;
+  isSuggested: boolean;
+  productId: string | null;
+  productTitle: string | undefined;
+  currentProductId: string | null;
+  hasValidPaymentMethod: boolean;
+  isLegacySubscription: boolean;
+  cancellationScheduled: boolean;
+  scheduledNewPlanId: string | null;
+  orgId: string | undefined;
+  currentPlan: Plan | undefined;
+  processingPlanId: string | null;
+  onProcessing: (id: string | null) => void;
+  onCheckout: (stripeProductId: string) => void;
+}) {
+  const isThisUpgrade =
+    currentProductId && productId
+      ? isUpgrade(currentProductId, productId)
+      : true;
+  const processingKey = productId ?? "hobby";
+  const processing = processingPlanId === processingKey;
+  const continueLabel = `Continue with ${planTierLabel(targetTier)} →`;
+  const downgradeLabel = `Downgrade to ${planTierLabel(targetTier)}`;
+  const salesHref = checkoutProductForTier("enterprise")?.checkout?.cta?.href;
+
+  if (displayTier === "hobby") {
+    if (currentTierIsHobby(currentProductId)) {
+      return (
+        <Button className="w-full" disabled>
+          Current plan
+        </Button>
+      );
+    }
+    if (cancellationScheduled) {
+      return (
+        <Button className="w-full" disabled>
+          Scheduled
+        </Button>
+      );
+    }
+    return (
+      <StripeCancellationButton
+        orgId={orgId}
+        variant="secondary"
+        className="w-full"
+        label={downgradeLabel}
+      />
+    );
+  }
+
+  if (!productId) {
+    return (
+      <Button className="w-full" disabled>
+        Unavailable
+      </Button>
+    );
+  }
+
+  if (isCurrentTarget) {
+    if (cancellationScheduled) {
+      return (
+        <StripeCancellationButton
+          orgId={orgId}
+          variant="default"
+          className="w-full"
+        />
+      );
+    }
+    if (scheduledNewPlanId) {
+      return (
+        <StripeKeepPlanButton
+          orgId={orgId}
+          stripeProductId={productId}
+          onProcessing={onProcessing}
+          processing={processing}
+        />
+      );
+    }
+    return (
+      <Button className="w-full" disabled>
+        {!hasValidPaymentMethod && currentProductId
+          ? "Payment method required"
+          : "Current plan"}
+      </Button>
+    );
+  }
+
+  if (scheduledNewPlanId === productId) {
+    return (
+      <Button className="w-full" disabled>
+        Scheduled
+      </Button>
+    );
+  }
+
+  if (!currentProductId) {
+    return (
+      <div className="flex flex-col gap-2">
+        <ActionButton
+          onClick={() => onCheckout(productId)}
+          loading={processing}
+          variant={isSuggested ? "default" : "secondary"}
+        >
+          {continueLabel}
+        </ActionButton>
+        {displayTier === "enterprise" && salesHref ? (
+          <TalkToSalesLink href={salesHref} />
+        ) : null}
+      </div>
+    );
+  }
+
+  if (!hasValidPaymentMethod) {
+    return (
+      <Button className="w-full" disabled>
+        Payment method required
+      </Button>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <StripeSwitchPlanButton
+        orgId={orgId}
+        currentPlan={currentPlan}
+        newPlanTitle={productTitle}
+        isLegacySubscription={isLegacySubscription}
+        isUpgrade={isThisUpgrade}
+        stripeProductId={productId}
+        onProcessing={onProcessing}
+        processing={processing}
+        buttonLabel={isThisUpgrade ? continueLabel : downgradeLabel}
+        buttonVariant={isSuggested ? "default" : "secondary"}
+      />
+      {displayTier === "enterprise" && salesHref ? (
+        <TalkToSalesLink href={salesHref} />
+      ) : null}
+    </div>
+  );
+}
+
+function TalkToSalesLink({ href }: { href: string }) {
+  return (
+    <Button variant="link" asChild className="h-auto w-full p-0">
+      <a href={href} target="_blank" rel="noreferrer">
+        Talk to sales
+      </a>
+    </Button>
+  );
+}
+
+function currentTierIsHobby(currentProductId: string | null) {
+  return !currentProductId;
+}

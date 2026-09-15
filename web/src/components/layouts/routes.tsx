@@ -34,6 +34,7 @@ import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcu
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
+import { UpgradePlanNavItem } from "@/src/ee/features/billing/components/UpgradePlanNavItem";
 import { type ProductModule } from "@/src/ee/features/ui-customization/productModuleSchema";
 
 export enum RouteSection {
@@ -234,20 +235,12 @@ export const ROUTES: Route[] = [
   {
     title: "Upgrade Plan",
     icon: Sparkle,
-    pathname: "/project/[projectId]/settings/billing",
+    pathname: "",
     section: RouteSection.Secondary,
     entitlements: ["cloud-billing"],
     organizationRbacScope: "langfuseCloudBilling:CRUD",
     show: ({ organization }) => organization?.plan === "cloud:hobby",
-  },
-  {
-    title: "Upgrade Plan",
-    icon: Sparkle,
-    pathname: "/organization/[organizationId]/settings/billing",
-    section: RouteSection.Secondary,
-    entitlements: ["cloud-billing"],
-    organizationRbacScope: "langfuseCloudBilling:CRUD",
-    show: ({ organization }) => organization?.plan === "cloud:hobby",
+    menuNode: <UpgradePlanNavItem />,
   },
   {
     title: "Settings",
