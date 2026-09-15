@@ -95,10 +95,8 @@ describe("ModernSessionHeader", () => {
     render(<ModernSessionHeader {...defaultProps} />);
 
     // Metrics: counts and session duration as plain text, no pill box.
-    expect(screen.getByText("3")).toBeInTheDocument();
-    expect(screen.getByText("traces")).toBeInTheDocument();
-    expect(screen.getByText("7")).toBeInTheDocument();
-    expect(screen.getByText("spans")).toBeInTheDocument();
+    expect(screen.getByText("3 traces")).toBeInTheDocument();
+    expect(screen.getByText("7 spans")).toBeInTheDocument();
     // Latency is the median alone; p95 is no longer shown.
     expect(screen.getByTitle("Session duration")).toHaveTextContent("1.20s");
     expect(screen.queryByText(/p95/)).not.toBeInTheDocument();

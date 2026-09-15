@@ -97,13 +97,6 @@ type SessionHeaderDetail = {
   content: ReactNode;
 };
 
-/** Numbers carry the emphasis inside a metric; the words stay muted. */
-const MetricValue = ({ children }: { children: React.ReactNode }) => (
-  <span className="text-foreground">{children}</span>
-);
-
-const MetricDot = () => <span className="text-foreground-tertiary">·</span>;
-
 const scoreSearchValue = (
   score: Pick<WithStringifiedMetadata<ScoreDomain>, "stringValue" | "value">,
 ) => {
@@ -329,15 +322,11 @@ export function ModernSessionHeader({
       type: "traces",
       content: (
         <span className={METRIC_TEXT_CLASS}>
-          <span>
-            <MetricValue>{numberFormatter(countTraces, 0)}</MetricValue> traces
-          </span>
+          <span>{numberFormatter(countTraces, 0)} traces</span>
           {spanCount !== null ? (
             <>
-              <MetricDot />
-              <span>
-                <MetricValue>{numberFormatter(spanCount, 0)}</MetricValue> spans
-              </span>
+              <span>·</span>
+              <span>{numberFormatter(spanCount, 0)} spans</span>
             </>
           ) : null}
         </span>
@@ -353,9 +342,7 @@ export function ModernSessionHeader({
       content: (
         <span title="Session duration" className={METRIC_TEXT_CLASS}>
           <Clock className="size-3 shrink-0" aria-hidden />
-          <MetricValue>
-            {formatIntervalSeconds(sessionDurationMs / 1000)}
-          </MetricValue>
+          {formatIntervalSeconds(sessionDurationMs / 1000)}
         </span>
       ),
     });
