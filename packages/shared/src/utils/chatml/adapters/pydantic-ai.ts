@@ -213,12 +213,23 @@ function normalizeMessage(
 
   // User message with tool responses - split into separate tool messages
   if (message.role === "user" && toolResponses.length > 0) {
-    return toolResponses.map((tr) =>
+    const messages: Record<string, unknown>[] = toolResponses.map((tr) =>
       removeNullFields({
         role: "tool",
         ...tr,
       }),
     );
+    if (text) {
+      messages.push(
+        removeNullFields({
+          role: "user",
+          content: text,
+          ...thinkingFields,
+          ...rest,
+        }),
+      );
+    }
+    return messages;
   }
 
   // Regular text message (may include thinking for assistant messages)
