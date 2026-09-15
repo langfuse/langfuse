@@ -247,6 +247,7 @@ function apiKeyScope(
       accessLevel:
         principal.presentation === "publicKey" ? "scores" : "project",
       orgId: org.orgId,
+      organizationCreatedAt: org.organizationCreatedAt,
       plan: org.plan,
       rateLimitOverrides: org.rateLimitOverrides,
       apiKeyId: principal.apiKeyId,

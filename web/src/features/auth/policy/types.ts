@@ -39,6 +39,7 @@ export type Action = ProjectAction | OrganizationAction;
 /** PrincipalOrganization carries an org's static caps and its ingestion-suspension liveness state, enforced at the seam not the PDP. */
 export type PrincipalOrganization = {
   orgId: string;
+  organizationCreatedAt: string;
   plan: Plan;
   rateLimitOverrides: z.infer<typeof CloudConfigRateLimit>;
   projectIds: string[];

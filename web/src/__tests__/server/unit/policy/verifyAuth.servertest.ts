@@ -11,7 +11,10 @@ const {
   mockRecordCoverage,
   mockVerifyGatewayIngestionAuthorization,
 } = vi.hoisted(() => ({
-  env: { API_AUTH_MIGRATION: "legacy" as string },
+  env: {
+    API_AUTH_MIGRATION: "legacy" as string,
+    LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF: "2026-09-16T00:00:00.000Z",
+  },
   mockLegacyVerifyAuth: vi.fn(),
   mockEnforceProjectAuth: vi.fn(),
   mockDiffResults: vi.fn(),
