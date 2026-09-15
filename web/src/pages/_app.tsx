@@ -21,6 +21,7 @@ import { NextAdapterPagesWithReadyGuard } from "@/src/utils/nextAdapterPagesWith
 import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
+import { trialMonoFontClasses } from "@/src/styles/fonts";
 import { AppLayout } from "@/src/components/layouts/app-layout";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
@@ -146,6 +147,14 @@ const MyApp: AppType<{ session: Session | null }> = ({
   const skipAppLayout =
     "skipAppLayout" in Component && Component.skipAppLayout === true;
   const authBasePath = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`;
+
+  // next/font exposes each family through a class; putting them on <html>
+  // makes the `--font-*-mono` variables available without a wrapper element.
+  useEffect(() => {
+    document.documentElement.classList.add(...trialMonoFontClasses);
+    return () =>
+      document.documentElement.classList.remove(...trialMonoFontClasses);
+  }, []);
 
   useEffect(() => {
     // PostHog (cloud.langfuse.com)

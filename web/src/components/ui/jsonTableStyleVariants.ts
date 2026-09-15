@@ -184,6 +184,9 @@ export type JsonTableStyle = {
       title). False moves copy and expand all onto the table itself, revealed
       on hover. */
   headerWhenUntitled: boolean;
+  /** Value text tier. `sm` pairs text-sm keys with text-mono-sm values so
+      both columns share one line box. */
+  valueSize: "xs" | "sm";
   /** Keep the outer rounded box when a title frames the table. */
   boxUnderTitle: boolean;
   /** Width in px reserved for the chevron column at level 0. */
@@ -225,12 +228,14 @@ export type JsonTableStyle = {
 };
 
 const MONO_KEY = "font-mono text-xs wrap-break-word";
-// Keys one notch above text-xs (11.2px here): sans at the mono value's size
-// reads smaller than the mono glyphs next to it, 12px levels the x-heights.
-const QUIET_KEY = "text-muted-foreground text-[0.75rem] wrap-break-word";
+// Keys one step up the type scale (text-sm, 13.2px) from the mono values
+// (text-xs, 11.2px): sans at the value's size reads smaller than the mono
+// glyphs next to it.
+const QUIET_KEY = "text-muted-foreground text-sm wrap-break-word";
 
 const BASE_FLAGS = {
   headerWhenUntitled: true,
+  valueSize: "xs",
   zebra: false,
   leafDot: false,
   connector: false,
@@ -279,10 +284,11 @@ export const JSON_TABLE_STYLES: Record<JsonTableStyleVariant, JsonTableStyle> =
       layout: "columns",
       headerUnderTitle: false,
       headerWhenUntitled: false,
+      valueSize: "sm",
       boxUnderTitle: false,
       indentBase: 16,
       key: QUIET_KEY,
-      cell: "border-border/60 px-2 py-1 align-top whitespace-normal",
+      cell: "border-border/60 py-1 pr-2 pl-1 align-top whitespace-normal",
       keyColumn: "content",
       expandedParentSummary: true,
       breakKeysAtDots: true,
@@ -295,10 +301,11 @@ export const JSON_TABLE_STYLES: Record<JsonTableStyleVariant, JsonTableStyle> =
       layout: "columns",
       headerUnderTitle: false,
       headerWhenUntitled: false,
+      valueSize: "sm",
       boxUnderTitle: false,
       indentBase: 16,
       key: QUIET_KEY,
-      cell: "border-b-0 px-2 py-1 align-top whitespace-normal",
+      cell: "border-b-0 py-1 pr-2 pl-1 align-top whitespace-normal",
       keyColumn: "content",
       expandedParentSummary: true,
       breakKeysAtDots: true,
@@ -536,7 +543,79 @@ export function clearStoredJsonTableStyleVariants() {
   }
   writeStoredVariant(LEGACY_JSON_TABLE_STYLE_STORAGE_KEY, null);
   writeStoredClassMode(null);
+  writeStoredMonoFont(null);
   notifyChange();
+}
+
+/** Mono families under trial for JSON table values. `system` is the app's
+    stack; the others come from next/font variables set on <html>. */
+export const JSON_TABLE_MONO_FONTS = [
+  "system",
+  "plex",
+  "jetbrains",
+  "geist",
+] as const;
+export type JsonTableMonoFont = (typeof JSON_TABLE_MONO_FONTS)[number];
+
+export const JSON_TABLE_MONO_FONT_LABELS: Record<JsonTableMonoFont, string> = {
+  system: "System (SF Mono / Consolas)",
+  plex: "IBM Plex Mono",
+  jetbrains: "JetBrains Mono",
+  geist: "Geist Mono",
+};
+
+/** Tailwind arbitrary properties that swap `--font-mono` for one subtree. */
+export const JSON_TABLE_MONO_FONT_CLASSES: Record<JsonTableMonoFont, string> = {
+  system: "",
+  plex: "[--font-mono:var(--font-plex-mono),ui-monospace,monospace]",
+  jetbrains: "[--font-mono:var(--font-jetbrains-mono),ui-monospace,monospace]",
+  geist: "[--font-mono:var(--font-geist-mono),ui-monospace,monospace]",
+};
+
+const JSON_TABLE_MONO_FONT_STORAGE_KEY = "lf-json-mono";
+
+function isJsonTableMonoFont(value: unknown): value is JsonTableMonoFont {
+  return (
+    typeof value === "string" &&
+    (JSON_TABLE_MONO_FONTS as readonly string[]).includes(value)
+  );
+}
+
+function readStoredMonoFont(): JsonTableMonoFont {
+  if (typeof window === "undefined") return "system";
+  try {
+    const value = window.localStorage.getItem(JSON_TABLE_MONO_FONT_STORAGE_KEY);
+    return isJsonTableMonoFont(value) ? value : "system";
+  } catch {
+    return "system";
+  }
+}
+
+function writeStoredMonoFont(font: JsonTableMonoFont | null) {
+  try {
+    if (font && font !== "system") {
+      window.localStorage.setItem(JSON_TABLE_MONO_FONT_STORAGE_KEY, font);
+    } else {
+      window.localStorage.removeItem(JSON_TABLE_MONO_FONT_STORAGE_KEY);
+    }
+  } catch {
+    // Storage unavailable: the in-memory event still updates this tab.
+  }
+}
+
+/** Store the debug pick for the JSON table mono family. */
+export function writeStoredJsonTableMonoFont(font: JsonTableMonoFont) {
+  writeStoredMonoFont(font);
+  notifyChange();
+}
+
+function getServerMonoFont(): JsonTableMonoFont {
+  return "system";
+}
+
+/** Mono family for JSON table values, `system` unless the debug picker set one. */
+export function useJsonTableMonoFont(): JsonTableMonoFont {
+  return useSyncExternalStore(subscribe, readStoredMonoFont, getServerMonoFont);
 }
 
 function subscribe(onChange: () => void) {

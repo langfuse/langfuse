@@ -21,10 +21,8 @@ import { Button } from "@/src/components/ui/button";
 import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import {
-  Check,
   ChevronDown,
   ChevronRight,
-  Copy,
   UnfoldVertical,
   FoldVertical,
   Palette,
@@ -64,6 +62,12 @@ import {
   writeStoredJsonTableClassMode,
   writeStoredJsonTableStylePick,
   writeStoredJsonTableStyleVariant,
+  JSON_TABLE_MONO_FONTS,
+  JSON_TABLE_MONO_FONT_LABELS,
+  JSON_TABLE_MONO_FONT_CLASSES,
+  useJsonTableMonoFont,
+  writeStoredJsonTableMonoFont,
+  type JsonTableMonoFont,
 } from "@/src/components/ui/jsonTableStyleVariants";
 import { usePinnedJsonTableStyleVariant } from "@/src/components/ui/jsonViewPreference";
 import {
@@ -583,7 +587,7 @@ function JsonPrettyTable({
           // w-max keeps the column at the longest key (up to the cap) instead
           // of letting long values squeeze it to its narrowest wrap; the
           // floor keeps the value column at a steady x across stacked tables.
-          contentSizedKeys && "w-max max-w-[40cqw] min-w-[10rem]",
+          contentSizedKeys && "w-max max-w-[40cqw] min-w-40",
         )}
       >
         <div
@@ -617,7 +621,7 @@ function JsonPrettyTable({
                   toggleCellExpansion,
                 );
               }}
-              className="h-4 w-4 p-0"
+              className="text-muted-foreground hover:text-foreground h-4 w-4 p-0 hover:bg-transparent"
             >
               {row.getIsExpanded() ? (
                 <ChevronDown className="h-3 w-3" />
@@ -671,6 +675,7 @@ function JsonPrettyTable({
       metadataActions={metadataActions}
       collapsedPreview={style.collapsedPreview}
       expandedParentSummary={style.expandedParentSummary}
+      valueSize={style.valueSize}
     />
   );
 
@@ -960,62 +965,6 @@ function JsonPrettyTable({
   );
 }
 
-/** Copy and expand all for a table that renders without a header to host
-    them: no section title (MarkdownJsonViewHeader) and no Path / Value row.
-    Anchored to the table's top right corner, revealed on hover and on
-    keyboard focus. */
-function JsonTableHoverControls({
-  allRowsExpanded,
-  onToggleExpandAll,
-  onCopy,
-}: {
-  allRowsExpanded: boolean;
-  onToggleExpandAll: () => void;
-  onCopy: (event?: React.MouseEvent<HTMLButtonElement>) => void;
-}) {
-  const [isCopied, setIsCopied] = useState(false);
-  const expandLabel = allRowsExpanded ? "Collapse all rows" : "Expand all rows";
-
-  return (
-    <div className="bg-background absolute top-0.5 right-0.5 z-10 flex items-center gap-0.5 rounded-sm opacity-0 transition-opacity group-hover/json-table:opacity-100 focus-within:opacity-100">
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        type="button"
-        onClick={onToggleExpandAll}
-        className="hover:bg-border"
-        title={expandLabel}
-        aria-label={expandLabel}
-      >
-        {allRowsExpanded ? (
-          <FoldVertical className="h-3 w-3" />
-        ) : (
-          <UnfoldVertical className="h-3 w-3" />
-        )}
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        type="button"
-        onClick={(event) => {
-          setIsCopied(true);
-          onCopy(event);
-          setTimeout(() => setIsCopied(false), 1000);
-        }}
-        className="hover:bg-border"
-        title="Copy to clipboard"
-        aria-label="Copy to clipboard"
-      >
-        {isCopied ? (
-          <Check className="h-3 w-3" />
-        ) : (
-          <Copy className="h-3 w-3" />
-        )}
-      </Button>
-    </div>
-  );
-}
-
 /** One radio group of the debug menu: every style direction for `dataClass`. */
 function JsonTableStyleRadioGroup({
   dataClass,
@@ -1069,6 +1018,7 @@ function JsonTableStyleFinalistMenuContent({
   const auto =
     classMode === "shape" && ioStored === LONG_CONTENT_JSON_TABLE_STYLE_VARIANT;
   const hasStoredPick = useHasStoredJsonTableStylePick();
+  const monoFont = useJsonTableMonoFont();
   return (
     <>
       <DropdownMenuLabel>
@@ -1113,6 +1063,22 @@ function JsonTableStyleFinalistMenuContent({
           </span>
         </span>
       </DropdownMenuCheckboxItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
+        Mono font (values)
+      </DropdownMenuLabel>
+      <DropdownMenuRadioGroup
+        value={monoFont}
+        onValueChange={(next) =>
+          writeStoredJsonTableMonoFont(next as JsonTableMonoFont)
+        }
+      >
+        {JSON_TABLE_MONO_FONTS.map((font) => (
+          <DropdownMenuRadioItem key={font} value={font}>
+            {JSON_TABLE_MONO_FONT_LABELS[font]}
+          </DropdownMenuRadioItem>
+        ))}
+      </DropdownMenuRadioGroup>
       {hasStoredPick && (
         <>
           <DropdownMenuSeparator />
@@ -1347,6 +1313,7 @@ export function PrettyJsonView(props: {
   const styleVariantLocked =
     Boolean(props.lockStyleVariant) || pinnedStyleVariant !== null;
   const tableStyle = JSON_TABLE_STYLES[styleVariant];
+  const monoFont = useJsonTableMonoFont();
   const tableHasContentSizedKeys =
     tableStyle.layout === "columns" && tableStyle.keyColumn === "content";
   const showStylePicker = useShowJsonTableStylePicker() && !styleVariantLocked;
@@ -1770,9 +1737,6 @@ export function PrettyJsonView(props: {
     !isChatML &&
     !isMarkdown &&
     !emptyValueDisplay;
-  // The table is the only frame left: neither header can carry the controls.
-  const showTableHoverControls =
-    shouldUseTableView && untitledHeaderDropped && hideTableHeader;
 
   const getBackgroundColorClass = () =>
     cn(
@@ -1855,16 +1819,9 @@ export function PrettyJsonView(props: {
                 // containment zeroes this flex item's intrinsic width, so it
                 // takes the row width explicitly.
                 tableHasContentSizedKeys && "@container w-full",
-                showTableHoverControls && "group/json-table relative",
+                JSON_TABLE_MONO_FONT_CLASSES[monoFont],
               )}
             >
-              {showTableHoverControls ? (
-                <JsonTableHoverControls
-                  allRowsExpanded={allRowsExpanded}
-                  onToggleExpandAll={() => expandAllRef.current?.()}
-                  onCopy={handleOnCopy}
-                />
-              ) : null}
               {props.isLoading ? (
                 <Skeleton className="m-3 h-3 w-3/4" />
               ) : (

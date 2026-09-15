@@ -154,10 +154,17 @@
      text opts in via `font-bold` (the bold role) — never a raw number.
      Any other weight utility is drift (the theme-lab tool samples drift
      per token). */
-  --text-xs: 0.7rem;
+  --text-xs: 0.725rem;
   --text-xs--font-weight: var(--font-weight-regular);
   --text-sm: 0.825rem;
   --text-sm--font-weight: var(--font-weight-regular);
+  /* Mono partner of text-sm: mono glyphs read larger than sans at equal
+     size, so mono next to text-sm takes 12px with text-sm's line box, and
+     the two columns align on one baseline. Add text-mono-xs only when a
+     surface needs it. */
+  --text-mono-sm: 0.75rem;
+  --text-mono-sm--line-height: calc(var(--text-sm) * 10 / 7);
+  --text-mono-sm--font-weight: var(--font-weight-regular);
   --text-base: 0.9rem;
   --text-base--font-weight: var(--font-weight-regular);
   --text-lg: 1.1rem;

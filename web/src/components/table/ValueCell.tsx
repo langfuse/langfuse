@@ -38,7 +38,8 @@ export type MetadataFilterActions = {
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
 const MAX_CELL_DISPLAY_CHARS = 2000;
 const ARRAY_PREVIEW_ITEMS = 3;
-const MONO_TEXT_CLASSES = "font-mono text-xs wrap-break-word";
+const MONO_TEXT_CLASSES = "font-mono wrap-break-word";
+const VALUE_SIZE_CLASSES = { xs: "text-xs", sm: "text-mono-sm" } as const;
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
 
 function renderStringWithLinks(text: string): React.ReactNode {
@@ -143,11 +144,14 @@ function renderBracesPreview(value: unknown[] | Record<string, unknown>) {
   );
 }
 
-/** Muted "N keys" / "N items" shown by style directions on expanded parents. */
-function renderCountSummary(count: number, noun: "keys" | "items") {
+/** "N items" shown by style directions on expanded parents, in the same
+    mono preview style as the collapsed row so the two states read alike;
+    the chevron carries the open / closed distinction. Objects count keys
+    but say "items" too, matching the collapsed preview's wording. */
+function renderCountSummary(count: number) {
   return (
-    <span className="text-muted-foreground text-xs">
-      {count} {count === 1 ? noun.slice(0, -1) : noun}
+    <span className={PREVIEW_TEXT_CLASSES}>
+      {count} {count === 1 ? "item" : "items"}
     </span>
   );
 }
@@ -374,6 +378,7 @@ export const ValueCell = memo(
     metadataActions,
     collapsedPreview = "default",
     expandedParentSummary = false,
+    valueSize = "xs",
   }: {
     row: Row<JsonTableRow>;
     expandedCells: Set<string>;
@@ -385,6 +390,8 @@ export const ValueCell = memo(
     /** Expanded parents show a muted "N keys" / "N items" instead of an
         empty cell (style directions). */
     expandedParentSummary?: boolean;
+    /** Value text tier: `xs` (default) or `sm`, the mono partner of text-sm keys. */
+    valueSize?: keyof typeof VALUE_SIZE_CLASSES;
   }) => {
     const { value, type } = row.original;
     const cellId = `${row.id}-value`;
@@ -486,7 +493,7 @@ export const ValueCell = memo(
           if (hasVisibleChildRows) {
             return {
               content: expandedParentSummary
-                ? renderCountSummary((value as unknown[]).length, "items")
+                ? renderCountSummary((value as unknown[]).length)
                 : null,
               needsTruncation: false,
             };
@@ -509,7 +516,6 @@ export const ValueCell = memo(
               content: expandedParentSummary
                 ? renderCountSummary(
                     Object.keys(value as Record<string, unknown>).length,
-                    "keys",
                   )
                 : null,
               needsTruncation: false,
@@ -548,7 +554,13 @@ export const ValueCell = memo(
     const { content, needsTruncation } = getDisplayValue();
 
     return (
-      <div className={`${MONO_TEXT_CLASSES} group relative max-w-full`}>
+      <div
+        className={cn(
+          MONO_TEXT_CLASSES,
+          VALUE_SIZE_CLASSES[valueSize],
+          "group relative max-w-full",
+        )}
+      >
         <span className="cursor-text">{content}</span>
         {needsTruncation && !row.original.hasChildren && (
           <div
@@ -585,12 +597,12 @@ export const ValueCell = memo(
                   aria-label="Value actions"
                   title="Actions"
                   className={cn(
-                    "text-muted-foreground hover:text-foreground absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 p-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:bg-transparent",
+                    "text-muted-foreground hover:text-foreground absolute top-1/2 right-1 h-5 w-5 -translate-y-1/2 rounded-sm p-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:bg-transparent",
                     isOpen && "opacity-100",
                   )}
                   onClick={(event) => event.stopPropagation()}
                 >
-                  <EllipsisVertical className="h-3 w-3" />
+                  <EllipsisVertical className="h-3.5 w-3.5" />
                 </Button>
               </Trigger>
             )}
@@ -599,7 +611,7 @@ export const ValueCell = memo(
           <Button
             variant="ghost"
             size="icon"
-            className="text-muted-foreground hover:text-foreground absolute top-0 right-0 h-5 w-5 p-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:bg-transparent"
+            className="text-muted-foreground hover:text-foreground absolute top-0 right-0 h-5 w-5 rounded-sm p-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:bg-transparent"
             onClick={handleCopy}
             title="Copy value"
             aria-label="Copy cell value"
