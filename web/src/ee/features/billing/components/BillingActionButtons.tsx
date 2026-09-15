@@ -57,7 +57,6 @@ export const BillingActionButtons = () => {
         <BillingSwitchPlanDialogController
           source="billing"
           disabled={shouldDisableChangePlan}
-          autoOpenFromQuery
         >
           {({ openDialog, disabled }) => (
             <Button disabled={disabled} onClick={openDialog}>
