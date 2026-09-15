@@ -37,18 +37,10 @@ export async function register() {
 
   if (isNodeRuntime) {
     const { env } = await import("./env.mjs");
-    if (env.LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED === "true") {
-      const { preloadOtelIngestionWorkerShadow } =
-        await import("./server/otel/otelIngestionWorkerShadow");
-      try {
-        await preloadOtelIngestionWorkerShadow();
-      } catch (error) {
-        const { logger } = await import("@langfuse/shared/src/server");
-        logger.error(
-          "Failed to preload OTel ingestion worker shadow; shadow disabled",
-          error,
-        );
-      }
+    if (env.LANGFUSE_OTEL_INGESTION_USE_WORKER === "true") {
+      const { preloadOtelIngestionWorker } =
+        await import("./server/otel/otelIngestionWorkerPool");
+      await preloadOtelIngestionWorker();
     }
   }
 }
