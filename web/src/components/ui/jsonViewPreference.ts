@@ -28,17 +28,21 @@ export function normalizeJsonViewPreference(
     : DEFAULT_JSON_VIEW_PREFERENCE;
 }
 
-/** True for the Formatted view; only the two JSON views differ. */
+/** True for the Formatted view; only the two JSON views differ. Gates pane
+    layout, so json-beta counts as a JSON view: it fills the pane with the
+    advanced viewer rather than the Formatted table. */
 export function isPrettyLikeJsonView(view: JsonViewPreference): boolean {
   return view !== "json" && view !== "json-beta";
 }
 
 /** The two-state view that PrettyJsonView, MarkdownJsonView and the chat
-    renderer distinguish. */
+    renderer distinguish. Deliberately NOT isPrettyLikeJsonView: those
+    components have no advanced viewer, so only raw JSON renders as JSON and
+    json-beta falls back to the Formatted table. */
 export function toPrettyOrJsonView(
   view: JsonViewPreference,
 ): "pretty" | "json" {
-  return isPrettyLikeJsonView(view) ? "pretty" : "json";
+  return view === "json" ? "json" : "pretty";
 }
 
 /** Segment of the Formatted / JSON toggle that `view` selects (both JSON

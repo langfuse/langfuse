@@ -87,8 +87,9 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
       {jsonData && !isLoading && (
         <PrettyJsonView
           json={jsonData}
-          // PrettyJsonView only distinguishes pretty from json; json-beta and
-          // the pinned styles render as pretty.
+          // PrettyJsonView only distinguishes pretty from json. Rows are only
+          // expandable in table mode, which every view but raw JSON uses, so
+          // json-beta renders the Formatted table here.
           currentView={toPrettyOrJsonView(currentView)}
           isLoading={false}
           showNullValues={false}
