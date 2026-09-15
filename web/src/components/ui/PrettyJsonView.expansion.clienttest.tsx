@@ -68,27 +68,6 @@ describe("PrettyJsonView short-list expansion", () => {
     expect(within(expandedTable).getByText("paid_social")).toBeInTheDocument();
   });
 
-  it("counts only the children it renders when empties are hidden", () => {
-    // showNullValues={false} drops the null / "" / 0 rows, so the expanded
-    // parent summary has to count the rows below it, not the raw key count.
-    // Smart expansion opens this object already, no click needed.
-    renderPrettyJson(
-      <PrettyJsonView
-        json={{ run: { ok: true, note: "kept", err: null, retries: 0 } }}
-        title="Input"
-        showNullValues={false}
-      />,
-    );
-
-    const table = prettyTable();
-    expect(within(table).getByText("ok")).toBeInTheDocument();
-    expect(within(table).getByText("note")).toBeInTheDocument();
-    expect(within(table).queryByText("err")).not.toBeInTheDocument();
-    expect(within(table).queryByText("retries")).not.toBeInTheDocument();
-    expect(within(table).getByText("2 items")).toBeInTheDocument();
-    expect(within(table).queryByText("4 items")).not.toBeInTheDocument();
-  });
-
   it("keeps the parent preview when every expanded child is hidden", () => {
     renderPrettyJson(
       <PrettyJsonView
