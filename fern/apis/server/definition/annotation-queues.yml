@@ -39,6 +39,16 @@ service:
           docs: The unique identifier of the annotation queue
       response: AnnotationQueue
 
+    deleteQueue:
+      docs: Delete an annotation queue and (via Prisma cascade) all of its items and assignments
+      method: DELETE
+      path: /annotation-queues/{queueId}
+      path-parameters:
+        queueId:
+          type: string
+          docs: The unique identifier of the annotation queue
+      response: DeleteAnnotationQueueResponse
+
     listQueueItems:
       docs: Get items for a specific annotation queue
       method: GET
@@ -196,6 +206,11 @@ types:
         type: optional<AnnotationQueueStatus>
 
   DeleteAnnotationQueueItemResponse:
+    properties:
+      success: boolean
+      message: string
+
+  DeleteAnnotationQueueResponse:
     properties:
       success: boolean
       message: string
