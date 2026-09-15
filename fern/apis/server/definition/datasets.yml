@@ -13,6 +13,24 @@ service:
       request:
         name: GetDatasetsRequest
         query-parameters:
+          fromTimestamp:
+            type: optional<datetime>
+            docs: |
+              Optional ISO-8601 lower bound on the dataset row's `createdAt`
+              (inclusive). Omit for an open-ended start.
+              Pattern matches `GET /api/public/datasets` (PR #17002)
+              and the other v1 endpoints (comments PR #15692, models
+              PR #16952, llm-connections PR #17070, annotation-queues
+              PR #17090, score-configs PR #17100).
+          toTimestamp:
+            type: optional<datetime>
+            docs: |
+              Optional ISO-8601 upper bound on the dataset row's `createdAt`
+              (exclusive). Omit for an open-ended end.
+              Pattern matches `GET /api/public/datasets` (PR #17002)
+              and the other v1 endpoints (comments PR #15692, models
+              PR #16952, llm-connections PR #17070, annotation-queues
+              PR #17090, score-configs PR #17100).
           page:
             type: optional<integer>
             docs: page number, starts at 1
