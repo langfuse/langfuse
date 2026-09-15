@@ -58,7 +58,7 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 }));
 
 vi.mock("next/router", () => ({
-  useRouter: () => ({ asPath: "/" }),
+  useRouter: () => ({ asPath: "/", query: {} }),
 }));
 
 vi.mock("next-auth/react", () => ({
