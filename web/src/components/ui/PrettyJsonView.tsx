@@ -581,8 +581,9 @@ function JsonPrettyTable({
           "flex wrap-break-word",
           style.indentGuides ? "items-stretch" : "items-start",
           // w-max keeps the column at the longest key (up to the cap) instead
-          // of letting long values squeeze it to its narrowest wrap.
-          contentSizedKeys && "w-max max-w-[40cqw]",
+          // of letting long values squeeze it to its narrowest wrap; the
+          // floor keeps the value column at a steady x across stacked tables.
+          contentSizedKeys && "w-max max-w-[40cqw] min-w-[10rem]",
         )}
       >
         <div

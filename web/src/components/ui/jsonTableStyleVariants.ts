@@ -225,7 +225,9 @@ export type JsonTableStyle = {
 };
 
 const MONO_KEY = "font-mono text-xs wrap-break-word";
-const QUIET_KEY = "text-muted-foreground text-xs wrap-break-word";
+// Keys one notch above text-xs (11.2px here): sans at the mono value's size
+// reads smaller than the mono glyphs next to it, 12px levels the x-heights.
+const QUIET_KEY = "text-muted-foreground text-[0.75rem] wrap-break-word";
 
 const BASE_FLAGS = {
   headerWhenUntitled: true,
