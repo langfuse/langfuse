@@ -14,6 +14,7 @@ changes. These internal controls are intentionally absent from env templates.
 | `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`   | Register the batch worker.                                                                                 |
 | `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | `false`   | Allow the worker to query ClickHouse; otherwise discard jobs.                                              |
 | `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`          | `1`       | Fraction admitted by ingestion, from 0 to 1.                                                               |
+| `LANGFUSE_TRACE_BATCH_STRATEGY`               | `project` | Choose project-order packing or opt-in locality grouping.                                                  |
 | `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`      | Maximum traces per job, up to 10,000.                                                                      |
 | `LANGFUSE_TRACE_BATCH_MAX_THREADS`            | `2`       | ClickHouse threads per query (positive integer).                                                           |
 | `LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE`         | unset     | Optional positive `max_block_size` hint; unset inherits the server profile.                                |
@@ -100,10 +101,35 @@ With an experiment ID, each read attempt logs its label, build ID, configured
 threads/block size, batch size, concurrency, sampling and timing controls before
 querying, including failed attempts. The same ID enters ClickHouse
 `log_comment` alongside existing surface/route/project attribution. Leave the ID
-unset to suppress these per-attempt logs. Strategy attribution belongs to the
-separate locality change; this reader does not add a strategy control. Compare
+unset to suppress these per-attempt logs. Strategy attribution uses the
+dispatcher metrics described below. Compare
 query memory/latency and worker memory as well as input/output/metadata byte
 metrics. Redis storage load tests do not measure selector or query memory.
+
+### Opt-in locality grouping
+
+`LANGFUSE_TRACE_BATCH_STRATEGY=locality` changes grouping only after dispatch is
+explicitly enabled in a cloud region. The default `project` strategy preserves
+project ordering and carries unfinished jobs across hydration chunks.
+
+Locality sorts each hydrated window by project, minimum start minute, maximum
+start minute and `xxHash32(traceId)`. It finds the fewest feasible jobs under the
+trace cap and an event-time envelope of at most one hour, or 125% of the first
+trace's observed span if larger. Within that job count, it minimizes project
+boundaries, then minute × trace count, then gaps between trace hashes. These are
+read-locality proxies, not measured ClickHouse scan costs.
+
+Locality selections dispatch immediately per window of at most 1,000 candidates.
+Partials do not carry between windows, which can increase small jobs. The full
+ready-ID snapshot remains unchanged; only selector input is bounded. Selector
+cost is O(n × k × cap), where k is the fewest feasible jobs. Measure duration
+before increasing scale, especially with distant event times that force many jobs.
+
+Compare `dispatched_batches` (tags `strategy`, `fill`),
+`event_time_envelope_ms`, `observed_start_span_ms`, `candidate_buffer_size` and
+`selector_duration_ms` under `langfuse.trace_batch`. The envelope metric includes
+the reader's two-minute margin on each side; the selector's envelope limit does
+not. Payload and Redis state are unchanged.
 
 ## Monitor dispatcher memory
 
@@ -148,4 +174,5 @@ lazy retention rules. Drain and expired jobs are removed immediately on success.
 For an already enabled cloud experiment, explicitly set the new read flag to
 `true` when deploying this version if reads should continue; leaving it unset
 drains instead. Upgrade all producers before relying on native expiry: older
-producers do not install or refresh that TTL. Locality and load-test artifacts belong in separate follow-up changes.
+producers do not install or refresh that TTL. Locality partial carry and
+load-test artifacts belong in separate follow-up changes.

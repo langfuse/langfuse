@@ -26,6 +26,8 @@ import {
 import * as shared from "@langfuse/shared/src/server";
 import { env } from "../env";
 import {
+  selectTraceBatches,
+  type PendingTrace,
   trackTraceBatchActivity,
   TraceBatchDispatcher,
 } from "../features/traceBatching/traceBatching";
@@ -54,6 +56,221 @@ vi.mock("../features/evaluation/observationEval", async (importOriginal) => ({
   fetchObservationEvalRules: vi.fn().mockResolvedValue([]),
 }));
 
+describe("trace batch selection", () => {
+  const minute = 60_000;
+  const pendingTrace = (
+    projectId: string,
+    traceId: string,
+    due: number,
+    minStart: number,
+    maxStart: number,
+  ): PendingTrace => ({
+    member: JSON.stringify([projectId, traceId]),
+    due,
+    trace: {
+      projectId,
+      traceId,
+      minStart,
+      maxStart,
+      revision: `revision-${projectId}-${traceId}`,
+    },
+  });
+  const ids = (batches: PendingTrace[][]) =>
+    batches.map((batch) => batch.map(({ member }) => member));
+
+  it("orders batches by the events table locality key", () => {
+    const projectB = pendingTrace("project-b", "trace-1", 1, 0, minute);
+    const laterMinute = pendingTrace(
+      "project-a",
+      "trace-3",
+      2,
+      2 * minute,
+      3 * minute,
+    );
+    const widerRange = pendingTrace(
+      "project-a",
+      "trace-4",
+      3,
+      10_000,
+      2 * minute,
+    );
+    const trace0 = pendingTrace("project-a", "trace-0", 4, 20_000, 50_000);
+    const trace1 = pendingTrace("project-a", "trace-1", 5, 10_000, 50_000);
+
+    const batches = selectTraceBatches(
+      [projectB, laterMinute, widerRange, trace0, trace1],
+      2,
+      "locality",
+    );
+
+    expect(ids(batches)).toEqual([
+      [trace1.member, trace0.member],
+      [widerRange.member, laterMinute.member],
+      [projectB.member],
+    ]);
+  });
+
+  it("is independent of readiness and input order", () => {
+    const candidates = [
+      pendingTrace("project-b", "trace-3", 1, 10 * minute, 11 * minute),
+      pendingTrace("project-a", "trace-0", 4, 10 * minute, 11 * minute),
+      pendingTrace("project-a", "trace-1", 3, 10 * minute, 11 * minute),
+      pendingTrace("project-a", "trace-4", 2, 10 * minute, 11 * minute),
+    ];
+    const expected = selectTraceBatches(candidates, 3, "locality");
+
+    expect(expected.flat().map(({ trace }) => trace.traceId)).toEqual([
+      "trace-1",
+      "trace-0",
+      "trace-4",
+      "trace-3",
+    ]);
+    expect(selectTraceBatches(candidates.toReversed(), 3, "locality")).toEqual(
+      expected,
+    );
+  });
+
+  it("moves a batch boundary instead of bridging distant time ranges", () => {
+    const early = Array.from({ length: 59 }, (_, index) =>
+      pendingTrace("project", `early-${index}`, index, 0, minute),
+    );
+    const late = Array.from({ length: 60 }, (_, index) =>
+      pendingTrace(
+        "project",
+        `late-${index}`,
+        100 + index,
+        10_000 * minute,
+        10_001 * minute,
+      ),
+    );
+
+    const batches = selectTraceBatches([...late, ...early], 60, "locality");
+
+    expect(batches.map((batch) => batch.length)).toEqual([59, 60]);
+    expect(
+      batches[0].every(({ trace }) => trace.traceId.startsWith("early-")),
+    ).toBe(true);
+    expect(
+      batches[1].every(({ trace }) => trace.traceId.startsWith("late-")),
+    ).toBe(true);
+  });
+
+  it("avoids a cross-project fill when the same job count permits it", () => {
+    const projectA = Array.from({ length: 59 }, (_, index) =>
+      pendingTrace("project-a", `trace-${index}`, index, 0, minute),
+    );
+    const projectB = Array.from({ length: 60 }, (_, index) =>
+      pendingTrace("project-b", `trace-${index}`, 100 + index, 0, minute),
+    );
+
+    const batches = selectTraceBatches(
+      [...projectB, ...projectA],
+      60,
+      "locality",
+    );
+
+    expect(batches.map((batch) => batch.length)).toEqual([59, 60]);
+    expect(
+      batches.map(
+        (batch) => new Set(batch.map(({ trace }) => trace.projectId)).size,
+      ),
+    ).toEqual([1, 1]);
+  });
+
+  it("cuts at the largest trace-hash gap within one time range", () => {
+    const candidates = Array.from({ length: 5 }, (_, index) =>
+      pendingTrace("project", `trace-${index}`, index, 0, minute),
+    );
+
+    const batches = selectTraceBatches(candidates.toReversed(), 3, "locality");
+
+    expect(
+      batches.map((batch) => batch.map(({ trace }) => trace.traceId)),
+    ).toEqual([
+      ["trace-1", "trace-0"],
+      ["trace-4", "trace-2", "trace-3"],
+    ]);
+  });
+
+  it("splits distant narrow traces rather than sharing one envelope", () => {
+    const candidates = Array.from({ length: 3 }, (_, index) =>
+      pendingTrace(
+        "project",
+        `day-${index}`,
+        index,
+        index * 3 * 60 * minute,
+        index * 3 * 60 * minute + minute,
+      ),
+    );
+
+    expect(ids(selectTraceBatches(candidates, 60, "locality"))).toEqual(
+      candidates.map((candidate) => [candidate.member]),
+    );
+  });
+
+  it("preserves uneven cohorts separated by mandatory envelope boundaries", () => {
+    const cohorts = [2, 1, 4, 2].map((size, cohort) =>
+      Array.from({ length: size }, (_, index) => {
+        const start = (cohort * 120 + index) * minute;
+        return pendingTrace(
+          "project",
+          `cohort-${cohort}-${index}`,
+          index,
+          start,
+          start + minute,
+        );
+      }),
+    );
+
+    for (const cap of [4, 9]) {
+      expect(
+        ids(selectTraceBatches(cohorts.flat().toReversed(), cap, "locality")),
+      ).toEqual(ids(cohorts));
+    }
+  });
+
+  it("bounds chained wide-trace expansion relative to the batch seed", () => {
+    const seed = pendingTrace("project", "seed", 1, 0, 120 * minute);
+    const compatible = pendingTrace(
+      "project",
+      "compatible",
+      2,
+      0,
+      144 * minute,
+    );
+    const wouldChain = pendingTrace(
+      "project",
+      "would-chain",
+      3,
+      0,
+      168 * minute,
+    );
+
+    const batches = selectTraceBatches(
+      [wouldChain, compatible, seed],
+      60,
+      "locality",
+    );
+
+    expect(batches.flat()).toHaveLength(3);
+    expect(
+      batches.some((batch) => {
+        const ids = new Set(batch.map(({ member }) => member));
+        return ids.has(seed.member) && ids.has(wouldChain.member);
+      }),
+    ).toBe(false);
+    expect(
+      batches.every((batch) => {
+        const union =
+          Math.max(...batch.map(({ trace }) => trace.maxStart)) -
+          Math.min(...batch.map(({ trace }) => trace.minStart));
+        const seedSpan = batch[0].trace.maxStart - batch[0].trace.minStart;
+        return union <= Math.max(60 * minute, seedSpan * 1.25);
+      }),
+    ).toBe(true);
+  });
+});
+
 describe("trace micro-batch scheduling with Redis", () => {
   const dueKey = "{trace-batch}:due";
   const stateKey = "{trace-batch}:state";
@@ -62,6 +279,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   const originalDispatcherEnabled = env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED;
   const originalReadEnabled = env.LANGFUSE_TRACE_BATCH_READ_ENABLED;
   const originalSamplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
+  const originalStrategy = env.LANGFUSE_TRACE_BATCH_STRATEGY;
   const originalMaxSize = env.LANGFUSE_TRACE_BATCH_MAX_SIZE;
   const originalPendingTtl = env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS;
   const originalIdle = env.LANGFUSE_TRACE_BATCH_IDLE_MS;
@@ -98,6 +316,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "true";
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 1;
+    env.LANGFUSE_TRACE_BATCH_STRATEGY = "project";
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 60;
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 7_200_000;
     await client().del(dueKey, stateKey, "{trace-batch}:dispatcher");
@@ -120,6 +339,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED = originalDispatcherEnabled;
     env.LANGFUSE_TRACE_BATCH_READ_ENABLED = originalReadEnabled;
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = originalSamplingRate;
+    env.LANGFUSE_TRACE_BATCH_STRATEGY = originalStrategy;
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE = originalMaxSize;
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = originalPendingTtl;
     env.LANGFUSE_TRACE_BATCH_IDLE_MS = originalIdle;
@@ -129,6 +349,70 @@ describe("trace micro-batch scheduling with Redis", () => {
     await client().del(dueKey, stateKey, "{trace-batch}:dispatcher");
   });
   afterAll(() => client().disconnect());
+
+  it("dispatches with locality selection and records bounded selector measurements", async () => {
+    env.LANGFUSE_TRACE_BATCH_STRATEGY = "locality";
+    const minute = 60_000;
+    await trackTraceBatchActivity("project-a", [
+      event("short-1", 10 * minute),
+      event("short-1", 12 * minute),
+      event("wide", 0),
+      event("wide", 8 * 60 * minute),
+    ]);
+    await trackTraceBatchActivity("project-b", [
+      event("short-2", 11 * minute),
+      event("short-2", 13 * minute),
+    ]);
+    const due = Date.now() - 1_000;
+    await client().zadd(
+      dueKey,
+      due,
+      member("project-a", "short-1"),
+      due + 1,
+      member("project-a", "wide"),
+      due + 2,
+      member("project-b", "short-2"),
+    );
+
+    await runner().processBatch();
+
+    const jobs = await queue.getJobs(["wait"]);
+    expect(
+      jobs
+        .map((job) =>
+          job.data.payload.traces
+            .map(({ traceId }) => traceId)
+            .sort()
+            .join(","),
+        )
+        .sort(),
+    ).toEqual(["short-1,short-2,wide"]);
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.candidate_buffer_size",
+      3,
+      { strategy: "locality" },
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.event_time_envelope_ms",
+      29_040_000,
+      { strategy: "locality" },
+    );
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.dispatched_batches",
+      1,
+      { strategy: "locality", fill: "partial" },
+    );
+    expect(
+      vi
+        .mocked(recordDistribution)
+        .mock.calls.some(
+          ([name, value, tags]) =>
+            name === "langfuse.trace_batch.selector_duration_ms" &&
+            Number(value) >= 0 &&
+            tags?.strategy === "locality",
+        ),
+    ).toBe(true);
+  });
 
   it("does not track or dispatch on self-hosted deployments even with experiment flags enabled", async () => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
@@ -500,47 +784,79 @@ describe("trace micro-batch scheduling with Redis", () => {
     },
   );
 
-  it("groups the complete due cohort by sorted project across hydration chunks and the former run limit", async () => {
-    const due = Date.now() - 100_000;
-    const traces = Array.from({ length: 10_061 }, (_, i) => ({
-      projectId: ["project-c", "project-a", "project-b"][i % 3],
-      traceId: `trace-${String(i).padStart(5, "0")}`,
-      due: due + Math.floor(i / 2_000) * 1_000,
-    }));
-    for (const projectId of ["project-c", "project-a", "project-b"]) {
-      await trackTraceBatchActivity(
-        projectId,
-        traces
-          .filter((trace) => trace.projectId === projectId)
-          .map((trace) => event(trace.traceId)),
+  it.each(["project", "locality"] as const)(
+    "dispatches the complete due cohort across hydration chunks with %s",
+    async (strategy) => {
+      env.LANGFUSE_TRACE_BATCH_STRATEGY = strategy;
+      const due = Date.now() - 100_000;
+      const traces = Array.from({ length: 10_061 }, (_, i) => ({
+        projectId: ["project-c", "project-a", "project-b"][i % 3],
+        traceId: `trace-${String(i).padStart(5, "0")}`,
+        due: due + Math.floor(i / 2_000) * 1_000,
+      }));
+      for (const projectId of ["project-c", "project-a", "project-b"]) {
+        await trackTraceBatchActivity(
+          projectId,
+          traces
+            .filter((trace) => trace.projectId === projectId)
+            .map((trace) => event(trace.traceId)),
+        );
+      }
+      await client().zadd(
+        dueKey,
+        ...traces.flatMap((trace) => [
+          trace.due,
+          member(trace.projectId, trace.traceId),
+        ]),
       );
-    }
-    await client().zadd(
-      dueKey,
-      ...traces.flatMap((trace) => [
-        trace.due,
-        member(trace.projectId, trace.traceId),
-      ]),
-    );
-    const add = vi.spyOn(queue, "add");
-    await runner().processBatch();
-    const batches = add.mock.calls.map(([, job]) => job.payload.traces);
-    expect(batches.map((batch) => batch.length)).toEqual([
-      ...Array(167).fill(60),
-      41,
-    ]);
-    const expected = traces.sort(
-      (a, b) =>
-        a.projectId.localeCompare(b.projectId) ||
-        a.due - b.due ||
-        a.traceId.localeCompare(b.traceId),
-    );
-    expect(
-      batches.flat().map((trace) => member(trace.projectId, trace.traceId)),
-    ).toEqual(expected.map((trace) => member(trace.projectId, trace.traceId)));
-    expect(await client().zcard(dueKey)).toBe(0);
-    expect(await client().hlen(stateKey)).toBe(0);
-  });
+      const add = vi.spyOn(queue, "add");
+      await runner().processBatch();
+      const batches = add.mock.calls.map(([, job]) => job.payload.traces);
+      const assigned = batches
+        .flat()
+        .map((trace) => member(trace.projectId, trace.traceId));
+      expect(assigned).toHaveLength(traces.length);
+      expect(new Set(assigned)).toEqual(
+        new Set(traces.map((trace) => member(trace.projectId, trace.traceId))),
+      );
+      expect(batches.every((batch) => batch.length <= 60)).toBe(true);
+      const candidateSizes = vi
+        .mocked(recordDistribution)
+        .mock.calls.filter(
+          ([name]) => name === "langfuse.trace_batch.candidate_buffer_size",
+        )
+        .map(([, value]) => Number(value));
+      expect(Math.max(...candidateSizes)).toBeLessThanOrEqual(
+        strategy === "project" ? 1059 : 1000,
+      );
+      if (strategy === "project") {
+        expect(batches.map((batch) => batch.length)).toEqual([
+          ...Array(167).fill(60),
+          41,
+        ]);
+        const expected = traces.sort(
+          (a, b) =>
+            a.projectId.localeCompare(b.projectId) ||
+            a.due - b.due ||
+            a.traceId.localeCompare(b.traceId),
+        );
+        expect(
+          batches.flat().map((trace) => member(trace.projectId, trace.traceId)),
+        ).toEqual(
+          expected.map((trace) => member(trace.projectId, trace.traceId)),
+        );
+      } else {
+        expect(batches.length).toBeGreaterThanOrEqual(
+          Math.ceil(traces.length / 60),
+        );
+        expect(batches.length).toBeLessThanOrEqual(
+          Math.ceil(traces.length / 1000) * Math.ceil(1000 / 60),
+        );
+      }
+      expect(await client().zcard(dueKey)).toBe(0);
+      expect(await client().hlen(stateKey)).toBe(0);
+    },
+  );
 
   it("revalidates the due ID list after deletion, missing state, reactivation and new arrivals", async () => {
     const traces = Array.from(
@@ -778,20 +1094,24 @@ describe("trace micro-batch scheduling with Redis", () => {
     ).toBe(10_001);
   });
 
-  it("keeps due state on enqueue failure and retries it on the next dispatch", async () => {
-    await trackTraceBatchActivity("project", [event("trace")]);
-    await makeDue("project", "trace");
-    vi.spyOn(queue, "add").mockRejectedValueOnce(
-      new Error("enqueue unavailable"),
-    );
-    const dispatcher = runner();
-    await dispatcher.processBatch();
-    expect(await client().zcard(dueKey)).toBe(1);
-    expect(await client().hlen(stateKey)).toBe(1);
-    await dispatcher.processBatch();
-    expect(await queue.getWaitingCount()).toBe(1);
-    expect(await client().zcard(dueKey)).toBe(0);
-  });
+  it.each(["project", "locality"] as const)(
+    "keeps due state on enqueue failure and retries it with %s",
+    async (strategy) => {
+      env.LANGFUSE_TRACE_BATCH_STRATEGY = strategy;
+      await trackTraceBatchActivity("project", [event("trace")]);
+      await makeDue("project", "trace");
+      vi.spyOn(queue, "add").mockRejectedValueOnce(
+        new Error("enqueue unavailable"),
+      );
+      const dispatcher = runner();
+      await dispatcher.processBatch();
+      expect(await client().zcard(dueKey)).toBe(1);
+      expect(await client().hlen(stateKey)).toBe(1);
+      await dispatcher.processBatch();
+      expect(await queue.getWaitingCount()).toBe(1);
+      expect(await client().zcard(dueKey)).toBe(0);
+    },
+  );
 
   it.each(["updated", "deleted", "expired"] as const)(
     "preserves arrivals during enqueue, including deleted/recreated state: %s",
