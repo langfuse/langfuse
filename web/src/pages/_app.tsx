@@ -21,6 +21,7 @@ import { NextAdapterPagesWithReadyGuard } from "@/src/utils/nextAdapterPagesWith
 import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
+import { plexMono } from "@/src/styles/fonts";
 import { AppLayout } from "@/src/components/layouts/app-layout";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
@@ -170,7 +171,10 @@ const MyApp: AppType<{ session: Session | null }> = ({
   );
 
   return (
-    <>
+    // next/font only ships its @font-face when a client module references
+    // the font; _document alone (server) does not. `contents` keeps this
+    // wrapper out of layout; the variable itself is set on <html> in _document.
+    <div className={`${plexMono.variable} contents`}>
       {/* Replaces Next's default `width=device-width` (next/head dedupes by
           name). `maximum-scale=1` stops iOS Safari auto-zooming a focused
           sub-16px field; iOS ignores `user-scalable=no` for user gestures, so
@@ -231,7 +235,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
           </CommandMenuProvider>
         </TooltipProvider>
       </QueryParamProvider>
-    </>
+    </div>
   );
 };
 
