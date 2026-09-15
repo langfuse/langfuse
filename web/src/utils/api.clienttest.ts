@@ -511,6 +511,39 @@ describe("isExpectedTrpcClientError", () => {
     }
   });
 
+  it("treats a rejected PostHog hostname as expected", () => {
+    // posthogIntegration.update wraps validateWebhookURL as BAD_REQUEST.
+    // A DNS miss on a user-typed hostname is the product working as
+    // designed — the Save toast is the UX.
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "BAD_REQUEST",
+          httpStatus: 400,
+          path: "posthogIntegration.update",
+          message:
+            "Invalid PostHog hostname: DNS lookup failed for example.invalid",
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not treat a PostHog hostname message as expected on other procedures", () => {
+    // Negative fixture: classification is by path, not message. A
+    // hostname-shaped string on an unrelated procedure is still a bug.
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "BAD_REQUEST",
+          httpStatus: 400,
+          path: "traces.byId",
+          message:
+            "Invalid PostHog hostname: DNS lookup failed for example.invalid",
+        }),
+      ),
+    ).toBe(false);
+  });
+
   it("does not treat BAD_REQUEST on other procedures as expected", () => {
     // Negative fixture: a missing-projectId / invariant BAD_REQUEST is a
     // client bug and must still reach Sentry. Widening the allowlist
@@ -733,6 +766,26 @@ describe("reportTrpcErrorWithoutToast", () => {
     });
   });
 
+  it("suppresses a rejected PostHog hostname (breadcrumb, no capture)", () => {
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "BAD_REQUEST",
+        httpStatus: 400,
+        path: "posthogIntegration.update",
+        message:
+          "Invalid PostHog hostname: DNS lookup failed for example.invalid",
+      }),
+      "integrations",
+    );
+
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
+    expect(addBreadcrumbMock.mock.calls[0]![0].data).toMatchObject({
+      code: "BAD_REQUEST",
+      path: "posthogIntegration.update",
+    });
+  });
+
   it("suppresses a stale in-app-agent tool approval (breadcrumb, no capture)", () => {
     reportTrpcErrorWithoutToast(
       trpcServerError({
@@ -836,22 +889,25 @@ describe("reportTrpcErrorWithoutToast", () => {
   it("still captures a 5xx on an allowlisted remote-experiment path", () => {
     // Negative fixture: the BAD_REQUEST allowlist must not swallow a real
     // server failure on the same procedure.
-    reportTrpcErrorWithoutToast(
-      trpcServerError({
-        code: "INTERNAL_SERVER_ERROR",
-        httpStatus: 500,
-        path: EXPECTED_TRPC_BAD_REQUEST_PATHS[0],
-      }),
-      "experiments",
-    );
+    for (const path of EXPECTED_TRPC_BAD_REQUEST_PATHS) {
+      captureExceptionMock.mockClear();
+      reportTrpcErrorWithoutToast(
+        trpcServerError({
+          code: "INTERNAL_SERVER_ERROR",
+          httpStatus: 500,
+          path,
+        }),
+        "experiments",
+      );
 
-    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
-    const [, options] = captureExceptionMock.mock.calls[0]!;
-    expect(options.tags).toMatchObject({
-      area: "trpc",
-      "trpc.code": "INTERNAL_SERVER_ERROR",
-      "trpc.path": "datasets.triggerRemoteExperiment",
-    });
+      expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+      const [, options] = captureExceptionMock.mock.calls[0]!;
+      expect(options.tags).toMatchObject({
+        area: "trpc",
+        "trpc.code": "INTERNAL_SERVER_ERROR",
+        "trpc.path": path,
+      });
+    }
   });
 
   it("captures non-tRPC errors with the caller's area (not the seam's `trpc`)", () => {
