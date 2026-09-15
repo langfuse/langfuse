@@ -367,6 +367,35 @@ describe("Authenticate API calls", () => {
       warnSpy.mockRestore();
     });
 
+    it("redacts a secret key submitted in the public key slot from the mismatch warning", async () => {
+      await new ApiAuthService(prisma, null).verifyAuthHeaderAndReturnScope(
+        getValidAuthHeader(),
+      );
+
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const auth = await new ApiAuthService(
+        prisma,
+        null,
+      ).verifyAuthHeaderAndReturnScope(
+        createBasicAuthHeader(testApiKey.secretKey, testApiKey.secretKey),
+      );
+
+      expect(auth.validKey).toBe(true);
+
+      const mismatchWarning = warnSpy.mock.calls
+        .map((call) => String(call[0]))
+        .find((message) => message.includes("Public key mismatch"));
+      expect(mismatchWarning).toBeDefined();
+      expect(mismatchWarning).not.toContain(testApiKey.secretKey);
+      expect(mismatchWarning).toContain(
+        getDisplaySecretKey(testApiKey.secretKey),
+      );
+      expect(mismatchWarning).toContain(testApiKey.publicKey);
+
+      warnSpy.mockRestore();
+    });
+
     it("does not warn when the submitted public key matches", async () => {
       await new ApiAuthService(prisma, null).verifyAuthHeaderAndReturnScope(
         getValidAuthHeader(),

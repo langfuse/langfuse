@@ -635,6 +635,28 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   These are Developer API rates; do not infer Vertex regional or reserved-capacity
   pricing from them. Retired previews, media models, Flex, cache storage, and new
   modality buckets require separate evidence and are outside this change.
+- **September 15 2026 audit: full re-fetch found no price or catalog drift;
+  "GPT-Rosalind" found and confirmed out of scope** — Re-fetched the Anthropic
+  pricing page, the Anthropic models-overview table, the OpenAI aggregate
+  Standard/Fast-mode/Flex pricing tables, the full OpenAI model catalog
+  (`developers.openai.com/api/docs/models/all`), both Gemini pricing pages
+  (`ai.google.dev/gemini-api/docs/pricing` for the 3.x family,
+  implicitly re-confirmed for the 2.5 family), and the Gemini models catalog
+  page. Every price already in the file — including every `gpt-6-astra`,
+  `gemini-3.6/3.7/3.8-flash`, and `claude-fable-5-1`/`claude-mythos-5-1` tier —
+  matched verbatim; no updates were needed. The Anthropic models-overview table
+  lists no model beyond the existing lineup. One new finding: the OpenAI model
+  catalog now lists **"GPT-Rosalind"** under a "Life sciences" heading,
+  described only as "Life sciences reasoning for approved organizations." A
+  dedicated model-page fetch (`developers.openai.com/api/docs/models/gpt-rosalind`)
+  404s, and the catalog page shows no model ID/slug or per-token price for it,
+  only a pointer to the pricing page. This is the same class of restricted,
+  approved-organizations-only specialized endpoint as the Daybreak cyber family
+  (`gpt-5.6-cyber`/`gpt-5.5-cyber`/`gpt-5.4-cyber`) — not added to the pricing
+  file or `types.ts` per the existing restricted-access skip rule, and there is
+  no confirmed model ID or price to add even if the scope exclusion were
+  lifted. Re-investigate only if OpenAI publishes a public model ID and
+  per-token price for it.
 
 Capture:
 

@@ -121,6 +121,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 - `worker`: contains an application for asynchronous processing of tasks.
 - `packages`:
   - `shared`: contains shared code between the above packages.
+  - `native`: Rust native addon (napi-rs) that the worker loads in-process. See [packages/native/README.md](packages/native/README.md).
   - `config-eslint`: contains eslint configurations which are shared between the above packages.
   - `config-typescript`: contains typescript configurations which are shared between the above packages.
 - `ee`: contains all enterprise features. See [EE README](ee/README.md) for more details.
@@ -130,8 +131,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
-- [Rust via rustup](https://rust-lang.org/tools/install/) and a native compiler/linker for the AI gateway, which starts with `pnpm dev`. See [gateway setup](ai-gateway/README.md#run-locally).
-- pnpm 12.3.1 as specified in `package.json`
+- [Rust via rustup](https://rust-lang.org/tools/install/) and a native compiler/linker, for the AI gateway (which starts with `pnpm dev`, see [gateway setup](ai-gateway/README.md#run-locally)) and for the worker's native addon (compiled during the worker build, see [packages/native/README.md](packages/native/README.md)). Each crate pins its own toolchain in `rust-toolchain.toml`; rustup installs it on first use.
 - Docker to run the database locally
 - Clickhouse client
 

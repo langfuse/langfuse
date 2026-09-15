@@ -39,6 +39,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
         })
         .transpose()?;
     let inference_enabled = inference.is_some();
+    let telemetry = inference.as_ref().and_then(InferenceService::telemetry);
     let state = if inference_enabled {
         GatewayLifecycleState::default()
     } else {
@@ -48,7 +49,24 @@ async fn run() -> Result<(), Box<dyn Error>> {
     let shutdown = shutdown_signal()?;
     let listener = bind_listener(config.listen_address, config.auto_increment_listen_port).await?;
     tracing::info!(address = %listener.local_addr()?, inference_enabled, "gateway listening");
-    server::serve(listener, app, state, shutdown, config.shutdown_timeout).await?;
+    let result = server::serve(
+        listener,
+        app,
+        state.clone(),
+        shutdown,
+        config.shutdown_timeout,
+    )
+    .await;
+    if let Some(telemetry) = telemetry {
+        telemetry
+            .shutdown(
+                state
+                    .drain_deadline()
+                    .unwrap_or_else(tokio::time::Instant::now),
+            )
+            .await;
+    }
+    result?;
     tracing::info!("gateway stopped");
     Ok(())
 }

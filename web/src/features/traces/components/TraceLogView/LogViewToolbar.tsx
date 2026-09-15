@@ -29,7 +29,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { cn } from "@/src/utils/tailwind";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { type JsonViewPreference } from "@/src/components/ui/jsonViewPreference";
 
 export interface LogViewToolbarProps {

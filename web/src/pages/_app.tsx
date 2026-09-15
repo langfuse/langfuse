@@ -93,6 +93,7 @@ import { InAppAiAgentProvider } from "@/src/features/in-app-agent/components/InA
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheContext";
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   getPostHogClientConfig,
@@ -187,53 +188,55 @@ const MyApp: AppType<{ session: Session | null }> = ({
         />
       </Head>
       <DefaultHead />
-      <QueryParamProvider
-        adapter={NextAdapterPagesWithReadyGuard}
-        options={{ enableBatching: true }}
-      >
-        <TooltipProvider>
-          <CommandMenuProvider>
-            <PostHogProvider client={posthog}>
-              <SessionProvider
-                session={session}
-                refetchOnWindowFocus={true}
-                refetchInterval={5 * 60} // 5 minutes
-                basePath={authBasePath}
-              >
-                <ResilientSessionProvider basePath={authBasePath}>
-                  <DetailPageListsProvider>
-                    <MarkdownContextProvider>
-                      <MarkdownRenderCharacterLimitProvider>
-                        <ThemeProvider
-                          attribute="class"
-                          enableSystem
-                          disableTransitionOnChange
-                        >
-                          <ScoreCacheProvider>
-                            <CorrectionCacheProvider>
-                              <SupportDrawerProvider defaultOpen={false}>
-                                <V4MigrationPanelProvider defaultOpen={false}>
-                                  <InAppAiAgentProvider defaultOpen={false}>
-                                    {skipAppLayout ? (
-                                      page
-                                    ) : (
-                                      <AppLayout>{page}</AppLayout>
-                                    )}
-                                  </InAppAiAgentProvider>
-                                </V4MigrationPanelProvider>
-                              </SupportDrawerProvider>
-                            </CorrectionCacheProvider>
-                          </ScoreCacheProvider>
-                        </ThemeProvider>
-                      </MarkdownRenderCharacterLimitProvider>
-                    </MarkdownContextProvider>
-                  </DetailPageListsProvider>
-                </ResilientSessionProvider>
-              </SessionProvider>
-            </PostHogProvider>
-          </CommandMenuProvider>
-        </TooltipProvider>
-      </QueryParamProvider>
+      <LayerProvider>
+        <QueryParamProvider
+          adapter={NextAdapterPagesWithReadyGuard}
+          options={{ enableBatching: true }}
+        >
+          <TooltipProvider>
+            <CommandMenuProvider>
+              <PostHogProvider client={posthog}>
+                <SessionProvider
+                  session={session}
+                  refetchOnWindowFocus={true}
+                  refetchInterval={5 * 60} // 5 minutes
+                  basePath={authBasePath}
+                >
+                  <ResilientSessionProvider basePath={authBasePath}>
+                    <DetailPageListsProvider>
+                      <MarkdownContextProvider>
+                        <MarkdownRenderCharacterLimitProvider>
+                          <ThemeProvider
+                            attribute="class"
+                            enableSystem
+                            disableTransitionOnChange
+                          >
+                            <ScoreCacheProvider>
+                              <CorrectionCacheProvider>
+                                <SupportDrawerProvider defaultOpen={false}>
+                                  <V4MigrationPanelProvider defaultOpen={false}>
+                                    <InAppAiAgentProvider defaultOpen={false}>
+                                      {skipAppLayout ? (
+                                        page
+                                      ) : (
+                                        <AppLayout>{page}</AppLayout>
+                                      )}
+                                    </InAppAiAgentProvider>
+                                  </V4MigrationPanelProvider>
+                                </SupportDrawerProvider>
+                              </CorrectionCacheProvider>
+                            </ScoreCacheProvider>
+                          </ThemeProvider>
+                        </MarkdownRenderCharacterLimitProvider>
+                      </MarkdownContextProvider>
+                    </DetailPageListsProvider>
+                  </ResilientSessionProvider>
+                </SessionProvider>
+              </PostHogProvider>
+            </CommandMenuProvider>
+          </TooltipProvider>
+        </QueryParamProvider>
+      </LayerProvider>
     </div>
   );
 };
