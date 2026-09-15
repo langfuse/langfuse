@@ -276,9 +276,9 @@ async fn debug_record_is_emitted_once_and_only_at_debug_level() {
         });
         let text = String::from_utf8(writer.0.lock().unwrap().clone()).unwrap();
         if level == tracing::Level::DEBUG {
-            assert_eq!(text.lines().count(), 1);
-            let event: Value = serde_json::from_str(&text).unwrap();
-            let capture = &event["fields"];
+            let events = records(&writer);
+            assert_eq!(events.len(), 1);
+            let capture = &events[0];
             assert_eq!(capture["outcome"], "eof");
             assert_eq!(capture["capture_complete"], true);
             for excluded in ["input", "output", "model_parameters", "metadata"] {
@@ -297,7 +297,7 @@ async fn debug_record_is_emitted_once_and_only_at_debug_level() {
                 assert!(!text.contains(secret), "operational logs leaked {secret}");
             }
         } else {
-            assert!(text.is_empty());
+            assert!(records(&writer).is_empty());
         }
     }
 }

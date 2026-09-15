@@ -6,6 +6,8 @@ use axum::{
     http::{HeaderMap, HeaderValue, Response, header},
 };
 use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
+use reqwest_tracing::DisableOtelPropagation;
 use tokio::{
     sync::{OwnedSemaphorePermit, Semaphore},
     time::Instant,
@@ -46,7 +48,7 @@ pub struct RequestPermit {
 
 /// A pooled client for the official `OpenAI` Responses endpoint.
 pub struct OpenAiProvider {
-    client: Client,
+    client: ClientWithMiddleware,
     capacity: Arc<Semaphore>,
     limits: ProviderLimits,
     telemetry: Option<crate::telemetry::Telemetry>,
@@ -84,7 +86,7 @@ impl OpenAiProvider {
             .build()
             .map_err(|_| ProviderError::Configuration)?;
         Ok(Self {
-            client,
+            client: crate::observability::instrument_client(client, "provider.headers"),
             capacity: Arc::new(Semaphore::new(limits.active)),
             limits,
             telemetry: None,
@@ -140,34 +142,31 @@ impl OpenAiProvider {
         if let Some(telemetry) = &self.telemetry {
             capture.deliver_to(telemetry.clone(), &context);
         }
-        let response = crate::observability::client("provider.headers", async {
-            tokio::time::timeout_at(
-                permit
-                    .deadline
-                    .min(Instant::now() + self.limits.headers_timeout),
-                self.client
-                    .post(endpoint)
-                    .headers(transport::request_headers(headers))
-                    // Observe plain JSON/SSE while relaying the provider bytes unchanged.
-                    .header(header::ACCEPT_ENCODING, "identity")
-                    .header(header::AUTHORIZATION, authorization)
-                    .body(body)
-                    .send(),
-            )
-            .await
-            .map_err(|_| ProviderError::Timeout)
-            .and_then(|result| {
-                result.map_err(|error| {
-                    if error.is_timeout() {
-                        ProviderError::Timeout
-                    } else {
-                        ProviderError::Transport
-                    }
-                })
+        let response = tokio::time::timeout_at(
+            permit
+                .deadline
+                .min(Instant::now() + self.limits.headers_timeout),
+            self.client
+                .post(endpoint)
+                .with_extension(DisableOtelPropagation)
+                .headers(transport::request_headers(headers))
+                // Observe plain JSON/SSE while relaying the provider bytes unchanged.
+                .header(header::ACCEPT_ENCODING, "identity")
+                .header(header::AUTHORIZATION, authorization)
+                .body(body)
+                .send(),
+        )
+        .await
+        .map_err(|_| ProviderError::Timeout)
+        .and_then(|result| {
+            result.map_err(|error| {
+                if error.is_timeout() {
+                    ProviderError::Timeout
+                } else {
+                    ProviderError::Transport
+                }
             })
-            .inspect(|response| crate::observability::response_status(response.status().as_u16()))
-        })
-        .await;
+        });
         let response = match response {
             Ok(response) => response,
             Err(error) => {

@@ -84,7 +84,7 @@ Both formats use the same log level and preserve event fields. For example:
 ```
 
 Invalid values fail startup without echoing their contents. At the default `info`
-level, logs contain service lifecycle events and terminal request summaries.
+level, logs contain service lifecycle events and HTTP response summaries.
 Debug logging adds content-free phase and capture details. For direct
 host-only development, set `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS=127.0.0.1:8080`.
 
@@ -95,10 +95,11 @@ of the inference generations sent to Langfuse. They do not include request/respo
 content, credentials, key metadata, or URL query strings. Health probes are excluded
 from request logs and spans.
 
-Use `LANGFUSE_LOG_FORMAT=text` locally and `json` for log collectors. JSON event
-fields, `trace_id`, and `span_id` are top-level attributes. `info` emits lifecycle
-events and one terminal HTTP request summary; `debug` adds sanitized phase and
-capture details. Dependency logs stay at `warn`. Log severity does not control
+Use `LANGFUSE_LOG_FORMAT=text` locally and `json` for log collectors. Built-in `tracing-subscriber` formatters handle both modes. JSON event fields
+are top-level attributes; span fields are nested. HTTP response and execution
+summaries include top-level `trace_id` and `span_id` for Datadog correlation.
+`info` emits lifecycle, HTTP response, and execution summaries; `debug` adds
+sanitized capture details. Other log events do not automatically include trace IDs. Dependency logs stay at `warn`. Log severity does not control
 trace sampling. `trace` is not an accepted gateway log level.
 
 | Variable | Default | Purpose |
@@ -109,17 +110,27 @@ trace sampling. `trace` is not an accepted gateway log level.
 | `BUILD_ID` | Cargo package version | Service version; set to the deployed image's commit SHA |
 | `OTEL_TRACES_SAMPLER_ARG` | `1` | Sampling ratio from 0 to 1 for root traces; incoming W3C sampling decisions are respected |
 
-The HTTP span lasts through body completion or cancellation. The terminal log's
-`status` is the HTTP response status; `outcome=complete` means body completion,
-not necessarily a successful HTTP status. Mid-stream errors have `body_error`;
-provider execution metrics distinguish timeout, transport error, and cancellation.
-Resolver, provider-header, and ingestion calls have client spans. Only trusted Web
-calls receive W3C trace context; baggage and operational trace headers are not sent
-to the external provider. Inference generations retain their separate identity.
+Tower's `TraceLayer` keeps the server span alive through the response body.
+The HTTP response log and `http.server.request.duration` measure time to response
+headers, not full SSE duration. Execution summaries and `gateway.phase.duration`
+with `phase=execution` measure the provider relay through completion, cancellation,
+timeout, or transport error. HTTP status and stream outcome are separate: a 200
+response can still fail while streaming.
 
-Metrics include `gateway.active` (phase: request/resolution/execution),
-`gateway.requests`, `gateway.request.duration`, `gateway.phase.duration`
-(resolver/provider.headers/provider.first_byte/ingestion), `gateway.executions`,
+`reqwest-tracing` instruments resolver, provider-header, and ingestion requests.
+Only trusted Web calls receive W3C trace context; baggage and operational trace
+headers are not sent to the external provider. Inference generations retain their
+separate identity. Client spans measure the HTTP send through response headers;
+streaming execution and inference-telemetry delivery are tracked separately.
+
+`axum-otel-metrics` supplies `http.server.request.duration`,
+`http.server.active_requests`, and request/response body-size metrics. Active HTTP
+requests end at response headers; body sizes come from headers/size hints, not
+bytes streamed. Exported dimensions are limited to method, matched route, and HTTP
+status. The duration histogram's count supplies request volume.
+
+Gateway-specific metrics include `gateway.active` (resolution/execution),
+`gateway.phase.duration` (execution/provider.first_byte), `gateway.executions`,
 `gateway.admission.rejected`, and `gateway.telemetry.records`. Durations use seconds;
 first-byte timing measures provider bytes arriving at the gateway, not first-token
 delivery to the caller. Metric attributes contain bounded categories, not tenant

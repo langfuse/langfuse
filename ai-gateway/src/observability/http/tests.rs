@@ -1,9 +1,10 @@
 use super::*;
+use axum::body::Bytes;
 use axum::{
     Router,
     http::{HeaderMap, Request as HttpRequest},
-    middleware,
 };
+use http_body::Frame;
 use http_body_util::{BodyExt, StreamBody};
 use opentelemetry::trace::{SpanKind, TracerProvider};
 use opentelemetry_sdk::trace::{InMemorySpanExporter, SdkTracerProvider};
@@ -14,7 +15,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tower::ServiceExt;
-use tracing_subscriber::{fmt::format::JsonFields, prelude::*};
+use tracing_subscriber::prelude::*;
 
 #[derive(Clone, Default)]
 struct Buffer(Arc<Mutex<Vec<u8>>>);
@@ -45,8 +46,8 @@ impl Recording {
         let subscriber = tracing_subscriber::registry()
             .with(
                 tracing_subscriber::fmt::layer()
-                    .fmt_fields(JsonFields::new())
-                    .event_format(super::super::logging::Format { json: true })
+                    .json()
+                    .flatten_event(true)
                     .with_writer(move || buffer.clone()),
             )
             .with(tracing_opentelemetry::layer().with_tracer(provider.tracer("test")));
@@ -62,7 +63,7 @@ impl Recording {
             .unwrap()
             .lines()
             .map(|line| serde_json::from_str::<Value>(line).unwrap())
-            .filter(|event| event["message"] == "gateway request finished")
+            .filter(|event| event["message"] == "gateway response started")
             .collect()
     }
 }
@@ -81,35 +82,22 @@ fn incoming() -> HttpRequest<Body> {
 }
 
 #[tokio::test]
-async fn inherits_trace_and_preserves_body_frames_and_trailers() {
+async fn inherits_trace_and_preserves_stream_lifetime_bytes_and_trailers() {
     let recording = Recording::start();
-    let sent = Arc::new(Mutex::new(HeaderMap::new()));
-    let captured = sent.clone();
-    let app = Router::new()
-        .fallback(move || {
-            let captured = captured.clone();
-            async move {
-                client("resolver", async {
-                    *captured.lock().unwrap() = web_context();
-                    Ok::<_, Infallible>(())
-                })
-                .await
-                .unwrap();
-                let mut trailers = HeaderMap::new();
-                trailers.insert("x-checksum", "verified".parse().unwrap());
-                let frames = [
-                    Ok::<_, Infallible>(Frame::data(Bytes::from_static(b"native bytes"))),
-                    Ok(Frame::trailers(trailers)),
-                ];
-                Body::new(StreamBody::new(futures_util::stream::iter(frames)))
-            }
-        })
-        .layer(middleware::from_fn(request));
+    let app = instrument(Router::new().fallback(|| async {
+        let mut trailers = HeaderMap::new();
+        trailers.insert("x-checksum", "verified".parse().unwrap());
+        let frames = [
+            Ok::<_, Infallible>(Frame::data(Bytes::from_static(b"native bytes"))),
+            Ok(Frame::trailers(trailers)),
+        ];
+        Body::new(StreamBody::new(futures_util::stream::iter(frames)))
+    }));
     let response = app.oneshot(incoming()).await.unwrap();
-    assert!(
-        recording.summaries().is_empty(),
-        "headers are not completion"
-    );
+    assert!(recording.exporter.get_finished_spans().unwrap().is_empty());
+    let summaries = recording.summaries();
+    assert_eq!(summaries.len(), 1);
+    assert_eq!(summaries[0]["status"], 200);
     let mut body = response.into_body();
     assert_eq!(
         body.frame().await.unwrap().unwrap().into_data().unwrap(),
@@ -124,27 +112,16 @@ async fn inherits_trace_and_preserves_body_frames_and_trailers() {
         .unwrap();
     assert_eq!(trailers["x-checksum"], "verified");
     assert!(body.frame().await.is_none());
-    assert_eq!(recording.summaries().len(), 1);
     drop(body);
-    let summaries = recording.summaries();
-    assert_eq!(summaries.len(), 1);
-    assert_eq!(summaries[0]["outcome"], "complete");
     let spans = recording.exporter.get_finished_spans().unwrap();
-    assert_eq!(spans.len(), 2);
-    let server = spans
-        .iter()
-        .find(|span| span.span_kind == SpanKind::Server)
-        .unwrap();
-    let resolver = spans
-        .iter()
-        .find(|span| span.span_kind == SpanKind::Client)
-        .unwrap();
+    assert_eq!(spans.len(), 1);
+    let server = &spans[0];
+    assert_eq!(server.span_kind, SpanKind::Server);
     assert_eq!(
         server.span_context.trace_id().to_string(),
         "4bf92f3577b34da6a3ce929d0e0e4736"
     );
     assert_eq!(server.parent_span_id.to_string(), "00f067aa0ba902b7");
-    assert_eq!(resolver.parent_span_id, server.span_context.span_id());
     assert_eq!(
         summaries[0]["trace_id"],
         server.span_context.trace_id().to_string()
@@ -153,53 +130,28 @@ async fn inherits_trace_and_preserves_body_frames_and_trailers() {
         summaries[0]["span_id"],
         server.span_context.span_id().to_string()
     );
-    let headers = sent.lock().unwrap();
-    assert_eq!(
-        headers["traceparent"],
-        format!(
-            "00-{}-{}-01",
-            server.span_context.trace_id(),
-            resolver.span_context.span_id()
-        )
-    );
-    assert!(!headers.contains_key("baggage"));
 }
 
 #[tokio::test]
-async fn empty_error_and_cancelled_bodies_have_one_terminal_summary() {
-    for outcome in ["complete", "body_error", "cancelled"] {
+async fn cancellation_releases_spans_before_and_after_headers() {
+    for before_headers in [true, false] {
         let recording = Recording::start();
-        let app = Router::new()
-            .fallback(move || async move {
-                match outcome {
-                    "complete" => Body::empty(),
-                    "body_error" => Body::from_stream(futures_util::stream::once(async {
-                        Err::<Bytes, _>(io::Error::other("body failure"))
-                    })),
-                    _ => Body::from_stream(futures_util::stream::pending::<
-                        Result<Bytes, Infallible>,
-                    >()),
-                }
-            })
-            .layer(middleware::from_fn(request));
-        let mut body = app.oneshot(incoming()).await.unwrap().into_body();
-        match outcome {
-            "complete" => assert_eq!(recording.summaries().len(), 1),
-            "body_error" => assert!(body.frame().await.unwrap().is_err()),
-            _ => assert!(recording.summaries().is_empty()),
+        let app = instrument(Router::new().fallback(move || async move {
+            if before_headers {
+                std::future::pending::<()>().await;
+            }
+            Body::from_stream(futures_util::stream::pending::<Result<Bytes, Infallible>>())
+        }));
+        if before_headers {
+            let mut call = Box::pin(app.oneshot(incoming()));
+            assert!(futures_util::poll!(call.as_mut()).is_pending());
+            drop(call);
+        } else {
+            let response = app.oneshot(incoming()).await.unwrap();
+            assert!(recording.exporter.get_finished_spans().unwrap().is_empty());
+            drop(response);
         }
-        drop(body);
-        let summaries = recording.summaries();
-        assert_eq!(summaries.len(), 1, "{outcome}");
-        assert_eq!(summaries[0]["outcome"], outcome);
-        let spans = recording.exporter.get_finished_spans().unwrap();
-        assert_eq!(spans.len(), 1);
-        if outcome == "body_error" {
-            assert!(matches!(
-                spans[0].status,
-                opentelemetry::trace::Status::Error { .. }
-            ));
-        }
+        assert_eq!(recording.exporter.get_finished_spans().unwrap().len(), 1);
     }
 }
 
@@ -256,21 +208,4 @@ async fn provider_http_errors_are_traced_without_changing_the_response() {
         );
         assert_eq!(upstream.calls(), 1);
     }
-}
-
-#[tokio::test]
-async fn cancellation_before_headers_finishes_the_request_once() {
-    let recording = Recording::start();
-    let app = Router::new()
-        .fallback(std::future::pending::<Response>)
-        .layer(middleware::from_fn(request));
-    let mut call = Box::pin(app.oneshot(incoming()));
-    assert!(futures_util::poll!(call.as_mut()).is_pending());
-    assert!(recording.summaries().is_empty());
-    drop(call);
-    let summaries = recording.summaries();
-    assert_eq!(summaries.len(), 1);
-    assert_eq!(summaries[0]["outcome"], "cancelled");
-    assert_eq!(summaries[0]["status"], 0);
-    assert_eq!(recording.exporter.get_finished_spans().unwrap().len(), 1);
 }

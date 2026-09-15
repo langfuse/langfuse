@@ -66,7 +66,12 @@ impl Gateway {
 
     async fn request(&self) {
         let response = reqwest::Client::new()
-            .post(format!("{}/openai/v1/responses", self.url))
+            .post(format!(
+                "{}/openai/v1/responses?secret=query-canary",
+                self.url
+            ))
+            .header("host", "host-canary.invalid")
+            .header("x-forwarded-proto", "scheme-canary")
             .header(
                 "traceparent",
                 "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
@@ -175,7 +180,7 @@ async fn exports_otlp_traces_metrics_and_correlated_content_free_logs() {
     let logs = gateway.logs.lock().unwrap();
     let summaries: Vec<_> = logs
         .iter()
-        .filter(|value| value["message"] == "gateway request finished")
+        .filter(|value| value["message"] == "gateway response started")
         .collect();
     assert_eq!(summaries.len(), 1);
     assert_eq!(summaries[0]["trace_id"], "4bf92f3577b34da6a3ce929d0e0e4736");
@@ -188,13 +193,24 @@ async fn exports_otlp_traces_metrics_and_correlated_content_free_logs() {
     let serialized = serde_json::to_string(&*logs).unwrap();
     assert!(!serialized.contains("secret-auth-token"));
     assert!(!serialized.contains("secret-prompt-content"));
+    let exported = format!("{traces:?}{metrics:?}");
+    for secret in [
+        "secret-auth-token",
+        "secret-prompt-content",
+        "query-canary",
+        "host-canary",
+        "scheme-canary",
+    ] {
+        assert!(!exported.contains(secret));
+        assert!(!serialized.contains(secret));
+    }
     let names: Vec<_> = metrics
         .iter()
         .flat_map(|resource| &resource.scope_metrics)
         .flat_map(|scope| &scope.metrics)
         .map(|metric| metric.name.as_str())
         .collect();
-    assert!(names.contains(&"gateway.requests"));
+    assert!(names.contains(&"http.server.request.duration"));
 }
 
 #[tokio::test]

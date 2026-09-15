@@ -1,17 +1,17 @@
+mod client;
 mod http;
-mod logging;
 mod metrics;
 
-pub use http::request;
-pub(crate) use http::{client, response_status, web_context};
+pub(crate) use client::instrument_client;
+pub use http::instrument;
 pub(crate) use metrics::{Active, delivery, execution_finished, rejected};
 
 use crate::config::{GatewayConfig, LogFormat};
-use opentelemetry::{KeyValue, global, trace::TracerProvider};
+use opentelemetry::{Key, KeyValue, global, trace::TracerProvider};
 use opentelemetry_otlp::{Protocol, WithExportConfig};
 use opentelemetry_sdk::{
     Resource,
-    metrics::{PeriodicReader, SdkMeterProvider},
+    metrics::{Instrument, PeriodicReader, SdkMeterProvider, Stream},
     propagation::TraceContextPropagator,
     trace::{BatchConfigBuilder, BatchSpanProcessor, Sampler, SdkTracerProvider},
 };
@@ -82,6 +82,7 @@ pub fn init(config: &GatewayConfig) -> Result<Observability, Box<dyn Error>> {
         Some(
             SdkMeterProvider::builder()
                 .with_resource(resource)
+                .with_view(http_metric_view)
                 .with_reader(
                     PeriodicReader::builder(exporter)
                         .with_interval(Duration::from_secs(30))
@@ -98,18 +99,25 @@ pub fn init(config: &GatewayConfig) -> Result<Observability, Box<dyn Error>> {
         global::set_meter_provider(metrics.clone());
     }
     let log_filter = EnvFilter::try_new(format!("warn,ai_gateway={}", config.log_level))?;
-    let logger = tracing_subscriber::fmt::layer()
-        .fmt_fields(tracing_subscriber::fmt::format::JsonFields::new())
-        .event_format(logging::Format {
-            json: config.log_format == LogFormat::Json,
-        })
-        .with_filter(log_filter);
+    let logger = match config.log_format {
+        LogFormat::Json => tracing_subscriber::fmt::layer()
+            .json()
+            .flatten_event(true)
+            .with_filter(log_filter)
+            .boxed(),
+        LogFormat::Text => tracing_subscriber::fmt::layer()
+            .compact()
+            .with_ansi(false)
+            .with_filter(log_filter)
+            .boxed(),
+    };
     let spans = tracing_opentelemetry::layer()
         .with_tracer(traces.tracer("ai-gateway"))
         .with_tracked_inactivity(false)
         .with_filter(filter_fn(|metadata| {
             metadata.is_span()
-                && metadata.target().starts_with("ai_gateway")
+                && (metadata.target().starts_with("ai_gateway")
+                    || metadata.target().starts_with("reqwest_tracing"))
                 && *metadata.level() <= tracing::Level::INFO
         }));
     tracing_subscriber::registry()
@@ -162,6 +170,24 @@ fn sampling_ratio(value: Option<&str>) -> Result<f64, Box<dyn Error>> {
         .ok()
         .filter(|value| (0.0..=1.0).contains(value))
         .ok_or_else(|| "OTEL_TRACES_SAMPLER_ARG must be a number from 0 to 1".into())
+}
+
+// Only bounded HTTP dimensions are exported; Host and forwarded headers are untrusted.
+fn http_metric_view(instrument: &Instrument) -> Option<Stream> {
+    if !instrument.name().starts_with("http.server.") {
+        return None;
+    }
+    Stream::builder()
+        .with_allowed_attribute_keys(
+            [
+                "http.request.method",
+                "http.route",
+                "http.response.status_code",
+            ]
+            .map(Key::from),
+        )
+        .build()
+        .ok()
 }
 
 #[cfg(test)]

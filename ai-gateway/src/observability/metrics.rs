@@ -1,15 +1,15 @@
-use std::{sync::LazyLock, time::Instant};
+use std::sync::LazyLock;
 
 use crate::capture::RelayOutcome;
+use opentelemetry::trace::TraceContextExt;
 use opentelemetry::{
     KeyValue, global,
     metrics::{Counter, Histogram, UpDownCounter},
 };
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 struct Metrics {
     active: UpDownCounter<i64>,
-    requests: Counter<u64>,
-    duration: Histogram<f64>,
     phases: Histogram<f64>,
     rejections: Counter<u64>,
     delivery: Counter<u64>,
@@ -23,12 +23,6 @@ static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
     ];
     Metrics {
         active: meter.i64_up_down_counter("gateway.active").build(),
-        requests: meter.u64_counter("gateway.requests").build(),
-        duration: meter
-            .f64_histogram("gateway.request.duration")
-            .with_unit("s")
-            .with_boundaries(seconds.clone())
-            .build(),
         phases: meter
             .f64_histogram("gateway.phase.duration")
             .with_unit("s")
@@ -53,23 +47,6 @@ impl Drop for Active {
     fn drop(&mut self) {
         METRICS.active.add(-1, &[KeyValue::new("phase", self.0)]);
     }
-}
-
-pub(crate) fn request_finished(
-    route: &'static str,
-    status: u16,
-    outcome: &'static str,
-    started: Instant,
-) {
-    let attributes = [
-        KeyValue::new("http.route", route),
-        KeyValue::new("http.response.status_code", i64::from(status)),
-        KeyValue::new("outcome", outcome),
-    ];
-    METRICS.requests.add(1, &attributes);
-    METRICS
-        .duration
-        .record(started.elapsed().as_secs_f64(), &attributes);
 }
 
 pub(crate) fn phase_finished(phase: &'static str, duration: std::time::Duration) {
@@ -111,10 +88,19 @@ pub(crate) fn execution_finished(facts: &crate::capture::InferenceFacts) {
             std::time::Duration::from_millis(u64::try_from(first_byte_ms).unwrap_or(u64::MAX)),
         );
     }
+    phase_finished(
+        "execution",
+        std::time::Duration::from_millis(u64::try_from(facts.duration_ms).unwrap_or(u64::MAX)),
+    );
+    let context = tracing::Span::current().context();
+    let context_span = context.span();
+    let ids = context_span.span_context();
+    tracing::info!(trace_id = %ids.trace_id(), span_id = %ids.span_id(), outcome, duration_ms = facts.duration_ms, "gateway execution finished");
     if matches!(
         facts.outcome,
         RelayOutcome::Timeout | RelayOutcome::TransportError
     ) {
-        tracing::warn!(phase = "provider", outcome, "gateway stream failed");
+        tracing::Span::current().record("otel.status_code", "ERROR");
+        tracing::warn!(trace_id = %ids.trace_id(), span_id = %ids.span_id(), phase = "provider", outcome, "gateway stream failed");
     }
 }

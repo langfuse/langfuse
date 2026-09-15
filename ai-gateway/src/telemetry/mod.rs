@@ -10,8 +10,9 @@ use std::{
     },
 };
 
-use futures_util::FutureExt;
+use opentelemetry::trace::{FutureExt, TraceContextExt};
 use tokio::{sync::Semaphore, task::JoinSet, time::Instant};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 use uuid::Uuid;
 
 use crate::{
@@ -116,8 +117,9 @@ impl Telemetry {
         while tasks.try_join_next().is_some() {}
         let uploader = self.0.uploader.clone();
         let stats = self.0.stats.clone();
+        let parent = tracing::Span::current().context();
         tasks.spawn(
-            crate::observability::client("ingestion", async move {
+            async move {
                 let _capacity = capacity;
                 let _bytes = bytes;
                 let span = mapping::span(facts, &context.trace_id, &context.observation_id);
@@ -126,24 +128,27 @@ impl Telemetry {
                         stats.accepted.fetch_add(1, Ordering::Relaxed);
                         crate::observability::delivery("accepted", "success");
                         tracing::debug!("gateway telemetry accepted");
-                        Ok(())
                     }
                     Err(error) => {
                         let failed = stats.failed.fetch_add(1, Ordering::Relaxed) + 1;
                         crate::observability::delivery("failed", error.reason());
                         // Error categories contain no URLs, credentials, response bodies or content.
                         if failed == 1 || failed.is_multiple_of(100) {
+                            let context = opentelemetry::Context::current();
+                            let span = context.span();
+                            let context = span.span_context();
                             tracing::warn!(
+                                trace_id = %context.trace_id(),
+                                span_id = %context.span_id(),
                                 reason = error.reason(),
                                 failed,
                                 "gateway telemetry upload failed"
                             );
                         }
-                        Err(())
                     }
                 }
-            })
-            .map(|_| ()),
+            }
+            .with_context(parent),
         );
     }
 

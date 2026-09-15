@@ -10,6 +10,7 @@ use reqwest::{
     Client, Url,
     header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue},
 };
+use reqwest_middleware::ClientWithMiddleware;
 use std::{
     fmt,
     net::IpAddr,
@@ -79,7 +80,7 @@ impl ControlPlaneConfig {
 
 /// Reuses the HTTP connection pool; credentials belong exclusively to each request.
 pub struct ControlPlaneClient {
-    client: Client,
+    client: ClientWithMiddleware,
     config: ControlPlaneConfig,
 }
 
@@ -99,7 +100,10 @@ impl ControlPlaneClient {
             .no_deflate()
             .build()
             .map_err(|_| ResolutionError::Configuration)?;
-        Ok(Self { client, config })
+        Ok(Self {
+            client: crate::observability::instrument_client(client, "resolver"),
+            config,
+        })
     }
 
     /// Resolve a gateway credential and API format into a validated execution contract.
@@ -116,11 +120,7 @@ impl ControlPlaneClient {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| ResolutionError::Unavailable)?;
-        crate::observability::client(
-            "resolver",
-            self.resolve_at(gateway_key, api_format, timestamp),
-        )
-        .await
+        self.resolve_at(gateway_key, api_format, timestamp).await
     }
 
     async fn resolve_at(
@@ -167,7 +167,6 @@ impl ControlPlaneClient {
         let mut response = self
             .client
             .post(self.config.endpoint(RESOLVE_PATH))
-            .headers(crate::observability::web_context())
             .header(AUTHORIZATION, credential)
             .header("langfuse-gateway-authorization", signature)
             .header(CONTENT_TYPE, "application/json")
@@ -175,7 +174,6 @@ impl ControlPlaneClient {
             .send()
             .await
             .map_err(|_| ResolutionError::Transport)?;
-        crate::observability::response_status(response.status().as_u16());
         match response.status().as_u16() {
             200 => {}
             401 => return Err(ResolutionError::Authentication),

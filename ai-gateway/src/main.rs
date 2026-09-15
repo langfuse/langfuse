@@ -40,9 +40,10 @@ async fn run() -> Result<(), Box<dyn Error>> {
     } else {
         GatewayLifecycleState::unconfigured()
     };
-    let app = server::router(state.clone())
-        .merge(http::router(inference, state.clone()))
-        .layer(axum::middleware::from_fn(observability::request));
+    let app = server::router(state.clone()).merge(observability::instrument(http::router(
+        inference,
+        state.clone(),
+    )));
     let shutdown = shutdown_signal()?;
     let listener = bind_listener(config.listen_address, config.auto_increment_listen_port).await?;
     tracing::info!(address = %listener.local_addr()?, inference_enabled, max_active_requests = config.max_active_requests, max_concurrent_resolutions = config.max_concurrent_resolutions, shutdown_timeout_seconds = config.shutdown_timeout.as_secs(), "gateway listening");
