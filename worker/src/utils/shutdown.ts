@@ -10,6 +10,7 @@ import { WorkerManager } from "../queues/workerManager";
 import { logInFlightBlobExportsOnShutdown } from "../features/blobstorage/inFlightExports";
 import { abortActiveInAppAgentRuns } from "../features/in-app-agent/executeInAppAgentRun";
 import { prisma } from "@langfuse/shared/src/db";
+import { closeTraceActivityMap } from "../features/traces/traceActivityMap";
 import { BackgroundMigrationManager } from "../backgroundMigrations/backgroundMigrationManager";
 import {
   batchProjectCleaners,
@@ -109,6 +110,7 @@ const runDrainAndClose = async () => {
   logger.info("Clickhouse writer has been shut down.");
 
   redis?.disconnect();
+  closeTraceActivityMap();
   logger.info("Redis connection has been closed.");
 
   await prisma.$disconnect();
