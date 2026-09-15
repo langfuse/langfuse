@@ -1,9 +1,9 @@
 import preview from "../../.storybook/preview";
-import { type LangfuseItemType } from "./ItemBadge";
-import { ItemTypeChip } from "./ItemTypeChip";
+import { getItemTypeLabels, type LangfuseItemType } from "./ItemBadge";
+import { TextChip } from "./TextChip";
 
 const meta = preview.meta({
-  component: ItemTypeChip,
+  component: TextChip,
 });
 
 const TYPES: LangfuseItemType[] = [
@@ -31,16 +31,17 @@ const TYPES: LangfuseItemType[] = [
 ];
 
 export const Default = meta.story({
-  args: { type: "TRACE" },
+  args: { text: "Trace" },
 });
 
 export const VariantMatrix = meta.story({
-  args: { type: "TRACE" },
+  args: { text: "Trace" },
   render: () => (
     <div className="flex flex-wrap items-center gap-2">
-      {TYPES.map((type) => (
-        <ItemTypeChip key={type} type={type} />
-      ))}
+      {TYPES.map((type) => {
+        const { displayLabel } = getItemTypeLabels(type);
+        return <TextChip key={type} text={displayLabel} />;
+      })}
     </div>
   ),
 });
