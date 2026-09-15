@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -117,7 +118,6 @@ export function MembershipInvitesPage({
       accessorKey: "invitedByUser",
       header: "Invited By",
       variant: "avatar",
-      emptyValue: "-",
     }),
     {
       accessorKey: "meta",
@@ -172,7 +172,7 @@ export function MembershipInvitesPage({
     <>
       {/* Header included in order to hide it when there are not invites yet */}
       <Header title="Membership Invites" />
-      <DataTableToolbar columns={columns} />
+      <DataTableToolbar columns={columns} tableName="membership-invites" />
       <DataTable
         tableName="membershipInvites"
         columns={columns}

@@ -1,6 +1,6 @@
 import Page from "@/src/components/layouts/page";
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Plus } from "lucide-react";
 import EvaluatorTable from "@/src/features/evals/components/evaluator-table";
 import {
@@ -9,7 +9,7 @@ import {
 } from "@/src/features/navigation/utils/evals-tabs";
 import { ActionButton } from "@/src/components/ActionButton";
 import { api } from "@/src/utils/api";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";

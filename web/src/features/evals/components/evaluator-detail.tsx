@@ -10,27 +10,11 @@ import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execu
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
 import {
   type EvalTargetObject,
-  type EvaluatorExecutionStatusCount,
   validateEvaluatorFiltersForTarget,
 } from "@langfuse/shared";
 import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { AlertTriangle } from "lucide-react";
-
-const JobExecutionCounts = ({
-  isLoading,
-  jobExecutionCounts,
-}: {
-  isLoading?: boolean;
-  jobExecutionCounts?: EvaluatorExecutionStatusCount[];
-}) => {
-  if (!isLoading && (!jobExecutionCounts || jobExecutionCounts.length === 0)) {
-    return null;
-  }
-
-  const counts = generateJobExecutionCounts(jobExecutionCounts);
-  return <LevelCountsDisplay counts={counts} isLoading={isLoading} />;
-};
 
 export const EvaluatorDetail = () => {
   const router = useRouter();
@@ -114,9 +98,11 @@ export const EvaluatorDetail = () => {
           <>
             {shouldRenderExecutionCounts && (
               <div className="bg-muted-gray flex min-h-6 min-w-24 flex-col items-center justify-center rounded-md px-2">
-                <JobExecutionCounts
+                <LevelCountsDisplay
+                  counts={generateJobExecutionCounts(
+                    lazyExecutionCounts.jobExecutionCounts,
+                  )}
                   isLoading={lazyExecutionCounts.isLoading}
-                  jobExecutionCounts={lazyExecutionCounts.jobExecutionCounts}
                 />
               </div>
             )}
@@ -155,6 +141,7 @@ export const EvaluatorDetail = () => {
               <EvaluatorPausedCallout
                 projectId={projectId}
                 evalConfig={existingEvaluator}
+                blockedAt={existingEvaluator.blockedAt}
                 allowReactivation
               />
             </div>

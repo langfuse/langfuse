@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -7,15 +8,15 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import {
+  useQueryFilterState,
+  useSidebarFilterState,
+} from "@/src/features/filters";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
+import { experimentsFieldRegistry } from "@/src/features/experiments/constants/experimentsSearchRegistry";
+import { awaitsDatasetNames } from "@/src/features/experiments/fns/awaitsDatasetNames";
 import { withDatasetNamesResolved } from "@/src/features/experiments/fns/datasetNameFilter";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
-import { DEFAULT_SEARCH_TYPE } from "@/src/features/search-bar/lib/commit";
-import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
-import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
 import {
   getExperimentsFilterConfig,
   getExperimentsColumnName,
@@ -28,6 +29,7 @@ import {
   BatchExportTableName,
   ActionId,
   BatchActionType,
+  buildExperimentPath,
 } from "@langfuse/shared";
 import { numberFormatter } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -35,7 +37,10 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { GitCompareArrows, LightbulbIcon } from "lucide-react";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
@@ -44,39 +49,38 @@ import Link from "next/link";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { Badge } from "@/src/components/ui/badge";
+import { type VisibilityState } from "@tanstack/react-table";
 import { useStore } from "zustand";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { useRouter } from "next/router";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  collectPresentScoreKeys,
+  collectScoreNameCoverage,
+  revealScoreColumns,
+  scoreFilters,
+  useScoreColumns,
+} from "@/src/features/scores";
 import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/src/components/ui/accordion";
-import { ExperimentChartsGrid } from "../ExperimentChartsGrid";
-import { useExperimentChartsAccordion } from "../../hooks/useExperimentChartsAccordion";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { ExperimentMetricStrip } from "../ExperimentMetricStrip";
 import {
   createExperimentsTableStore,
   type ExperimentsTableStore,
 } from "@/src/features/experiments/store/experimentsTableStore";
 import { useExperimentsTableSelectionSync } from "@/src/features/experiments/hooks/useExperimentsTableSelectionSync";
+import { createExperimentMetricColumn } from "./createExperimentMetricColumn";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   baselineChangedProps,
   comparisonChangedProps,
-  chartsSectionToggledProps,
   scoreColumnScopeToggledProps,
 } from "@/src/features/experiments/lib/analytics";
 import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
@@ -171,6 +175,8 @@ function ExperimentsMultiSelectActionMenu({
     if (selectedExperimentIds.length === 0) return;
 
     const [baseline, ...comparisons] = selectedExperimentIds;
+    // The list's own way into a comparison — the same events the picker and the
+    // baseline control emit, told apart by their source.
     capture(
       "experiment:comparison_changed",
       comparisonChangedProps({
@@ -338,6 +344,7 @@ export default function ExperimentsTable({
     filterOptions,
     datasetIdByName,
     datasetNameById,
+    datasetNamesQuery,
     isFilterOptionsPending,
   } = useExperimentFilterOptions({
     projectId,
@@ -357,8 +364,12 @@ export default function ExperimentsTable({
     [fixedFilter, datasetNameById],
   );
 
+  const { viewControllersRef, onExplicitFilterStateChange } =
+    useTableViewFilterChange();
+
   const queryFilter = useSidebarFilterState(filterConfig, filterOptions, {
     loading: isFilterOptionsPending,
+    onExplicitFilterStateChange,
     stateLocation: "urlAndSessionStorage",
     sessionFilterContextId,
     // v4-only surface — drives `isV4` on filters:* analytics.
@@ -374,7 +385,7 @@ export default function ExperimentsTable({
       !hasAppliedDefaultFilter.current
     ) {
       hasAppliedDefaultFilter.current = true;
-      queryFilter.setFilterState(defaultFilter);
+      queryFilter.setFilterState(defaultFilter, { origin: "system" });
     }
   }, [defaultFilter, queryFilter]);
 
@@ -388,33 +399,18 @@ export default function ExperimentsTable({
   );
 
   // Grammar search bar: an ADDITIONAL editor over the same FilterState the
-  // facet sidebar edits. Score filtering stays in the sidebar here — see
-  // experimentsSearchRegistry.
+  // facet sidebar edits. Scoped to the facets this instance renders — a
+  // dataset-scoped page omits the Dataset facet, and a token for a stripped
+  // column would vanish silently.
+  const searchRegistry = useMemo(
+    () => experimentsFieldRegistry(filterConfig),
+    [filterConfig],
+  );
+
   const observedOptions = useMemo(
     () => toObservedOptions(filterOptions, isFilterOptionsPending),
     [filterOptions, isFilterOptionsPending],
   );
-  // The experiments table has no full-text lane, so the registry rejects free
-  // text and these stay inert.
-  const noSearchLane = useCallback(() => {}, []);
-  const {
-    store: searchBarStore,
-    commit: searchBarCommit,
-    applyFilters: searchBarApplyFilters,
-  } = useEventsSearchBar({
-    projectId,
-    tableName: filterConfig.tableName,
-    enabled: true,
-    filterState: queryFilter.explicitFilterState,
-    searchQuery: null,
-    searchType: DEFAULT_SEARCH_TYPE,
-    observed: observedOptions,
-    setFilterState: setFiltersWrapper,
-    setSearchQuery: noSearchLane,
-    setSearchType: noSearchLane,
-    registry: EXPERIMENTS_FIELD_REGISTRY,
-  });
-
   const combinedFilterState = queryFilter.filterState.concat(
     dateRangeFilter,
     fixedFilter,
@@ -428,12 +424,53 @@ export default function ExperimentsTable({
   );
 
   // Use the custom hook for experiments data fetching
-  const { experiments, totalCount, dataUpdatedAt } = useExperimentsTableData({
+  // A dataset-name filter cannot be queried until the name -> id map lands.
+  const waitingForDatasetNames = awaitsDatasetNames(
+    combinedFilterState,
+    datasetNamesQuery,
+  );
+
+  const {
+    experiments,
+    totalCount,
+    dataUpdatedAt,
+    metricsLoading,
+    isShowingMostRecent,
+    mostRecentCount,
+  } = useExperimentsTableData({
     projectId,
     filterState,
     orderByState,
     paginationState,
+    enabled: !waitingForDatasetNames,
   });
+
+  // A score column that is empty for every experiment in view is noise, so only
+  // create columns for the keys the metrics query actually returned. Undefined
+  // while metrics load, so columns don't disappear and come back on each fetch.
+  const presentScoreKeys = useMemo(() => {
+    if (metricsLoading || experiments.status !== "success") return undefined;
+    const rows = experiments.rows ?? [];
+    return {
+      traceItem: collectPresentScoreKeys(rows.map((r) => r.traceItemScores)),
+      observationItem: collectPresentScoreKeys(
+        rows.map((r) => r.observationItemScores),
+      ),
+      experiment: collectPresentScoreKeys(rows.map((r) => r.experimentScores)),
+    };
+  }, [experiments, metricsLoading]);
+
+  // Which score the runs in view actually measured, from the same rows and at
+  // the same time as `presentScoreKeys`: the strip opens on the best-recorded
+  // numeric score instead of the alphabetically first one, with no extra query.
+  const scoreCoverage = useMemo(() => {
+    if (metricsLoading || experiments.status !== "success") return undefined;
+    const rows = experiments.rows ?? [];
+    return {
+      obs: collectScoreNameCoverage(rows.map((r) => r.observationItemScores)),
+      experiment: collectScoreNameCoverage(rows.map((r) => r.experimentScores)),
+    };
+  }, [experiments, metricsLoading]);
 
   useEffect(() => {
     if (experiments.status === "success") {
@@ -465,7 +502,7 @@ export default function ExperimentsTable({
         : [],
     prefix: "Trace",
     isFilterDataPending: experiments.status === "loading",
-    defaultHidden: true,
+    presentKeys: presentScoreKeys?.traceItem,
   });
 
   // Observation-level item scores (scores on observations, observation_id IS NOT NULL)
@@ -476,6 +513,7 @@ export default function ExperimentsTable({
     rawKey: true,
     displayFormat: "aggregate",
     scoreColumnKey: "observationItemScores",
+    headerPrefix: "Observation",
     projectId,
     filter:
       experiments.rows && experiments.rows.length > 0
@@ -484,6 +522,7 @@ export default function ExperimentsTable({
           })
         : [],
     isFilterDataPending: experiments.status === "loading",
+    presentKeys: presentScoreKeys?.observationItem,
   });
 
   // Experiment-level scores (direct dataset_run_id match)
@@ -502,6 +541,7 @@ export default function ExperimentsTable({
     rawKey: true,
     prefix: "Experiment",
     isFilterDataPending: experiments.status === "loading",
+    presentKeys: presentScoreKeys?.experiment,
   });
 
   const { selectActionColumn } = TableSelectionManager<ExperimentsTableRow>({
@@ -525,6 +565,8 @@ export default function ExperimentsTable({
       header: getExperimentsColumnName("description"),
       size: 300,
       enableHiding: true,
+      // Off by default: 300px of mostly boilerplate ahead of the score columns.
+      defaultHidden: true,
       getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
@@ -537,6 +579,7 @@ export default function ExperimentsTable({
       header: getExperimentsColumnName("metadata"),
       size: 100,
       enableHiding: true,
+      defaultHidden: true,
       singleLine: rowHeight === "s",
     }),
     createNumberTableColumn<ExperimentsTableRow>({
@@ -552,13 +595,42 @@ export default function ExperimentsTable({
       size: 100,
       cell: ({ row }) => {
         const value: number = row.getValue("errorCount");
+        const formatted = numberFormatter(value, 0);
+
+        if (value <= 0) {
+          return (
+            <Badge
+              variant="secondary"
+              className="max-w-fit rounded-sm px-1 font-normal"
+            >
+              {formatted}
+            </Badge>
+          );
+        }
+
         return (
-          <Badge
-            variant={value > 0 ? "destructive" : "secondary"}
-            className="max-w-fit rounded-sm px-1 font-normal"
+          <Link
+            href={buildExperimentPath({
+              projectId,
+              experimentId: row.id,
+              filters: [
+                {
+                  column: "level",
+                  type: "stringOptions",
+                  operator: "any of",
+                  value: ["ERROR"],
+                },
+              ],
+            })}
+            aria-label={`View ${formatted} failing items`}
           >
-            {numberFormatter(value, 0)}
-          </Badge>
+            <Badge
+              variant="destructive"
+              className="hover:bg-destructive/80 max-w-fit cursor-pointer rounded-sm px-1 font-normal"
+            >
+              {formatted}
+            </Badge>
+          </Link>
         );
       },
       enableHiding: true,
@@ -637,7 +709,8 @@ export default function ExperimentsTable({
         );
       },
     },
-    createNumberTableColumn<ExperimentsTableRow>({
+    createExperimentMetricColumn<ExperimentsTableRow>({
+      metric: "latency",
       accessorKey: "latencyAvg",
       header: getExperimentsColumnName("latencyAvg"),
       size: 100,
@@ -646,20 +719,22 @@ export default function ExperimentsTable({
         description: "Average duration of the root span per experiment item.",
       },
       formatter: (value) => `${numberFormatter(value / 1000, 4)}s`,
+      metricsLoading,
     }),
-    createNumberTableColumn<ExperimentsTableRow>({
+    createExperimentMetricColumn<ExperimentsTableRow>({
+      metric: "cost",
       accessorKey: "totalCost",
       header: getExperimentsColumnName("totalCost"),
       size: 100,
       enableHiding: true,
       formatter: (value) => `$${numberFormatter(value, 6)}`,
+      metricsLoading,
     }),
     {
       accessorKey: "traceItemScores",
-      header: "Trace Item Scores",
+      header: "Trace Scores",
       id: "traceItemScores",
       enableHiding: true,
-      defaultHidden: true,
       cell: () => {
         return isTraceItemScoreLoading ? (
           <Skeleton className="h-3 w-1/2" />
@@ -669,10 +744,9 @@ export default function ExperimentsTable({
     },
     {
       accessorKey: "observationItemScores",
-      header: "Observation Item Scores",
+      header: "Observation Scores",
       id: "observationItemScores",
       enableHiding: true,
-      defaultHidden: true,
       cell: () => {
         return isObservationItemScoreLoading ? (
           <Skeleton className="h-3 w-1/2" />
@@ -682,10 +756,9 @@ export default function ExperimentsTable({
     },
     {
       accessorKey: "experimentScores",
-      header: "Experiment-Level Scores",
+      header: "Experiment Scores",
       id: "experimentScores",
       enableHiding: true,
-      defaultHidden: true,
       cell: () => {
         return isExperimentScoreColumnLoading ? (
           <Skeleton className="h-3 w-1/2" />
@@ -695,10 +768,51 @@ export default function ExperimentsTable({
     },
   ];
 
+  const scoreColumnIds = useMemo(
+    () =>
+      [
+        ...traceItemScoreColumns,
+        ...observationItemScoreColumns,
+        ...experimentScoreColumns,
+      ].map((column) => column.accessorKey),
+    [
+      traceItemScoreColumns,
+      observationItemScoreColumns,
+      experimentScoreColumns,
+    ],
+  );
+
+  // Each score level loads from its own query, so the union above is partial
+  // until all three have settled. The migration below is consumed once and for
+  // good, so running it early would reveal whichever level answered first and
+  // leave the other two hidden permanently.
+  const areScoreColumnsSettled =
+    !isTraceItemScoreLoading &&
+    !isObservationItemScoreLoading &&
+    !isExperimentScoreColumnLoading;
+
+  // Score columns are now visible by default. A returning user has `false`
+  // persisted for every one of them from the previous default, so this one-time
+  // migration reaches them too — see `revealScoreColumns` for how a user who
+  // picked their own score columns is left alone.
+  const columnVisibilityMigrations = useMemo(
+    () => [
+      {
+        versionKey: `experimentsColumnVisibility-scoresVisible-v1-${projectId}`,
+        apply: (visibility: VisibilityState) =>
+          areScoreColumnsSettled
+            ? revealScoreColumns(visibility, scoreColumnIds)
+            : null,
+      },
+    ],
+    [projectId, scoreColumnIds, areScoreColumnsSettled],
+  );
+
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<ExperimentsTableRow>(
       `experimentsColumnVisibility-${projectId}`,
       columns,
+      columnVisibilityMigrations,
     );
 
   // One-time migration for LFE-10460 on the localStorage replay path:
@@ -730,7 +844,10 @@ export default function ExperimentsTable({
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
-      setFilters: setFiltersWrapper,
+      setFilters: (filters) =>
+        queryFilterRef.current.setFilterState(filters, {
+          origin: "saved_view",
+        }),
       setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
@@ -748,6 +865,25 @@ export default function ExperimentsTable({
     currentFilterState: queryFilter.explicitFilterState,
     currentExpandedFilters: queryFilter.expanded,
   });
+  viewControllersRef.current = viewControllers;
+
+  const handleOrderByChange: typeof setOrderByState = (next) => {
+    viewControllers.handleUserStateChange(orderByState, next);
+    setOrderByState(next);
+  };
+  const handleColumnOrderChange: typeof setColumnOrder = (update) => {
+    const next = typeof update === "function" ? update(columnOrder) : update;
+    viewControllers.handleUserStateChange(columnOrder, next);
+    setColumnOrder(next);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibilityState = (
+    update,
+  ) => {
+    const next =
+      typeof update === "function" ? update(columnVisibility) : update;
+    viewControllers.handleUserStateChange(columnVisibility, next);
+    setColumnVisibilityState(next);
+  };
 
   const rows: ExperimentsTableRow[] = useMemo(() => {
     return experiments.status === "success" && experiments.rows
@@ -755,15 +891,17 @@ export default function ExperimentsTable({
       : [];
   }, [experiments]);
 
-  // Get experiments from the current query result (for charts)
+  // The strip's series. The strip orders its own x-axis chronologically, which
+  // is deliberately not this table's newest-first order.
   const chartExperiments = useMemo(() => {
-    return rows.map((row) => ({ id: row.id, name: row.name }));
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      startTime: row.startTime,
+    }));
   }, [rows]);
 
-  // Charts accordion collapsed state (persisted in session storage)
   const capture = usePostHogClientCapture();
-  const { accordionValue, setAccordionValue } =
-    useExperimentChartsAccordion(projectId);
 
   const datasetIdByExperimentId = useMemo(() => {
     const map: Record<string, string> = {};
@@ -773,6 +911,10 @@ export default function ExperimentsTable({
     return map;
   }, [rows]);
 
+  // Which score family do people actually want visible, now that all of them are
+  // on by default? The column drawer's per-family Select All / Deselect All is
+  // the family-level intent; the individual checkboxes stay on
+  // `table:column_visibility_changed`, which already carries the column.
   const handleColumnGroupToggle = useCallback(
     ({ groupId, enabledCount }: ColumnGroupTogglePayload) => {
       const props = scoreColumnScopeToggledProps({
@@ -787,28 +929,11 @@ export default function ExperimentsTable({
     [capture],
   );
 
-  const handleChartsAccordionChange = useCallback(
-    (value: string) => {
-      const isExpanded = value === "charts";
-      const wasExpanded = accordionValue === "charts";
-      if (isExpanded !== wasExpanded) {
-        capture(
-          "experiment:charts_section_toggled",
-          chartsSectionToggledProps({
-            tableName: "experiments",
-            isExpanded,
-          }),
-        );
-      }
-      setAccordionValue(value);
-    },
-    [accordionValue, capture, setAccordionValue],
-  );
-
   // Mirror the visible page's rows into the store (in table order, so
   // selectedPageRowIds keeps the first-selected-in-table-order semantics
   // the compare baseline relies on).
   const pageRowIds = useMemo(() => rows.map((row) => row.id), [rows]);
+
   useExperimentsTableSelectionSync({
     store: experimentsTableStore,
     pageRowIds,
@@ -829,14 +954,15 @@ export default function ExperimentsTable({
               toolbar cannot scroll under the composer and render half-clipped;
               pb-1.5 matches the other bar surfaces' spacing above the table. */}
           <div className="bg-background sticky top-0 z-30 pb-1.5">
-            <EventsSearchBarRow
+            <TableSearchBar
+              key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+              isV4={true}
+              filterState={queryFilter.searchBarFilterState}
+              setFilterState={setFiltersWrapper}
               projectId={projectId}
               tableName={filterConfig.tableName}
-              store={searchBarStore}
-              commit={searchBarCommit}
               observed={observedOptions}
-              onApplyFilters={searchBarApplyFilters}
-              registry={EXPERIMENTS_FIELD_REGISTRY}
+              registry={searchRegistry}
             />
             {/* Toolbar spanning full width */}
             <DataTableToolbar
@@ -853,9 +979,9 @@ export default function ExperimentsTable({
               onColumnGroupToggle={handleColumnGroupToggle}
               columnsWithCustomSelect={["name", "datasetId"]}
               columnVisibility={columnVisibility}
-              setColumnVisibility={setColumnVisibilityState}
+              setColumnVisibility={handleColumnVisibilityChange}
               columnOrder={columnOrder}
-              setColumnOrder={setColumnOrder}
+              setColumnOrder={handleColumnOrderChange}
               orderByState={orderByState}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
@@ -872,42 +998,38 @@ export default function ExperimentsTable({
             />
           </div>
 
-          {/* Charts section - Collapsible Accordion */}
-          {tableDateRange && (
-            <Accordion
-              type="single"
-              collapsible
-              value={accordionValue}
-              onValueChange={handleChartsAccordionChange}
-            >
-              <AccordionItem value="charts" className="border-t">
-                <AccordionTrigger className="px-3 pt-2 pb-1 hover:no-underline">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold">Charts</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="max-h-[40dvh] overflow-x-auto px-3 pt-1 pb-1">
-                  <ExperimentChartsGrid
-                    projectId={projectId}
-                    experiments={chartExperiments}
-                    fromTimestamp={tableDateRange.from}
-                    toTimestamp={tableDateRange.to}
-                    isExternalLoading={experiments.status === "loading"}
-                  />
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+          {isShowingMostRecent && (
+            <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">
+              No experiments started in the selected time range. Showing the{" "}
+              {mostRecentCount === 1
+                ? "most recent run"
+                : `${mostRecentCount} most recent runs`}{" "}
+              instead.
+            </div>
           )}
 
           {/* Content area with sidebar and table */}
           <ResizableFilterLayout>
             <DataTableControls
               // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
-              key={viewControllers.selectedViewId ?? "no-view"}
+              key={viewControllers.filterEditorResetKey}
               queryFilter={queryFilter}
             />
 
             <div className="flex flex-1 flex-col overflow-hidden">
+              {/* Table-width, like the events table's pulse strip: inside the
+                  layout so the facet sidebar keeps its full height and the
+                  strip resizes with the table. */}
+              {tableDateRange && (
+                <ExperimentMetricStrip
+                  projectId={projectId}
+                  experiments={chartExperiments}
+                  fromTimestamp={tableDateRange.from}
+                  toTimestamp={tableDateRange.to}
+                  isExternalLoading={experiments.status === "loading"}
+                  scoreCoverage={scoreCoverage}
+                />
+              )}
               <DataTable
                 key={`experiments-table-${dataUpdatedAt}`}
                 tableName="experiments"
@@ -948,12 +1070,12 @@ export default function ExperimentsTable({
                   },
                 }}
                 selectionStore={experimentsTableStore}
-                setOrderBy={setOrderByState}
+                setOrderBy={handleOrderByChange}
                 orderBy={orderByState}
                 columnOrder={columnOrder}
-                onColumnOrderChange={setColumnOrder}
+                onColumnOrderChange={handleColumnOrderChange}
                 columnVisibility={columnVisibility}
-                onColumnVisibilityChange={setColumnVisibilityState}
+                onColumnVisibilityChange={handleColumnVisibilityChange}
                 rowHeight={rowHeight}
                 onRowClick={(row, event) => {
                   // Handle Command/Ctrl+click to open experiment in new tab

@@ -195,6 +195,91 @@ describe("Clickhouse Experiment Repository Test", () => {
       expect(experiment?.itemCount).toBe(2);
     });
 
+    it("should count items that carry an ERROR event, not every ERROR event", async () => {
+      const experimentId = randomUUID();
+      const experimentName = "experiment-errors-" + randomUUID();
+      const datasetId = randomUUID();
+      const failingItemId = randomUUID();
+      const cleanItemId = randomUUID();
+      const failingRootId = randomUUID();
+      const failingChildId = randomUUID();
+      const cleanRootId = randomUUID();
+      const now = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: failingRootId,
+          span_id: failingRootId,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          experiment_id: experimentId,
+          experiment_name: experimentName,
+          experiment_dataset_id: datasetId,
+          experiment_item_id: failingItemId,
+          experiment_item_root_span_id: failingRootId,
+          level: "DEFAULT",
+          start_time: now,
+        }),
+        createEvent({
+          id: failingChildId,
+          span_id: failingChildId,
+          parent_span_id: failingRootId,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          experiment_id: experimentId,
+          experiment_name: experimentName,
+          experiment_dataset_id: datasetId,
+          experiment_item_id: failingItemId,
+          experiment_item_root_span_id: failingRootId,
+          level: "ERROR",
+          start_time: now + 1,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          parent_span_id: failingRootId,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          experiment_id: experimentId,
+          experiment_name: experimentName,
+          experiment_dataset_id: datasetId,
+          experiment_item_id: failingItemId,
+          experiment_item_root_span_id: failingRootId,
+          level: "ERROR",
+          start_time: now + 2,
+        }),
+        createEvent({
+          id: cleanRootId,
+          span_id: cleanRootId,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          experiment_id: experimentId,
+          experiment_name: experimentName,
+          experiment_dataset_id: datasetId,
+          experiment_item_id: cleanItemId,
+          experiment_item_root_span_id: cleanRootId,
+          level: "DEFAULT",
+          start_time: now + 3,
+        }),
+      ]);
+
+      const result = await getExperimentsFromEvents({
+        projectId,
+        filter: [],
+        limit: 1000,
+        page: 0,
+      });
+
+      const experiment = result.find((e) => e.id === experimentId);
+      expect(experiment).toBeDefined();
+      expect(experiment?.itemCount).toBe(2);
+      expect(experiment?.errorCount).toBe(1);
+    });
+
     it("should order by startTime DESC", async () => {
       const experimentId1 = randomUUID();
       const experimentName1 = "experiment-1-" + randomUUID();
@@ -1355,17 +1440,21 @@ describe("Clickhouse Experiment Repository Test", () => {
         projectId: isolatedProjectId,
       });
 
+      // `startTime` (the run's first event) came with the recency ordering the
+      // comparison picker needs — the rows are otherwise unchanged.
       expect(result).toEqual(
         expect.arrayContaining([
           {
             experimentId: experimentIdA,
             experimentName: sharedName,
             datasetId: datasetIdA,
+            startTime: expect.any(Date),
           },
           {
             experimentId: experimentIdB,
             experimentName: sharedName,
             datasetId: datasetIdB,
+            startTime: expect.any(Date),
           },
         ]),
       );
@@ -1825,6 +1914,58 @@ describe("Clickhouse Experiment Repository Test", () => {
           },
         ]),
       );
+    });
+  });
+  maybe("getExperimentNamesFromEvents", () => {
+    it("should return one option per run when two runs share a name", async () => {
+      // Own project so the assertion sees only the runs created here.
+      const ownProjectId = randomUUID();
+      const sharedName = "shared-name-" + randomUUID();
+      const datasetId = randomUUID();
+      const olderExperimentId = randomUUID();
+      const newerExperimentId = randomUUID();
+      const now = new Date();
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+      const eventFor = (experimentId: string, startTime: Date) => {
+        const rootSpanId = randomUUID();
+        return createEvent({
+          id: randomUUID(),
+          span_id: rootSpanId,
+          project_id: ownProjectId,
+          trace_id: randomUUID(),
+          type: "GENERATION",
+          name: "test-generation",
+          experiment_id: experimentId,
+          experiment_name: sharedName,
+          experiment_metadata_names: [],
+          experiment_metadata_values: [],
+          experiment_dataset_id: datasetId,
+          experiment_item_id: randomUUID(),
+          experiment_item_version: null,
+          experiment_item_root_span_id: rootSpanId,
+          start_time: startTime.getTime() * 1000,
+        });
+      };
+
+      await createEventsCh([
+        eventFor(olderExperimentId, yesterday),
+        eventFor(newerExperimentId, now),
+      ]);
+
+      const options = await getExperimentNamesFromEvents({
+        projectId: ownProjectId,
+      });
+
+      expect(options).toHaveLength(2);
+      expect(options.map((option) => option.experimentId)).toEqual([
+        newerExperimentId,
+        olderExperimentId,
+      ]);
+      options.forEach((option) => {
+        expect(option.experimentName).toBe(sharedName);
+        expect(option.datasetId).toBe(datasetId);
+      });
     });
   });
 });

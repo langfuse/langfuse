@@ -11,7 +11,7 @@ import {
   usePreviewData,
 } from "@/src/features/evals/hooks/usePreviewData";
 import { useFirstEvalPreviewPointer } from "@/src/features/evals/hooks/useEvalPreviewNavigation";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import {
@@ -26,10 +26,6 @@ import { useMemo } from "react";
 import { toast } from "sonner";
 
 import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
-import {
-  isEventTarget,
-  isExperimentTarget,
-} from "@/src/features/evals/utils/typeHelpers";
 
 type CodeEvalTestRunResult =
   | RouterOutputs["evals"]["testRunCodeEval"]
@@ -43,32 +39,20 @@ type CodeEvalInputPreviewData = Extract<
   { type: typeof EvalTargetObject.EVENT }
 >;
 
-function isCodeEvalTestTarget(
-  target: EvalFormType["target"],
-): target is
-  | typeof EvalTargetObject.EVENT
-  | typeof EvalTargetObject.EXPERIMENT {
-  return isEventTarget(target) || isExperimentTarget(target);
-}
-
 export function CodeEvalTestRunCard({
   projectId,
   evalTemplate,
   target,
   scoreName,
-  disabled = false,
   enableExecutionTracePeek = true,
 }: {
   projectId: string;
   evalTemplate: EvalTemplate;
-  target: EvalFormType["target"];
+  target: typeof EvalTargetObject.EVENT | typeof EvalTargetObject.EXPERIMENT;
   scoreName: EvalFormType["scoreName"];
-  disabled?: boolean;
   enableExecutionTracePeek?: boolean;
 }) {
   const { isV4 } = useReadPath();
-  const isSupportedTarget = isCodeEvalTestTarget(target);
-  const canPreview = isSupportedTarget && !disabled;
   const previewPointer = useFirstEvalPreviewPointer({
     target,
     useEventsTable: isV4,
@@ -95,7 +79,7 @@ export function CodeEvalTestRunCard({
 
   const { previewData, isLoading } = usePreviewData({
     projectId,
-    enabled: canPreview && Boolean(previewPointer),
+    enabled: Boolean(previewPointer),
     target,
     traceId: previewPointer?.traceId,
     observationId: previewPointer?.observationId,
@@ -115,8 +99,6 @@ export function CodeEvalTestRunCard({
       toast.error(result.error.message);
     },
   });
-
-  if (!isSupportedTarget || !canPreview) return null;
 
   return (
     <>

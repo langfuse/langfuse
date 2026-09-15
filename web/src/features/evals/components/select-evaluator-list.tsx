@@ -14,7 +14,7 @@ import { Button } from "@/src/components/ui/button";
 import { Bot, Check, Code2 } from "lucide-react";
 import { EvaluatorSelector } from "./evaluator-selector";
 import { EvalTemplateForm } from "./template-form";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {

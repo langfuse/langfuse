@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { runHealthCheck } from "@/src/features/public-api/server/health-service";
+import { runHealthCheck } from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 

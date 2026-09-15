@@ -8,11 +8,14 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { useColumnVisibility } from "@/src/features/column-visibility";
 import { EvaluatorFilterCell } from "@/src/features/evals/components/EvaluatorFilterCell";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { LEGACY_EVALUATORS_FIELD_REGISTRY } from "@/src/features/evals/constants/tableSearchRegistry";
 import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
+import { useSidebarFilterState } from "@/src/features/filters";
 import { api } from "@/src/utils/api";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useCallback, useEffect, useState, useMemo } from "react";
@@ -31,18 +34,21 @@ import {
 } from "@/src/server/api/definitions/evalConfigsTable";
 import { Button } from "@/src/components/ui/button";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
+import {
+  EvaluatorForm,
+  useEvaluatorFormTemplate,
+} from "@/src/features/evals/components/evaluator-form";
 import { useRouter } from "next/router";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { usdFormatter } from "@/src/utils/numbers";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
@@ -122,6 +128,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       enabled: !!editConfigId,
     },
   );
+  const evalTemplate = useEvaluatorFormTemplate({
+    evalTemplates: [],
+    evalTemplate: existingEvaluator.data?.evalTemplate ?? undefined,
+  });
 
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -221,7 +231,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       header: "Total Cost (7d)",
       enableSorting: false,
       size: 120,
-      emptyValue: "–",
       formatter: (value) => usdFormatter(value, 2, 4),
       getValue: (value, { row }) => {
         if (row.original.isCostLoading) return { type: "loading" };
@@ -430,25 +439,32 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       defaultSidebarCollapsed={evaluatorFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
+        <TableSearchBar
+          key={queryFilter.draftResetKey}
+          projectId={projectId}
+          tableName={evaluatorFilterConfig.tableName}
+          registry={LEGACY_EVALUATORS_FIELD_REGISTRY}
+          filterState={queryFilter.searchBarFilterState}
+          setFilterState={queryFilter.setFilterState}
+          observed={toObservedOptions(newFilterOptions, false)}
+          search={{ query: searchQuery, setQuery: setSearchQuery }}
+          isV4={false}
+        />
         {/* Toolbar spanning full width */}
         <DataTableToolbar
+          tableName="evaluators"
           columns={columns}
           filterState={queryFilter.filterState}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}
-          searchConfig={{
-            metadataSearchFields: ["Name"],
-            updateQuery: setSearchQuery,
-            currentQuery: searchQuery ?? undefined,
-            tableAllowsFullTextSearch: false,
-            setSearchType: undefined,
-            searchType: undefined,
-          }}
         />
 
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
-          <DataTableControls queryFilter={queryFilter} />
+          <DataTableControls
+            key={queryFilter.draftResetKey}
+            queryFilter={queryFilter}
+          />
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
@@ -503,10 +519,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             <div className="flex items-center justify-center p-4">
               <Spinner size="lg" />
             </div>
-          ) : (
+          ) : evalTemplate ? (
             <EvaluatorForm
               projectId={projectId}
-              evalTemplates={[]}
+              evalTemplate={evalTemplate}
               existingEvaluator={
                 existingEvaluator.data && existingEvaluator.data.evalTemplate
                   ? {
@@ -530,7 +546,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 });
               }}
             />
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
     </DataTableControlsProvider>

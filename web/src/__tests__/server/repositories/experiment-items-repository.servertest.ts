@@ -1473,6 +1473,84 @@ describe("Clickhouse Experiment Items Repository Test", () => {
     });
   });
 
+  maybe("getExperimentItemsFromEvents - Level Filtering", () => {
+    it("should include items that carry an ERROR event and exclude items that do not", async () => {
+      const baselineExpId = randomUUID();
+      const datasetId = randomUUID();
+      const failingItemId = randomUUID();
+      const cleanItemId = randomUUID();
+      const failingTraceId = randomUUID();
+      const cleanTraceId = randomUUID();
+      const failingRootId = randomUUID();
+      const failingChildId = randomUUID();
+      const cleanRootId = randomUUID();
+      const now = Date.now() * 1000;
+
+      await createEventsCh([
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: failingTraceId,
+          span_id: failingRootId,
+          experimentId: baselineExpId,
+          experimentName: "baseline-exp",
+          datasetId,
+          itemId: failingItemId,
+          experimentItemRootSpanId: failingRootId,
+          level: "DEFAULT",
+          start_time: now,
+        }),
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: failingTraceId,
+          span_id: failingChildId,
+          parent_span_id: failingRootId,
+          experimentId: baselineExpId,
+          experimentName: "baseline-exp",
+          datasetId,
+          itemId: failingItemId,
+          experimentItemRootSpanId: failingRootId,
+          level: "ERROR",
+          start_time: now + 1,
+        }),
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: cleanTraceId,
+          span_id: cleanRootId,
+          experimentId: baselineExpId,
+          experimentName: "baseline-exp",
+          datasetId,
+          itemId: cleanItemId,
+          experimentItemRootSpanId: cleanRootId,
+          level: "DEFAULT",
+          start_time: now + 2,
+        }),
+      ]);
+
+      const result = await getExperimentItemsFromEvents({
+        projectId,
+        baseExperimentId: baselineExpId,
+        compExperimentIds: [],
+        filterByExperiment: [
+          {
+            experimentId: baselineExpId,
+            filters: [
+              {
+                column: "level",
+                type: "stringOptions",
+                operator: "any of",
+                value: ["ERROR"],
+              } as FilterCondition,
+            ],
+          },
+        ],
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result.map((row) => row.itemId)).toEqual([failingItemId]);
+    });
+  });
+
   maybe("getExperimentItemsBatchIO", () => {
     it("should fetch IO and truncate to specified length", async () => {
       // GIVEN: Item with long input/output strings
@@ -1548,6 +1626,69 @@ describe("Clickhouse Experiment Items Repository Test", () => {
           (o) => o.output === null || o.output.length <= 1000,
         ),
       ).toBe(true);
+    });
+
+    it("passes a payload of the four characters null through untouched", async () => {
+      // A native experiment writes I/O through stringifyValue, which returns a
+      // string unchanged — so an expected output that legitimately IS the
+      // string "null" is byte-identical to a serialized JSON null. Guessing
+      // would erase the real value, and the baseline fallback below would then
+      // reach for ANOTHER run's value and show that instead. So the text is
+      // passed through, and the baseline still wins.
+      const baselineExpId = randomUUID();
+      const compExpId = randomUUID();
+      const datasetId = randomUUID();
+      const itemId = randomUUID();
+
+      const root1Id = randomUUID();
+      const root2Id = randomUUID();
+
+      await createEventsCh([
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          span_id: root1Id,
+          experimentId: baselineExpId,
+          experimentName: "baseline-exp",
+          datasetId,
+          itemId,
+          experimentItemRootSpanId: root1Id,
+          input: "null",
+          output: "null",
+          experiment_item_expected_output: "null",
+          start_time: Date.now() * 1000,
+        }),
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          span_id: root2Id,
+          experimentId: compExpId,
+          experimentName: "comp-exp",
+          datasetId,
+          itemId,
+          experimentItemRootSpanId: root2Id,
+          input: "a real input",
+          output: "a real output",
+          experiment_item_expected_output: "a real expected output",
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+
+      const result = await getExperimentItemsBatchIO({
+        projectId,
+        itemIds: [itemId],
+        baseExperimentId: baselineExpId,
+        compExperimentIds: [compExpId],
+      });
+
+      expect(result[0]).toMatchObject({
+        itemId,
+        input: "null",
+        expectedOutput: "null",
+      });
+      expect(
+        result[0].outputs.find((o) => o.experimentId === baselineExpId)?.output,
+      ).toBe("null");
     });
   });
 });

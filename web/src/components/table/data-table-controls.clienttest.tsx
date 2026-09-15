@@ -1,15 +1,25 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { Accordion } from "@/src/components/ui/accordion";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
+import { eventsTableCols, type FilterState } from "@langfuse/shared";
+import { useStore } from "zustand";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   CategoricalFacet,
   DataTableControls,
   type QueryFilter,
 } from "./data-table-controls";
-import type {
-  CategoricalUIFilter,
-  UIFilter,
+import {
+  useSidebarFilterState,
+  type CategoricalUIFilter,
+  type UIFilter,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
+import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+
+vi.mock("use-query-params", async () => ({
+  ...(await vi.importActual("use-query-params")),
+  useQueryParam: () => [null, () => {}] as const,
+}));
 
 // Spy on the posthog client so capture calls (event name + payload) can be
 // asserted at the wrapper seam.
@@ -33,10 +43,212 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn();
 });
 
+describe("delayed sidebar edits and search-bar commits", () => {
+  const config: FilterConfig = {
+    tableName: "observations-events",
+    columnDefinitions: eventsTableCols,
+    defaultExpanded: ["statusMessage", "latency"],
+    facets: [
+      { type: "string", column: "statusMessage", label: "Status Message" },
+      {
+        type: "numeric",
+        column: "latency",
+        label: "Latency",
+        min: 0,
+        max: 100,
+      },
+      { type: "categorical", column: "traceName", label: "Trace Name" },
+    ],
+  };
+
+  function Harness() {
+    const queryFilter = useSidebarFilterState(
+      config,
+      {},
+      { stateLocation: "memory" },
+    );
+    const bar = useEventsSearchBar({
+      projectId: "filter-test-project",
+      tableName: config.tableName,
+      enabled: true,
+      filterState: queryFilter.searchBarFilterState,
+      setFilterState: queryFilter.setFilterState,
+      searchQuery: null,
+      searchType: ["id", "content"],
+      setSearchQuery: () => {},
+      setSearchType: () => {},
+      observed: undefined,
+    });
+    const draft = useStore(bar.store, (state) => state.draft);
+
+    return (
+      <>
+        <DataTableControls queryFilter={queryFilter} />
+        <button
+          onClick={() => {
+            bar.store.getState().actions.setDraft("-traceName:*turn*");
+            bar.commit();
+          }}
+        >
+          Commit trace filter
+        </button>
+        <button onClick={queryFilter.clearAll}>Reset filters</button>
+        <pre data-testid="applied-filters">
+          {JSON.stringify(queryFilter.filterState)}
+        </pre>
+        <pre data-testid="bar-draft">{draft}</pre>
+      </>
+    );
+  }
+
+  it.each([
+    ["string", "string-statusMessage", "timeout", "statusMessage"],
+    ["numeric", "min-latency", "10", "latency"],
+  ])(
+    "preserves the committed trace filter when a delayed %s edit lands",
+    (_, inputId, value, column) => {
+      vi.useFakeTimers();
+      sessionStorage.clear();
+      const { container, unmount } = render(<Harness />, {
+        wrapper: TooltipProvider,
+      });
+      const appliedFilters = (): FilterState =>
+        JSON.parse(screen.getByTestId("applied-filters").textContent ?? "[]");
+      try {
+        fireEvent.change(container.querySelector(`#${inputId}`)!, {
+          target: { value },
+        });
+        fireEvent.click(
+          screen.getByRole("button", { name: "Commit trace filter" }),
+        );
+
+        const traceFilter = {
+          column: "traceName",
+          type: "string",
+          operator: "does not contain",
+          value: "turn",
+        };
+        expect(appliedFilters()).toEqual([traceFilter]);
+        expect(screen.getByTestId("bar-draft")).toHaveTextContent(
+          "-traceName:*turn*",
+        );
+
+        act(() => vi.advanceTimersByTime(500));
+
+        expect.soft(appliedFilters()).toContainEqual(traceFilter);
+        expect(appliedFilters()).toEqual(
+          expect.arrayContaining([expect.objectContaining({ column })]),
+        );
+        expect
+          .soft(screen.getByTestId("bar-draft"))
+          .toHaveTextContent("-traceName:*turn*");
+
+        fireEvent.change(container.querySelector(`#${inputId}`)!, {
+          target: { value: value === "10" ? "20" : "retry" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Reset filters" }));
+        expect(appliedFilters()).toEqual([]);
+        act(() => vi.advanceTimersByTime(500));
+        expect(appliedFilters()).toEqual([]);
+
+        fireEvent.click(
+          screen.getByRole("button", { name: "Commit trace filter" }),
+        );
+        fireEvent.change(container.querySelector(`#${inputId}`)!, {
+          target: { value },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Reset filters" }));
+        act(() => vi.advanceTimersByTime(500));
+        expect(appliedFilters()).toEqual([]);
+        expect(
+          container.querySelector<HTMLInputElement>(`#${inputId}`)?.value,
+        ).toBe("");
+      } finally {
+        unmount();
+        vi.useRealTimers();
+      }
+    },
+  );
+});
+
+describe("DataTableControls numeric conditions", () => {
+  it("renders strict bounds as removable chips instead of a slider", () => {
+    const queryFilter: QueryFilter = {
+      filters: [
+        {
+          type: "numeric",
+          column: "latency",
+          label: "Latency",
+          loading: false,
+          expanded: true,
+          isActive: true,
+          isDisabled: false,
+          onReset: () => {},
+          value: null,
+          conditions: [
+            { column: "latency", type: "number", operator: ">", value: 10 },
+            { column: "latency", type: "number", operator: "<", value: 80 },
+          ],
+          min: 0,
+          max: 100,
+          onChange: () => {},
+          onRemoveCondition: () => {},
+        },
+      ],
+      expanded: ["latency"],
+      onExpandedChange: () => {},
+      clearAll: () => {},
+      draftResetKey: 0,
+      isFiltered: true,
+      setFilterState: () => {},
+    };
+
+    render(<DataTableControls queryFilter={queryFilter} />, {
+      wrapper: TooltipProvider,
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Remove Latency > 10" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Remove Latency < 80" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Min.")).not.toBeInTheDocument();
+  });
+});
+
 describe("CategoricalFacet", () => {
+  it("uses a custom option hover title", () => {
+    render(
+      <AccordionPrimitive.Root type="multiple" value={["evaluatorId"]}>
+        <CategoricalFacet
+          label="Evaluator"
+          filterKey="evaluatorId"
+          expanded
+          loading={false}
+          options={["evaluator-1"]}
+          displayByValue={new Map([["evaluator-1", "Answer quality"]])}
+          counts={new Map()}
+          value={[]}
+          onChange={() => {}}
+          getOptionTitle={(value, label) => `${label} (${value})`}
+          isActive={false}
+          isDisabled={false}
+          onReset={() => {}}
+        />
+      </AccordionPrimitive.Root>,
+      { wrapper: TooltipProvider },
+    );
+
+    expect(screen.getByText("Answer quality")).toHaveAttribute(
+      "title",
+      "Answer quality (evaluator-1)",
+    );
+  });
+
   it("renders an option suffix after its label", () => {
     render(
-      <Accordion type="multiple" value={["model"]}>
+      <AccordionPrimitive.Root type="multiple" value={["model"]}>
         <CategoricalFacet
           label="Model"
           filterKey="model"
@@ -53,7 +265,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       { wrapper: TooltipProvider },
     );
 
@@ -68,7 +280,7 @@ describe("CategoricalFacet", () => {
 
   it("shows selected values even when the backend returns no options", () => {
     render(
-      <Accordion type="multiple" value={["type"]}>
+      <AccordionPrimitive.Root type="multiple" value={["type"]}>
         <CategoricalFacet
           label="Type"
           filterKey="type"
@@ -82,7 +294,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -94,7 +306,7 @@ describe("CategoricalFacet", () => {
 
   it("shows Clear for active selected values even when the backend returns no options", () => {
     render(
-      <Accordion type="multiple" value={["type"]}>
+      <AccordionPrimitive.Root type="multiple" value={["type"]}>
         <CategoricalFacet
           label="Type"
           filterKey="type"
@@ -108,7 +320,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -122,7 +334,7 @@ describe("CategoricalFacet", () => {
     // value sits below the 12-item cap and is hidden behind "Show more".
     const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -136,7 +348,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -163,7 +375,7 @@ describe("CategoricalFacet", () => {
     // not the entire list.
     const options = Array.from({ length: 80 }, (_, i) => `opt-${i}`);
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -177,7 +389,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       { wrapper: TooltipProvider },
     );
 
@@ -208,7 +420,7 @@ describe("CategoricalFacet", () => {
     // a pinned selection — doing so would render the entire list with no cap.
     const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -222,7 +434,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -241,7 +453,7 @@ describe("CategoricalFacet", () => {
     const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
     const selected = options.slice(0, 18); // 18 of 20 selected
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -255,7 +467,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -276,7 +488,7 @@ describe("CategoricalFacet", () => {
     const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
     const value = options.filter((option) => option !== "opt-18");
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -292,7 +504,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -319,7 +531,7 @@ describe("CategoricalFacet", () => {
     // deliberate no-op in the state model, so the tab must read disabled
     // instead of silently doing nothing.
     render(
-      <Accordion type="multiple" value={["tags"]}>
+      <AccordionPrimitive.Root type="multiple" value={["tags"]}>
         <CategoricalFacet
           label="Tags"
           filterKey="tags"
@@ -335,14 +547,14 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       { wrapper: TooltipProvider },
     );
     expect(screen.getByRole("tab", { name: "None of" })).toBeDisabled();
 
     // With a persisted selection the operator conversion is meaningful.
     render(
-      <Accordion type="multiple" value={["tags2"]}>
+      <AccordionPrimitive.Root type="multiple" value={["tags2"]}>
         <CategoricalFacet
           label="Tags2"
           filterKey="tags2"
@@ -358,7 +570,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       { wrapper: TooltipProvider },
     );
     const tabs = screen.getAllByRole("tab", { name: "None of" });
@@ -367,7 +579,7 @@ describe("CategoricalFacet", () => {
 
   it("does not reorder short, fully-visible lists", () => {
     render(
-      <Accordion type="multiple" value={["c"]}>
+      <AccordionPrimitive.Root type="multiple" value={["c"]}>
         <CategoricalFacet
           label="C"
           filterKey="c"
@@ -381,7 +593,7 @@ describe("CategoricalFacet", () => {
           isDisabled={false}
           onReset={() => {}}
         />
-      </Accordion>,
+      </AccordionPrimitive.Root>,
       // The active-facet clear affordance renders a Tooltip, which needs the
       // provider the app supplies globally.
       { wrapper: TooltipProvider },
@@ -425,6 +637,7 @@ describe("DataTableControls facet ordering", () => {
     expanded: [],
     onExpandedChange: () => {},
     clearAll: () => {},
+    draftResetKey: 0,
     isFiltered: filters.some((f) => f.isActive),
     setFilterState: () => {},
   });
@@ -494,6 +707,22 @@ describe("DataTableControls facet ordering", () => {
       </TooltipProvider>,
     );
     expect(labelOrder("Alpha", "Beta")).toBe(true);
+  });
+
+  it("clears drafts and view selection even when no filters are applied", () => {
+    const clearAll = vi.fn();
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={{ ...queryFilter([]), clearAll }} />
+      </TooltipProvider>,
+    );
+    fireEvent.keyDown(screen.getByRole("button", { name: "Filter options" }), {
+      key: "Enter",
+    });
+    const clear = screen.getByRole("menuitem", { name: "Clear all filters" });
+    expect(clear).not.toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(clear);
+    expect(clearAll).toHaveBeenCalledOnce();
   });
 
   it("restores catalog order on Clear all, even with an in-list interaction outstanding", () => {
@@ -833,6 +1062,7 @@ describe("DataTableControls blocked facets (LFE-11040)", () => {
     expanded,
     onExpandedChange: () => {},
     clearAll: () => {},
+    draftResetKey: 0,
     isFiltered: filters.some((f) => f.isActive),
     setFilterState: () => {},
   });
@@ -944,6 +1174,7 @@ describe("DataTableControls facet catalog", () => {
     expanded: [],
     onExpandedChange: () => {},
     clearAll: () => {},
+    draftResetKey: 0,
     isFiltered: filters.some((f) => f.isActive),
     setFilterState: () => {},
   });
@@ -1036,6 +1267,7 @@ describe("DataTableControls facet-name search", () => {
     expanded: [],
     onExpandedChange: () => {},
     clearAll: () => {},
+    draftResetKey: 0,
     isFiltered: filters.some((f) => f.isActive),
     setFilterState: () => {},
   });

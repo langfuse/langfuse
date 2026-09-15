@@ -20,9 +20,7 @@ export const SupportDrawer = (props: {
   showCloseButton?: boolean;
   className?: string;
 }) => {
-  const { open, openEpoch } = useSupportDrawer();
-
-  if (!open) return null;
+  const { openEpoch } = useSupportDrawer();
 
   // Keyed by openEpoch so re-opening (openWithMode while already open)
   // remounts the content and re-seeds mode/topic from the provider.

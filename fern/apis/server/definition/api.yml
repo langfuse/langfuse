@@ -10,6 +10,7 @@ docs: |
   ## Exports
 
   - OpenAPI spec: https://cloud.langfuse.com/generated/api/openapi.yml
+  - Self-hosted deployments: interactive API reference at `/api/docs` and OpenAPI spec at `/api/openapi.yaml`
 
 error-discrimination:
   strategy: status-code

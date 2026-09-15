@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { ChevronRight } from "lucide-react";
 import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";

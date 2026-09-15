@@ -1,7 +1,7 @@
 import { expect, fn, userEvent, within } from "storybook/test";
 
+import preview from "@/.storybook/preview";
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
-import preview from "../../../../.storybook/preview";
 import {
   DeleteProjectDialog,
   type DeleteProjectDialogProps,
@@ -39,6 +39,15 @@ export const Loading = meta.story({
   render: renderDialog,
 });
 
+export const GatewayIngestionProject = meta.story({
+  name: "Gateway ingestion project",
+  args: {
+    blocked: true,
+    onOpenGatewaySettings: fn(),
+  },
+  render: renderDialog,
+});
+
 export const ConfirmsDeletion = meta.story({
   name: "(Test) Confirms deletion",
   args: {
@@ -56,6 +65,7 @@ export const ConfirmsDeletion = meta.story({
     );
     await userEvent.click(body.getByRole("button", { name: "Delete project" }));
 
+    if (!("onSubmit" in args)) throw new Error("Expected deletion dialog");
     await expect(args.onSubmit).toHaveBeenCalledOnce();
   },
 });

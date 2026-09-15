@@ -13,6 +13,7 @@ import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEnt
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Experiments",
+    action: "experiments:read",
     querySchema: GetExperimentsV1Query,
     responseSchema: GetExperimentsV1Response,
     allowInAppAgentKey: true,

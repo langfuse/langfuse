@@ -84,10 +84,6 @@ export function FilteredRunPills({
     })),
   );
 
-  if (allFilters.length === 0) {
-    return null;
-  }
-
   return (
     <div className={`flex flex-wrap items-center gap-1 ${className ?? ""}`}>
       {allFilters.map((item) => {

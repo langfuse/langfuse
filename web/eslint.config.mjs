@@ -72,6 +72,13 @@ export default [
   },
   {
     ...tailwindcssRecommendedConfig,
+    ignores: [
+      ".storybook/**/*",
+      "src/**/__tests__/**",
+      "src/**/__e2e__/**",
+      "src/**/*.clienttest.{ts,tsx}",
+      "src/**/*.servertest.{ts,tsx}",
+    ],
     settings: {
       tailwindcss: {
         cssConfigPath: "src/styles/globals.css",
@@ -105,12 +112,17 @@ export default [
             "peer",
             // Valid named Tailwind peer marker; eslint-plugin-tailwindcss v4 misses it with Tailwind v4.
             "peer/menu-button",
+            // Component hooks used by the command and dialog primitives.
+            "cmdk-input-wrapper",
+            "dialog-header",
+            "dialog-footer",
           ],
         },
       ],
       "tailwindcss/enforces-negative-arbitrary-values": "warn",
       // TODO: Enable these rule later
       "tailwindcss/classnames-order": "off",
+      "tailwindcss/enforces-canonical-classname": "off",
       "tailwindcss/enforces-shorthand": "off",
       "tailwindcss/no-unnecessary-arbitrary-value": "off",
       "tailwindcss/no-contradicting-classname": "off",
@@ -137,6 +149,39 @@ export default [
         "error",
         { classNameFunctions: ["cn", "clsx"] },
       ],
+    },
+  },
+
+  // Components should always render. Returning null/undefined hides the
+  // condition that owns visibility and makes composition unpredictable — the
+  // parent should branch, or the logic should live in a hook/HOC. Headless
+  // children/portal passthroughs (gates, createPortal wrappers) may return
+  // null; anything that owns markup may not. Existing violations use a
+  // file-level eslint-disable; do not add new ones.
+  {
+    name: "langfuse/web/no-null-render",
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/__tests__/**",
+      "src/__e2e__/**",
+      "src/**/*.clienttest.{ts,tsx}",
+      "src/**/*.servertest.{ts,tsx}",
+      "src/**/*.stories.{ts,tsx}",
+      "src/components/layouts/**",
+    ],
+    rules: {
+      "@repo/no-null-render": "error",
+    },
+  },
+
+  // Next.js pages are the route composition root: the router, not a parent
+  // component, owns whether they mount. Returning null for auth, missing
+  // params, or SSR is a page-level concern, so this rule does not apply.
+  {
+    name: "langfuse/web/no-null-render-pages",
+    files: ["src/pages/**/*.{ts,tsx}"],
+    rules: {
+      "@repo/no-null-render": "off",
     },
   },
 

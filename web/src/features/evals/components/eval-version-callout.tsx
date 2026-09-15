@@ -9,30 +9,25 @@ import {
 } from "@/src/features/evals/utils/typeHelpers";
 
 interface EvalVersionCalloutProps {
-  targetObject: string;
-  evalCapabilities: EvalCapabilities;
+  content: CalloutContent;
 }
 
 interface CalloutContent {
-  visible: boolean;
   title: string;
   description: React.ReactNode;
 }
 
-const getCalloutContent = (
+export const getEvalVersionCalloutContent = (
   targetObject: string,
   evalCapabilities: EvalCapabilities,
-): CalloutContent => {
-  const hidden = { visible: false, title: "", description: "" };
-
+) => {
   // For event/observation target
   if (isEventTarget(targetObject)) {
     if (evalCapabilities.isNewCompatible) {
-      return hidden;
+      return null;
     }
 
     return {
-      visible: true,
       title: "Please verify your SDK version",
       description: (
         <>
@@ -57,7 +52,6 @@ const getCalloutContent = (
   if (isExperimentTarget(targetObject)) {
     if (!evalCapabilities.isNewCompatible) {
       return {
-        visible: true,
         title: "Please verify you are using the Experiment Runner SDK",
         description: (
           <>
@@ -78,7 +72,7 @@ const getCalloutContent = (
       };
     }
 
-    return hidden;
+    return null;
   }
 
   // For dataset target (legacy dataset run methods)
@@ -86,11 +80,10 @@ const getCalloutContent = (
     // Forced-v3 projects keep trace evaluators as their intended experience —
     // no upgrade nag.
     if (evalCapabilities.forceV3Experience) {
-      return hidden;
+      return null;
     }
 
     return {
-      visible: true,
       title: "Legacy low-level SDK methods",
       description: (
         <>
@@ -117,11 +110,10 @@ const getCalloutContent = (
     // Forced-v3 projects keep trace evaluators as their intended experience —
     // no upgrade nag.
     if (evalCapabilities.forceV3Experience) {
-      return hidden;
+      return null;
     }
 
     return {
-      visible: true,
       title: "Consider upgrading to observation evaluators",
       description: (
         <>
@@ -141,19 +133,10 @@ const getCalloutContent = (
     };
   }
 
-  return hidden;
+  return null;
 };
 
-export function EvalVersionCallout({
-  targetObject,
-  evalCapabilities,
-}: EvalVersionCalloutProps) {
-  const content = getCalloutContent(targetObject, evalCapabilities);
-
-  if (!content.visible) {
-    return null;
-  }
-
+export function EvalVersionCallout({ content }: EvalVersionCalloutProps) {
   return (
     <div className="mt-2 w-full max-w-4xl">
       <Alert variant="warning" icon={AlertTriangle}>

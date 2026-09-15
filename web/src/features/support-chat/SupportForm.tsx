@@ -38,18 +38,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/src/components/ui/alert-dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Textarea } from "@/src/components/ui/textarea";
 import { useEffect, useState } from "react";
 
@@ -361,40 +350,28 @@ export function SupportForm({
               <FormItem>
                 <FormLabel>Priority</FormLabel>
                 <FormControl>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a priority" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SEVERITIES.map((s) =>
-                        isSeveritySelectable(s, canSelectHighSeverity) ? (
-                          <SelectItem key={s} value={s}>
-                            {s}
-                          </SelectItem>
-                        ) : (
-                          // disableHoverableContent: without it, the grace
-                          // area between item and tooltip swallows the hover
-                          // when moving between the two adjacent gated items.
-                          <Tooltip key={s} disableHoverableContent>
-                            {/* Disabled items are pointer-events-none, so the
-                                wrapper div must catch the hover instead. */}
-                            <TooltipTrigger asChild>
-                              <div>
-                                <SelectItem value={s} disabled>
-                                  {s}
-                                </SelectItem>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-xs">
-                              {s === SEVERITY_1
-                                ? "Severity 1 is available on the Enterprise plan."
-                                : "Severity 2 is available on the Enterprise plan."}
-                            </TooltipContent>
-                          </Tooltip>
-                        ),
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <SelectInput
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    placeholder="Select a priority"
+                    options={SEVERITIES.map((severity) => {
+                      if (
+                        isSeveritySelectable(severity, canSelectHighSeverity)
+                      ) {
+                        return { value: severity, label: severity };
+                      }
+
+                      return {
+                        value: severity,
+                        label: severity,
+                        disabled: true as const,
+                        disabledReason:
+                          severity === SEVERITY_1
+                            ? "Severity 1 is available on the Enterprise plan."
+                            : "Severity 2 is available on the Enterprise plan.",
+                      };
+                    })}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -409,36 +386,31 @@ export function SupportForm({
               <FormItem>
                 <FormLabel>Topic</FormLabel>
                 <FormControl>
-                  <Select
-                    value={(field.value as string | undefined) ?? undefined}
+                  <SelectInput
+                    value={field.value ?? undefined}
                     onValueChange={field.onChange}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a topic" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <div className="p-2">
-                        <div className="text-muted-foreground mb-2 text-xs font-bold">
-                          Product Features
-                        </div>
-                        {productFeatureTopics.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {t}
-                          </SelectItem>
-                        ))}
-                      </div>
-                      <div className="border-t p-2">
-                        <div className="text-muted-foreground mb-2 text-xs font-bold">
-                          Operations
-                        </div>
-                        {TopicGroups.Operations.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {t}
-                          </SelectItem>
-                        ))}
-                      </div>
-                    </SelectContent>
-                  </Select>
+                    placeholder="Select a topic"
+                    options={[
+                      {
+                        type: "group",
+                        id: "product-features",
+                        label: "Product Features",
+                        options: productFeatureTopics.map((t) => ({
+                          value: t,
+                          label: t,
+                        })),
+                      },
+                      {
+                        type: "group",
+                        id: "operations",
+                        label: "Operations",
+                        options: TopicGroups.Operations.map((t) => ({
+                          value: t,
+                          label: t,
+                        })),
+                      },
+                    ]}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -454,18 +426,15 @@ export function SupportForm({
                 <FormItem>
                   <FormLabel>Integration Type (optional)</FormLabel>
                   <FormControl>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select integration type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {INTEGRATION_TYPES.map((it) => (
-                          <SelectItem key={it} value={it}>
-                            {it}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SelectInput
+                      value={field.value ?? ""}
+                      onValueChange={field.onChange}
+                      placeholder="Select integration type"
+                      options={INTEGRATION_TYPES.map((integrationType) => ({
+                        value: integrationType,
+                        label: integrationType,
+                      }))}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

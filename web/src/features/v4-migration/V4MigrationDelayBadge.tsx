@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import {
@@ -21,7 +22,7 @@ import {
 } from "@/src/features/v4-migration/sdkVersionStatus";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
 import { buildDeprecatedRulesUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 
 // The pill's description finishes expanding after 300ms (V4MigrationBadgeContent),
 // so a 500ms dwell means the full text was on screen — a drive-by mouse pass

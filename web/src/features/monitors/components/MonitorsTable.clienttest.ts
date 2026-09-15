@@ -9,7 +9,7 @@ import {
   MonitorThresholdOperatorSchema,
 } from "@langfuse/shared/monitors";
 
-import { getMonitorFilterConfig } from "@/src/features/filters/config/monitors-config";
+import { getMonitorFilterConfig } from "@/src/features/filters";
 import { __test } from "./MonitorsTable";
 
 const { filterStateToListMonitorFilter, buildStatusToggleUpdate } = __test;
@@ -56,6 +56,18 @@ describe("getMonitorFilterConfig", () => {
         (facet) => facet.column === "evaluatorId",
       ),
     ).toBe(true);
+  });
+
+  it("includes the evaluator ID in the option hover title", () => {
+    const evaluatorFacet = getMonitorFilterConfig(true).facets.find(
+      (facet) => facet.column === "evaluatorId" && facet.type === "categorical",
+    );
+
+    expect(
+      evaluatorFacet?.type === "categorical"
+        ? evaluatorFacet.getOptionTitle?.("evaluator-1", "Answer quality")
+        : undefined,
+    ).toBe("Answer quality (evaluator-1)");
   });
 });
 

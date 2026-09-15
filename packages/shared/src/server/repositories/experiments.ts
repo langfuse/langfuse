@@ -1,3 +1,4 @@
+import { EXPERIMENT_IO_TRUNCATE_LENGTH } from "../../constants";
 import { matchesUiColumnMapping } from "../../tableDefinitions";
 import { env } from "../../env";
 import { type ScoreSourceType } from "../../domain";
@@ -23,6 +24,7 @@ import {
   eventsExperiments,
   eventsExperimentsAggregation,
   eventsTracesScoresAggregation,
+  experimentItemLevelsAggregation,
   scoreBooleansAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
 import {
@@ -983,12 +985,22 @@ type BuildQualificationPlanInput = {
   };
 };
 
+const EXPERIMENT_ITEM_LEVEL_FILTER_COLUMNS = [
+  "level",
+  "Status",
+  "Level",
+] as const;
+
+const isExperimentItemLevelFilter = (column: string) =>
+  (EXPERIMENT_ITEM_LEVEL_FILTER_COLUMNS as readonly string[]).includes(column);
+
 type QualificationPlan = {
   where: { query: string; params: Record<string, any> };
   having: { query: string; params: Record<string, any> } | null;
   orderBy: string | null;
   hasAgnosticScoreFilters: boolean;
   hasTraceScoreFilters: boolean;
+  hasLevelFilters: boolean;
 };
 
 function combineConditions(
@@ -1075,6 +1087,9 @@ const buildQualificationPlan = (
       "trace_score_booleans",
     ].includes(f.column),
   );
+  const hasLevelFilters = filters.some((f) =>
+    isExperimentItemLevelFilter(f.column),
+  );
 
   const allExperimentIds = [
     ...(baseExperimentId ? [baseExperimentId] : []),
@@ -1112,6 +1127,7 @@ const buildQualificationPlan = (
     orderBy: `ORDER BY e.experiment_item_id ASC`,
     hasAgnosticScoreFilters,
     hasTraceScoreFilters,
+    hasLevelFilters,
   };
 };
 
@@ -1147,6 +1163,7 @@ const getExperimentItemsFromEventsGeneric = (params: {
     orderBy,
     hasAgnosticScoreFilters,
     hasTraceScoreFilters,
+    hasLevelFilters,
   } = buildQualificationPlan({
     baseExperimentId,
     compExperimentIds,
@@ -1208,6 +1225,24 @@ const getExperimentItemsFromEventsGeneric = (params: {
       b.leftJoin(
         "trace_scores_agg AS ts",
         "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
+      ),
+    )
+    .when(hasLevelFilters, (b) =>
+      b.withCTE(
+        "item_levels",
+        experimentItemLevelsAggregation({
+          projectId,
+          experimentIds: [
+            ...(baseExperimentId ? [baseExperimentId] : []),
+            ...compExperimentIds,
+          ],
+        }),
+      ),
+    )
+    .when(hasLevelFilters, (b) =>
+      b.leftJoin(
+        "item_levels AS il",
+        "ON il.experiment_id = e.experiment_id AND il.experiment_item_id = e.experiment_item_id",
       ),
     )
     .where(where)
@@ -1367,8 +1402,6 @@ export const getExperimentItemsFromEvents = async (
 // Batch IO Queries
 // ============================================================================
 
-const IO_TRUNCATE_LENGTH = 1000;
-
 /**
  * Output data for a single experiment.
  */
@@ -1390,7 +1423,7 @@ export type ExperimentItemBatchIO = {
 /**
  * Get batch IO data for experiment items.
  * Returns input/expectedOutput from base experiment, and output from all experiments.
- * All text fields are truncated to IO_TRUNCATE_LENGTH characters.
+ * All text fields are truncated to EXPERIMENT_IO_TRUNCATE_LENGTH characters.
  */
 export const getExperimentItemsBatchIO = async (props: {
   projectId: string;
@@ -1436,7 +1469,7 @@ export const getExperimentItemsBatchIO = async (props: {
     query,
     params: {
       ...params,
-      truncateLength: IO_TRUNCATE_LENGTH,
+      truncateLength: EXPERIMENT_IO_TRUNCATE_LENGTH,
     },
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
@@ -1466,6 +1499,16 @@ export const getExperimentItemsBatchIO = async (props: {
     const item = itemMap.get(row.item_id)!;
     const isBaseline =
       baseExperimentId && row.experiment_id === baseExperimentId;
+
+    // The stored text is passed through verbatim, deliberately. A payload that
+    // is the JSON literal `null` and a payload that is the four-character
+    // STRING "null" are byte-identical here: the native experiment path writes
+    // both through stringifyValue, which returns a string unchanged, while the
+    // dataset-run-item path JSON-encodes (so there a string arrives quoted).
+    // One column, two encodings, no way to tell them apart — so guessing would
+    // erase a real value, and in the fallback below it would go further and
+    // substitute a DIFFERENT run's value in its place. Absent payloads are
+    // handled where they are unambiguous, in the cell.
 
     // Use baseline value if available, otherwise first non-null
     if (row.input !== null && (isBaseline || item.input === null)) {
@@ -1497,16 +1540,27 @@ export const getExperimentItemsBatchIO = async (props: {
   });
 };
 
+/**
+ * Experiment options for the baseline / comparison pickers: one row per run,
+ * with the dataset it ran on and when it started so the UI can group by dataset
+ * and order by recency.
+ */
 export const getExperimentNamesFromEvents = async (props: {
   projectId: string;
 }) => {
   const queryBuilder = new EventsAggQueryBuilder({
     projectId: props.projectId,
+    // Grouped by experiment id: two runs sharing a name are two runs, not one
+    // option pointing at an arbitrary id.
     groupByColumn: "e.experiment_id",
-    selectExpression:
-      "any(e.experiment_name) as experimentName, e.experiment_id as experimentId, nullIf(any(e.experiment_dataset_id), '') as datasetId",
+    selectExpression: `any(e.experiment_name) as experimentName,
+    e.experiment_id as experimentId,
+    nullIf(any(e.experiment_dataset_id), '') as datasetId,
+    min(e.start_time) as startTime`,
   })
     .whereRaw("e.experiment_name IS NOT NULL AND length(e.experiment_name) > 0")
+    // Keeps the bound meaningful: the newest 1000 runs, not an arbitrary 1000.
+    .orderBy("ORDER BY min(e.start_time) DESC")
     .limit(1000, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -1515,6 +1569,7 @@ export const getExperimentNamesFromEvents = async (props: {
     experimentName: string;
     experimentId: string;
     datasetId: string | null;
+    startTime: string;
   }>({
     query,
     params,
@@ -1522,5 +1577,10 @@ export const getExperimentNamesFromEvents = async (props: {
     preferredClickhouseService: "EventsReadOnly",
   });
 
-  return res;
+  return res.map((row) => ({
+    experimentId: row.experimentId,
+    experimentName: row.experimentName,
+    datasetId: row.datasetId,
+    startTime: parseClickhouseUTCDateTimeFormat(row.startTime),
+  }));
 };

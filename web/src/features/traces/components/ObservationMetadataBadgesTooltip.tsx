@@ -3,10 +3,10 @@
  * These badges use BreakdownTooltip to show detailed cost/usage information
  */
 
-import { type ObservationType, isGenerationLike } from "@langfuse/shared";
 import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import {
   BreakdownTooltip,
+  type CostSource,
   type PriceSource,
 } from "@/src/features/traces/components/BreakdownTooltip";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
@@ -16,19 +16,19 @@ export function CostBadge({
   totalCost,
   costDetails,
   priceSource,
+  costSource,
 }: {
-  totalCost: number | null;
-  costDetails: Record<string, number> | undefined;
+  totalCost: number;
+  costDetails: Record<string, number>;
   priceSource?: PriceSource;
+  costSource?: CostSource;
 }) {
-  // Don't show if no cost data. Explicit 0 is a real value and should render.
-  if (totalCost == null || !costDetails) return null;
-
   return (
     <BreakdownTooltip
       details={costDetails}
       isCost={true}
       priceSource={priceSource}
+      costSource={costSource}
     >
       <Badge text={usdFormatter(totalCost)} trailingIcon={InfoIcon} />
     </BreakdownTooltip>
@@ -36,21 +36,16 @@ export function CostBadge({
 }
 
 export function UsageBadge({
-  type,
   inputUsage,
   outputUsage,
   totalUsage,
   usageDetails,
 }: {
-  type: ObservationType;
   inputUsage: number;
   outputUsage: number;
   totalUsage: number;
-  usageDetails: Record<string, number> | undefined;
+  usageDetails: Record<string, number>;
 }) {
-  // Only show for generation-like observations
-  if (!isGenerationLike(type) || !usageDetails) return null;
-
   const tokenText = formatTokenCounts(
     inputUsage,
     outputUsage,

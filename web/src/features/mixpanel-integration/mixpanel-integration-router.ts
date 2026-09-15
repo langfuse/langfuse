@@ -1,12 +1,12 @@
 import { z } from "zod";
 
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   assertPersistedExportSourceAllowed,
   resolveExportSource,
 } from "@/src/features/analytics-integrations/server/exportSource";
 import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,

@@ -1,10 +1,17 @@
-import { forwardRef, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import type * as React from "react";
-import { ChevronDown } from "lucide-react";
 import { type FilterState, type QueryType } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
-import { cn } from "@/src/utils/tailwind";
 import { useElementSize } from "@/src/hooks/useElementSize";
+import {
+  MetricStripBand,
+  MetricStripHeaderRow,
+  type MetricStripStatus,
+} from "@/src/components/metric-strip/MetricStripBand";
+import {
+  MetricStripTrigger,
+  usePointerSelectionFocusGuard,
+} from "@/src/components/metric-strip/MetricStripTrigger";
 import {
   DropdownMenuController,
   DropdownMenuItem,
@@ -56,64 +63,6 @@ const MODE_OPTIONS: StripMode[] = ["count", "cost", "latency"];
 
 const modeLabel = (mode: StripMode): string =>
   OUTLIER_STRIP_METRICS[mode].shortLabel;
-
-type OutlierDropdownButtonVariant = "mode" | "aggregation";
-
-const outlierDropdownButtonClasses: Record<
-  OutlierDropdownButtonVariant,
-  string
-> = {
-  mode: "text-foreground hover:text-muted-foreground font-bold",
-  aggregation:
-    "text-muted-foreground hover:text-foreground underline-offset-2 hover:underline",
-};
-
-const OutlierDropdownButton = forwardRef<
-  HTMLButtonElement,
-  {
-    ariaLabel: string;
-    label: string;
-    variant: OutlierDropdownButtonVariant;
-  } & Omit<React.ComponentPropsWithoutRef<"button">, "aria-label" | "className">
->(({ ariaLabel, label, variant, ...buttonProps }, ref) => (
-  <button
-    {...buttonProps}
-    ref={ref}
-    type="button"
-    aria-label={ariaLabel}
-    className={cn(
-      "flex items-center gap-0.5 text-[13px] leading-none",
-      outlierDropdownButtonClasses[variant],
-    )}
-  >
-    {label}
-    <ChevronDown className="h-2.5 w-2.5" />
-  </button>
-));
-OutlierDropdownButton.displayName = "OutlierDropdownButton";
-
-/**
- * Prevent Radix's close-refocus ONLY after a pointer-driven selection — the
- * programmatic refocus renders as a keyboard-style outline on the trigger.
- * Escape / click-outside / keyboard selection keep the default focus return
- * so keyboard users aren't dropped onto <body> (mirrors ChatMessages,
- * LFE-6864).
- */
-const usePointerSelectionFocusGuard = () => {
-  const selectedViaPointerRef = useRef(false);
-  return {
-    markPointerSelection: (event: { detail: number }) => {
-      // Keyboard-synthesized clicks carry detail 0; real pointer clicks ≥ 1.
-      if (event.detail > 0) selectedViaPointerRef.current = true;
-    },
-    onCloseAutoFocus: (event: Event) => {
-      if (selectedViaPointerRef.current) {
-        event.preventDefault();
-        selectedViaPointerRef.current = false;
-      }
-    },
-  };
-};
 
 const AggDropdownController = ({
   children,
@@ -399,123 +348,99 @@ export function EventsOutlierStrip({
     width > 0 &&
     ((queryResult.isPending && !queryResult.isError) || placeholderMissesGrid);
 
-  // First paint renders nothing inside the measuring wrapper: the bucket size
-  // needs the width, so painting before the first measurement would flash a
-  // skeleton sized for nothing.
-  return (
-    // Ruled top and bottom (LFE-14829): the strip reads as its own band
-    // instead of floating between the toolbar and the table header.
-    <div ref={wrapperRef} className="shrink-0 border-y">
-      {size === undefined ? null : (
-        // pt-2.5 keeps the metric switcher off the top rule; the label then
-        // sits closer to its chart (mt-1.5) than to the band's edge.
-        <div className="relative px-2 pt-2.5 pb-1">
-          {!canApplyFilters ? (
-            <div>
-              <div className="flex items-baseline gap-1.5">
-                <ModeDropdownController
-                  options={MODE_OPTIONS}
-                  onChange={handleModeChange}
-                >
-                  {({ Trigger }) => (
-                    <Trigger asChild>
-                      <OutlierDropdownButton
-                        ariaLabel={`Chart mode: ${modeLabel(mode)}`}
-                        label={modeLabel(mode)}
-                        variant="mode"
-                      />
-                    </Trigger>
-                  )}
-                </ModeDropdownController>
-              </div>
-              <OutlierBarStrip
-                className="mt-1.5"
-                dense={[]}
-                maxValue={0}
-                ticks={[]}
-                stepMs={stepMs}
-                metric={mode}
-                widthPx={chartWidth}
-                disabledReason="Chart unavailable for the current filters"
-              />
-            </div>
-          ) : isLoading || width === 0 ? (
-            <div className="bg-muted h-[76px] animate-pulse rounded" />
-          ) : queryResult.isError ? (
-            <div className="text-muted-foreground flex h-[76px] items-center justify-center text-[11px]">
-              No Data
-            </div>
-          ) : (
-            <div
-              // Dim held-over bins during a refetch (filter change, saved-view
-              // switch, drill-in) — stale data must not read as current.
-              className={cn(
-                "min-w-0 transition-opacity",
-                queryResult.isPlaceholderData &&
-                  queryResult.isFetching &&
-                  "opacity-60",
-              )}
-            >
-              <div className="flex items-baseline gap-1.5">
-                <ModeDropdownController
-                  options={MODE_OPTIONS}
-                  onChange={handleModeChange}
-                >
-                  {({ Trigger }) => (
-                    <Trigger asChild>
-                      <OutlierDropdownButton
-                        ariaLabel={`Chart mode: ${modeLabel(mode)}`}
-                        label={modeLabel(mode)}
-                        variant="mode"
-                      />
-                    </Trigger>
-                  )}
-                </ModeDropdownController>
-                {/* The bar's aggregate must be legible where there is a
-                    choice (p95 vs avg); single-option metrics are
-                    unambiguous and render no aggregation label. */}
-                {aggOptions.length > 1 && (
-                  <AggDropdownController
-                    options={aggOptions}
-                    onChange={(agg) => setAggregation(mode, agg)}
-                  >
-                    {({ Trigger }) => (
-                      <span className="flex items-baseline gap-1">
-                        <Trigger asChild>
-                          <OutlierDropdownButton
-                            ariaLabel={`${def.shortLabel} aggregation: ${aggregation}`}
-                            label={aggregation}
-                            variant="aggregation"
-                          />
-                        </Trigger>
-                      </span>
-                    )}
-                  </AggDropdownController>
-                )}
-              </div>
-              <OutlierBarStrip
-                className="mt-1.5"
-                dense={series.dense}
-                maxValue={series.maxValue}
-                ticks={series.ticks}
-                stepMs={stepMs}
-                metric={mode}
-                widthPx={chartWidth}
-                onSelectBucket={handleSelectBucket}
-                onPreviewPinned={(trigger) =>
-                  capture("pulse:preview_pinned", {
-                    trigger,
-                    metric: mode,
-                    isV4: true,
-                  })
-                }
-                selection={activeSelection}
-                onSelectionChange={handleSelectionChange}
-              />
-            </div>
+  const status: MetricStripStatus = !canApplyFilters
+    ? "ready"
+    : isLoading || width === 0
+      ? "loading"
+      : queryResult.isError
+        ? "empty"
+        : "ready";
+
+  const header = (
+    <MetricStripHeaderRow>
+      <ModeDropdownController
+        options={MODE_OPTIONS}
+        onChange={handleModeChange}
+      >
+        {({ Trigger }) => (
+          <Trigger asChild>
+            <MetricStripTrigger
+              ariaLabel={`Chart mode: ${modeLabel(mode)}`}
+              label={modeLabel(mode)}
+              variant="metric"
+            />
+          </Trigger>
+        )}
+      </ModeDropdownController>
+      {/* The bar's aggregate must be legible where there is a choice (p95 vs
+          avg); single-option metrics are unambiguous and render no
+          aggregation label. A chart that cannot represent the filters is not
+          drawn with any aggregate, so it shows none. */}
+      {canApplyFilters && aggOptions.length > 1 && (
+        <AggDropdownController
+          options={aggOptions}
+          onChange={(agg) => setAggregation(mode, agg)}
+        >
+          {({ Trigger }) => (
+            <span className="flex items-baseline gap-1">
+              <Trigger asChild>
+                <MetricStripTrigger
+                  ariaLabel={`${def.shortLabel} aggregation: ${aggregation}`}
+                  label={aggregation}
+                  variant="aggregation"
+                />
+              </Trigger>
+            </span>
           )}
-        </div>
+        </AggDropdownController>
       )}
-    </div>
+    </MetricStripHeaderRow>
+  );
+
+  return (
+    <MetricStripBand
+      ref={wrapperRef}
+      // The bucket size needs the width, so painting before the first
+      // measurement would flash a skeleton sized for nothing.
+      measured={size !== undefined}
+      status={status}
+      // Dim held-over bins during a refetch (filter change, saved-view
+      // switch, drill-in) — stale data must not read as current.
+      stale={queryResult.isPlaceholderData && queryResult.isFetching}
+      header={header}
+    >
+      {!canApplyFilters ? (
+        <OutlierBarStrip
+          className="mt-1.5"
+          dense={[]}
+          maxValue={0}
+          ticks={[]}
+          stepMs={stepMs}
+          metric={mode}
+          widthPx={chartWidth}
+          disabledReason="Chart unavailable for the current filters"
+        />
+      ) : (
+        <OutlierBarStrip
+          className="mt-1.5"
+          dense={series.dense}
+          maxValue={series.maxValue}
+          ticks={series.ticks}
+          stepMs={stepMs}
+          metric={mode}
+          widthPx={chartWidth}
+          onSelectBucket={handleSelectBucket}
+          onPreviewPinned={(trigger) =>
+            capture("pulse:preview_pinned", {
+              trigger,
+              metric: mode,
+              isV4: true,
+            })
+          }
+          selection={activeSelection}
+          onSelectionChange={handleSelectionChange}
+        />
+      )}
+    </MetricStripBand>
   );
 }

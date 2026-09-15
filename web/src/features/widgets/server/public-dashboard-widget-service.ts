@@ -13,13 +13,13 @@ import {
   getViewDeclaration,
   type ViewVersion,
 } from "@langfuse/shared/query";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { createStructuredPublicApiError } from "@/src/features/public-api";
 import {
   PostUnstableDashboardWidgetResponse,
   type DashboardWidgetViewOutputType,
   type PostUnstableDashboardWidgetBodyType,
-} from "@/src/features/public-api/types/unstable-dashboard-widgets";
+} from "@/src/features/public-api/server";
 import { ChartConfigSchema, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   getWidgetImportFilterConfig,

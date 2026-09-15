@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { Copy } from "lucide-react";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   Dialog,
   DialogBody,
@@ -15,7 +15,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { ActionButton } from "@/src/components/ActionButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements";
 import { useState } from "react";
 import {
   Form,

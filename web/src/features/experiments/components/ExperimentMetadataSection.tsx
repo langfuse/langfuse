@@ -10,11 +10,9 @@ import { useState } from "react";
 export const ExperimentMetadataSection = ({
   metadata,
 }: {
-  metadata: Record<string, unknown> | undefined;
+  metadata: Record<string, unknown>;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-
-  if (Object.keys(metadata ?? {}).length === 0) return null;
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>

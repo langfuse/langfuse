@@ -3065,6 +3065,7 @@ export class OtelIngestionProcessor {
       rawUsageDetails["input_cached_tokens"];
     const cacheCreationTokens =
       rawUsageDetails["cache_creation.input_tokens"] ??
+      rawUsageDetails["cache_write.input_tokens"] ??
       rawUsageDetails["cache_creation_input_tokens"] ??
       rawUsageDetails["cache_write_tokens"] ??
       rawUsageDetails["details.cache_write_tokens"] ??
@@ -3098,6 +3099,7 @@ export class OtelIngestionProcessor {
             "prompt_details.cache_read",
             "input_cached_tokens",
             "cache_creation.input_tokens",
+            "cache_write.input_tokens",
             "cache_creation_input_tokens",
             "cache_write_tokens",
             "details.cache_write_tokens",

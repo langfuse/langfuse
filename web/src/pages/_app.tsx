@@ -22,6 +22,7 @@ import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
 import { AppLayout } from "@/src/components/layouts/app-layout";
+import { DefaultHead } from "@/src/components/layouts/default-head/DefaultHead";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 
@@ -184,6 +185,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
           content="width=device-width, height=device-height, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no, viewport-fit=cover"
         />
       </Head>
+      <DefaultHead />
       <QueryParamProvider
         adapter={NextAdapterPagesWithReadyGuard}
         options={{ enableBatching: true }}
@@ -312,8 +314,15 @@ if (
   process.env.NEXT_MANUAL_SIG_HANDLE
 ) {
   const { shutdown } = await import("@/src/utils/shutdown");
-  prexit(async (signal) => {
-    console.log("Signal: ", signal);
-    return await shutdown(signal);
-  });
+  // uncaughtException is intentionally omitted: it is handled by
+  // installProcessErrorHandlers (registered in instrumentation.ts), which
+  // drains in-flight requests and then exits, rather than prexit exiting
+  // abruptly without draining.
+  prexit(
+    ["exit", "beforeExit", "SIGTSTP", "SIGQUIT", "SIGHUP", "SIGTERM", "SIGINT"],
+    async (signal) => {
+      console.log("Signal: ", signal);
+      return await shutdown(signal);
+    },
+  );
 }

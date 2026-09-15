@@ -26,6 +26,7 @@ const events = {
     "observation_tree_toggle_scores",
     "observation_tree_toggle_metrics",
     "io_mode_switch",
+    "io_parser_comparison",
     "io_pretty_format_toggle_group",
     "test_in_playground_button_click",
     "display_mode_switch",
@@ -56,6 +57,22 @@ const events = {
     // Raw download from the JSON-view fallback shown when a field is too large
     // to render in the unvirtualized viewer (LFE-10989).
     "json_view_large_field_download",
+    // Detail-panel tab switch (Preview / Log View / Scores). `tab` is the
+    // target tab, `target` is trace vs observation. Answers whether the Log
+    // View and Scores tabs earn their place.
+    "detail_tab_switch",
+    // Controls used *inside* the Log View tab, so a removal decision can weigh
+    // what people actually do there. `target` is trace vs observation;
+    // `action` is one of (see `LogViewAction` in TraceLogView.tsx):
+    // search_focus (once per focus, not per keystroke), indent_toggle,
+    // milliseconds_toggle, expand_all, collapse_all, row_expand, row_collapse,
+    // copy_json, json_mode_collapse_toggle, and view_mode_switch (the
+    // Formatted/JSON toggle, emitted by the hosting detail views).
+    // Metadata only — never an observation id or the search text.
+    "log_view_interaction",
+    // The JSON-view Beta switch (legacy JSON <-> virtualized json-beta).
+    // `enabled` is the new value. Decides whether json-beta graduates.
+    "json_beta_toggle",
   ],
   // The shared table peek panel (opened via the `peek` URL param). Props carry
   // `routePattern` (the Next.js route pattern, never a concrete URL) so opens
@@ -196,6 +213,9 @@ const events = {
     "detach_evaluator",
     "filter_reused",
   ],
+  // One-shot batch evaluation from the events / experiments tables.
+  // Counts and enums only — never mapping contents or observation payloads.
+  batch_eval: ["run"],
   integrations: [
     "posthog_form_submitted",
     "blob_storage_form_submitted",
@@ -289,14 +309,23 @@ const events = {
   // Experiments UI (v4). Metadata only — counts/enums/booleans/field names;
   // never experiment or dataset names, score values, or item content.
   // `isV4` + `tableName` on every event. `source` on comparison/baseline
-  // distinguishes picker vs table-selection vs url (deep link / redirect).
+  // distinguishes picker vs table-selection vs url (deep link / redirect) vs
+  // auto — so the auto-selected comparison stays out of "users who compare".
+  //
+  // Two events from the original plan went away with the surfaces they
+  // measured: `analytics_tab_opened` (the Analytics route is
+  // deleted) and `charts_section_toggled` (the charts accordion is replaced by
+  // an always-on metric strip). `chart_metric_changed` now belongs to that
+  // strip and `item_regression_filter_applied` to the score-comparison filter:
+  // same question, same name, so the event history stays continuous.
   experiment: [
     "comparison_changed",
     "comparison_picker_opened",
     "baseline_changed",
+    "auto_comparison_preference_changed",
     "chart_metric_changed",
-    "charts_section_toggled",
-    "analytics_tab_opened",
+    "layout_changed",
+    "diff_mode_changed",
     "score_column_scope_toggled",
     "item_regression_filter_applied",
   ],

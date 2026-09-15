@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 
 import { env } from "@/src/env.mjs";
 import { type OrgAuthedContext } from "@/src/server/api/trpc";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { CloudConfigSchema, parseDbOrg } from "@langfuse/shared";
 import {
   getBillingCycleEnd,

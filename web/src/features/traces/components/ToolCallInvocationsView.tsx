@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { Wrench } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";

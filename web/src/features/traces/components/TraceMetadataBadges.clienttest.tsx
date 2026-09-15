@@ -48,7 +48,6 @@ describe("UsageBadge", () => {
   it("keeps custom usage details accessible without aggregate token totals", () => {
     render(
       <UsageBadge
-        type="GENERATION"
         inputUsage={0}
         outputUsage={0}
         totalUsage={0}

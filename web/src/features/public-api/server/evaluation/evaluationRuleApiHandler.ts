@@ -17,6 +17,7 @@ import {
 export const evaluationRuleApiHandler = withStablePublicApiMiddlewares({
   GET: createStablePublicApiRoute({
     name: "Get evaluation rule",
+    action: "evaluationRule:read",
     querySchema: EvaluationRuleIdQuery,
     responseSchema: EvaluationRule,
     fn: ({ query, auth }) =>
@@ -28,6 +29,7 @@ export const evaluationRuleApiHandler = withStablePublicApiMiddlewares({
   }),
   PATCH: createStablePublicApiRoute({
     name: "Update evaluation rule",
+    action: "evaluationRule:CUD",
     querySchema: EvaluationRuleIdQuery,
     bodySchema: UpdateEvaluationRuleBody,
     responseSchema: EvaluationRule,
@@ -41,6 +43,7 @@ export const evaluationRuleApiHandler = withStablePublicApiMiddlewares({
   }),
   DELETE: createStablePublicApiRoute({
     name: "Delete evaluation rule",
+    action: "evaluationRule:CUD",
     querySchema: EvaluationRuleIdQuery,
     responseSchema: DeleteEvaluationRuleResponse,
     fn: ({ query, auth }) =>

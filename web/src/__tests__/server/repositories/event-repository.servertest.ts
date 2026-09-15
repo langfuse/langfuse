@@ -867,6 +867,56 @@ describe("Clickhouse Events Repository Test", () => {
     });
   });
 
+  maybe("getObservationByIdFromEventsTable startTimeLowerBound", () => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+
+    it("prunes on start_time while absorbing trace-to-observation skew", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const observationStart = Date.now() - 5 * DAY_MS;
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          start_time: observationStart,
+        }),
+      ]);
+
+      const atStart = await getObservationByIdFromEventsTable({
+        id: observationId,
+        projectId,
+        traceId,
+        startTimeLowerBound: new Date(observationStart),
+      });
+      expect(atStart?.id).toBe(observationId);
+
+      // Anchor one day after start (e.g. a trace whose timestamp trails the
+      // observation): still returned because the 2-day skew lookback covers it.
+      const withinSkew = await getObservationByIdFromEventsTable({
+        id: observationId,
+        projectId,
+        traceId,
+        startTimeLowerBound: new Date(observationStart + DAY_MS),
+      });
+      expect(withinSkew?.id).toBe(observationId);
+
+      // Anchor three days after start: the lower bound (anchor - 2 days) now
+      // excludes the observation, proving the bound actually prunes.
+      await expect(
+        getObservationByIdFromEventsTable({
+          id: observationId,
+          projectId,
+          traceId,
+          startTimeLowerBound: new Date(observationStart + 3 * DAY_MS),
+        }),
+      ).rejects.toThrow();
+    });
+  });
+
   maybe("getObservationsCountFromEventsTable", () => {
     it("should return 0 for non-existent project", async () => {
       const nonExistentProjectId = randomUUID();
@@ -4110,6 +4160,168 @@ describe("Clickhouse Events Repository Test", () => {
       });
       expect(io3?.metadata).toBeDefined();
       expect(io3?.metadata?.key3).toBe("value3");
+    });
+
+    it("matches trace and observation ids within the authorized session", async () => {
+      const observationId = randomUUID();
+      const outsideObservationId = randomUUID();
+      const firstTraceId = randomUUID();
+      const secondTraceId = randomUUID();
+      const outsideTraceId = randomUUID();
+      const sessionId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: firstTraceId,
+          session_id: sessionId,
+          type: "GENERATION",
+          input: "first trace",
+          start_time: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: secondTraceId,
+          session_id: sessionId,
+          type: "GENERATION",
+          input: "second trace",
+          start_time: nowMicro + 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: outsideObservationId,
+          project_id: projectId,
+          trace_id: outsideTraceId,
+          session_id: randomUUID(),
+          type: "GENERATION",
+          input: "outside session",
+          start_time: nowMicro + 2000,
+        }),
+      ]);
+
+      const result = await getObservationsBatchIOFromEventsTable({
+        projectId,
+        sessionId,
+        observations: [
+          { id: observationId, traceId: firstTraceId },
+          { id: observationId, traceId: secondTraceId },
+          { id: outsideObservationId, traceId: outsideTraceId },
+        ],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      });
+
+      expect(result).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: observationId,
+            traceId: firstTraceId,
+            input: "first trace",
+          }),
+          expect.objectContaining({
+            id: observationId,
+            traceId: secondTraceId,
+            input: "second trace",
+          }),
+        ]),
+      );
+      expect(result).toHaveLength(2);
+    });
+
+    it("authorizes observations using the trace's latest session", async () => {
+      const uniqueProjectId = randomUUID();
+      const previousSessionId = randomUUID();
+      const currentSessionId = randomUUID();
+      const observationId = randomUUID();
+      const traceId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: observationId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          session_id: previousSessionId,
+          type: "GENERATION",
+          input: "observation input",
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          session_id: currentSessionId,
+          type: "SPAN",
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+      ]);
+
+      const params = {
+        projectId: uniqueProjectId,
+        observations: [{ id: observationId, traceId }],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      };
+
+      await expect(
+        getObservationsBatchIOFromEventsTable({
+          ...params,
+          sessionId: previousSessionId,
+        }),
+      ).resolves.toEqual([]);
+      await expect(
+        getObservationsBatchIOFromEventsTable({
+          ...params,
+          sessionId: currentSessionId,
+        }),
+      ).resolves.toEqual([
+        expect.objectContaining({
+          id: observationId,
+          traceId,
+          input: "observation input",
+        }),
+      ]);
+    });
+
+    it("keeps the session filter when the session id is empty", async () => {
+      const observationId = randomUUID();
+      const traceId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          session_id: randomUUID(),
+          type: "GENERATION",
+          input: "outside empty session",
+          start_time: nowMicro,
+        }),
+      ]);
+
+      const result = await getObservationsBatchIOFromEventsTable({
+        projectId,
+        sessionId: "",
+        observations: [{ id: observationId, traceId }],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      });
+
+      expect(result).toEqual([]);
     });
 
     it("should handle empty observation array", async () => {

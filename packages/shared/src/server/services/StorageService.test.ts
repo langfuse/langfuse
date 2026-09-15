@@ -1,13 +1,75 @@
 import { createHash } from "crypto";
-import { Readable } from "stream";
+import { PassThrough, Readable } from "stream";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { S3Client } from "@aws-sdk/client-s3";
 
+import { BLOB_STORAGE_REGION_INVALID_MESSAGE } from "../../utils/stringChecks";
 import { env } from "../../env";
 import { resolveMediaStorageEndpoints } from "../s3";
 import { StorageServiceFactory } from "./StorageService";
+
+describe("S3StorageService region normalization", () => {
+  it("trims a persisted region before configuring the AWS client", async () => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: " us-west-2",
+      forcePathStyle: false,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+    const client = (service as unknown as { client: S3Client }).client;
+
+    await expect(client.config.region()).resolves.toBe("us-west-2");
+  });
+
+  it("rejects malformed persisted regions before creating an AWS client", () => {
+    expect(() =>
+      StorageServiceFactory.getInstance({
+        accessKeyId: "test-access-key",
+        secretAccessKey: "test-secret-key",
+        bucketName: "test-bucket",
+        endpoint: undefined,
+        region: "us west-2",
+        forcePathStyle: false,
+        useAzureBlob: false,
+        useGoogleCloudStorage: false,
+        useOCIObjectStorage: false,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+      }),
+    ).toThrow(BLOB_STORAGE_REGION_INVALID_MESSAGE);
+  });
+
+  it.each(["europe-west1", "eastus", "auto"])(
+    "configures an S3-compatible client with region %s",
+    async (region) => {
+      const service = StorageServiceFactory.getInstance({
+        accessKeyId: "test-access-key",
+        secretAccessKey: "test-secret-key",
+        bucketName: "test-bucket",
+        endpoint: "https://storage.googleapis.com",
+        region,
+        forcePathStyle: true,
+        useAzureBlob: false,
+        useGoogleCloudStorage: false,
+        useOCIObjectStorage: false,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+      });
+      const client = (service as unknown as { client: S3Client }).client;
+
+      await expect(client.config.region()).resolves.toBe(region);
+    },
+  );
+});
 
 describe("resolveMediaStorageEndpoints", () => {
   it("keeps the existing endpoint for both server access and signed URLs by default", () => {
@@ -260,6 +322,79 @@ describe("GoogleCloudStorageService signed-URL retry", () => {
       "https://signed-read-url",
     );
     expect(getSignedUrl).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Source-stream errors on GCS uploads must reject the awaited upload instead
+ * of escaping as an uncaught 'error' event. `.pipe().on("error")` only
+ * listens on the destination; `pipeline()` forwards source errors too.
+ */
+describe("GoogleCloudStorageService.uploadFile source stream errors", () => {
+  it("rejects when the source stream fails without leaking process events", async () => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: undefined,
+      secretAccessKey: undefined,
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: undefined,
+      forcePathStyle: false,
+      useGoogleCloudStorage: true,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    (
+      service as unknown as { bucket: { file: (name: string) => unknown } }
+    ).bucket = {
+      file: () => ({
+        createWriteStream: () => new PassThrough(),
+      }),
+    };
+
+    const unhandled: unknown[] = [];
+    const uncaught: unknown[] = [];
+    const onUnhandled = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+    const onUncaught = (err: unknown) => {
+      uncaught.push(err);
+    };
+    process.on("unhandledRejection", onUnhandled);
+    process.on("uncaughtException", onUncaught);
+
+    try {
+      const source = new Readable({
+        read() {
+          this.destroy(new Error("source stream failed"));
+        },
+      });
+
+      await expect(
+        (
+          service as unknown as {
+            uploadFile(params: {
+              fileName: string;
+              fileType: string;
+              data: Readable;
+            }): Promise<void>;
+          }
+        ).uploadFile({
+          fileName: "export.json",
+          fileType: "application/json",
+          data: source,
+        }),
+      ).rejects.toThrow();
+
+      await new Promise<void>((resolve) => {
+        setImmediate(resolve);
+      });
+      expect(unhandled).toHaveLength(0);
+      expect(uncaught).toHaveLength(0);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+      process.off("uncaughtException", onUncaught);
+    }
   });
 });
 

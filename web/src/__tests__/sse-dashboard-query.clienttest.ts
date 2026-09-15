@@ -2,10 +2,13 @@
  * Tests for the SSE dashboard query hook's parsing and progress logic.
  */
 import { renderHook, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createElement } from "react";
 import { TextDecoder, TextEncoder } from "util";
 import {
   parseSSEBuffer,
   computeMonotonicPercent,
+  fetchDashboardSSERows,
   useSSEDashboardQuery,
 } from "@/src/hooks/useSSEDashboardQuery";
 
@@ -145,6 +148,13 @@ describe("useSSEDashboardQuery", () => {
   const originalFetch = global.fetch;
   const originalTextDecoder = global.TextDecoder;
 
+  const createWrapper = () => {
+    const queryClient = new QueryClient();
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+    return wrapper;
+  };
+
   const createStreamReader = (chunks: Uint8Array[]) => {
     let index = 0;
 
@@ -181,6 +191,22 @@ describe("useSSEDashboardQuery", () => {
     },
   });
 
+  type TestInput = ReturnType<typeof createInput>;
+
+  // Mirrors production: the scheduler wrapper derives the cache key from the
+  // query input, so a changed input is a new key.
+  const renderSSEHook = (initial: { input: TestInput; enabled: boolean }) =>
+    renderHook(
+      ({ input, enabled }: { input: TestInput; enabled: boolean }) =>
+        useSSEDashboardQuery(input, {
+          enabled,
+          queryKey: ["sse-test", input],
+          staleTime: 0,
+          gcTime: Number.POSITIVE_INFINITY,
+        }),
+      { initialProps: initial, wrapper: createWrapper() },
+    );
+
   afterEach(() => {
     global.fetch = originalFetch;
     global.TextDecoder = originalTextDecoder;
@@ -204,25 +230,17 @@ describe("useSSEDashboardQuery", () => {
     })) as typeof fetch;
     global.TextDecoder = TextDecoder as typeof global.TextDecoder;
 
-    const { result, rerender } = renderHook(
-      ({ enabled }) =>
-        useSSEDashboardQuery(
-          createInput("2026-03-22T00:00:00.000Z", "2026-03-23T00:00:00.000Z"),
-          {
-            enabled,
-            queryId: "widget-1",
-          },
-        ),
-      {
-        initialProps: { enabled: true },
-      },
+    const input = createInput(
+      "2026-03-22T00:00:00.000Z",
+      "2026-03-23T00:00:00.000Z",
     );
+    const { result, rerender } = renderSSEHook({ input, enabled: true });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    rerender({ enabled: false });
+    rerender({ input, enabled: false });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
@@ -292,17 +310,7 @@ describe("useSSEDashboardQuery", () => {
       "2026-03-22T00:00:00.000Z",
       "2026-03-23T00:00:00.000Z",
     );
-
-    const { result, rerender } = renderHook(
-      ({ enabled }) =>
-        useSSEDashboardQuery(input, {
-          enabled,
-          queryId: "widget-1",
-        }),
-      {
-        initialProps: { enabled: true },
-      },
-    );
+    const { result, rerender } = renderSSEHook({ input, enabled: true });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
@@ -311,17 +319,19 @@ describe("useSSEDashboardQuery", () => {
 
     // Scheduler re-promotion: the widget is disabled, then re-enabled with the
     // exact same query input (a re-run it did not need).
-    rerender({ enabled: false });
-    rerender({ enabled: true });
+    rerender({ input, enabled: false });
+    rerender({ input, enabled: true });
 
-    // The second stream is in flight. The chart must NOT blank: the previously
-    // loaded rows stay rendered until fresh rows arrive.
+    // The second stream is in flight (a background refetch). The chart must
+    // NOT blank: the previously loaded rows stay rendered until fresh rows
+    // arrive, and the run is not "pending" (no loading overlay).
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledTimes(2);
     });
     await waitFor(() => {
-      expect(result.current.isLoading).toBe(true);
+      expect(result.current.fetchStatus).toBe("fetching");
     });
+    expect(result.current.isPending).toBe(false);
     expect(result.current.data).toEqual([{ count_count: 42 }]);
 
     (releaseSecondResponse as (() => void) | null)?.();
@@ -391,32 +401,22 @@ describe("useSSEDashboardQuery", () => {
       "2026-03-22T00:00:00.000Z",
       "2026-03-23T00:00:00.000Z",
     );
-
-    const { result, rerender } = renderHook(
-      ({ enabled }) =>
-        useSSEDashboardQuery(input, {
-          enabled,
-          queryId: "widget-1",
-        }),
-      {
-        initialProps: { enabled: true },
-      },
-    );
+    const { result, rerender } = renderSSEHook({ input, enabled: true });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
     expect(result.current.data).toEqual([{ count_count: 42 }]);
 
-    rerender({ enabled: false });
-    rerender({ enabled: true });
+    rerender({ input, enabled: false });
+    rerender({ input, enabled: true });
 
     // While the re-run is in flight, previous rows are still shown.
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledTimes(2);
     });
     await waitFor(() => {
-      expect(result.current.isLoading).toBe(true);
+      expect(result.current.fetchStatus).toBe("fetching");
     });
     expect(result.current.data).toEqual([{ count_count: 42 }]);
 
@@ -486,27 +486,20 @@ describe("useSSEDashboardQuery", () => {
       "2026-03-23T00:00:00.000Z",
     );
 
-    const { result, rerender } = renderHook(
-      ({ input }) =>
-        useSSEDashboardQuery(input, {
-          enabled: true,
-          queryId: "widget-1",
-        }),
-      {
-        initialProps: { input: firstInput },
-      },
-    );
+    const { result, rerender } = renderSSEHook({
+      input: firstInput,
+      enabled: true,
+    });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    rerender({ input: secondInput });
+    rerender({ input: secondInput, enabled: true });
 
     expect(result.current.isPending).toBe(true);
     expect(result.current.isLoading).toBe(true);
     expect(result.current.isSuccess).toBe(false);
-    expect(result.current.fetchStatus).toBe("fetching");
     expect(result.current.data).toBeUndefined();
     expect(result.current.progress).toBeNull();
     expect(result.current.error).toBeNull();
@@ -524,5 +517,103 @@ describe("useSSEDashboardQuery", () => {
     await waitFor(() => {
       expect(result.current.isError).toBe(true);
     });
+  });
+});
+
+// The two degrade paths that must fail visibly instead of wedging a widget or
+// caching partial rows as a fresh success.
+describe("fetchDashboardSSERows degrade paths", () => {
+  const originalFetch = global.fetch;
+  const originalTextDecoder = global.TextDecoder;
+
+  const input = {
+    projectId: "project-1",
+    version: "v1" as const,
+    query: {
+      view: "traces" as const,
+      dimensions: [],
+      metrics: [{ measure: "count", aggregation: "count" as const }],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp: "2026-03-22T00:00:00.000Z",
+      toTimestamp: "2026-03-23T00:00:00.000Z",
+      orderBy: null,
+    },
+  };
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    global.TextDecoder = originalTextDecoder;
+    vi.restoreAllMocks();
+  });
+
+  it("aborts a stalled stream with a real error (never forever-pending)", async () => {
+    const encoder = new TextEncoder();
+    global.TextDecoder = TextDecoder as typeof global.TextDecoder;
+    global.fetch = vi.fn().mockImplementation(async (_url, init) => ({
+      ok: true,
+      body: {
+        getReader: () => ({
+          read: vi
+            .fn()
+            .mockResolvedValueOnce({
+              done: false,
+              value: encoder.encode('event: row\ndata: {"count_count":1}\n\n'),
+            })
+            // Second read never resolves — until the watchdog aborts.
+            .mockImplementation(
+              () =>
+                new Promise((_resolve, reject) => {
+                  (init as RequestInit).signal?.addEventListener("abort", () =>
+                    reject(new DOMException("aborted", "AbortError")),
+                  );
+                }),
+            ),
+        }),
+      },
+    })) as typeof fetch;
+
+    await expect(
+      fetchDashboardSSERows(input, {
+        basePath: "",
+        signal: new AbortController().signal,
+        onProgress: () => undefined,
+        stallTimeoutMs: 30,
+      }),
+    ).rejects.toThrow(/stalled/);
+  });
+
+  it("treats a stream cut before its terminal event as an error, even with rows", async () => {
+    const encoder = new TextEncoder();
+    global.TextDecoder = TextDecoder as typeof global.TextDecoder;
+    let step = 0;
+    global.fetch = vi.fn().mockImplementation(async () => ({
+      ok: true,
+      body: {
+        getReader: () => ({
+          read: vi.fn().mockImplementation(async () => {
+            if (step === 0) {
+              step += 1;
+              return {
+                done: false,
+                value: encoder.encode(
+                  'event: row\ndata: {"count_count":42}\n\n',
+                ),
+              };
+            }
+            // Clean end without a "done"/"error" event: a cut stream.
+            return { done: true, value: undefined };
+          }),
+        }),
+      },
+    })) as typeof fetch;
+
+    await expect(
+      fetchDashboardSSERows(input, {
+        basePath: "",
+        signal: new AbortController().signal,
+        onProgress: () => undefined,
+      }),
+    ).rejects.toThrow("Stream ended unexpectedly");
   });
 });

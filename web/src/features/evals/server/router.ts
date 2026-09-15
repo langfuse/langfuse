@@ -4,8 +4,8 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   DEFAULT_TRACE_JOB_DELAY,
   deriveEvaluatorDisplayStateFromExecutionCounts,

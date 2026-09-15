@@ -38,6 +38,8 @@ export const getMonitorFilterConfig = (
             column: "evaluatorId",
             label: "Evaluator",
             disableTextFilter: true,
+            getOptionTitle: (value, displayLabel) =>
+              `${displayLabel} (${value})`,
           },
           baseFacets[1],
         ],

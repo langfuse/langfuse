@@ -235,6 +235,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
   return (
     <>
       <DataTableToolbar
+        tableName="score-configs"
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}

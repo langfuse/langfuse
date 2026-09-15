@@ -1,4 +1,5 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-null-render */
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
@@ -28,8 +29,6 @@ import {
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { cn } from "@/src/utils/tailwind";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
@@ -52,16 +51,15 @@ import {
   type MigrationCountState,
   type ProjectMigrationReadiness,
 } from "@/src/features/v4-migration/migrationData";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath, V4PreviewToggleRow } from "@/src/features/events";
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
 import {
   useEvalUpgradeAssistantPlan,
   V4_CODING_AGENT_PROMPT,
 } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";

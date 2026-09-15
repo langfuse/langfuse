@@ -9,7 +9,7 @@ import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { BarListChartArea } from "@/src/features/dashboard/components/cards/BarListChartArea";
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import { cn } from "@/src/utils/tailwind";
 
 // Cap on bars fetched and rendered; matches TracesBarListChart. The top list
