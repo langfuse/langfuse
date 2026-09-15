@@ -229,10 +229,17 @@ describe("OpenAPI deprecations", () => {
     expect(INGESTION_DEPRECATION.message).toContain(
       "not in dual or legacy mode",
     );
-    expect(ingestion?.message).toContain("never shut down");
-    expect(ingestion?.message).toContain("score events");
+    expect(ingestion?.message).toContain("will not be shut down");
+    expect(ingestion?.message).toContain(
+      "only `score-create` events as ingestion data",
+    );
+    expect(ingestion?.message).toContain(
+      "all non-score ingestion data is rejected",
+    );
     expect(ingestion?.message).toContain("v4-only write mode");
-    expect(ingestion?.message).toContain("not in dual or legacy mode");
+    expect(ingestion?.message).toContain(
+      "Dual and legacy write modes continue to accept",
+    );
   });
 
   it("warns every sunset ingestion event type in the request body", () => {
@@ -279,11 +286,21 @@ describe("OpenAPI deprecations", () => {
 
       expect(event.docs, eventType).toContain("Sunset warning");
       expect(event.docs, eventType).toContain(V3_SUNSET_HUMAN);
+      expect(event.docs, eventType).toContain("endpoint remains available");
+      expect(event.docs, eventType).toContain(
+        "only `score-create` events as ingestion data",
+      );
       expect(event.docs, eventType).toContain(V4_DOCS_URL);
       expect(generatedSchema.description, eventType).toContain(
         "Sunset warning",
       );
       expect(generatedSchema.description, eventType).toContain(V3_SUNSET_HUMAN);
+      expect(generatedSchema.description, eventType).toContain(
+        "endpoint remains available",
+      );
+      expect(generatedSchema.description, eventType).toContain(
+        "only `score-create` events as ingestion data",
+      );
       expect(generatedSchema.description, eventType).toContain(V4_DOCS_URL);
     }
   });
