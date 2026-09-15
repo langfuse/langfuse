@@ -191,7 +191,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     return res;
   }
 
-  it("rejects deprecated GET routes for Cloud organizations created at the cutoff", async () => {
+  it("rejects deprecated GET routes at the cutoff and emits scoped telemetry", async () => {
     mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
     mockEnv.LANGFUSE_LEGACY_GET_API_NEW_ORG_CUTOFF_ENABLED = "true";
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
