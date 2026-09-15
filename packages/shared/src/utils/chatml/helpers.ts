@@ -71,6 +71,20 @@ export function stringifyToolResultContent(content: unknown): string {
   return JSON.stringify(content);
 }
 
+const CHATML_SCHEMA_RESERVED_KEYS = new Set([
+  "role",
+  "name",
+  "tool_call_id",
+  "tool_calls",
+  "tools",
+  "audio",
+  "thinking",
+  "redacted_thinking",
+  "additional_kwargs",
+  "type",
+  "json",
+]);
+
 /**
  * used to check if a tool call is "complex" to render as PrettyJsonView table
  * or stringify it and render it as pure string. only used for role: tool type
@@ -78,6 +92,9 @@ export function stringifyToolResultContent(content: unknown): string {
  *
  * Rich = has nested structure OR has more than 2 top-level keys
  * Simple <= 2 keys with only scalar values (strings, numbers, booleans, null)
+ *
+ * Note: If the object contains ChatML schema reserved keys (like role, name, tool_call_id),
+ * it cannot be spread without corrupting message envelope metadata, so it returns false.
  */
 export function isRichToolResult(content: unknown): boolean {
   if (!content || typeof content !== "object" || Array.isArray(content)) {
@@ -85,6 +102,15 @@ export function isRichToolResult(content: unknown): boolean {
   }
 
   const keys = Object.keys(content);
+
+  // If payload contains any reserved ChatML message schema keys,
+  // spreading it would overwrite the message envelope fields (e.g. role, name, tool_call_id).
+  // Return false so it is safely stringified instead.
+  for (const key of keys) {
+    if (CHATML_SCHEMA_RESERVED_KEYS.has(key)) {
+      return false;
+    }
+  }
 
   // More than 2 keys → probably rich/structured data
   if (keys.length > 2) return true;
