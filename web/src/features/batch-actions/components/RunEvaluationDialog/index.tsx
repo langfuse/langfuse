@@ -20,11 +20,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip/Tooltip";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { ChevronLeft, ExternalLink, Plus } from "lucide-react";
 import {
@@ -498,13 +494,16 @@ function MappingRunButton({
   }
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex cursor-not-allowed" tabIndex={0}>
+    <Tooltip label={disabledReason} hoverableContent={false}>
+      {({ getTriggerProps }) => (
+        <span
+          {...getTriggerProps()}
+          className="inline-flex cursor-not-allowed"
+          tabIndex={0}
+        >
           {button}
         </span>
-      </TooltipTrigger>
-      <TooltipContent>{disabledReason}</TooltipContent>
+      )}
     </Tooltip>
   );
 }

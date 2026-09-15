@@ -6,11 +6,7 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip/Tooltip";
 import { InfoIcon } from "lucide-react";
 import { type ReviewStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
@@ -166,15 +162,13 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Run Name:</span>
               <span className="font-bold">{formValues.runName}</span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <InfoIcon className="text-muted-foreground h-3.5 w-3.5" />
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[300px]">
-                  This run name is auto-generated from the experiment name and
-                  can be used to fetch the resulting experiment run via the
-                  public API.
-                </TooltipContent>
+              <Tooltip label="This run name is auto-generated from the experiment name and can be used to fetch the resulting experiment run via the public API.">
+                {({ getTriggerProps }) => (
+                  <InfoIcon
+                    {...getTriggerProps()}
+                    className="text-muted-foreground h-3.5 w-3.5"
+                  />
+                )}
               </Tooltip>
             </div>
             {formValues.description && (
