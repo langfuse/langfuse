@@ -488,7 +488,6 @@ export function MarkdownView({
   controlButtons,
   afterHeader,
   isSystemPrompt,
-  hoverControls = false,
 }: {
   /** The UNPARSED content shape — see `canRenderContentAsMarkdown`. Media
       reference strings must still be strings when they reach the part guards. */
@@ -505,8 +504,6 @@ export function MarkdownView({
       (`role === "system"`) — the title can be a message `name` instead of the
       role. Falls back to matching the title for callers without role data. */
   isSystemPrompt?: boolean;
-  /** Header controls (copy, ...) reveal on section hover instead of always. */
-  hoverControls?: boolean;
 }) {
   const { forcedTheme, resolvedTheme } = useTheme();
   const theme = forcedTheme ?? resolvedTheme;
@@ -561,17 +558,14 @@ export function MarkdownView({
   ) : null;
 
   return (
-    <div
-      className={cn("overflow-hidden", hoverControls && "group/iosection")}
-      key={theme}
-    >
+    <div className="group/iosection overflow-hidden" key={theme}>
       {title ? (
         <>
           <MarkdownJsonViewHeader
             title={title}
             titleIcon={titleIcon}
             handleOnCopy={handleOnCopy}
-            hoverRevealControls={hoverControls}
+            hoverRevealControls
             controlButtons={controlButtons}
             collapseControl={
               shouldBeCollapsible
