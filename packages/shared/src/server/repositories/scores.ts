@@ -1438,6 +1438,62 @@ const scoresTraceFilterEventsMapping = [
   },
 ];
 
+// Score columns the count path reconstructs to their latest version via
+// argMax(col, event_ts), replacing FINAL. id / project_id / name are the
+// grouping keys and so are selected directly, not here.
+const SCORE_COUNT_DEDUP_COLUMNS = [
+  "timestamp",
+  "environment",
+  "trace_id",
+  "observation_id",
+  "session_id",
+  "evaluator_id",
+  "evaluation_rule_id",
+  "value",
+  "source",
+  "comment",
+  "author_user_id",
+  "data_type",
+  "string_value",
+  "metadata",
+] as const;
+
+/**
+ * Coarse toDate(timestamp) prune for the count subquery's pre-dedup scan.
+ *
+ * The exact timestamp bound must NOT filter raw rows before dedup (a score's
+ * timestamp is mutable across versions, so it could drop the latest one); it is
+ * re-applied post-dedup in the outer WHERE. This prune only skips partitions /
+ * granules, keeping or dropping whole day-buckets, so the latest version always
+ * survives to the dedup. Operators are relaxed (> / < to >= / <=) and both
+ * sides wrapped in toDate() so boundary-day rows are never lost.
+ */
+const buildScoresCountDatePrune = (
+  filter: FilterState,
+): { query: string; params: Record<string, unknown> } => {
+  const timestampColumn = scoresTableUiColumnDefinitionsFromEvents.find(
+    (c) => c.uiTableId === "timestamp",
+  );
+  if (!timestampColumn) return { query: "", params: {} };
+
+  const timestampFilters = createFilterFromFilterState(
+    filter.filter((f) => matchesUiColumnMapping(timestampColumn, f.column)),
+    scoresTableUiColumnDefinitionsFromEvents,
+    scoresTableCols,
+  ).filter((f): f is DateTimeFilter => f instanceof DateTimeFilter);
+
+  const params: Record<string, unknown> = {};
+  const clauses = timestampFilters.map((f) => {
+    const dateOp = f.operator.startsWith(">") ? ">=" : "<=";
+    const varName = `scoresInnerDatePrune${clickhouseCompliantRandomCharacters()}`;
+    const column = `${f.tablePrefix ? `${f.tablePrefix}.` : ""}${f.field}`;
+    params[varName] = convertDateToClickhouseDateTime(new Date(f.value));
+    return `toDate(${column}) ${dateOp} toDate({${varName}: DateTime64(3, 'UTC')})`;
+  });
+
+  return { query: clauses.join(" AND "), params };
+};
+
 /**
  * v4 variant: scores query using a flat events CTE instead of the physical
  * traces table. Trace-level filters and sort use a "traces" CTE built by
@@ -1485,34 +1541,9 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   );
   const scoreOnlyFilterRes = scoreOnlyFilters.apply();
 
-  // Coarse toDate(timestamp) prune for the count subquery's pre-dedup scan
-  // (partition/granule pruning only; the exact bound is re-applied post-dedup —
-  // see the count query below). Relax > / < to >= / <= at date granularity so
-  // boundary-day rows survive to that exact outer check.
-  const timestampColumn = scoresTableUiColumnDefinitionsFromEvents.find(
-    (c) => c.uiTableId === "timestamp",
-  );
-  const timestampFilterState = timestampColumn
-    ? filter.filter((f) => matchesUiColumnMapping(timestampColumn, f.column))
-    : [];
-  const innerDatePruneClauses: string[] = [];
-  const innerDatePruneParams: Record<string, unknown> = {};
-  for (const f of createFilterFromFilterState(
-    timestampFilterState,
-    scoresTableUiColumnDefinitionsFromEvents,
-    scoresTableCols,
-  ).filter((f): f is DateTimeFilter => f instanceof DateTimeFilter)) {
-    const dateOp = f.operator.startsWith(">") ? ">=" : "<=";
-    const varName = `scoresInnerDatePrune${clickhouseCompliantRandomCharacters()}`;
-    const column = `${f.tablePrefix ? f.tablePrefix + "." : ""}${f.field}`;
-    innerDatePruneClauses.push(
-      `toDate(${column}) ${dateOp} toDate({${varName}: DateTime64(3, 'UTC')})`,
-    );
-    innerDatePruneParams[varName] = convertDateToClickhouseDateTime(
-      new Date(f.value),
-    );
-  }
-  const innerDatePruneQuery = innerDatePruneClauses.join(" AND ");
+  // Coarse pre-dedup prune for the count subquery; see buildScoresCountDatePrune.
+  const { query: innerDatePruneQuery, params: innerDatePruneParams } =
+    buildScoresCountDatePrune(filter);
 
   // Trace-level filter entries from the frontend filter state
   const traceFilterState = filter.filter((filterEntry) =>
@@ -1633,20 +1664,9 @@ const getScoresUiGenericFromEvents = async <T>(props: {
           s.id,
           s.project_id,
           s.name,
-          argMax(s.timestamp, s.event_ts) AS timestamp,
-          argMax(s.environment, s.event_ts) AS environment,
-          argMax(s.trace_id, s.event_ts) AS trace_id,
-          argMax(s.observation_id, s.event_ts) AS observation_id,
-          argMax(s.session_id, s.event_ts) AS session_id,
-          argMax(s.evaluator_id, s.event_ts) AS evaluator_id,
-          argMax(s.evaluation_rule_id, s.event_ts) AS evaluation_rule_id,
-          argMax(s.value, s.event_ts) AS value,
-          argMax(s.source, s.event_ts) AS source,
-          argMax(s.comment, s.event_ts) AS comment,
-          argMax(s.author_user_id, s.event_ts) AS author_user_id,
-          argMax(s.data_type, s.event_ts) AS data_type,
-          argMax(s.string_value, s.event_ts) AS string_value,
-          argMax(s.metadata, s.event_ts) AS metadata
+          ${SCORE_COUNT_DEDUP_COLUMNS.map(
+            (c) => `argMax(s.${c}, s.event_ts) AS ${c}`,
+          ).join(",\n          ")}
         FROM scores s
         WHERE s.project_id = {projectId: String}
         ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}
