@@ -452,7 +452,7 @@ export const ValueCell = memo(
             };
           }
           // Arrays always show previews, never truncate. A collapsed preview
-          // stays on one line and ellipsises; the row expands on click.
+          // stays on one line and truncates with an ellipsis; the row expands on click.
           const arrayPreview = arrayPreviewText(value as unknown[]);
           return {
             content: renderPreview(arrayPreview),
