@@ -619,7 +619,7 @@ export const ValueCell = memo(
             {showCopySuccess ? (
               <Check className="h-2.5 w-2.5 text-green-600" />
             ) : (
-              <Copy className="h-2.5 w-2.5" />
+              <Copy className="h-3.5 w-3.5" />
             )}
           </Button>
         )}
