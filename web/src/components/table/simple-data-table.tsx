@@ -85,7 +85,6 @@ export function SimpleDataTable<TData extends object>({
                 key={header.id}
                 className={cn(
                   "bg-background text-muted-foreground relative h-10 border-b px-2 text-left align-middle font-bold [&:has([role=checkbox])]:pr-0",
-                  header.column.columnDef.headerClassName,
                   header.column.columnDef.hideBelowMd && "hidden md:table-cell",
                 )}
                 style={
@@ -130,7 +129,6 @@ export function SimpleDataTable<TData extends object>({
                         ? "px-2 py-0"
                         : "p-2",
                       column.columnDef.cellPadding === "none" && "p-0",
-                      column.columnDef.cellClassName,
                     )}
                   >
                     {typeof loadingCell === "function" ? (
@@ -202,7 +200,6 @@ export function SimpleDataTable<TData extends object>({
                         ? "px-2 py-0"
                         : "p-2",
                       cell.column.columnDef.cellPadding === "none" && "p-0",
-                      cell.column.columnDef.cellClassName,
                     )}
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

@@ -21,11 +21,18 @@ const columns: LangfuseColumnDef<Dashboard>[] = [
     accessorKey: "name",
     header: "Name",
   }),
-  createTextTableColumn<Dashboard>({
+  {
     accessorKey: "description",
     header: "Description",
-    cellClassName: "truncate",
-  }),
+    cell: ({ getValue }) => {
+      const description = getValue<string>();
+      return (
+        <span className="block truncate" title={description}>
+          {description}
+        </span>
+      );
+    },
+  },
   {
     accessorKey: "updatedAt",
     header: "Updated",

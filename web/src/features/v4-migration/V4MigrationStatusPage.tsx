@@ -310,7 +310,7 @@ function OrgStatusSection({
     {
       ...columnOptions,
       accessorKey: "name",
-      cellClassName: "max-w-48",
+      size: 192,
       header: () => sortableHeader("Project", "name"),
       cell: ({ row }) => (
         <Link
