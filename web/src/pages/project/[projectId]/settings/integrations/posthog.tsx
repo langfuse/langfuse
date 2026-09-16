@@ -3,7 +3,7 @@ import { ConfirmationDialogController } from "@/src/components/design-system/Con
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import {
   Form,
   FormControl,
@@ -87,11 +87,11 @@ export default function PosthogIntegrationSettings() {
         ],
         actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
         actionButtonsRight: (
-          <Button asChild variant="secondary">
-            <Link href="https://langfuse.com/integrations/analytics/posthog">
-              Integration Docs ↗
-            </Link>
-          </Button>
+          <Button
+            href="https://langfuse.com/integrations/analytics/posthog"
+            text="Integration Docs"
+            variant="secondary"
+          />
         ),
       }}
     >
@@ -386,11 +386,10 @@ const PostHogIntegrationSettings = ({
       </form>
       <div className="mt-8 flex gap-2">
         <Button
+          text="Save"
           loading={mut.isPending}
           onClick={posthogForm.handleSubmit(onSubmit)}
-        >
-          Save
-        </Button>
+        />
         <ConfirmationDialogController
           title="Reset PostHog integration?"
           text="This resets the PostHog integration for this project."
@@ -402,9 +401,12 @@ const PostHogIntegrationSettings = ({
           onConfirm={() => mutDelete.mutateAsync({ projectId })}
         >
           {({ openDialog }) => (
-            <Button variant="ghost" disabled={!state} onClick={openDialog}>
-              Reset
-            </Button>
+            <Button
+              text="Reset"
+              variant="ghost"
+              disabled={!state}
+              onClick={openDialog}
+            />
           )}
         </ConfirmationDialogController>
       </div>
