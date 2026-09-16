@@ -1,17 +1,7 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/src/components/ui/alert-dialog";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
@@ -461,31 +451,28 @@ function DeleteDomainButton({
   });
 
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="icon-xs" aria-label={`Delete ${domain}`}>
+    <ConfirmationDialogController
+      title={`Remove ${domain}?`}
+      text={
+        verified
+          ? "If an SSO configuration exists for this domain, you must remove it first. The domain can be re-verified later."
+          : "This removes the pending claim. The domain can be re-added and verified later."
+      }
+      confirmLabel="Remove"
+      variant="destructive"
+      loading={deleteMutation.isPending}
+      onConfirm={() => deleteMutation.mutateAsync({ orgId, id })}
+    >
+      {({ openDialog }) => (
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          aria-label={`Delete ${domain}`}
+          onClick={openDialog}
+        >
           <TrashIcon className="h-4 w-4" />
         </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Remove {domain}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            {verified
-              ? "If an SSO configuration exists for this domain, you must remove it first. The domain can be re-verified later."
-              : "This removes the pending claim. The domain can be re-added and verified later."}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => deleteMutation.mutate({ orgId, id })}
-            disabled={deleteMutation.isPending}
-          >
-            Remove
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      )}
+    </ConfirmationDialogController>
   );
 }
