@@ -30,7 +30,7 @@ import { useOptionalEntitlement } from "@/src/features/entitlements";
 import { type BatchExportTableName } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { targetOptionsQueryMap } from "@/src/features/table/components/targetOptionsQueryMap";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 type TableActionDialogProps = {
   isOpen: boolean;

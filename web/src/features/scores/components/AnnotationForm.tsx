@@ -73,7 +73,7 @@ import {
 } from "@/src/features/scores/lib/keyboardShortcuts";
 import { useAnnotationScoreConfigs } from "@/src/features/scores/hooks/useScoreConfigs";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 function CommentField({
   savedComment,

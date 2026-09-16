@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "4.36.1",
+  "version": "4.37.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -205,6 +205,7 @@
     "dotenv-expand": "^10.0.0",
     "eslint": "catalog:",
     "eslint-plugin-boundaries": "7.2.0",
+    "eslint-plugin-check-file": "3.3.2",
     "eslint-plugin-react-you-might-not-need-an-effect": "^1.0.1",
     "eslint-plugin-storybook": "10.5.10",
     "eslint-plugin-tailwindcss": "4.4.0",

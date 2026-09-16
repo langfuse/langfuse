@@ -1,13 +1,13 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import {
   handleGetMemberships,
   handleUpdateMembership,
   handleDeleteMembership,
 } from "@/src/ee/features/admin-api/server/memberships";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { writeOrgError } from "@/src/features/public-api/server/writeError";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
@@ -28,27 +28,18 @@ export default async function handler(
   }
 
   // CHECK AUTH
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-  if (!authCheck.validKey) {
-    return res.status(401).json({
-      error: authCheck.error,
-    });
+  const authCheck = await shadowAuth({
+    req,
+    action:
+      req.method === "GET"
+        ? "organizationMembers:read"
+        : "organizationMembers:CUD",
+    allowedAccessLevels: ["organization"],
+  });
+  if (!authCheck.success) {
+    return writeOrgError(res, authCheck.error);
   }
   // END CHECK AUTH
-
-  // Check if using an organization API key
-  if (
-    authCheck.scope.accessLevel !== "organization" ||
-    !authCheck.scope.orgId
-  ) {
-    return res.status(403).json({
-      error:
-        "Invalid API key. Organization-scoped API key required for this operation.",
-    });
-  }
 
   if (
     !hasEntitlementBasedOnPlan({

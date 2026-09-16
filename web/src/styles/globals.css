@@ -69,6 +69,7 @@
   --color-control-track: hsl(var(--control-track));
   --color-control-border: hsl(var(--control-border));
   --color-foreground-tertiary: hsl(var(--foreground-tertiary));
+  --color-foreground-secondary: hsl(var(--foreground-secondary));
   --color-surface-code: hsl(var(--surface-code));
   --color-surface-code-header: hsl(var(--surface-code-header));
   --color-muted-magenta: hsl(var(--muted-magenta));
@@ -154,7 +155,7 @@
      text opts in via `font-bold` (the bold role) — never a raw number.
      Any other weight utility is drift (the theme-lab tool samples drift
      per token). */
-  --text-xs: 0.7rem;
+  --text-xs: 0.725rem;
   --text-xs--font-weight: var(--font-weight-regular);
   --text-sm: 0.825rem;
   --text-sm--font-weight: var(--font-weight-regular);
@@ -267,7 +268,7 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 217 33% 17%;
 
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
@@ -275,6 +276,9 @@
        muted-foreground (langfuse.com/docs has the same 4th step). NOTE: ~2.8:1
        on white — flagged in review, kept per design preference for now. */
     --foreground-tertiary: 215 12% 62%;
+    /* Text between body and muted: slate-700. Content that is not a heading
+       and not a label, e.g. JSON values. */
+    --foreground-secondary: 215 25% 27%;
     /* Code blocks sit a step BELOW their surrounding surface ("code is a
          well"), matching the docs site's --surface-code convention. */
     --surface-code: 0 0% 92%;
@@ -348,7 +352,7 @@
     --muted-blue: 239 84% 67%;
     --muted-gray: 210 50% 91.1%;
 
-    --accent-light-green: 138 76.5% 96.7%;
+    --accent-light-green: 138 76.5% 98%;
     --accent-dark-green: 112 100% 32%;
 
     /* Status pairs: light-* tinted fills (alpha baked in), dark-* the
@@ -460,6 +464,7 @@
     --muted: 0 0% 11.6%;
     --muted-foreground: 0 0% 54%;
     --foreground-tertiary: 0 0% 40%;
+    --foreground-secondary: 0 0% 62%;
     --surface-code: 0 0% 2.3%;
     --surface-code-header: 0 0% 8.2%;
 
@@ -644,16 +649,16 @@
 
   /* The whole app renders inside #__next. Isolating it into its own stacking
      context caps every z-index in the app (page header, modals, popovers, …)
-     so none can escape it. The overlay layer containers (declared in
-     _document.tsx) are <body> siblings AFTER #__next and paint on top purely by
-     DOM order — see components/ui/layer.tsx. This is what lets layers carry no
+     so none can escape it. LayerProvider appends the overlay layer containers
+     as <body> siblings AFTER #__next, so they paint on top purely by
+     DOM order — see context/LayerContext/LayerContext.tsx. This is what lets layers carry no
      z-index of their own; z-index stays a LOCAL tool for ordering within a
      single layer. */
   div#__next {
     isolation: isolate;
   }
 
-  /* Overlay layer roots (see _document.tsx + components/ui/layer.tsx). The
+  /* Overlay layer roots (see context/LayerContext/LayerContext.tsx). The
      stack is click-through; each layer is its own isolated stacking context and
      they order by DOM order (later = on top). The layer containers are
      `pointer-events: none` so the EMPTY regions around an overlay pass clicks
