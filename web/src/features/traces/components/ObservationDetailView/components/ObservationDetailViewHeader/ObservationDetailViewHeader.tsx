@@ -35,9 +35,6 @@ import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,
   TimeToFirstTokenBadge,
-  EnvironmentBadge,
-  ReleaseBadge,
-  VersionBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
@@ -746,8 +743,6 @@ export const ObservationDetailViewHeader = memo(
                     projectId={projectId}
                   />
                 )}
-              <EnvironmentBadge environment={observation.environment} />
-              <ReleaseBadge release={observation.release} />
               {displayedTotalCost != null && displayedCostDetails && (
                 <CostBadge
                   totalCost={displayedTotalCost}
@@ -775,7 +770,6 @@ export const ObservationDetailViewHeader = memo(
                       usageDetails={observation.usageDetails}
                     />
                   )}
-              <VersionBadge version={observation.version} />
               {observation.model && (
                 <ModelBadge
                   model={observation.model}
