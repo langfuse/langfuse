@@ -13,6 +13,7 @@ import { useSearch } from "@/src/features/traces/contexts/SearchContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
+import { GRAPH_UNAVAILABLE_COPY } from "@/src/features/traces/fns/graphAvailability";
 import { useReadPath } from "@/src/features/events";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
@@ -94,8 +95,11 @@ function TracePanelNavigationHeaderExpanded({
     useSearch();
   const { expandAll, collapseAll, collapsedNodes } = useSelection();
   const { roots, trace, observations } = useTraceData();
-  const { isGraphViewAvailable, isLoading: isGraphLoading } =
-    useTraceGraphData();
+  const {
+    isGraphViewAvailable,
+    graphAvailability,
+    isLoading: isGraphLoading,
+  } = useTraceGraphData();
   const { isV4 } = useReadPath();
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
   const capture = usePostHogClientCapture();
@@ -181,6 +185,10 @@ function TracePanelNavigationHeaderExpanded({
   // Hold the Graph segment while its query loads, else it vanishes and returns
   // on every trace switch. Stale ?view=graph then falls back to tree.
   const graphResolved = isGraphViewAvailable || isGraphLoading;
+  const graphDisabledReason =
+    graphAvailability.available || isGraphLoading
+      ? undefined
+      : GRAPH_UNAVAILABLE_COPY[graphAvailability.reason];
   const activeView: TraceViewMode =
     viewMode === "timeline"
       ? "timeline"
@@ -312,9 +320,7 @@ function TracePanelNavigationHeaderExpanded({
 
           <ViewModeSwitch
             activeView={activeView}
-            showGraphSegment={
-              isGraphViewAvailable || (viewMode === "graph" && isGraphLoading)
-            }
+            graphDisabledReason={graphDisabledReason}
             onSelect={(view) => {
               // Clicking the already-active segment is a no-op — don't count it.
               if (view !== activeView) {
@@ -340,11 +346,12 @@ type TraceViewMode = "tree" | "timeline" | "graph";
 
 function ViewModeSwitch({
   activeView,
-  showGraphSegment,
+  graphDisabledReason,
   onSelect,
 }: {
   activeView: TraceViewMode;
-  showGraphSegment: boolean;
+  /** Present when the trace has no graph: the segment renders disabled. */
+  graphDisabledReason?: string;
   onSelect: (view: TraceViewMode) => void;
 }) {
   return (
@@ -364,15 +371,14 @@ function ViewModeSwitch({
         icon={GanttChartSquare}
         label="Timeline"
       />
-      {/* Only traces with graph data. */}
-      {showGraphSegment && (
-        <ViewModeSegment
-          active={activeView === "graph"}
-          onClick={() => onSelect("graph")}
-          icon={Network}
-          label="Graph"
-        />
-      )}
+      <ViewModeSegment
+        active={activeView === "graph"}
+        onClick={() => onSelect("graph")}
+        icon={Network}
+        label="Graph"
+        disabled={Boolean(graphDisabledReason)}
+        title={graphDisabledReason}
+      />
     </div>
   );
 }
@@ -382,20 +388,27 @@ function ViewModeSegment({
   onClick,
   icon: Icon,
   label,
+  disabled = false,
+  title,
 }: {
   active: boolean;
   onClick: () => void;
   icon: LucideIcon;
   label: string;
+  disabled?: boolean;
+  /** Overrides the label as the hover text, e.g. why the view is unavailable. */
+  title?: string;
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
       aria-pressed={active}
-      title={label}
+      title={title ?? label}
       className={cn(
         "flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-bold transition-colors",
+        disabled && "cursor-not-allowed opacity-40",
         active
           ? "bg-primary text-primary-foreground shadow-sm"
           : "text-muted-foreground hover:text-foreground",
