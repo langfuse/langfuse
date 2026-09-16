@@ -96,33 +96,3 @@ export const TypeToConfirm = meta.story({
     expect(confirmButton).toBeEnabled();
   },
 });
-
-export const CloseOnInteractionOutside = meta.story({
-  name: "(Test) Close on interaction outside",
-  args: {
-    title: "Archive score config",
-    text: "This score config will no longer be available for new scores.",
-    confirmLabel: "Archive",
-    variant: "destructive",
-    closeOnInteractionOutside: true,
-    onConfirm,
-    children: ({ openDialog }) => (
-      <Button onClick={openDialog}>Archive score config</Button>
-    ),
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const bodyElement = canvasElement.ownerDocument.body;
-    const body = within(bodyElement);
-
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Archive score config" }),
-    );
-    expect(body.getByRole("dialog")).toBeInTheDocument();
-
-    await userEvent.click(bodyElement);
-    await waitFor(() =>
-      expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-  },
-});

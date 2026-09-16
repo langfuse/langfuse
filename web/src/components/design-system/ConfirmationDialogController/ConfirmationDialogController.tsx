@@ -10,7 +10,6 @@ import { Label } from "@/src/components/ui/label";
 
 function ConfirmationDialogController({
   children,
-  closeOnInteractionOutside = false,
   confirmationText,
   confirmLabel,
   disabled = false,
@@ -25,7 +24,6 @@ function ConfirmationDialogController({
     isOpen: boolean;
     openDialog: () => void;
   }) => React.ReactNode;
-  closeOnInteractionOutside?: boolean;
   confirmationText?: string;
   confirmLabel: string;
   disabled?: boolean;
@@ -46,7 +44,6 @@ function ConfirmationDialogController({
       onDismiss={() => setConfirmationInput("")}
       renderDialog={({ closeDialog }) => (
         <Dialog
-          closeOnInteractionOutside={closeOnInteractionOutside}
           title={title}
           actions={[
             {
