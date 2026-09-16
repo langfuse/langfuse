@@ -2,7 +2,7 @@
 
 Research snapshot from primary sources: `langfuse/langfuse` (this checkout), plus shallow clones of `langfuse-docs`, `langfuse-python`, `langfuse-js`, `langfuse/skills`, `langfuse-cli`, `mcp-server-langfuse`, and `langfuse-examples` (cloned 2026-09-16). Org GitHub code search over `AGENTS.md` / `SKILL.md` / READMEs.
 
-**TL;DR:** Intentional agent guidance (public skill, CLI tips, Python SDK README, deprecation FAQ) tells agents **not** to use legacy read/write APIs for new work. Agents are **still advised** to use the `api.legacy.*` SDK namespace in one documented case: **current SDK + self-hosted Langfuse v3**. Several high-traffic surfaces still *show* deprecated APIs as the example (`@langfuse/client` README, Python `Langfuse.api` docstring, JS `fetchObservation` implementation, Python `batch_evaluation`). CLI `__schema` still lists `traces` and `legacy-*` resources; only the skill’s CLI reference tells agents to skip them. In this server repo, `CONTRIBUTING.md` still describes batch `/api/public/ingestion` as current system behavior; in-product MCP observation tools already use Observations v2.
+**TL;DR:** Intentional agent guidance (public skill, CLI tips, Python SDK README, deprecation FAQ) tells agents **not** to use legacy read/write APIs for new work. Agents are **still advised** to use the `api.legacy.*` SDK namespace in one documented case: **current SDK + self-hosted Langfuse v3**. Several high-traffic surfaces still _show_ deprecated APIs as the example (`@langfuse/client` README, Python `Langfuse.api` docstring, JS `fetchObservation` implementation, Python `batch_evaluation`). CLI `__schema` still lists `traces` and `legacy-*` resources; only the skill’s CLI reference tells agents to skip them. In this server repo, `CONTRIBUTING.md` still describes batch `/api/public/ingestion` as current system behavior; in-product MCP observation tools already use Observations v2.
 
 ## 1. What “legacy APIs” means
 
@@ -14,14 +14,14 @@ Server Fern marks these `availability.status: deprecated`. Cloud sunset is **202
 
 Canonical mapping (docs FAQ, all paths under `/api/public`):
 
-| Deprecated | Replacement |
-| --- | --- |
-| `GET /observations`, `GET /observations/{id}` | `GET /v2/observations` |
-| `GET /traces`, `GET /traces/{id}` | `GET /v2/observations` filtered by `traceId` |
-| `GET /sessions`, `GET /sessions/{id}` | `GET /v2/observations` filtered by `sessionId` |
-| `GET /metrics`, `GET /metrics/daily` | `GET /v2/metrics` |
-| `GET /scores`, `GET /scores/{id}`, `GET /v2/scores` | `GET /v3/scores` |
-| Dataset-run reads/writes (`GET/POST /dataset-run-items`, `GET /datasets/{name}/runs…`) | Experiments API / experiment runner SDK |
+| Deprecated                                                                                              | Replacement                                                                       |
+| ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `GET /observations`, `GET /observations/{id}`                                                           | `GET /v2/observations`                                                            |
+| `GET /traces`, `GET /traces/{id}`                                                                       | `GET /v2/observations` filtered by `traceId`                                      |
+| `GET /sessions`, `GET /sessions/{id}`                                                                   | `GET /v2/observations` filtered by `sessionId`                                    |
+| `GET /metrics`, `GET /metrics/daily`                                                                    | `GET /v2/metrics`                                                                 |
+| `GET /scores`, `GET /scores/{id}`, `GET /v2/scores`                                                     | `GET /v3/scores`                                                                  |
+| Dataset-run reads/writes (`GET/POST /dataset-run-items`, `GET /datasets/{name}/runs…`)                  | Experiments API / experiment runner SDK                                           |
 | Trace/observation events on `POST /ingestion`, plus `POST /traces`, `/spans`, `/generations`, `/events` | `POST /otel/v1/traces` (OTLP). `score-create` on ingestion is **not** deprecated. |
 
 Fern sources: `fern/apis/server/definition/legacy/{observations-v1,metrics-v1,score-v1}.yml`, `trace.yml`, `sessions.yml`, `ingestion.yml`, `datasets.yml`, `dataset-run-items.yml`, `scores.yml`.
@@ -64,15 +64,15 @@ Internal auth migration (`API_AUTH_MIGRATION=legacy`), eval-rule `mappingType: l
 
 Primary agent-facing corpus:
 
-| Surface | What it tells agents |
-| --- | --- |
-| `langfuse/skills` `SKILL.md` | Use latest SDKs/APIs. Fetch docs from `llms.txt`. Prefer CLI over raw REST. |
-| `skills/.../references/cli.md` | Prefer `observations` / `metrics` / `scores` over `legacy-*-v1s`. **Always query via `observations`, not `traces`.** |
-| Docs FAQ `deprecated-api-migration.mdx` | Explicitly “for programmatic use, e.g. by coding agents”; full endpoint + SDK method map. |
-| Docs `query-via-sdk.mdx`, `public-api.mdx` | Defaults are `api.observations` and `api.metrics`. `api.legacy.*` calls deprecated endpoints. |
-| Python SDK README | Do not use `trace()` / `api.trace.list`. Query with Observations API v2. |
-| JS SDK root README | Do not `npm install langfuse`. Query with Observations API v2, not `GET /traces`. |
-| Fern `api.yml` | Only live path: OTel ingest + `GET /v2/observations` + `GET /v2/metrics`. |
+| Surface                                    | What it tells agents                                                                                                 |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `langfuse/skills` `SKILL.md`               | Use latest SDKs/APIs. Fetch docs from `llms.txt`. Prefer CLI over raw REST.                                          |
+| `skills/.../references/cli.md`             | Prefer `observations` / `metrics` / `scores` over `legacy-*-v1s`. **Always query via `observations`, not `traces`.** |
+| Docs FAQ `deprecated-api-migration.mdx`    | Explicitly “for programmatic use, e.g. by coding agents”; full endpoint + SDK method map.                            |
+| Docs `query-via-sdk.mdx`, `public-api.mdx` | Defaults are `api.observations` and `api.metrics`. `api.legacy.*` calls deprecated endpoints.                        |
+| Python SDK README                          | Do not use `trace()` / `api.trace.list`. Query with Observations API v2.                                             |
+| JS SDK root README                         | Do not `npm install langfuse`. Query with Observations API v2, not `GET /traces`.                                    |
+| Fern `api.yml`                             | Only live path: OTel ingest + `GET /v2/observations` + `GET /v2/metrics`.                                            |
 
 The dedicated “Langfuse for coding agents” marketing page (`md-override/coding-agents.md`) is about **observing coding-agent spend**, not about which Langfuse REST surface those agents should call.
 
@@ -108,7 +108,7 @@ These are current default-branch files an agent will hit before the FAQ:
 
 4. **Python `langfuse/batch_evaluation.py`** still pages with `api.trace.list` and `api.legacy.observations_v1.get_many`. Production SDK code, not just tests.
 
-5. **SDK test suites** (Python live_provider/e2e, JS openai e2e) still assert via `api.legacy.observations_v1` / `observationsV1`. Agents working *in* the SDK repos will imitate that.
+5. **SDK test suites** (Python live_provider/e2e, JS openai e2e) still assert via `api.legacy.observations_v1` / `observationsV1`. Agents working _in_ the SDK repos will imitate that.
 
 6. **CLI `__schema`** still exposes `traces` and `legacy-observations-v1s` / `legacy-metrics-v1s` / `legacy-score-v1s`. The skill’s CLI reference counters this; an agent that only reads `__schema` can still pick them.
 
@@ -178,7 +178,7 @@ The docs need to be assessed as an agent retrieval system, not only as current p
 
 **Yes, they are still advised to use `api.legacy.*` when talking to a self-hosted v3 server** (or a v3 migration source). That is documented on purpose in compatibility and SDK upgrade pages.
 
-**Yes, they can still be *accidentally* steered onto legacy APIs** by copy-paste surfaces that have not been updated: JS client README `api.trace.get`, Python `api` docstring + `batch_evaluation`, JS `fetchObservation` → v1, SDK tests, and unfiltered CLI schema.
+**Yes, they can still be _accidentally_ steered onto legacy APIs** by copy-paste surfaces that have not been updated: JS client README `api.trace.get`, Python `api` docstring + `batch_evaluation`, JS `fetchObservation` → v1, SDK tests, and unfiltered CLI schema.
 
 Highest-leverage cleanups if the goal is “agents never start on v1”:
 
