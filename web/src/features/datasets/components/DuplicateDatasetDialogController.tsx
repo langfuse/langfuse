@@ -1,8 +1,7 @@
 import { useRouter } from "next/router";
 import { type ReactNode } from "react";
 
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
-import { DialogController } from "@/src/features/in-app-agent/components/dialog-controller";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 
@@ -30,39 +29,29 @@ export function DuplicateDatasetDialogController({
     : { reason: "You don't have permission to duplicate this dataset." };
 
   return (
-    <DialogController<true>
-      dialog={(close, value) => (
-        <ConfirmDialog
-          open={hasAccess && value !== null}
-          onOpenChange={(open) => {
-            if (!open) close();
-          }}
-          title="Duplicate dataset?"
-          description="This creates a copy of the dataset and all of its items."
-          confirmLabel="Duplicate dataset"
-          loading={duplicateDataset.isPending}
-          onConfirm={() =>
-            duplicateDataset.mutate(
-              { projectId, datasetId },
-              {
-                onSuccess: ({ id }) => {
-                  close();
-                  router.push(`/project/${projectId}/datasets/${id}/items`);
-                },
-              },
-            )
-          }
-        />
-      )}
+    <ConfirmationDialogController
+      title="Duplicate dataset?"
+      text="This creates a copy of the dataset and all of its items."
+      confirmLabel="Duplicate dataset"
+      variant="default"
+      disabled={!hasAccess}
+      loading={duplicateDataset.isPending}
+      onConfirm={async () => {
+        const { id } = await duplicateDataset.mutateAsync({
+          projectId,
+          datasetId,
+        });
+        router.push(`/project/${projectId}/datasets/${id}/items`);
+      }}
     >
-      {({ open }) =>
+      {({ openDialog }) =>
         children({
           disabled,
           openDialog: () => {
-            if (hasAccess) open(true);
+            if (hasAccess) openDialog();
           },
         })
       }
-    </DialogController>
+    </ConfirmationDialogController>
   );
 }
