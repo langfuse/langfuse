@@ -30,7 +30,10 @@ import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clic
 import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
 import { type RouteAccessLevel } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
-import { type ProjectAction } from "@/src/features/auth/policy/types";
+import {
+  type AuthorizationContext,
+  type ProjectAction,
+} from "@/src/features/auth/policy/types";
 
 // Next's res.json uses JSON.stringify; V8 throws this when the JSON string
 // exceeds the engine limit. Keep this check scoped to the response write.
@@ -77,7 +80,6 @@ export type AuthedProjectAPIRouteConfig<
   allowedAccessLevels?: RouteAccessLevel[];
   /**
    * Whether in-app agent API keys can call this route without additional confirmation. Defaults to false.
-   * Only set this to true on non-mutating (GET) routes that should be callable by the in-app agent.
    */
   allowInAppAgentKey?: boolean;
   /**
@@ -103,6 +105,12 @@ export type AuthedProjectAPIRouteConfig<
     auth: AuthHeaderValidVerificationResult & {
       scope: { projectId: string; accessLevel: RouteAccessLevel };
     };
+    /**
+     * Policy context from the new auth pipeline. Present in shadow and
+     * enforce; absent in legacy and on gateway-token auth.
+     */
+    ctx?: AuthorizationContext;
+    accessLevel: RouteAccessLevel;
   }) => Promise<z.infer<TResponse>>;
 };
 
@@ -177,6 +185,7 @@ export const createAuthedProjectAPIRoute = <
         accessLevel: RouteAccessLevel;
       };
     };
+    let authzCtx: AuthorizationContext | undefined;
 
     if (gatewayAuth) {
       auth = gatewayAuth;
@@ -201,6 +210,7 @@ export const createAuthedProjectAPIRoute = <
           accessLevel: RouteAccessLevel;
         },
       };
+      authzCtx = result.ctx;
     }
 
     const rateLimitResponse =
@@ -264,7 +274,7 @@ export const createAuthedProjectAPIRoute = <
       throw error;
     }
 
-    const ctx = contextWithLangfuseProps({
+    const otelCtx = contextWithLangfuseProps({
       headers: req.headers,
       projectId: auth.scope.projectId,
       apiKeyId: auth.scope.apiKeyId,
@@ -273,7 +283,7 @@ export const createAuthedProjectAPIRoute = <
         route: clickHouseRouteForRequest(req),
       },
     });
-    return opentelemetry.context.with(ctx, async () => {
+    return opentelemetry.context.with(otelCtx, async () => {
       const response = await routeConfig.fn({
         query,
         body,
@@ -284,6 +294,8 @@ export const createAuthedProjectAPIRoute = <
         auth: auth as AuthHeaderValidVerificationResult & {
           scope: { projectId: string; accessLevel: RouteAccessLevel };
         },
+        ctx: authzCtx,
+        accessLevel: auth.scope.accessLevel,
       });
 
       if (env.NODE_ENV === "development" && routeConfig.responseSchema) {
@@ -294,12 +306,18 @@ export const createAuthedProjectAPIRoute = <
         }
       }
 
-      res.status(
+      const statusCode =
         // Check whether status code was already set inside handler to non default value
         res.statusCode !== 200
           ? res.statusCode
-          : routeConfig.successStatusCode || 200,
-      );
+          : routeConfig.successStatusCode || 200;
+
+      if (statusCode === 204) {
+        res.status(204).end();
+        return;
+      }
+
+      res.status(statusCode);
 
       try {
         res.json(attachDeprecation(response || { message: "OK" }, deprecation));

@@ -321,4 +321,30 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       message: "Response payload is too large",
     });
   });
+
+  it("sends a bodyless 204 when successStatusCode is 204", async () => {
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+
+    const handler = createAuthedProjectAPIRoute({
+      name: "Delete Route",
+      action: "prompts:CUD",
+      querySchema: z.object({}),
+      responseSchema: z.void(),
+      successStatusCode: 204,
+      fn: async () => undefined,
+    });
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "DELETE",
+      headers: {
+        authorization: "Basic test",
+      },
+      query: {},
+    });
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(204);
+    expect(res._isEndCalled()).toBe(true);
+    expect(res._getData()).toBe("");
+  });
 });
