@@ -3,9 +3,9 @@
 Builds a conversation transcript from the observations of one trace, or of
 every trace in one session.
 
-Status: generation-led builder with explicitly linked tool responses.
+Status: generation-led builder with tool responses matched by ID or name and order.
 
-- Tool outputs contribute only when matched to a generation output's tool-call ID in the same trace.
+- Tool outputs contribute only when matched to a preceding generation output's tool call in the same trace.
 - Root span I/O and unmatched tool observations are excluded.
 
 ## Interface
@@ -41,9 +41,12 @@ and decides which, if any, is the main conversation.
 
 - `GENERATION` observations with a non-null trace ID establish threads.
 - Include `TOOL` observations in the supplied observations to recover responses.
-  An explicit tool observation's call ID must match a generation output's tool-call ID in the same trace.
-  Missing IDs, unmatched tools, and tools encountered before their calling
-  generation are skipped. There is no hierarchy, name or timestamp fallback.
+  Match normalized tool-result IDs first. Without an ID, match the observation's
+  exact name to the earliest preceding call not yet claimed by a tool observation
+  with that tool name in the same trace. No parent constraint or fuzzy matching.
+  Unknown explicit IDs do not fall back to names; unmatched tools are skipped.
+  Preserve all normalized output parts; tool inputs are ignored. Provider-specific
+  payload interpretation belongs to normalized IO, not the transcript builder.
 - The caller supplies observations from one trace or session. The builder
   orders generations and tools by start time across the supplied traces.
 - Each observation is normalized once in this chronological pass. Generations
@@ -51,10 +54,15 @@ and decides which, if any, is the main conversation.
   calls. Input messages are processed before output messages for generations.
 - Generations producing no messages are skipped and do not create empty threads.
 - Each registered tool call has at most one tool result response. A tool observation with a
-  response adds or replaces it, referencing the tool's `observationId` and
+  response adds or replaces it immediately after the originating call message,
+  referencing the tool's `observationId` and
   `traceId`. Later generation replay cannot overwrite it or add another copy.
   If multiple tool observations respond to one call, the first response wins.
   Tool inputs do not contribute. Other observation types are ignored.
+
+The main loop has two paths: generations select a thread, append deduplicated
+input and append output; tool observations enrich an existing call. Call
+registration and replayed-result suppression happen inside message appending.
 
 ## How does deduplication work?
 
@@ -110,8 +118,9 @@ and observation provenance are excluded. All fields inside parts are included.
   or parts may not match. Reordering parts within a message also changes identity.
   Registered tool responses are the exception: replay is matched by call ID
   within the same trace, even when grouped with other parts.
-- **Unmatched tools:** responses without a matching explicit call ID are skipped.
-  There is no hierarchy-based fallback, and tool inputs do not contribute.
+- **Name matching is best-effort:** same-name parallel executions can start in a
+  different order from their calls. Names must match exactly. Metadata-only IDs
+  are not read by the transcript builder; they require support in normalized IO.
 - **Performance:** replayed history is normalized and serialized for each
   generation.
 
@@ -133,6 +142,8 @@ and observation provenance are excluded. All fields inside parts are included.
 transcript/
 ├── README.md
 ├── index.ts               getTranscript
+├── threads.ts             thread selection and message deduplication
+├── tool-calls.ts          tool matching and response association
 ├── types.ts               Transcript, Thread, ThreadMessage
 └── fixtures/
     ├── README.md          how to turn a trace JSON export into a fixture
