@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { z } from "zod/v4";
 import { randomUUID } from "crypto";
 import { addDays } from "date-fns";
