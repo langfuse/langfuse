@@ -9,7 +9,10 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   BaseError,
+  ForbiddenError,
+  LangfuseNotFoundError,
   PayloadTooLargeError,
+  ServiceUnavailableError,
   UnauthorizedError,
   type RateLimitResource,
   type ApiDeprecationInfo,
@@ -40,6 +43,30 @@ import {
 // exceeds the engine limit. Keep this check scoped to the response write.
 const isJsonStringTooLargeError = (error: unknown): error is RangeError =>
   error instanceof RangeError && error.message === "Invalid string length";
+
+/** toMiddlewareAuthError maps seam auth failures onto the BaseError classes whose `name` withMiddlewares already puts in `{ error }`. */
+function toMiddlewareAuthError(error: BaseError): BaseError {
+  switch (error.httpCode) {
+    case 401:
+      return error instanceof UnauthorizedError
+        ? error
+        : new UnauthorizedError(error.message);
+    case 403:
+      return error instanceof ForbiddenError
+        ? error
+        : new ForbiddenError(error.message);
+    case 404:
+      return error instanceof LangfuseNotFoundError
+        ? error
+        : new LangfuseNotFoundError(error.message);
+    case 503:
+      return error instanceof ServiceUnavailableError
+        ? error
+        : new ServiceUnavailableError(error.message);
+    default:
+      return error;
+  }
+}
 
 export type AuthedProjectAPIRouteConfig<
   TQuery extends ZodType<any>,
@@ -148,18 +175,19 @@ export const createAuthedProjectAPIRoute = <
     }
 
     const renderAuthError = (error: BaseError) => {
+      const publicError = toMiddlewareAuthError(error);
       if (routeConfig.errorContract === structuredPublicApiErrorContract) {
         return sendStructuredPublicApiErrorResponse(
           res,
           createStructuredPublicApiAuthError({
-            statusCode: error.httpCode,
-            message: error.message,
+            statusCode: publicError.httpCode,
+            message: publicError.message,
           }),
         );
       }
-      res.status(error.httpCode).json({
-        message: error.message,
-        error: error.name,
+      res.status(publicError.httpCode).json({
+        message: publicError.message,
+        error: publicError.name,
       });
     };
 
