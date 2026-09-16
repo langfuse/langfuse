@@ -50,6 +50,7 @@ describe("/api/public/prompts API Endpoint", () => {
             orgId: "test-org",
             apiKeyId: "test-api-key",
           },
+          accessLevel: "project",
           input: {
             name: "concurrent-prompt",
             prompt: "test",

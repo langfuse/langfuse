@@ -10,9 +10,12 @@ import {
   LangfuseNotFoundError,
   hasProjectAccessByRole,
 } from "@langfuse/shared";
+import { type ApiAccessLevel } from "@langfuse/shared/src/server";
 import type { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/server";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
 import { createPrompt } from "./actions/createPrompt";
 import { getPromptByName } from "./actions/getPromptByName";
 import { getPromptsMeta } from "./actions/getPromptsMeta";
@@ -23,6 +26,11 @@ type ApiKeyProjectContext = {
   projectId: string;
   orgId: string;
   apiKeyId: string;
+};
+
+type PromptApiAuthz = {
+  ctx?: AuthorizationContext;
+  accessLevel: ApiAccessLevel;
 };
 
 type ListPromptsForApiInput = z.infer<typeof GetPromptsMetaSchema> & {
@@ -99,24 +107,13 @@ async function resolveApiKeyCreatorProjectAccess(params: {
 /**
  * Ordinary project API keys may still promote protected labels (CI). Temporary
  * in-app-agent keys must honor the creator's promptProtectedLabels:CUD right.
+ * Call after checkHasProtectedLabels; skip when that result is false.
  */
 async function assertInAppAgentMayMutateProtectedLabels(params: {
   context: ApiKeyProjectContext;
-  labelsToCheck: string[];
+  protectedLabels: string[];
   forbiddenErrorMessage: string;
 }): Promise<void> {
-  const { hasProtectedLabels, protectedLabels } = await checkHasProtectedLabels(
-    {
-      prisma,
-      projectId: params.context.projectId,
-      labelsToCheck: params.labelsToCheck,
-    },
-  );
-
-  if (!hasProtectedLabels) {
-    return;
-  }
-
   const apiKey = await prisma.apiKey.findUnique({
     where: { id: params.context.apiKeyId },
     select: {
@@ -147,20 +144,57 @@ async function assertInAppAgentMayMutateProtectedLabels(params: {
 
   if (!mayMutateProtectedLabels) {
     throw new ForbiddenError(
-      `${params.forbiddenErrorMessage}\n\n Protected labels are: ${protectedLabels.join(", ")}`,
+      `${params.forbiddenErrorMessage}\n\n Protected labels are: ${params.protectedLabels.join(", ")}`,
     );
   }
+}
+
+/** authorizeProtectedLabelMutation runs the per-item seam and the in-app-agent creator check when the label set includes a protected label. */
+async function authorizeProtectedLabelMutation(params: {
+  context: ApiKeyProjectContext;
+  authz: PromptApiAuthz;
+  labelsToCheck: string[];
+  forbiddenErrorMessage: string;
+}): Promise<void> {
+  const { hasProtectedLabels, protectedLabels } = await checkHasProtectedLabels(
+    {
+      prisma,
+      projectId: params.context.projectId,
+      labelsToCheck: params.labelsToCheck,
+    },
+  );
+
+  if (!hasProtectedLabels) {
+    return;
+  }
+
+  const decision = shadowAuthorize({
+    ctx: params.authz.ctx,
+    action: "promptProtectedLabels:CUD",
+    resource: { projectId: params.context.projectId },
+    accessLevel: params.authz.accessLevel,
+  });
+  if (!decision.success) throw decision.error;
+
+  await assertInAppAgentMayMutateProtectedLabels({
+    context: params.context,
+    protectedLabels,
+    forbiddenErrorMessage: params.forbiddenErrorMessage,
+  });
 }
 
 export const createPromptForApi = async ({
   context,
   input,
+  ctx,
+  accessLevel,
 }: {
   context: ApiKeyProjectContext;
   input: z.infer<typeof CreatePromptSchema>;
-}) => {
-  await assertInAppAgentMayMutateProtectedLabels({
+} & PromptApiAuthz) => {
+  await authorizeProtectedLabelMutation({
     context,
+    authz: { ctx, accessLevel },
     labelsToCheck: input.labels ?? [],
     forbiddenErrorMessage:
       "You don't have permission to create a prompt with a protected label. Please contact your project admin for assistance.",
@@ -210,12 +244,14 @@ export const updatePromptLabelsForApi = async ({
   promptName,
   promptVersion,
   newLabels,
+  ctx,
+  accessLevel,
 }: {
   context: ApiKeyProjectContext;
   promptName: string;
   promptVersion: number;
   newLabels: string[];
-}) => {
+} & PromptApiAuthz) => {
   const existingPrompt = await prisma.prompt.findUnique({
     where: {
       projectId_name_version: {
@@ -238,8 +274,9 @@ export const updatePromptLabelsForApi = async ({
     (label) => !existingPrompt.labels.includes(label),
   );
 
-  await assertInAppAgentMayMutateProtectedLabels({
+  await authorizeProtectedLabelMutation({
     context,
+    authz: { ctx, accessLevel },
     labelsToCheck: addedLabels,
     forbiddenErrorMessage:
       "You don't have permission to add a protected label to a prompt. Please contact your project admin for assistance.",

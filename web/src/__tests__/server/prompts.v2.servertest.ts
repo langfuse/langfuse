@@ -3126,6 +3126,35 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
   });
 
   describe("DELETE /api/public/v2/prompts/:promptName", () => {
+    it("returns a bodyless 204", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const name = "deletePromptBodyless" + uuidv4();
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name,
+          prompt: "p1",
+          labels: [],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "DELETE",
+        query: { promptName: name },
+        headers: { authorization: auth },
+      });
+
+      await promptNameHandler(req, res);
+
+      expect(res._getStatusCode()).toBe(204);
+      expect(res._getData()).toBe("");
+    });
+
     it("deletes all versions of a prompt", async () => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
       const name = "deletePrompt" + uuidv4();

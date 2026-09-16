@@ -1,4 +1,4 @@
-import { type NextApiRequest, type NextApiResponse } from "next";
+import { z } from "zod";
 
 import {
   createPromptForApi,
@@ -6,57 +6,42 @@ import {
 } from "@/src/features/prompts/server/prompt-api-service";
 import {
   withMiddlewares,
-  RateLimitService,
+  createAuthedProjectAPIRoute,
 } from "@/src/features/public-api/server";
-import { authorizePromptRequestOrThrow } from "../utils/authorizePromptRequest";
 import { CreatePromptSchema, GetPromptsMetaSchema } from "@langfuse/shared";
 
-const getPromptsHandler = async (req: NextApiRequest, res: NextApiResponse) => {
-  const authCheck = await authorizePromptRequestOrThrow(req);
-
-  const rateLimitCheck = await RateLimitService.getInstance().rateLimitRequest(
-    authCheck.scope,
-    "prompts",
-  );
-
-  if (rateLimitCheck?.isRateLimited()) {
-    return rateLimitCheck.sendRestResponseIfLimited(res);
-  }
-
-  const input = GetPromptsMetaSchema.parse(req.query);
-  const promptsMetadata = await listPromptsForApi({
-    ...input,
-    projectId: authCheck.scope.projectId,
-  });
-
-  return res.status(200).json(promptsMetadata);
-};
-
-const postPromptsHandler = async (
-  req: NextApiRequest,
-  res: NextApiResponse,
-) => {
-  const authCheck = await authorizePromptRequestOrThrow(req);
-
-  const rateLimitCheck = await RateLimitService.getInstance().rateLimitRequest(
-    authCheck.scope,
-    "prompts",
-  );
-
-  if (rateLimitCheck?.isRateLimited()) {
-    return rateLimitCheck.sendRestResponseIfLimited(res);
-  }
-
-  const input = CreatePromptSchema.parse(req.body);
-  const createdPrompt = await createPromptForApi({
-    context: authCheck.scope,
-    input,
-  });
-
-  return res.status(201).json(createdPrompt);
-};
-
 export const promptsHandler = withMiddlewares({
-  GET: getPromptsHandler,
-  POST: postPromptsHandler,
+  GET: createAuthedProjectAPIRoute({
+    name: "Get Prompts",
+    action: "prompts:read",
+    querySchema: GetPromptsMetaSchema,
+    responseSchema: z.any(),
+    allowInAppAgentKey: true,
+    isAdminApiKeyAuthAllowed: false,
+    rateLimitResource: "prompts",
+    fn: async ({ query, auth }) => {
+      return await listPromptsForApi({
+        ...query,
+        projectId: auth.scope.projectId,
+      });
+    },
+  }),
+  POST: createAuthedProjectAPIRoute({
+    name: "Create Prompt",
+    action: "prompts:CUD",
+    bodySchema: CreatePromptSchema,
+    responseSchema: z.any(),
+    successStatusCode: 201,
+    allowInAppAgentKey: true,
+    isAdminApiKeyAuthAllowed: false,
+    rateLimitResource: "prompts",
+    fn: async ({ body, auth, ctx, accessLevel }) => {
+      return await createPromptForApi({
+        context: auth.scope,
+        input: body,
+        ctx,
+        accessLevel,
+      });
+    },
+  }),
 });
