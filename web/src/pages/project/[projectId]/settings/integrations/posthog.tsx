@@ -17,11 +17,7 @@ import { Input } from "@/src/components/design-system/Input/Input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from "@/src/components/ui/tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 import { PostHogStatusSection } from "@/src/features/posthog-integration/components/PostHogStatusSection";
@@ -291,35 +287,42 @@ const PostHogIntegrationSettings = ({
               <FormItem>
                 <FormLabel className="flex items-center gap-1.5 pt-2">
                   Export Source
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <Info className="text-muted-foreground h-3.5 w-3.5" />
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="bottom"
-                      className="max-w-[350px] space-y-2 p-3"
-                    >
-                      {exportSourceOptions.map((option) => (
-                        <div key={option.value} className="space-y-0.5">
-                          <div className="font-bold">{option.label}</div>
-                          <div className="text-muted-foreground text-xs">
-                            {option.description}
+                  <CustomTooltip
+                    placement="bottom"
+                    content={
+                      <div className="space-y-2 py-1.5">
+                        {exportSourceOptions.map((option) => (
+                          <div key={option.value} className="space-y-0.5">
+                            <div className="font-bold">{option.label}</div>
+                            <div className="text-muted-foreground text-xs">
+                              {option.description}
+                            </div>
                           </div>
+                        ))}
+                        <div className="border-t pt-2">
+                          <a
+                            href="https://langfuse.com/docs/integrations/export-sources"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
+                          >
+                            For further information see
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
                         </div>
-                      ))}
-                      <div className="border-t pt-2">
-                        <a
-                          href="https://langfuse.com/docs/integrations/export-sources"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
-                        >
-                          For further information see
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
                       </div>
-                    </TooltipContent>
-                  </Tooltip>
+                    }
+                  >
+                    {({ getTriggerProps }) => (
+                      <button
+                        type="button"
+                        aria-label="About export sources"
+                        {...getTriggerProps()}
+                      >
+                        <Info className="text-muted-foreground h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </CustomTooltip>
                 </FormLabel>
                 <FormControl>
                   <SelectInput
