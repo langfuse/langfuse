@@ -511,11 +511,20 @@ function PlanCardAction({
       );
     }
     return (
-      <Button className="w-full" disabled>
-        {!hasValidPaymentMethod && currentProductId
-          ? "Payment method required"
-          : "Current plan"}
-      </Button>
+      <div className="flex flex-col gap-2">
+        <Button className="w-full" disabled>
+          {!hasValidPaymentMethod && currentProductId
+            ? "Payment method required"
+            : "Current plan"}
+        </Button>
+        {currentProductId ? (
+          <StripeCancellationButton
+            orgId={orgId}
+            variant="secondary"
+            className="w-full"
+          />
+        ) : null}
+      </div>
     );
   }
 

@@ -144,6 +144,7 @@ export const StripeCancellationButton = ({
           variant={variant}
           disabled={loading}
           title="Cancel Subscription"
+          className={className}
         >
           {label ?? "Cancel Subscription"}
         </Button>
