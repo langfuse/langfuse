@@ -48,6 +48,8 @@ Separate from REST. Current SDK READMEs call these out as do-not-use for new ins
 
 Replacement: Python `get_client()` + `start_as_current_observation` / `@observe`; JS `@langfuse/tracing` + `@langfuse/otel`.
 
+Important false positive: Python `from langfuse import Langfuse` / `Langfuse()` remains a current v4 constructor. The legacy call is `langfuse.trace()` (and its span/generation object model), not construction itself. Likewise, OTel attributes named `langfuse.trace.*`, `POST /ingestion` with `score-create`, and trace deletion endpoints are current uses of trace vocabulary, not deprecated trace reads.
+
 ### 1.3 Legacy evaluators (product, not REST namespace)
 
 Trace-level and dataset-item LLM-as-a-Judge rules. UI labels them Legacy. Public skill has `references/trace-evaluator-upgrade.md` to migrate them **off** that model, not to keep using it.
@@ -135,6 +137,8 @@ The docs need to be assessed as an agent retrieval system, not only as current p
 - `scripts/copy_md_sources.js` appends an “Agent Instructions” footer to nearly every Markdown page. It sends agents to semantic search, `llms.txt`, the public skill, the API reference, and the CLI. This is strong global steering, but the footer says the CLI can “read or write traces” without adding “via observations/OTel”; the skill must supply that distinction.
 - Changelog Markdown gets an additional machine-readable warning: examples are historical and must not be used for implementation. Blogs do **not** get that warning.
 - `llms-blog.txt` indexes old and new blog posts together. This includes pages with legacy snippets, so blogs remain directly discoverable even though they are not inline in the main `llms.txt`.
+- Marketing landing pages including `/agents` and `/coding-agents` are intentionally excluded from `llms.txt`; an agent following the generated index reaches the skill/current docs instead.
+- The docs MCP's direct-page tool warns that changelog examples are historical. Its semantic-search tool has no equivalent instruction, and the search provider indexes the wider corpus, so stale changelog/blog excerpts can still arrive without that guardrail.
 
 ### Current docs that correctly steer away from legacy
 
@@ -150,6 +154,8 @@ The docs need to be assessed as an agent retrieval system, not only as current p
 - `content/faq/all/v3-sdk-observation-lookup-404.mdx` gives a v3-only `useEventsTable=true` workaround, then offers migration to the current SDK. Its title and options constrain the advice.
 - `content/self-hosting/upgrade/upgrade-guides/upgrade-v2-to-v3.mdx` and old SDK upgrade pages show legacy APIs as “before” states. Their versioned titles make that historical role clear.
 - `content/integrations/other/promptfoo.mdx` says `npm install langfuse` because Promptfoo itself currently requires that package, and separately uses `@langfuse/client` for direct Langfuse code. This looks suspicious in a text search but is explicit third-party compatibility, not general SDK advice.
+- `content/integrations/gateways/kong-ai-plugin.mdx` mentions a community plugin using `/api/public/ingestion`, but the adjacent callout marks it deprecated and the primary setup uses OTel.
+- `content/integrations/frameworks/pipecat.mdx` documents `langfuse.trace.input` / `.output` OTel attributes only as deprecated compatibility for legacy evaluators; those strings are attributes, not the old SDK method.
 
 ### Docs that can mislead an agent
 
@@ -158,10 +164,11 @@ The docs need to be assessed as an agent retrieval system, not only as current p
 3. **Older blogs contain copy-ready legacy tracing.** `blog/showcase-llm-chatbot.mdx`, `blog/update-2023-08.mdx`, and `blog/2024-04-python-decorator.mdx` use `langfuse.trace` / `trace.generation`. Their age is visible but there is no machine-readable “historical example” warning equivalent to changelog.
 4. **Operational wording names deprecated read endpoints as if current.** `content/self-hosting/configuration/scaling.mdx` describes a recommended `FINAL` optimization and says it affects `GET /api/public/observations` and the observations CTE in `GET /api/public/traces`. The feature itself is legitimate for mixed migration deployments, but the paragraph does not call those GETs deprecated or identify its applicable server/write modes.
 5. **Agent footer’s “read or write traces” wording is underspecified.** `lib/agent-instructions-footer.js` sends every agent to `npx @langfuse/cli api <resource> <action>` to “read or write traces.” The CLI schema exposes a `traces` resource, while the public skill is where the crucial “always query via observations, not traces” rule lives. An agent that follows only the footer + schema can choose the deprecated resource.
+6. **The v3 observation-lookup FAQ uses an old namespace without naming it.** `content/faq/all/v3-sdk-observation-lookup-404.mdx` presents `langfuse.api.observations.get(..., useEventsTable=true)` as the workaround. The v3 scope is clear from the title, but the snippet is easy to lift as a current query pattern and does not call this observations resource legacy v1. Current migration docs place it under `api.legacy.observations_v1` or use v2 `get_many`.
 
 ### Historical content with adequate guardrails
 
-- Changelog entries such as `2024-07-04-query-traces-via-sdks.mdx` and `2025-02-05-public-api-wrapper-sdks.mdx` contain deeply obsolete calls (`fetch_traces`, unscoped `langfuse`, `api.trace.get`). However, both canonicalize to the current Query via SDKs page, are excluded from sitemap/`llms.txt` as duplicate canonical pages, and their generated Markdown receives the explicit changelog warning. They remain fetchable by direct URL, but are lower risk than the blog/FAQ findings.
+- Changelog entries such as `2024-07-04-query-traces-via-sdks.mdx` and `2025-02-05-public-api-wrapper-sdks.mdx` contain deeply obsolete calls (`fetch_traces`, unscoped `langfuse`, `api.trace.get`). Both canonicalize to the current Query via SDKs page, are excluded from sitemap/`llms.txt` as duplicate canonical pages, and direct Markdown fetches receive the explicit changelog warning. They are lower risk on direct fetch, but semantic search does not carry that tool-level warning and may still expose excerpts from their old bodies.
 - The deprecated migration FAQ deliberately contains “Before” curl examples for legacy endpoints. Headings, tables, and adjacent “After” examples make those safe.
 
 ### Docs cleanup priority
@@ -169,8 +176,10 @@ The docs need to be assessed as an agent retrieval system, not only as current p
 1. Add a v3-only/deprecation banner plus OTel migration link to `self-hosting-missing-events-after-ingestion.mdx`, or split/archive it.
 2. Add the historical-code warning to blog Markdown globally, or at least to blogs with old SDK snippets; fix the 2026 autoresearch article first because it directly targets agent-skill authors.
 3. Change the global agent footer to “query observations and metrics; ingest tracing with current SDKs/OTel,” or link the CLI reference’s anti-legacy rule directly.
-4. Version-scope the `scaling.mdx` paragraph that names legacy GET routes.
-5. Preserve the v3 compatibility guidance; it is necessary and already well constrained.
+4. Add the same historical-code policy to semantic-search results/indexing that direct changelog Markdown and the MCP direct-page tool already have.
+5. Label the v3 observation-lookup workaround as legacy v1 and point current readers at v2 `get_many`.
+6. Version-scope the `scaling.mdx` paragraph that names legacy GET routes.
+7. Preserve the v3 compatibility guidance; it is necessary and already well constrained.
 
 ## 5. Answer
 
