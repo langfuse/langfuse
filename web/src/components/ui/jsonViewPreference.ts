@@ -18,14 +18,12 @@ export function normalizeJsonViewPreference(
     : DEFAULT_JSON_VIEW_PREFERENCE;
 }
 
-/** Whether the view renders as panes rather than one full-width viewer.
-    json-beta is excluded: it fills the pane with the advanced viewer, so for
-    layout purposes it behaves like plain json. */
+/** Panes rather than one full-width viewer; json-beta fills a pane, so it is not. */
 export function isPrettyLikeJsonView(view: JsonViewPreference): boolean {
   return view !== "json" && view !== "json-beta";
 }
 
-/** PrettyJsonView / MarkdownJsonView / chat have no advanced viewer, so json-beta is Formatted. */
+/** No advanced viewer in these hosts, so json-beta renders as Formatted. */
 export function toPrettyOrJsonView(
   view: JsonViewPreference,
 ): "pretty" | "json" {

@@ -705,9 +705,7 @@ function JsonPrettyTable({
           no header row: the section title, or the surface around an untitled
           table, is the only frame. */}
       <table className="w-full table-auto caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto text-sm">
-        {/* Visually hidden: the columns carry no visible header, but screen
-            readers still need to know which cell is the key and which the
-            value. */}
+        {/* No visible header, so name the columns for screen readers. */}
         <thead className="sr-only">
           <tr>
             <th scope="col">Path</th>
