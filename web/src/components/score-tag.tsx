@@ -1,6 +1,6 @@
 import { cva } from "class-variance-authority";
 
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip/Tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { cn } from "@/src/utils/tailwind";
 

@@ -193,7 +193,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install pinned Rust toolchain
-        run: rustup show
+        run: rustup toolchain install --no-self-update
       - name: Check Rust formatting
         run: cargo fmt --all -- --check
       - name: Lint Rust targets
@@ -1381,13 +1381,13 @@ jobs:
           pnpm run db:migrate
           pnpm --filter=shared run ch:up
           pnpm --filter=shared run db:seed
-      # This job runs cache-cold, so the napi addon compiles from source here.
-      # napi starts `cargo metadata` and the build concurrently, and rustup's
-      # on-demand component install races between the two invocations, so the
-      # pinned toolchain has to be in place before the build starts.
-      - name: Install pinned Rust toolchain
-        run: rustup show
-        working-directory: packages/native
+      # Turbo starts the native addon and AI Gateway builds in parallel. They
+      # may use different workspace-pinned Rust toolchains, so install both
+      # serially before either build can trigger rustup.
+      - name: Install pinned Rust toolchains
+        run: |
+          (cd packages/native && rustup toolchain install --no-self-update)
+          (cd ai-gateway && rustup toolchain install --no-self-update)
       - name: Build
         run: pnpm run build
         env:

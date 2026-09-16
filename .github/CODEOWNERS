@@ -5,5 +5,10 @@
 /web/src/components/design-system/ @bezbac
 /web/.storybook/ @bezbac
 
+# ESLint
+/packages/config-eslint/ @bezbac
+/packages/eslint-plugin/ @bezbac
+**/eslint.config.mjs @bezbac
+
 # Skills for langfuse assistant
 /packages/langfuse-skills/ @LysanderKie @bezbac

@@ -1,10 +1,14 @@
 import { type z } from "zod";
 
 import {
+  ForbiddenError,
+  InternalServerError,
+  LangfuseNotFoundError,
   projectScopes,
+  ServiceUnavailableError,
+  UnauthorizedError,
   type ApiKeyScope,
   type CloudConfigRateLimit,
-  type ForbiddenError,
   type Plan,
   type ProjectScope,
 } from "@langfuse/shared";
@@ -23,6 +27,13 @@ export const allProjectActions: ProjectAction[] = [...projectScopes];
 export const allOrganizationActions: OrganizationAction[] = [
   ...organizationScopes,
 ];
+
+/** organizationActionSet is allOrganizationActions indexed for membership tests. */
+const organizationActionSet: ReadonlySet<string> = new Set(organizationScopes);
+
+/** isOrgAction reports whether an action belongs to the disjoint org vocabulary. */
+export const isOrgAction = (action: Action): action is OrganizationAction =>
+  organizationActionSet.has(action);
 
 /** Wildcard is the type of the wildcard resource matcher literal. */
 type Wildcard = typeof wildcard;
@@ -59,7 +70,7 @@ export type Principal =
       scope: ApiKeyScope;
       presentation: "publicKey" | "privateKey";
       organizations: PrincipalOrganization[];
-      boundResource?: Resource;
+      boundResource: BoundResource;
     };
 
 /** Source describes where a policy came from: a role or an explicit grant. */
@@ -73,6 +84,9 @@ type OrgResource = { orgId: string };
 
 /** Resource is the thing being checked: a bare project or an org node. */
 export type Resource = ProjectResource | OrgResource;
+
+/** BoundResource is what a credential is bound to: its organization, narrowed to one project when the credential is project-scoped. */
+export type BoundResource = OrgResource & { projectId?: string };
 
 /** BasePolicy carries the origin and effect every policy shares. */
 type BasePolicy = {
@@ -112,3 +126,43 @@ export type ErrorResult<E> = { success: false; error: E };
 
 /** Decision is a PDP outcome: a boolean success, or a typed 403. */
 export type Decision = Success | ErrorResult<ForbiddenError>;
+
+/** unauthorizedError is a 401 ErrorResult carrying an optional message. */
+export const unauthorizedError = (
+  message?: string,
+): ErrorResult<UnauthorizedError> => ({
+  success: false,
+  error: new UnauthorizedError(message),
+});
+
+/** forbiddenError is a 403 ErrorResult carrying an optional message. */
+export const forbiddenError = (
+  message?: string,
+): ErrorResult<ForbiddenError> => ({
+  success: false,
+  error: new ForbiddenError(message),
+});
+
+/** notFoundError is a 404 ErrorResult carrying an optional message. */
+export const notFoundError = (
+  message?: string,
+): ErrorResult<LangfuseNotFoundError> => ({
+  success: false,
+  error: new LangfuseNotFoundError(message),
+});
+
+/** internalServerError is a 500 ErrorResult carrying an optional message. */
+export const internalServerError = (
+  message?: string,
+): ErrorResult<InternalServerError> => ({
+  success: false,
+  error: new InternalServerError(message),
+});
+
+/** serviceUnavailableError is a 503 ErrorResult carrying an optional message. */
+export const serviceUnavailableError = (
+  message?: string,
+): ErrorResult<ServiceUnavailableError> => ({
+  success: false,
+  error: new ServiceUnavailableError(message),
+});

@@ -13,7 +13,7 @@ use crate::{
     resolution::{IngestionMode, MetadataValue, ResolvedRequestContext},
     telemetry,
 };
-use facts::ProviderFacts;
+pub(crate) use facts::ProviderFacts;
 pub(crate) use facts::{InferenceFacts, RelayOutcome};
 use openai_responses::OpenAiResponsesCapture;
 
@@ -55,12 +55,14 @@ impl ProtocolCapture {
 /// Owned before dispatch and moved into the response body. Drop also covers a
 /// cancelled provider future before response headers have arrived.
 pub(crate) struct ExecutionCapture {
+    span: tracing::Span,
     protocol: Option<ProtocolCapture>,
     started: Instant,
     start_time_unix_ms: u128,
     first_byte_ms: Option<u128>,
     http_status: Option<u16>,
     metadata: Value,
+    delivery: Option<(telemetry::Telemetry, telemetry::DeliveryContext)>,
 }
 
 impl ExecutionCapture {
@@ -91,6 +93,7 @@ impl ExecutionCapture {
             .collect();
         let full = context.ingestion_mode() == IngestionMode::Full;
         Self {
+            span: tracing::Span::current(),
             protocol: Some(ProtocolCapture::OpenAiResponses(
                 OpenAiResponsesCapture::new(headers, body, context.ingestion_mode()),
             )),
@@ -106,7 +109,19 @@ impl ExecutionCapture {
                 "key_metadata": key_metadata,
                 "ingestion_mode": if full { "full" } else { "usage" },
             }),
+            delivery: None,
         }
+    }
+
+    pub fn deliver_to(
+        &mut self,
+        telemetry: telemetry::Telemetry,
+        context: &ResolvedRequestContext,
+    ) {
+        self.delivery = Some((
+            telemetry,
+            telemetry::DeliveryContext::from_resolved(context),
+        ));
     }
 
     pub fn response(&mut self, status: u16, headers: &HeaderMap) {
@@ -133,11 +148,13 @@ impl ExecutionCapture {
     }
 
     pub fn finish(&mut self, outcome: RelayOutcome) {
+        let span = self.span.clone();
+        let _entered = span.enter();
         let Some(protocol) = self.protocol.take() else {
             return;
         };
         let (api_format, inference) = protocol.into_facts();
-        telemetry::record(InferenceFacts {
+        let facts = InferenceFacts {
             api_format,
             start_time_unix_ms: self.start_time_unix_ms,
             duration_ms: self.started.elapsed().as_millis(),
@@ -146,7 +163,12 @@ impl ExecutionCapture {
             metadata: std::mem::take(&mut self.metadata),
             outcome,
             inference,
-        });
+        };
+        telemetry::debug_record(&facts);
+        crate::observability::execution_finished(&facts);
+        if let Some((telemetry, context)) = self.delivery.take() {
+            telemetry.record(context, facts);
+        }
     }
 }
 

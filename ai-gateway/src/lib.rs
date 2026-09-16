@@ -2,10 +2,11 @@ mod capture;
 pub mod config;
 pub mod http;
 pub mod inference;
+pub mod observability;
 pub mod providers;
 pub mod resolution;
 pub mod server;
-mod telemetry;
+pub mod telemetry;
 mod transport;
 
 #[cfg(test)]

@@ -45,7 +45,7 @@ import { useEffect, useState } from "react";
 import { Dropzone } from "@/src/components/design-system/Dropzone/Dropzone";
 import { Trash2 } from "lucide-react";
 import { PYLON_MAX_FILE_SIZE_BYTES } from "./pylon/pylonConstants";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 /** Make RHF generics match the resolver (Zod defaults => input can be undefined) */
 type SupportFormInput = z.input<typeof SupportFormSchema>;
