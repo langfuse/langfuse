@@ -12,11 +12,11 @@ from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags, Trace
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 inputs = {
-    'user_id': 'user+name / café',
+    'user_id': 'user+name / snow雪',
     'session_id': 'session_with_underscore + value',
     'trace_name': 'Gateway "quoted" workflow / 雪',
-    'tags': ['plain', 'comma,tag', 'double"quote', "single'quote", 'both\'"quotes', 'space tag', 'plus+tag', 'café', '雪', 'back\\slash'],
-    'metadata': {'team_name': 'search+ranking', 'request_note_with_underscores': 'café / 雪 + value', 'numeric_value': 42, 'boolean_value': True},
+    'tags': ['plain', 'comma,tag', 'double"quote', "single'quote", 'both\'"quotes', 'space tag', 'plus+tag', 'snow雪', '雪', 'back\\slash'],
+    'metadata': {'team_name': 'search+ranking', 'request_note_with_underscores': 'snow雪 / 雪 + value', 'numeric_value': 42, 'boolean_value': True},
 }
 propagator = CompositePropagator([TraceContextTextMapPropagator(), W3CBaggagePropagator()])
 span_context = SpanContext(

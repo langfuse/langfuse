@@ -91,7 +91,7 @@ fn python_sdk_carrier_preserves_quotes_commas_unicode_and_metadata_suffixes() {
     assert_eq!(context.metadata["team_name"], "search+ranking");
     assert_eq!(
         context.metadata["request_note_with_underscores"],
-        "café / 雪 + value"
+        "snow雪 / 雪 + value"
     );
     assert_eq!(context.metadata["numeric_value"], "42");
     assert_eq!(context.metadata["boolean_value"], "True");
