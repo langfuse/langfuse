@@ -47,6 +47,14 @@
 
 ## Export Entry Points
 
+- `@langfuse/shared/topics`: client-safe local Topics execution and result contracts.
+- `@langfuse/shared/topics/server`: local Topics Postgres/ClickHouse persistence,
+  queue access and durable execution journals under the shared workspace
+  `.topics-data` directory. Available only on a loopback development server.
+  `loadTopicTranscript` assembles the same canonical transcript for every facet
+  in memory for the worker and evidence inspector; transcript/source I/O is
+  not part of the execution journal.
+
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
   cross-runtime types, zod schemas, table definitions, domain models, prompt
   helpers, eval/model-pricing helpers, product path builders, and other

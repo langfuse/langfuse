@@ -1,0 +1,214 @@
+import { z } from "zod";
+
+export const TOPICS_DEFAULT_BUDGET_USD = 0.25;
+export const TOPICS_MAX_TRACES = 1000;
+export const TOPICS_SUMMARY_MODEL = "gpt-4.1-nano";
+export const TOPICS_EMBEDDING_MODEL = "text-embedding-3-small";
+
+export const topicIdSchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[a-zA-Z0-9_-]+$/);
+export const topicTraceIdSchema = z.string().min(1).max(1000);
+export const topicProcessingConfigSchema = z.object({
+  summaryModel: z.literal(TOPICS_SUMMARY_MODEL).default(TOPICS_SUMMARY_MODEL),
+  embeddingModel: z
+    .literal(TOPICS_EMBEDDING_MODEL)
+    .default(TOPICS_EMBEDDING_MODEL),
+  embeddingDimensions: z.number().int().min(16).max(1536).default(768),
+  projection: z.enum(["all", "intent", "issues"]).default("all"),
+  maxInputTokens: z.number().int().min(256).max(8000).default(8000),
+  maxOutputTokens: z.number().int().min(64).max(512).default(512),
+  assemblerVersion: z.literal("1").default("1"),
+});
+export type TopicProcessingConfig = z.infer<typeof topicProcessingConfigSchema>;
+
+const executionBase = {
+  projectId: topicIdSchema,
+  requestId: topicIdSchema,
+  facetVersionIds: z.array(topicIdSchema).min(1),
+  budgetUsd: z.number().positive().max(5).default(TOPICS_DEFAULT_BUDGET_USD),
+  exploratory: z.boolean().default(false),
+};
+export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
+  z
+    .object({
+      ...executionBase,
+      operation: z.literal("discover"),
+      traceIds: z.array(topicTraceIdSchema).min(1).max(TOPICS_MAX_TRACES),
+    })
+    .strict(),
+  z
+    .object({
+      ...executionBase,
+      operation: z.literal("assign"),
+      traceIds: z.array(topicTraceIdSchema).min(1).max(TOPICS_MAX_TRACES),
+      targetRunIds: z.record(topicIdSchema, topicIdSchema),
+    })
+    .strict()
+    .refine(
+      (value) => value.facetVersionIds.every((id) => value.targetRunIds[id]),
+      { message: "Select a target map for every facet." },
+    ),
+  z
+    .object({
+      ...executionBase,
+      operation: z.literal("recluster"),
+      sourceExecutionIds: z.array(topicIdSchema).min(1).max(20),
+    })
+    .strict(),
+]);
+export type TopicExecutionInput = z.infer<typeof topicExecutionInputSchema>;
+export type TopicOperation = TopicExecutionInput["operation"];
+export type TopicExecutionStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "completed_with_errors"
+  | "failed"
+  | "budget_exhausted";
+export type TopicFacetOutcome =
+  | "pending"
+  | "published"
+  | "assigned"
+  | "insufficient_data"
+  | "no_applicable_summaries"
+  | "no_topics"
+  | "failed";
+export type TopicSummaryState =
+  | "summarized"
+  | "complete"
+  | "not_applicable"
+  | "insufficient_input";
+
+export interface TopicFacetVersion {
+  id: string;
+  projectId: string;
+  facetId: string;
+  version: number;
+  prompt: string;
+  processingConfig: TopicProcessingConfig;
+  createdAt: string;
+}
+export interface TopicFacet {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  publishedRunId: string | null;
+  versions: TopicFacetVersion[];
+}
+export interface TopicSummary {
+  id: string;
+  projectId: string;
+  facetId: string;
+  facetVersionId: string;
+  facetVersion: number;
+  traceId: string;
+  unitType: "trace";
+  triggerType: "manual_poc";
+  traceTimestamp: string;
+  revision: string;
+  executionId: string;
+  resultVersion: 1 | 2;
+  state: TopicSummaryState;
+  summary: string;
+  embedding: number[];
+  inputHash: string;
+  snapshotHash: string;
+  invocationHash: string;
+  summaryModel: string;
+  embeddingModel: string;
+  inputTokens: number;
+  outputTokens: number;
+  embeddingTokens: number;
+  summaryCostUsd: number;
+  embeddingCostUsd: number;
+  processedAt: string;
+  metadata: Record<string, unknown>;
+}
+export interface TopicAssignment {
+  id: string;
+  projectId: string;
+  facetId: string;
+  facetVersionId: string;
+  facetVersion: number;
+  traceId: string;
+  traceTimestamp: string;
+  summaryId: string;
+  summaryRevision: string;
+  runId: string;
+  runSequence: string;
+  topicId: string | null;
+  topicVersionId: string | null;
+  outcome: "assigned" | "outlier";
+  distance: number | null;
+  runnerUpDistance: number | null;
+  rejectionReason: string;
+  origin: "initial" | "online" | "backfill";
+  assignedAt: string;
+}
+export interface TopicDefinition {
+  topicVersionId: string;
+  projectId: string;
+  topicId: string;
+  runId: string;
+  name: string;
+  description: string;
+  centroid: number[];
+  radius: number;
+  representativeSummaryIds: string[];
+  metadata: Record<string, unknown>;
+}
+export interface TopicRun {
+  id: string;
+  projectId: string;
+  facetVersionId: string;
+  runSequence: string;
+  status: "pending" | "running" | "completed" | "failed";
+  phase: string;
+  publishedAt: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  config: Record<string, unknown>;
+  summaryIds: string[];
+  manifestPath: string;
+  artifactPath: string;
+  metrics: Record<string, unknown>;
+  error: string | null;
+  topics: TopicDefinition[];
+}
+export interface TopicFacetProgress {
+  facetVersionId: string;
+  outcome: TopicFacetOutcome;
+  summaryIds: string[];
+  runId: string | null;
+  error: string | null;
+  counts: {
+    requested: number;
+    complete: number;
+    nonApplicable: number;
+    insufficientInput: number;
+    failed: number;
+    assigned: number;
+    outlier: number;
+  };
+}
+export interface TopicExecution {
+  id: string;
+  projectId: string;
+  revision: string;
+  input: TopicExecutionInput;
+  status: TopicExecutionStatus;
+  phase: string;
+  createdAt: string;
+  updatedAt: string;
+  estimatedCostUsd: number;
+  reservedCostUsd: number;
+  spentCostUsd: number;
+  facets: TopicFacetProgress[];
+  traceErrors: { traceId: string; error: string }[];
+  error: string | null;
+}

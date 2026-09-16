@@ -193,6 +193,7 @@ model Project {
   InAppAgentEvent                   InAppAgentEvent[]
   InAppAgentRun                     InAppAgentRun[]
   InAppAgentPendingToolApproval     InAppAgentPendingToolApproval[]
+  topicFacets                       TopicFacet[]
   gatewayConfigs                    GatewayConfig[]                     @relation("GatewayDefaultIngestionProject")
 
   @@index([orgId])
@@ -1941,4 +1942,78 @@ model CloudSpendAlert {
 
   @@index([orgId])
   @@map("cloud_spend_alerts")
+}
+
+model TopicFacet {
+  id             String              @id @default(cuid())
+  projectId      String              @map("project_id")
+  project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name           String
+  description    String              @default("")
+  publishedRunId String?             @map("published_run_id")
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  versions       TopicFacetVersion[]
+
+  @@unique([projectId, id])
+  @@unique([projectId, name])
+  @@map("topic_facets")
+}
+
+model TopicFacetVersion {
+  id                      String               @id @default(cuid())
+  projectId               String               @map("project_id")
+  facetId                 String               @map("facet_id")
+  facet                   TopicFacet           @relation(fields: [projectId, facetId], references: [projectId, id], onDelete: Cascade)
+  version                 Int
+  prompt                  String
+  processingConfig        Json                 @map("processing_config")
+  filterAndSamplingConfig Json                 @default("{}") @map("filter_and_sampling_config")
+  createdAt               DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  runs                    TopicClusteringRun[]
+
+  @@unique([projectId, id])
+  @@unique([projectId, facetId, version])
+  @@map("topic_facet_versions")
+}
+
+model TopicClusteringRun {
+  id             String            @id @default(cuid())
+  projectId      String            @map("project_id")
+  facetVersionId String            @map("facet_version_id")
+  facetVersion   TopicFacetVersion @relation(fields: [projectId, facetVersionId], references: [projectId, id], onDelete: Cascade)
+  runSequence    BigInt            @default(autoincrement()) @map("run_sequence")
+  status         String            @default("pending")
+  phase          String            @default("snapshot")
+  config         Json              @default("{}")
+  manifestPath   String            @default("") @map("manifest_path")
+  artifactPath   String            @default("") @map("artifact_path")
+  metrics        Json              @default("{}")
+  error          String?
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  startedAt      DateTime?         @map("started_at") @db.Timestamptz(3)
+  finishedAt     DateTime?         @map("finished_at") @db.Timestamptz(3)
+  publishedAt    DateTime?         @map("published_at") @db.Timestamptz(3)
+  topics         Topic[]
+
+  @@unique([projectId, id])
+  @@index([projectId, facetVersionId, runSequence(sort: Desc)])
+  @@map("topic_clustering_runs")
+}
+
+model Topic {
+  topicVersionId           String             @id @default(cuid()) @map("topic_version_id")
+  projectId                String             @map("project_id")
+  topicId                  String             @map("topic_id")
+  runId                    String             @map("run_id")
+  run                      TopicClusteringRun @relation(fields: [projectId, runId], references: [projectId, id], onDelete: Cascade)
+  name                     String
+  description              String
+  centroid                 Float[]
+  radius                   Float
+  representativeSummaryIds String[]           @map("representative_summary_ids")
+  metadata                 Json               @default("{}")
+
+  @@unique([projectId, runId, topicId])
+  @@map("topics")
 }

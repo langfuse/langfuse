@@ -16,6 +16,11 @@
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
+- Local Topics pipeline: `src/features/topics/processTopicsExecution.ts`,
+  registered by `src/queues/topicsQueue.ts`. Read `src/features/topics/README.md`
+  for Python setup, frozen execution checkpoints, and the small-model budget.
+  Canonical transcript assembly is shared with the web evidence inspector through
+  `@langfuse/shared/topics/server` (`loadTopicTranscript`) and stays in memory.
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
   `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
   `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads

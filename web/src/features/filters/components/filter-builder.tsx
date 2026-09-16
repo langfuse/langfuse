@@ -181,55 +181,53 @@ export function PopoverFilterBuilder({
   const setWipFilterState = (
     state: ((prev: WipFilterState) => WipFilterState) | WipFilterState,
   ) => {
-    _setWipFilterState((prev) => {
-      const newState = state instanceof Function ? state(prev) : state;
-      const validFilters = getValidFilters(newState);
-      onChange(validFilters);
-      const prevCount = prevValidCountRef.current;
-      // A row was actually removed (clear-all X → []; or a single row X). This
-      // is the ONLY thing that counts as a clear: a valid count that drops
-      // because a row went transiently invalid mid-edit (changing a row's column
-      // sets value:undefined → fails safeParse) keeps the SAME row count and
-      // must NOT emit `filters:cleared` — the user is refining, not clearing
-      // (LFE-10781 review).
-      const rowsRemoved = newState.length < prev.length;
-      // Analytics (LFE-10781). METADATA ONLY — we report the changed filter's
-      // shape + counts, never a raw value. Count semantics match the sidebar:
-      // `conditionCount` = TOTAL applied conditions across ALL columns;
-      // `columnConditionCount` = rows for the changed column.
-      if (validFilters.length > prevCount) {
-        // A filter was newly completed (valid count grew) — an in-progress edit
-        // does not fire per keystroke.
-        const applied = validFilters[validFilters.length - 1];
-        if (applied) {
-          capture("filters:applied", {
-            surface: "filter_builder",
-            tableName,
-            column: applied.column,
-            filterType: applied.type,
-            operator: applied.operator,
-            ...("key" in applied && applied.key ? { key: applied.key } : {}),
-            valueCount: Array.isArray(applied.value) ? applied.value.length : 1,
-            conditionCount: validFilters.length,
-            columnConditionCount: validFilters.filter(
-              (f) => f.column === applied.column,
-            ).length,
-            isV4,
-          });
-        }
-      } else if (validFilters.length < prevCount && rowsRemoved) {
-        // A real clear — the clear-all X buttons (setWipFilterState([])) or
-        // removing a row. NOT a transient mid-column-change invalid shrink.
-        capture("filters:cleared", {
+    const newState = state instanceof Function ? state(wipFilterState) : state;
+    const validFilters = getValidFilters(newState);
+    _setWipFilterState(newState);
+    onChange(validFilters);
+    const prevCount = prevValidCountRef.current;
+    // A row was actually removed (clear-all X → []; or a single row X). This
+    // is the ONLY thing that counts as a clear: a valid count that drops
+    // because a row went transiently invalid mid-edit (changing a row's column
+    // sets value:undefined → fails safeParse) keeps the SAME row count and
+    // must NOT emit `filters:cleared` — the user is refining, not clearing
+    // (LFE-10781 review).
+    const rowsRemoved = newState.length < wipFilterState.length;
+    // Analytics (LFE-10781). METADATA ONLY — we report the changed filter's
+    // shape + counts, never a raw value. Count semantics match the sidebar:
+    // `conditionCount` = TOTAL applied conditions across ALL columns;
+    // `columnConditionCount` = rows for the changed column.
+    if (validFilters.length > prevCount) {
+      // A filter was newly completed (valid count grew) — an in-progress edit
+      // does not fire per keystroke.
+      const applied = validFilters[validFilters.length - 1];
+      if (applied) {
+        capture("filters:applied", {
           surface: "filter_builder",
           tableName,
-          clearedCount: prevCount - validFilters.length,
+          column: applied.column,
+          filterType: applied.type,
+          operator: applied.operator,
+          ...("key" in applied && applied.key ? { key: applied.key } : {}),
+          valueCount: Array.isArray(applied.value) ? applied.value.length : 1,
+          conditionCount: validFilters.length,
+          columnConditionCount: validFilters.filter(
+            (f) => f.column === applied.column,
+          ).length,
           isV4,
         });
       }
-      prevValidCountRef.current = validFilters.length;
-      return newState;
-    });
+    } else if (validFilters.length < prevCount && rowsRemoved) {
+      // A real clear — the clear-all X buttons (setWipFilterState([])) or
+      // removing a row. NOT a transient mid-column-change invalid shrink.
+      capture("filters:cleared", {
+        surface: "filter_builder",
+        tableName,
+        clearedCount: prevCount - validFilters.length,
+        isV4,
+      });
+    }
+    prevValidCountRef.current = validFilters.length;
   };
   const aiFilter =
     filterWithAI && isLangfuseCloud
@@ -311,7 +309,7 @@ export function PopoverFilterBuilder({
           )}
         </PopoverTrigger>
         <PopoverContent
-          className="w-fit max-w-[90vw] overflow-x-auto"
+          className="ph-no-capture w-fit max-w-[90vw] overflow-x-auto"
           align="start"
         >
           <FilterBuilderForm
@@ -500,14 +498,12 @@ export function InlineFilterBuilder({
   const setWipFilterState = (
     state: ((prev: WipFilterState) => WipFilterState) | WipFilterState,
   ) => {
-    _setWipFilterState((prev) => {
-      const newState = state instanceof Function ? state(prev) : state;
-      const validFilters = newState.filter(
-        (f) => singleFilter.safeParse(f).success,
-      ) as FilterState;
-      onChange(validFilters);
-      return newState;
-    });
+    const newState = state instanceof Function ? state(wipFilterState) : state;
+    const validFilters = newState.filter(
+      (f) => singleFilter.safeParse(f).success,
+    ) as FilterState;
+    _setWipFilterState(newState);
+    onChange(validFilters);
   };
 
   return (
@@ -706,7 +702,7 @@ function FilterBuilderForm({
             <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="max-w-fit p-0">
+        <PopoverContent align="start" className="ph-no-capture max-w-fit p-0">
           <InputCommand>
             <InputCommandInput
               placeholder="Search for column"
@@ -824,7 +820,7 @@ function FilterBuilderForm({
             <SelectTrigger className="min-w-[60px]">
               <SelectValue placeholder="" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="ph-no-capture">
               {keyOptions.map((option) => (
                 <SelectItem key={option} value={option}>
                   {option}
@@ -855,7 +851,7 @@ function FilterBuilderForm({
           <SelectTrigger className="min-w-[60px]">
             <SelectValue placeholder="" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="ph-no-capture">
             {column?.options.map((option) => (
               <SelectItem key={option.label} value={option.label}>
                 {option.label}
@@ -886,7 +882,7 @@ function FilterBuilderForm({
           <SelectTrigger className="min-w-[140px]">
             <SelectValue placeholder="" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="ph-no-capture">
             <SelectItem value="first">1st</SelectItem>
             <SelectItem value="last">last</SelectItem>
             <SelectItem value="nthFromStart">nth from start</SelectItem>
@@ -924,7 +920,7 @@ function FilterBuilderForm({
         <SelectTrigger className={cn("min-w-[60px]", compact && "w-auto")}>
           <SelectValue placeholder="" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="ph-no-capture">
           {filter.type !== undefined
             ? filterOperators[filter.type].map((option) => (
                 <SelectItem key={option} value={option}>
@@ -937,7 +933,7 @@ function FilterBuilderForm({
     );
 
     const valueControl = keyPending ? (
-      <Input disabled />
+      <Input disabled value="" />
     ) : filter.type === "string" &&
       filter.operator === "is not empty" ? null : stringObjectSuggest &&
       filter.type === "stringObject" ? (
@@ -972,7 +968,7 @@ function FilterBuilderForm({
       />
     ) : filter.type === "number" || filter.type === "numberObject" ? (
       <Input
-        value={filter.value ?? undefined}
+        value={filter.value ?? ""}
         disabled={disabled}
         type="number"
         step={(column?.type === "number" && column.step) || 0.01}
@@ -1057,7 +1053,7 @@ function FilterBuilderForm({
         <SelectTrigger className="min-w-[60px]">
           <SelectValue placeholder="" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="ph-no-capture">
           {["true", "false"].map((option) => (
             <SelectItem key={option} value={option}>
               {option}
@@ -1086,10 +1082,10 @@ function FilterBuilderForm({
           }
         />
       ) : (
-        <Input disabled placeholder="-" />
+        <Input disabled value="" placeholder="-" />
       )
     ) : filter.type === "null" ? null : (
-      <Input disabled />
+      <Input disabled value="" />
     );
 
     const removeButton = (

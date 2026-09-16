@@ -136,6 +136,15 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
+    title: "Topics",
+    pathname: "/project/[projectId]/topics",
+    icon: Grid2X2,
+    projectRbacScopes: ["topics:read"],
+    show: () => process.env.NODE_ENV === "development",
+    group: RouteGroup.Observability,
+    section: RouteSection.Main,
+  },
+  {
     title: "Alerts",
     pathname: "/project/[projectId]/alerts",
     icon: BellRing,

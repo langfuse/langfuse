@@ -1,0 +1,12 @@
+numpy==2.2.6
+scipy==1.15.3
+scikit-learn==1.7.2
+numba==0.61.2
+umap-learn==0.5.9.post2
+hdbscan==0.8.40
+cloudpickle==3.1.2
+joblib==1.6.0
+llvmlite==0.44.0
+pynndescent==0.6.0
+threadpoolctl==3.7.0
+tqdm==4.70.1

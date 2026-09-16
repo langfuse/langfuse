@@ -118,3 +118,7 @@ web/test-results/*
 
 # Superset config
 .superset/
+
+/.topics-data/
+
+/worker/.topics-venv/

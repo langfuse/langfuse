@@ -404,6 +404,7 @@ export const RetryBaggage = z.object({
 export type RetryBaggage = z.infer<typeof RetryBaggage>;
 
 export enum QueueName {
+  Topics = "topics",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   TraceDelete = "trace-delete",
@@ -447,6 +448,7 @@ export enum QueueName {
 }
 
 export enum QueueJobs {
+  Topics = "topics",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert",
   TraceDelete = "trace-delete",
@@ -516,6 +518,12 @@ export const TraceBatchEventSchema = z.object({
 });
 
 export type TQueueJobTypes = {
+  [QueueName.Topics]: {
+    timestamp: Date;
+    id: string;
+    name: QueueJobs.Topics;
+    payload: { projectId: string; executionId: string };
+  };
   [QueueName.TraceBatch]: z.infer<typeof TraceBatchEventSchema>;
   [QueueName.TraceUpsert]: {
     timestamp: Date;
