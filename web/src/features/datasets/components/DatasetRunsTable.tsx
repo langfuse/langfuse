@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
@@ -61,7 +62,6 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import {
   Dialog,
   DialogContent,
-  DialogController,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -75,7 +75,7 @@ import {
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { DeleteDatasetRunDialogContent } from "@/src/features/datasets/components/DeleteDatasetRunDialogContent";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 type DatasetRunRowData = {
   id: string;
@@ -825,21 +825,28 @@ export function DatasetRunsTable(props: DatasetRunsTableProps) {
     string | null
   >(null);
   const capture = usePostHogClientCapture();
+  const utils = api.useUtils();
+  const deleteDatasetRun = api.datasets.deleteDatasetRuns.useMutation({
+    onSuccess: () => utils.datasets.invalidate(),
+  });
 
   return (
-    <DialogController
-      closeOnInteractionOutside
-      size="default"
-      renderContent={({ closeDialog }) =>
-        datasetRunIdToDelete ? (
-          <DeleteDatasetRunDialogContent
-            closeDialog={closeDialog}
-            projectId={props.projectId}
-            datasetId={props.datasetId}
-            datasetRunId={datasetRunIdToDelete}
-          />
-        ) : null
-      }
+    <ConfirmationDialogController
+      title="Please confirm"
+      text="This action cannot be undone. Traces linked to this run must be deleted manually."
+      confirmLabel="Delete Dataset Run"
+      variant="destructive"
+      loading={deleteDatasetRun.isPending}
+      onConfirm={async () => {
+        if (!datasetRunIdToDelete) return;
+
+        capture("dataset_run:delete_form_submit");
+        await deleteDatasetRun.mutateAsync({
+          projectId: props.projectId,
+          datasetId: props.datasetId,
+          datasetRunIds: [datasetRunIdToDelete],
+        });
+      }}
     >
       {({ openDialog }) => (
         <DatasetRunsTableInternal
@@ -851,6 +858,6 @@ export function DatasetRunsTable(props: DatasetRunsTableProps) {
           }}
         />
       )}
-    </DialogController>
+    </ConfirmationDialogController>
   );
 }
