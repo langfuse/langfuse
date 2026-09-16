@@ -275,9 +275,7 @@ export async function chbWebhookHandler(req: NextRequest) {
 
   let event: ChbWebhookEvent;
   try {
-    const parsedBody = JSON.parse(rawBody.toString("utf8"));
-    logger.info("[CHB Webhook] [DEBUG] Request Body", parsedBody);
-    event = ChbWebhookEventSchema.parse(parsedBody);
+    event = ChbWebhookEventSchema.parse(JSON.parse(rawBody.toString("utf8")));
   } catch (error) {
     logger.error("[CHB Webhook] Failed to parse event payload", error);
     return NextResponse.json(
