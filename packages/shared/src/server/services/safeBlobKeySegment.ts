@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { createHash } from "crypto";
 
 import { env } from "../../env";

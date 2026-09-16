@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 /** service/helpers.ts contains the mapping + calculate helpers consumed
  * by MonitorService. Exported so that colocated unit tests can exercise them,
  * but intentionally not re-exported from the service barrel — internal

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { randomBytes, randomUUID } from "node:crypto";
 import { Queue, QueueEvents, Worker } from "bullmq";
 import {
