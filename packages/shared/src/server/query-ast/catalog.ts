@@ -8,6 +8,7 @@ import {
   mapKeys,
   mapValues,
   metadataValue,
+  useFinal,
 } from "./extensions";
 
 type CatalogTier = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
@@ -187,6 +188,59 @@ export const CATALOG: CatalogEntry[] = [
         .select("o.environment")
         .where("o.trace_id", "in", (eb) =>
           eb.selectFrom("traces_cte").select("id"),
+        ),
+  },
+  {
+    // Explicit FINAL on a ReplacingMergeTree read. Auto-lowering does not
+    // declare scores as `{ strategy: "final" }` (that would rewrite every
+    // scores scan and has no JOIN emitter); callers opt in with useFinal.
+    id: "scores_final",
+    tier: 2,
+    referenceSql: `
+      SELECT s.id
+      FROM scores AS s FINAL
+      WHERE s.project_id = {p1:String}
+    `,
+    build: () =>
+      db()
+        .selectFrom("scores as s")
+        .select("s.id")
+        .$call(useFinal(["scores"])),
+  },
+  {
+    // Tuple IN-subquery: `(trace_id, observation_id) IN (SELECT …)`.
+    // The same shape the prompt-score aggregator uses to prefilter scores
+    // to prompt-event identifiers before the JOIN.
+    id: "tuple_in_subquery",
+    tier: 2,
+    referenceSql: `
+      WITH prompt_events AS (
+        SELECT trace_id, span_id
+        FROM events_core
+        WHERE project_id = {p1:String}
+      )
+      SELECT s.id
+      FROM scores AS s
+      WHERE (s.project_id = {p1:String}) AND ((s.trace_id, s.observation_id) IN (
+        SELECT trace_id, span_id
+        FROM prompt_events
+      ))
+    `,
+    build: () =>
+      db()
+        .with("prompt_events", (qb) =>
+          qb.selectFrom("events_core").select(["trace_id", "span_id"]),
+        )
+        .selectFrom("scores as s")
+        .select("s.id")
+        .where(({ eb, refTuple, selectFrom }) =>
+          eb(
+            refTuple("s.trace_id", "s.observation_id"),
+            "in",
+            selectFrom("prompt_events")
+              .select(["trace_id", "span_id"])
+              .$asTuple("trace_id", "span_id"),
+          ),
         ),
   },
   {

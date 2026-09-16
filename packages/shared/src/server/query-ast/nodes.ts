@@ -112,3 +112,28 @@ export function isClickHouseSelectQueryNode(
 ): node is ClickHouseSelectQueryNode {
   return node.kind === "SelectQueryNode";
 }
+
+/**
+ * ClickHouse `FROM <table> FINAL` / `JOIN <table> AS alias FINAL`.
+ *
+ * Wraps a table expression (bare `TableNode` or `AliasNode`) so the compiler
+ * emits `final` after that expression. Same closed-`kind` constraint as
+ * ARRAY JOIN: not a Kysely visitor-map kind. The dialect compiler and
+ * transformer special-case this object.
+ */
+export type FinalTableNode = {
+  readonly kind: "FinalTableNode";
+  readonly table: OperationNode;
+};
+
+export const FinalTableNode = {
+  is(node: { kind: string }): node is FinalTableNode {
+    return node.kind === "FinalTableNode";
+  },
+  create(table: OperationNode): FinalTableNode {
+    return Object.freeze({
+      kind: "FinalTableNode",
+      table,
+    });
+  },
+};
