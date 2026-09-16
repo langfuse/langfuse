@@ -29,7 +29,10 @@ fn facts(project: &str) -> InferenceFacts {
 }
 
 async fn grant() -> DeliveryContext {
-    DeliveryContext::from_resolved(&resolved_request_context("provider-secret").await)
+    DeliveryContext::from_resolved(
+        &resolved_request_context("provider-secret").await,
+        &HeaderMap::new(),
+    )
 }
 
 fn uploader(url: &str) -> Uploader {
@@ -287,14 +290,18 @@ async fn retained_byte_budget_is_released_after_successful_drain() {
     let grant = grant().await;
     let budget = serde_json::to_vec(&facts("project-1")).unwrap().len()
         + grant.access_token.len()
-        + grant.project_id.len();
+        + grant.project_id.len()
+        + serde_json::to_vec(&grant.generation).unwrap().len();
     let telemetry = Telemetry::with_uploader(uploader(&web.url), 2, budget);
     telemetry.record(grant, facts("project-1"));
     tokio::time::timeout(Duration::from_secs(2), started.notified())
         .await
         .unwrap();
     assert_eq!(telemetry.0.bytes.available_permits(), 0);
-    let second = DeliveryContext::from_resolved(&resolved_request_context("provider-secret").await);
+    let second = DeliveryContext::from_resolved(
+        &resolved_request_context("provider-secret").await,
+        &HeaderMap::new(),
+    );
     telemetry.record(second, facts("project-1"));
     assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 1);
     release.notify_one();

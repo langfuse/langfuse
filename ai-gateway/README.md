@@ -108,7 +108,7 @@ trace sampling. `trace` is not an accepted gateway log level.
 | `OTEL_SERVICE_NAME` | `ai-gateway` | Operational service name |
 | `DD_ENV` | `development` | Deployment environment resource attribute |
 | `BUILD_ID` | Cargo package version | Service version; set to the deployed image's commit SHA |
-| `OTEL_TRACES_SAMPLER_ARG` | `1` | Sampling ratio from 0 to 1 for root traces; incoming W3C sampling decisions are respected |
+| `OTEL_TRACES_SAMPLER_ARG` | `1` | Sampling ratio from 0 to 1 for independent operational root traces |
 
 Tower's `TraceLayer` keeps the server span alive through the response body.
 The HTTP response log and `http.server.request.duration` measure time to response
@@ -118,9 +118,11 @@ timeout, or transport error. HTTP status and stream outcome are separate: a 200
 response can still fail while streaming.
 
 `reqwest-tracing` instruments resolver, provider-header, and ingestion requests.
-Only trusted Web calls receive W3C trace context; baggage and operational trace
-headers are not sent to the external provider. Inference generations retain their
-separate identity. Client spans measure the HTTP send through response headers;
+Each request starts a fresh operational trace, independent of incoming trace IDs,
+tracestate, baggage, Langfuse headers and sampling decisions. Only trusted Web calls
+receive this internal W3C trace context; the external provider receives no tracing
+or Langfuse headers. Inference generations use the caller context described below.
+Client spans measure the HTTP send through response headers;
 streaming execution and inference-telemetry delivery are tracked separately.
 
 A small Axum middleware records `http.server.request.duration` through the
@@ -227,7 +229,8 @@ and never sends the provider credential or the client's gateway key to ingestion
 Ingestion JWTs stay outside serializable capture facts and debug logs. Expired grants
 are dropped without re-resolving the execution. Requests explicitly select v4 ingestion.
 
-Each execution becomes one root generation with generated trace/observation IDs,
+Each execution becomes one generation with a new observation ID and either the
+caller's trace/parent IDs or a generated root trace ID,
 actual/requested model, model parameters, native usage, and trusted key/connection
 attribution. Full mode includes the captured input/output; usage mode omits content.
 Completion-start time is emitted only for upstream `text/event-stream` responses,
@@ -270,6 +273,62 @@ and `telemetry/otlp.rs` owns encoding and HTTP delivery. The uploader already ac
 a span collection; future project batching can replace immediate scheduling while
 retaining each execution's original attribution/content policy and selecting a valid
 compatible grant. Capture and provider byte forwarding do not need to change.
+
+## Caller tracing context
+
+Incoming `traceparent` and `tracestate` apply only to the Langfuse generation.
+A valid `traceparent` supplies its trace ID and parent observation ID; the generation
+always gets a new observation ID. Missing or malformed context starts a new root.
+Valid `tracestate` is included in the generation's OTLP `traceState` field; it is not
+copied into generation metadata. An unsampled caller still produces a generation.
+Operational trace sampling and best-effort ingestion remain independent.
+
+The following optional headers enrich the generation, including in usage mode:
+
+| Header | Format | Python SDK baggage key |
+| --- | --- | --- |
+| `langfuse-trace-name` | String | `langfuse_trace_name` |
+| `langfuse-session-id` | String | `langfuse_session_id` |
+| `langfuse-user-id` | String | `langfuse_user_id` |
+| `langfuse-tags` | Comma-separated strings | `langfuse_tags` |
+| `langfuse-metadata` | Comma-separated `key:value` entries | `langfuse_metadata_<key>` |
+
+For example:
+
+```text
+langfuse-trace-name: support-workflow
+langfuse-session-id: conversation-123
+langfuse-user-id: user-456
+langfuse-tags: support,production
+langfuse-metadata: team:search,variant:B,note:hello%2C%20world
+```
+
+Percent-encode literal commas and other escaped characters in individual custom
+header values, and colons inside metadata keys. Metadata splits at the first colon;
+values remain strings. A literal `+` stays `+` in custom headers. Tags are trimmed
+and deduplicated. Valid explicit headers override baggage for the same field;
+metadata merges by key with explicit entries winning. Invalid entries are ignored
+independently, and invalid overrides leave valid baggage intact. Caller metadata
+cannot replace protected gateway facts or trusted API-key attribution.
+
+Extraction is bounded to 8 KiB across the eight context header values above
+(`traceparent`, `tracestate`, `baggage` and the five custom headers). Above that
+limit, context is ignored and a fresh generation trace is created. Decoded fields
+are limited to 1 KiB; each baggage/tag/metadata list is limited to 64 entries.
+Repeated list header lines are combined in order within that same entry limit.
+Empty values, control characters, invalid encoding and duplicate scalar headers
+are ignored without rejecting inference.
+
+Python callers can use `propagate_attributes(..., as_baggage=True)` with HTTP
+instrumentation or explicit OTel header injection. Baggage decoding handles Python's
+`+` space encoding and quoted-list tags, as well as JSON-array tags. Only the keys
+listed above are mapped; other baggage, including `langfuse_trace_id`, does not
+override trace identity or project selection.
+
+Caller context is kept outside ambient operational context and operational logs.
+Resolver and ingestion HTTP requests propagate only the gateway's internal trace;
+the generation's caller context travels in the ingestion payload. Provider requests
+receive neither tracing context nor these custom headers.
 
 ## Response capture
 
