@@ -3,9 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { Button } from "@/src/components/ui/button";
-import { useIsMobile } from "@/src/hooks/use-mobile";
 import { TagButton } from "@/src/features/tag/components/TagButton";
-import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import {
   SessionBadge,
   UserIdBadge,
@@ -22,7 +20,6 @@ const MAX_VISIBLE_TAGS = 3;
 
 export function TraceSummaryStrip() {
   const { trace, observations } = useTraceData();
-  const isMobile = useIsMobile();
   const [showAllTags, setShowAllTags] = useState(false);
 
   const aggregatedMetrics = useMemo(
@@ -30,16 +27,14 @@ export function TraceSummaryStrip() {
     [observations],
   );
 
-  // Mobile clips the row behind its own chevron, so +N would reveal nothing.
-  const visibleTags =
-    isMobile || showAllTags
-      ? trace.tags
-      : trace.tags.slice(0, MAX_VISIBLE_TAGS);
+  const visibleTags = showAllTags
+    ? trace.tags
+    : trace.tags.slice(0, MAX_VISIBLE_TAGS);
   const hiddenTagCount = trace.tags.length - visibleTags.length;
 
   return (
     <div className="shrink-0 border-b px-3 py-2">
-      <CollapsibleBadgeRow>
+      <div className="flex flex-wrap items-center gap-1">
         <LatencyBadge latencySeconds={trace.latency ?? null} />
         {aggregatedMetrics.totalCost != null &&
           aggregatedMetrics.costDetails && (
@@ -95,7 +90,7 @@ export function TraceSummaryStrip() {
             )}
           </div>
         )}
-      </CollapsibleBadgeRow>
+      </div>
     </div>
   );
 }
