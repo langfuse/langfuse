@@ -101,7 +101,6 @@ export function ChatMessage({
             title="Placeholder"
             json={message.name || "Unnamed placeholder"}
             currentView={currentView}
-            hoverControls
           />
         </div>
       </div>
@@ -116,7 +115,6 @@ export function ChatMessage({
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={message.json}
           currentView={currentView}
-          hoverControls
         />
       </div>
     );
@@ -131,7 +129,6 @@ export function ChatMessage({
           json={message.json}
           currentView="pretty"
           controlButtons={passthroughToggleButton}
-          hoverControls
         />
       </div>
     );
@@ -220,7 +217,6 @@ export function ChatMessage({
             controlButtons={passthroughToggleButton}
             afterHeader={thinkingBlocks}
             isSystemPrompt={isSystemPrompt}
-            hoverControls
           />
           {showData && toolCalls.length > 0 && (
             <div className="mt-2">
@@ -243,7 +239,6 @@ export function ChatMessage({
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={withoutUnsetFields(message)}
           currentView={currentView}
-          hoverControls
         />
       </div>
     );

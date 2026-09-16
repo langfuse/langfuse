@@ -705,6 +705,15 @@ function JsonPrettyTable({
           no header row: the section title, or the surface around an untitled
           table, is the only frame. */}
       <table className="w-full table-auto caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto text-sm">
+        {/* Visually hidden: the columns carry no visible header, but screen
+            readers still need to know which cell is the key and which the
+            value. */}
+        <thead className="sr-only">
+          <tr>
+            <th scope="col">Path</th>
+            <th scope="col">Value</th>
+          </tr>
+        </thead>
         <tbody className="text-xs [&_tr:last-child]:border-0">
           {table.getRowModel().rows.map((row, rowIndex) => (
             <JsonTableRowComponent
@@ -755,9 +764,6 @@ export function PrettyJsonView(props: {
   inset?: boolean;
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
-  /** Titled sections (Input/Output/Metadata): header controls (copy,
-      expand-all) reveal on section hover instead of rendering always. */
-  hoverControls?: boolean;
   /** When set, rows show an actions menu with copy + add-to-filter shortcuts
       (metadata views only). */
   metadataActions?: MetadataFilterActions;
@@ -1441,7 +1447,7 @@ export function PrettyJsonView(props: {
     <div
       className={cn(
         "flex max-h-full min-h-0 flex-col",
-        props.hoverControls && "group/iosection",
+        "group/iosection",
         props.inset && "[&_.io-message-content]:px-2",
         props.className,
         props.scrollable ? "overflow-hidden" : "",
@@ -1463,7 +1469,7 @@ export function PrettyJsonView(props: {
               : undefined
           }
           inset={props.inset}
-          hoverRevealControls={props.hoverControls}
+          hoverRevealControls
           controlButtons={
             <>
               {expandCollapseButton}

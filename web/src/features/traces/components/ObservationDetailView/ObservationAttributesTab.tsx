@@ -65,7 +65,6 @@ export function ObservationAttributesTab({
                   analyticsTable="attributes"
                 />
               )}
-              hoverControls
             />
           </div>
         ) : null}
@@ -75,7 +74,6 @@ export function ObservationAttributesTab({
               title="Model parameters"
               json={modelParameters}
               currentView={currentView}
-              hoverControls
             />
           </div>
         ) : null}
@@ -96,7 +94,6 @@ export function ObservationAttributesTab({
                 parsedJson={parsedMetadata}
                 currentView={currentView}
                 metadataActions={metadataActions}
-                hoverControls
               />
             )}
           </div>
