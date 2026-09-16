@@ -17,6 +17,12 @@ import {
   isSeverityAllowedForPlan,
 } from "@/src/features/support-chat/formConstants";
 
+// Requests filed from the demo organization never qualify for Sev-1/Sev-2:
+// every Langfuse Cloud user is a member of it and it runs on an Enterprise
+// plan so the demo shows the full feature set.
+const DEMO_ORG = true;
+const REAL_ORG = false;
+
 const ENTERPRISE = "cloud:enterprise"; // may raise Sev-1, Sev-2, Sev-3
 const SELF_HOSTED_ENTERPRISE = "self-hosted:enterprise"; // same as ENTERPRISE
 const TEAM = "cloud:team"; // may raise Sev-3 only
@@ -27,63 +33,132 @@ const CORE = "cloud:core"; // no case severity at all
 describe("mapToPylonCaseSeverity", () => {
   it("maps Severity 1 to Sev-1 only on Enterprise plans", () => {
     expect(
-      mapToPylonCaseSeverity({ severity: SEVERITY_1, plan: ENTERPRISE }),
+      mapToPylonCaseSeverity({
+        severity: SEVERITY_1,
+        plan: ENTERPRISE,
+        isDemoOrganization: REAL_ORG,
+      }),
     ).toBe("Sev-1");
     expect(
       mapToPylonCaseSeverity({
         severity: SEVERITY_1,
         plan: SELF_HOSTED_ENTERPRISE,
+        isDemoOrganization: REAL_ORG,
       }),
     ).toBe("Sev-1");
   });
 
   it("downgrades Severity 1 to Sev-3 for non-Enterprise paid plans", () => {
-    expect(mapToPylonCaseSeverity({ severity: SEVERITY_1, plan: TEAM })).toBe(
-      "Sev-3",
-    );
-    expect(mapToPylonCaseSeverity({ severity: SEVERITY_1, plan: PRO })).toBe(
-      "Sev-3",
-    );
+    expect(
+      mapToPylonCaseSeverity({
+        severity: SEVERITY_1,
+        plan: TEAM,
+        isDemoOrganization: REAL_ORG,
+      }),
+    ).toBe("Sev-3");
+    expect(
+      mapToPylonCaseSeverity({
+        severity: SEVERITY_1,
+        plan: PRO,
+        isDemoOrganization: REAL_ORG,
+      }),
+    ).toBe("Sev-3");
   });
 
   it("downgrades Severity 1 to Sev-3 when no plan is known", () => {
-    expect(mapToPylonCaseSeverity({ severity: SEVERITY_1 })).toBe("Sev-3");
+    expect(
+      mapToPylonCaseSeverity({
+        severity: SEVERITY_1,
+        isDemoOrganization: REAL_ORG,
+      }),
+    ).toBe("Sev-3");
   });
 
   it("maps Severity 2 to Sev-2 only on Enterprise plans", () => {
     expect(
-      mapToPylonCaseSeverity({ severity: SEVERITY_2, plan: ENTERPRISE }),
+      mapToPylonCaseSeverity({
+        severity: SEVERITY_2,
+        plan: ENTERPRISE,
+        isDemoOrganization: REAL_ORG,
+      }),
     ).toBe("Sev-2");
     expect(
       mapToPylonCaseSeverity({
         severity: SEVERITY_2,
         plan: SELF_HOSTED_ENTERPRISE,
+        isDemoOrganization: REAL_ORG,
       }),
     ).toBe("Sev-2");
   });
 
   it("downgrades Severity 2 to Sev-3 for non-Enterprise paid plans", () => {
-    expect(mapToPylonCaseSeverity({ severity: SEVERITY_2, plan: TEAM })).toBe(
-      "Sev-3",
-    );
-    expect(mapToPylonCaseSeverity({ severity: SEVERITY_2, plan: PRO })).toBe(
-      "Sev-3",
-    );
+    expect(
+      mapToPylonCaseSeverity({
+        severity: SEVERITY_2,
+        plan: TEAM,
+        isDemoOrganization: REAL_ORG,
+      }),
+    ).toBe("Sev-3");
+    expect(
+      mapToPylonCaseSeverity({
+        severity: SEVERITY_2,
+        plan: PRO,
+        isDemoOrganization: REAL_ORG,
+      }),
+    ).toBe("Sev-3");
   });
 
   it("maps Severity 3 to Sev-3 for eligible plans and unknown plans", () => {
     expect(
-      mapToPylonCaseSeverity({ severity: SEVERITY_3, plan: ENTERPRISE }),
+      mapToPylonCaseSeverity({
+        severity: SEVERITY_3,
+        plan: ENTERPRISE,
+        isDemoOrganization: REAL_ORG,
+      }),
     ).toBe("Sev-3");
-    expect(mapToPylonCaseSeverity({ severity: SEVERITY_3 })).toBe("Sev-3");
+    expect(
+      mapToPylonCaseSeverity({
+        severity: SEVERITY_3,
+        isDemoOrganization: REAL_ORG,
+      }),
+    ).toBe("Sev-3");
+  });
+
+  it("downgrades Severity 1/2 to Sev-3 in the demo organization", () => {
+    for (const plan of [ENTERPRISE, SELF_HOSTED_ENTERPRISE]) {
+      expect(
+        mapToPylonCaseSeverity({
+          severity: SEVERITY_1,
+          plan,
+          isDemoOrganization: DEMO_ORG,
+        }),
+      ).toBe("Sev-3");
+      expect(
+        mapToPylonCaseSeverity({
+          severity: SEVERITY_2,
+          plan,
+          isDemoOrganization: DEMO_ORG,
+        }),
+      ).toBe("Sev-3");
+    }
   });
 
   it("returns no case severity for Hobby/Core plans regardless of selection", () => {
     for (const severity of [SEVERITY_1, SEVERITY_2, SEVERITY_3]) {
       expect(
-        mapToPylonCaseSeverity({ severity, plan: LOW_TIER }),
+        mapToPylonCaseSeverity({
+          severity,
+          plan: LOW_TIER,
+          isDemoOrganization: REAL_ORG,
+        }),
       ).toBeUndefined();
-      expect(mapToPylonCaseSeverity({ severity, plan: CORE })).toBeUndefined();
+      expect(
+        mapToPylonCaseSeverity({
+          severity,
+          plan: CORE,
+          isDemoOrganization: REAL_ORG,
+        }),
+      ).toBeUndefined();
     }
   });
 });

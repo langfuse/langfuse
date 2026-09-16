@@ -153,12 +153,22 @@ export const supportRouter = createTRPCRouter({
       // undefined and the request is capped to Sev-3. This mirrors the
       // client-side gating.
 
+      // Every Langfuse Cloud user is a member of the demo organization, which
+      // runs on an Enterprise plan so the demo shows the full feature set, so
+      // its plan must not unlock Sev-1/Sev-2 for everyone.
+      const isDemoOrganization =
+        !!env.NEXT_PUBLIC_DEMO_ORG_ID &&
+        currentSupportRequestContext.organizationId ===
+          env.NEXT_PUBLIC_DEMO_ORG_ID;
+
       // Resolve the Pylon case severity (Sev-1/2/3). Sev-1 and Sev-2 are
-      // gated to Enterprise plans inside mapToPylonCaseSeverity, so a
-      // selection from a non-Enterprise plan is safely downgraded server-side.
+      // gated to Enterprise plans outside the demo organization inside
+      // mapToPylonCaseSeverity, so a selection that does not qualify is
+      // safely downgraded server-side.
       const caseSeverity = mapToPylonCaseSeverity({
         severity: input.severity,
         plan: currentSupportRequestContext.plan,
+        isDemoOrganization,
       });
 
       const { topLevel, subtype } = splitTopic(input.topic);
@@ -193,9 +203,13 @@ export const supportRouter = createTRPCRouter({
             version: VERSION,
             browserMetadata: input.browserMetadata,
           });
-          const pylonCustomerTier = currentSupportRequestContext.plan
-            ? mapPlanToPylonCustomerTier(currentSupportRequestContext.plan)
-            : undefined;
+          // Pylon accounts are keyed on the requester's email domain, so the
+          // demo organization's plan would otherwise overwrite the tier of
+          // whichever real account they belong to.
+          const pylonCustomerTier =
+            currentSupportRequestContext.plan && !isDemoOrganization
+              ? mapPlanToPylonCustomerTier(currentSupportRequestContext.plan)
+              : undefined;
           const pylonIssue = await createPylonIssue({
             apiKey: env.PYLON_API_KEY,
             title: pylonTitle,
