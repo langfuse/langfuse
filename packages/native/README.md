@@ -8,9 +8,28 @@ other workspace package:
 import { hello } from "@langfuse/native";
 ```
 
-Today the addon exports a single hello-world function. It exists to put the
-build, packaging, and deployment pipeline for native code in place; real
-functionality lands on top of it.
+The addon's Node surface currently exports the hello-world and telemetry
+functions. The Rust-only v4 Native encoder is kept inside the crate until the
+ClickHouse transport integrates it.
+
+The encoder returns owned, self-contained Native buffers. They do not retain
+the builder or source rows, so the later transport slice can retry complete
+blocks without crossing Native buffer state through the current Node surface.
+
+The codec treats the prepared datetime strings as UTC: a value without an
+offset is a UTC calendar value, and an RFC3339 offset is normalized to the same
+UTC instant. Cost maps follow the existing Decimal(18,12) policy: non-finite
+values become zero, values at or above one million are clamped to the existing
+limit, and other values are truncated toward zero at twelve fractional digits.
+`event_bytes` is computed by Rust as the UTF-8 length of its compact JSON
+serialization of the prepared row without the accounting field. This is a
+logical size metric and can differ from JavaScript's `JSON.stringify` number
+formatting while remaining correct for the Rust serialization. The test-only
+fixture exporter builds `EventInput` values from the captured traces, runs the
+TypeScript `createEventRecord` and `writeEventRecord` boundary, and hands Rust
+the resulting pre-clamp rows. Callers should pass rows after observation field
+overflow handling and before the writer's numeric Decimal clamp; the encoder
+does not mutate its input rows.
 
 ## Layout
 
@@ -29,6 +48,12 @@ functionality lands on top of it.
 type checks and tooling work without a Rust toolchain. `*.node` binaries and
 `target/` are ignored.
 
+The encoder uses a small local source overlay for the pinned `clickhouse`
+0.15.2 crate. `scripts/prepare-clickhouse-source.sh` downloads the exact crate
+archive, verifies its checksum, applies the delta in `patches/`, and writes an
+ignored Cargo patch configuration. The repository keeps the delta and setup
+script, not a vendored copy of the crate.
+
 ## Building
 
 Install Rust through [rustup](https://rustup.rs), the same prerequisite the AI
@@ -44,7 +69,20 @@ Run from the repo root:
 pnpm --filter @langfuse/native run build        # release build for the current platform
 pnpm --filter @langfuse/native run build:debug  # unoptimised build
 pnpm --filter @langfuse/native run lint         # cargo fmt --check && cargo clippy -D warnings
+pnpm --filter @langfuse/native run test         # Rust tests; uses ClickHouse when available
 ```
+
+The tests load the captured framework and ChatML traces from the repository.
+The package test first runs the worker's `createEventRecord` and
+`writeEventRecord` path to export a temporary prepared-row corpus, including the
+exact JavaScript JSONEachRow lines. Rust encodes that corpus and inserts it into
+a copy of the production `events_full` schema. ClickHouse receives the same
+rows once as JSONEachRow and once as Native, then compares the stored columns;
+Map entries are sorted for the comparison because their order is not semantic.
+The cross-format comparison intentionally excludes `event_bytes`; each side's
+accounting total is checked against its own serializer's definition.
+The worker CI job requires this server oracle with
+`LANGFUSE_NATIVE_CLICKHOUSE_SERVER_REQUIRED=1`.
 
 `pnpm run dev`, `pnpm run build`, `pnpm run test`, and the worker's
 `typecheck`/`lint` tasks build this package first through turbo, so the addon

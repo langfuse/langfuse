@@ -20,6 +20,7 @@
     "build": "tsc",
     "build:test": "tsc",
     "build:check": "tsc",
+    "export-native-codec-fixtures": "DOCKER_BUILD=1 tsx src/scripts/exportNativeCodecFixtures.ts",
     "typecheck": "dotenv -e ../.env -- tsc --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "dotenv -e ../.env -- tsx watch --clear-screen=false --include '../packages/shared/dist/*'  src/index.ts",
     "lint": "eslint . --cache --cache-location dist/.eslintcache --max-warnings 0 --concurrency 2",
