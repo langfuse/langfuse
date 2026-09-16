@@ -1,6 +1,7 @@
 import { type NextApiRequest } from "next";
 import { type ApiDeprecationInfo } from "@langfuse/shared";
 import {
+  extractPublicApiCallerAttribution,
   logger,
   recordIncrement,
   type ApiAccessScopeWithOptionalApiKeyId,
@@ -41,7 +42,14 @@ export function applyLegacyApiOrganizationCutoff(params: {
   }
 
   const apiPath = clickHouseRouteForRequest(params.req);
-  recordIncrement("langfuse.public_api.legacy_get_rejected", 1);
+  const callerAttribution = extractPublicApiCallerAttribution(
+    params.req.headers,
+  );
+  recordIncrement(
+    "langfuse.public_api.legacy_get_rejected",
+    1,
+    callerAttribution,
+  );
   logger.info(
     "Rejected legacy GET API request for organization created at or after cutoff",
     {

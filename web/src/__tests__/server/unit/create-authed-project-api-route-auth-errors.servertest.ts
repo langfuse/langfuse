@@ -11,6 +11,7 @@ const {
   mockLoggerDebug,
   mockLoggerInfo,
   mockRecordIncrement,
+  mockExtractPublicApiCallerAttribution,
   mockFindOrganization,
   mockCreateStructuredPublicApiAuthError,
   mockSendStructuredPublicApiErrorResponse,
@@ -23,6 +24,11 @@ const {
   mockLoggerDebug: vi.fn(),
   mockLoggerInfo: vi.fn(),
   mockRecordIncrement: vi.fn(),
+  mockExtractPublicApiCallerAttribution: vi.fn(() => ({
+    userAgent: "langfuse-python/4.8.1",
+    sdkName: "python",
+    sdkVersion: "4.8.1",
+  })),
   mockFindOrganization: vi.fn(),
   mockCreateStructuredPublicApiAuthError: vi.fn((value) => value),
   mockSendStructuredPublicApiErrorResponse: vi.fn(),
@@ -64,6 +70,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
     error: vi.fn(),
   },
   recordIncrement: mockRecordIncrement,
+  extractPublicApiCallerAttribution: mockExtractPublicApiCallerAttribution,
   traceException: mockTraceException,
   contextWithLangfuseProps: vi.fn(() => ({})),
   ClickHouseClientManager: {
@@ -173,6 +180,9 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       url: "/api/public/test",
       headers: {
         authorization: "Basic test",
+        "user-agent": "langfuse-python/4.8.1",
+        "x-langfuse-sdk-name": "langfuse-python",
+        "x-langfuse-sdk-version": "4.8.1",
       },
       query: {},
     });
@@ -213,6 +223,18 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(mockRecordIncrement).toHaveBeenCalledWith(
       "langfuse.public_api.legacy_get_rejected",
       1,
+      {
+        userAgent: "langfuse-python/4.8.1",
+        sdkName: "python",
+        sdkVersion: "4.8.1",
+      },
+    );
+    expect(mockExtractPublicApiCallerAttribution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        "user-agent": "langfuse-python/4.8.1",
+        "x-langfuse-sdk-name": "langfuse-python",
+        "x-langfuse-sdk-version": "4.8.1",
+      }),
     );
     expect(mockFindOrganization).not.toHaveBeenCalled();
     expect(mockLoggerInfo).toHaveBeenCalledWith(
