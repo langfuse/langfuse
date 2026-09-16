@@ -108,7 +108,7 @@ These are current default-branch files an agent will hit before the FAQ:
 
 4. **Python `langfuse/batch_evaluation.py`** still pages with `api.trace.list` and `api.legacy.observations_v1.get_many`. Production SDK code, not just tests.
 
-5. **SDK test suites** (Python live_provider/e2e, JS openai e2e) still assert via `api.legacy.observations_v1` / `observationsV1`. Agents working _in_ the SDK repos will imitate that.
+5. **SDK test suites** (Python live*provider/e2e, JS openai e2e) still assert via `api.legacy.observations_v1` / `observationsV1`. Agents working \_in* the SDK repos will imitate that.
 
 6. **CLI `__schema`** still exposes `traces` and `legacy-observations-v1s` / `legacy-metrics-v1s` / `legacy-score-v1s`. The skill’s CLI reference counters this; an agent that only reads `__schema` can still pick them.
 
