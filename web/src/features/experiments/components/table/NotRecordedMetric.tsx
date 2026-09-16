@@ -1,8 +1,4 @@
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 const EXPLANATION: Record<NotRecordedMetricProps["metric"], string> = {
   cost: "No cost was recorded for this run. Cost is derived from the token usage and model pricing its calls reported.",
@@ -17,14 +13,14 @@ type NotRecordedMetricProps = { metric: "cost" | "latency" };
  * what is missing instead.
  */
 export const NotRecordedMetric = ({ metric }: NotRecordedMetricProps) => (
-  <Tooltip>
-    <TooltipTrigger asChild>
-      <span className="text-muted-foreground/70 cursor-default">
+  <Tooltip label={EXPLANATION[metric]}>
+    {({ getTriggerProps }) => (
+      <span
+        {...getTriggerProps()}
+        className="text-muted-foreground/70 cursor-default"
+      >
         not recorded
       </span>
-    </TooltipTrigger>
-    <TooltipContent className="max-w-[280px]">
-      {EXPLANATION[metric]}
-    </TooltipContent>
+    )}
   </Tooltip>
 );

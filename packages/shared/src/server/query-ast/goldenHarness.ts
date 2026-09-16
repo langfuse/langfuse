@@ -306,6 +306,112 @@ export function normalizeParams(
   return { sql: normalizedSql, params: normalizedParams };
 }
 
+// `clickhouse format` lays queries out clause by clause but never breaks inside a
+// single expression, so a deeply-nested facet expression lands as one 500+ char
+// line that is unreadable in a snapshot diff. Wrap those — and only those — at
+// top-level argument boundaries of the first function/array group on the line.
+const MAX_SQL_LINE = 120;
+const WRAP_INDENT = "    ";
+
+// Lines the formatter opens with a clause keyword are its layout, not an
+// expression — breaking them on their first paren mangles `WHERE (a) AND (b)`.
+// Leave those alone; only reflow the nested-expression lines.
+const CLAUSE_KEYWORD =
+  /^(WITH|SELECT|FROM|PREWHERE|WHERE|GROUP|ORDER|HAVING|LIMIT|UNION|SAMPLE|SETTINGS|JOIN|LEFT|RIGHT|INNER|FULL|CROSS|ON|AND|OR)\b/i;
+
+/**
+ * Pretty-print any expression line longer than {@link MAX_SQL_LINE} by
+ * recursively breaking the first `(...)`/`[...]` group across lines, one
+ * top-level argument per line. Shorter lines, and clause-level layout
+ * `clickhouse format` already produces, are returned untouched — so this only
+ * reflows the giant nested facet expressions. Deterministic and
+ * CH-version-independent (pure string work).
+ */
+function wrapLongSql(sql: string): string {
+  return sql
+    .split("\n")
+    .map((line) => {
+      if (line.length <= MAX_SQL_LINE) return line;
+      const indent = /^\s*/.exec(line)?.[0] ?? "";
+      const body = line.slice(indent.length);
+      if (CLAUSE_KEYWORD.test(body)) return line;
+      return formatSqlExpr(body, indent);
+    })
+    .join("\n");
+}
+
+/** First top-level `(...)`/`[...]` group on `expr`, split into its args. */
+function firstGroup(expr: string): {
+  head: string;
+  open: string;
+  close: string;
+  args: string[];
+  tail: string;
+} | null {
+  let inStr = false;
+  let open = -1;
+  for (let i = 0; i < expr.length; i++) {
+    const c = expr[i];
+    if (inStr) {
+      if (c === "\\") i++;
+      else if (c === "'") inStr = false;
+      continue;
+    }
+    if (c === "'") inStr = true;
+    else if (c === "(" || c === "[") {
+      open = i;
+      break;
+    }
+  }
+  if (open === -1) return null;
+
+  const args: string[] = [];
+  let depth = 0;
+  let argStart = open + 1;
+  inStr = false;
+  for (let i = open; i < expr.length; i++) {
+    const c = expr[i];
+    if (inStr) {
+      if (c === "\\") i++;
+      else if (c === "'") inStr = false;
+      continue;
+    }
+    if (c === "'") inStr = true;
+    else if (c === "(" || c === "[") depth++;
+    else if (c === ")" || c === "]") {
+      depth--;
+      if (depth === 0) {
+        args.push(expr.slice(argStart, i));
+        return {
+          head: expr.slice(0, open),
+          open: expr[open],
+          close: c,
+          args,
+          tail: expr.slice(i + 1),
+        };
+      }
+    } else if (c === "," && depth === 1) {
+      args.push(expr.slice(argStart, i));
+      argStart = i + 1;
+    }
+  }
+  return null;
+}
+
+function formatSqlExpr(expr: string, indent: string): string {
+  if (indent.length + expr.length <= MAX_SQL_LINE) return indent + expr;
+  const group = firstGroup(expr);
+  if (!group || group.args.every((a) => a.trim() === "")) return indent + expr;
+  const childIndent = indent + WRAP_INDENT;
+  const lines = [indent + group.head + group.open];
+  group.args.forEach((arg, i) => {
+    const last = i === group.args.length - 1;
+    lines.push(formatSqlExpr(arg.trim(), childIndent) + (last ? "" : ","));
+  });
+  lines.push(indent + group.close + group.tail);
+  return lines.join("\n");
+}
+
 function routeOf(tags: unknown): string {
   if (tags && typeof tags === "object" && "route" in tags) {
     const route = (tags as { route?: unknown }).route;
@@ -325,6 +431,6 @@ export function normalizeCapturedQueries(
 ): GoldenQuery[] {
   return captured.map((c) => {
     const { sql, params } = normalizeParams(formatSql(c.query), c.params);
-    return { fn: c.fn, route: routeOf(c.tags), sql, params };
+    return { fn: c.fn, route: routeOf(c.tags), sql: wrapLongSql(sql), params };
   });
 }

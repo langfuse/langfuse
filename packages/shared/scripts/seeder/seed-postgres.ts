@@ -557,7 +557,7 @@ async function seedAiGateway(params: {
     create: {
       organizationId: params.organizationId,
       defaultIngestionProjectId: ingestionProjectId,
-      ingestionMode: "USAGE",
+      ingestionMode: "FULL",
     },
     update: {
       defaultIngestionProjectId: ingestionProjectId,

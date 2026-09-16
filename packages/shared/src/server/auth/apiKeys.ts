@@ -11,6 +11,30 @@ export function getDisplaySecretKey(secretKey: string) {
   return secretKey.slice(0, 6) + "..." + secretKey.slice(-4);
 }
 
+const LANGFUSE_SECRET_KEY_PATTERN = /sk-lf-[A-Za-z0-9_-]+/g;
+
+/**
+ * Replaces every Langfuse secret key inside a user-controlled string with its
+ * display form (`sk-lf-...abcd`), so the value can be logged or attached to a
+ * span without exposing the secret.
+ */
+export function redactLangfuseSecretKeys(value: string): string {
+  return value.replace(LANGFUSE_SECRET_KEY_PATTERN, (match) =>
+    getDisplaySecretKey(match),
+  );
+}
+
+/**
+ * Formats a client-submitted public key for logging. Only a value that is
+ * actually a Langfuse public key is echoed verbatim; anything else is masked to
+ * its display form because it may be a secret placed in the wrong slot.
+ */
+export function formatSubmittedPublicKeyForLog(value: string): string {
+  if (value.startsWith("pk-lf-")) return value;
+  if (value.length < 12) return "****";
+  return getDisplaySecretKey(value);
+}
+
 export async function hashSecretKey(key: string) {
   // legacy, uses bcrypt, transformed into hashed key upon first use
   const hashedKey = await hash(key, 11);
