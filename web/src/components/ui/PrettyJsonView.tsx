@@ -749,6 +749,9 @@ export function PrettyJsonView(props: {
   inset?: boolean;
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
+  /** Titled sections (Input/Output/Metadata): header controls (copy,
+      expand-all) reveal on section hover instead of rendering always. */
+  hoverControls?: boolean;
   /** When set, rows show an actions menu with copy + add-to-filter shortcuts
       (metadata views only). */
   metadataActions?: MetadataFilterActions;
@@ -1393,10 +1396,46 @@ export function PrettyJsonView(props: {
     </>
   );
 
+  const expandCollapseButton = (
+    <>
+      {shouldUseTableView && (
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={() => expandAllRef.current?.()}
+          className="hover:bg-border -mr-2"
+          title={allRowsExpanded ? "Collapse all rows" : "Expand all rows"}
+        >
+          {allRowsExpanded ? (
+            <FoldVertical className="h-3 w-3" />
+          ) : (
+            <UnfoldVertical className="h-3 w-3" />
+          )}
+        </Button>
+      )}
+      {!shouldUseTableView && !isMarkdownMode && !largeStringValue && (
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={handleJsonToggleCollapse}
+          className="hover:bg-border -mr-2"
+          title={jsonIsCollapsed ? "Expand all" : "Collapse all"}
+        >
+          {jsonIsCollapsed ? (
+            <UnfoldVertical className="h-3 w-3" />
+          ) : (
+            <FoldVertical className="h-3 w-3" />
+          )}
+        </Button>
+      )}
+    </>
+  );
+
   return (
     <div
       className={cn(
         "flex max-h-full min-h-0 flex-col",
+        props.hoverControls && "group/iosection",
         props.inset && "[&_.io-message-content]:px-2",
         props.className,
         props.scrollable ? "overflow-hidden" : "",
@@ -1406,8 +1445,6 @@ export function PrettyJsonView(props: {
         <MarkdownJsonViewHeader
           title={props.title}
           titleIcon={props.titleIcon}
-          canEnableMarkdown={false}
-          handleOnValueChange={() => {}} // No-op, parent handles state
           handleOnCopy={handleOnCopy}
           collapseControl={
             shouldCollapseSystemPrompt &&
@@ -1420,40 +1457,10 @@ export function PrettyJsonView(props: {
               : undefined
           }
           inset={props.inset}
+          hoverRevealControls={props.hoverControls}
           controlButtons={
             <>
-              {shouldUseTableView && (
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => expandAllRef.current?.()}
-                  className="hover:bg-border -mr-2"
-                  title={
-                    allRowsExpanded ? "Collapse all rows" : "Expand all rows"
-                  }
-                >
-                  {allRowsExpanded ? (
-                    <FoldVertical className="h-3 w-3" />
-                  ) : (
-                    <UnfoldVertical className="h-3 w-3" />
-                  )}
-                </Button>
-              )}
-              {!shouldUseTableView && !isMarkdownMode && !largeStringValue && (
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={handleJsonToggleCollapse}
-                  className="hover:bg-border -mr-2"
-                  title={jsonIsCollapsed ? "Expand all" : "Collapse all"}
-                >
-                  {jsonIsCollapsed ? (
-                    <UnfoldVertical className="h-3 w-3" />
-                  ) : (
-                    <FoldVertical className="h-3 w-3" />
-                  )}
-                </Button>
-              )}
+              {expandCollapseButton}
               {props.controlButtons}
             </>
           }

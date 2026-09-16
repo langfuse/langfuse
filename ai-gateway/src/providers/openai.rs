@@ -6,6 +6,8 @@ use axum::{
     http::{HeaderMap, HeaderValue, Response, header},
 };
 use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
+use reqwest_tracing::DisableOtelPropagation;
 use tokio::{
     sync::{OwnedSemaphorePermit, Semaphore},
     time::Instant,
@@ -40,12 +42,13 @@ impl Default for ProviderLimits {
 /// An admitted execution. Dropping it releases capacity; there is no waiting queue.
 pub struct RequestPermit {
     _permit: OwnedSemaphorePermit,
+    _active: crate::observability::Active,
     deadline: Instant,
 }
 
 /// A pooled client for the official `OpenAI` Responses endpoint.
 pub struct OpenAiProvider {
-    client: Client,
+    client: ClientWithMiddleware,
     capacity: Arc<Semaphore>,
     limits: ProviderLimits,
     telemetry: Option<crate::telemetry::Telemetry>,
@@ -83,7 +86,7 @@ impl OpenAiProvider {
             .build()
             .map_err(|_| ProviderError::Configuration)?;
         Ok(Self {
-            client,
+            client: crate::observability::instrument_client(client, "provider.headers"),
             capacity: Arc::new(Semaphore::new(limits.active)),
             limits,
             telemetry: None,
@@ -102,13 +105,13 @@ impl OpenAiProvider {
     /// # Errors
     /// Returns [`ProviderError::Busy`] immediately when all execution slots are occupied.
     pub fn try_admit(&self) -> Result<RequestPermit, ProviderError> {
-        let permit = self
-            .capacity
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| ProviderError::Busy)?;
+        let permit = self.capacity.clone().try_acquire_owned().map_err(|_| {
+            crate::observability::rejected("execution");
+            ProviderError::Busy
+        })?;
         Ok(RequestPermit {
             _permit: permit,
+            _active: crate::observability::Active::new("execution"),
             deadline: Instant::now() + self.limits.execution_timeout,
         })
     }
@@ -145,6 +148,7 @@ impl OpenAiProvider {
                 .min(Instant::now() + self.limits.headers_timeout),
             self.client
                 .post(endpoint)
+                .with_extension(DisableOtelPropagation)
                 .headers(transport::request_headers(headers))
                 // Observe plain JSON/SSE while relaying the provider bytes unchanged.
                 .header(header::ACCEPT_ENCODING, "identity")

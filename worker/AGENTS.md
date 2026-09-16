@@ -16,6 +16,12 @@
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
+- Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
+  `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
+  `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads
+  independently default-off and cloud-gated. Do not expose these PoC controls in
+  local or production env templates. Reader query controls are independent of
+  locality selection; logs must preserve separate input/output/metadata metrics.
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`
 - Rust addon (`@langfuse/native`): telemetry init and the startup hello call live

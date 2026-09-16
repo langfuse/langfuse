@@ -1,7 +1,11 @@
 /* eslint-disable @repo/no-style-props */
 import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
-import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
+import {
+  getItemTypeLabels,
+  type LangfuseItemType,
+} from "@/src/components/ItemBadge";
+import { TextChip } from "@/src/components/TextChip";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
@@ -165,7 +169,7 @@ const PageHeader = ({
               <div className="mr-2 flex items-center gap-1">
                 {itemType && (
                   <div className="flex items-center">
-                    <ItemBadge type={itemType} showLabel />
+                    <TextChip text={getItemTypeLabels(itemType).displayLabel} />
                   </div>
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">

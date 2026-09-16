@@ -55,6 +55,7 @@ impl ProtocolCapture {
 /// Owned before dispatch and moved into the response body. Drop also covers a
 /// cancelled provider future before response headers have arrived.
 pub(crate) struct ExecutionCapture {
+    span: tracing::Span,
     protocol: Option<ProtocolCapture>,
     started: Instant,
     start_time_unix_ms: u128,
@@ -92,6 +93,7 @@ impl ExecutionCapture {
             .collect();
         let full = context.ingestion_mode() == IngestionMode::Full;
         Self {
+            span: tracing::Span::current(),
             protocol: Some(ProtocolCapture::OpenAiResponses(
                 OpenAiResponsesCapture::new(headers, body, context.ingestion_mode()),
             )),
@@ -146,6 +148,8 @@ impl ExecutionCapture {
     }
 
     pub fn finish(&mut self, outcome: RelayOutcome) {
+        let span = self.span.clone();
+        let _entered = span.enter();
         let Some(protocol) = self.protocol.take() else {
             return;
         };
@@ -161,6 +165,7 @@ impl ExecutionCapture {
             inference,
         };
         telemetry::debug_record(&facts);
+        crate::observability::execution_finished(&facts);
         if let Some((telemetry, context)) = self.delivery.take() {
             telemetry.record(context, facts);
         }

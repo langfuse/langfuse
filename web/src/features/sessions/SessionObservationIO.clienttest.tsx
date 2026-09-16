@@ -116,6 +116,18 @@ describe("SessionObservationIO", () => {
     expect(screen.getByText(/2\.5M characters/i)).toBeInTheDocument();
   });
 
+  it("decodes Unicode escapes in the truncated I/O preview", () => {
+    renderComponent({
+      ...baseObservation,
+      input: '{"text":"\\u4f60\\u597d"}',
+      inputLength: 2_500_000,
+      inputTruncated: true,
+    } as SessionTraceObservation);
+
+    expect(screen.getByText(/你好/)).toBeInTheDocument();
+    expect(screen.queryByText(/\\u4f60\\u597d/)).not.toBeInTheDocument();
+  });
+
   it("opens the trace view at the observation", () => {
     const { onOpenInTraceView } = renderComponent({
       ...baseObservation,
