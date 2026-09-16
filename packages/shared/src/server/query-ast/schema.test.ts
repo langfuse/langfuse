@@ -30,6 +30,8 @@ describe("table registry derivation", () => {
     expect(COLUMN_DATA_TYPES.timestamp).toBe("date");
     expect(COLUMN_DATA_TYPES.metadata_names).toBe("array");
     expect(COLUMN_DATA_TYPES.cost_details).toBe("map");
+    expect(COLUMN_DATA_TYPES.is_deleted).toBe("number");
+    expect(COLUMN_DATA_TYPES.metadata).toBe("map");
   });
 
   it("declares events_core as immutable and leaves legacy tables undeclared", () => {
@@ -44,6 +46,8 @@ describe("table registry derivation", () => {
     expect(COLUMN_BIND_TYPES.start_time).toBe("DateTime64(3)");
     expect(COLUMN_BIND_TYPES.project_id).toBe("String");
     expect(COLUMN_BIND_TYPES.metadata_names).toBe("Array(String)");
+    expect(COLUMN_BIND_TYPES.is_deleted).toBe("UInt8");
+    expect(COLUMN_BIND_TYPES.metadata).toBe("Map(String, String)");
   });
 
   // The assertions themselves are compile-time (`tsc` is the test); this only

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
-import { arrayJoin, limitBy, mapKeys, mapValues } from "./extensions";
+import { arrayJoin, limitBy, mapKeys, mapValues, useFinal } from "./extensions";
 import { defineView, fromView } from "./views";
 
 // Raw compiler output (no `clickhouse format` binary needed), so these run
@@ -122,5 +122,58 @@ describe("LIMIT BY composition across nesting positions", () => {
     // Outer query has no LIMIT BY; presence proves the CTE body's clause held.
     expect(sql).toMatch(/limit 1 by/i);
     expect(sql).toMatch(/with lb as/i);
+  });
+});
+
+describe("FINAL composition across nesting positions", () => {
+  it("emits FINAL at the top level (baseline)", () => {
+    const db = getClickhouseKysely();
+    const qb = db
+      .selectFrom("scores as s")
+      .select("s.id")
+      .$call(useFinal(["scores"]));
+
+    const { sql } = compileClickhouseQuery(qb, ctx);
+    expect(sql).toMatch(/scores as s final/i);
+  });
+
+  it("keeps FINAL when applied inside a CTE body", () => {
+    const db = getClickhouseKysely();
+    const qb = db
+      .with("scored", (inner) =>
+        inner
+          .selectFrom("scores as s")
+          .select("s.id")
+          .$call(useFinal(["scores"])),
+      )
+      .selectFrom("scored")
+      .select("id");
+
+    const { sql } = compileClickhouseQuery(qb, ctx);
+    const outerStart = sql
+      .toLowerCase()
+      .search(/\)\s*select[\s\S]*from scored/i);
+    expect(outerStart).toBeGreaterThan(-1);
+    const cteBody = sql.slice(0, outerStart);
+    const outerQuery = sql.slice(outerStart);
+    expect(cteBody).toMatch(/scores as s final/i);
+    expect(outerQuery).not.toMatch(/final/i);
+  });
+
+  it("keeps FINAL on a JOIN table and not on events_core", () => {
+    const db = getClickhouseKysely();
+    const qb = db
+      .selectFrom("events_core as e")
+      .innerJoin("scores as s", (join) =>
+        join
+          .onRef("e.trace_id", "=", "s.trace_id")
+          .onRef("e.project_id", "=", "s.project_id"),
+      )
+      .$call(useFinal(["scores"]))
+      .select("s.id");
+
+    const { sql } = compileClickhouseQuery(qb, ctx);
+    expect(sql).toMatch(/scores as s final/i);
+    expect(sql).not.toMatch(/events_core as e final/i);
   });
 });

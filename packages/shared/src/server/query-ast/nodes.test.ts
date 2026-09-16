@@ -5,9 +5,10 @@ import { compileClickhouseQuery } from "./compile";
 import { ClickHouseQueryCompiler } from "./compiler";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError, UnscopedRelationError } from "./errors";
-import { arrayJoin, limitBy, mapKeys, mapValues } from "./extensions";
+import { arrayJoin, limitBy, mapKeys, mapValues, useFinal } from "./extensions";
 import {
   ArrayJoinNode,
+  FinalTableNode,
   LimitByNode,
   isClickHouseSelectQueryNode,
 } from "./nodes";
@@ -284,5 +285,36 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
     expect(lower).toContain("limit ");
     expect(lower).toContain(" by ");
     expect(lower.indexOf(" by ")).toBeLessThan(lower.lastIndexOf("limit"));
+  });
+
+  it("wraps the scores FROM table in a FinalTableNode", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("scores as s")
+      .select("s.id")
+      .$call(useFinal(["scores"]));
+
+    const node = qb
+      .withPlugin(new TenancyInjectionPlugin(ctx))
+      .toOperationNode();
+    expect(node.kind).toBe("SelectQueryNode");
+    const from = (node as { from?: { froms?: Array<{ kind: string }> } }).from
+      ?.froms?.[0];
+    expect(from).toBeDefined();
+    expect(FinalTableNode.is(from!)).toBe(true);
+  });
+
+  it("emits FINAL after the scores table expression", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("scores as s")
+      .select("s.id")
+      .$call(useFinal(["scores"]));
+
+    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    expect(compiled.toLowerCase()).toMatch(/scores as s final/);
+  });
+
+  it("rejects FINAL on events_core", () => {
+    expect(() => useFinal(["events_core"])).toThrow(QueryCompileError);
+    expect(() => useFinal(["events_core"])).toThrow(/immutable/);
   });
 });
