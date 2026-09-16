@@ -28,13 +28,16 @@ import { useMemo } from "react";
 
 export function TracePanelNavigation() {
   const { searchQuery } = useSearch();
-  const { isGraphViewAvailable } = useTraceGraphData();
+  const { isGraphViewAvailable, isLoading: isGraphLoading } =
+    useTraceGraphData();
   const [viewMode] = useQueryParam("view", StringParam);
 
   const hasQuery = searchQuery.trim().length > 0;
   const isTimelineView = viewMode === "timeline";
-  // Stale ?view=graph falls back to tree.
-  const isGraphView = viewMode === "graph" && isGraphViewAvailable;
+  // Availability is false while the graph query loads, so hold the view until it
+  // resolves. Stale ?view=graph then falls back to tree.
+  const isGraphView =
+    viewMode === "graph" && (isGraphViewAvailable || isGraphLoading);
 
   // Memoize to prevent recreation when deps haven't changed
   const content = useMemo(() => {

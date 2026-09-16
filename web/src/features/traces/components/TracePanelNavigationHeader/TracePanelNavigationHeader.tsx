@@ -94,7 +94,8 @@ function TracePanelNavigationHeaderExpanded({
     useSearch();
   const { expandAll, collapseAll, collapsedNodes } = useSelection();
   const { roots, trace, observations } = useTraceData();
-  const { isGraphViewAvailable } = useTraceGraphData();
+  const { isGraphViewAvailable, isLoading: isGraphLoading } =
+    useTraceGraphData();
   const { isV4 } = useReadPath();
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
   const capture = usePostHogClientCapture();
@@ -177,11 +178,13 @@ function TracePanelNavigationHeaderExpanded({
       }
     }, [isV4, observations, trace, capture, analyticsDimensions]);
 
-  // Stale ?view=graph falls back to tree.
+  // Hold the Graph segment while its query loads, else it vanishes and returns
+  // on every trace switch. Stale ?view=graph then falls back to tree.
+  const graphResolved = isGraphViewAvailable || isGraphLoading;
   const activeView: TraceViewMode =
     viewMode === "timeline"
       ? "timeline"
-      : viewMode === "graph" && isGraphViewAvailable
+      : viewMode === "graph" && graphResolved
         ? "graph"
         : "tree";
 
@@ -309,7 +312,9 @@ function TracePanelNavigationHeaderExpanded({
 
           <ViewModeSwitch
             activeView={activeView}
-            showGraphSegment={isGraphViewAvailable}
+            showGraphSegment={
+              isGraphViewAvailable || (viewMode === "graph" && isGraphLoading)
+            }
             onSelect={(view) => {
               // Clicking the already-active segment is a no-op — don't count it.
               if (view !== activeView) {
