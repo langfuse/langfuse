@@ -400,7 +400,9 @@ function ViewModeSegment({
           : "text-muted-foreground hover:text-foreground",
       )}
     >
-      <Icon className="h-3.5 w-3.5 shrink-0" />
+      {/* One or the other, never both: the label alone reads faster when
+          there is room, and the icon alone survives a narrow panel. */}
+      <Icon className="h-3.5 w-3.5 shrink-0 @min-[440px]/navheader:hidden" />
       <span className="@max-[440px]/navheader:hidden">{label}</span>
     </button>
   );
