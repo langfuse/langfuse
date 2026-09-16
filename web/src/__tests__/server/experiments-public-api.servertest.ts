@@ -76,7 +76,7 @@ describe("GET /api/public/experiments", () => {
     expect(res.status).toBe(404);
   });
 
-  it("requires fromStartTime", async () => {
+  it("accepts a request without ?fromStartTime (no lower bound)", async () => {
     const { auth } = await createOrgProjectAndApiKey();
 
     const res = await makeAPICall(
@@ -86,7 +86,12 @@ describe("GET /api/public/experiments", () => {
       auth,
     );
 
-    expect(res.status).toBe(400);
+    // Both `fromStartTime` and `toStartTime` are independently optional. A
+    // request with neither asks for the latest experiments, bounded only by
+    // `limit` and any cursor. A 200 with an empty `data` array is the correct
+    // response on a fresh project with no experiments yet.
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ data: [], meta: {} });
   });
 
   it("rejects unknown field groups", async () => {

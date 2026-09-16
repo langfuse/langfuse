@@ -120,7 +120,11 @@ export const GetExperimentsV1ParsedQuery = z.object({
   limit: publicApiPaginationLimitZod,
   scoreLimit: experimentScoreLimitZod,
   cursor: EncodedExperimentCursorV1.optional(),
-  fromStartTime: z.iso.datetime({ offset: true }),
+  // Both time bounds are independently optional, matching the convention on
+  // every other public-API endpoint that exposes a timestamp window. An
+  // omitted lower bound means "no lower bound" — the query returns every
+  // experiment, bounded only by `limit` and `cursor`.
+  fromStartTime: z.iso.datetime({ offset: true }).optional(),
   toStartTime: z.iso.datetime({ offset: true }).optional(),
   id: optionalStringArrayZod,
   name: optionalStringArrayZod,
@@ -134,7 +138,13 @@ export const GetExperimentsV1Query = z
     limit: publicApiPaginationLimitZod,
     scoreLimit: experimentScoreLimitZod,
     cursor: EncodedExperimentsCursorString.optional(),
-    fromStartTime: z.iso.datetime({ offset: true }),
+    // Empty string is treated as absent so `?fromStartTime=` from a templating
+    // system doesn't silently coerce to an invalid datetime. Mirrors the
+    // existing preprocess used on `valueMin` / `valueMax` in v3 scores.
+    fromStartTime: z.preprocess(
+      (v) => (v === "" ? undefined : v),
+      z.iso.datetime({ offset: true }).optional(),
+    ),
     toStartTime: z.iso.datetime({ offset: true }).optional(),
     id: optionalCommaSeparatedStringArray,
     name: optionalCommaSeparatedStringArray,

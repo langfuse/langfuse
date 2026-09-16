@@ -152,7 +152,13 @@ export async function listExperimentsForPublicApi({
     id: query.id,
     name: query.name,
     datasetId: query.datasetId,
-    fromTime: new Date(query.fromStartTime),
+    // `fromStartTime` is optional (the wire schema accepts an absent or
+    // empty-string value and treats it as omitted). When the caller
+    // doesn't ask for a lower bound, we forward `undefined` to the
+    // repository so the events-table query has no `start_time >= ...`
+    // predicate and the only ordering constraint becomes
+    // `order by start_time DESC limit N+1`.
+    fromTime: query.fromStartTime ? new Date(query.fromStartTime) : undefined,
     toTime: query.toStartTime ? new Date(query.toStartTime) : undefined,
     advancedFilters: query.filter,
     cursor: query.cursor
