@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SessionConversationTimelineTrace } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { prepareSessionTimelineObservations } from "@/src/features/sessions/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
+import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 
 type TraceProps = ComponentProps<typeof SessionConversationTimelineTrace>;
 type Observation = Extract<
@@ -135,5 +136,33 @@ describe("SessionConversationTimelineTrace", () => {
     expect(
       screen.queryByRole("button", { name: /tools: tool/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("decodes Unicode escapes in truncated observation previews", () => {
+    const truncated = prepareSessionTimelineObservations([
+      {
+        ...observation("gen", null, "GENERATION", new Date(0)),
+        input: '{"text":"\\u4f60\\u597d"}',
+        output: "\\u4f60\\u597d",
+        inputTruncated: true,
+        outputTruncated: true,
+      },
+    ]);
+
+    render(
+      <MarkdownContextProvider>
+        <SessionConversationTimelineTrace
+          trace={{ ...trace, observationCount: 1 }}
+          turnNumber={1}
+          state={{ type: "loaded", observations: truncated }}
+          onOpenTrace={vi.fn()}
+          onOpenObservation={vi.fn()}
+          scrollTarget={null}
+        />
+      </MarkdownContextProvider>,
+    );
+
+    expect(screen.getAllByText(/你好/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/\\u4f60\\u597d/)).not.toBeInTheDocument();
   });
 });
