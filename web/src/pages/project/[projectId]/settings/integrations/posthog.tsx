@@ -1,4 +1,5 @@
 import { PostHogLogo } from "@/src/components/PosthogLogo";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
@@ -387,21 +388,22 @@ const PostHogIntegrationSettings = ({
         >
           Save
         </Button>
-        <Button
-          variant="ghost"
-          loading={mutDelete.isPending}
+        <ConfirmationDialogController
+          title="Reset PostHog integration?"
+          text="This resets the PostHog integration for this project."
+          confirmLabel="Reset integration"
+          variant="destructive"
           disabled={!state}
-          onClick={() => {
-            if (
-              confirm(
-                "Are you sure you want to reset the PostHog integration for this project?",
-              )
-            )
-              mutDelete.mutate({ projectId });
-          }}
+          loading={mutDelete.isPending}
+          error={mutDelete.error?.message}
+          onConfirm={() => mutDelete.mutateAsync({ projectId })}
         >
-          Reset
-        </Button>
+          {({ openDialog }) => (
+            <Button variant="ghost" disabled={!state} onClick={openDialog}>
+              Reset
+            </Button>
+          )}
+        </ConfirmationDialogController>
       </div>
     </Form>
   );
