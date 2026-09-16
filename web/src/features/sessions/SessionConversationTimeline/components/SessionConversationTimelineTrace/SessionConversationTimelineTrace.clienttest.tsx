@@ -172,7 +172,7 @@ describe("SessionConversationTimelineTrace", () => {
     const loaded = prepareSessionTimelineObservations([
       {
         ...observation("gen", null, "GENERATION", new Date(0)),
-        input: [{ role: "user", content: "hi" }],
+        input: '[{"role":"user","content":"hi"}]',
         output: "\\u4f60\\u597d world",
       },
     ]);
