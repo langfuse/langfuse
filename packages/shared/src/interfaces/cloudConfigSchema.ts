@@ -53,11 +53,13 @@ export const CloudConfigSchema = z.object({
       // attachedplan.* events). Support tooling only — routing, plan resolution, and
       // the worker jobs never read it.
       stripeCustomerId: z.string().nullish(),
-      // Snapshot of a pending scheduled change (upgrade/downgrade/cancel).
+      // Snapshot of a pending scheduled change (upgrade/downgrade/cancel), as
+      // GET /attachedplan reports it.
       scheduled: z
         .object({
           type: z.string(), // "upgrade" | "downgrade" | "cancel"
-          when: z.string(), // "immediate" | "billing_cycle_end" | ISO date
+          // "immediate" | "billing_cycle_end" | ISO date, when CHB supplies one
+          when: z.string().nullish(),
           planCode: z.string().nullish(), // upgrade / downgrade target
           startDate: z.string().nullish(), // upgrade / downgrade effective date
           endDate: z.string().nullish(), // cancel: when the plan ends

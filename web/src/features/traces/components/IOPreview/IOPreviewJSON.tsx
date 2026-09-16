@@ -86,6 +86,7 @@ export interface IOPreviewJSONProps {
   hideIfNull?: boolean;
   hideOutput?: boolean;
   hideInput?: boolean;
+  hideMetadata?: boolean;
   // Media attachments
   media?: MediaReturnType[];
   // Callback to inform parent if virtualization is being used (for scroll handling)
@@ -131,6 +132,7 @@ function IOPreviewJSONInner({
   hideIfNull = false,
   hideOutput = false,
   hideInput = false,
+  hideMetadata = false,
   media,
   onVirtualizationChange,
   enableInlineComments = false,
@@ -278,7 +280,8 @@ function IOPreviewJSONInner({
     !hideOutput &&
     (outputTooLarge || !(hideIfNull && effectiveOutput === undefined));
   const showMetadata =
-    metadataTooLarge || !(hideIfNull && effectiveMetadata === undefined);
+    !hideMetadata &&
+    (metadataTooLarge || !(hideIfNull && effectiveMetadata === undefined));
 
   const downloadName = observationId ?? traceId;
 

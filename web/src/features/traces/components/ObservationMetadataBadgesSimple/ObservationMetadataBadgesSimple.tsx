@@ -30,33 +30,3 @@ export function TimeToFirstTokenBadge({
     />
   );
 }
-
-export function EnvironmentBadge({
-  environment,
-}: {
-  environment: string | null | undefined;
-}) {
-  if (!environment) return null;
-
-  return <Badge text={`Env: ${environment}`} />;
-}
-
-export function ReleaseBadge({
-  release,
-}: {
-  release: string | null | undefined;
-}) {
-  if (!release) return null;
-
-  return <Badge text={`Release: ${release}`} />;
-}
-
-export function VersionBadge({
-  version,
-}: {
-  version: string | null | undefined;
-}) {
-  if (!version) return null;
-
-  return <Badge text={`Version: ${version}`} />;
-}

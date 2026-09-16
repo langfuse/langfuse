@@ -197,17 +197,13 @@ function TraceWithSelection({
  */
 function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const isMobile = useIsMobile();
-  const { showGraph, isAnnotationMode } = useViewPreferences();
+  const { isAnnotationMode } = useViewPreferences();
   const { isGraphViewAvailable } = useTraceGraphData();
-  const shouldShowGraph = showGraph && isGraphViewAvailable;
 
   const panels = isMobile ? (
-    <MobileTraceContent shouldShowGraph={shouldShowGraph} />
+    <MobileTraceContent shouldShowGraph={isGraphViewAvailable} />
   ) : (
-    <DesktopTraceContent
-      shouldShowGraph={shouldShowGraph}
-      desktopLayout={desktopLayout}
-    />
+    <DesktopTraceContent desktopLayout={desktopLayout} />
   );
 
   // Annotation mode shows no trace-level metadata.
@@ -232,18 +228,14 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
  * - Navigation panel (left) + Detail panel (right)
  */
 function DesktopTraceContent({
-  shouldShowGraph,
   desktopLayout,
 }: {
-  shouldShowGraph: boolean;
   desktopLayout: DesktopLayout;
 }) {
   return (
     <TraceLayoutDesktop key={desktopLayout.groupId} {...desktopLayout}>
       <TraceLayoutDesktop.NavigationPanel>
-        <TracePanelNavigationLayoutDesktop
-          secondaryContent={shouldShowGraph ? <TraceGraphView /> : undefined}
-        >
+        <TracePanelNavigationLayoutDesktop>
           <TracePanelNavigation />
         </TracePanelNavigationLayoutDesktop>
       </TraceLayoutDesktop.NavigationPanel>
