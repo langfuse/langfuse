@@ -424,6 +424,7 @@ function JsonPrettyTable({
   showObservationTypeBadge = false,
   metadataActions,
   toneClasses,
+  showHeader = true,
 }: {
   data: JsonTableRow[];
   expandAllRef?: React.RefObject<(() => void) | null>;
@@ -442,6 +443,8 @@ function JsonPrettyTable({
   showObservationTypeBadge?: boolean;
   metadataActions?: MetadataFilterActions;
   toneClasses?: (typeof PRETTY_JSON_VIEW_TONE_CLASSES)[PrettyJsonViewTone];
+  /** Drop the Path / Value header row. */
+  showHeader?: boolean;
 }) {
   const headerRef = useRef<HTMLTableRowElement>(null);
   const topLevelRowRef = useRef<HTMLTableRowElement>(null);
@@ -690,7 +693,7 @@ function JsonPrettyTable({
   return (
     <div className={cn("w-full", !noBorder && "rounded-sm border")}>
       <table className="w-full table-fixed caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto text-sm">
-        <thead className="[&_tr]:border-b">
+        <thead className={cn("[&_tr]:border-b", !showHeader && "hidden")}>
           {table.getHeaderGroups().map((headerGroup, index) => (
             <tr
               key={headerGroup.id}
@@ -752,6 +755,8 @@ export function PrettyJsonView(props: {
   parsedJson?: unknown; // Pre-parsed data (optional, from useParsedObservation hook)
   title?: string;
   titleIcon?: React.ReactNode;
+  /** Drop the Path / Value header row. */
+  showHeader?: boolean;
   className?: string;
   isLoading?: boolean;
   isParsing?: boolean;
@@ -1345,6 +1350,7 @@ export function PrettyJsonView(props: {
                   showObservationTypeBadge={props.showObservationTypeBadge}
                   metadataActions={props.metadataActions}
                   toneClasses={toneClasses}
+                  showHeader={props.showHeader}
                 />
               )}
             </div>

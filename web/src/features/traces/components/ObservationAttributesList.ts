@@ -1,6 +1,6 @@
 /** Builds the objects behind the Attributes and Model parameters tables. */
 
-import { type JsonNested } from "@langfuse/shared";
+import { type FilterState, type JsonNested } from "@langfuse/shared";
 
 export function buildObservationAttributes({
   model,
@@ -43,4 +43,68 @@ export function buildModelParameters(
     ([, value]) => value !== null && value !== undefined,
   );
   return entries.length > 0 ? Object.fromEntries(entries) : null;
+}
+
+export type AttributeTarget = "observations" | "traces";
+
+export type AttributeColumnFilter = {
+  target: AttributeTarget;
+  include: FilterState[number];
+  /** Absent when the column has no exact negation. */
+  exclude?: FilterState[number];
+};
+
+/** Maps an attribute to the table column that can filter on it. */
+export function attributeColumnFilter(
+  key: string,
+  value: string,
+  target: AttributeTarget,
+): AttributeColumnFilter | null {
+  const options = (column: string, t: AttributeTarget) => ({
+    target: t,
+    include: {
+      column,
+      type: "stringOptions" as const,
+      operator: "any of" as const,
+      value: [value],
+    },
+    exclude: {
+      column,
+      type: "stringOptions" as const,
+      operator: "none of" as const,
+      value: [value],
+    },
+  });
+  const text = (column: string, t: AttributeTarget) => ({
+    target: t,
+    include: {
+      column,
+      type: "string" as const,
+      operator: "=" as const,
+      value,
+    },
+  });
+  switch (key) {
+    case "environment":
+      return options("environment", target);
+    case "model":
+      return options("model", "observations");
+    case "session_id":
+      return options("sessionId", target);
+    case "user_id":
+      return options("userId", target);
+    case "version":
+      return text("version", target);
+    case "release":
+      // Observations have no release column.
+      return target === "traces" ? text("release", "traces") : null;
+    default:
+      return null;
+  }
+}
+
+/** Search-bar grammar for a key/value pair. */
+export function attributeGrammar(key: string, value: string): string {
+  const v = /[\s:"()]/.test(value) ? JSON.stringify(value) : value;
+  return `${key}:${v}`;
 }

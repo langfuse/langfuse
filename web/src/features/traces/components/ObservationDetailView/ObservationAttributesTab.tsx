@@ -15,6 +15,7 @@ const SECTION_CLASS =
 
 export function ObservationAttributesTab({
   attributes,
+  attributesAnchorTime,
   modelParameters,
   metadata,
   parsedMetadata,
@@ -23,6 +24,7 @@ export function ObservationAttributesTab({
   currentView,
 }: {
   attributes: Record<string, unknown>;
+  attributesAnchorTime: Date;
   modelParameters: Record<string, unknown> | null;
   metadata: unknown;
   /** Avoids re-parsing. */
@@ -51,9 +53,14 @@ export function ObservationAttributesTab({
           <div className={SECTION_CLASS}>
             <PrettyJsonView
               title="Attributes"
+              showHeader={false}
               json={attributes}
               currentView={currentView}
-              metadataActions={metadataActions}
+              metadataActions={{
+                ...metadataActions,
+                attributes: { anchorTime: attributesAnchorTime },
+                analyticsTable: "attributes",
+              }}
               hoverControls
             />
           </div>
@@ -62,8 +69,14 @@ export function ObservationAttributesTab({
           <div className={SECTION_CLASS}>
             <PrettyJsonView
               title="Model parameters"
+              showHeader={false}
               json={modelParameters}
               currentView={currentView}
+              metadataActions={{
+                ...metadataActions,
+                copyOnly: true,
+                analyticsTable: "model_parameters",
+              }}
               hoverControls
             />
           </div>
@@ -81,10 +94,14 @@ export function ObservationAttributesTab({
             ) : (
               <PrettyJsonView
                 title="Metadata"
+                showHeader={false}
                 json={metadata}
                 parsedJson={parsedMetadata}
                 currentView={currentView}
-                metadataActions={metadataActions}
+                metadataActions={{
+                  ...metadataActions,
+                  analyticsTable: "metadata",
+                }}
                 hoverControls
               />
             )}
