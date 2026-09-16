@@ -26,6 +26,7 @@ import {
   FoldVertical,
   UnfoldVertical,
   Download,
+  Loader2,
   MoreHorizontal,
 } from "lucide-react";
 import {
@@ -38,13 +39,16 @@ import {
 import { StringParam, useQueryParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
 import { useCallback } from "react";
-import { TraceViewOptionsMenuItems } from "../TraceSettingsDropdown";
+import {
+  TraceSettingsDropdown,
+  TraceViewOptionsMenuItems,
+} from "../TraceSettingsDropdown";
 import {
   downloadLegacyTraceAsJson,
   downloadServerTraceAsJson,
 } from "../../fns/downloadTrace";
 import { TracePanelNavigationButton } from "./components/TracePanelNavigationButton";
-import { PlaybackMenuItems } from "../PlaybackControls";
+import { PlaybackControls, PlaybackMenuItems } from "../PlaybackControls";
 import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
@@ -225,18 +229,55 @@ function TracePanelNavigationHeaderExpanded({
         )}
         {/* Search Input */}
         <div
-          className={cn("relative flex-1", isDetailPanelCollapsed && "pl-1")}
+          className={cn(
+            "relative min-w-0 flex-1",
+            isDetailPanelCollapsed && "pl-1",
+          )}
         >
           <CommandInput
             showBorder={false}
             placeholder="Search"
-            className="h-7 min-w-20 border-0 pr-0 focus:ring-0 @max-[300px]/navheader:min-w-10"
+            className="h-7 min-w-0 border-0 pr-0 focus:ring-0"
             value={searchInputValue}
             onValueChange={setSearchInputValue}
             onKeyDown={handleSearchKeyDown}
           />
         </div>
         <div className="flex shrink-0 flex-row items-center gap-0.5">
+          {/* Minor tools — inline when the panel is wide enough. */}
+          <div className="hidden flex-row items-center gap-0.5 @min-[400px]/navheader:flex">
+            <Button
+              onClick={handleToggleTreeNodes}
+              variant="ghost"
+              size="icon"
+              title={isEverythingCollapsed ? "Expand all" : "Collapse all"}
+              className="h-7 w-7"
+            >
+              {isEverythingCollapsed ? (
+                <UnfoldVertical className="h-3.5 w-3.5" />
+              ) : (
+                <FoldVertical className="h-3.5 w-3.5" />
+              )}
+            </Button>
+
+            <TraceSettingsDropdown />
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleDownload}
+              disabled={isDownloading}
+              title="Download trace as JSON"
+              className="h-7 w-7"
+            >
+              {isDownloading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          </div>
+
           {/* …and folded into an overflow menu when it's narrow. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -245,7 +286,7 @@ function TracePanelNavigationHeaderExpanded({
                 size="icon"
                 title="More"
                 aria-label="More options"
-                className="h-7 w-7"
+                className="h-7 w-7 @min-[400px]/navheader:hidden"
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />
               </Button>
@@ -271,6 +312,15 @@ function TracePanelNavigationHeaderExpanded({
               <TraceViewOptionsMenuItems />
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Playback transport + circular time-progress ring. View-agnostic:
+              shown in both Tree and Timeline views (see PlaybackControls) — and
+              folded into the overflow menu on a narrow panel, like the tools
+              above it. Two more 28px buttons are what tipped this row over: the
+              search input collapsed to "Se" and the switch clipped. */}
+          <div className="hidden flex-row items-center @min-[400px]/navheader:flex">
+            <PlaybackControls />
+          </div>
 
           <ViewModeSwitch
             activeView={activeView}
