@@ -44,6 +44,7 @@ function apiKeyScope(
   const [org] = principal.organizations;
   return {
     orgId: target.orgId,
+    organizationCreatedAt: org.organizationCreatedAt,
     projectId: target.projectId,
     plan: org.plan,
     rateLimitOverrides: org.rateLimitOverrides,

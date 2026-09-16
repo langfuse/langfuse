@@ -7,6 +7,7 @@ import { type Principal } from "@/src/features/auth/policy/types";
 
 const scopeOrg = {
   orgId: "org_1",
+  organizationCreatedAt: "2026-09-16T00:00:00.000Z",
   plan: "oss" as const,
   rateLimitOverrides: [],
   projectIds: ["prj_1"],
@@ -35,6 +36,7 @@ const projectScope = {
   projectId: "prj_1",
   accessLevel: "project",
   orgId: "org_1",
+  organizationCreatedAt: "2026-09-16T00:00:00.000Z",
   plan: "oss",
   rateLimitOverrides: [],
   apiKeyId: "key_1",
@@ -54,6 +56,7 @@ describe("toApiAccessScope", () => {
       projectId: null,
       accessLevel: "organization",
       orgId: "org_1",
+      organizationCreatedAt: "2026-09-16T00:00:00.000Z",
       plan: "oss",
       rateLimitOverrides: [],
       apiKeyId: "key_1",
