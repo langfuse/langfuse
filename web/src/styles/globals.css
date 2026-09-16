@@ -406,7 +406,7 @@
        these replace read neon against the near-black canvas. */
     --json-value-string: 143 64% 24%;
     --json-value-number: 226 71% 40%;
-    --json-value-boolean: 21 90% 33%;
+    --json-value-boolean: 15 79% 34%;
     --json-value-nullish: 220 9% 46%;
 
     --radius: 0.5rem;
