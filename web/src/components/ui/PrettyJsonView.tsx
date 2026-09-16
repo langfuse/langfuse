@@ -86,6 +86,11 @@ const DEFAULT_MAX_ROWS_IF_ROOT = 100;
 
 const MAX_CELL_DISPLAY_CHARS = 2000;
 
+import {
+  type SectionLayout,
+  useSectionLayoutDebug,
+} from "@/src/components/ui/sectionLayoutDebug";
+
 const ASSISTANT_TITLES = ["assistant", "Output", "model"];
 const SYSTEM_TITLES = ["system", "Input"];
 
@@ -171,14 +176,26 @@ function getContainerClasses(
   codeClassName: string | undefined,
   baseClasses = "whitespace-pre-wrap wrap-break-word p-3 text-xs",
   borderless = false,
+  layout: SectionLayout = "boxes",
 ) {
+  const toned = ASSISTANT_TITLES.includes(title || "");
+  const flat = borderless && layout === "dividers";
   return cn(
     baseClasses,
-    ASSISTANT_TITLES.includes(title || "")
-      ? "bg-accent-light-green dark:border-accent-dark-green/30"
-      : "",
-    SYSTEM_TITLES.includes(title || "") ? "bg-card" : "",
-    scrollable || borderless ? "" : "rounded-sm border",
+    flat
+      ? ""
+      : toned
+        ? "bg-accent-light-green dark:border-accent-dark-green/30"
+        : SYSTEM_TITLES.includes(title || "")
+          ? "bg-card"
+          : "",
+    borderless
+      ? flat
+        ? "[&_td]:border-b-0 [&_td]:py-0.5"
+        : cn("rounded-md overflow-hidden", !toned && "bg-muted/40")
+      : scrollable
+        ? ""
+        : "rounded-sm border",
     codeClassName,
   );
 }
@@ -821,6 +838,7 @@ export function PrettyJsonView(props: {
   }, [props.json, props.parsedJson, props.isParsing, largeStringValue]);
 
   const tableBorderless = Boolean(props.title) && !props.tone;
+  const sectionLayout = useSectionLayoutDebug();
 
   // JSONView internally calls deepParseJson (with maxDepth:3) which mutates
   // nested string fields in place. Because baseTableData[].rawChildData holds
@@ -1230,7 +1248,7 @@ export function PrettyJsonView(props: {
   const getBackgroundColorClass = () =>
     cn(
       ASSISTANT_TITLES.includes(props.title || "")
-        ? "bg-accent-light-green"
+        ? "bg-accent-light-green rounded-md overflow-hidden"
         : "",
       SYSTEM_TITLES.includes(props.title || "") ? "bg-card" : "",
     );
@@ -1303,6 +1321,7 @@ export function PrettyJsonView(props: {
                   codeClassName,
                   "flex text-xs wrap-break-word whitespace-pre-wrap",
                   tableBorderless,
+                  sectionLayout,
                 ),
                 "@container w-full",
               )}
@@ -1436,6 +1455,9 @@ export function PrettyJsonView(props: {
       className={cn(
         "flex max-h-full min-h-0 flex-col",
         props.hoverControls && "group/iosection",
+        tableBorderless &&
+          sectionLayout === "dividers" &&
+          "border-b pb-2 last:border-b-0",
         props.inset && "[&_.io-message-content]:px-2",
         props.className,
         props.scrollable ? "overflow-hidden" : "",

@@ -393,8 +393,6 @@ export const ValueCell = memo(
               ? getTruncatedValue(stringValue, MAX_CELL_DISPLAY_CHARS)
               : stringValue;
 
-          const isWhitespaceOnly = /^\s*$/.test(stringValue);
-
           return {
             content: (
               <span
@@ -404,9 +402,7 @@ export const ValueCell = memo(
                     : "whitespace-pre-line"
                 }`}
               >
-                {isWhitespaceOnly
-                  ? JSON.stringify(stringValue)
-                  : renderStringWithLinks(displayValue)}
+                {renderStringWithLinks(displayValue)}
               </span>
             ),
             needsTruncation,

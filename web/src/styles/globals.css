@@ -355,7 +355,7 @@
     --muted-blue: 239 84% 67%;
     --muted-gray: 210 50% 91.1%;
 
-    --accent-light-green: 138 76.5% 98%;
+    --accent-light-green: 214 100% 98%;
     --accent-dark-green: 112 100% 32%;
 
     /* Status pairs: light-* tinted fills (alpha baked in), dark-* the
@@ -552,7 +552,7 @@
 
     /* accent-light-green doubles as a full-height output/diff surface
        (PrettyJsonView), so it stays a whisper above --card, not chip-strength. */
-    --accent-light-green: 134 15% 9%;
+    --accent-light-green: 214 25% 10%;
     --accent-dark-green: 134 50% 55%;
 
     --accent-light-blue: 240 32.4% 13.9%;
