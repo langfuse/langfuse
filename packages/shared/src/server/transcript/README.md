@@ -1,5 +1,7 @@
 # Transcript
 
+PLEASE DO NOT USE IN PRODUCTION YET. This is a v1 implementation of the transcript builder and remains work in progress.
+
 Builds a conversation transcript from the observations of one trace, or of
 every trace in one session.
 
