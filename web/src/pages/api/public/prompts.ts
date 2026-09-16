@@ -1,13 +1,12 @@
 import { z } from "zod";
 
-import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
 import { getPromptByName } from "@/src/features/prompts/server/actions/getPromptByName";
+import { createPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
 import {
   createAuthedProjectAPIRoute,
   withMiddlewares,
 } from "@/src/features/public-api/server";
 import { telemetry } from "@/src/features/telemetry";
-import { prisma } from "@langfuse/shared/src/db";
 import {
   GetPromptSchema,
   LangfuseNotFoundError,
@@ -50,18 +49,19 @@ export default withMiddlewares({
     allowInAppAgentKey: false,
     isAdminApiKeyAuthAllowed: false,
     rateLimitResource: "prompts",
-    fn: async ({ body, auth }) => {
+    fn: async ({ body, auth, ctx }) => {
       await telemetry();
 
-      const prompt = await createPrompt({
-        ...body,
-        labels: body.isActive
-          ? [...new Set([...body.labels, PRODUCTION_LABEL])]
-          : body.labels,
-        config: body.config ?? {},
-        projectId: auth.scope.projectId,
-        createdBy: "API",
-        prisma: prisma,
+      const { isActive, ...input } = body;
+      const prompt = await createPromptForApi({
+        context: auth.scope,
+        input: {
+          ...input,
+          labels: isActive
+            ? [...new Set([...input.labels, PRODUCTION_LABEL])]
+            : input.labels,
+        },
+        ctx,
       });
 
       return {
