@@ -89,11 +89,7 @@ export function MetricCard({
           <span className="text-muted-foreground/50 text-sm">—</span>
         ) : (
           // Normal styling for actual values
-          <p
-            className={
-              isContext ? "text-lg font-semibold" : "text-lg font-semibold"
-            }
-          >
+          <p className={isContext ? "text-lg font-bold" : "text-lg font-bold"}>
             {displayValue}
           </p>
         )}

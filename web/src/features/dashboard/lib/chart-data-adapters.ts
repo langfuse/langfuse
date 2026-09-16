@@ -2,9 +2,9 @@
  * Adapters that transform data prepared for tremor-v4-chart to the recharts chart library data format.
  * This can be removed once we have converted all data API calls to the DataPoint format that recharts expects.
  */
-import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import type { DataPoint } from "@/src/features/widgets";
 import type { TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/hooks";
-import type { ChartBin } from "@/src/features/scores/types";
+import type { ChartBin } from "@/src/features/scores";
 /** Histogram bin shape: binLabel plus numeric fields (e.g. count). Compatible with createHistogramData return type. */
 type HistogramBinLike = { binLabel: string; [key: string]: string | number };
 
@@ -13,6 +13,10 @@ type HistogramBinLike = { binLabel: string; [key: string]: string | number };
  * DataPoint[]. One row per (timestamp, label). The timestamp is passed through
  * as a raw ISO string — all date/time *formatting* is decided later by the
  * `prepareTimeAxis` preparer, so every chart formats time identically. (LFE-10549)
+ *
+ * A value-less entry stays `null` (a gap, never a fabricated 0), and a bucket
+ * with no values at all emits a dimension-less marker so the time axis keeps
+ * the bucket. (LFE-10694)
  */
 export function timeSeriesToDataPoints(
   data: TimeSeriesChartDataPoint[],
@@ -20,11 +24,19 @@ export function timeSeriesToDataPoints(
   const result: DataPoint[] = [];
   for (const point of data) {
     const timeDimension = new Date(point.ts).toISOString();
+    if (point.values.length === 0) {
+      result.push({
+        time_dimension: timeDimension,
+        dimension: undefined,
+        metric: null,
+      });
+      continue;
+    }
     for (const v of point.values) {
       result.push({
         time_dimension: timeDimension,
         dimension: v.label,
-        metric: v.value ?? 0,
+        metric: v.value ?? null,
       });
     }
   }

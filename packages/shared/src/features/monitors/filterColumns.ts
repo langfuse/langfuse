@@ -4,10 +4,8 @@
  * surfaces agree on the same constraint. */
 import { type ColumnDefinition } from "../../tableDefinitions/types";
 
-/** disallowedMonitorFilterColumns lists filter column ids that are not valid
- * in a monitor query. `metadata` is rejected because its `stringObject`
- * JSON-key probe is prohibitively expensive at monitor evaluation cadence. */
-export const disallowedMonitorFilterColumns: readonly string[] = ["metadata"];
+/** disallowedMonitorFilterColumns lists filter column ids barred from a monitor query; currently none. */
+export const disallowedMonitorFilterColumns: readonly string[] = [];
 
 /** getValidMonitorFilterColumns drops columns whose `id` is in
  * `disallowedMonitorFilterColumns`. */

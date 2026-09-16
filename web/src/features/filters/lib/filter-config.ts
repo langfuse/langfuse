@@ -17,6 +17,10 @@ interface CategoricalFacet extends BaseFacet {
   type: "categorical";
   /** Optional function to render an icon next to filter option labels */
   renderIcon?: (value: string) => React.ReactNode;
+  /** Optional content rendered after a filter option label */
+  renderOptionSuffix?: (value: string) => React.ReactNode;
+  /** Optional browser hover title for a filter option. */
+  getOptionTitle?: (value: string, displayLabel: string) => string;
   /** When true, the sidebar hides the contains/does-not-contain text filter mode for this facet. */
   disableTextFilter?: boolean;
 }
@@ -50,6 +54,11 @@ interface NumericKeyValueFacet extends BaseFacet {
   keyOptions?: string[];
 }
 
+interface BooleanKeyValueFacet extends BaseFacet {
+  type: "booleanKeyValue";
+  keyOptions?: string[];
+}
+
 interface StringKeyValueFacet extends BaseFacet {
   type: "stringKeyValue";
   keyOptions?: string[];
@@ -62,6 +71,7 @@ export type Facet =
   | StringFacet
   | KeyValueFacet
   | NumericKeyValueFacet
+  | BooleanKeyValueFacet
   | StringKeyValueFacet;
 
 export type FilterStateMigration = (filters: FilterState) => FilterState;
@@ -74,6 +84,13 @@ export interface FilterConfig {
   facets: Facet[];
   /** Runs after display-name normalization and before filter validation. */
   migrateFilterState?: FilterStateMigration;
+  /**
+   * Columns this surface offers no facet for because the page already bounds
+   * them (a user-detail traces table). Filters on them are never applied: a
+   * constraint the sidebar cannot show must not silently narrow the rows
+   * (LFE-14824). Set by `omitFilterFacets`.
+   */
+  omittedFilterColumns?: string[];
 }
 
 export function omitFilterFacets(
@@ -93,6 +110,9 @@ export function omitFilterFacets(
     ),
     facets: config.facets.filter(
       (facet) => !omittedColumnSet.has(facet.column),
+    ),
+    omittedFilterColumns: Array.from(
+      new Set([...(config.omittedFilterColumns ?? []), ...omittedColumns]),
     ),
   };
 }

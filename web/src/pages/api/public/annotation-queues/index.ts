@@ -14,8 +14,10 @@ import {
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get annotation queues",
+    action: "annotationQueues:read",
     querySchema: GetAnnotationQueuesQuery,
     responseSchema: GetAnnotationQueuesResponse,
+    rateLimitResource: "annotation-queues",
     fn: async ({ query, auth }) =>
       await listAnnotationQueuesForApi({
         projectId: auth.scope.projectId,
@@ -26,8 +28,10 @@ export default withMiddlewares({
 
   POST: createAuthedProjectAPIRoute({
     name: "Create annotation queue",
+    action: "annotationQueues:CUD",
     bodySchema: CreateAnnotationQueueBody,
     responseSchema: CreateAnnotationQueueResponse,
+    rateLimitResource: "annotation-queues",
     fn: async ({ body, auth }) =>
       await createAnnotationQueueForApi({
         projectId: auth.scope.projectId,

@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { parseArgs } from "node:util";
 import {
+  buildClickHouseLogComment,
   clickhouseClient,
   commandClickhouse,
   getQueryError,
@@ -11,7 +12,6 @@ import {
   type QueryStatus,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import { env } from "../../env";
 import { IBackgroundMigration } from "../IBackgroundMigration";
 
 // ============================================================================
@@ -29,7 +29,7 @@ export interface BaseChunkTodo {
   retryCount?: number;
 }
 
-export interface ChunkedBackfillArgs {
+interface ChunkedBackfillArgs {
   concurrency?: number;
   pollIntervalMs?: number;
   maxRetries?: number;
@@ -61,7 +61,7 @@ export interface ChunkedBackfillState<T extends BaseChunkTodo> {
 // Helpers
 // ============================================================================
 
-export function generateQueryId(chunkId: string): string {
+function generateQueryId(chunkId: string): string {
   return `backfill-${chunkId}-${randomUUID().slice(0, 8)}`;
 }
 
@@ -78,18 +78,6 @@ export function assertSafePartition(partition: string): void {
 // ============================================================================
 // Cluster-aware helpers
 // ============================================================================
-
-/**
- * Returns `ON CLUSTER <name>` when running against a clustered ClickHouse
- * deployment, an empty string otherwise. Shared by every chain step that
- * issues DDL or SYSTEM commands so they fan out to all nodes consistently.
- */
-export function onClusterClause(): string {
-  if (env.CLICKHOUSE_CLUSTER_ENABLED === "true") {
-    return `ON CLUSTER ${env.CLICKHOUSE_CLUSTER_NAME}`;
-  }
-  return "";
-}
 
 /**
  * Returns the engine ClickHouse actually picked for a table. On ClickHouse
@@ -223,7 +211,7 @@ export async function loadPartitionsFromClickhouse(
 // Fire query (long-running, abort-and-poll pattern)
 // ============================================================================
 
-export interface FireQueryRetrySettings {
+interface FireQueryRetrySettings {
   retry0?: Record<string, string | number>;
   retry1?: Record<string, string | number>;
   retry2?: Record<string, string | number>;
@@ -235,7 +223,7 @@ const DEFAULT_RETRY_SETTINGS: FireQueryRetrySettings = {
   retry2: { max_threads: 1, max_insert_threads: "1", max_block_size: "2048" },
 };
 
-export interface FireQueryOptions {
+interface FireQueryOptions {
   query: string;
   queryId: string;
   params?: Record<string, unknown>;
@@ -256,7 +244,7 @@ export interface FireQueryOptions {
  * system.processes, then aborts the HTTP connection so the query continues
  * server-side and we poll for completion via pollQueryStatus.
  */
-export async function fireQuery({
+async function fireQuery({
   query,
   queryId,
   params,
@@ -300,7 +288,16 @@ export async function fireQuery({
       surface: "worker",
       route: "background-migration.fireQuery",
     },
-    clickhouseSettings: { ...retrySetting },
+    clickhouseSettings: {
+      // The fire-and-poll pattern intentionally outlives the HTTP request, but
+      // the shared client derives a server-side max_execution_time (~35s) from
+      // its default request timeout, which kills long chunk queries after the
+      // abort (#14999). Override per-query so interactive queries stay capped;
+      // retry settings keep precedence.
+      max_execution_time: 0,
+      timeout_before_checking_execution_speed: 0,
+      ...retrySetting,
+    },
     abortSignal: abortController.signal,
   }).catch((err) => {
     if (err?.name === "AbortError" || err?.message?.includes("aborted")) {
@@ -360,7 +357,7 @@ export async function fireQuery({
  * Returns the subset that ClickHouse still reports as running so the caller
  * can keep tracking them.
  */
-export async function recoverInProgressTodos<T extends BaseChunkTodo>(
+async function recoverInProgressTodos<T extends BaseChunkTodo>(
   todos: T[],
   logPrefix = "[Backfill]",
 ): Promise<T[]> {
@@ -561,7 +558,15 @@ export abstract class ChunkedClickhouseBackfillMigration<
   }
 
   private async findFirstMissingTable(): Promise<string | null> {
-    const tables = await clickhouseClient().query({ query: "SHOW TABLES" });
+    const tables = await clickhouseClient().query({
+      query: "SHOW TABLES",
+      clickhouse_settings: {
+        log_comment: buildClickHouseLogComment({
+          surface: "worker",
+          route: `background-migration.${this.constructor.name}`,
+        }),
+      },
+    });
     const tableNames = (await tables.json()).data as { name: string }[];
     return (
       this.requiredTables.find(

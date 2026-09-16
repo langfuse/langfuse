@@ -1,21 +1,14 @@
 import {
   extractAdditionalInput,
   normalizeToolDefinitionsForChatMl,
+  parseJsonIfString as parseIfString,
 } from "@langfuse/shared";
 import type { PlaygroundTool } from "@/src/features/playground/page/types";
-import { safeJsonParse } from "@/src/utils/json";
 
 const EMPTY_TOOL_PARAMETERS = {
   type: "object",
   properties: {},
 } as const;
-
-function parseIfString(value: unknown): unknown {
-  if (typeof value !== "string") return value;
-
-  const parsed = safeJsonParse(value);
-  return parsed === undefined ? value : parsed;
-}
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   const parsed = parseIfString(value);

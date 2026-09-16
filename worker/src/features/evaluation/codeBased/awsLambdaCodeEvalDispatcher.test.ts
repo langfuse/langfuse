@@ -19,6 +19,7 @@ const baseInput: DispatchInput = {
       input: null,
       output: null,
       metadata: null,
+      toolCalls: [],
     },
   },
 };
@@ -89,6 +90,7 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
           input: { question: "2+2" },
           output: "4",
           metadata: { source: "test" },
+          toolCalls: [],
         },
         experiment: {
           itemExpectedOutput: "4",
@@ -194,7 +196,7 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 
-  it("classifies timeouts via errorType Function.TimedOut as retryable", async () => {
+  it("classifies timeouts via errorType Function.TimedOut as non-retryable", async () => {
     // Envelope shape captured empirically from Floci probes.
     const send = vi.fn().mockResolvedValue({
       FunctionError: "Unhandled",
@@ -212,11 +214,11 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
     await expect(dispatcher.dispatch(baseInput)).rejects.toMatchObject({
       code: "TIMEOUT",
       message: "Function.TimedOut: Task timed out after 30 seconds",
-      retryable: true,
+      retryable: false,
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 
-  it("classifies timeouts via errorType Sandbox.Timedout as retryable", async () => {
+  it("classifies timeouts via errorType Sandbox.Timedout as non-retryable", async () => {
     const send = vi.fn().mockResolvedValue({
       FunctionError: "Unhandled",
       Payload: Buffer.from(
@@ -233,11 +235,11 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
     await expect(dispatcher.dispatch(baseInput)).rejects.toMatchObject({
       code: "TIMEOUT",
       message: "Sandbox.Timedout: Task timed out after 30 seconds",
-      retryable: true,
+      retryable: false,
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 
-  it("classifies timeouts via errorMessage substring as retryable", async () => {
+  it("classifies timeouts via errorMessage substring as non-retryable", async () => {
     // Defensive fallback for runtimes that don't populate errorType.
     const send = vi.fn().mockResolvedValue({
       FunctionError: "Unhandled",
@@ -249,13 +251,12 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
 
     await expect(dispatcher.dispatch(baseInput)).rejects.toMatchObject({
       code: "TIMEOUT",
-      retryable: true,
+      retryable: false,
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 
-  it("classifies Runtime.ExitError as non-retryable LAMBDA_CONFIGURATION_ERROR", async () => {
-    // Documented Lambda RIC errorType for abnormal runtime termination
-    // (OOM kill, segfault, process.exit). Retrying never recovers.
+  it("classifies Runtime.ExitError with signal killed as non-retryable OUT_OF_MEMORY", async () => {
+    // Lambda reports some OOM kills as Runtime.ExitError with signal: killed.
     const send = vi.fn().mockResolvedValue({
       FunctionError: "Unhandled",
       Payload: Buffer.from(
@@ -271,7 +272,7 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
     });
 
     await expect(dispatcher.dispatch(baseInput)).rejects.toMatchObject({
-      code: "LAMBDA_CONFIGURATION_ERROR",
+      code: "OUT_OF_MEMORY",
       retryable: false,
     } satisfies Partial<CodeEvalDispatcherError>);
   });

@@ -2,7 +2,6 @@ import {
   queryClickhouse,
   type ClickhouseQueryOpts,
 } from "../../../server/repositories/clickhouse";
-import { measureAndReturn } from "../../../server/clickhouse/measureAndReturn";
 import { type PreferredClickhouseService } from "../../../server/clickhouse/client";
 import { QueryBuilder } from "./queryBuilder";
 import { type QueryType, type ViewVersion } from "../types";
@@ -107,22 +106,10 @@ export async function executeQuery(
     return queryClickhouse<Record<string, unknown>>(chOpts);
   }
 
-  return measureAndReturn({
-    operationName: "executeQuery",
-    projectId,
-    input: {
-      query: prepared.compiledQuery,
-      params: prepared.parameters,
-      fromTimestamp: prepared.fromTimestamp,
-      tags: prepared.tags,
-    },
-    fn: async (input) => {
-      return queryClickhouse<Record<string, unknown>>({
-        ...chOpts,
-        query: input.query,
-        params: input.params,
-        tags: input.tags,
-      });
-    },
+  return queryClickhouse<Record<string, unknown>>({
+    ...chOpts,
+    query: prepared.compiledQuery,
+    params: prepared.parameters,
+    tags: prepared.tags,
   });
 }

@@ -28,6 +28,7 @@ import {
   getTracesByIds,
   getScoresForTraces,
   getDatasetItems,
+  type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { env } from "../../env";
@@ -153,6 +154,7 @@ export const getDatabaseReadStreamPaginated = async ({
   searchQuery,
   searchType,
   useEventsTable,
+  preferredClickhouseService,
   rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
 }: {
   projectId: string;
@@ -160,6 +162,7 @@ export const getDatabaseReadStreamPaginated = async ({
   searchQuery?: string;
   searchType?: TracingSearchType[];
   rowLimit?: number;
+  preferredClickhouseService?: PreferredClickhouseService;
 } & BatchExportQueryType): Promise<DatabaseReadStream<unknown>> => {
   // Set createdAt cutoff to prevent exporting data that was created after the job was queued
   const createdAtCutoffFilter: FilterCondition = {
@@ -214,6 +217,7 @@ export const getDatabaseReadStreamPaginated = async ({
                 limit: pageSize,
                 offset,
                 clickhouseConfigs,
+                preferredClickhouseService,
               });
 
           // Get author user info for scores
@@ -293,6 +297,7 @@ export const getDatabaseReadStreamPaginated = async ({
                 limit: pageSize,
                 page: Math.floor(offset / pageSize),
                 clickhouseConfigs,
+                preferredClickhouseService,
               });
 
           const prismaSessionInfo = await prisma.traceSession.findMany({
@@ -561,6 +566,7 @@ export const getDatabaseReadStreamPaginated = async ({
             },
             offset,
             clickhouseConfigs,
+            preferredClickhouseService,
           });
 
           // fetch all project dataset names

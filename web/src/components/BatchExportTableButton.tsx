@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,7 +9,7 @@ import {
   DropdownMenuLabel,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Download, Info } from "lucide-react";
 import {
   type BatchExportTableName,
@@ -20,7 +21,6 @@ import {
 import React from "react";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export type BatchExportTableButtonProps = {
   projectId: string;
@@ -51,11 +51,6 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
       });
     },
   });
-  const hasAccess = useHasProjectAccess({
-    projectId: props.projectId,
-    scope: "batchExports:create",
-  });
-
   const handleExport = async (format: BatchExportFileFormat) => {
     setIsExporting(true);
     await createExport.mutateAsync({
@@ -71,8 +66,6 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
       },
     });
   };
-
-  if (!hasAccess) return null;
 
   const getWarningMessage = () => {
     switch (props.tableName) {

@@ -39,7 +39,7 @@ async function writeInternalEventInputs(params: {
 
   if (v4WritesToEventsTable(env)) {
     for (const eventRecord of eventRecords) {
-      service.writeEventRecord(eventRecord);
+      await service.writeEventRecord(eventRecord);
     }
   }
 

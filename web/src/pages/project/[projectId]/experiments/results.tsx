@@ -8,17 +8,23 @@ import {
   OverviewPanelToggle,
 } from "@/src/components/layouts/overview-panel";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
-import { Button } from "@/src/components/ui/button";
-import { X } from "lucide-react";
+import { ExperimentFormatSetting } from "@/src/features/experiments/components/ExperimentFormatSetting";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
+import { ExperimentSelectionControls } from "@/src/features/experiments/components/ExperimentSelectionControls";
+import { useIoRenderModeLocalStorage } from "@/src/components/table/data-table-io-render-mode-switch";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
-  EXPERIMENT_RUN_TABS,
-  getExperimentRunTabs,
-} from "@/src/features/navigation/utils/experiment-run-tabs";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+  diffModeChangedProps,
+  layoutChangedProps,
+} from "@/src/features/experiments/lib/analytics";
+import {
+  useExperimentResultsState,
+  type ExperimentDiffMode,
+  type ExperimentResultsLayout,
+} from "@/src/features/experiments/hooks/useExperimentResultsState";
 
 export default function ExperimentResults() {
   const router = useRouter();
@@ -33,24 +39,62 @@ export default function ExperimentResults() {
     setComparisonIds,
     layout,
     setLayout,
+    diffMode,
+    setDiffMode,
     itemVisibility,
     setItemVisibility,
+    allExperimentIds,
+    colorExperimentIds,
   } = useExperimentResultsState();
+  const [ioRenderMode, setIoRenderMode] = useIoRenderModeLocalStorage(
+    "experiment-items",
+    "json",
+  );
 
   const [isOverviewOpen, setIsOverviewOpen] = useSessionStorage(
     "overview-panel-experiment-detail",
-    true,
+    false,
   );
 
-  const [, setLastResultsUrl] = useSessionStorage<string | null>(
-    "experiment-results-url",
-    `/project/${projectId}/datasets`,
+  const capture = usePostHogClientCapture();
+
+  // Is the new score-matrix layout adopted, and diff mode — Expected → Output
+  // in particular — used at all? Captured on the menu pick rather than on the
+  // URL state, which also changes on navigation, on a restored view, and (for
+  // the layout) as a side effect of choosing Expected → Output.
+  const handleLayoutChange = useCallback(
+    (newLayout: ExperimentResultsLayout) => {
+      if (newLayout !== layout) {
+        capture(
+          "experiment:layout_changed",
+          layoutChangedProps({
+            tableName: "experiment-items",
+            layout: newLayout,
+            comparisonCount: comparisonIds.length,
+          }),
+        );
+      }
+      setLayout(newLayout);
+    },
+    [capture, layout, comparisonIds.length, setLayout],
   );
 
-  // Store current URL for back navigation from analytics
-  useEffect(() => {
-    setLastResultsUrl(window.location.pathname + window.location.search);
-  }, [setLastResultsUrl]);
+  const handleDiffModeChange = useCallback(
+    (newDiffMode: ExperimentDiffMode) => {
+      if (newDiffMode !== diffMode) {
+        capture(
+          "experiment:diff_mode_changed",
+          diffModeChangedProps({
+            tableName: "experiment-items",
+            mode: newDiffMode,
+            comparisonCount: comparisonIds.length,
+          }),
+        );
+      }
+      setDiffMode(newDiffMode);
+    },
+    [capture, diffMode, comparisonIds.length, setDiffMode],
+  );
 
   const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
 
@@ -85,29 +129,31 @@ export default function ExperimentResults() {
   return (
     <Page
       headerProps={{
-        title: hasBaseline
-          ? (experiment?.name ?? baselineId ?? "Results")
-          : "Results",
+        title: "",
         itemType: "EXPERIMENT",
         breadcrumb: [
           { name: "Experiments", href: `/project/${projectId}/experiments` },
         ],
-        tabsProps: {
-          tabs: getExperimentRunTabs(projectId),
-          activeTab: EXPERIMENT_RUN_TABS.RESULTS,
-        },
+        actionButtonsLeft: (
+          <ExperimentSelectionControls
+            projectId={projectId}
+            baselineId={baselineId}
+            baselineName={experiment?.name}
+            comparisonIds={comparisonIds}
+            colorExperimentIds={colorExperimentIds}
+            selectedExperimentCount={allExperimentIds.length}
+            onBaselineChange={setBaseline}
+            onBaselineClear={clearBaseline}
+            onComparisonIdsChange={setComparisonIds}
+          />
+        ),
         actionButtonsRight: (
           <>
-            {hasBaseline && comparisonIds.length > 0 && (
-              <Button variant="outline" onClick={clearBaseline}>
-                <X className="h-4 w-4" />
-                <span className="ml-2 hidden md:inline">Clear baseline</span>
-              </Button>
-            )}
-
             <ExperimentDisplaySettings
               layout={layout}
-              onLayoutChange={setLayout}
+              onLayoutChange={handleLayoutChange}
+              diffMode={diffMode}
+              onDiffModeChange={handleDiffModeChange}
               itemVisibility={itemVisibility}
               onItemVisibilityChange={setItemVisibility}
               hasComparisons={comparisonIds.length > 0}
@@ -125,16 +171,27 @@ export default function ExperimentResults() {
       <OverviewPanelLayout
         open={isOverviewOpen}
         persistId={`experiment-detail-${baselineId ?? "none"}`}
-        mainContent={<ExperimentItemsTable projectId={projectId} />}
+        mainContent={
+          <ExperimentItemsTable
+            // The shared table body's memo comparator does not look at the
+            // column definitions, so a format change alone never reaches the
+            // cells. Remounting is what makes the switch take effect.
+            key={ioRenderMode}
+            projectId={projectId}
+            ioRenderMode={ioRenderMode}
+            toolbarSettings={
+              <ExperimentFormatSetting
+                ioRenderMode={ioRenderMode}
+                onIoRenderModeChange={setIoRenderMode}
+              />
+            }
+          />
+        }
         overviewContent={
           <ExperimentOverviewPanel
+            key={baselineId ?? "no-baseline"}
             projectId={projectId}
-            hasBaseline={hasBaseline}
             experiment={experiment ?? undefined}
-            comparisonIds={comparisonIds}
-            onComparisonIdsChange={setComparisonIds}
-            onBaselineChange={setBaseline}
-            onBaselineClear={clearBaseline}
           />
         }
         defaultPrimarySize={75}

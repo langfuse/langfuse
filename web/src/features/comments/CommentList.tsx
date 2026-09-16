@@ -1,10 +1,7 @@
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+/* eslint-disable @repo/no-style-props, @repo/no-null-render */
+import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import { Button } from "@/src/components/ui/button";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   Form,
   FormControl,
@@ -25,13 +22,13 @@ import {
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { Textarea } from "@/src/components/ui/textarea";
 import { Input } from "@/src/components/ui/input";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { getRelativeTimestampFromNow } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type CommentObjectType, CreateCommentData } from "@langfuse/shared";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { ArrowUpToLine, Search, Trash, X } from "lucide-react";
 import { useSession } from "next-auth/react";
 import React, {
@@ -83,6 +80,7 @@ export function CommentList({
   projectId,
   objectId,
   objectType,
+  objectStartTime,
   cardView = false,
   className,
   onDraftChange,
@@ -95,6 +93,7 @@ export function CommentList({
   projectId: string;
   objectId: string;
   objectType: CommentObjectType;
+  objectStartTime?: Date | null;
   cardView?: boolean;
   className?: string;
   onDraftChange?: (hasDraft: boolean) => void;
@@ -425,6 +424,7 @@ export function CommentList({
   function onSubmit(values: z.infer<typeof CreateCommentData>) {
     createCommentMutation.mutateAsync({
       ...values,
+      objectStartTime: objectStartTime ?? undefined,
       dataField: pendingSelection?.dataField,
       path: pendingSelection?.path,
       rangeStart: pendingSelection?.rangeStart,
@@ -506,7 +506,7 @@ export function CommentList({
       )}
     >
       {cardView && (
-        <div className="shrink-0 border-b px-2 py-1 text-sm font-medium">
+        <div className="shrink-0 border-b px-2 py-1 text-sm font-bold">
           Comments ({comments.data?.length ?? 0})
         </div>
       )}
@@ -514,7 +514,7 @@ export function CommentList({
         {!cardView && (
           <div className="shrink-0 border-b">
             <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-              <div className="text-sm font-medium">Comments</div>
+              <div className="text-sm font-bold">Comments</div>
               <div className="relative max-w-xs flex-1">
                 <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
                 <Input
@@ -537,15 +537,9 @@ export function CommentList({
                   </Button>
                 )}
                 {!searchQuery && (
-                  <KeyboardShortcut
-                    className="absolute top-1/2 right-1 hidden -translate-y-1/2 opacity-50 sm:inline-flex"
-                    keys={
-                      typeof navigator !== "undefined" &&
-                      navigator.userAgent.includes("Macintosh")
-                        ? ["⌘", "F"]
-                        : ["Ctrl", "F"]
-                    }
-                  />
+                  <span className="absolute top-1/2 right-1 hidden -translate-y-1/2 opacity-50 md:inline-flex">
+                    <KeyboardShortcut keys={["Mod", "F"]} />
+                  </span>
                 )}
               </div>
             </div>
@@ -574,22 +568,17 @@ export function CommentList({
                     : "border-border/40 hover:bg-muted/20",
                 )}
               >
-                <Avatar className="h-6 w-6">
-                  <AvatarImage src={comment.authorUserImage ?? undefined} />
-                  <AvatarFallback className="text-xs">
-                    {comment.authorUserName
-                      ? comment.authorUserName
-                          .split(" ")
-                          .map((word) => word[0])
-                          .slice(0, 2)
-                          .concat("")
-                      : (comment.authorUserId ?? "U")}
-                  </AvatarFallback>
-                </Avatar>
+                <Avatar
+                  size="sm"
+                  src={comment.authorUserImage ?? undefined}
+                  displayName={
+                    comment.authorUserName ?? comment.authorUserId ?? "User"
+                  }
+                />
                 <div className="min-w-0">
                   {/* Name + timestamp inline */}
                   <div className="mb-1.5 flex items-center gap-2 pt-1.5 text-xs leading-none">
-                    <span className="text-foreground font-medium">
+                    <span className="text-foreground font-bold">
                       {comment.authorUserName ?? comment.authorUserId ?? "User"}
                     </span>
                     <span className="text-muted-foreground/50">·</span>
@@ -601,7 +590,7 @@ export function CommentList({
                   {/* Comment content with CSS overrides for markdown */}
                   <MarkdownView
                     markdown={comment.content}
-                    className="border-none p-0 py-1 text-xs [&_h1]:text-[0.9rem] [&_h1]:font-semibold [&_h2]:text-[0.85rem] [&_h2]:font-semibold [&_h3]:text-[0.8rem] [&_h3]:font-semibold [&_h4]:text-xs [&_h4]:font-medium [&_h5]:text-xs [&_h5]:font-medium [&_h6]:text-xs [&_h6]:font-medium [&_li]:text-xs [&_ol]:text-xs [&_p]:text-xs [&_ul]:text-xs"
+                    className="border-none p-0 py-1 text-xs [&_h1]:text-[0.9rem] [&_h1]:font-bold [&_h2]:text-[0.85rem] [&_h2]:font-bold [&_h3]:text-[0.8rem] [&_h3]:font-bold [&_h4]:text-xs [&_h4]:font-bold [&_h5]:text-xs [&_h5]:font-bold [&_h6]:text-xs [&_h6]:font-bold [&_li]:text-xs [&_ol]:text-xs [&_p]:text-xs [&_ul]:text-xs"
                   />
 
                   {/* Inline comment position indicator */}
@@ -614,7 +603,7 @@ export function CommentList({
                         <TooltipTrigger asChild>
                           <div className="mt-1 flex w-fit items-center gap-1.5 text-xs">
                             <Badge
-                              className="text-foreground pointer-events-none px-1.5 py-0 text-[10px] font-medium"
+                              className="text-foreground pointer-events-none px-1.5 py-0 text-[10px] font-bold"
                               style={{
                                 backgroundColor:
                                   IO_FIELD_COLORS[
@@ -803,7 +792,9 @@ export function CommentList({
                       >
                         <div className="flex items-center gap-2 text-sm">
                           <span>Send comment</span>
-                          <KeyboardShortcut keys={["⌘", "Enter"]} />
+                          <span className="hidden md:inline-flex">
+                            <KeyboardShortcut keys={["Mod", "Enter"]} />
+                          </span>
                         </div>
                       </HoverCardContent>
                     </HoverCard>

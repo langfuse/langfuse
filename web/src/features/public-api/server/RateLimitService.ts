@@ -10,7 +10,7 @@ import {
 } from "@langfuse/shared";
 import {
   recordIncrement,
-  type ApiAccessScope,
+  type ApiAccessScopeWithOptionalApiKeyId,
   logger,
   createNewRedisInstance,
   redisQueueRetryOptions,
@@ -18,10 +18,10 @@ import {
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { type NextApiResponse } from "next";
 import {
-  createUnstablePublicApiRateLimitError,
-  sendUnstablePublicApiErrorResponse,
+  createStructuredPublicApiRateLimitError,
+  sendStructuredPublicApiErrorResponse,
   type PublicApiErrorContract,
-} from "@/src/features/public-api/server/unstable-public-api-error-contract";
+} from "./structuredPublicApiErrorContract";
 import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
 export const RATE_LIMIT_REDIS_KEY_PREFIX = "rate-limit";
@@ -78,7 +78,7 @@ export class RateLimitService {
   }
 
   async rateLimitRequest(
-    scope: ApiAccessScope,
+    scope: ApiAccessScopeWithOptionalApiKeyId,
     resource: z.infer<typeof RateLimitResource>,
   ) {
     // if cloud config is not present, we don't apply rate limits and just return
@@ -99,7 +99,7 @@ export class RateLimitService {
   }
 
   async checkRateLimit(
-    scope: ApiAccessScope,
+    scope: ApiAccessScopeWithOptionalApiKeyId,
     resource: z.infer<typeof RateLimitResource>,
   ) {
     const effectiveConfig = getRateLimitConfig(scope, resource);
@@ -180,7 +180,7 @@ export class RateLimitService {
   }
 }
 
-export class RateLimitHelper {
+class RateLimitHelper {
   res: RateLimitResult | undefined;
 
   constructor(res: RateLimitResult | undefined) {
@@ -217,9 +217,9 @@ export const sendRateLimitResponse = (
     res.setHeader(header, value);
   }
 
-  return sendUnstablePublicApiErrorResponse(
+  return sendStructuredPublicApiErrorResponse(
     res,
-    createUnstablePublicApiRateLimitError(rateLimitRes, responseOptions),
+    createStructuredPublicApiRateLimitError(rateLimitRes, responseOptions),
   );
 };
 
@@ -233,7 +233,7 @@ export const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
 };
 
 const getRateLimitConfig = (
-  scope: ApiAccessScope,
+  scope: ApiAccessScopeWithOptionalApiKeyId,
   resource: z.infer<typeof RateLimitResource>,
 ) => {
   const planBasedConfig = getPlanBasedRateLimitConfig(scope.plan, resource);
@@ -301,15 +301,21 @@ const getPlanBasedRateLimitConfig = (
             points: 100,
             durationInSec: 60,
           };
+        case "annotation-queues":
+          return {
+            resource: "annotation-queues",
+            points: 100,
+            durationInSec: 60,
+          };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
             points: 100,
             durationInSec: 86400, // 100 requests per day
           };
-        case "public-api-metrics-v2":
+        case "public-api-v2-metrics":
           return {
-            resource: "public-api-metrics-v2",
+            resource,
             points: 100,
             durationInSec: 86400, // 100 requests per day
           };
@@ -336,6 +342,12 @@ const getPlanBasedRateLimitConfig = (
             resource: "in-app-agent-run",
             points: 100,
             durationInSec: 86400,
+          };
+        case "feedback":
+          return {
+            resource: "feedback",
+            points: 20,
+            durationInSec: 86400, // 20 submissions per day
           };
         default:
           const exhaustiveCheck: never = resource;
@@ -391,6 +403,12 @@ const getPlanBasedRateLimitConfig = (
             points: 1000, // temporary: using pro limit
             durationInSec: 60,
           };
+        case "annotation-queues":
+          return {
+            resource: "annotation-queues",
+            points: 1000,
+            durationInSec: 60,
+          };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
@@ -398,11 +416,11 @@ const getPlanBasedRateLimitConfig = (
             points: 2000, // temporary: using pro limit
             durationInSec: 86400, // 2000 requests per day
           };
-        case "public-api-metrics-v2":
+        case "public-api-v2-metrics":
           return {
-            resource: "public-api-metrics-v2",
-            points: 2000,
-            durationInSec: 86400, // 2000 requests per day
+            resource,
+            points: 100,
+            durationInSec: 3600, // 100 requests per hour
           };
         case "public-api-daily-metrics-legacy":
           return {
@@ -428,6 +446,12 @@ const getPlanBasedRateLimitConfig = (
             resource: "in-app-agent-run",
             points: 1000,
             durationInSec: 86400,
+          };
+        case "feedback":
+          return {
+            resource: "feedback",
+            points: 20,
+            durationInSec: 86400, // 20 submissions per day
           };
         default:
           const exhaustiveCheck: never = resource;
@@ -479,17 +503,23 @@ const getPlanBasedRateLimitConfig = (
             points: 1000,
             durationInSec: 60,
           };
+        case "annotation-queues":
+          return {
+            resource: "annotation-queues",
+            points: 1000,
+            durationInSec: 60,
+          };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
             points: 2000,
             durationInSec: 86400, // 2000 requests per day
           };
-        case "public-api-metrics-v2":
+        case "public-api-v2-metrics":
           return {
-            resource: "public-api-metrics-v2",
-            points: 10_000,
-            durationInSec: 86400, // 10000 requests per day
+            resource,
+            points: 500,
+            durationInSec: 3600, // 500 requests per hour
           };
         case "public-api-daily-metrics-legacy":
           return {
@@ -514,6 +544,12 @@ const getPlanBasedRateLimitConfig = (
             resource: "in-app-agent-run",
             points: 1000,
             durationInSec: 86400,
+          };
+        case "feedback":
+          return {
+            resource: "feedback",
+            points: 20,
+            durationInSec: 86400, // 20 submissions per day
           };
         default:
           const exhaustiveCheck: never = resource;

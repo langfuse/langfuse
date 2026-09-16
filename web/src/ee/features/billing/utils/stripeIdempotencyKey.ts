@@ -1,4 +1,3 @@
-import crypto from "crypto";
 import { z } from "zod";
 
 /**
@@ -31,25 +30,17 @@ export const IdempotencyKind = z.enum([
   "subscription.migrate.flexible",
   "subscription.schedule.clear",
   "subscription.update.discounts.add",
+  // ClickHouse Billing (CHB) operations — same machinery, keyed on the
+  // client-generated opId the router already accepts. The checkout mutation
+  // takes an opId too: BillingSwitchPlanDialog generates one per dialog
+  // lifetime, which is exactly the double-submit window, and drops it on
+  // remount so a fresh visit gets a fresh session rather than an expired one.
+  "chb.checkout.create",
+  "chb.attachedplan.scheduled.set",
+  "chb.attachedplan.scheduled.clear",
 ]);
 
 export type IdempotencyKind = z.infer<typeof IdempotencyKind>;
-
-/**
- * Creates a stable hash of an object by sorting keys before stringification.
- * Used internally by makeIdempotencyKey to ensure consistent hashing.
- *
- * @param obj - Any JSON-serializable object to hash
- * @returns A 16-character hexadecimal hash string
- */
-export function stableHash(obj: unknown): string {
-  try {
-    const json = JSON.stringify(obj, Object.keys(obj as any).sort());
-    return crypto.createHash("sha256").update(json).digest("hex").slice(0, 16);
-  } catch {
-    return crypto.randomBytes(8).toString("hex");
-  }
-}
 
 /**
  * Generates an idempotency key for Stripe API operations.

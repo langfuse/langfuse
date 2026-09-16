@@ -2,12 +2,22 @@ import { makeAPICall } from "@/src/__tests__/test-utils";
 import waitForExpect from "wait-for-expect";
 import {
   clickhouseClient,
+  createBasicAuthHeader,
+  createEvent,
+  createEventsCh,
   getObservationById,
   getObservationByIdFromEventsTable,
+  getS3EventStorageClient,
   getTraceById,
+  getTraceByIdFromEventsTable,
 } from "@langfuse/shared/src/server";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { randomBytes } from "crypto";
 import { env } from "@/src/env.mjs";
+import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
+import { appRouter } from "@/src/server/api/root";
+import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { prisma } from "@langfuse/shared/src/db";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const eventsTableAvailable =
@@ -121,6 +131,174 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
       expect(observation!.name).toBe("my-generation");
     }, 25_000);
   }, 30_000);
+
+  maybeEventsTable(
+    "should allow unauthenticated access to an OTel trace made public by a child span",
+    async () => {
+      const traceId = randomBytes(16);
+      const rootSpanId = randomBytes(8);
+      const childSpanId = randomBytes(8);
+      const traceIdHex = traceId.toString("hex");
+      const rootSpanIdHex = rootSpanId.toString("hex");
+      const childSpanIdHex = childSpanId.toString("hex");
+      const traceTimestamp = new Date("2025-04-30T15:28:50.686Z");
+
+      // Event propagation intentionally lags ingestion, so seed its output with
+      // only the child public to reproduce the state before a UI re-share.
+      await createEventsCh([
+        createEvent({
+          id: rootSpanIdHex,
+          span_id: rootSpanIdHex,
+          trace_id: traceIdHex,
+          project_id: projectId,
+          parent_span_id: null,
+          start_time: traceTimestamp.getTime() * 1000,
+          name: "public-trace-root",
+          public: false,
+        }),
+        createEvent({
+          id: childSpanIdHex,
+          span_id: childSpanIdHex,
+          trace_id: traceIdHex,
+          project_id: projectId,
+          parent_span_id: rootSpanIdHex,
+          start_time: traceTimestamp.getTime() * 1000 + 100,
+          name: "public-trace-child",
+          public: true,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const childEvent = await getObservationByIdFromEventsTable({
+          projectId,
+          id: childSpanIdHex,
+        });
+        expect(childEvent).toBeDefined();
+      });
+
+      const response = await makeAPICall("POST", "/api/public/otel/v1/traces", {
+        resourceSpans: [
+          {
+            resource: { attributes: [] },
+            scopeSpans: [
+              {
+                scope: {
+                  name: "langfuse-sdk",
+                  version: "2.60.3",
+                  attributes: [
+                    {
+                      key: "public_key",
+                      value: { stringValue: "pk-lf-1234567890" },
+                    },
+                  ],
+                },
+                spans: [
+                  {
+                    traceId,
+                    spanId: rootSpanId,
+                    name: "public-trace-root",
+                    kind: 1,
+                    startTimeUnixNano: {
+                      low: 466848096,
+                      high: 406528574,
+                      unsigned: true,
+                    },
+                    endTimeUnixNano: {
+                      low: 467248096,
+                      high: 406528574,
+                      unsigned: true,
+                    },
+                    attributes: [],
+                    status: {},
+                  },
+                  {
+                    traceId,
+                    spanId: childSpanId,
+                    parentSpanId: rootSpanId,
+                    name: "public-trace-child",
+                    kind: 1,
+                    startTimeUnixNano: {
+                      low: 466948096,
+                      high: 406528574,
+                      unsigned: true,
+                    },
+                    endTimeUnixNano: {
+                      low: 467148096,
+                      high: 406528574,
+                      unsigned: true,
+                    },
+                    attributes: [
+                      {
+                        key: "langfuse.trace.public",
+                        value: { boolValue: true },
+                      },
+                    ],
+                    status: {},
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(response.status).toBe(200);
+
+      await waitForExpect(async () => {
+        const [trace, rootEvent, childEvent] = await Promise.all([
+          getTraceById({ projectId, traceId: traceIdHex }),
+          getObservationByIdFromEventsTable({
+            projectId,
+            id: rootSpanIdHex,
+          }),
+          getObservationByIdFromEventsTable({
+            projectId,
+            id: childSpanIdHex,
+          }),
+        ]);
+        expect(trace?.public).toBe(false);
+        expect(rootEvent?.name).toBe("public-trace-root");
+        expect(childEvent?.name).toBe("public-trace-child");
+
+        const eventTrace = await getTraceByIdFromEventsTable({
+          projectId,
+          traceId: traceIdHex,
+        });
+        expect(eventTrace?.public).toBe(true);
+      }, 25_000);
+
+      const unAuthedContext = createInnerTRPCContext({
+        session: null,
+        headers: {},
+      });
+      const unAuthedCaller = appRouter.createCaller({
+        ...unAuthedContext,
+        prisma,
+      });
+
+      const result = await unAuthedCaller.events.byTraceId({
+        projectId,
+        traceId: traceIdHex,
+      });
+
+      expect(result.observations.map(({ id }) => id)).toEqual(
+        expect.arrayContaining([rootSpanIdHex, childSpanIdHex]),
+      );
+      expect(result.observations).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: rootSpanIdHex,
+            name: "public-trace-root",
+          }),
+          expect.objectContaining({
+            id: childSpanIdHex,
+            name: "public-trace-child",
+          }),
+        ]),
+      );
+    },
+    60_000,
+  );
 
   it("should process a json payload with usage details correctly", async () => {
     const traceId = randomBytes(16);
@@ -484,6 +662,135 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
     });
   });
 
+  // Both rejection gates in one request: spans with unusable ids, and a
+  // scopeSpans that is present but not an array. The latter used to be accepted
+  // here and then fail the queue job through every retry attempt, because the
+  // worker iterates that field behind a `?? []` fallback which does not guard a
+  // non-nullish non-array.
+  it("should reject unprocessable spans and non-array collections", async () => {
+    const response = await makeAPICall<{ error: string }>(
+      "POST",
+      "/api/public/otel/v1/traces",
+      {
+        resourceSpans: [
+          {
+            resource: { attributes: [] },
+            scopeSpans: [
+              {
+                scope: { name: "uvicorn.access" },
+                spans: [
+                  // Both ids absent, and an id of a type Buffer.from rejects.
+                  { traceState: "INFO" },
+                  { traceId: 42, spanId: 42 },
+                ],
+              },
+            ],
+          },
+          { resource: { attributes: [] }, scopeSpans: {} },
+        ],
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain("2 of 2 span(s)");
+    expect(response.body.error).toContain(
+      "1 resource- or scope-level field(s)",
+    );
+    expect(response.body.error).toContain("scopeSpans:not_an_array");
+    expect(response.body.error).toContain("uvicorn.access");
+  });
+
+  // The prod-us shape: ids are valid hex and every collection is an array
+  // except the span attributes, which a hand-rolled OTLP/JSON exporter emitted
+  // as a {key: value} object. It cleared the id validation and then failed in
+  // the worker on attributes.reduce, losing the file after all six attempts.
+  it("should reject span attributes sent as a JSON object", async () => {
+    const response = await makeAPICall<{ error: string }>(
+      "POST",
+      "/api/public/otel/v1/traces",
+      {
+        resourceSpans: [
+          {
+            resource: {
+              attributes: [
+                {
+                  key: "service.name",
+                  value: { stringValue: "ai-control-plane" },
+                },
+              ],
+            },
+            scopeSpans: [
+              {
+                scope: { name: "ai-control-plane.agent", version: "1.0.0" },
+                spans: [
+                  {
+                    traceId: randomBytes(16).toString("hex"),
+                    spanId: randomBytes(8).toString("hex"),
+                    name: "Capability: document_retrieval",
+                    attributes: { "capability.id": "document_retrieval" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain("1 of 1 span(s)");
+    expect(response.body.error).toContain("attributes:not_an_array");
+    expect(response.body.error).toContain("not a JSON object");
+    expect(response.body.error).toContain("ai-control-plane.agent");
+  });
+
+  // An OTLP *logs* export pointed at this endpoint. ResourceLogs and
+  // ResourceSpans share protobuf field numbers, so log records decode into
+  // spans that keep a valid instrumentation scope but carry no ids, which used
+  // to fail in the worker and burn all six queue attempts.
+  it("should reject an OTLP logs payload sent to the traces endpoint", async () => {
+    const requestBody =
+      $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest.encode(
+        $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest.fromObject(
+          {
+            resourceLogs: [
+              {
+                resource: { attributes: [] },
+                scopeLogs: [
+                  {
+                    scope: { name: "codex_otel.log_only" },
+                    logRecords: [{ severityText: "INFO" }],
+                  },
+                ],
+              },
+            ],
+          },
+        ),
+      ).finish();
+
+    // makeAPICall JSON-stringifies its body, so send the binary payload
+    // with a plain fetch instead.
+    const response = await fetch(
+      "http://localhost:3000/api/public/otel/v1/traces",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-protobuf",
+          Authorization: createBasicAuthHeader(
+            "pk-lf-1234567890",
+            "sk-lf-1234567890",
+          ),
+        },
+        body: requestBody,
+      },
+    );
+
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.error).toContain("traceId:absent");
+    expect(body.error).toContain("codex_otel.log_only");
+  });
+
   it("should transform deployment.environment to lowercase", async () => {
     const traceId = randomBytes(16);
     const spanId = randomBytes(8);
@@ -640,4 +947,139 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
     },
     30_000,
   );
+
+  it("should stage protobuf int64 fields as OTLP/JSON decimal strings", async () => {
+    const ExportTraceServiceRequest =
+      $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
+
+    const traceId = randomBytes(16);
+    const spanId = randomBytes(8);
+    const spanName = `otel-proto-int64-${spanId.toString("hex")}`;
+    // Nanosecond timestamps exceed Number.MAX_SAFE_INTEGER, so they only
+    // survive the round trip losslessly as decimal strings (the OTLP/JSON
+    // encoding for int64).
+    const startTimeUnixNano = "1746026930686364157";
+    const endTimeUnixNano = "1746026930686764157";
+
+    const requestBody = ExportTraceServiceRequest.encode(
+      ExportTraceServiceRequest.fromObject({
+        resourceSpans: [
+          {
+            scopeSpans: [
+              {
+                spans: [
+                  {
+                    traceId,
+                    spanId,
+                    name: spanName,
+                    kind: 1,
+                    startTimeUnixNano,
+                    endTimeUnixNano,
+                    attributes: [
+                      {
+                        // Generation type so the extracted usage details are
+                        // kept on the ingestion event (spans drop them).
+                        key: "langfuse.observation.type",
+                        value: { stringValue: "generation" },
+                      },
+                      {
+                        key: "gen_ai.usage.input_tokens",
+                        value: { intValue: 42 },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    ).finish();
+
+    // The staging key is `<prefix>otel/<projectId>/yyyy/mm/dd/hh/mm/<uuid>.json`;
+    // capture the minute prefix on both sides of the request so a minute
+    // rollover during the call cannot hide the file.
+    const minutePrefix = () => {
+      const now = new Date();
+      return `${sharedEnv.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}otel/${projectId}/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}/${String(now.getHours()).padStart(2, "0")}/${String(now.getMinutes()).padStart(2, "0")}/`;
+    };
+    const listPrefixes = new Set([minutePrefix()]);
+
+    // makeAPICall JSON-stringifies its body, so send the binary payload
+    // with a plain fetch instead.
+    const response = await fetch(
+      "http://localhost:3000/api/public/otel/v1/traces",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-protobuf",
+          Authorization: createBasicAuthHeader(
+            "pk-lf-1234567890",
+            "sk-lf-1234567890",
+          ),
+        },
+        body: requestBody,
+      },
+    );
+    listPrefixes.add(minutePrefix());
+    expect(response.status).toBe(200);
+
+    // The endpoint stages the decoded payload to S3 before responding, and
+    // that file is what the ingestion worker and the ingestion masking
+    // callback consume — so its int64 encoding is the contract under test.
+    // protobufjs >= 7.5 serializes int64 fields as Long internals
+    // ({ low, high, unsigned }) unless toObject receives a `longs` option.
+    const storageClient = getS3EventStorageClient(
+      sharedEnv.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+    );
+    const files = (
+      await Promise.all(
+        [...listPrefixes].map((prefix) => storageClient.listFiles(prefix)),
+      )
+    ).flat();
+
+    let stagedSpan: any;
+    for (const { file } of files) {
+      const resourceSpans = JSON.parse(await storageClient.download(file));
+      const span = resourceSpans
+        .flatMap((rs: any) => rs.scopeSpans ?? [])
+        .flatMap((ss: any) => ss.spans ?? [])
+        .find((s: any) => s.name === spanName);
+      if (span) {
+        stagedSpan = span;
+        break;
+      }
+    }
+
+    expect(stagedSpan).toBeDefined();
+    expect(stagedSpan.startTimeUnixNano).toBe(startTimeUnixNano);
+    expect(stagedSpan.endTimeUnixNano).toBe(endTimeUnixNano);
+    expect(
+      stagedSpan.attributes.find(
+        (attr: any) => attr.key === "gen_ai.usage.input_tokens",
+      )?.value.intValue,
+    ).toBe("42");
+    expect(JSON.stringify(stagedSpan)).not.toContain('"low"');
+
+    // Validate that the string-encoded int64 fields also survive the rest of
+    // the pipeline (S3 -> worker -> OtelIngestionProcessor -> ClickHouse).
+    // The processor truncates ns -> ms with BigInt division, so assert the
+    // same truncation rather than expecting sub-ms precision back.
+    await waitForExpect(async () => {
+      const observation = await getObservationById({
+        projectId,
+        id: spanId.toString("hex"),
+      });
+      expect(observation).toBeDefined();
+      expect(observation!.startTime.toISOString()).toBe(
+        new Date(Number(BigInt(startTimeUnixNano) / 1_000_000n)).toISOString(),
+      );
+      expect(observation!.endTime?.toISOString()).toBe(
+        new Date(Number(BigInt(endTimeUnixNano) / 1_000_000n)).toISOString(),
+      );
+      // gen_ai.usage.input_tokens travelled as intValue "42"; this pins the
+      // string -> number conversion in convertOtelIntValue end to end.
+      expect(observation!.usageDetails.input).toBe(42);
+    }, 25_000);
+  }, 30_000);
 });

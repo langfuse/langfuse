@@ -4,6 +4,10 @@ export const versionSchema = z.string().regex(/^v?\d+\.\d+\.\d+(?:[-+].+)?$/); /
 
 type VersionTuple = readonly [number, number, number];
 
+type VersionTupleComparable = {
+  tuple: readonly number[];
+};
+
 export type ParsedVersion = {
   raw: string;
   major: number;
@@ -36,8 +40,8 @@ export const parseVersionString = (
 };
 
 export const compareParsedVersions = (
-  left: ParsedVersion,
-  right: ParsedVersion,
+  left: VersionTupleComparable,
+  right: VersionTupleComparable,
 ): number => {
   for (let i = 0; i < left.tuple.length; i++) {
     if (left.tuple[i] > right.tuple[i]) return 1;

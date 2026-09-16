@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -20,7 +21,7 @@ import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
-import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import {
   renderRichPromptContent,
@@ -46,14 +47,21 @@ export function JSONView(props: {
   controlButtons?: React.ReactNode;
   externalJsonCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  collapseDepth?: number;
+  /** Skip normalization of prepared payloads to preserve exact source strings and field-marker identities. */
+  preserveStrings?: boolean;
+  customizeNode?: (node: unknown) => React.ReactElement | undefined;
 }) {
   // some users ingest stringified json nested in json, parse it. Also decode
   // \uXXXX escapes (e.g. Japanese ingested with Python ensure_ascii=True) so
   // non-ASCII content renders as real characters. Already-decoded strings are
   // a no-op (decodeUnicodeEscapesOnly returns early when there is no backslash).
   const parsedJson = useMemo(
-    () => decodeUnicodeInJson(deepParseJson(props.json)),
-    [props.json],
+    () =>
+      props.preserveStrings
+        ? props.json
+        : decodeUnicodeInJson(deepParseJson(props.json)),
+    [props.json, props.preserveStrings],
   );
   const { resolvedTheme } = useTheme();
   const { setIsMarkdownEnabled } = useMarkdownContext();
@@ -66,7 +74,8 @@ export function JSONView(props: {
       ? 100_000_000 // if null, show all (100M chars)
       : (props.collapseStringsAfterLength ?? 500);
 
-  const isCollapsed = props.externalJsonCollapsed ?? internalCollapsed;
+  const isFullyCollapsed = props.externalJsonCollapsed ?? internalCollapsed;
+  const collapsed = isFullyCollapsed ? 1 : (props.collapseDepth ?? false);
 
   const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {
     if (event) {
@@ -100,14 +109,12 @@ export function JSONView(props: {
     <>
       <div
         className={cn(
-          "io-message-content flex max-w-full min-w-0 gap-2 text-xs wrap-break-word whitespace-pre-wrap",
+          "io-message-content ph-no-capture flex max-w-full min-w-0 gap-2 text-xs wrap-break-word whitespace-pre-wrap",
           props.borderless ? "" : "p-2",
           props.title === "assistant" || props.title === "Output"
-            ? "bg-accent-light-green dark:border-accent-dark-green"
+            ? "bg-accent-light-green dark:border-accent-dark-green/30"
             : "",
-          props.title === "system" || props.title === "Input"
-            ? "bg-primary-foreground"
-            : "",
+          props.title === "system" || props.title === "Input" ? "bg-card" : "",
           props.scrollable || props.borderless ? "" : "rounded-sm border",
           props.codeClassName,
         )}
@@ -124,7 +131,7 @@ export function JSONView(props: {
           </code>
         ) : (
           <div
-            className="max-w-full min-w-0 flex-1 overflow-hidden"
+            className="max-w-full min-w-0 flex-1"
             onClick={() => {
               // If externally collapsed and user clicks to expand, sync the state
               if (props.externalJsonCollapsed && props.onToggleCollapse) {
@@ -136,8 +143,8 @@ export function JSONView(props: {
               src={parsedJson}
               theme="github"
               dark={resolvedTheme === "dark"}
-              collapsed={isCollapsed ? 1 : false}
-              collapseObjectsAfterLength={isCollapsed ? 0 : 20}
+              collapsed={collapsed}
+              collapseObjectsAfterLength={isFullyCollapsed ? 0 : 20}
               collapseStringsAfterLength={collapseStringsAfterLength}
               collapseStringMode="word"
               customizeCollapseStringUI={(fullSTring, truncated) =>
@@ -147,15 +154,17 @@ export function JSONView(props: {
                   ""
                 )
               }
-              displaySize={isCollapsed ? "collapsed" : "expanded"}
+              displaySize={isFullyCollapsed ? "collapsed" : "expanded"}
               matchesURL={true}
               // Render previewable media (Langfuse refs, data URIs, media URLs)
               // as a hover-to-peek chip instead of the raw string; everything
               // else falls through to the default value rendering.
               customizeNode={({ node }) => {
+                const customNode = props.customizeNode?.(node);
+                if (customNode !== undefined) return customNode;
                 const descriptor = classifyMediaValue(node);
                 return descriptor ? (
-                  <JsonMediaTag descriptor={descriptor} />
+                  <MediaReferenceTag descriptor={descriptor} />
                 ) : undefined;
               }}
               customizeCopy={(node) => stringifyJsonNode(node)}
@@ -169,7 +178,7 @@ export function JSONView(props: {
           <div className="text-muted-foreground my-1 px-0 py-1 text-xs">
             Media
           </div>
-          <div className="flex flex-wrap gap-2 pt-1 pb-4">
+          <div className="ph-no-capture flex flex-wrap gap-2 pt-1 pb-4">
             {props.media.map((m) => (
               <LangfuseMediaView
                 mediaAPIReturnValue={m}
@@ -205,9 +214,9 @@ export function JSONView(props: {
                 size="icon-xs"
                 onClick={handleToggleCollapse}
                 className="hover:bg-border -mr-2"
-                title={isCollapsed ? "Expand all" : "Collapse all"}
+                title={isFullyCollapsed ? "Expand all" : "Collapse all"}
               >
-                {isCollapsed ? (
+                {isFullyCollapsed ? (
                   <UnfoldVertical className="h-3 w-3" />
                 ) : (
                   <FoldVertical className="h-3 w-3" />
@@ -300,7 +309,7 @@ export function CodeView(props: {
       <>
         {props.title ? (
           <div className="my-1 flex shrink-0 items-center justify-between pl-1">
-            <div className="text-sm font-medium">{props.title}</div>
+            <div className="text-sm font-bold">{props.title}</div>
             <Button
               variant="ghost"
               size="icon-xs"
@@ -330,7 +339,7 @@ export function CodeView(props: {
         )}
         <code
           className={cn(
-            "relative max-w-full min-w-0 flex-1 px-4 py-3 font-mono text-xs",
+            "ph-no-capture relative max-w-full min-w-0 flex-1 px-4 py-3 font-mono text-xs",
             !props.title && !lineWrap ? "w-[calc(100%-2.5rem)] pr-12" : "",
             lineWrap
               ? "wrap-break-word whitespace-pre-wrap"

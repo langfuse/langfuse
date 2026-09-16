@@ -1,10 +1,11 @@
 import {
   EvalTargetObject,
   type ColumnDefinition,
-  JobConfigState,
+  type JobConfigState,
+  JobTimeScopeZod,
 } from "@langfuse/shared";
 
-export const evalConfigTargetOptions = Object.values(EvalTargetObject).map(
+const evalConfigTargetOptions = Object.values(EvalTargetObject).map(
   (value) => ({
     value,
   }),
@@ -13,6 +14,16 @@ export const evalConfigTargetOptions = Object.values(EvalTargetObject).map(
 export const evalConfigTargetValues = evalConfigTargetOptions.map(
   (option) => option.value,
 );
+
+export const evalConfigTimeScopeValues = JobTimeScopeZod.options;
+
+// Client-safe mirror of the Prisma enum. Vite/Storybook resolve shared from
+// source and cannot turn `export * from "@prisma/client"` into named ESM
+// exports; this file is imported by client filter hooks.
+const JOB_CONFIG_STATES = [
+  "ACTIVE",
+  "INACTIVE",
+] as const satisfies readonly JobConfigState[];
 
 const evaluatorDisplayStatusSql = `CASE
   WHEN jc."status" = 'INACTIVE' THEN 'INACTIVE'
@@ -32,7 +43,7 @@ export const evalConfigFilterColumns: ColumnDefinition[] = [
     id: "status",
     type: "stringOptions",
     internal: evaluatorDisplayStatusSql,
-    options: [...Object.values(JobConfigState), "PAUSED"].map((value) => ({
+    options: [...JOB_CONFIG_STATES, "PAUSED"].map((value) => ({
       value,
     })),
   },
@@ -43,6 +54,13 @@ export const evalConfigFilterColumns: ColumnDefinition[] = [
     internal: 'jc."target_object"',
     options: evalConfigTargetOptions,
   },
+  {
+    name: "Time Scope",
+    id: "timeScope",
+    type: "arrayOptions",
+    internal: 'jc."time_scope"',
+    options: evalConfigTimeScopeValues.map((value) => ({ value })),
+  },
 ];
 
 export const evalConfigsTableCols: ColumnDefinition[] = [
@@ -51,6 +69,13 @@ export const evalConfigsTableCols: ColumnDefinition[] = [
     internal: evaluatorStatusSortRankSql,
   },
   evalConfigFilterColumns[1],
+  evalConfigFilterColumns[2],
+  {
+    name: "Generated Score Name",
+    id: "scoreName",
+    type: "string",
+    internal: 'jc."score_name"',
+  },
   {
     name: "Updated At",
     id: "updatedAt",

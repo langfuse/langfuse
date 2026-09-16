@@ -1,3 +1,5 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useState } from "react";
 
 import { Button } from "@/src/components/ui/button";
@@ -7,8 +9,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { type GetModelResult } from "@/src/features/models/validation";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 
 export const DeleteModelButton = ({
@@ -48,7 +49,7 @@ export const DeleteModelButton = ({
         </Button>
       </PopoverTrigger>
       <PopoverContent>
-        <h2 className="mb-3 font-semibold">Please confirm</h2>
+        <h2 className="mb-3 font-bold">Please confirm</h2>
         <p className="mb-3 text-sm">
           This action permanently deletes this model definition.
         </p>

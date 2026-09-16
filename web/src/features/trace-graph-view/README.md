@@ -11,12 +11,24 @@ custom renderer keeps it virtualization-ready.
 agentGraphData (tRPC getAgentGraphData)
   → buildStepData            timing-based step inference (cycle-guarded)
     / transformLanggraphToGeneralized   when langgraph metadata exists
-  → buildGraphCanvasData     nodes/edges + node→observations cycling map
-  → layout/elkLayout.computeGraphLayout   async ELK (lazy import);
+  → one builder per GraphViewMode (the mode switch overlaid on the canvas):
+      buildGraphCanvasData   "aggregated": repeats collapse by name (+ cycling
+                             map); langgraph traces show framework nodes only
+      buildExpandedGraph     "expanded": one node per observation (EVERY call,
+                             minus EVENTs — framework metadata is ignored);
+                             edges from the instrumented hierarchy +
+                             happened-before sibling ordering (fork/join)
+  → layout/graphLayoutWorkerClient.requestGraphLayout
+      layout/elkLayout       prepare (dedupe, size, count ceiling) on the main
+                             thread → run ELK in workers/elk-layout.worker.ts
       layout/measureNode     estimates node boxes (labels, counter reserve)
   → components/ElkGraphRenderer           draws + gestures
       components/GraphNode                view-only node (memo)
 ```
+
+Both builders return the same `{graph, nodeToObservationsMap}` pair — everything
+downstream is mode-agnostic. The selected mode is a trace view preference
+(`ViewPreferencesContext.graphViewMode`, localStorage), passed in as a prop.
 
 ## Ownership
 
@@ -38,10 +50,14 @@ agentGraphData (tRPC getAgentGraphData)
   folder owns only the projection observation-ids → node names
   (`components/TraceGraphView.tsx`) and the glow rendering (`GraphNode`).
 - **Pure layout math**: `layout/*` has no React imports and is unit-tested
-  (`layout/*.clienttest.ts`).
+  (`layout/*.clienttest.ts`). `elkLayout.ts` stays free of worker plumbing so it
+  runs unchanged on either thread; `graphLayoutWorkerClient.ts` owns the worker
+  singleton, request ids, cancellation and the wall-clock deadline.
+- **Layout thread**: ELK runs in `web/src/workers/elk-layout.worker.ts`, so a
+  slow layout never blocks the trace view. ELK is uninterruptible even there —
+  cancelling a stale layout means terminating the worker.
 
 ## Next migration slices
 
-- Move ELK layout into a Web Worker (seam: `layout/elkLayout.ts#getElk`).
 - Node virtualization for very large graphs (only render nodes intersecting
   the viewport — the renderer's world/viewport split is already shaped for it).

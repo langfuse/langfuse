@@ -20,6 +20,7 @@ const baseInput: Omit<DispatchInput, "runtime" | "code"> = {
       input: { question: "2+2" },
       output: "4",
       metadata: { source: "test" },
+      toolCalls: [],
     },
     experiment: {
       itemExpectedOutput: "4",
@@ -192,7 +193,7 @@ describe("LocalCodeEvalDispatcher", () => {
       }),
     ).rejects.toMatchObject({
       code: "TIMEOUT",
-      retryable: true,
+      retryable: false,
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 
@@ -220,7 +221,7 @@ describe("LocalCodeEvalDispatcher", () => {
     expect(result).toBeInstanceOf(CodeEvalDispatcherError);
     expect(result).toMatchObject({
       code: "TIMEOUT",
-      retryable: true,
+      retryable: false,
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 

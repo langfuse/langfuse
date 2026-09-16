@@ -39,6 +39,8 @@ describe("traces trpc", () => {
               deletedAt: null,
               name: "Test Project",
               metadata: {},
+              hasTraces: true,
+              createdAt: new Date().toISOString(),
             },
           ],
         },
@@ -46,6 +48,10 @@ describe("traces trpc", () => {
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
+        searchBar: false,
+        v4BetaToggleVisible: false,
+        observationEvals: false,
+        experimentsV4Enabled: false,
       },
       admin: true,
     },
@@ -121,6 +127,78 @@ describe("traces trpc", () => {
       });
 
       expect(generations.generations).toBeDefined();
+    });
+
+    it("should filter generations by boolean scores", async () => {
+      const traceId = randomUUID();
+      const matchingGenerationId = randomUUID();
+      const otherGenerationId = randomUUID();
+      const scoreName = `passes_guardrail_${randomUUID()}`;
+
+      const trace = createTrace({
+        id: traceId,
+        project_id: projectId,
+        name: "boolean-score-generation-trace",
+      });
+      const matchingGeneration = createObservation({
+        id: matchingGenerationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "boolean-score-generation-match",
+      });
+      const otherGeneration = createObservation({
+        id: otherGenerationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "boolean-score-generation-other",
+      });
+
+      await createTracesCh([trace]);
+      await createObservationsCh([matchingGeneration, otherGeneration]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: matchingGenerationId,
+          name: scoreName,
+          value: 1,
+          string_value: "True",
+          data_type: "BOOLEAN",
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: otherGenerationId,
+          name: scoreName,
+          value: 0,
+          string_value: "False",
+          data_type: "BOOLEAN",
+        }),
+      ]);
+
+      const generations = await caller.generations.all({
+        projectId,
+        searchQuery: "",
+        searchType: [],
+        filter: [
+          {
+            column: "score_booleans",
+            key: scoreName,
+            operator: "=",
+            value: true,
+            type: "booleanObject",
+          },
+        ],
+        orderBy: null,
+        limit: 50,
+        page: 0,
+      });
+
+      expect(generations.generations.map((g) => g.id)).toEqual([
+        matchingGenerationId,
+      ]);
     });
 
     it("should search generations by input only", async () => {

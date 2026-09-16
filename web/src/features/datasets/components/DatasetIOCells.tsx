@@ -1,7 +1,5 @@
 import { api } from "@/src/utils/api";
-import { cn } from "@/src/utils/tailwind";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useTrpcError } from "@/src/hooks/useTrpcError";
 import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
 
@@ -34,9 +32,12 @@ export const DatasetItemIOCell = ({
     { staleTime: DATASET_IO_CELL_STALE_MS },
   );
 
+  if (datasetItem.isLoading) {
+    return <ConnectedIOTableCell isLoading singleLine={singleLine} />;
+  }
+
   return (
-    <IOTableCell
-      isLoading={datasetItem.isLoading}
+    <ConnectedIOTableCell
       data={
         io === "expectedOutput"
           ? datasetItem.data?.expectedOutput
@@ -100,16 +101,22 @@ export const TraceObservationIOCell = ({
 
   const data = observationId === undefined ? trace.data : observation.data;
 
-  return isSilentError ? (
-    <NotFoundCard
-      itemType={!!observationId ? "observation" : "trace"}
-      singleLine={singleLine}
-    />
-  ) : (
-    <MemoizedIOTableCell
-      isLoading={isLoading || !data}
-      data={io === "output" ? data?.output : data?.input}
-      className={cn(io === "output" && "bg-accent-light-green")}
+  if (isSilentError) {
+    return (
+      <NotFoundCard
+        itemType={!!observationId ? "observation" : "trace"}
+        singleLine={singleLine}
+      />
+    );
+  }
+
+  if (isLoading || !data) {
+    return <ConnectedIOTableCell isLoading singleLine={singleLine} />;
+  }
+
+  return (
+    <ConnectedIOTableCell
+      data={io === "output" ? data.output : data.input}
       singleLine={singleLine}
     />
   );

@@ -52,8 +52,8 @@ export function CsvColumnsCard({
     <Card className="flex h-full flex-col overflow-hidden">
       <CardHeader className="shrink-0 p-4 pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-semibold">CSV Columns</CardTitle>
-          <span className="bg-muted text-muted-foreground rounded-full px-2.5 py-0.5 text-xs font-medium">
+          <CardTitle className="text-base font-bold">CSV Columns</CardTitle>
+          <span className="bg-muted text-muted-foreground rounded-full px-2.5 py-0.5 text-xs font-bold">
             {columnCount} {columnCount === 1 ? "column" : "columns"}
           </span>
         </div>
@@ -65,7 +65,7 @@ export function CsvColumnsCard({
           ))}
         </div>
         <div className="bg-light-blue/40 text-accent-dark-blue shrink-0 rounded-lg p-3 text-xs leading-relaxed">
-          <strong className="font-semibold">Tip:</strong> Drag columns from this
+          <strong className="font-bold">Tip:</strong> Drag columns from this
           list to the mapping fields on the right.
         </div>
       </CardContent>

@@ -12,17 +12,13 @@ import {
 } from "@/src/features/public-api/types/blob-storage-integrations";
 import {
   type ObservationFieldGroupFull,
-  BlobStorageIntegrationFileType,
-  InvalidRequestError,
   LangfuseNotFoundError,
   UnauthorizedError,
   ForbiddenError,
 } from "@langfuse/shared";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
-import { assertLegacyBlobExportSourceAllowedForUpsert } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowedForUpsert";
-import { assertEnrichedBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertEnrichedBlobExportSourceAllowed";
+import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { env } from "@/src/env.mjs";
 
 export default withMiddlewares({
   GET: handleGetBlobStorageIntegrations,
@@ -159,10 +155,6 @@ async function handleUpsertBlobStorageIntegration(
     throw new LangfuseNotFoundError("Project not found");
   }
 
-  const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
-
-  const isV4PreviewEnabled =
-    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
   const internalExportSource =
     validatedData.exportSource != null
       ? toInternalExportSource(validatedData.exportSource)
@@ -174,37 +166,21 @@ async function handleUpsertBlobStorageIntegration(
   // enriched value is rejected.
   const existingIntegration = await prisma.blobStorageIntegration.findUnique({
     where: { projectId: validatedData.projectId },
-    select: { createdAt: true, exportSource: true, fileType: true },
+    select: { createdAt: true, exportSource: true },
   });
 
-  // PARQUET cannot be set via the REST API yet (request enum omits it). Block
-  // any PUT that would silently downgrade a Parquet integration to a text format.
-  // Written as a downgrade check (existing === PARQUET && request !== PARQUET) so
-  // it automatically narrows to no-op once PARQUET is added to the request enum at GA.
-  const requestFileType: string = validatedData.fileType;
-  if (
-    existingIntegration?.fileType === BlobStorageIntegrationFileType.PARQUET &&
-    requestFileType !== BlobStorageIntegrationFileType.PARQUET
-  ) {
-    throw new InvalidRequestError(
-      "Integrations exporting Parquet must be managed through the Langfuse UI; the public API cannot modify them while Parquet is in stabilisation.",
-    );
-  }
-
-  if (internalExportSource) {
-    assertLegacyBlobExportSourceAllowedForUpsert({
-      project,
-      existingIntegration,
-      nextInternalExportSource: internalExportSource,
-      isCloud,
-    });
-  }
-
-  assertEnrichedBlobExportSourceAllowed({
-    nextInternalExportSource: internalExportSource,
-    existingExportSource: existingIntegration?.exportSource,
-    isCloud,
-    isV4PreviewEnabled,
+  // Explicit sources must pass every check; an omitted source keeps the
+  // persisted one, capability-checked only, and a create falls back to the
+  // shared default. Same call the tRPC routers make, so a PUT and a settings
+  // save agree. See export-source-policy.ts.
+  const createExportSource = await resolveExportSource({
+    db: prisma,
+    projectId: validatedData.projectId,
+    // Already loaded above for the org-ownership check; reuse it rather than
+    // making the helper re-read the same row.
+    projectCreatedAt: project.createdAt,
+    requestedExportSource: internalExportSource,
+    existingIntegration,
   });
 
   await auditLog({
@@ -218,14 +194,7 @@ async function handleUpsertBlobStorageIntegration(
   const integration = await upsertBlobStorageIntegration({
     prisma,
     projectId: validatedData.projectId,
-    // New Cloud rows default to EVENTS when exportSource is omitted: a
-    // brand-new row is post-cutoff, so the legacy column default would trip
-    // refuseLegacyOnCreate and fail a partial PUT that never mentioned
-    // exportSource. Substituted in-transaction to avoid a TOCTOU window.
-    forceEventsOnCreate: validatedData.exportSource == null && isCloud,
-    // In-transaction backstop: a concurrent DELETE can flip this upsert to
-    // CREATE; never let a new Cloud row be born with a legacy source.
-    refuseLegacyOnCreate: isCloud,
+    createExportSource,
     data: {
       type: validatedData.type,
       bucketName: validatedData.bucketName,

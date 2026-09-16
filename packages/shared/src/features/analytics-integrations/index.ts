@@ -8,7 +8,7 @@ import {
   type ObservationFieldGroupFull,
 } from "../../domain/observation-field-groups";
 
-export * from "./blob-export-gate";
+export * from "./export-source-policy";
 export * from "./blob-export-tuning";
 
 export const EXPORT_SOURCE_OPTIONS: Array<{
@@ -144,5 +144,8 @@ export const EXPORT_FIELD_GROUP_OPTIONS = OBSERVATION_FIELD_GROUPS_FULL.map(
     legacyDescription: legacyDescriptionForGroup(value),
     parquetDescription: parquetDescriptionForGroup(value),
     legacyParquetDescription: legacyParquetDescriptionForGroup(value),
+    // Groups without legacy columns (trace_context) are a no-op for
+    // legacy-only exports; the UI hides them for that source.
+    includedInLegacyExport: legacyFieldsForGroup(value).length > 0,
   }),
 );

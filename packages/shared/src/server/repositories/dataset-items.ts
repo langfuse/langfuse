@@ -5,6 +5,7 @@ import { datasetItemsFilterCols } from "./dataset-items-columns";
 import {
   InternalServerError,
   InvalidRequestError,
+  LangfuseConflictError,
   LangfuseNotFoundError,
 } from "../../errors";
 import { DatasetItemValidator } from "../services/DatasetService";
@@ -76,10 +77,13 @@ async function getDatasets(props: {
     },
   });
 
-  if (datasets.length !== props.datasetIds.length)
+  if (datasets.length !== props.datasetIds.length) {
+    const foundIds = new Set(datasets.map((dataset) => dataset.id));
+    const missingIds = props.datasetIds.filter((id) => !foundIds.has(id));
     throw new LangfuseNotFoundError(
-      `One or more datasets not found for project ${props.projectId}`,
+      `Dataset(s) not found for project ${props.projectId}: ${missingIds.join(", ")}. \`datasetId\` must be a dataset id, not a dataset name; if you have a name, list datasets to resolve it to an id first.`,
     );
+  }
 
   return datasets;
 }
@@ -315,8 +319,8 @@ export async function upsertDatasetItem(
       datasetItemId: props.datasetItemId,
     });
     if (!!existingItem && existingItem.datasetId !== dataset.id) {
-      throw new LangfuseNotFoundError(
-        `Dataset item with id ${props.datasetItemId} not found for project ${props.projectId}`,
+      throw new LangfuseConflictError(
+        `Dataset item id ${props.datasetItemId} already exists in another dataset (id ${existingItem.datasetId}) in this project; item ids are unique per project across datasets. Use a different id or target dataset ${existingItem.datasetId}.`,
       );
     }
   }
@@ -439,8 +443,8 @@ export async function upsertDatasetItem(
         });
 
         if (current && current.datasetId !== dataset.id) {
-          throw new LangfuseNotFoundError(
-            `Dataset item with id ${itemId} not found for project ${props.projectId}`,
+          throw new LangfuseConflictError(
+            `Dataset item id ${itemId} already exists in another dataset (id ${current.datasetId}) in this project; item ids are unique per project across datasets. Use a different id or target dataset ${current.datasetId}.`,
           );
         }
 
@@ -1229,10 +1233,13 @@ function buildStatefulDatasetItemsCountQuery(
     },
   });
 
+  // Match VERSIONED / countDatasetItemVariableMatches: current, non-deleted rows only.
   return Prisma.sql`
     SELECT COUNT(*) as count
     FROM dataset_items di
     WHERE di.project_id = ${projectId}
+      AND di.is_deleted = false
+      AND di.valid_to IS NULL
     ${filterCondition}
     ${searchCondition}
   `;
@@ -1783,9 +1790,12 @@ export async function getDatasetItemsCount(props: {
         return result.length > 0 ? Number(result[0].count) : 0;
       }
 
-      // Otherwise use Prisma
+      // Otherwise use Prisma. Same current-row rules as
+      // countDatasetItemVariableMatchesInternal (is_deleted / valid_to).
       const where = {
         projectId: props.projectId,
+        isDeleted: false,
+        validTo: null,
         ...buildPrismaWhereFromFilterState(props.filterState),
       };
 
@@ -1802,6 +1812,109 @@ export async function getDatasetItemsCount(props: {
       });
     },
   });
+}
+
+/**
+ * Counts dataset items whose input contains each prompt variable, without
+ * transferring item IO to the Node process.
+ *
+ * Must stay aligned with `validateDatasetItem` in
+ * `packages/shared/src/features/experiments/utils.ts`:
+ * - object inputs: top-level key presence (`variable in input`)
+ * - string inputs: counted only when there is exactly one variable
+ * - arrays, null, empty string: not counted
+ *
+ * Used by `experiments.validateConfig`, which previously loaded every item's
+ * input/output/metadata into memory and 500'd on large datasets.
+ */
+export async function countDatasetItemVariableMatches(props: {
+  projectId: string;
+  filterState: FilterState;
+  variables: string[];
+  version?: Date;
+}): Promise<Record<string, number>> {
+  if (props.variables.length === 0) {
+    return {};
+  }
+
+  return executeWithDatasetServiceStrategy(OperationType.READ, {
+    [Implementation.STATEFUL]: async () =>
+      countDatasetItemVariableMatchesInternal({
+        ...props,
+        version: undefined,
+      }),
+    [Implementation.VERSIONED]: async () =>
+      countDatasetItemVariableMatchesInternal(props),
+  });
+}
+
+async function countDatasetItemVariableMatchesInternal(params: {
+  projectId: string;
+  filterState: FilterState;
+  variables: string[];
+  version?: Date;
+}): Promise<Record<string, number>> {
+  const filterCondition = tableColumnsToSqlFilterAndPrefix(
+    params.filterState,
+    datasetItemsFilterCols,
+    "dataset_item_events",
+  );
+
+  const versionCondition = params.version
+    ? Prisma.sql`
+        AND di.valid_from <= ${params.version}
+        AND (di.valid_to IS NULL OR di.valid_to > ${params.version})
+      `
+    : Prisma.sql`AND di.valid_to IS NULL`;
+
+  const variableList = Prisma.join(
+    params.variables.map((variable) => Prisma.sql`${variable}`),
+  );
+
+  const objectKeyCounts = await prisma.$queryRaw<
+    Array<{ obj_key: string; count: bigint }>
+  >(Prisma.sql`
+    SELECT obj_key, COUNT(*)::bigint AS count
+    FROM dataset_items di
+    CROSS JOIN LATERAL jsonb_object_keys(di.input::jsonb) AS obj_key
+    WHERE di.project_id = ${params.projectId}
+      AND di.is_deleted = false
+      AND di.input IS NOT NULL
+      AND jsonb_typeof(di.input::jsonb) = 'object'
+      AND obj_key IN (${variableList})
+      ${versionCondition}
+      ${filterCondition}
+    GROUP BY obj_key
+  `);
+
+  const variablesMap: Record<string, number> = {};
+  for (const row of objectKeyCounts) {
+    variablesMap[row.obj_key] = Number(row.count);
+  }
+
+  if (params.variables.length === 1) {
+    const variable = params.variables[0];
+    const stringCounts = await prisma.$queryRaw<Array<{ count: bigint }>>(
+      Prisma.sql`
+        SELECT COUNT(*)::bigint AS count
+        FROM dataset_items di
+        WHERE di.project_id = ${params.projectId}
+          AND di.is_deleted = false
+          AND di.input IS NOT NULL
+          AND jsonb_typeof(di.input::jsonb) = 'string'
+          AND coalesce(di.input #>> '{}', '') <> ''
+          ${versionCondition}
+          ${filterCondition}
+      `,
+    );
+    const stringCount =
+      stringCounts.length > 0 ? Number(stringCounts[0].count) : 0;
+    if (stringCount > 0) {
+      variablesMap[variable] = (variablesMap[variable] ?? 0) + stringCount;
+    }
+  }
+
+  return variablesMap;
 }
 
 export async function getDatasetItemsCountGrouped(props: {

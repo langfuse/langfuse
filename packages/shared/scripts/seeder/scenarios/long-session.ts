@@ -8,6 +8,7 @@ import {
   createObservationsCh,
   createScoresCh,
   createEventsCh,
+  toClickhouseDateTime,
   EventRecordInsertType,
   ObservationRecordInsertType,
   ScoreRecordInsertType,
@@ -204,7 +205,7 @@ const run = async (
           name: isRoot
             ? "session-turn"
             : isGeneration
-              ? "gpt-4o-completion"
+              ? "gpt-5.4-completion"
               : rng.pick(["fetch-context", "log-event", "format-reply"]),
           start_time: startTime,
           end_time: endTime,
@@ -228,7 +229,7 @@ const run = async (
             ? buildPayload("text", rng.int(100, 600), rng)
             : null,
           metadata: { scenario: "long-session", turn: String(t) },
-          provided_model_name: isGeneration ? "gpt-4o" : null,
+          provided_model_name: isGeneration ? "gpt-5.4" : null,
           internal_model_id: null,
           model_parameters: isGeneration
             ? JSON.stringify({ temperature: 0.7 })
@@ -258,7 +259,9 @@ const run = async (
     // The root "session-turn" span must cover its children, otherwise the
     // waterfall shows children running after their parent already ended.
     if (observationsPerTrace > 1) {
-      observations[rootObservationIndex].end_time = maxChildEndTime + 25;
+      observations[rootObservationIndex].end_time = toClickhouseDateTime(
+        maxChildEndTime + 25,
+      );
     }
 
     if (t % 3 === 0) {
@@ -335,7 +338,11 @@ const run = async (
 
   const links = [
     sessionLink(ctx, sessionId),
-    traceLink(ctx, traces[0].id, traces[0].timestamp as number),
+    traceLink(
+      ctx,
+      traces[0].id,
+      Date.parse(traces[0].timestamp.replace(" ", "T") + "Z"),
+    ),
   ];
 
   // The session detail page 404s without the Postgres trace_sessions row.

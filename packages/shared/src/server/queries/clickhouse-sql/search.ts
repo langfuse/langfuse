@@ -1,7 +1,29 @@
-import { TracingSearchType } from "../../../interfaces/search";
-import { ftsTextTokenConjunct } from "./fts";
+import { InvalidRequestError } from "../../../errors";
+import {
+  hasValidTracingSearchTypes,
+  TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
+  type TracingSearchType,
+} from "../../../interfaces/search";
+import { bareFtsField, ftsTextTokenConjunct } from "./fts";
 
 const regexIndefiniteCharacters = "%";
+
+// events_full ngrambf_v1 skip indexes are defined on lower(<col>). ILIKE on the
+// raw column cannot use them; the query must match lower(col) LIKE lower(...).
+// Every leading-wildcard disjunct in the search OR must be index-usable or
+// ClickHouse discards the input/output text indexes for the whole query.
+const NGRAM_SUBSTRING_COLUMNS = new Set([
+  "name",
+  "trace_name",
+  "user_id",
+  "session_id",
+]);
+
+// span_id/trace_id are UUID-shaped: an ngrambf on hex+hyphen prunes almost
+// nothing, so we match by equality against their existing bloom_filter (and,
+// for span_id, the primary key) instead of adding an index. Exact-match and
+// case-sensitive on the events path; callers paste whole ids.
+const EQUALITY_ID_COLUMNS = new Set(["span_id", "trace_id"]);
 
 /**
  * Re-encodes a string the way a JSON serializer with `ensure_ascii=True` does (e.g. Python's
@@ -49,6 +71,10 @@ export const clickhouseSearchCondition = ({
   searchColumns,
   useEventsTablePath = false,
 }: ClickhouseSearchConditionOptions) => {
+  if (!hasValidTracingSearchTypes({ searchQuery: query, searchType })) {
+    throw new InvalidRequestError(TRACING_SEARCH_TYPE_REQUIRED_MESSAGE);
+  }
+
   const prefix = tablePrefix ? `${tablePrefix}.` : "";
 
   const ilikeWithPrefilter = (col: string, param = "{searchString: String}") =>
@@ -58,6 +84,19 @@ export const clickhouseSearchCondition = ({
     useEventsTablePath
       ? `(${col} ILIKE ${param} AND ${ftsTextTokenConjunct(col, param)})`
       : `${col} ILIKE ${param}`;
+
+  const idLaneMatch = (col: string) => {
+    if (useEventsTablePath) {
+      const bare = bareFtsField(col);
+      if (EQUALITY_ID_COLUMNS.has(bare)) {
+        return `${col} = {searchStringExact: String}`;
+      }
+      if (NGRAM_SUBSTRING_COLUMNS.has(bare)) {
+        return `lower(${col}) LIKE lower({searchString: String})`;
+      }
+    }
+    return `${col} ILIKE {searchString: String}`;
+  };
 
   const defaultCols = [`${prefix}id`, `t.user_id`, `${prefix}name`];
   const cols = (searchColumns ?? defaultCols).map((col) =>
@@ -91,7 +130,7 @@ export const clickhouseSearchCondition = ({
   // The default cols include t.user_id for callers querying via traces CTE (traces.ts, observations.ts).
   const conditions = [
     !searchType || searchType.includes("id")
-      ? cols.map((col) => `${col} ILIKE {searchString: String}`).join(" OR ")
+      ? cols.map((col) => idLaneMatch(col)).join(" OR ")
       : null,
     searchType && searchType.includes("content")
       ? `${ioColumnMatch(inputCol)} OR ${ioColumnMatch(outputCol)}`
@@ -108,6 +147,8 @@ export const clickhouseSearchCondition = ({
     params: query
       ? {
           searchString: `${regexIndefiniteCharacters}${query}${regexIndefiniteCharacters}`,
+          // Unwrapped for the events-path equality columns (span_id/trace_id).
+          ...(useEventsTablePath ? { searchStringExact: query } : {}),
           ...(hasEscapedVariant
             ? {
                 searchStringEscaped: `${regexIndefiniteCharacters}${escapedQuery}${regexIndefiniteCharacters}`,

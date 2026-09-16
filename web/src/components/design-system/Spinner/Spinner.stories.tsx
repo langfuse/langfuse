@@ -1,6 +1,6 @@
 import React from "react";
 import preview from "../../../../.storybook/preview";
-import Spinner from "./Spinner";
+import { Spinner } from "./Spinner";
 
 type ComponentProps = React.ComponentProps<typeof Spinner>;
 type Variant = NonNullable<ComponentProps["variant"]>;
@@ -26,7 +26,7 @@ const allSizes = Object.keys({
   full: true,
 } satisfies Record<Size, true>) as Size[];
 
-export const AllVariants = meta.story({
+export const VariantMatrix = meta.story({
   render: () => (
     <div
       className="grid gap-x-8 gap-y-4"

@@ -1,6 +1,10 @@
 import type { Organization } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
-import { type ParsedOrganization, Role } from "@langfuse/shared";
+import {
+  hasPaidBillingState,
+  type ParsedOrganization,
+  Role,
+} from "@langfuse/shared";
 import {
   sendUsageThresholdWarningEmail,
   sendUsageThresholdSuspensionEmail,
@@ -300,8 +304,8 @@ export async function processThresholds(
   cumulativeUsage: number,
 ): Promise<ThresholdProcessingResult> {
   // 1. Skip notifications if org is on a paid plan (check this first, regardless of enforcement flag)
-  // This includes both Stripe subscriptions and manual plan overrides
-  if (org.cloudConfig?.stripe?.activeSubscriptionId || org.cloudConfig?.plan) {
+  // This includes Stripe subscriptions, manual plan overrides, and CHB bundles
+  if (hasPaidBillingState(org)) {
     // Build update data
     const updateData: OrgUpdateData = {
       orgId: org.id,

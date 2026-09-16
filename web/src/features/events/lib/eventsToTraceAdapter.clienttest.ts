@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { deepParseJson } from "@langfuse/shared";
 
 import { adaptEventsToTraceFormat } from "./eventsToTraceAdapter";

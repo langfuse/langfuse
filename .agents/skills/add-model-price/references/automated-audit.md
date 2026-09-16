@@ -16,8 +16,12 @@ report over an uncertain code change.
   `worker/src/constants/default-model-prices.json`
 - Selectable model lists:
   `packages/shared/src/server/llm/types.ts`
+- Optional prior per-model context from
+  `references/model-audit-memory.md`; treat it as orientation, not evidence
 - Official provider pricing pages from
   `references/provider-sources-and-price-keys.md`
+- Provider capability and alias requirements from
+  `references/provider-usage-key-matrix.md`
 - Deterministic reports from:
   - `node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs`
 
@@ -28,8 +32,10 @@ report over an uncertain code change.
    recent major text, chat, reasoning, or multimodal LLM launches, renames,
    pricing changes, and gaps in Langfuse coverage. Do not limit the audit to
    model names already present in `default-model-prices.json`.
-3. Fetch official provider pricing pages before changing prices or adding a
-   model.
+3. Fetch official provider pricing and usage-shape pages before changing prices
+   or adding a model. Compare the provider usage object, Langfuse ingestion
+   normalization, and a mature sibling entry. Do not copy a sibling key set
+   mechanically.
 4. Apply only changes with clear official evidence:
    - corrected input, output, cache write, or cache read prices;
    - missing default pricing entries for selectable models;
@@ -38,10 +44,18 @@ report over an uncertain code change.
    - narrow `matchPattern` additions for documented provider model IDs;
    - required `packages/shared/src/server/llm/types.ts` additions when a newly
      priced model should be selectable.
-5. Capture durable provider-source URLs, model-ID variants, pricing-page quirks,
+5. Add one complete report-table row for every distinct model price entry
+   checked, including confirmed and unchanged entries. Do not collapse multiple
+   checked models into a family-level row.
+6. Capture durable provider-source URLs, model-ID variants, pricing-page quirks,
    or recurring audit rules in the most relevant file under
    `.agents/skills/add-model-price/references/`.
-6. Re-run the validator.
+7. Optionally replace the snapshot in `references/model-audit-memory.md` when
+   retaining the complete current per-model result would materially help a
+   future audit. Do not persist a partial table, append unbounded run history,
+   or update it only to refresh the audit date.
+8. Re-run the validator, including changed-entry usage-key validation against
+   the pre-audit pricing file.
 
 ## Edit Rules
 
@@ -70,11 +84,34 @@ report over an uncertain code change.
 
 ## Evidence Required In The Agent Summary
 
+Always include a valid Markdown table with one row per checked model price
+entry and these columns:
+
+| Column                | Required content                                                                                                                                     |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Provider              | Provider whose official source was checked                                                                                                           |
+| Model / pricing entry | Exact model or pricing-entry name reviewed                                                                                                           |
+| Pricing checked       | Every relevant input, output, cache-read, and cache-write price with the provider unit and converted per-token value                                 |
+| Usage keys checked    | Every applicable semantic bucket and exact raw/normalized alias expected from provider usage plus Langfuse ingestion                                 |
+| Usage-key coverage    | `Yes` only when every supported bucket is represented by all applicable aliases; otherwise `No` with the gap in comments                             |
+| Price confirmed       | `Yes` only when official evidence fetched in the current run confirms every current price; otherwise `No`                                            |
+| Tiering checked       | Every applicable tier name, threshold, and condition, or a statement that no provider tiering applies                                                |
+| Tiering correct       | `Yes` when every applicable threshold and tier price is confirmed, `No` when it is not, or `N/A` only when no provider tiering dimension applies     |
+| Change                | `None`, `Updated`, `Added`, or `Unresolved`                                                                                                          |
+| Official source(s)    | Every official URL used for the row                                                                                                                  |
+| Comments              | Units, conversions, tier thresholds, corrections, uncertainty, or why no change was made; use an em dash only when there is genuinely nothing to add |
+
+The table is required even when every checked price is confirmed and unchanged.
+Do not mark prices or tiering confirmed based only on the optional audit memory.
+The final report must use valid Markdown syntax and be checked for malformed
+tables, links, lists, backticks, or code fences.
+
 For every changed model, include:
 
 - model name;
 - whether the change updates an existing entry or adds a newly discovered model;
 - changed JSON keys or `matchPattern` behavior;
+- supported usage buckets and exact aliases checked;
 - official source URL;
 - provider price unit and converted per-token value;
 - validation commands run.

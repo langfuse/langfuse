@@ -197,7 +197,13 @@ export class PromptService {
 
     const prefix = this.getCacheKeyPrefix(params, epoch);
 
-    return `${prefix}:${params.version ?? params.label}`;
+    // Numeric labels must not share a cache entry with the same prompt version.
+    const selector =
+      typeof params.version === "number"
+        ? `version:${params.version}`
+        : `label:${params.label}`;
+
+    return `${prefix}:${selector}`;
   }
 
   private getCacheKeyPrefix(

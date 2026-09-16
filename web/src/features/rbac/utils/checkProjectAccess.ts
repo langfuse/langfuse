@@ -1,7 +1,4 @@
-import {
-  projectRoleAccessRights,
-  type ProjectScope,
-} from "@/src/features/rbac/constants/projectAccessRights";
+import { projectRoleAccessRights, type ProjectScope } from "@langfuse/shared";
 import { type Role } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
