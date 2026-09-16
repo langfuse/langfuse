@@ -241,7 +241,7 @@ function TracePanelNavigationHeaderExpanded({
         </div>
         <div className="flex shrink-0 flex-row items-center gap-0.5">
           {/* Minor tools — inline when the panel is wide enough. */}
-          <div className="hidden flex-row items-center gap-0.5 @min-[360px]/navheader:flex">
+          <div className="hidden flex-row items-center gap-0.5 @min-[440px]/navheader:flex">
             <Button
               onClick={handleToggleTreeNodes}
               variant="ghost"
@@ -282,7 +282,7 @@ function TracePanelNavigationHeaderExpanded({
                 size="icon"
                 title="More"
                 aria-label="More options"
-                className="h-7 w-7 @min-[360px]/navheader:hidden"
+                className="h-7 w-7 @min-[440px]/navheader:hidden"
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />
               </Button>
@@ -314,7 +314,7 @@ function TracePanelNavigationHeaderExpanded({
               folded into the overflow menu on a narrow panel, like the tools
               above it. Two more 28px buttons are what tipped this row over: the
               search input collapsed to "Se" and the switch clipped. */}
-          <div className="hidden flex-row items-center @min-[360px]/navheader:flex">
+          <div className="hidden flex-row items-center @min-[440px]/navheader:flex">
             <PlaybackControls />
           </div>
 
@@ -415,8 +415,8 @@ function ViewModeSegment({
       )}
     >
       {/* Label when there is room, icon when there is not. */}
-      <Icon className="h-3.5 w-3.5 shrink-0 @min-[440px]/navheader:hidden" />
-      <span className="@max-[440px]/navheader:hidden">{label}</span>
+      <Icon className="h-3.5 w-3.5 shrink-0 @min-[360px]/navheader:hidden" />
+      <span className="hidden @min-[360px]/navheader:inline">{label}</span>
     </button>
   );
 }
