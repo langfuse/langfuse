@@ -1432,7 +1432,7 @@ export function PrettyJsonView(props: {
           variant="ghost"
           size="icon-xs"
           onClick={() => expandAllRef.current?.()}
-          className="hover:bg-border -mr-2"
+          className="text-muted-foreground hover:bg-border"
           title={allRowsExpanded ? "Collapse all rows" : "Expand all rows"}
         >
           {allRowsExpanded ? (
@@ -1447,7 +1447,7 @@ export function PrettyJsonView(props: {
           variant="ghost"
           size="icon-xs"
           onClick={handleJsonToggleCollapse}
-          className="hover:bg-border -mr-2"
+          className="text-muted-foreground hover:bg-border"
           title={jsonIsCollapsed ? "Expand all" : "Collapse all"}
         >
           {jsonIsCollapsed ? (
