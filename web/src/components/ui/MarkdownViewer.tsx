@@ -584,7 +584,7 @@ export function MarkdownView({
         className={cn(
           "io-message-content ph-no-capture grid grid-flow-row gap-2 px-1 py-2",
           title === "assistant" || title === "Output" || title === "Model"
-            ? "bg-accent-light-green rounded-md overflow-hidden"
+            ? "bg-accent-light-green overflow-hidden rounded-md"
             : "",
           title === "system" || title === "Input" ? "bg-card" : "",
           className,
