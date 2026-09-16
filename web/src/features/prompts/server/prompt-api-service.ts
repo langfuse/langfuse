@@ -17,6 +17,7 @@ import { auditLog } from "@/src/features/audit-logs/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
 import { createPrompt } from "./actions/createPrompt";
+import { deletePrompt } from "./actions/deletePrompt";
 import { getPromptByName } from "./actions/getPromptByName";
 import { getPromptsMeta } from "./actions/getPromptsMeta";
 import { updatePrompt } from "./actions/updatePrompts";
@@ -300,4 +301,55 @@ export const updatePromptLabelsForApi = async ({
     existingPrompt: Prompt;
     updatedPrompt: Prompt;
   };
+};
+
+export const deletePromptForApi = async ({
+  context,
+  promptName,
+  version,
+  label,
+  ctx,
+}: {
+  context: ApiKeyProjectContext;
+  promptName: string;
+  version?: number | null;
+  label?: string;
+  ctx?: AuthorizationContext;
+}) => {
+  const where = {
+    projectId: context.projectId,
+    name: promptName,
+    ...(version ? { version } : {}),
+    ...(label ? { labels: { has: label } } : {}),
+  };
+
+  const prompts = await prisma.prompt.findMany({ where });
+
+  await authorizeProtectedLabelMutation({
+    context,
+    ctx,
+    labelsToCheck: prompts.flatMap((prompt) => prompt.labels),
+    forbiddenErrorMessage:
+      "You don't have permission to delete a prompt with a protected label. Please contact your project admin for assistance.",
+  });
+
+  for (const prompt of prompts) {
+    await auditLog({
+      action: "delete",
+      resourceType: "prompt",
+      resourceId: prompt.id,
+      projectId: context.projectId,
+      orgId: context.orgId,
+      apiKeyId: context.apiKeyId,
+      before: prompt,
+    });
+  }
+
+  await deletePrompt({
+    promptName,
+    projectId: context.projectId,
+    version,
+    label,
+    promptVersions: prompts,
+  });
 };

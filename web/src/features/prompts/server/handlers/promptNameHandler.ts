@@ -1,7 +1,9 @@
 import { z } from "zod";
 
-import { getPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
-import { deletePrompt } from "@/src/features/prompts/server/actions/deletePrompt";
+import {
+  deletePromptForApi,
+  getPromptForApi,
+} from "@/src/features/prompts/server/prompt-api-service";
 import {
   withMiddlewares,
   createAuthedProjectAPIRoute,
@@ -11,8 +13,6 @@ import {
   LangfuseNotFoundError,
   PRODUCTION_LABEL,
 } from "@langfuse/shared";
-import { auditLog } from "@/src/features/audit-logs/server";
-import { prisma } from "@langfuse/shared/src/db";
 
 export const promptNameHandler = withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -61,36 +61,15 @@ export const promptNameHandler = withMiddlewares({
     allowInAppAgentKey: true,
     isAdminApiKeyAuthAllowed: false,
     rateLimitResource: "prompts",
-    fn: async ({ query, auth }) => {
+    fn: async ({ query, auth, ctx }) => {
       const { promptName, version, label } = query;
 
-      const where = {
-        projectId: auth.scope.projectId,
-        name: promptName,
-        ...(version ? { version } : {}),
-        ...(label ? { labels: { has: label } } : {}),
-      };
-
-      const prompts = await prisma.prompt.findMany({ where });
-
-      for (const prompt of prompts) {
-        await auditLog({
-          action: "delete",
-          resourceType: "prompt",
-          resourceId: prompt.id,
-          projectId: auth.scope.projectId,
-          orgId: auth.scope.orgId,
-          apiKeyId: auth.scope.apiKeyId,
-          before: prompt,
-        });
-      }
-
-      await deletePrompt({
+      await deletePromptForApi({
+        context: auth.scope,
         promptName,
-        projectId: auth.scope.projectId,
         version,
         label,
-        promptVersions: prompts,
+        ctx,
       });
     },
   }),

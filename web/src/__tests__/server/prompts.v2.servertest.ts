@@ -1,4 +1,4 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Role } from "@langfuse/shared/src/db";
 import { disconnectQueues, makeAPICall } from "@/src/__tests__/test-utils";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
@@ -15,11 +15,17 @@ import { nanoid } from "nanoid";
 
 import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
 import {
+  createAndAddApiKeysToDb,
+  createBasicAuthHeader,
   createOrgProjectAndApiKey,
   getObservationById,
   MAX_PROMPT_NESTING_DEPTH,
   ChatMessageType,
 } from "@langfuse/shared/src/server";
+import {
+  createUserWithOrgRole,
+  protectPromptLabel,
+} from "@/src/__tests__/server/mcp-helpers";
 import { randomUUID } from "node:crypto";
 import waitForExpect from "wait-for-expect";
 import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
@@ -3153,6 +3159,157 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
 
       expect(res._getStatusCode()).toBe(204);
       expect(res._getData()).toBe("");
+    });
+
+    it("rejects a MEMBER in-app-agent key deleting a production-labeled prompt", async () => {
+      const { projectId, orgId } = await createOrgProjectAndApiKey();
+      await protectPromptLabel({ projectId, label: "production" });
+      const { userId } = await createUserWithOrgRole({
+        orgId,
+        role: Role.MEMBER,
+      });
+      const apiKey = await createAndAddApiKeysToDb({
+        prisma,
+        entityId: projectId,
+        scope: "PROJECT",
+        isInAppAgentKey: true,
+        createdByUserId: userId,
+      });
+      const name = "deleteProtectedAgent" + uuidv4();
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name,
+          prompt: "p1",
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "DELETE",
+        query: { promptName: name },
+        headers: {
+          authorization: createBasicAuthHeader(
+            apiKey.publicKey,
+            apiKey.secretKey,
+          ),
+        },
+      });
+
+      await promptNameHandler(req, res);
+
+      expect(res._getStatusCode()).toBe(403);
+      expect(res._getJSONData().message).toContain(
+        "delete a prompt with a protected label",
+      );
+
+      const remaining = await prisma.prompt.findMany({
+        where: { projectId, name },
+      });
+      expect(remaining.length).toBe(1);
+    });
+
+    it("lets an ordinary project key delete a production-labeled prompt", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      await protectPromptLabel({ projectId, label: "production" });
+      const name = "deleteProtectedProjectKey" + uuidv4();
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name,
+          prompt: "p1",
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "DELETE",
+        query: { promptName: name },
+        headers: { authorization: auth },
+      });
+
+      await promptNameHandler(req, res);
+
+      expect(res._getStatusCode()).toBe(204);
+
+      const remaining = await prisma.prompt.findMany({
+        where: { projectId, name },
+      });
+      expect(remaining.length).toBe(0);
+    });
+
+    it("lets a MEMBER in-app-agent key delete an unlabeled version when a sibling version is production", async () => {
+      const { projectId, orgId } = await createOrgProjectAndApiKey();
+      await protectPromptLabel({ projectId, label: "production" });
+      const { userId } = await createUserWithOrgRole({
+        orgId,
+        role: Role.MEMBER,
+      });
+      const apiKey = await createAndAddApiKeysToDb({
+        prisma,
+        entityId: projectId,
+        scope: "PROJECT",
+        isInAppAgentKey: true,
+        createdByUserId: userId,
+      });
+      const name = "deleteUnlabeledSibling" + uuidv4();
+      await prisma.prompt.createMany({
+        data: [
+          {
+            id: uuidv4(),
+            name,
+            prompt: "p1",
+            labels: ["production"],
+            version: 1,
+            projectId,
+            createdBy: "user",
+            config: {},
+            type: "TEXT",
+          },
+          {
+            id: uuidv4(),
+            name,
+            prompt: "p2",
+            labels: [],
+            version: 2,
+            projectId,
+            createdBy: "user",
+            config: {},
+            type: "TEXT",
+          },
+        ],
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "DELETE",
+        query: { promptName: name, version: "2" },
+        headers: {
+          authorization: createBasicAuthHeader(
+            apiKey.publicKey,
+            apiKey.secretKey,
+          ),
+        },
+      });
+
+      await promptNameHandler(req, res);
+
+      expect(res._getStatusCode()).toBe(204);
+
+      const remaining = await prisma.prompt.findMany({
+        where: { projectId, name },
+      });
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0]?.version).toBe(1);
     });
 
     it("deletes all versions of a prompt", async () => {
