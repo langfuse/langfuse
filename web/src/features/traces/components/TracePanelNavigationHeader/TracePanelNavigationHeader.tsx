@@ -414,9 +414,10 @@ function ViewModeSegment({
           : "text-muted-foreground hover:text-foreground",
       )}
     >
-      {/* Label when there is room, icon when there is not. */}
-      <Icon className="h-3.5 w-3.5 shrink-0 @min-[360px]/navheader:hidden" />
-      <span className="hidden @min-[360px]/navheader:inline">{label}</span>
+      {/* Under 440 the whole row is compact: toolbar in the overflow menu,
+          segments down to icons. */}
+      <Icon className="h-3.5 w-3.5 shrink-0 @min-[440px]/navheader:hidden" />
+      <span className="hidden @min-[440px]/navheader:inline">{label}</span>
     </button>
   );
 }
