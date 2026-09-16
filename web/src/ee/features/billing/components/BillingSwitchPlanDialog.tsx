@@ -25,10 +25,9 @@ import {
   PAID_PLAN_INCLUDED_UNITS,
 } from "@/src/ee/features/billing/constants";
 import {
-  additiveUpgradeFrom,
   checkoutProductForTier,
   DISPLAY_PLAN_TIERS,
-  getPlanComparison,
+  getDisplayPlanComparison,
   includingTeamsPriceLabel,
   PAID_USAGE_OVERAGE_LABEL,
   planChoiceReason,
@@ -278,19 +277,12 @@ function PlanCard({
 }) {
   const targetTier: PlanTier =
     displayTier === "pro" && teamsAddonOn ? "team" : displayTier;
-  const listTier: PlanTier = displayTier === "pro" ? "pro" : displayTier;
-  const comparison =
-    currentTier === targetTier
-      ? getPlanComparison({
-          currentTier: listTier,
-          targetTier: listTier,
-        })
-      : getPlanComparison({
-          currentTier,
-          targetTier: listTier,
-          memberCount,
-          upgradeFrom: additiveUpgradeFrom(displayTier) ?? undefined,
-        });
+  const comparison = getDisplayPlanComparison({
+    currentTier,
+    displayTier,
+    teamsAddonOn,
+    memberCount,
+  });
   const product =
     targetTier === "hobby" ? undefined : checkoutProductForTier(targetTier);
   const isCurrentDisplay =

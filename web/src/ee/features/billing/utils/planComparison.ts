@@ -552,6 +552,36 @@ export const additiveUpgradeFrom = (
   }
 };
 
+export const getDisplayPlanComparison = ({
+  currentTier,
+  displayTier,
+  teamsAddonOn,
+  memberCount,
+}: {
+  currentTier: PlanTier;
+  displayTier: DisplayPlanTier;
+  teamsAddonOn: boolean;
+  memberCount?: number;
+}): PlanComparison => {
+  const targetTier: PlanTier =
+    displayTier === "pro" && teamsAddonOn ? "team" : displayTier;
+  const listTier: PlanTier = displayTier === "pro" ? "pro" : displayTier;
+
+  if (currentTier === targetTier) {
+    return getPlanComparison({
+      currentTier,
+      targetTier: currentTier,
+    });
+  }
+
+  return getPlanComparison({
+    currentTier,
+    targetTier: listTier,
+    memberCount,
+    upgradeFrom: additiveUpgradeFrom(displayTier) ?? undefined,
+  });
+};
+
 export const teamsAddonBenefitLines = () =>
   capabilityDiff(LIMITS.pro, LIMITS.team, "plus").map((line) => line.text);
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  getDisplayPlanComparison,
   getPlanComparison,
   includingTeamsPriceLabel,
   planChoiceReason,
@@ -149,6 +150,20 @@ describe("planComparison", () => {
     expect(comparison.lines.map((line) => line.text)).not.toContain(
       "Unlimited users",
     );
+  });
+
+  it("summarizes the Team plan the org actually has on the Pro card", () => {
+    const comparison = getDisplayPlanComparison({
+      currentTier: "team",
+      displayTier: "pro",
+      teamsAddonOn: true,
+    });
+    const texts = comparison.lines.map((line) => line.text);
+
+    expect(comparison.heading).toBe("What you have today");
+    expect(texts).toContain("Private Slack channel, 24h response");
+    expect(texts).toContain("Enterprise SSO and fine-grained RBAC");
+    expect(texts).not.toContain("Prioritized in-app support");
   });
 
   it("adds Teams-only controls when comparing Core to Pro + Teams", () => {
