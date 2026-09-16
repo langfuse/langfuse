@@ -30,7 +30,6 @@ import {
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
 import { useSearch } from "@/src/features/traces/contexts/SearchContext";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 
@@ -59,7 +58,6 @@ function useHasPlayback(): boolean {
   const { traceDuration } = useTraceData();
   const { isGraphViewAvailable, isLoading: isGraphDataLoading } =
     useTraceGraphData();
-  const { showGraph } = useViewPreferences();
   const { searchQuery } = useSearch();
   const [viewMode] = useQueryParam("view", StringParam);
   const showPlayhead = useShowPlayhead();
@@ -67,7 +65,8 @@ function useHasPlayback(): boolean {
   const isSearching = searchQuery.trim().length > 0;
   const hasPlaybackSurface =
     (viewMode === "timeline" && !isSearching) ||
-    (showGraph && (isGraphViewAvailable || isGraphDataLoading));
+    isGraphViewAvailable ||
+    isGraphDataLoading;
   return traceDuration > 0 && (hasPlaybackSurface || showPlayhead);
 }
 

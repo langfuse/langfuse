@@ -23,6 +23,7 @@ import {
   Loader2,
   ListTree,
   GanttChartSquare,
+  Network,
   MoreHorizontal,
   type LucideIcon,
 } from "lucide-react";
@@ -176,7 +177,14 @@ function TracePanelNavigationHeaderExpanded({
       }
     }, [isV4, observations, trace, capture, analyticsDimensions]);
 
-  const isTimelineView = viewMode === "timeline";
+  // Graph is a view like the others, but only for traces that have graph data.
+  // A stale ?view=graph URL on a trace without it resolves back to tree.
+  const activeView: TraceViewMode =
+    viewMode === "timeline"
+      ? "timeline"
+      : viewMode === "graph" && isGraphViewAvailable
+        ? "graph"
+        : "tree";
 
   return (
     <Command className="flex h-auto shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
@@ -238,9 +246,7 @@ function TracePanelNavigationHeaderExpanded({
               )}
             </Button>
 
-            <TraceSettingsDropdown
-              isGraphViewAvailable={isGraphViewAvailable}
-            />
+            <TraceSettingsDropdown />
 
             <Button
               variant="ghost"
@@ -289,9 +295,7 @@ function TracePanelNavigationHeaderExpanded({
               </DropdownMenuItem>
               <PlaybackMenuItems />
               <DropdownMenuSeparator />
-              <TraceViewOptionsMenuItems
-                isGraphViewAvailable={isGraphViewAvailable}
-              />
+              <TraceViewOptionsMenuItems />
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -304,19 +308,20 @@ function TracePanelNavigationHeaderExpanded({
             <PlaybackControls />
           </div>
 
-          {/* Tree / Timeline segmented switch (labels collapse to icons when
-              the panel is narrow — see @container/navheader). */}
+          {/* Tree / Timeline / Graph segmented switch (labels collapse to
+              icons when the panel is narrow — see @container/navheader). */}
           <ViewModeSwitch
-            isTimelineView={isTimelineView}
-            onSelect={(timeline) => {
+            activeView={activeView}
+            showGraphSegment={isGraphViewAvailable}
+            onSelect={(view) => {
               // Clicking the already-active segment is a no-op — don't count it.
-              if (timeline !== isTimelineView) {
+              if (view !== activeView) {
                 capture("trace_detail:view_mode_switch", {
-                  viewMode: timeline ? "timeline" : "tree",
+                  viewMode: view,
                   ...analyticsDimensions,
                 });
               }
-              setViewMode(timeline ? "timeline" : null);
+              setViewMode(view === "tree" ? null : view);
             }}
           />
           {/* When the detail panel is closed it shows its own collapsed rail
@@ -329,18 +334,22 @@ function TracePanelNavigationHeaderExpanded({
   );
 }
 
+type TraceViewMode = "tree" | "timeline" | "graph";
+
 function ViewModeSwitch({
-  isTimelineView,
+  activeView,
+  showGraphSegment,
   onSelect,
 }: {
-  isTimelineView: boolean;
-  onSelect: (timeline: boolean) => void;
+  activeView: TraceViewMode;
+  showGraphSegment: boolean;
+  onSelect: (view: TraceViewMode) => void;
 }) {
   return (
     <div className="bg-muted/60 ml-2 inline-flex h-7 shrink-0 items-center rounded-md border p-0.5">
       <ViewModeSegment
-        active={!isTimelineView}
-        onClick={() => onSelect(false)}
+        active={activeView === "tree"}
+        onClick={() => onSelect("tree")}
         icon={ListTree}
         label="Tree"
       />
@@ -348,11 +357,21 @@ function ViewModeSwitch({
           preview — see TracePanelNavigation — rather than on a third segment
           the user has to understand. */}
       <ViewModeSegment
-        active={isTimelineView}
-        onClick={() => onSelect(true)}
+        active={activeView === "timeline"}
+        onClick={() => onSelect("timeline")}
         icon={GanttChartSquare}
         label="Timeline"
       />
+      {/* Graph is a full view, not a side panel — the segment only exists for
+          traces that have graph data (agent traces under the node cap). */}
+      {showGraphSegment && (
+        <ViewModeSegment
+          active={activeView === "graph"}
+          onClick={() => onSelect("graph")}
+          icon={Network}
+          label="Graph"
+        />
+      )}
     </div>
   );
 }
