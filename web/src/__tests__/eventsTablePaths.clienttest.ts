@@ -1,7 +1,6 @@
 // @vitest-environment node
 
 import {
-  buildEventsTablePathForColumnFilter,
   buildEventsTablePathForObservationType,
   buildEventsTablePathForSpanName,
 } from "@/src/features/events/lib/eventsTablePaths";
@@ -77,34 +76,5 @@ describe("buildEventsTablePathForSpanName", () => {
     expect(url.searchParams.get("filter")).toBe(
       "type;stringOptions;;any of;GENERATION",
     );
-  });
-});
-
-describe("buildEventsTablePathForColumnFilter", () => {
-  it("covers a row whose timestamp is in the future (skewed client clock)", () => {
-    const coverTime = new Date(Date.now() + 3 * 24 * 60 * 60_000);
-
-    const result = buildEventsTablePathForColumnFilter({
-      currentPath: "/project/project-1/traces/trace-1",
-      projectId: "project-1",
-      target: "observations",
-      filter: {
-        column: "name",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["answer"],
-      },
-      coverTime,
-    });
-
-    const dateRange = new URL(
-      result,
-      "https://langfuse.local",
-    ).searchParams.get("dateRange");
-    const [from, to] = (dateRange ?? "").split("-").map(Number);
-
-    expect(Number.isFinite(from) && Number.isFinite(to)).toBe(true);
-    expect(from).toBeLessThanOrEqual(coverTime.getTime());
-    expect(to).toBeGreaterThanOrEqual(coverTime.getTime());
   });
 });

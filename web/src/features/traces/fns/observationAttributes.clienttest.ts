@@ -6,7 +6,7 @@ import {
   attributeGrammar,
   buildModelParameters,
   buildObservationAttributes,
-} from "./ObservationAttributesList";
+} from "./observationAttributes";
 
 describe("buildObservationAttributes", () => {
   it("adds session and user after the fixed keys and skips empty values", () => {

@@ -4,6 +4,7 @@ import { useMemo } from "react";
 
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
+import { AttributeRowActions } from "./AttributeRowActions";
 import { LargeJsonFieldFallback } from "@/src/features/traces/components/IOPreview/components/LargeJsonFieldFallback";
 import {
   JSON_VIEW_RENDER_CHAR_LIMIT,
@@ -56,11 +57,15 @@ export function ObservationAttributesTab({
               showHeader={false}
               json={attributes}
               currentView={currentView}
-              metadataActions={{
-                ...metadataActions,
-                attributes: { anchorTime: attributesAnchorTime },
-                analyticsTable: "attributes",
-              }}
+              rowActions={(row) => (
+                <AttributeRowActions
+                  row={row}
+                  projectId={projectId}
+                  filterTarget="observations"
+                  anchorTime={attributesAnchorTime}
+                  analyticsTable="attributes"
+                />
+              )}
               hoverControls
             />
           </div>
@@ -72,11 +77,6 @@ export function ObservationAttributesTab({
               showHeader={false}
               json={modelParameters}
               currentView={currentView}
-              metadataActions={{
-                ...metadataActions,
-                copyOnly: true,
-                analyticsTable: "model_parameters",
-              }}
               hoverControls
             />
           </div>
@@ -98,10 +98,7 @@ export function ObservationAttributesTab({
                 json={metadata}
                 parsedJson={parsedMetadata}
                 currentView={currentView}
-                metadataActions={{
-                  ...metadataActions,
-                  analyticsTable: "metadata",
-                }}
+                metadataActions={metadataActions}
                 hoverControls
               />
             )}

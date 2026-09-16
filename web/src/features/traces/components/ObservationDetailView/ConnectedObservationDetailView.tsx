@@ -78,7 +78,7 @@ import { ObservationAttributesTab } from "./ObservationAttributesTab";
 import {
   buildModelParameters,
   buildObservationAttributes,
-} from "@/src/features/traces/components/ObservationAttributesList";
+} from "@/src/features/traces/fns/observationAttributes";
 
 export interface ConnectedObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;

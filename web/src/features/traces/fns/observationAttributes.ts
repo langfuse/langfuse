@@ -54,14 +54,33 @@ export type AttributeColumnFilter = {
   exclude?: FilterState[number];
 };
 
-/** Maps an attribute to the table column that can filter on it. */
-export function attributeColumnFilter(
-  key: string,
+/**
+ * Which table column can filter each attribute. Keys absent from the map have
+ * no column, so they get no filter shortcut.
+ */
+const ATTRIBUTE_COLUMNS: Record<
+  string,
+  (value: string, target: AttributeTarget) => AttributeColumnFilter | null
+> = {
+  environment: (value, target) => optionsFilter("environment", value, target),
+  // Traces have no model column.
+  model: (value) => optionsFilter("model", value, "observations"),
+  session_id: (value, target) => optionsFilter("sessionId", value, target),
+  user_id: (value, target) => optionsFilter("userId", value, target),
+  version: (value, target) => textFilter("version", value, target),
+  // Observations have no release column, and an observation's release could
+  // belong to a different trace record.
+  release: (value, target) =>
+    target === "traces" ? textFilter("release", value, "traces") : null,
+};
+
+function optionsFilter(
+  column: string,
   value: string,
   target: AttributeTarget,
-): AttributeColumnFilter | null {
-  const options = (column: string, t: AttributeTarget) => ({
-    target: t,
+): AttributeColumnFilter {
+  return {
+    target,
     include: {
       column,
       type: "stringOptions" as const,
@@ -74,33 +93,31 @@ export function attributeColumnFilter(
       operator: "none of" as const,
       value: [value],
     },
-  });
-  const text = (column: string, t: AttributeTarget) => ({
-    target: t,
+  };
+}
+
+function textFilter(
+  column: string,
+  value: string,
+  target: AttributeTarget,
+): AttributeColumnFilter {
+  return {
+    target,
     include: {
       column,
       type: "string" as const,
       operator: "=" as const,
       value,
     },
-  });
-  switch (key) {
-    case "environment":
-      return options("environment", target);
-    case "model":
-      return options("model", "observations");
-    case "session_id":
-      return options("sessionId", target);
-    case "user_id":
-      return options("userId", target);
-    case "version":
-      return text("version", target);
-    case "release":
-      // Observations have no release column.
-      return target === "traces" ? text("release", "traces") : null;
-    default:
-      return null;
-  }
+  };
+}
+
+export function attributeColumnFilter(
+  key: string,
+  value: string,
+  target: AttributeTarget,
+): AttributeColumnFilter | null {
+  return ATTRIBUTE_COLUMNS[key]?.(value, target) ?? null;
 }
 
 /** Search-bar grammar for a key/value pair. */
