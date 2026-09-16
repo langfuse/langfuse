@@ -14,6 +14,11 @@ import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
 import { GRAPH_UNAVAILABLE_COPY } from "@/src/features/traces/fns/graphAvailability";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { useReadPath } from "@/src/features/events";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
@@ -396,16 +401,16 @@ function ViewModeSegment({
   icon: LucideIcon;
   label: string;
   disabled?: boolean;
-  /** Overrides the label as the hover text, e.g. why the view is unavailable. */
+  /** Why the view is unavailable; shown in a tooltip. */
   title?: string;
 }) {
-  return (
+  const segment = (
     <button
       type="button"
       onClick={disabled ? undefined : onClick}
       aria-disabled={disabled || undefined}
       aria-pressed={active}
-      title={title ?? label}
+      title={disabled ? undefined : label}
       className={cn(
         "flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-bold transition-colors",
         disabled && "cursor-not-allowed opacity-40",
@@ -418,5 +423,14 @@ function ViewModeSegment({
       <Icon className="h-3.5 w-3.5 shrink-0 @min-[440px]/navheader:hidden" />
       <span className="hidden @min-[440px]/navheader:inline">{label}</span>
     </button>
+  );
+
+  // A native title does not reliably surface on a segment this small.
+  if (!disabled || !title) return segment;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{segment}</TooltipTrigger>
+      <TooltipContent>{title}</TooltipContent>
+    </Tooltip>
   );
 }
