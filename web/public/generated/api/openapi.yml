@@ -3252,7 +3252,7 @@ paths:
                                           // - categoryOptions: "any of", "none of"
                                           // - arrayOptions: "any of", "none of", "all of"
                                           // - number: "=", ">", "<", ">=", "<="
-                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "is set", "is not set"
                                           // - numberObject: "=", ">", "<", ">=", "<="
                                           // - boolean: "=", "<>"
                                           // - null: "is null", "is not null"
@@ -4573,7 +4573,7 @@ paths:
                                           // - categoryOptions: "any of", "none of"
                                           // - arrayOptions: "any of", "none of", "all of"
                                           // - number: "=", ">", "<", ">=", "<="
-                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "matches"
+                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "matches", "is set", "is not set"
                                           // - numberObject: "=", ">", "<", ">=", "<="
                                           // - boolean: "=", "<>"
                                           // - null: "is null", "is not null"
@@ -7001,7 +7001,9 @@ paths:
             Supported types: stringObject (metadata key-value filtering),
             string, number, datetime, stringOptions, arrayOptions. Supported
             operators for stringObject: =, contains, does not contain, starts
-            with, ends with.
+            with, ends with, is set, is not set. Use is set / is not set to
+            filter on metadata key presence. An empty value for contains, starts
+            with, or ends with is treated as is set (key presence).
           required: false
           schema:
             type: string
@@ -7547,7 +7549,7 @@ paths:
                                           // - categoryOptions: "any of", "none of"
                                           // - arrayOptions: "any of", "none of", "all of"
                                           // - number: "=", ">", "<", ">=", "<="
-                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "is set", "is not set"
                                           // - numberObject: "=", ">", "<", ">=", "<="
                                           // - booleanObject: "=", "<>"
                                           // - boolean: "=", "<>"
@@ -12234,7 +12236,10 @@ components:
 
         - `arrayOptions`: `any of`, `none of`, `all of`
 
-        - `stringObject`: same operators as `string`
+        - `stringObject`: `"="`, `contains`, `does not contain`, `starts with`,
+        `ends with`, `is set`, `is not set` (use `is set` / `is not set` for key
+        presence; an empty value for `contains`, `starts with`, or `ends with`
+        is treated as `is set`)
 
         - `boolean`: `"="`, `"<>"`
 
