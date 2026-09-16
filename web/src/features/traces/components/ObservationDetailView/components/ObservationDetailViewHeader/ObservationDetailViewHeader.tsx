@@ -47,7 +47,6 @@ import {
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { resolveObservationCostSource } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/costSource";
 import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
-import { ModelParametersBadges } from "@/src/features/traces/components/ObservationDetailView/components/ModelParametersBadges";
 import {
   type WithStringifiedMetadata,
   type MetadataDomainClient,
@@ -785,9 +784,6 @@ export const ObservationDetailViewHeader = memo(
                   usageDetails={observation.usageDetails}
                 />
               )}
-              <ModelParametersBadges
-                modelParameters={observation.modelParameters}
-              />
               {observation.level !== "DEFAULT" && (
                 <ObservationLevelBadge
                   level={observation.level}
