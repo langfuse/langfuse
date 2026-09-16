@@ -10,7 +10,6 @@ import {
   probeJsonField,
 } from "@/src/features/traces/components/IOPreview/fns/jsonViewSizeGate";
 
-// Matches Preview's table wrappers.
 const SECTION_CLASS =
   "[&_.io-message-content]:px-3 [&_.io-message-header]:px-3";
 
@@ -26,11 +25,10 @@ export function ObservationAttributesTab({
   attributes: Record<string, unknown>;
   modelParameters: Record<string, unknown> | null;
   metadata: unknown;
-  /** Reused from Preview so the tab never re-parses. */
+  /** Avoids re-parsing. */
   parsedMetadata?: unknown;
   observationId: string;
   projectId: string;
-  /** Shared with Preview's table / JSON switch. */
   currentView: "pretty" | "json";
 }) {
   const metadataActions: MetadataFilterActions = {

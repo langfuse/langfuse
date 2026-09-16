@@ -382,7 +382,6 @@ export function ConnectedObservationDetailView({
               <TooltipProvider>
                 <TabsBarList>
                   <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
-                  {/* Facts about the call, not its input and output. */}
                   <TabsBarTrigger value="attributes">Attributes</TabsBarTrigger>
                   {showScoresTab ? (
                     <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
