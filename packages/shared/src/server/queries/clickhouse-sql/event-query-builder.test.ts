@@ -21,6 +21,34 @@ describe("EventsQueryBuilder public API v2 field groups", () => {
       expect(query.includes('"is_root_observation"')).toBe(selected);
     },
   );
+
+  it.each([
+    {
+      name: "usage vs metadata",
+      orderA: ["core", "basic", "usage", "metadata"] as const,
+      orderB: ["core", "basic", "metadata", "usage"] as const,
+    },
+    {
+      name: "usage vs metrics",
+      orderA: ["core", "basic", "usage", "metrics"] as const,
+      orderB: ["core", "basic", "metrics", "usage"] as const,
+    },
+    {
+      name: "usage vs trace_context",
+      orderA: ["core", "basic", "usage", "trace_context"] as const,
+      orderB: ["core", "basic", "trace_context", "usage"] as const,
+    },
+  ])(
+    "emits identical SQL regardless of field-group order ($name)",
+    ({ orderA, orderB }) => {
+      const queryFor = (sets: typeof orderA | typeof orderB) =>
+        new EventsQueryBuilder({ projectId: "test-project" })
+          .selectFieldSet(...sets)
+          .buildWithParams().query;
+
+      expect(queryFor(orderA)).toBe(queryFor(orderB));
+    },
+  );
 });
 
 describe("EventsAggregationQueryBuilder", () => {
