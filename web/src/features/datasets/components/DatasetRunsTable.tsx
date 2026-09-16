@@ -60,14 +60,6 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
-import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
@@ -103,7 +95,6 @@ const DatasetRunTableMultiSelectAction = ({
   datasetId: string;
   setRowSelection: (value: Record<string, boolean>) => void;
 }) => {
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const mutDelete = api.datasets.deleteDatasetRuns.useMutation({
@@ -114,80 +105,53 @@ const DatasetRunTableMultiSelectAction = ({
   });
 
   return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            disabled={selectedRunIds.length < 1}
-            onClick={() => capture("dataset_run:compare_view_click")}
-          >
-            Actions ({selectedRunIds.length} selected)
-            <ChevronDown className="h-5 w-5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent key="dropdown-menu-content">
-          <Link
-            key="compare"
-            href={{
-              pathname: `/project/${projectId}/datasets/${datasetId}/compare`,
-              query: { runs: selectedRunIds },
-            }}
-          >
-            <DropdownMenuItem>
-              <Columns3 className="mr-2 h-4 w-4" />
-              <span>Compare</span>
-            </DropdownMenuItem>
-          </Link>
-          <DropdownMenuItem
-            key="delete"
-            onClick={() => setIsDeleteDialogOpen(true)}
-          >
-            <Trash className="mr-2 h-4 w-4" />
-            <span>Delete</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <Dialog
-        key="delete-dialog"
-        open={isDeleteDialogOpen}
-        onOpenChange={(isOpen) => {
-          if (!mutDelete.isPending) {
-            setIsDeleteDialogOpen(isOpen);
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle className="mb-4">Please confirm</DialogTitle>
-            <DialogDescription className="p-0">
-              This action cannot be undone and removes all the data associated
-              with {selectedRunIds.length} dataset run
-              {selectedRunIds.length > 1 ? "s" : ""}.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
+    <ConfirmationDialogController
+      title="Please confirm"
+      text={`This action cannot be undone and removes all the data associated with ${selectedRunIds.length} dataset run${selectedRunIds.length > 1 ? "s" : ""}.`}
+      confirmLabel="Delete Experiments"
+      variant="destructive"
+      loading={mutDelete.isPending}
+      onConfirm={async () => {
+        capture("dataset_run:delete_form_submit");
+        await mutDelete.mutateAsync({
+          projectId,
+          datasetId,
+          datasetRunIds: selectedRunIds,
+        });
+      }}
+    >
+      {({ openDialog }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <Button
-              variant="destructive"
-              loading={mutDelete.isPending}
-              disabled={mutDelete.isPending}
-              onClick={async (event) => {
-                event.preventDefault();
-                capture("dataset_run:delete_form_submit");
-                await mutDelete.mutateAsync({
-                  projectId,
-                  datasetId,
-                  datasetRunIds: selectedRunIds,
-                });
-                setIsDeleteDialogOpen(false);
+              disabled={selectedRunIds.length < 1}
+              onClick={() => capture("dataset_run:compare_view_click")}
+            >
+              Actions ({selectedRunIds.length} selected)
+              <ChevronDown className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent key="dropdown-menu-content">
+            <Link
+              key="compare"
+              href={{
+                pathname: `/project/${projectId}/datasets/${datasetId}/compare`,
+                query: { runs: selectedRunIds },
               }}
             >
-              Delete Experiments
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+              <DropdownMenuItem>
+                <Columns3 className="mr-2 h-4 w-4" />
+                <span>Compare</span>
+              </DropdownMenuItem>
+            </Link>
+            <DropdownMenuItem key="delete" onClick={openDialog}>
+              <Trash className="mr-2 h-4 w-4" />
+              <span>Delete</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </ConfirmationDialogController>
   );
 };
 
