@@ -1,7 +1,7 @@
 import { z } from "zod";
 import startCase from "lodash/startCase";
 
-import { singleFilter, type FilterState } from "@langfuse/shared";
+import { singleFilterList, type FilterState } from "@langfuse/shared";
 import {
   getValidAggregationsForMeasureType,
   getWidgetRequiredVersion,
@@ -185,7 +185,7 @@ export function makeWidgetFormSchema(viewVersion: ViewVersion) {
       name: z.string().nullable(),
       description: z.string().nullable(),
       view: views,
-      filters: z.array(singleFilter),
+      filters: singleFilterList,
       metrics: z.array(MetricFieldSchema).min(1),
       dimensions: z.array(z.object({ field: z.string() })),
       chart: z.object({

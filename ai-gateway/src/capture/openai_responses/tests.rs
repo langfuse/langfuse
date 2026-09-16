@@ -24,7 +24,7 @@ fn captured(execution: &ExecutionCapture) -> &OpenAiResponsesCapture {
 
 async fn observer(mode: &'static str) -> ExecutionCapture {
     let context = resolved_request_context_with_mode("provider-secret", mode).await;
-    ExecutionCapture::openai_responses(&context, &HeaderMap::new(), br#"{"model":"requested","instructions":"prompt-canary","input":[{"role":"user","content":"hello"}],"tools":[{"type":"function","name":"weather","parameters":{"type":"object"}}],"text":{"format":{"type":"json_schema","schema":{"description":"schema-canary"}}},"service_tier":"auto"}"#)
+    ExecutionCapture::openai_responses(&context, &HeaderMap::new(), br#"{"model":"requested","instructions":"prompt-canary","input":[{"role":"user","content":"hello"}],"tools":[{"type":"function","name":"weather","parameters":{"type":"object"}}],"text":{"format":{"type":"json_schema","schema":{"description":"schema-canary"}}},"service_tier":"auto","metadata":{"label":"request-metadata-canary"},"safety_identifier":"safety-id-canary","prompt_cache_key":"cache-id-canary","user":"user-id-canary"}"#)
 }
 
 fn response(observer: &mut ExecutionCapture, content_type: &'static str) {
@@ -166,12 +166,139 @@ async fn usage_mode_excludes_content_and_context_credentials() {
     for secret in [
         "prompt-canary",
         "schema-canary",
+        "request-metadata-canary",
+        "safety-id-canary",
+        "cache-id-canary",
+        "user-id-canary",
         "output-canary",
         "provider-secret",
         "private-ingestion-token",
         "gateway-secret",
     ] {
         assert!(!text.contains(secret), "leaked {secret}");
+    }
+}
+
+#[tokio::test]
+async fn request_configuration_is_projected_out_of_input() {
+    let request = json!({
+        "model": "requested", "input": "hello", "instructions": "be brief",
+        "tools": [{"type": "function", "name": "weather"}],
+        "previous_response_id": "resp-previous", "future_field": {"keep": true},
+        "temperature": 0.5, "stream": true, "parallel_tool_calls": false,
+        "reasoning": {"effort": "high"}, "text": {"format": {"type": "json_object"}},
+        "stream_options": {"include_obfuscation": false},
+        "metadata": {"purpose": "test"}, "prompt_cache_key": "cache-key"
+    });
+    let capture = OpenAiResponsesCapture::new(
+        &HeaderMap::new(),
+        request.to_string().as_bytes(),
+        IngestionMode::Full,
+    )
+    .into_facts();
+    assert_eq!(
+        capture.input.unwrap(),
+        json!({
+            "input": "hello", "instructions": "be brief",
+            "tools": [{"type": "function", "name": "weather"}],
+            "previous_response_id": "resp-previous", "future_field": {"keep": true}
+        })
+    );
+    assert_eq!(capture.model_parameters["stream"], true);
+    assert_eq!(capture.model_parameters["parallel_tool_calls"], false);
+    assert_eq!(capture.model_parameters["reasoning"], request["reasoning"]);
+    assert_eq!(capture.model_parameters["text"], request["text"]);
+    assert_eq!(
+        capture.model_parameters["stream_options"],
+        request["stream_options"]
+    );
+    assert_eq!(capture.request_metadata["metadata"], request["metadata"]);
+    assert_eq!(capture.request_metadata["prompt_cache_key"], "cache-key");
+}
+
+#[tokio::test]
+async fn completion_time_requires_sse_generated_content_in_either_ingestion_mode() {
+    for mode in ["full", "usage"] {
+        for (kind, field) in [
+            ("response.output_text.delta", "delta"),
+            ("response.function_call_arguments.delta", "delta"),
+            ("response.reasoning_summary_text.delta", "delta"),
+            ("response.custom_tool_call_input.delta", "delta"),
+            ("response.audio.delta", "delta"),
+            ("response.audio.transcript.delta", "delta"),
+            ("response.shell_call_command.delta", "delta"),
+            (
+                "response.image_generation_call.partial_image",
+                "partial_image_b64",
+            ),
+        ] {
+            let mut observer = observer(mode).await;
+            response(&mut observer, "text/event-stream; charset=utf-8");
+            observer.bytes(b": keepalive\n\n");
+            observer.bytes(
+                event(
+                    "response.created",
+                    json!({"response":{"status":"in_progress"}}),
+                )
+                .as_bytes(),
+            );
+            observer.bytes(event(kind, json!({field:""})).as_bytes());
+            assert!(observer.first_byte_ms.is_some());
+            assert!(observer.completion_start_ms.is_none());
+            let delta = event(kind, json!({field:"hello"}));
+            let split = delta.len() - 1;
+            observer.bytes(&delta.as_bytes()[..split]);
+            assert!(observer.completion_start_ms.is_none());
+            observer.bytes(&delta.as_bytes()[split..]);
+            let first = observer.completion_start_ms.unwrap();
+            observer.bytes(event(kind, json!({field:"later"})).as_bytes());
+            assert_eq!(observer.completion_start_ms, Some(first));
+        }
+        // The upstream content type controls timing even if the request asks to stream.
+        let context = resolved_request_context_with_mode("provider-secret", mode).await;
+        let mut observer = ExecutionCapture::openai_responses(
+            &context,
+            &HeaderMap::new(),
+            br#"{"stream":true,"input":"hello"}"#,
+        );
+        response(&mut observer, "application/json; charset=utf-8");
+        observer.bytes(br#"{"output":[],"status":"completed"}"#);
+        observer.end_body();
+        assert!(observer.first_byte_ms.is_some());
+        assert!(observer.completion_start_ms.is_none());
+    }
+}
+
+#[tokio::test]
+async fn provider_error_details_are_bounded_and_full_mode_only() {
+    for mode in ["full", "usage"] {
+        for streaming in [false, true] {
+            let mut observer = observer(mode).await;
+            response(
+                &mut observer,
+                if streaming {
+                    "text/event-stream"
+                } else {
+                    "application/json"
+                },
+            );
+            let error = json!({"code":"rate_limit_exceeded","message":"é".repeat(MAX_FACT_STRING)});
+            let body = if streaming {
+                event("error", error)
+            } else {
+                json!({"error":error}).to_string()
+            };
+            observer.bytes(body.as_bytes());
+            observer.end_body();
+            let facts = &captured(&observer).facts;
+            if mode == "full" {
+                let message = facts.error_message.as_ref().unwrap();
+                assert!(message.starts_with("rate_limit_exceeded: é"));
+                assert!(message.len() <= MAX_FACT_STRING);
+            } else {
+                assert!(facts.error_message.is_none());
+            }
+        }
     }
 }
 
@@ -577,11 +704,15 @@ async fn client_compression_preferences_do_not_disable_capture() {
         assert_eq!(collector.calls(), 1);
         let upload = uploaded.lock().unwrap();
         let metadata = uploaded_attribute(&upload, "langfuse.observation.metadata");
-        assert_eq!(metadata["capture_complete"], true);
-        assert_eq!(metadata["output_complete"], true);
-        assert_eq!(metadata["provider_response_id"], "resp-1");
-        assert_eq!(metadata["provider_status"], "completed");
-        assert!(metadata["native_usage"]["input_tokens"].is_number());
+        assert!(metadata.get("capture_complete").is_none());
+        assert!(metadata.get("output_complete").is_none());
+        assert!(metadata.get("provider_status").is_none());
+        assert!(metadata.get("native_usage").is_none());
+        assert_eq!(metadata["langfuse.gateway.provider.response_id"], "resp-1");
+        assert!(
+            uploaded_attribute(&upload, "langfuse.observation.usage_details")["input_tokens"]
+                .is_number()
+        );
         assert_eq!(
             uploaded_attribute(&upload, "langfuse.observation.output")[0]["content"][0]["text"],
             "captured output"
@@ -653,9 +784,15 @@ async fn capture_regression_preserves_native_request_and_usage() {
                 execution.bytes(body.as_bytes());
                 execution.end_body();
                 let facts = &captured(&execution).facts;
+                let mut expected_input = request.clone();
+                expected_input.as_object_mut().unwrap().remove("model");
                 assert_eq!(
                     facts.input.as_ref(),
-                    if mode == "full" { Some(&request) } else { None }
+                    if mode == "full" {
+                        Some(&expected_input)
+                    } else {
+                        None
+                    }
                 );
                 assert_eq!(facts.usage_details.as_ref(), Some(&usage));
                 assert!(facts.capture_complete);
