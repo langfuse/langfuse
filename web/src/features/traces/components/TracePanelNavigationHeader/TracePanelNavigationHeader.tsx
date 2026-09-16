@@ -214,7 +214,7 @@ function TracePanelNavigationHeaderExpanded({
           panel min). If you ADD anything to this row, re-measure and retune all
           three — stale thresholds show up as a clipped switcher at default
           widths, which is what the folding exists to prevent. */}
-      <div className="@container/navheader flex flex-row items-center pr-2 pl-1">
+      <div className="@container/navheader flex flex-row items-center justify-between pr-2 pl-1">
         {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed
             version. Hidden while the detail panel is closed (nothing useful to
             collapse the full-width tree/timeline into). */}
@@ -230,14 +230,14 @@ function TracePanelNavigationHeaderExpanded({
         {/* Search Input */}
         <div
           className={cn(
-            "relative hidden min-w-0 flex-1 @min-[360px]/navheader:block",
+            "relative min-w-0 flex-1",
             isDetailPanelCollapsed && "pl-1",
           )}
         >
           <CommandInput
             showBorder={false}
             placeholder="Search"
-            className="h-7 min-w-20 border-0 pr-0 focus:ring-0"
+            className="h-7 min-w-0 border-0 pr-0 focus:ring-0"
             value={searchInputValue}
             onValueChange={setSearchInputValue}
             onKeyDown={handleSearchKeyDown}
