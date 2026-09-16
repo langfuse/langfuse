@@ -2,16 +2,6 @@
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/src/components/ui/alert-dialog";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
@@ -288,7 +278,6 @@ function SsoConfigDialog({
   existing: SsoConfigRow | null;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingValues, setPendingValues] = useState<FormValues | null>(null);
   const utils = api.useUtils();
 
@@ -340,7 +329,6 @@ function SsoConfigDialog({
         description: `Active for @${domain} within 1 hour.`,
       });
       setDialogOpen(false);
-      setConfirmOpen(false);
       setPendingValues(null);
       form.reset();
     },
@@ -352,12 +340,7 @@ function SsoConfigDialog({
     },
   });
 
-  function onSubmit(values: FormValues) {
-    setPendingValues(values);
-    setConfirmOpen(true);
-  }
-
-  function handleConfirm() {
+  async function handleConfirm() {
     if (!pendingValues) return;
     const payload = buildSsoPayload(domain, pendingValues);
     const parsed = SsoProviderSchema.safeParse(payload);
@@ -395,132 +378,93 @@ function SsoConfigDialog({
           firstIssue.message,
         );
       }
-      setConfirmOpen(false);
       return;
     }
-    saveMutation.mutate({ orgId, payload: parsed.data });
+    await saveMutation.mutateAsync({ orgId, payload: parsed.data });
   }
 
   return (
-    <>
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogTrigger asChild>
-          <Button size="sm" variant={existing ? "outline" : "default"}>
-            {existing ? "Update" : "Configure SSO"}
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>
-              {existing
-                ? `Update SSO for ${domain}`
-                : `Configure SSO for ${domain}`}
-            </DialogTitle>
-          </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)}>
-              <DialogBody className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="authProvider"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Provider</FormLabel>
-                      <FormControl>
-                        <SelectInput
-                          value={field.value}
-                          onValueChange={field.onChange}
-                          placeholder="Select an SSO provider"
-                          options={SSO_PROVIDERS.map((provider) => ({
-                            value: provider.id,
-                            label: provider.label,
-                          }))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <CallbackUrlPanel callbackUrl={callbackUrl} />
-
-                {providerSpec.fields.includes("name") ? (
+    <ConfirmationDialogController
+      title={
+        existing
+          ? `Replace SSO for @${domain}?`
+          : `Activate SSO for @${domain}?`
+      }
+      text={`Saving will activate SSO for @${domain} within 1 hour. Every user at that domain will be redirected to your identity provider on sign-in - they will not be able to use Google, GitHub, password, or any other method until SSO is deleted.${existing ? " The new credentials will replace the active configuration." : ""} Tip: sign in via the new SSO in a second browser to confirm it works before closing this tab.`}
+      confirmLabel={existing ? "Replace" : "Activate SSO"}
+      variant="default"
+      loading={saveMutation.isPending}
+      onConfirm={handleConfirm}
+    >
+      {({ openDialog }) => (
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button size="sm" variant={existing ? "outline" : "default"}>
+              {existing ? "Update" : "Configure SSO"}
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-xl">
+            <DialogHeader>
+              <DialogTitle>
+                {existing
+                  ? `Update SSO for ${domain}`
+                  : `Configure SSO for ${domain}`}
+              </DialogTitle>
+            </DialogHeader>
+            <Form {...form}>
+              <form
+                onSubmit={form.handleSubmit((values) => {
+                  setPendingValues(values);
+                  openDialog();
+                })}
+              >
+                <DialogBody className="space-y-4">
                   <FormField
                     control={form.control}
-                    name="authConfig.name"
+                    name="authProvider"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Display Name</FormLabel>
+                        <FormLabel>Provider</FormLabel>
                         <FormControl>
-                          <Input placeholder="Acme SSO" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                ) : null}
-
-                <FormField
-                  control={form.control}
-                  name="authConfig.clientId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Client ID</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="authConfig.clientSecret"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Client Secret</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="password"
-                          autoComplete="off"
-                          placeholder={
-                            existing ? "Re-enter to update" : undefined
-                          }
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {providerSpec.fields.includes("issuer") ? (
-                  <FormField
-                    control={form.control}
-                    name="authConfig.issuer"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Issuer URL</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="https://example.okta.com"
-                            {...field}
+                          <SelectInput
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            placeholder="Select an SSO provider"
+                            options={SSO_PROVIDERS.map((provider) => ({
+                              value: provider.id,
+                              label: provider.label,
+                            }))}
                           />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                ) : null}
 
-                {providerSpec.fields.includes("tenantId") ? (
+                  <CallbackUrlPanel callbackUrl={callbackUrl} />
+
+                  {providerSpec.fields.includes("name") ? (
+                    <FormField
+                      control={form.control}
+                      name="authConfig.name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Display Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Acme SSO" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ) : null}
+
                   <FormField
                     control={form.control}
-                    name="authConfig.tenantId"
+                    name="authConfig.clientId"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Tenant ID</FormLabel>
+                        <FormLabel>Client ID</FormLabel>
                         <FormControl>
                           <Input {...field} />
                         </FormControl>
@@ -528,18 +472,20 @@ function SsoConfigDialog({
                       </FormItem>
                     )}
                   />
-                ) : null}
 
-                {providerSpec.fields.includes("baseUrl") ? (
                   <FormField
                     control={form.control}
-                    name="authConfig.baseUrl"
+                    name="authConfig.clientSecret"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Base URL</FormLabel>
+                        <FormLabel>Client Secret</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder="https://github.acme.com"
+                            type="password"
+                            autoComplete="off"
+                            placeholder={
+                              existing ? "Re-enter to update" : undefined
+                            }
                             {...field}
                           />
                         </FormControl>
@@ -547,94 +493,109 @@ function SsoConfigDialog({
                       </FormItem>
                     )}
                   />
-                ) : null}
 
-                {selectedProvider === "custom" ? (
-                  <>
+                  {providerSpec.fields.includes("issuer") ? (
                     <FormField
                       control={form.control}
-                      name="authConfig.idToken"
+                      name="authConfig.issuer"
                       render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-y-0 space-x-3 rounded-md border p-4">
+                        <FormItem>
+                          <FormLabel>Issuer URL</FormLabel>
                           <FormControl>
-                            <Checkbox
-                              checked={field.value ?? false}
-                              onCheckedChange={(checked) =>
-                                field.onChange(checked === true)
-                              }
+                            <Input
+                              placeholder="https://example.okta.com"
+                              {...field}
                             />
                           </FormControl>
-                          <div className="space-y-1 leading-none">
-                            <FormLabel>
-                              Use id_token claims only (skip userinfo)
-                            </FormLabel>
-                            <FormDescription>
-                              Leave off for IdPs that release email only via the
-                              userinfo endpoint.
-                            </FormDescription>
-                          </div>
+                          <FormMessage />
                         </FormItem>
                       )}
                     />
-                  </>
-                ) : null}
-              </DialogBody>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" loading={saveMutation.isPending}>
-                  Save
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+                  ) : null}
 
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {existing
-                ? `Replace SSO for @${domain}?`
-                : `Activate SSO for @${domain}?`}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              <span className="block">
-                Saving will activate SSO for{" "}
-                <span className="font-bold">@{domain}</span> within 1 hour.
-                Every user at that domain will be redirected to your identity
-                provider on sign-in &mdash; they will not be able to use Google,
-                GitHub, password, or any other method until SSO is deleted.
-              </span>
-              {existing ? (
-                <span className="mt-2 block">
-                  The new credentials will replace the active configuration.
-                </span>
-              ) : null}
-              <span className="mt-2 block">
-                Tip: sign in via the new SSO in a second browser to confirm it
-                works before closing this tab.
-              </span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirm}
-              disabled={saveMutation.isPending}
-            >
-              {existing ? "Replace" : "Activate SSO"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+                  {providerSpec.fields.includes("tenantId") ? (
+                    <FormField
+                      control={form.control}
+                      name="authConfig.tenantId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tenant ID</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ) : null}
+
+                  {providerSpec.fields.includes("baseUrl") ? (
+                    <FormField
+                      control={form.control}
+                      name="authConfig.baseUrl"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Base URL</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="https://github.acme.com"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ) : null}
+
+                  {selectedProvider === "custom" ? (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="authConfig.idToken"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-start space-y-0 space-x-3 rounded-md border p-4">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value ?? false}
+                                onCheckedChange={(checked) =>
+                                  field.onChange(checked === true)
+                                }
+                              />
+                            </FormControl>
+                            <div className="space-y-1 leading-none">
+                              <FormLabel>
+                                Use id_token claims only (skip userinfo)
+                              </FormLabel>
+                              <FormDescription>
+                                Leave off for IdPs that release email only via
+                                the userinfo endpoint.
+                              </FormDescription>
+                            </div>
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  ) : null}
+                </DialogBody>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" loading={saveMutation.isPending}>
+                    Save
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+      )}
+    </ConfirmationDialogController>
   );
 }
 
@@ -725,7 +686,9 @@ function DeleteSsoConfigButton({
       confirmLabel="Remove"
       variant="destructive"
       loading={deleteMutation.isPending}
-      onConfirm={() => deleteMutation.mutateAsync({ orgId, domain })}
+      onConfirm={async () => {
+        await deleteMutation.mutateAsync({ orgId, domain });
+      }}
     >
       {({ openDialog }) => (
         <Button

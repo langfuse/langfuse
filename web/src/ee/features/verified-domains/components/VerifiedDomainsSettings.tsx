@@ -461,7 +461,9 @@ function DeleteDomainButton({
       confirmLabel="Remove"
       variant="destructive"
       loading={deleteMutation.isPending}
-      onConfirm={() => deleteMutation.mutateAsync({ orgId, id })}
+      onConfirm={async () => {
+        await deleteMutation.mutateAsync({ orgId, id });
+      }}
     >
       {({ openDialog }) => (
         <Button
