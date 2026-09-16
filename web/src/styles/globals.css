@@ -102,8 +102,7 @@
   --color-qlang-number: hsl(var(--qlang-number));
   --color-qlang-keyword: hsl(var(--qlang-keyword));
 
-  /* JSON value types in the pretty table view (PrettyJsonView / ValueCell).
-     Named -value- because react18-json-view owns `--json-string` et al. */
+  /* -value- because react18-json-view owns `--json-string`. */
   --color-json-value-string: var(--json-value-string);
   --color-json-value-number: var(--json-value-number);
   --color-json-value-boolean: var(--json-value-boolean);
@@ -400,11 +399,7 @@
     --qlang-number: 24 75% 42%;
     --qlang-keyword: 221 83% 53%;
 
-    /* JSON value types in the pretty table view: string=green, number=blue,
-       boolean=orange, null/undefined=gray. Light is straight from the Tailwind
-       palette; dark keeps each hue but at roughly half the chroma, because the
-       palette's 300s and 400s read neon against the near-black canvas. These
-       hold complete colors, not hsl() triplets — do not wrap them. */
+    /* Complete colors, not hsl() triplets — do not wrap these. */
     --json-value-string: var(--color-green-800);
     --json-value-number: var(--color-blue-800);
     --json-value-boolean: var(--color-orange-800);
@@ -586,7 +581,6 @@
     --qlang-number: 27 96% 61%;
     --qlang-keyword: 213 94% 68%;
 
-    /* JSON value types (dark). See :root for the contract. */
     --json-value-string: hsl(142 40% 60%);
     --json-value-number: hsl(213 50% 68%);
     --json-value-boolean: hsl(27 50% 61%);
