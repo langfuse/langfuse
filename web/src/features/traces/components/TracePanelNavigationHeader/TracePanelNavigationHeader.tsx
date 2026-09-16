@@ -26,12 +26,7 @@ import {
   FoldVertical,
   UnfoldVertical,
   Download,
-  Loader2,
-  ListTree,
-  GanttChartSquare,
-  Network,
   MoreHorizontal,
-  type LucideIcon,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -43,16 +38,13 @@ import {
 import { StringParam, useQueryParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
 import { useCallback } from "react";
-import {
-  TraceSettingsDropdown,
-  TraceViewOptionsMenuItems,
-} from "../TraceSettingsDropdown";
+import { TraceViewOptionsMenuItems } from "../TraceSettingsDropdown";
 import {
   downloadLegacyTraceAsJson,
   downloadServerTraceAsJson,
 } from "../../fns/downloadTrace";
 import { TracePanelNavigationButton } from "./components/TracePanelNavigationButton";
-import { PlaybackControls, PlaybackMenuItems } from "../PlaybackControls";
+import { PlaybackMenuItems } from "../PlaybackControls";
 import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
@@ -245,40 +237,6 @@ function TracePanelNavigationHeaderExpanded({
           />
         </div>
         <div className="flex shrink-0 flex-row items-center gap-0.5">
-          {/* Minor tools — inline when the panel is wide enough. */}
-          <div className="hidden flex-row items-center gap-0.5 @min-[360px]/navheader:flex">
-            <Button
-              onClick={handleToggleTreeNodes}
-              variant="ghost"
-              size="icon"
-              title={isEverythingCollapsed ? "Expand all" : "Collapse all"}
-              className="h-7 w-7"
-            >
-              {isEverythingCollapsed ? (
-                <UnfoldVertical className="h-3.5 w-3.5" />
-              ) : (
-                <FoldVertical className="h-3.5 w-3.5" />
-              )}
-            </Button>
-
-            <TraceSettingsDropdown />
-
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleDownload}
-              disabled={isDownloading}
-              title="Download trace as JSON"
-              className="h-7 w-7"
-            >
-              {isDownloading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Download className="h-3.5 w-3.5" />
-              )}
-            </Button>
-          </div>
-
           {/* …and folded into an overflow menu when it's narrow. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -287,7 +245,7 @@ function TracePanelNavigationHeaderExpanded({
                 size="icon"
                 title="More"
                 aria-label="More options"
-                className="h-7 w-7 @min-[360px]/navheader:hidden"
+                className="h-7 w-7"
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />
               </Button>
@@ -313,15 +271,6 @@ function TracePanelNavigationHeaderExpanded({
               <TraceViewOptionsMenuItems />
             </DropdownMenuContent>
           </DropdownMenu>
-
-          {/* Playback transport + circular time-progress ring. View-agnostic:
-              shown in both Tree and Timeline views (see PlaybackControls) — and
-              folded into the overflow menu on a narrow panel, like the tools
-              above it. Two more 28px buttons are what tipped this row over: the
-              search input collapsed to "Se" and the switch clipped. */}
-          <div className="hidden flex-row items-center @min-[360px]/navheader:flex">
-            <PlaybackControls />
-          </div>
 
           <ViewModeSwitch
             activeView={activeView}
@@ -364,7 +313,6 @@ function ViewModeSwitch({
       <ViewModeSegment
         active={activeView === "tree"}
         onClick={() => onSelect("tree")}
-        icon={ListTree}
         label="Tree"
       />
       {/* One Timeline. What it IS depends on the Compact Timeline feature
@@ -373,13 +321,11 @@ function ViewModeSwitch({
       <ViewModeSegment
         active={activeView === "timeline"}
         onClick={() => onSelect("timeline")}
-        icon={GanttChartSquare}
         label="Timeline"
       />
       <ViewModeSegment
         active={activeView === "graph"}
         onClick={() => onSelect("graph")}
-        icon={Network}
         label="Graph"
         disabled={Boolean(graphDisabledReason)}
         title={graphDisabledReason}
@@ -391,14 +337,12 @@ function ViewModeSwitch({
 function ViewModeSegment({
   active,
   onClick,
-  icon: Icon,
   label,
   disabled = false,
   title,
 }: {
   active: boolean;
   onClick: () => void;
-  icon: LucideIcon;
   label: string;
   disabled?: boolean;
   /** Why the view is unavailable; shown in a tooltip. */
@@ -419,9 +363,7 @@ function ViewModeSegment({
           : "text-muted-foreground hover:text-foreground",
       )}
     >
-      {/* Label when there is room, icon when there is not. */}
-      <Icon className="h-3.5 w-3.5 shrink-0 @min-[440px]/navheader:hidden" />
-      <span className="hidden @min-[440px]/navheader:inline">{label}</span>
+      {label}
     </button>
   );
 
