@@ -8,9 +8,7 @@ use axum::{
     middleware::{self, Next},
     response::Response,
 };
-use opentelemetry::{propagation::TextMapPropagator, trace::TraceContextExt};
-use opentelemetry_http::HeaderExtractor;
-use opentelemetry_sdk::propagation::TraceContextPropagator;
+use opentelemetry::{Context, trace::TraceContextExt};
 use tower_http::trace::TraceLayer;
 use tracing::Span;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
@@ -23,9 +21,9 @@ pub fn instrument(router: Router) -> Router {
             TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<Body>| {
                     let (method, route) = request_labels(request);
-                    let span = tracing::info_span!("http.server", otel.name = %format_args!("{method} {route}"), otel.kind = "server", http.request.method = method, http.route = route, http.response.status_code = tracing::field::Empty, otel.status_code = tracing::field::Empty, provider_request_id = tracing::field::Empty);
-                    let parent = TraceContextPropagator::new().extract(&HeaderExtractor(request.headers()));
-                    let _ = span.set_parent(parent);
+                    let span = tracing::info_span!(parent: None, "http.server", otel.name = %format_args!("{method} {route}"), otel.kind = "server", http.request.method = method, http.route = route, http.response.status_code = tracing::field::Empty, otel.status_code = tracing::field::Empty, provider_request_id = tracing::field::Empty);
+                    // Operational tracing has no caller or ambient trace context.
+                    let _ = span.set_parent(Context::new());
                     span
                 })
                 .on_request(())

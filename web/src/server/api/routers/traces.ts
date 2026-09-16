@@ -44,7 +44,7 @@ import {
   normalizeOrderByForTable,
   orderBy,
   paginationZod,
-  singleFilter,
+  singleFilterList,
   timeFilter,
   type Observation,
   hasValidTracingSearchTypes,
@@ -76,7 +76,7 @@ const TraceCountOptions = z
     projectId: z.string(), // Required for protectedProjectProcedure
     searchQuery: z.string().nullable(),
     searchType: z.array(TracingSearchType),
-    filter: z.array(singleFilter).nullable(),
+    filter: singleFilterList.nullable(),
     orderBy: orderBy,
   })
   .refine(hasValidTracingSearchTypes, {
@@ -207,7 +207,7 @@ export const traceRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         traceIds: z.array(z.string()),
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
       }),
     )
     .query(async ({ input, ctx }) => {

@@ -41,6 +41,8 @@ type TraceType = Omit<
 > & {
   input: string | null;
   output: string | null;
+  /** Server-derived, in seconds. */
+  latency?: number;
 };
 
 interface TraceDataContextValue {
