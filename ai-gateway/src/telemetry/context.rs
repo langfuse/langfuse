@@ -93,22 +93,17 @@ impl GenerationContext {
                 result.attributes.insert(attribute.into(), value.into());
             }
         }
-        if let Some(tags) = single_header(headers, "langfuse-tags") {
-            let tags = tags
-                .split(',')
-                .take(MAX_ENTRIES)
+        result.tags(
+            list_entries(headers, "langfuse-tags")
                 .filter_map(|tag| decode(tag.trim(), false))
-                .collect();
-            result.tags(tags);
-        }
-        if let Some(metadata) = single_header(headers, "langfuse-metadata") {
-            for entry in metadata.split(',').take(MAX_ENTRIES) {
-                if let Some((key, value)) = entry.split_once(':')
-                    && let (Some(key), Some(value)) =
-                        (decode(key.trim(), false), decode(value.trim(), false))
-                {
-                    result.metadata.insert(key, value.into());
-                }
+                .collect(),
+        );
+        for entry in list_entries(headers, "langfuse-metadata") {
+            if let Some((key, value)) = entry.split_once(':')
+                && let (Some(key), Some(value)) =
+                    (decode(key.trim(), false), decode(value.trim(), false))
+            {
+                result.metadata.insert(key, value.into());
             }
         }
         result
@@ -117,13 +112,7 @@ impl GenerationContext {
     fn baggage(&mut self, headers: &HeaderMap) {
         // Do not use the generic baggage propagator: malformed input must never
         // be logged, and Python's exporter encodes spaces with quote_plus.
-        for entry in headers
-            .get_all("baggage")
-            .iter()
-            .filter_map(|value| value.to_str().ok())
-            .flat_map(|value| value.split(','))
-            .take(MAX_ENTRIES)
-        {
+        for entry in list_entries(headers, "baggage") {
             let entry = entry.split(';').next().unwrap_or_default().trim();
             let Some((key, value)) = entry.split_once('=') else {
                 continue;
@@ -161,6 +150,15 @@ impl GenerationContext {
                 .insert("langfuse.trace.tags".into(), Value::Array(tags));
         }
     }
+}
+
+fn list_entries<'a>(headers: &'a HeaderMap, name: &str) -> impl Iterator<Item = &'a str> {
+    headers
+        .get_all(name)
+        .into_iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(','))
+        .take(MAX_ENTRIES)
 }
 
 fn single_header<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {

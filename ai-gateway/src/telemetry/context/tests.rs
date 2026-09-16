@@ -114,17 +114,22 @@ fn explicit_headers_override_baggage_after_delimiter_splitting() {
             .parse()
             .unwrap(),
     );
+    headers.append("langfuse-tags", "second,a".parse().unwrap());
+    headers.append(
+        "langfuse-metadata",
+        "team_name:latest,second:value".parse().unwrap(),
+    );
     let context = GenerationContext::from_headers(&headers);
     assert_eq!(context.attributes["user.id"], "user+name value");
     assert_eq!(context.attributes["session.id"], "custom-session");
     assert_eq!(context.attributes["langfuse.trace.name"], "custom-name");
     assert_eq!(
         context.attributes["langfuse.trace.tags"],
-        json!(["a", "comma,tag", "plus+tag"])
+        json!(["a", "comma,tag", "plus+tag", "second"])
     );
     assert_eq!(
         context.metadata,
-        json!({"team_name": "new", "keep": "value", "key:name": "value,with:colon"})
+        json!({"team_name": "latest", "keep": "value", "key:name": "value,with:colon", "second": "value"})
             .as_object()
             .unwrap()
             .clone()
@@ -177,9 +182,11 @@ fn oversized_headers_fields_and_entry_counts_are_bounded() {
             .parse()
             .unwrap(),
     );
+    headers.append("langfuse-metadata", "overflow:value".parse().unwrap());
     let context = GenerationContext::from_headers(&headers);
     assert!(!context.attributes.contains_key("user.id"));
     assert_eq!(context.metadata.len(), MAX_ENTRIES);
+    assert!(!context.metadata.contains_key("overflow"));
     assert_eq!(context.parent_span_id.as_deref(), Some("0123456789abcdef"));
 }
 

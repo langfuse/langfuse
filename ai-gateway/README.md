@@ -315,6 +315,7 @@ Extraction is bounded to 8 KiB across the eight context header values above
 (`traceparent`, `tracestate`, `baggage` and the five custom headers). Above that
 limit, context is ignored and a fresh generation trace is created. Decoded fields
 are limited to 1 KiB; each baggage/tag/metadata list is limited to 64 entries.
+Repeated list header lines are combined in order within that same entry limit.
 Empty values, control characters, invalid encoding and duplicate scalar headers
 are ignored without rejecting inference.
 
