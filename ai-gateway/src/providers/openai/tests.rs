@@ -348,7 +348,7 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
         ),
         (
             "text/event-stream",
-            "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp-1\",\"model\":\"actual\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":2,\"output_tokens\":1,\"total_tokens\":3}}}\n\n",
+            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp-1\",\"model\":\"actual\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":2,\"output_tokens\":1,\"total_tokens\":3}}}\n\n",
             503,
         ),
     ] {
@@ -404,7 +404,7 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
             .await
             .unwrap()
             .unwrap();
-        assert_completed_upload(&payload);
+        assert_completed_upload(&payload, content_type == "text/event-stream");
         release.notify_one();
         telemetry
             .shutdown(Instant::now() + Duration::from_secs(1))
@@ -488,9 +488,13 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
         )
         .unwrap();
         assert_eq!(
-            metadata["relay_outcome"],
-            if cancelled { "cancelled" } else { "timeout" }
+            attrs
+                .iter()
+                .find(|a| a["key"] == "langfuse.observation.level")
+                .unwrap()["value"]["stringValue"],
+            if cancelled { "WARNING" } else { "ERROR" }
         );
+        assert!(metadata.get("relay_outcome").is_none());
         telemetry
             .shutdown(Instant::now() + Duration::from_secs(1))
             .await;
@@ -499,7 +503,7 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
     }
 }
 
-fn assert_completed_upload(payload: &serde_json::Value) {
+fn assert_completed_upload(payload: &serde_json::Value, streaming: bool) {
     use serde_json::{Value, json};
     let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
     let attrs = span["attributes"].as_array().unwrap();
@@ -509,10 +513,11 @@ fn assert_completed_upload(payload: &serde_json::Value) {
             .any(|a| a["key"] == "langfuse.observation.model.name"
                 && a["value"]["stringValue"] == "actual")
     );
-    assert!(
+    assert_eq!(
         attrs
             .iter()
-            .any(|a| a["key"] == "langfuse.observation.completion_start_time")
+            .any(|a| a["key"] == "langfuse.observation.completion_start_time"),
+        streaming,
     );
     let metadata: Value = serde_json::from_str(
         attrs
@@ -523,9 +528,20 @@ fn assert_completed_upload(payload: &serde_json::Value) {
             .unwrap(),
     )
     .unwrap();
-    assert_eq!(metadata["relay_outcome"], "eof");
+    assert!(metadata.get("relay_outcome").is_none());
+    assert!(metadata.get("native_usage").is_none());
+    assert_eq!(metadata["langfuse.gateway.provider.response_id"], "resp-1");
+    let usage: Value = serde_json::from_str(
+        attrs
+            .iter()
+            .find(|a| a["key"] == "langfuse.observation.usage_details")
+            .unwrap()["value"]["stringValue"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(
-        metadata["native_usage"],
+        usage,
         json!({"input_tokens":2,"output_tokens":1,"total_tokens":3})
     );
     for secret in [

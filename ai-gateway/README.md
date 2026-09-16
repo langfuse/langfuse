@@ -229,12 +229,27 @@ are dropped without re-resolving the execution. Requests explicitly select v4 in
 
 Each execution becomes one root generation with generated trace/observation IDs,
 actual/requested model, model parameters, native usage, and trusted key/connection
-attribution. Full mode includes the captured native input/output; usage mode omits
-content. First-byte timing supplies Langfuse's completion-start time as the gateway's
-first-token approximation. Relay outcome, provider status and capture completeness
-remain separate metadata fields. The exporter projects native OpenAI usage into the
-receiver's supported shape for pricing and preserves the untouched usage object as
-`native_usage` metadata. Missing usage is not reported as zero.
+attribution. Full mode includes the captured input/output; usage mode omits content.
+Completion-start time is emitted only for upstream `text/event-stream` responses,
+on the first nonempty text, reasoning, refusal, tool-input, audio, or partial-image content. JSON responses
+and streams without a captured content delta have no completion-start time or TTFT.
+The exporter projects native OpenAI usage into the receiver's supported shape for
+pricing without duplicating it in metadata. Missing usage is not reported as zero.
+
+Gateway metadata uses `langfuse.gateway.*`: `project_id`, `organization_id`,
+`ingestion_mode`, `api_format`, `api-key.id`, and `provider.connection_id`,
+`provider.request_id`, `provider.response_id`. API-key attribution entries appear
+both as top-level metadata and under `langfuse.gateway.api-key.metadata.*`.
+Gateway and OpenTelemetry fields win collisions; the namespaced attribution copy
+preserves the original value. `http_status` stays top level. Relay outcome, provider
+status, completeness flags and first-byte timing remain internal facts rather than
+generation metadata. Ingestion removes mapped observation-attribute duplicates for
+the gateway scope while preserving custom attributes, scope and resources.
+
+Provider HTTP failures and failed SSE responses set the generation level to `ERROR`
+with the available HTTP status in its status message. Full mode also includes a
+bounded provider error code/message; usage mode omits these details because provider
+errors may echo request content.
 
 Provisional upload limits are 32 concurrent tasks, 4 MiB serialized facts per record,
 16 MiB total retained serialized-fact/credential bytes, 8 MiB encoded payloads, and
@@ -265,11 +280,22 @@ including at debug level. `LANGFUSE_LOG_FORMAT=json` emits one JSON object per l
 
 Web's resolved ingestion mode controls content capture:
 
-- `full`: input is the native request JSON object, including `input`, `instructions`,
-  tools, parameters, context references and unknown fields. Output is an ordered
-  array of native completed items. Content is sent only through Langfuse ingestion.
+- `full`: input retains native `input`, `instructions`, tools, prompt/context
+  references and unknown fields. Model and configuration are projected out of input.
+  Output is an ordered array of native completed items. Content is sent only through
+  Langfuse ingestion.
 - `usage`: input and output are null. Model, scalar parameters, native usage,
   timing and trusted attribution are retained; request schemas/content are omitted.
+
+Full-mode model parameters include sampling/token limits, service tier, reasoning,
+text formatting, tool choice/limits, context management, truncation, streaming options,
+background/store/include flags, moderation and cache options/retention. Capture retains
+JSON types; ingestion applies Langfuse's existing model-parameter normalization
+(booleans and structured values become JSON strings). Omitted request parameters
+are not filled with assumed defaults.
+The response model and service tier take precedence over requested values when present.
+Request `metadata`, `prompt_cache_key`, `safety_identifier` and deprecated `user` are
+stored under `langfuse.gateway.provider.request.*` only in full mode.
 
 In both modes, `usage_details` preserves the provider's entire usage object,
 including nested and unknown fields. The gateway does not rename counters,
@@ -286,10 +312,11 @@ output array at EOF. Missing usage remains null, rather than invented zeros.
 `outcome` describes the relay (`eof`, `cancelled`, `timeout`, `transport_error`);
 `provider_status` is separate. For example, a completed provider response can
 still end with downstream cancellation. `first_byte_ms` measures the first body
-bytes observed by the gateway. Telemetry uses this as the first-token approximation
-for Langfuse completion-start time; it does not wait for completed output items.
+bytes observed by the gateway for operational metrics. `completion_start_ms` measures
+the first captured SSE content delta independently; it ignores response-created
+events and keepalives and does not retain or reconstruct delta content.
 
-`input_complete` means the full native request was captured; it is false when
+`input_complete` means request input was captured and configuration projected; it is false when
 content is omitted in usage mode. `output_complete` means response inspection
 finished without capture gaps for the configured mode (including a terminal event
 and all expected completed items for full-mode SSE). It does not promise that the
