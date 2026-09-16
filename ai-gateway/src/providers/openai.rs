@@ -140,7 +140,7 @@ impl OpenAiProvider {
         authorization.set_sensitive(true);
         let mut capture = ExecutionCapture::openai_responses(&context, headers, &body);
         if let Some(telemetry) = &self.telemetry {
-            capture.deliver_to(telemetry.clone(), &context);
+            capture.deliver_to(telemetry.clone(), &context, headers);
         }
         let response = tokio::time::timeout_at(
             permit

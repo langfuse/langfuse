@@ -1,4 +1,5 @@
 //! Immediate, best-effort delivery of finalized inference facts.
+mod context;
 mod mapping;
 mod otlp;
 
@@ -10,15 +11,16 @@ use std::{
     },
 };
 
+use axum::http::HeaderMap;
 use opentelemetry::trace::{FutureExt, TraceContextExt};
 use tokio::{sync::Semaphore, task::JoinSet, time::Instant};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
-use uuid::Uuid;
 
 use crate::{
     capture::InferenceFacts,
     resolution::{ControlPlaneConfig, ResolutionError, ResolvedRequestContext},
 };
+use context::GenerationContext;
 use otlp::Uploader;
 
 const MAX_UPLOADS: usize = 32;
@@ -31,18 +33,16 @@ pub(crate) struct DeliveryContext {
     pub project_id: String,
     pub access_token: String,
     pub expires_at: u64,
-    trace_id: String,
-    observation_id: String,
+    generation: GenerationContext,
 }
 
 impl DeliveryContext {
-    pub fn from_resolved(context: &ResolvedRequestContext) -> Self {
+    pub fn from_resolved(context: &ResolvedRequestContext, headers: &HeaderMap) -> Self {
         Self {
             project_id: context.attribution().project_id().to_owned(),
             access_token: context.ingestion().access_token().to_owned(),
             expires_at: context.ingestion().expires_at(),
-            trace_id: Uuid::new_v4().simple().to_string(),
-            observation_id: Uuid::new_v4().simple().to_string()[..16].to_owned(),
+            generation: GenerationContext::from_headers(headers),
         }
     }
 }
@@ -95,7 +95,9 @@ impl Telemetry {
             bytes: context.access_token.len() + context.project_id.len(),
             limit: MAX_FACT_BYTES,
         };
-        if serde_json::to_writer(&mut size, &facts).is_err() {
+        if serde_json::to_writer(&mut size, &context.generation).is_err()
+            || serde_json::to_writer(&mut size, &facts).is_err()
+        {
             self.drop_record("size");
             return;
         }
@@ -122,7 +124,7 @@ impl Telemetry {
             async move {
                 let _capacity = capacity;
                 let _bytes = bytes;
-                let span = mapping::span(facts, &context.trace_id, &context.observation_id);
+                let span = mapping::span(facts, &context.generation);
                 match uploader.export(&context, &[span]).await {
                     Ok(()) => {
                         stats.accepted.fetch_add(1, Ordering::Relaxed);

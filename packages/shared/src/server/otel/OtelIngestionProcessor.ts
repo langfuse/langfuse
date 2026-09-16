@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { randomUUID } from "crypto";
 
 import {
@@ -1885,6 +1886,16 @@ export class OtelIngestionProcessor {
     potentialInputOutputKeys.forEach((key) => {
       delete rawFilteredAttributes[key];
     });
+
+    // Gateway observation attributes are represented by canonical fields.
+    // Keep unknown attributes available for diagnostics.
+    if (instrumentationScopeName === "langfuse-ai-gateway") {
+      for (const key of Object.values(LangfuseOtelSpanAttributes)) {
+        if (key.startsWith("langfuse.observation.")) {
+          delete rawFilteredAttributes[key];
+        }
+      }
+    }
 
     // Delete gen_ai.prompt.*, gen_ai.completion.*, llm.input_messages.*, llm.output_messages.*,
     // and metadata blob keys (already extracted into top-level metadata by extractMetadata())

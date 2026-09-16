@@ -77,11 +77,14 @@ impl OpenAiResponsesCapture {
         }
     }
 
-    pub fn bytes(&mut self, bytes: &[u8]) {
+    pub fn bytes(&mut self, bytes: &[u8]) -> bool {
         let mut body = std::mem::replace(&mut self.body, ResponseBody::Unavailable);
+        let mut completion_started = false;
         match &mut body {
             ResponseBody::Sse(sse) => {
-                sse.push(bytes, MAX_CAPTURE_BYTES, |event| self.event(event));
+                sse.push(bytes, MAX_CAPTURE_BYTES, |event| {
+                    completion_started |= self.event(event);
+                });
             }
             ResponseBody::Json(buffer)
                 if buffer.len().saturating_add(bytes.len()) <= MAX_CAPTURE_BYTES =>
@@ -95,6 +98,7 @@ impl OpenAiResponsesCapture {
             _ => {}
         }
         self.body = body;
+        completion_started
     }
 
     pub fn end_body(&mut self) {
@@ -133,43 +137,92 @@ impl OpenAiResponsesCapture {
         self.facts
     }
 
-    fn request(&mut self, request: Map<String, Value>) {
+    fn request(&mut self, mut request: Map<String, Value>) {
         self.facts.requested_model = request
             .get("model")
             .and_then(Value::as_str)
             .and_then(bounded_string);
         self.facts.model.clone_from(&self.facts.requested_model);
-        for key in ["temperature", "top_p", "max_output_tokens", "service_tier"] {
-            if let Some(value) = request
-                .get(key)
-                .filter(|v| v.is_number() || v.as_str().is_some_and(|s| s.len() <= MAX_FACT_STRING))
-            {
-                self.facts
-                    .model_parameters
-                    .insert(key.to_owned(), value.clone());
+        request.remove("model");
+        for key in [
+            "temperature",
+            "top_p",
+            "top_logprobs",
+            "max_output_tokens",
+            "service_tier",
+            "parallel_tool_calls",
+            "max_tool_calls",
+            "truncation",
+            "stream",
+            "background",
+            "store",
+            "prompt_cache_retention",
+        ] {
+            if let Some(value) = request.remove(key).filter(|v| {
+                self.mode == IngestionMode::Full
+                    || v.is_number()
+                    || v.is_boolean()
+                    || v.as_str().is_some_and(|s| s.len() <= MAX_FACT_STRING)
+            }) {
+                self.facts.model_parameters.insert(key.to_owned(), value);
             }
         }
         if self.mode == IngestionMode::Full {
-            for key in ["reasoning", "text"] {
-                if let Some(value) = request.get(key) {
-                    self.facts
-                        .model_parameters
-                        .insert(key.to_owned(), value.clone());
+            for key in [
+                "reasoning",
+                "text",
+                "tool_choice",
+                "context_management",
+                "stream_options",
+                "include",
+                "moderation",
+                "prompt_cache_options",
+            ] {
+                if let Some(value) = request.remove(key) {
+                    self.facts.model_parameters.insert(key.to_owned(), value);
                 }
             }
-            // Keep the original request object, including native instructions/input
-            // and unknown fields. Authentication headers are never part of this value.
+            for key in ["metadata", "prompt_cache_key", "safety_identifier", "user"] {
+                if let Some(value) = request.remove(key) {
+                    self.facts.request_metadata.insert(key.to_owned(), value);
+                }
+            }
+            // Preserve native prompt context and unknown fields after projecting configuration.
             self.facts.input = Some(Value::Object(request));
             self.facts.input_complete = true;
         }
     }
 
-    fn event(&mut self, bytes: &[u8]) {
+    fn event(&mut self, bytes: &[u8]) -> bool {
         let Ok(Value::Object(mut event)) = serde_json::from_slice(bytes) else {
             self.response_valid = false;
-            return;
+            return false;
         };
         match event.get("type").and_then(Value::as_str) {
+            Some(
+                "response.output_text.delta"
+                | "response.refusal.delta"
+                | "response.function_call_arguments.delta"
+                | "response.custom_tool_call_input.delta"
+                | "response.reasoning_text.delta"
+                | "response.reasoning_summary_text.delta"
+                | "response.mcp_call_arguments.delta"
+                | "response.code_interpreter_call_code.delta"
+                | "response.audio.delta"
+                | "response.audio.transcript.delta"
+                | "response.shell_call_command.delta",
+            ) => {
+                return event
+                    .get("delta")
+                    .and_then(Value::as_str)
+                    .is_some_and(|delta| !delta.is_empty());
+            }
+            Some("response.image_generation_call.partial_image") => {
+                return event
+                    .get("partial_image_b64")
+                    .and_then(Value::as_str)
+                    .is_some_and(|image| !image.is_empty());
+            }
             Some("response.output_item.done") if self.mode == IngestionMode::Full => {
                 if let (Some(index), Some(item)) = (
                     event.get("output_index").and_then(Value::as_u64),
@@ -204,9 +257,13 @@ impl OpenAiResponsesCapture {
                     self.response_valid = false;
                 }
             }
-            Some("error") => self.facts.provider_status = Some("failed".to_owned()),
+            Some("error") => {
+                self.facts.provider_status = Some("failed".to_owned());
+                self.error(&event);
+            }
             _ => {}
         }
+        false
     }
 
     fn item(&mut self, index: u64, item: Value) {
@@ -229,6 +286,9 @@ impl OpenAiResponsesCapture {
     }
 
     fn response_facts(&mut self, response: &Map<String, Value>) {
+        if let Some(error) = response.get("error").and_then(Value::as_object) {
+            self.error(error);
+        }
         for (key, target) in [
             ("id", &mut self.facts.provider_response_id),
             ("model", &mut self.facts.model),
@@ -254,6 +314,24 @@ impl OpenAiResponsesCapture {
         if let Some(usage) = response.get("usage").filter(|v| v.is_object()) {
             // The enclosing JSON body or SSE event already enforces the byte limit.
             self.facts.usage_details = Some(usage.clone());
+        }
+    }
+
+    fn error(&mut self, error: &Map<String, Value>) {
+        // Provider error messages may echo prompt content, so retain them only in full mode.
+        if self.mode != IngestionMode::Full {
+            return;
+        }
+        let detail = ["code", "message"]
+            .into_iter()
+            .filter_map(|key| error.get(key).and_then(Value::as_str))
+            .filter(|value| !value.is_empty())
+            .map(|value| &value[..value.floor_char_boundary(MAX_FACT_STRING)])
+            .collect::<Vec<_>>()
+            .join(": ");
+        if !detail.is_empty() {
+            self.facts.error_message =
+                Some(detail[..detail.floor_char_boundary(MAX_FACT_STRING)].to_owned());
         }
     }
 }

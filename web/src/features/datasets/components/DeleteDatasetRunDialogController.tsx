@@ -1,24 +1,26 @@
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { Trash } from "lucide-react";
-import { Button } from "@/src/components/ui/button";
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
-import React, { useState } from "react";
 import { useRouter } from "next/router";
+import type * as React from "react";
 
-export const DeleteDatasetRunButton = ({
+export const DeleteDatasetRunDialogController = ({
   projectId,
   datasetRunId,
   redirectUrl,
   datasetId,
+  children,
 }: {
   projectId: string;
   datasetRunId: string;
   redirectUrl?: string;
   datasetId: string;
+  children: (control: {
+    disabled: boolean;
+    openDialog: () => void;
+  }) => React.ReactNode;
 }) => {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
     projectId: projectId,
@@ -32,28 +34,13 @@ export const DeleteDatasetRunButton = ({
     },
   });
 
-  const button = (
-    <Button
-      variant="ghost"
-      className="w-full"
-      disabled={!hasAccess}
-      onClick={() => capture("dataset_run:delete_form_open")}
-    >
-      <div className="flex w-full flex-row items-center gap-1">
-        <Trash className="h-4 w-4" />
-        <span className="text-sm font-normal">Delete</span>
-      </div>
-    </Button>
-  );
-
-  return hasAccess ? (
-    <ConfirmDialog
-      open={isDialogOpen}
-      onOpenChange={setIsDialogOpen}
-      trigger={button}
+  return (
+    <ConfirmationDialogController
       title="Please confirm"
-      description="This action cannot be undone. Traces linked to this run must be deleted manually."
+      text="This action cannot be undone. Traces linked to this run must be deleted manually."
       confirmLabel="Delete Dataset Run"
+      variant="destructive"
+      disabled={!hasAccess}
       loading={mutDelete.isPending}
       onConfirm={async () => {
         capture("dataset_run:delete_form_submit");
@@ -62,10 +49,18 @@ export const DeleteDatasetRunButton = ({
           datasetId: datasetId,
           datasetRunIds: [datasetRunId],
         });
-        setIsDialogOpen(false);
       }}
-    />
-  ) : (
-    button
+    >
+      {({ openDialog }) =>
+        children({
+          disabled: !hasAccess,
+          openDialog: () => {
+            if (!hasAccess) return;
+            capture("dataset_run:delete_form_open");
+            openDialog();
+          },
+        })
+      }
+    </ConfirmationDialogController>
   );
 };
