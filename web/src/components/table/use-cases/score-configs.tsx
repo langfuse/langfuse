@@ -31,7 +31,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
-import { ArchiveScoreConfigPopoverController } from "@/src/features/score-configs/components/ArchiveScoreConfigButton";
+import { ArchiveScoreConfigDialogController } from "@/src/features/score-configs/components/ArchiveScoreConfigDialogController";
 import { UpsertScoreConfigDialogController } from "@/src/features/score-configs/components/UpsertScoreConfigDialogController";
 
 type ScoreConfigTableRow = {
@@ -174,21 +174,19 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
             }}
           >
             {({ disabled: editDisabled, Trigger }) => (
-              <ArchiveScoreConfigPopoverController
+              <ArchiveScoreConfigDialogController
                 configId={configId}
                 projectId={projectId}
                 isArchived={isArchived}
                 name={name}
               >
-                {({ Anchor, disabled, openPopover }) => (
+                {({ disabled, openDialog }) => (
                   <DropdownMenu>
-                    <Anchor asChild>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                    </Anchor>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
                     <DropdownMenuContent>
                       <Trigger asChild>
                         <DropdownMenuItem
@@ -205,7 +203,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
                         disabled={disabled !== undefined}
                         title={disabled?.reason}
                         onClick={(event) => event.stopPropagation()}
-                        onSelect={openPopover}
+                        onSelect={openDialog}
                       >
                         <Archive className="mr-2 h-4 w-4" />
                         Archive
@@ -213,7 +211,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
-              </ArchiveScoreConfigPopoverController>
+              </ArchiveScoreConfigDialogController>
             )}
           </UpsertScoreConfigDialogController>
         );
