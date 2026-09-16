@@ -313,7 +313,7 @@ export function IOPreviewPretty({
   const shouldRenderMessages = hasRenderableChatMessages(parserResult);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pt-2">
       {showData && status ? (
         <StatusMessageSection status={status} currentView="pretty" />
       ) : null}
