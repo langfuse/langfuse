@@ -75,10 +75,14 @@ export function BillingSwitchPlanDialogController({
   const consumedQueryRef = useRef(false);
 
   useEffect(() => {
-    if (!autoOpenFromQuery || !router.isReady || consumedQueryRef.current) {
+    if (!autoOpenFromQuery || !router.isReady) {
       return;
     }
     if (!hasBillingPlanDialogQuery(router.query[BILLING_PLAN_DIALOG_QUERY])) {
+      consumedQueryRef.current = false;
+      return;
+    }
+    if (consumedQueryRef.current) {
       return;
     }
 
