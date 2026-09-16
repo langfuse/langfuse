@@ -49,10 +49,6 @@ vi.mock("@/src/features/traces/contexts/TraceGraphDataContext", () => ({
   }),
 }));
 
-vi.mock("@/src/features/traces/contexts/ViewPreferencesContext", () => ({
-  useViewPreferences: () => ({ showGraph: true }),
-}));
-
 vi.mock("@/src/features/traces/contexts/SearchContext", () => ({
   useSearch: () => ({ searchQuery: "" }),
 }));

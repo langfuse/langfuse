@@ -255,6 +255,7 @@ export function IOPreview({
        */}
       {selectedView === "json-beta" ? (
         <IOPreviewJSON
+          hideMetadata={!showMetadata}
           input={input}
           output={output}
           status={status}
@@ -282,6 +283,7 @@ export function IOPreview({
         />
       ) : selectedView === "json" ? (
         <IOPreviewJSONSimple
+          hideMetadata={!showMetadata}
           input={input}
           output={output}
           status={status}

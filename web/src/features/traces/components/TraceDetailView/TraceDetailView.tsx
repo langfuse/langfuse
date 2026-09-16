@@ -42,7 +42,10 @@ import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 // Contexts and hooks
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import {
+  type DetailTab,
+  useSelection,
+} from "@/src/features/traces/contexts/SelectionContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
@@ -78,7 +81,11 @@ export function TraceDetailView({
 }: TraceDetailViewProps) {
   const router = useRouter();
   // Tab and view state from URL (via SelectionContext)
-  const { selectedTab, setSelectedTab } = useSelection();
+  const { selectedTab: globalSelectedTab, setSelectedTab } = useSelection();
+  // `attributes` is observation-only; Radix renders nothing for a value with
+  // no Content, which blanks the panel.
+  const selectedTab =
+    globalSelectedTab === "attributes" ? "preview" : globalSelectedTab;
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
@@ -235,7 +242,7 @@ export function TraceDetailView({
         ...analyticsDimensions,
       });
     }
-    setSelectedTab(value as "preview" | "log" | "scores");
+    setSelectedTab(value as DetailTab);
   };
 
   return (

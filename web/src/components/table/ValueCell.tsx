@@ -184,7 +184,7 @@ function getTruncatedValue(value: string, maxChars: number): string {
   return truncated + "...";
 }
 
-function getCopyValue(value: unknown): string {
+export function getCopyValue(value: unknown): string {
   if (typeof value === "string") {
     return value; // Return string without quotes
   }
@@ -350,12 +350,15 @@ export const ValueCell = memo(
     toggleCellExpansion,
     preserveStringWhitespace = false,
     metadataActions,
+    rowActions,
   }: {
     row: Row<JsonTableRow>;
     expandedCells: Set<string>;
     toggleCellExpansion: (cellId: string) => void;
     preserveStringWhitespace?: boolean;
     metadataActions?: MetadataFilterActions;
+    /** Replaces the built-in menu, for tables with their own row actions. */
+    rowActions?: (row: Row<JsonTableRow>) => React.ReactNode;
   }) => {
     const { value, type } = row.original;
     const cellId = `${row.id}-value`;
@@ -524,16 +527,20 @@ export const ValueCell = memo(
 
         {/* Hover affordance: a one-click copy by default, or an actions menu
             (copy + filter shortcuts) in metadata views. */}
-        {metadataActions ? (
+        {rowActions || metadataActions ? (
           <DropdownMenuController
             align="end"
             maxWidth="320px"
-            renderMenu={() => (
-              <ValueCellActionsMenuContent
-                row={row}
-                metadataActions={metadataActions}
-              />
-            )}
+            renderMenu={() =>
+              rowActions ? (
+                rowActions(row)
+              ) : metadataActions ? (
+                <ValueCellActionsMenuContent
+                  row={row}
+                  metadataActions={metadataActions}
+                />
+              ) : null
+            }
           >
             {({ isOpen, Trigger }) => (
               <Trigger asChild>
