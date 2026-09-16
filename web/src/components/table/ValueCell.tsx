@@ -45,7 +45,7 @@ const PREVIEW_TEXT_CLASSES = "text-gray-500 dark:text-gray-400";
 /** Row hover controls sit on the same right axis and icon size as the section
     header's copy button, so the column of icons reads as one. */
 const ROW_ACTION_BUTTON_CLASSES =
-  "text-muted-foreground absolute top-0 h-5 w-5 rounded-sm p-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:bg-transparent";
+  "text-muted-foreground absolute top-0 h-5 w-5 rounded-sm p-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:bg-transparent hover:text-foreground";
 /** Aligned by ink, not by box: the copy glyph paints to 1px shy of its
     viewBox, the vertical ellipsis to 5.5px, so equal offsets would read as
     4.5px of drift down the column. */

@@ -107,10 +107,10 @@
 
   /* JSON value types in the pretty table view (PrettyJsonView / ValueCell).
      Named -value- because react18-json-view owns `--json-string` et al. */
-  --color-json-value-string: hsl(var(--json-value-string));
-  --color-json-value-number: hsl(var(--json-value-number));
-  --color-json-value-boolean: hsl(var(--json-value-boolean));
-  --color-json-value-nullish: hsl(var(--json-value-nullish));
+  --color-json-value-string: var(--json-value-string);
+  --color-json-value-number: var(--json-value-number);
+  --color-json-value-boolean: var(--json-value-boolean);
+  --color-json-value-nullish: var(--json-value-nullish);
 
   --color-border: hsl(var(--border));
   --color-border-contrast: hsl(var(--border-contrast));
@@ -406,10 +406,10 @@
     /* JSON value types in the pretty table view: string=green, number=blue,
        boolean=amber, null/undefined=gray. Dark is deliberately lower
        saturation than the light shades, not just lighter. */
-    --json-value-string: 143 64% 24%;
-    --json-value-number: 226 71% 40%;
-    --json-value-boolean: 35 92% 33%;
-    --json-value-nullish: 220 9% 46%;
+    --json-value-string: var(--color-green-800);
+    --json-value-number: var(--color-blue-800);
+    --json-value-boolean: var(--color-orange-800);
+    --json-value-nullish: var(--color-gray-500);
 
     --radius: 0.5rem;
     --sidebar-background: 0 0% 100%;
@@ -588,10 +588,10 @@
     --qlang-keyword: 213 94% 68%;
 
     /* JSON value types (dark). See :root for the contract. */
-    --json-value-string: 150 40% 60%;
-    --json-value-number: 213 50% 68%;
-    --json-value-boolean: 45 45% 62%;
-    --json-value-nullish: 218 11% 65%;
+    --json-value-string: hsl(142 40% 60%);
+    --json-value-number: hsl(213 50% 68%);
+    --json-value-boolean: hsl(27 50% 61%);
+    --json-value-nullish: var(--color-gray-400);
 
     --radius: 0.5rem;
 
