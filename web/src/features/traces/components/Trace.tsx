@@ -197,25 +197,32 @@ function TraceWithSelection({
  */
 function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const isMobile = useIsMobile();
-  const { showGraph } = useViewPreferences();
+  const { showGraph, isAnnotationMode } = useViewPreferences();
   const { isGraphViewAvailable } = useTraceGraphData();
   const shouldShowGraph = showGraph && isGraphViewAvailable;
 
+  const panels = isMobile ? (
+    <MobileTraceContent shouldShowGraph={shouldShowGraph} />
+  ) : (
+    <DesktopTraceContent
+      shouldShowGraph={shouldShowGraph}
+      desktopLayout={desktopLayout}
+    />
+  );
+
+  // The annotation queue processor shows no trace-level metadata, and the
+  // badge row this strip replaces was gated the same way. Returning the
+  // panels bare keeps that surface byte-identical.
+  if (isAnnotationMode) {
+    return panels;
+  }
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {/* Trace-level totals and tags have their only home here — annotation
-          mode still needs them, so the strip is not gated on it. */}
+      {/* Trace totals and tags live here, not on the detail headers, so they
+          survive selecting an observation. */}
       <TraceSummaryStrip />
-      <div className="min-h-0 flex-1">
-        {isMobile ? (
-          <MobileTraceContent shouldShowGraph={shouldShowGraph} />
-        ) : (
-          <DesktopTraceContent
-            shouldShowGraph={shouldShowGraph}
-            desktopLayout={desktopLayout}
-          />
-        )}
-      </div>
+      <div className="min-h-0 flex-1">{panels}</div>
     </div>
   );
 }
