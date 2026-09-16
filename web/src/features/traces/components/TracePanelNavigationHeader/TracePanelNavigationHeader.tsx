@@ -177,8 +177,7 @@ function TracePanelNavigationHeaderExpanded({
       }
     }, [isV4, observations, trace, capture, analyticsDimensions]);
 
-  // Graph is a view like the others, but only for traces that have graph data.
-  // A stale ?view=graph URL on a trace without it resolves back to tree.
+  // Stale ?view=graph falls back to tree.
   const activeView: TraceViewMode =
     viewMode === "timeline"
       ? "timeline"
@@ -308,8 +307,6 @@ function TracePanelNavigationHeaderExpanded({
             <PlaybackControls />
           </div>
 
-          {/* Tree / Timeline / Graph segmented switch (labels collapse to
-              icons when the panel is narrow — see @container/navheader). */}
           <ViewModeSwitch
             activeView={activeView}
             showGraphSegment={isGraphViewAvailable}
@@ -362,8 +359,7 @@ function ViewModeSwitch({
         icon={GanttChartSquare}
         label="Timeline"
       />
-      {/* Graph is a full view, not a side panel — the segment only exists for
-          traces that have graph data (agent traces under the node cap). */}
+      {/* Only traces with graph data. */}
       {showGraphSegment && (
         <ViewModeSegment
           active={activeView === "graph"}
@@ -400,8 +396,7 @@ function ViewModeSegment({
           : "text-muted-foreground hover:text-foreground",
       )}
     >
-      {/* One or the other, never both: the label alone reads faster when
-          there is room, and the icon alone survives a narrow panel. */}
+      {/* Label when there is room, icon when there is not. */}
       <Icon className="h-3.5 w-3.5 shrink-0 @min-[440px]/navheader:hidden" />
       <span className="@max-[440px]/navheader:hidden">{label}</span>
     </button>

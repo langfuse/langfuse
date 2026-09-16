@@ -33,7 +33,7 @@ export function TracePanelNavigation() {
 
   const hasQuery = searchQuery.trim().length > 0;
   const isTimelineView = viewMode === "timeline";
-  // A stale ?view=graph URL on a trace without graph data falls back to tree.
+  // Stale ?view=graph falls back to tree.
   const isGraphView = viewMode === "graph" && isGraphViewAvailable;
 
   // Memoize to prevent recreation when deps haven't changed

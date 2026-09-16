@@ -89,8 +89,6 @@ export function TraceViewOptionsMenuItems() {
   return (
     <>
       <div className="space-y-0 p-0 py-1">
-        {/* Graph is a view on the Tree/Timeline/Graph switch now — it has no
-            visibility toggle. */}
         {/* Show Comments Toggle */}
         <DropdownMenuItem
           asChild
