@@ -715,6 +715,120 @@ describe("prepareSessionTimelineObservations", () => {
     ).toHaveLength(1);
   });
 
+  it("does not semantically match tool executions across branches", () => {
+    const prepared = prepareSessionTimelineObservations([
+      observation("root", null, null, "SPAN"),
+      observation(
+        "first-branch",
+        null,
+        null,
+        "SPAN",
+        new Date(1),
+        "trace-1",
+        "root",
+      ),
+      observation(
+        "first-tool",
+        {},
+        "First result",
+        "TOOL",
+        new Date(2),
+        "trace-1",
+        "first-branch",
+        null,
+        "lookup",
+      ),
+      observation(
+        "second-branch",
+        null,
+        null,
+        "SPAN",
+        new Date(3),
+        "trace-1",
+        "root",
+      ),
+      observation(
+        "second-generation",
+        null,
+        [
+          {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                id: "second-call-id",
+                type: "function",
+                function: { name: "lookup", arguments: "{}" },
+              },
+            ],
+          },
+        ],
+        "GENERATION",
+        new Date(4),
+        "trace-1",
+        "second-branch",
+      ),
+    ]);
+
+    expect(
+      prepared.filter(
+        (item) =>
+          item.type === "tool" && item.observation.id === "second-generation",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("deduplicates identical tool calls within their direct execution scopes", () => {
+    const generation = (id: string, toolCallId: string, startTime: Date) =>
+      observation(
+        id,
+        null,
+        [
+          {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                id: toolCallId,
+                type: "function",
+                function: { name: "lookup", arguments: "{}" },
+              },
+            ],
+          },
+        ],
+        "GENERATION",
+        startTime,
+      );
+    const prepared = prepareSessionTimelineObservations([
+      generation("first-generation", "first-call-id", new Date(0)),
+      observation(
+        "first-tool",
+        {},
+        "First result",
+        "TOOL",
+        new Date(1),
+        "trace-1",
+        "first-generation",
+        null,
+        "lookup",
+      ),
+      generation("second-generation", "second-call-id", new Date(2)),
+      observation(
+        "second-tool",
+        {},
+        "Second result",
+        "TOOL",
+        new Date(3),
+        "trace-1",
+        "second-generation",
+        null,
+        "lookup",
+      ),
+    ]);
+
+    expect(prepared.filter((item) => item.type === "tool")).toEqual([]);
+  });
+
   it("flattens multiple nesting levels while preserving sibling chronology", () => {
     const prepared = prepareSessionTimelineObservations([
       observation("root", "root input", "root output"),

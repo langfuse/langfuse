@@ -194,7 +194,8 @@ export function prepareSessionTimelineObservations<
   }
 
   const toolObservationsBySemanticKey = new Map<string, Observation[]>();
-  const toolCallsBySemanticKey = new Map<string, ToolCallPart[]>();
+  const directToolCallsBySemanticKey = new Map<string, ToolCallPart[]>();
+  const siblingToolCallsBySemanticKey = new Map<string, ToolCallPart[]>();
   const emittedToolCallIds = new Set<string>();
   for (const { prepared } of chronologicalPreparedObservations) {
     if (prepared.parsed?.type !== "loaded") continue;
@@ -225,29 +226,53 @@ export function prepareSessionTimelineObservations<
         observation.input,
       );
       if (semanticKey) {
-        const traceSemanticKey = `${observation.traceId ?? ""}\0${semanticKey}`;
-        const matchingObservations =
-          toolObservationsBySemanticKey.get(traceSemanticKey);
-        if (matchingObservations) matchingObservations.push(observation);
-        else toolObservationsBySemanticKey.set(traceSemanticKey, [observation]);
+        const directKey = `${observation.traceId ?? ""}\0${observation.parentObservationId ?? ""}\0${semanticKey}`;
+        const directMatches = toolObservationsBySemanticKey.get(directKey);
+        if (directMatches) directMatches.push(observation);
+        else toolObservationsBySemanticKey.set(directKey, [observation]);
       }
     }
 
     for (const toolCall of prepared.processedMessages.rolledUpToolCalls) {
       const semanticKey = getToolSemanticKey(toolCall.toolName, toolCall.input);
       if (!semanticKey) continue;
-      const traceSemanticKey = `${observation.traceId ?? ""}\0${semanticKey}`;
-      const matchingCalls = toolCallsBySemanticKey.get(traceSemanticKey);
-      if (matchingCalls) matchingCalls.push(toolCall);
-      else toolCallsBySemanticKey.set(traceSemanticKey, [toolCall]);
+      const directKey = `${observation.traceId ?? ""}\0${observation.id}\0${semanticKey}`;
+      const directMatches = directToolCallsBySemanticKey.get(directKey);
+      if (directMatches) directMatches.push(toolCall);
+      else directToolCallsBySemanticKey.set(directKey, [toolCall]);
+
+      const siblingKey = `${observation.traceId ?? ""}\0${observation.parentObservationId ?? ""}\0${semanticKey}`;
+      const siblingMatches = siblingToolCallsBySemanticKey.get(siblingKey);
+      if (siblingMatches) siblingMatches.push(toolCall);
+      else siblingToolCallsBySemanticKey.set(siblingKey, [toolCall]);
     }
   }
   const matchedToolCalls = new Set<ToolCallPart>();
-  for (const [semanticKey, toolCalls] of toolCallsBySemanticKey) {
+  const matchedToolObservations = new Set<Observation>();
+  for (const [semanticKey, toolCalls] of directToolCallsBySemanticKey) {
     if (toolCalls.length !== 1) continue;
-    if (toolObservationsBySemanticKey.get(semanticKey)?.length !== 1) continue;
+    const toolObservations = toolObservationsBySemanticKey.get(semanticKey);
+    if (toolObservations?.length !== 1) continue;
     const matchingCall = toolCalls[0];
-    if (matchingCall) matchedToolCalls.add(matchingCall);
+    const matchingObservation = toolObservations[0];
+    if (!matchingCall || !matchingObservation) continue;
+    matchedToolCalls.add(matchingCall);
+    matchedToolObservations.add(matchingObservation);
+  }
+  for (const [semanticKey, toolCalls] of siblingToolCallsBySemanticKey) {
+    const unmatchedToolCalls = toolCalls.filter(
+      (toolCall) => !matchedToolCalls.has(toolCall),
+    );
+    if (unmatchedToolCalls.length !== 1) continue;
+    const unmatchedToolObservations = (
+      toolObservationsBySemanticKey.get(semanticKey) ?? []
+    ).filter((observation) => !matchedToolObservations.has(observation));
+    if (unmatchedToolObservations.length !== 1) continue;
+    const matchingCall = unmatchedToolCalls[0];
+    const matchingObservation = unmatchedToolObservations[0];
+    if (!matchingCall || !matchingObservation) continue;
+    matchedToolCalls.add(matchingCall);
+    matchedToolObservations.add(matchingObservation);
   }
   if (matchedToolCalls.size > 0) {
     for (const { prepared } of chronologicalPreparedObservations) {
