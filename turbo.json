@@ -132,6 +132,16 @@
     "worker#test": {
       "dependsOn": ["^test", "db:generate", "@langfuse/native#build"]
     },
+    // ESLint does not load the native addon, so avoid compiling it during lint.
+    "worker#lint": {
+      "dependsOn": [
+        "@langfuse/shared#build",
+        "@repo/eslint-config#build",
+        "@repo/eslint-plugin#build",
+        "@repo/langfuse-skills#build",
+        "@repo/typescript-config#build"
+      ]
+    },
     "worker#dev": {
       "cache": false,
       "persistent": true,

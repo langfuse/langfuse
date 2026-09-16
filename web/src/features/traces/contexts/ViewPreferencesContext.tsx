@@ -46,8 +46,6 @@ interface ViewPreferencesContextValue {
   setColorCodeMetrics: (value: boolean) => void;
   showComments: boolean;
   setShowComments: (value: boolean) => void;
-  showGraph: boolean;
-  setShowGraph: (value: boolean) => void;
   /** Graph panel build mode (aggregated vs expanded "as it ran") */
   graphViewMode: GraphViewMode;
   setGraphViewMode: (value: GraphViewMode) => void;
@@ -118,7 +116,6 @@ export function ViewPreferencesProvider({
     true,
   );
   const [showComments, setShowComments] = useLocalStorage("showComments", true);
-  const [showGraph, setShowGraph] = useLocalStorage("showGraph", true);
   const [storedGraphViewMode, setGraphViewMode] =
     useLocalStorage<GraphViewMode>("graphViewMode", "aggregated");
   // Sanitize persisted values: the mode enum may evolve and a stale
@@ -171,8 +168,6 @@ export function ViewPreferencesProvider({
       setColorCodeMetrics,
       showComments,
       setShowComments,
-      showGraph,
-      setShowGraph,
       graphViewMode,
       setGraphViewMode,
       minObservationLevel,
@@ -202,8 +197,6 @@ export function ViewPreferencesProvider({
       setColorCodeMetrics,
       showComments,
       setShowComments,
-      showGraph,
-      setShowGraph,
       graphViewMode,
       setGraphViewMode,
       minObservationLevel,

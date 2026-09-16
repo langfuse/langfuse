@@ -10,7 +10,6 @@
  * - Color Code Metrics (dependent on duration or cost being enabled)
  * - Collapse System Prompts
  * - Minimum Observation Level filter
- * - Show Graph (hidden when graph view not available)
  *
  * All preferences are managed via ViewPreferencesContext and persisted to localStorage.
  */
@@ -34,13 +33,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 
-export interface TraceSettingsDropdownProps {
-  isGraphViewAvailable: boolean;
-}
-
-export function TraceSettingsDropdown({
-  isGraphViewAvailable,
-}: TraceSettingsDropdownProps) {
+export function TraceSettingsDropdown() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -57,9 +50,7 @@ export function TraceSettingsDropdown({
         align="center"
         className="w-64 space-y-0 space-x-0 p-0 px-0"
       >
-        <TraceViewOptionsMenuItems
-          isGraphViewAvailable={isGraphViewAvailable}
-        />
+        <TraceViewOptionsMenuItems />
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -70,16 +61,12 @@ export function TraceSettingsDropdown({
  * dropdown shell, so they can be reused inside the navigation header's overflow
  * "⋯" menu when the panel is too narrow for inline toolbar icons.
  */
-export function TraceViewOptionsMenuItems({
-  isGraphViewAvailable,
-}: TraceSettingsDropdownProps) {
+export function TraceViewOptionsMenuItems() {
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
 
   // Get all preferences directly from context
   const {
-    showGraph,
-    setShowGraph,
     showComments,
     setShowComments,
     showScores,
@@ -102,30 +89,6 @@ export function TraceViewOptionsMenuItems({
   return (
     <>
       <div className="space-y-0 p-0 py-1">
-        {/* Show Graph Toggle (only when available) */}
-        {isGraphViewAvailable && (
-          <DropdownMenuItem
-            asChild
-            onSelect={(e) => e.preventDefault()}
-            className="space-y-0 px-2 py-1"
-          >
-            <div className="flex w-full items-center justify-between">
-              <span className="mr-2">Show Graph</span>
-              <Switch
-                size="sm"
-                checked={showGraph}
-                onCheckedChange={(checked) => {
-                  capture("trace_detail:graph_view_toggle", {
-                    show: checked,
-                    ...analyticsDimensions,
-                  });
-                  setShowGraph(checked);
-                }}
-              />
-            </div>
-          </DropdownMenuItem>
-        )}
-
         {/* Show Comments Toggle */}
         <DropdownMenuItem
           asChild

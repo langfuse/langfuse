@@ -27,6 +27,7 @@ export interface IOPreviewJSONSimpleProps {
   media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
+  hideMetadata?: boolean;
   observationId?: string;
   projectId: string;
   traceId: string;
@@ -70,6 +71,7 @@ export function IOPreviewJSONSimple({
   hideIfNull = false,
   hideOutput = false,
   hideInput = false,
+  hideMetadata = false,
   media,
   inputExpanded,
   outputExpanded,
@@ -127,7 +129,8 @@ export function IOPreviewJSONSimple({
     !hideInput && (inputTooLarge || !(hideIfNull && !effectiveInput));
   const showOutput =
     !hideOutput && (outputTooLarge || !(hideIfNull && !effectiveOutput));
-  const showMetadata = metadataTooLarge || !(hideIfNull && !effectiveMetadata);
+  const showMetadata =
+    !hideMetadata && (metadataTooLarge || !(hideIfNull && !effectiveMetadata));
 
   const downloadName = observationId ?? traceId;
 

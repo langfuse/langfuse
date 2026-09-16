@@ -442,6 +442,7 @@ function JsonPrettyTable({
   stickyTopLevelKey = false,
   showObservationTypeBadge = false,
   metadataActions,
+  rowActions,
   toneClasses,
 }: {
   data: JsonTableRow[];
@@ -460,7 +461,9 @@ function JsonPrettyTable({
   stickyTopLevelKey?: boolean;
   showObservationTypeBadge?: boolean;
   metadataActions?: MetadataFilterActions;
+  rowActions?: (row: Row<JsonTableRow>) => React.ReactNode;
   toneClasses?: (typeof PRETTY_JSON_VIEW_TONE_CLASSES)[PrettyJsonViewTone];
+  /** Drop the Path / Value header row. */
 }) {
   const topLevelRowRef = useRef<HTMLTableRowElement>(null);
   const [topLevelRowHeight, setTopLevelRowHeight] = useState(32);
@@ -553,6 +556,7 @@ function JsonPrettyTable({
       toggleCellExpansion={toggleCellExpansion}
       preserveStringWhitespace={row.original.key === "code_eval_source_code"}
       metadataActions={metadataActions}
+      rowActions={rowActions}
     />
   );
 
@@ -746,6 +750,7 @@ export function PrettyJsonView(props: {
   parsedJson?: unknown; // Pre-parsed data (optional, from useParsedObservation hook)
   title?: string;
   titleIcon?: React.ReactNode;
+  /** Drop the Path / Value header row. */
   className?: string;
   isLoading?: boolean;
   isParsing?: boolean;
@@ -772,6 +777,8 @@ export function PrettyJsonView(props: {
   /** When set, rows show an actions menu with copy + add-to-filter shortcuts
       (metadata views only). */
   metadataActions?: MetadataFilterActions;
+  /** Replaces the built-in row menu, for tables with their own actions. */
+  rowActions?: (row: Row<JsonTableRow>) => React.ReactNode;
   /** Collapse long string content to a preview (from raw `role === "system"`,
       since the title can carry a message `name` instead of the role). */
   isSystemPrompt?: boolean;
@@ -1346,6 +1353,7 @@ export function PrettyJsonView(props: {
                   stickyTopLevelKey={props.stickyTopLevelKey}
                   showObservationTypeBadge={props.showObservationTypeBadge}
                   metadataActions={props.metadataActions}
+                  rowActions={props.rowActions}
                   toneClasses={toneClasses}
                 />
               )}
