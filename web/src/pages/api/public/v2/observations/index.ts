@@ -62,6 +62,8 @@ export default withMiddlewares({
         traceId: query.traceId ?? undefined,
         userId: query.userId ?? undefined,
         sessionId: query.sessionId ?? undefined,
+        minSessionDuration: query.minSessionDuration,
+        sessionDataAccessFrom: dataAccessWindow.accessFloor,
         level: query.level ?? undefined,
         name: query.name ?? undefined,
         type: query.type ?? undefined,

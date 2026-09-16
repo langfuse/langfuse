@@ -1351,6 +1351,9 @@ type PublicApiObservationsQuery = {
   traceId?: string;
   userId?: string;
   sessionId?: string;
+  minSessionDuration?: number;
+  /** Access boundary for session metrics, independent of the requested row range. */
+  sessionDataAccessFrom?: Date;
   name?: string;
   type?: string;
   level?: string;
@@ -1492,6 +1495,30 @@ function buildObservationsQueryComponents(
       ),
     )
     .where(appliedFilter);
+
+  if (opts.minSessionDuration !== undefined) {
+    // Row filters and cursors must not truncate a session's duration.
+    // ponytail: scans project history per page; preselect session IDs if costly.
+    const sessions = eventsSessionsAggregation({ projectId });
+    if (opts.sessionDataAccessFrom) {
+      sessions.whereRaw(
+        "e.start_time >= {sessionDataAccessFrom: DateTime64(3)}",
+        {
+          sessionDataAccessFrom: convertDateToClickhouseDateTime(
+            opts.sessionDataAccessFrom,
+          ),
+        },
+      );
+    }
+    externalCTEs.push({
+      name: "session_duration",
+      queryWithParams: sessions.buildWithParams(),
+    });
+    queryBuilder.whereRaw(
+      "e.session_id IN (SELECT session_id FROM session_duration WHERE duration >= {minSessionDuration: Float64})",
+      { minSessionDuration: opts.minSessionDuration },
+    );
+  }
 
   return { queryBuilder, externalCTEs };
 }
