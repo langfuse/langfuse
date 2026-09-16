@@ -402,7 +402,7 @@ export const ValueCell = memo(
           return {
             content: (
               <span
-                className={`text-green-600 dark:text-green-400 ${
+                className={`text-json-value-string ${
                   preserveStringWhitespace
                     ? "whitespace-pre-wrap"
                     : "whitespace-pre-line"
@@ -417,37 +417,27 @@ export const ValueCell = memo(
         case "number":
           return {
             content: (
-              <span className="text-blue-600 dark:text-blue-400">
-                {String(value)}
-              </span>
+              <span className="text-json-value-number">{String(value)}</span>
             ),
             needsTruncation: false,
           };
         case "boolean":
           return {
             content: (
-              <span className="text-orange-600 dark:text-orange-400">
-                {String(value)}
-              </span>
+              <span className="text-json-value-boolean">{String(value)}</span>
             ),
             needsTruncation: false,
           };
         case "null":
           return {
             content: (
-              <span className="text-gray-500 italic dark:text-gray-400">
-                null
-              </span>
+              <span className="text-json-value-nullish italic">null</span>
             ),
             needsTruncation: false,
           };
         case "undefined":
           return {
-            content: (
-              <span className="text-gray-500 dark:text-gray-400">
-                undefined
-              </span>
-            ),
+            content: <span className="text-json-value-nullish">undefined</span>,
             needsTruncation: false,
           };
         case "array": {

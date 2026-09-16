@@ -102,6 +102,13 @@
   --color-qlang-number: hsl(var(--qlang-number));
   --color-qlang-keyword: hsl(var(--qlang-keyword));
 
+  /* JSON value types in the pretty table view (PrettyJsonView / ValueCell).
+     Named -value- because react18-json-view owns `--json-string` et al. */
+  --color-json-value-string: hsl(var(--json-value-string));
+  --color-json-value-number: hsl(var(--json-value-number));
+  --color-json-value-boolean: hsl(var(--json-value-boolean));
+  --color-json-value-nullish: hsl(var(--json-value-nullish));
+
   --color-border: hsl(var(--border));
   --color-border-contrast: hsl(var(--border-contrast));
   --color-input: hsl(var(--input));
@@ -393,6 +400,15 @@
     --qlang-number: 24 75% 42%;
     --qlang-keyword: 221 83% 53%;
 
+    /* JSON value types in the pretty table view: string=green, number=blue,
+       boolean=orange, null/undefined=gray. Dark keeps each light hue but
+       drops saturation rather than only raising lightness — the Tailwind 400s
+       these replace read neon against the near-black canvas. */
+    --json-value-string: 143 64% 24%;
+    --json-value-number: 226 71% 40%;
+    --json-value-boolean: 21 90% 33%;
+    --json-value-nullish: 220 9% 46%;
+
     --radius: 0.5rem;
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -568,6 +584,12 @@
     --qlang-value: 158 64% 52%;
     --qlang-number: 27 96% 61%;
     --qlang-keyword: 213 94% 68%;
+
+    /* JSON value types (dark). See :root for the contract. */
+    --json-value-string: 142 40% 60%;
+    --json-value-number: 213 50% 68%;
+    --json-value-boolean: 27 50% 61%;
+    --json-value-nullish: 218 11% 65%;
 
     --radius: 0.5rem;
 
