@@ -1,15 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { IOTableCell } from "./IOTableCell";
 
-// The JSON viewer underneath reads the app's markdown preference. Stubbed
-// rather than imported: a design-system file must not reach into `src/features`.
-vi.mock("@/src/features/theming/useMarkdownContext", () => ({
-  useMarkdownContext: () => ({
-    isMarkdownEnabled: false,
-    setIsMarkdownEnabled: () => {},
-  }),
-}));
-
 const renderCell = (props: Partial<Parameters<typeof IOTableCell>[0]> = {}) =>
   render(
     <IOTableCell

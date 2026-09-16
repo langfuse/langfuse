@@ -7,18 +7,22 @@ changes. These internal controls are intentionally absent from env templates.
 
 ## Controls
 
-| Variable                                      | Default   | Role                                                          |
-| --------------------------------------------- | --------- | ------------------------------------------------------------- |
-| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | `false`   | Track accepted direct-v4 event writes in Redis.               |
-| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`   | Schedule idle traces into BullMQ jobs.                        |
-| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`   | Register the batch worker.                                    |
-| `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | `false`   | Allow the worker to query ClickHouse; otherwise discard jobs. |
-| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`          | `1`       | Fraction admitted by ingestion, from 0 to 1.                  |
-| `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`      | Maximum traces per job, up to 1,000.                          |
-| `LANGFUSE_TRACE_BATCH_CONCURRENCY`            | `2`       | Concurrent batch jobs per worker process.                     |
-| `LANGFUSE_TRACE_BATCH_IDLE_MS`                | `600000`  | Idle time before a trace is ready (10 minutes).               |
-| `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`         | `7200000` | Pending retention and inactivity expiry (2 hours).            |
-| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`   | `30000`   | Dispatcher cadence (30 seconds).                              |
+| Variable                                      | Default   | Role                                                                                                       |
+| --------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------- |
+| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | `false`   | Track accepted direct-v4 event writes in Redis.                                                            |
+| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | `false`   | Schedule idle traces into BullMQ jobs.                                                                     |
+| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | `false`   | Register the batch worker.                                                                                 |
+| `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | `false`   | Allow the worker to query ClickHouse; otherwise discard jobs.                                              |
+| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`          | `1`       | Fraction admitted by ingestion, from 0 to 1.                                                               |
+| `LANGFUSE_TRACE_BATCH_STRATEGY`               | `project` | Choose project-order packing or opt-in locality grouping.                                                  |
+| `LANGFUSE_TRACE_BATCH_MAX_SIZE`               | `60`      | Maximum traces per job, up to 10,000.                                                                      |
+| `LANGFUSE_TRACE_BATCH_MAX_THREADS`            | `2`       | ClickHouse threads per query (positive integer).                                                           |
+| `LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE`         | unset     | Optional positive `max_block_size` hint; unset inherits the server profile.                                |
+| `LANGFUSE_TRACE_BATCH_EXPERIMENT_ID`          | unset     | Optional 1–64 character attempt/query label: letters, digits, `.`, `_`, `-`; first character alphanumeric. |
+| `LANGFUSE_TRACE_BATCH_CONCURRENCY`            | `2`       | Concurrent batch jobs per worker process.                                                                  |
+| `LANGFUSE_TRACE_BATCH_IDLE_MS`                | `600000`  | Idle time before a trace is ready (10 minutes).                                                            |
+| `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`         | `7200000` | Pending retention and inactivity expiry (2 hours).                                                         |
+| `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`   | `30000`   | Dispatcher cadence (30 seconds).                                                                           |
 
 Producer, dispatcher and consumer can run independently. Sampling reuses the
 evaluator's deterministic trace-ID sampler; every observation of the same trace
@@ -62,13 +66,75 @@ Sizes count UTF-8 bytes, including metadata keys and values, excluding JSON
 transport framing/escaping and compression. They do not measure ClickHouse bytes
 scanned or per-trace ingestion size; retries can record another batch sample.
 Exact `(projectId, traceId)`
-pairs protect tenant boundaries; project, trace hash and a shared batch time
-window prune reads. `TRACE_QUERY_BUFFER_MS` pads the earliest and latest recorded
-start times by two minutes each. This fixed query margin can include observations
-outside the recorded bounds; it neither waits for arrivals nor guarantees trace
-completeness. Query limits are fixed at two threads and 30 seconds with
-timeouts failing the job. This baseline has no hash-locality grouping,
-per-trace windows, query tuning controls or allocation based on trace size.
+pairs protect tenant boundaries; project, trace hash and a shared outer time
+window prune reads. Each selected trace also gets its own interval, so unrelated
+batch companions cannot widen the payload returned for that trace.
+`TRACE_QUERY_BUFFER_MS` pads each recorded interval by two minutes on both sides.
+This fixed margin neither waits for arrivals nor guarantees trace completeness;
+repeated intervals for the same pair form a union without duplicating rows.
+Queries use response compression and chunked multipart parameters for up to
+10,000 UUID-sized trace/project IDs. The fixed 30-second timeout fails the job
+rather than accepting partial results. This does not cap observation count,
+query memory or dispatcher snapshot memory.
+
+## Compare reader settings
+
+Establish a fresh control measurement after deploying this reader: both arms
+must use the same per-trace windows and compression. Hold sampling, batch cap,
+concurrency, threads, idle delay and traffic cohort constant; then change only
+block size (and the identifying label):
+
+| Variable                              | Control               | Treatment         |
+| ------------------------------------- | --------------------- | ----------------- |
+| `LANGFUSE_TRACE_BATCH_MAX_THREADS`    | `2`                   | `2`               |
+| `LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE` | unset                 | `512`             |
+| `LANGFUSE_TRACE_BATCH_EXPERIMENT_ID`  | `trace-block-control` | `trace-block-512` |
+
+Run these settings only in cloud workers with the existing four enablement
+flags explicitly set to `true`. Changing a query setting does not enable any
+part of the pipeline. `max_block_size` is a row-count hint, not a byte or memory
+limit; large inputs may still dominate memory. Keep the initial cap at 120 when
+comparing existing experiments; raising the supported ceiling is not a rollout
+recommendation.
+
+With an experiment ID, each read attempt logs its label, build ID, configured
+threads/block size, batch size, concurrency, sampling and timing controls before
+querying, including failed attempts. The same ID enters ClickHouse
+`log_comment` alongside existing surface/route/project attribution. Leave the ID
+unset to suppress these per-attempt logs. Strategy attribution uses the
+dispatcher metrics described below. Compare
+query memory/latency and worker memory as well as input/output/metadata byte
+metrics. Redis storage load tests do not measure selector or query memory.
+
+### Opt-in locality grouping
+
+`LANGFUSE_TRACE_BATCH_STRATEGY=locality` changes grouping only after dispatch is
+explicitly enabled in a cloud region. The default `project` strategy preserves
+project ordering and carries unfinished jobs across hydration chunks.
+
+Locality sorts each hydrated window by project, minimum start minute, maximum
+start minute and `xxHash32(traceId)`. It finds the fewest feasible jobs under the
+trace cap and an event-time envelope of at most one hour, or 125% of the first
+trace's observed span if larger. Within that job count, it minimizes project
+boundaries, then minute × trace count, then gaps between trace hashes. These are
+read-locality proxies, not measured ClickHouse scan costs.
+
+Locality combines each window of at most 1,000 hydrated candidates with retained
+partials. Compatible same-project partials may merge when their buffered time
+intervals overlap and the combined batch respects the cap and envelope limits.
+At most `maxBatchSize - 1` traces are retained across all partials; oldest-due
+partials dispatch first when that budget is exceeded. The last window flushes
+all remaining partials, so carry never outlives the current dispatch run.
+
+The full ready-ID snapshot remains unchanged; only selector input is bounded. Selector
+cost is O(n × k × cap), where k is the fewest feasible jobs. Measure duration
+before increasing scale, especially with distant event times that force many jobs.
+
+Compare `dispatched_batches` (tags `strategy`, `fill`),
+`event_time_envelope_ms`, `observed_start_span_ms`, `candidate_buffer_size` and
+`selector_duration_ms` under `langfuse.trace_batch`. The envelope metric includes
+the reader's two-minute margin on each side; the selector's envelope limit does
+not. Payload and Redis state are unchanged.
 
 ## Monitor dispatcher memory
 
@@ -113,5 +179,4 @@ lazy retention rules. Drain and expired jobs are removed immediately on success.
 For an already enabled cloud experiment, explicitly set the new read flag to
 `true` when deploying this version if reads should continue; leaving it unset
 drains instead. Upgrade all producers before relying on native expiry: older
-producers do not install or refresh that TTL. Locality, query controls and load
-test artifacts belong in separate follow-up changes.
+producers do not install or refresh that TTL.

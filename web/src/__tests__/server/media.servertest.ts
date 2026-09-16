@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import crypto from "crypto";
 import fs from "fs";
 import type { Session } from "next-auth";

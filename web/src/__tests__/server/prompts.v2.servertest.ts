@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { prisma } from "@langfuse/shared/src/db";
 import { disconnectQueues, makeAPICall } from "@/src/__tests__/test-utils";
 import type { NextApiRequest, NextApiResponse } from "next";
