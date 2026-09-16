@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SessionConversationTimelineTrace } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { prepareSessionTimelineObservations } from "@/src/features/sessions/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
-import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 
 type TraceProps = ComponentProps<typeof SessionConversationTimelineTrace>;
 type Observation = Extract<
@@ -150,16 +149,14 @@ describe("SessionConversationTimelineTrace", () => {
     ]);
 
     render(
-      <MarkdownContextProvider>
-        <SessionConversationTimelineTrace
-          trace={{ ...trace, observationCount: 1 }}
-          turnNumber={1}
-          state={{ type: "loaded", observations: truncated }}
-          onOpenTrace={vi.fn()}
-          onOpenObservation={vi.fn()}
-          scrollTarget={null}
-        />
-      </MarkdownContextProvider>,
+      <SessionConversationTimelineTrace
+        trace={{ ...trace, observationCount: 1 }}
+        turnNumber={1}
+        state={{ type: "loaded", observations: truncated }}
+        onOpenTrace={vi.fn()}
+        onOpenObservation={vi.fn()}
+        scrollTarget={null}
+      />,
     );
 
     expect(screen.getAllByText(/你好/).length).toBeGreaterThan(0);
@@ -178,16 +175,14 @@ describe("SessionConversationTimelineTrace", () => {
     ]);
 
     render(
-      <MarkdownContextProvider>
-        <SessionConversationTimelineTrace
-          trace={{ ...trace, observationCount: 1 }}
-          turnNumber={1}
-          state={{ type: "loaded", observations: loaded }}
-          onOpenTrace={vi.fn()}
-          onOpenObservation={vi.fn()}
-          scrollTarget={null}
-        />
-      </MarkdownContextProvider>,
+      <SessionConversationTimelineTrace
+        trace={{ ...trace, observationCount: 1 }}
+        turnNumber={1}
+        state={{ type: "loaded", observations: loaded }}
+        onOpenTrace={vi.fn()}
+        onOpenObservation={vi.fn()}
+        scrollTarget={null}
+      />,
     );
 
     expect(screen.getByText(/你好 world/)).toBeInTheDocument();
