@@ -224,7 +224,6 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       "langfuse.public_api.legacy_get_rejected",
       1,
       {
-        userAgent: "langfuse-python/4.8.1",
         sdkName: "python",
         sdkVersion: "4.8.1",
       },
@@ -246,6 +245,9 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
         apiPath: "GET /api/public/test",
         organizationCreatedAt: "2026-09-16T00:00:00.000Z",
         cutoff: "2026-09-16T00:00:00.000Z",
+        userAgent: "langfuse-python/4.8.1",
+        sdkName: "python",
+        sdkVersion: "4.8.1",
       },
     );
   });
