@@ -12,7 +12,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { Input } from "@/src/components/ui/input";
+import { Input } from "@/src/components/design-system/Input/Input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
