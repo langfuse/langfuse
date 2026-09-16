@@ -5,7 +5,7 @@ import {
 } from "@langfuse/shared/src/utils/normalized-io";
 
 import { deduplicateTimelineInput } from "@/src/features/sessions/SessionConversationTimeline/fns/deduplicateTimelineInput";
-import { getSemanticallyMatchedChildToolCalls } from "@/src/features/sessions/SessionConversationTimeline/fns/getSemanticallyMatchedChildToolCalls";
+import { getToolObservationCallId } from "@/src/features/sessions/SessionConversationTimeline/fns/getToolObservationCallId";
 import { getStandaloneToolCallIds } from "@/src/features/sessions/SessionConversationTimeline/fns/getStandaloneToolCallIds";
 import { processTimelineMessages } from "@/src/features/sessions/SessionConversationTimeline/fns/processTimelineMessages";
 
@@ -63,6 +63,33 @@ export type PreparedSessionTimelineItem<
     });
 
 const EMPTY_TOOL_CALL_IDS: ReadonlySet<string> = new Set();
+
+const canonicalizeToolInput = (value: unknown): unknown => {
+  let parsedValue = value;
+  if (typeof value === "string") {
+    try {
+      parsedValue = JSON.parse(value) as unknown;
+    } catch {
+      return value;
+    }
+  }
+
+  if (Array.isArray(parsedValue)) {
+    return parsedValue.map(canonicalizeToolInput);
+  }
+  if (typeof parsedValue !== "object" || parsedValue === null) {
+    return parsedValue;
+  }
+
+  return Object.fromEntries(
+    Object.entries(parsedValue)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, nestedValue]) => [key, canonicalizeToolInput(nestedValue)]),
+  );
+};
+
+const getToolSemanticKey = (name: string | null | undefined, input: unknown) =>
+  name ? JSON.stringify([name, canonicalizeToolInput(input)]) : null;
 
 export function prepareSessionTimelineObservations<
   Observation extends SessionTimelineObservation,
@@ -131,8 +158,8 @@ export function prepareSessionTimelineObservations<
     ),
   });
 
-  const preparedObservations = chronologicalObservations
-    .map(({ observation, originalIndex }, index) => ({
+  const chronologicalPreparedObservations = chronologicalObservations.map(
+    ({ observation, originalIndex }, index) => ({
       originalIndex,
       prepared: {
         observation,
@@ -142,7 +169,96 @@ export function prepareSessionTimelineObservations<
           rolledUpToolCalls: [],
         },
       },
-    }))
+    }),
+  );
+
+  const latestToolCallById = new Map<string, ToolCallPart>();
+  for (const { prepared } of chronologicalPreparedObservations) {
+    for (const toolCall of prepared.processedMessages.rolledUpToolCalls) {
+      if (!toolCall.toolCallId) continue;
+      latestToolCallById.set(
+        `${prepared.observation.traceId ?? ""}\0${toolCall.toolCallId}`,
+        toolCall,
+      );
+    }
+  }
+  for (const { prepared } of chronologicalPreparedObservations) {
+    prepared.processedMessages.rolledUpToolCalls =
+      prepared.processedMessages.rolledUpToolCalls.filter(
+        (toolCall) =>
+          !toolCall.toolCallId ||
+          latestToolCallById.get(
+            `${prepared.observation.traceId ?? ""}\0${toolCall.toolCallId}`,
+          ) === toolCall,
+      );
+  }
+
+  const toolObservationsBySemanticKey = new Map<string, Observation[]>();
+  const toolCallsBySemanticKey = new Map<string, ToolCallPart[]>();
+  const emittedToolCallIds = new Set<string>();
+  for (const { prepared } of chronologicalPreparedObservations) {
+    if (prepared.parsed?.type !== "loaded") continue;
+    for (const message of prepared.parsed.messages) {
+      for (const part of message.parts) {
+        if (part.type !== "tool-call" || !part.toolCallId) continue;
+        emittedToolCallIds.add(
+          `${prepared.observation.traceId ?? ""}\0${part.toolCallId}`,
+        );
+      }
+    }
+  }
+  for (const { prepared } of chronologicalPreparedObservations) {
+    const { observation } = prepared;
+    if (observation.type === "TOOL") {
+      const observationCallId = getToolObservationCallId(observation);
+      if (
+        observationCallId &&
+        emittedToolCallIds.has(
+          `${observation.traceId ?? ""}\0${observationCallId}`,
+        )
+      ) {
+        continue;
+      }
+
+      const semanticKey = getToolSemanticKey(
+        observation.name,
+        observation.input,
+      );
+      if (semanticKey) {
+        const traceSemanticKey = `${observation.traceId ?? ""}\0${semanticKey}`;
+        const matchingObservations =
+          toolObservationsBySemanticKey.get(traceSemanticKey);
+        if (matchingObservations) matchingObservations.push(observation);
+        else toolObservationsBySemanticKey.set(traceSemanticKey, [observation]);
+      }
+    }
+
+    for (const toolCall of prepared.processedMessages.rolledUpToolCalls) {
+      const semanticKey = getToolSemanticKey(toolCall.toolName, toolCall.input);
+      if (!semanticKey) continue;
+      const traceSemanticKey = `${observation.traceId ?? ""}\0${semanticKey}`;
+      const matchingCalls = toolCallsBySemanticKey.get(traceSemanticKey);
+      if (matchingCalls) matchingCalls.push(toolCall);
+      else toolCallsBySemanticKey.set(traceSemanticKey, [toolCall]);
+    }
+  }
+  const matchedToolCalls = new Set<ToolCallPart>();
+  for (const [semanticKey, toolCalls] of toolCallsBySemanticKey) {
+    if (toolCalls.length !== 1) continue;
+    if (toolObservationsBySemanticKey.get(semanticKey)?.length !== 1) continue;
+    const matchingCall = toolCalls[0];
+    if (matchingCall) matchedToolCalls.add(matchingCall);
+  }
+  if (matchedToolCalls.size > 0) {
+    for (const { prepared } of chronologicalPreparedObservations) {
+      prepared.processedMessages.rolledUpToolCalls =
+        prepared.processedMessages.rolledUpToolCalls.filter(
+          (toolCall) => !matchedToolCalls.has(toolCall),
+        );
+    }
+  }
+
+  const preparedObservations = chronologicalPreparedObservations
     .sort((left, right) => left.originalIndex - right.originalIndex)
     .map(({ prepared }) => prepared);
   const observationKey = (observation: Observation) =>
@@ -176,33 +292,6 @@ export function prepareSessionTimelineObservations<
           right.observation.startTime.getTime(),
       );
     } else childrenByParentKey.set(parentKey, [prepared]);
-  }
-
-  for (const prepared of preparedObservations) {
-    const childToolObservations = (
-      childrenByParentKey.get(observationKey(prepared.observation)) ?? []
-    ).map(({ observation }) => observation);
-    if (childToolObservations.length === 0) continue;
-
-    const allToolCalls =
-      prepared.parsed?.type === "loaded"
-        ? prepared.parsed.messages.flatMap((message) =>
-            message.source === "output"
-              ? message.parts.filter(
-                  (part): part is ToolCallPart => part.type === "tool-call",
-                )
-              : [],
-          )
-        : [];
-    const matchedCalls = getSemanticallyMatchedChildToolCalls({
-      rolledUpToolCalls: prepared.processedMessages.rolledUpToolCalls,
-      allToolCalls,
-      childToolObservations,
-    });
-    prepared.processedMessages.rolledUpToolCalls =
-      prepared.processedMessages.rolledUpToolCalls.filter(
-        (toolCall) => !matchedCalls.has(toolCall),
-      );
   }
 
   const result: PreparedSessionTimelineItem<Observation>[] = [];
