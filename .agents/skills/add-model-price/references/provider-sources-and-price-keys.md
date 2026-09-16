@@ -657,6 +657,31 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   no confirmed model ID or price to add even if the scope exclusion were
   lifted. Re-investigate only if OpenAI publishes a public model ID and
   per-token price for it.
+- **September 16 2026 audit: full re-fetch found no price or catalog drift;
+  a realtime/voice and image-generation model wave confirmed out of scope on
+  both OpenAI and Gemini** — Re-fetched the full Anthropic pricing page
+  (all model/Batch/tool-use tables), the OpenAI aggregate Standard/Fast-mode/
+  Flex pricing tables, the full OpenAI model catalog
+  (`developers.openai.com/api/docs/models/all`), and the Gemini pricing page
+  (`ai.google.dev/gemini-api/docs/pricing`) with explicit Free/Paid separation.
+  Every price already in the file — including every `gpt-6-astra`,
+  `gpt-5.6-sol`/`terra`/`luna`, `claude-fable-5-1`/`claude-mythos-5-1`, and
+  `gemini-3.6/3.7/3.8-flash` tier — matched verbatim; no updates were needed.
+  New model IDs found this run, all confirmed out of scope for a per-token
+  text/chat pricing entry: OpenAI's catalog lists `gpt-live-1`,
+  `gpt-realtime-2`, `gpt-realtime-2.1`, `gpt-realtime-2.1-mini`,
+  `gpt-realtime-translate`, `gpt-live-transcribe`, `gpt-realtime-whisper`, and
+  `gpt-audio-1.5` (all Realtime/voice-API audio models, despite two being
+  labeled "reasoning model with tool use" in their catalog blurb — they are
+  audio-modality endpoints, not text completion) plus `gpt-image-2.5-sunburst`
+  and `gpt-image-2.5-flare` (image generation). Gemini's pricing page lists
+  `gemini-3.8-live` / `gemini-3.8-live-extended-thinking` (low-latency voice
+  models), `gemini-3.1-flash-live-preview`, `gemini-3.5-transcribe` /
+  `gemini-3.5-transcribe-live` (speech-to-text), and `gemini-3.5-live-translate`
+  (speech-to-speech) — all audio/voice endpoints, consistent with the existing
+  modality-specific skip rule. None were added. Re-investigate only if one of
+  these gains a standard text-generation mode with its own per-token text
+  pricing.
 
 Capture:
 
