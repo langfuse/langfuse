@@ -2141,16 +2141,22 @@ export function buildEventsFullTableSplitQuery(opts: {
   // bound start_time to base's own matched range. Derived from base (not the
   // request filter) so it also tightens lookups that arrive without a time
   // filter, and the values are never re-serialized as params.
+  //
+  // Both bounds read the same byte-identical scalar subquery over base. A
+  // dedicated io_bounds CTE selected io_min/io_max separately, which inline to
+  // two distinct scalar subqueries — ClickHouse's scalar cache keys on subquery
+  // text, so it evaluated (and re-scanned base) twice. One (min, max) tuple with
+  // .1/.2 applied outside collapses to a single cached evaluation: base's
+  // bounds pass drops from two scans to one.
+  const ioBounds = "(SELECT (min(start_time), max(start_time)) FROM base)";
   const ioQuery = [
     `SELECT ${ioSelectParts.join(", ")}`,
     "FROM events_full e",
     "WHERE e.project_id = {projectId: String}",
-    "AND e.start_time >= (SELECT io_min_start_time FROM io_bounds)",
-    "AND e.start_time <= (SELECT io_max_start_time FROM io_bounds)",
+    `AND e.start_time >= ${ioBounds}.1`,
+    `AND e.start_time <= ${ioBounds}.2`,
     'AND (e.start_time, e.trace_id, e.span_id) IN (SELECT "start_time", "trace_id", id FROM base)',
   ].join("\n");
-  const ioBoundsQuery =
-    "SELECT min(start_time) AS io_min_start_time, max(start_time) AS io_max_start_time FROM base";
 
   // Compose final query using CTEQueryBuilder
   let cteBuilder = new CTEQueryBuilder();
@@ -2163,17 +2169,10 @@ export function buildEventsFullTableSplitQuery(opts: {
     });
   }
 
-  // Register base, io_bounds, and io CTEs, set up FROM and JOIN. io_bounds must
-  // follow base (it aggregates over it) and precede io (which reads from it).
   cteBuilder = cteBuilder
     .withCTE("base", {
       query: baseQuery,
       params: baseParams,
-      schema: [] as string[],
-    })
-    .withCTE("io_bounds", {
-      query: ioBoundsQuery,
-      params: {},
       schema: [] as string[],
     })
     .withCTE("io", {
