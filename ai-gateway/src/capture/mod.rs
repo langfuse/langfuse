@@ -119,10 +119,11 @@ impl ExecutionCapture {
         &mut self,
         telemetry: telemetry::Telemetry,
         context: &ResolvedRequestContext,
+        headers: &HeaderMap,
     ) {
         self.delivery = Some((
             telemetry,
-            telemetry::DeliveryContext::from_resolved(context),
+            telemetry::DeliveryContext::from_resolved(context, headers),
         ));
     }
 

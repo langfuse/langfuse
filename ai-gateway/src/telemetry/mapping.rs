@@ -2,14 +2,30 @@
 use chrono::{DateTime, SecondsFormat};
 use serde_json::{Map, Value, json};
 
+use super::context::GenerationContext;
 use crate::capture::{InferenceFacts, RelayOutcome};
 
-pub(super) fn span(facts: InferenceFacts, trace_id: &str, observation_id: &str) -> Value {
+pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value {
     let full = facts.metadata.get("ingestion_mode").and_then(Value::as_str) == Some("full");
     let (level, message) = observation_status(&facts);
-    let metadata = generation_metadata(&facts);
+    let mut metadata: Map<String, Value> = context
+        .metadata
+        .iter()
+        .filter(|(key, _)| !reserved_metadata(key))
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect();
+    // Trusted key attribution and gateway facts take precedence over caller metadata.
+    metadata.extend(generation_metadata(&facts));
     let inference = facts.inference;
     let mut attributes = vec![attribute("langfuse.observation.type", "generation")];
+    attributes.extend(context.attributes.iter().map(|(key, value)| {
+        attribute(
+            key,
+            value
+                .as_str()
+                .map_or_else(|| value.to_string(), str::to_owned),
+        )
+    }));
     if let Some(model) = inference.model.or(inference.requested_model) {
         attributes.push(attribute("langfuse.observation.model.name", model));
     }
@@ -54,16 +70,37 @@ pub(super) fn span(facts: InferenceFacts, trace_id: &str, observation_id: &str) 
         "langfuse.observation.metadata",
         Value::Object(metadata).to_string(),
     ));
-    json!({
-        "traceId": trace_id,
-        "spanId": observation_id,
+    let mut span = json!({
+        "traceId": context.trace_id,
+        "spanId": context.observation_id,
+        // Generation capture is independent of the caller's sampling decision.
+        "flags": 1,
         "name": facts.api_format,
         "kind": 3,
         "startTimeUnixNano": facts.start_time_unix_ms.saturating_mul(1_000_000).to_string(),
         "endTimeUnixNano": facts.start_time_unix_ms.saturating_add(facts.duration_ms).saturating_mul(1_000_000).to_string(),
         "attributes": attributes,
         "status": { "code": if level == "ERROR" { 2 } else { 0 } },
-    })
+    });
+    if let Some(parent) = &context.parent_span_id {
+        span["parentSpanId"] = json!(parent);
+    }
+    if !context.trace_state.is_empty() {
+        span["traceState"] = json!(context.trace_state);
+    }
+    span
+}
+
+fn reserved_metadata(key: &str) -> bool {
+    [
+        "langfuse.gateway",
+        "http_status",
+        "scope",
+        "resourceAttributes",
+        "attributes",
+    ]
+    .iter()
+    .any(|reserved| key == *reserved || key.starts_with(&format!("{reserved}.")))
 }
 
 fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
@@ -75,16 +112,7 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
     {
         for (key, value) in attribution {
             // Attribution remains searchable, but cannot impersonate gateway or OTEL fields.
-            if ![
-                "langfuse.gateway",
-                "http_status",
-                "scope",
-                "resourceAttributes",
-                "attributes",
-            ]
-            .iter()
-            .any(|reserved| key == reserved || key.starts_with(&format!("{reserved}.")))
-            {
+            if !reserved_metadata(key) {
                 metadata.insert(key.clone(), value.clone());
             }
             metadata.insert(
@@ -196,6 +224,14 @@ fn openai_usage(usage: &Value) -> Option<Value> {
 mod tests {
     use super::*;
 
+    fn context() -> GenerationContext {
+        GenerationContext {
+            trace_id: "0123456789abcdef0123456789abcdef".into(),
+            observation_id: "0123456789abcdef".into(),
+            ..GenerationContext::from_headers(&axum::http::HeaderMap::new())
+        }
+    }
+
     fn facts() -> InferenceFacts {
         let mut facts = InferenceFacts {
             api_format: "openai.responses",
@@ -246,12 +282,51 @@ mod tests {
     }
 
     #[test]
-    fn full_generation_preserves_native_content_attribution_and_completion_time() {
-        let span = span(
-            facts(),
-            "0123456789abcdef0123456789abcdef",
-            "0123456789abcdef",
+    fn caller_attributes_and_metadata_cannot_replace_trusted_gateway_fields() {
+        let mut context = context();
+        context.attributes = serde_json::from_value(json!({
+            "user.id": "user", "session.id": "session",
+            "langfuse.trace.name": "caller workflow", "langfuse.trace.tags": ["tag,one", "tag-two"]
+        }))
+        .unwrap();
+        context.metadata = serde_json::from_value(json!({
+            "custom": "value", "team": "untrusted", "http_status": "fake",
+            "langfuse.gateway.project_id": "wrong-project",
+            "langfuse.gateway.api-key.id": "wrong-key",
+            "langfuse.gateway.api-key.metadata.team": "wrong-team",
+            "langfuse.gateway.provider.request.fake": "fake",
+            "scope": "fake", "resourceAttributes.secret": "fake", "attributes": "fake"
+        }))
+        .unwrap();
+        let attrs = attributes(&span(facts(), &context));
+        assert_eq!(attrs["user.id"], "user");
+        assert_eq!(attrs["session.id"], "session");
+        assert_eq!(attrs["langfuse.trace.name"], "caller workflow");
+        assert_eq!(
+            serde_json::from_str::<Value>(attrs["langfuse.trace.tags"].as_str().unwrap()).unwrap(),
+            json!(["tag,one", "tag-two"])
         );
+        let metadata = metadata(&attrs);
+        assert_eq!(metadata["custom"], "value");
+        assert_eq!(metadata["team"], "search");
+        assert_eq!(metadata["http_status"], 200);
+        assert_eq!(metadata["langfuse.gateway.project_id"], "project");
+        assert_eq!(metadata["langfuse.gateway.api-key.id"], "key");
+        assert_eq!(metadata["langfuse.gateway.api-key.metadata.team"], "search");
+        for key in [
+            "scope",
+            "resourceAttributes.secret",
+            "attributes",
+            "langfuse.gateway.provider.request.fake",
+        ] {
+            assert!(metadata.get(key).is_none(), "caller forged {key}");
+        }
+        assert!(!attrs.contains_key("langfuse.trace.metadata"));
+    }
+
+    #[test]
+    fn full_generation_preserves_native_content_attribution_and_completion_time() {
+        let span = span(facts(), &context());
         assert_eq!(span["traceId"], "0123456789abcdef0123456789abcdef");
         assert_eq!(span["spanId"], "0123456789abcdef");
         assert!(span.get("parentSpanId").is_none());
@@ -302,7 +377,7 @@ mod tests {
             "attributes": "spoofed-attributes"
         });
         facts.inference.provider_response_id = Some("response".into());
-        let attrs = attributes(&span(facts, "trace", "span"));
+        let attrs = attributes(&span(facts, &context()));
         let metadata = metadata(&attrs);
         assert_eq!(metadata["team"], "search");
         assert_eq!(metadata["enabled"], true);
@@ -348,7 +423,7 @@ mod tests {
         facts.metadata["ingestion_mode"] = json!("usage");
         facts.inference.model = None;
         facts.completion_start_ms = None;
-        let attrs = attributes(&span(facts, "trace", "span"));
+        let attrs = attributes(&span(facts, &context()));
         for key in ["input", "output", "usage_details", "completion_start_time"] {
             assert!(!attrs.contains_key(&format!("langfuse.observation.{key}")));
         }
@@ -366,7 +441,7 @@ mod tests {
             "future_usage": {"cost": 123},
         });
         facts.inference.usage_details = Some(usage.clone());
-        let attrs = attributes(&span(facts, "trace", "span"));
+        let attrs = attributes(&span(facts, &context()));
         assert!(metadata(&attrs).get("native_usage").is_none());
         let projected: Value = serde_json::from_str(
             attrs["langfuse.observation.usage_details"]
@@ -388,7 +463,7 @@ mod tests {
     fn unsupported_usage_omits_usage_without_invented_totals() {
         let mut facts = facts();
         facts.inference.usage_details = Some(json!({"input_tokens": 9}));
-        let attrs = attributes(&span(facts, "trace", "span"));
+        let attrs = attributes(&span(facts, &context()));
         assert!(!attrs.contains_key("langfuse.observation.usage_details"));
         assert!(metadata(&attrs).get("native_usage").is_none());
     }
@@ -403,7 +478,7 @@ mod tests {
             "user": "legacy-user"
         }))
         .unwrap();
-        let attrs = attributes(&span(facts, "trace", "span"));
+        let attrs = attributes(&span(facts, &context()));
         let metadata = metadata(&attrs);
         assert_eq!(
             metadata["langfuse.gateway.provider.request.metadata"],
@@ -447,7 +522,7 @@ mod tests {
             facts.http_status = Some(status);
             facts.inference.provider_status = provider_status.map(str::to_owned);
             facts.inference.error_message = error.map(str::to_owned);
-            let attrs = attributes(&span(facts, "trace", "span"));
+            let attrs = attributes(&span(facts, &context()));
             assert_eq!(attrs["langfuse.observation.status_message"], expected);
             assert_eq!(attrs["langfuse.observation.level"], "ERROR");
         }
@@ -473,7 +548,7 @@ mod tests {
             facts.http_status = http_status;
             facts.inference.provider_status = provider_status.map(str::to_owned);
             facts.outcome = outcome;
-            let span = span(facts, "trace", "span");
+            let span = span(facts, &context());
             let attrs = attributes(&span);
             assert_eq!(attrs["langfuse.observation.level"], level);
             assert_eq!(span["status"]["code"], code);
