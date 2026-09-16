@@ -4,7 +4,7 @@
  * Contains:
  * - Title row with ItemBadge, trace name, options menu
  * - Action buttons (Dataset, Annotate, Queue, Comments)
- * - Metadata badges (timestamp, latency, session, user, environment, release, version, cost, usage)
+ * - Metadata badges (timestamp, environment, release, version, target trace)
  *
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */

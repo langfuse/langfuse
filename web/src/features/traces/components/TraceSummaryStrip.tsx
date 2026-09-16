@@ -15,6 +15,7 @@
 import { useMemo, useState } from "react";
 
 import { Button } from "@/src/components/ui/button";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 import { TagButton } from "@/src/features/tag/components/TagButton";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import {
@@ -35,6 +36,7 @@ const MAX_VISIBLE_TAGS = 3;
 
 export function TraceSummaryStrip() {
   const { trace, observations } = useTraceData();
+  const isMobile = useIsMobile();
   const [showAllTags, setShowAllTags] = useState(false);
 
   const aggregatedMetrics = useMemo(
@@ -42,9 +44,12 @@ export function TraceSummaryStrip() {
     [observations],
   );
 
-  const visibleTags = showAllTags
-    ? trace.tags
-    : trace.tags.slice(0, MAX_VISIBLE_TAGS);
+  // Mobile clips the whole row behind CollapsibleBadgeRow's chevron, so a +N
+  // here would reveal nothing. Cap on desktop only.
+  const visibleTags =
+    isMobile || showAllTags
+      ? trace.tags
+      : trace.tags.slice(0, MAX_VISIBLE_TAGS);
   const hiddenTagCount = trace.tags.length - visibleTags.length;
 
   return (
