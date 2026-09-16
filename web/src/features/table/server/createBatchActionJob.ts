@@ -1,5 +1,8 @@
 import { auditLog } from "@/src/features/audit-logs/server";
-import { generateBatchActionId } from "@/src/features/table/server/helpers";
+import {
+  generateBatchActionId,
+  isBatchActionJobInProgressState,
+} from "@/src/features/table/server/helpers";
 import {
   ActionId,
   BatchActionStatus,
@@ -164,6 +167,32 @@ export const createBatchActionJob = async ({
     });
   }
 
+  // Class-level jobIds uniquely identify in-progress work. Failed jobs are
+  // retained by the queue, so a later distinct operation must remove the
+  // terminal job first; otherwise BullMQ silently returns the older payload.
+  const existingJob = await batchActionQueue.getJob(batchActionId);
+  if (existingJob) {
+    const existingState = await existingJob.getState();
+    if (isBatchActionJobInProgressState(existingState)) {
+      throw new TRPCError({
+        code: "CONFLICT",
+        message:
+          "A batch action of this type is already in progress for this project.",
+      });
+    }
+
+    logger.info(
+      "Removing retained batch action job before enqueueing successor",
+      {
+        batchActionId,
+        previousState: existingState,
+        projectId,
+        actionId,
+      },
+    );
+    await existingJob.remove();
+  }
+
   // Create audit log >> generate based on actionId
   await auditLog({
     session,
@@ -177,7 +206,7 @@ export const createBatchActionJob = async ({
   await batchActionQueue.add(
     QueueJobs.BatchActionProcessingJob,
     {
-      id: batchActionId, // Use the selectAllId to deduplicate when the same job is sent multiple times
+      id: batchActionId,
       name: QueueJobs.BatchActionProcessingJob,
       timestamp: new Date(),
       payload: {
