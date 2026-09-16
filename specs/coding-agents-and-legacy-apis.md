@@ -2,7 +2,7 @@
 
 Research snapshot from primary sources: `langfuse/langfuse` (this checkout), plus shallow clones of `langfuse-docs`, `langfuse-python`, `langfuse-js`, `langfuse/skills`, `langfuse-cli`, `mcp-server-langfuse`, and `langfuse-examples` (cloned 2026-09-16). Org GitHub code search over `AGENTS.md` / `SKILL.md` / READMEs.
 
-**TL;DR:** Intentional agent guidance (public skill, CLI tips, Python SDK README, deprecation FAQ) tells agents **not** to use legacy read/write APIs for new work. Agents are **still advised** to use the `api.legacy.*` SDK namespace in one documented case: **current SDK + self-hosted Langfuse v3**. Several high-traffic surfaces still *show* deprecated APIs as the example (`@langfuse/client` README, Python `Langfuse.api` docstring, JS `fetchObservation` implementation, Python `batch_evaluation`). CLI `__schema` still lists `traces` and `legacy-*` resources; only the skill’s CLI reference tells agents to skip them.
+**TL;DR:** Intentional agent guidance (public skill, CLI tips, Python SDK README, deprecation FAQ) tells agents **not** to use legacy read/write APIs for new work. Agents are **still advised** to use the `api.legacy.*` SDK namespace in one documented case: **current SDK + self-hosted Langfuse v3**. Several high-traffic surfaces still *show* deprecated APIs as the example (`@langfuse/client` README, Python `Langfuse.api` docstring, JS `fetchObservation` implementation, Python `batch_evaluation`). CLI `__schema` still lists `traces` and `legacy-*` resources; only the skill’s CLI reference tells agents to skip them. In this server repo, `CONTRIBUTING.md` still describes batch `/api/public/ingestion` as current system behavior; in-product MCP observation tools already use Observations v2.
 
 ## 1. What “legacy APIs” means
 
@@ -33,9 +33,11 @@ SDK aliases for the v1 observation/metrics/score **read** clients live under `cl
 
 Those names are **not** the only deprecated SDK methods. `api.trace.list` / `api.trace.get` call `GET /traces` and are also deprecated, but they were **not** moved under `api.legacy.*`.
 
-Cloud can 410 new orgs that hit deprecated GETs (`LEGACY_API_UNAVAILABLE_FOR_NEW_ORGANIZATION` in `web/src/features/public-api/server/legacyApiOrganizationCutoff.ts`).
+Cloud can 410 new orgs that hit deprecated GETs (`LEGACY_API_UNAVAILABLE_FOR_NEW_ORGANIZATION` in `web/src/features/public-api/server/legacyApiOrganizationCutoff.ts`). On `events_only`, the same routes 404 via `rejectInEventsOnlyMode`.
 
 Worker job `v4LegacyApiUsage*` tracks remaining production callers of these deprecated public APIs.
+
+Write shortcuts that share the v3 ingestion pipeline (code-labeled Legacy, `rateLimitResource: "legacy-ingestion"`): `POST /traces`, `POST/PATCH /spans`, `POST/PATCH /generations`, `POST /events`. `GET /metrics/daily` carries the metrics deprecation in the Next handler but is not in Fern’s deprecated operation list. Prompt `GET/POST /prompts` (v1) vs `/v2/prompts` is an older split; v1 is not Fern-`deprecated`.
 
 ### 1.2 Legacy SDK tracing clients (pre-OpenTelemetry)
 
@@ -74,7 +76,7 @@ Primary agent-facing corpus:
 
 The dedicated “Langfuse for coding agents” marketing page (`md-override/coding-agents.md`) is about **observing coding-agent spend**, not about which Langfuse REST surface those agents should call.
 
-`mcp-server-langfuse` is **prompt management only**. The in-product MCP (`/api/public/mcp`) is documented as secondary to the skill for agents that can run a CLI.
+`mcp-server-langfuse` is **prompt management only**. The in-product MCP (`POST /api/public/mcp`) is documented as secondary to the skill for agents that can run a CLI. Its observation tools call **Observations v2** (`getObservationsV2FromEventsTableForPublicApi`); they do not wrap `GET /traces`. Dataset-run MCP tools are blocked in `events_only`.
 
 ## 3. Where agents are still pointed at legacy APIs
 
@@ -112,6 +114,8 @@ These are current default-branch files an agent will hit before the FAQ:
 
 7. **Public skill instrumentation reference** still lists “Trace input/output” as a baseline. That matches the **v3 trace object**. The v4 skill (`v4-project-migration.md`) separately says not to add `set_current_trace_io()` just to keep legacy evaluators alive. Mild contradiction for agents instrumenting apps.
 
+8. **`CONTRIBUTING.md` “System behavior / Ingestion API”** still documents `(/public/api/ingestion)` as how the system works (validate, upsert `traces`/`observations`, `207`) with **no OTel replacement or deprecation**. An agent that only reads contributor docs can treat batch ingestion as the current write path. Fern `api.yml` and `deprecations.ts` already say otherwise.
+
 ### Not advising legacy (checked)
 
 - `langfuse/langfuse` `AGENTS.md` / package `AGENTS.md`: no instruction to call public legacy REST. “Legacy” there is BullMQ schedules, eval IDs, seed scenarios.
@@ -133,10 +137,11 @@ Highest-leverage cleanups if the goal is “agents never start on v1”:
 2. Rewrite the Python `api` property docstring so `api.trace.*` is not the first fetch pattern.
 3. Point `fetchObservation` at v2 (or delete it) so the deprecation text matches the binding.
 4. Keep CLI `__schema` but make resource descriptions / skill discovery even louder; the skill already has the right prefer-rules.
+5. Point `CONTRIBUTING.md` ingestion at OTel + v4, or mark the batch path deprecated so in-repo agents do not treat it as current.
 
 ## Sources
 
-- `langfuse/langfuse`: `fern/apis/server/definition/{api,trace,ingestion,legacy/*}.yml`, `web/src/features/public-api/server/{deprecations,legacyApiOrganizationCutoff}.ts`, `packages/shared/src/server/v4/legacyApiUsage.ts`
+- `langfuse/langfuse`: `fern/apis/server/definition/{api,trace,ingestion,legacy/*}.yml`, `web/src/features/public-api/server/{deprecations,legacyApiOrganizationCutoff}.ts`, `packages/shared/src/server/v4/legacyApiUsage.ts`, `CONTRIBUTING.md` ingestion section, `web/src/features/mcp/server/observations/tools/listObservations.ts`
 - `langfuse/langfuse-docs`: `content/faq/all/deprecated-api-migration.mdx`, `content/docs/api-and-data-platform/features/{public-api,query-via-sdk,cli,agent-skill}.mdx`, `content/self-hosting/upgrade/{versioning,upgrade-guides/upgrade-v3-to-v4}.mdx`, `content/docs/observability/sdk/upgrade-path/{python-v3-to-v4,js-v4-to-v5}.mdx`
 - `langfuse/langfuse-python`: `README.md`, `langfuse/_client/client.py`, `langfuse/batch_evaluation.py`, `langfuse/api/legacy/`
 - `langfuse/langfuse-js`: `README.md`, `packages/client/README.md`, `packages/client/src/LangfuseClient.ts`
