@@ -17,9 +17,6 @@ import {
 } from "@langfuse/shared";
 import { ClickHouseResourceError, logger } from "@langfuse/shared/src/server";
 
-const MCP_CLICKHOUSE_TIMEOUT_MESSAGE =
-  "The ClickHouse query timed out. Narrow the query and try again.";
-
 /**
  * Format an error for MCP response.
  * Returns a properly formatted McpError with appropriate error code.
