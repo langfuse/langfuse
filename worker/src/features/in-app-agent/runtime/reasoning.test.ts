@@ -1,23 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Vertex exchanges application default credentials for an OAuth token through
-// google-auth-library before issuing the model request. worker/vitest.config.ts
-// inlines the vertex provider so this mock reaches the copy it resolves.
-vi.mock("google-auth-library", () => ({
-  GoogleAuth: class {
-    getClient = async () => ({
-      getAccessToken: async () => ({ token: "fake-gcp-token" }),
-    });
-    getProjectId = async () => "adc-project";
-  },
-}));
-
-// The project lookup runs inside shared, which resolves its own copy of
-// google-auth-library and would otherwise reach a developer's real gcloud ADC
-// (and fail outright wherever no credentials exist).
+// Vertex Anthropic asks shared for the ADC project and OAuth token so the
+// worker never constructs google-auth-library (pnpm does not expose it).
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   resolveVertexProjectIdFromADC: async () => "adc-project",
+  generateVertexAccessTokenFromADC: async () => "fake-gcp-token",
 }));
 
 import { env } from "@langfuse/shared/src/env";
@@ -486,6 +474,9 @@ describe("Vertex Claude request shape", () => {
     });
 
     expect(calls).toHaveLength(1);
+    expect(calls[0]?.headers.get("authorization")).toBe(
+      "Bearer fake-gcp-token",
+    );
     expect(decodeURIComponent(calls[0]?.url ?? "")).toBe(
       "https://us-east5-aiplatform.googleapis.com/v1/projects/adc-project/locations/us-east5/publishers/anthropic/models/claude-sonnet-4-5@20250929:rawPredict",
     );

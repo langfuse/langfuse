@@ -14,6 +14,7 @@ import { env } from "@langfuse/shared/src/env";
 import {
   assertValidAnthropicVertexModelName,
   createDefaultBedrockProviderAuth,
+  generateVertexAccessTokenFromADC,
   isClaudeModel,
   resolveVertexProjectIdFromADC,
 } from "@langfuse/shared/src/server";
@@ -82,15 +83,19 @@ async function createVertexInAppAgentLanguageModel(config: {
 }) {
   // Vertex authenticates through application default credentials, and the AI
   // SDK needs the project spelled out for URL construction, so resolve it from
-  // the same credential chain. The helper lives in shared because the worker
-  // cannot reach google-auth-library under pnpm's strict layout.
+  // the same credential chain. Project and token both come from shared so the
+  // worker never constructs google-auth-library (pnpm does not expose it).
   const project = await resolveVertexProjectIdFromADC();
   const location = config.location ?? DEFAULT_VERTEX_LOCATION;
 
   if (isClaudeModel(config.modelId)) {
     assertValidAnthropicVertexModelName(config.modelId);
 
-    const vertexAnthropic = createVertexAnthropic({ project, location });
+    const vertexAnthropic = createVertexAnthropic({
+      project,
+      location,
+      generateAuthToken: generateVertexAccessTokenFromADC,
+    });
 
     return vertexAnthropic(
       config.modelId as Parameters<typeof vertexAnthropic>[0],
