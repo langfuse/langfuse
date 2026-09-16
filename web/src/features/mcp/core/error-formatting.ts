@@ -87,7 +87,7 @@ export function formatErrorForUser(error: unknown): McpError {
     return new McpError(
       ErrorCode.InvalidRequest,
       error.errorType === "TIMEOUT"
-        ? MCP_CLICKHOUSE_TIMEOUT_MESSAGE
+        ? "The ClickHouse query timed out. Narrow the query and try again."
         : ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
     );
   }
