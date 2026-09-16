@@ -40,6 +40,7 @@ import {
   ArrayJoinNode,
   FinalTableNode,
   LimitByNode,
+  unwrapFinalTable,
   type ArrayJoinVariant,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
@@ -236,7 +237,7 @@ export function limitBy(spec: LimitBySpec) {
 }
 
 function physicalTableName(node: OperationNode): string | undefined {
-  if (FinalTableNode.is(node)) return physicalTableName(node.table);
+  if (FinalTableNode.is(node)) return physicalTableName(unwrapFinalTable(node));
   if (AliasNode.is(node)) return physicalTableName(node.node);
   if (TableNode.is(node)) return node.table.identifier.name;
   return undefined;
@@ -248,7 +249,9 @@ function wrapFinal(
 ): OperationNode {
   if (FinalTableNode.is(node)) return node;
   const name = physicalTableName(node);
-  return name && tables.has(name) ? FinalTableNode.create(node) : node;
+  return name && tables.has(name)
+    ? (FinalTableNode.create(node) as unknown as OperationNode)
+    : node;
 }
 
 /**
@@ -277,7 +280,9 @@ class FinalPlugin implements KyselyPlugin {
     });
     return {
       ...node,
-      ...(node.from ? { from: FromNode.cloneWithFroms(node.from, froms) } : {}),
+      // cloneWithFroms appends; replacing the list avoids
+      // `FROM scores AS s, scores AS s FINAL`.
+      ...(node.from ? { from: FromNode.create(froms) } : {}),
       ...(joins.length ? { joins } : {}),
     } as RootOperationNode;
   }

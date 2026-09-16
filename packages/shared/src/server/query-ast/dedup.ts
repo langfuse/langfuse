@@ -45,6 +45,7 @@ import { QueryCompileError } from "./errors";
 import {
   FinalTableNode,
   LimitByNode,
+  unwrapFinalTable,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
 import { DEDUP_SPECS, type DedupSpec } from "./schema";
@@ -138,7 +139,7 @@ function singlePhysicalFrom(
 
 function describeFrom(node: OperationNode): PhysicalFrom | undefined {
   if (FinalTableNode.is(node)) {
-    return describeFrom(node.table);
+    return describeFrom(unwrapFinalTable(node));
   }
   if (AliasNode.is(node)) {
     const inner = describeFrom(node.node);

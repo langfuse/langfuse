@@ -137,3 +137,13 @@ export const FinalTableNode = {
     });
   },
 };
+
+/**
+ * Read the wrapped table expression. `FinalTableNode.kind` is outside
+ * Kysely's closed `OperationNodeKind`, so a narrowed
+ * `OperationNode & FinalTableNode` is `never` and `.table` is unreadable
+ * without this cast.
+ */
+export function unwrapFinalTable(node: { kind: string }): OperationNode {
+  return (node as unknown as FinalTableNode).table;
+}
