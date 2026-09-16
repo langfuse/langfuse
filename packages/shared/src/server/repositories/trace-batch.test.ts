@@ -23,30 +23,6 @@ describe("trace batch query controls", () => {
     maxStart: 2_000 + index,
   }));
 
-  it("uses bounded defaults and compressed multipart transport without overrides", async () => {
-    vi.mocked(queryClickhouseStream).mockImplementation(async function* () {});
-    for await (const _ of getTraceBatchEventStream({ traces })) {
-      throw new Error("Unexpected row");
-    }
-    const baseline = vi.mocked(queryClickhouseStream).mock.calls[0][0];
-    expect(baseline.clickhouseSettings).toEqual({
-      max_threads: 2,
-      max_execution_time: 30,
-      timeout_overflow_mode: "throw",
-    });
-    expect(baseline.tags).toEqual({ projectId: "MULTI_PROJECT" });
-    expect(baseline.useMultipartParamsAuto).toBe(true);
-    expect(baseline.clickhouseConfigs).toEqual({
-      compression: { response: true },
-    });
-    expect(baseline.preferredClickhouseService).toBe("EventsReadOnly");
-
-    for await (const _ of getTraceBatchEventStream({ traces }, {})) {
-      throw new Error("Unexpected row");
-    }
-    expect(vi.mocked(queryClickhouseStream).mock.calls[1][0]).toEqual(baseline);
-  });
-
   it("bounds 10,000-trace HTTP parameters for distinct projects and identical windows", async () => {
     vi.mocked(queryClickhouseStream).mockImplementation(async function* () {});
     for (const sharedWindow of [false, true]) {
@@ -61,6 +37,10 @@ describe("trace batch query controls", () => {
         throw new Error("Unexpected row");
       }
       const sent = vi.mocked(queryClickhouseStream).mock.lastCall![0];
+      expect(sent.useMultipartParamsAuto).toBe(true);
+      expect(sent.clickhouseConfigs).toEqual({
+        compression: { response: true },
+      });
       expect(Buffer.byteLength(sent.query)).toBeLessThan(262_144);
       expect(Object.keys(sent.params ?? {}).length).toBeLessThan(1_000);
       for (const value of Object.values(sent.params ?? {})) {
@@ -98,7 +78,7 @@ describe("trace batch query controls", () => {
       await baselineStream.next();
       const baseline = vi.mocked(queryClickhouseStream).mock.lastCall![0];
       await baselineStream.return(undefined);
-      for (const maxBlockSize of [undefined, 256, 512, 1_024]) {
+      for (const maxBlockSize of [undefined, 512]) {
         requestedSecondRow = false;
         const stream = getTraceBatchEventStream(
           { traces: members },

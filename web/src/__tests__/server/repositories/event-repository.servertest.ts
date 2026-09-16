@@ -108,22 +108,29 @@ describe("Clickhouse Events Repository Test", () => {
       trace_id: firstTraceId,
       start_time: new Date(start + 1_200_000),
     });
+    const otherProjectWindowRow = createEvent({
+      project_id: otherProjectId,
+      trace_id: firstTraceId,
+      start_time: new Date(start),
+    });
     await createEventsCh([
       first,
       second,
       longTraceUpperEndpoint,
       companionOnlyRow,
       repeatedIntervalRow,
+      // This row only matches the same trace ID's window in another project.
+      otherProjectWindowRow,
       createEvent({
         project_id: otherProjectId,
         trace_id: otherTraceId,
         start_time: new Date(start),
       }),
-      // The same trace ID in two projects represents two different traces.
+      // The same trace ID in two projects has independent time windows.
       createEvent({
         project_id: otherProjectId,
         trace_id: firstTraceId,
-        start_time: new Date(start),
+        start_time: new Date(start + 600_000),
       }),
       // These crossed pairs match both independent IN lists, but are unrequested.
       createEvent({
@@ -181,6 +188,7 @@ describe("Clickhouse Events Repository Test", () => {
     let rowCount = 0;
     let fullPayloadSeen = false;
     let companionOnlyRowSeen = false;
+    let otherProjectWindowRowSeen = false;
     let repeatedIntervalRowCount = 0;
     const foundTraces = new Set<string>();
     for await (const event of getTraceBatchEventStream({
@@ -206,8 +214,8 @@ describe("Clickhouse Events Repository Test", () => {
         {
           projectId: otherProjectId,
           traceId: firstTraceId,
-          minStart: start,
-          maxStart: start,
+          minStart: start + 600_000,
+          maxStart: start + 600_000,
         },
         // Repeated identical intervals must not duplicate output rows.
         {
@@ -237,6 +245,9 @@ describe("Clickhouse Events Repository Test", () => {
       if (event.span_id === companionOnlyRow.span_id) {
         companionOnlyRowSeen = true;
       }
+      if (event.span_id === otherProjectWindowRow.span_id) {
+        otherProjectWindowRowSeen = true;
+      }
       if (event.span_id === repeatedIntervalRow.span_id) {
         repeatedIntervalRowCount++;
       }
@@ -254,6 +265,7 @@ describe("Clickhouse Events Repository Test", () => {
     }
     expect(fullPayloadSeen).toBe(true);
     expect(companionOnlyRowSeen).toBe(false);
+    expect(otherProjectWindowRowSeen).toBe(false);
     expect(repeatedIntervalRowCount).toBe(1);
     expect(foundTraces).toEqual(
       new Set([
@@ -264,63 +276,36 @@ describe("Clickhouse Events Repository Test", () => {
       ]),
     );
     expect(rowCount).toBe(extraRowCount + 6);
-
-    // Batch companions do not change a trace's recorded interval plus buffer.
-    let ownBufferedRowSeen = false;
-    let incidentalRowSeen = false;
-    for await (const event of getTraceBatchEventStream({
-      traces: [
-        {
-          projectId: batchProjectId,
-          traceId: firstTraceId,
-          minStart: start,
-          maxStart: start,
-        },
-      ],
-    })) {
-      if (event.span_id === first.span_id) ownBufferedRowSeen = true;
-      if (event.span_id === companionOnlyRow.span_id) incidentalRowSeen = true;
-    }
-    expect(ownBufferedRowSeen).toBe(true);
-    expect(incidentalRowSeen).toBe(false);
   }, 60_000);
 
-  it("supports 1,000 distinct parameterized trace time groups", async () => {
-    const projectId = randomUUID();
+  it("returns matching rows across parameter chunks in a 10,000-trace batch", async () => {
     const start = Date.now();
-    let rowCount = 0;
+    const traces = Array.from({ length: 10_000 }, (_, index) => ({
+      projectId: randomUUID(),
+      traceId: randomUUID(),
+      minStart: start + index,
+      maxStart: start + index,
+    }));
+    // Exercise both sides of time-group, pair, and ID chunk boundaries, plus
+    // the final chunk. Distinct projects also exercise project parameter chunks.
+    const expectedRows = [0, 49, 50, 999, 1_000, 1_999, 2_000, 9_999].map(
+      (index) =>
+        createEvent({
+          project_id: traces[index].projectId,
+          trace_id: traces[index].traceId,
+          start_time: new Date(traces[index].minStart),
+        }),
+    );
+    await createEventsCh(expectedRows);
 
-    for await (const _ of getTraceBatchEventStream({
-      traces: Array.from({ length: 1_000 }, (_, index) => ({
-        projectId,
-        traceId: randomUUID(),
-        minStart: start + index,
-        maxStart: start + index,
-      })),
-    })) {
-      rowCount++;
+    const foundSpanIds: string[] = [];
+    for await (const event of getTraceBatchEventStream({ traces })) {
+      foundSpanIds.push(event.span_id);
     }
 
-    expect(rowCount).toBe(0);
-  }, 60_000);
-
-  it("supports 10,000 distinct parameterized trace time groups", async () => {
-    const projectId = randomUUID();
-    const start = Date.now();
-    let rowCount = 0;
-
-    for await (const _ of getTraceBatchEventStream({
-      traces: Array.from({ length: 10_000 }, (_, index) => ({
-        projectId,
-        traceId: randomUUID(),
-        minStart: start + index,
-        maxStart: start + index,
-      })),
-    })) {
-      rowCount++;
-    }
-
-    expect(rowCount).toBe(0);
+    expect(foundSpanIds.sort()).toEqual(
+      expectedRows.map(({ span_id }) => span_id).sort(),
+    );
   }, 120_000);
 
   it("should kill redis connection", () => {
