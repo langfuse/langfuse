@@ -1,6 +1,7 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,7 +11,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/src/components/ui/alert-dialog";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -719,35 +719,25 @@ function DeleteSsoConfigButton({
   });
 
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
+    <ConfirmationDialogController
+      title={`Remove SSO for @${domain}?`}
+      text="Users at this domain will be able to sign in with any enabled method again. Active sessions are not invalidated."
+      confirmLabel="Remove"
+      variant="destructive"
+      loading={deleteMutation.isPending}
+      onConfirm={() => deleteMutation.mutateAsync({ orgId, domain })}
+    >
+      {({ openDialog }) => (
         <Button
           variant="ghost"
           size="icon-xs"
           aria-label={`Delete SSO for ${domain}`}
+          onClick={openDialog}
         >
           <TrashIcon className="h-4 w-4" />
         </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Remove SSO for @{domain}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Users at this domain will be able to sign in with any enabled method
-            again. Active sessions are not invalidated.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => deleteMutation.mutate({ orgId, domain })}
-            disabled={deleteMutation.isPending}
-          >
-            Remove
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      )}
+    </ConfirmationDialogController>
   );
 }
 
