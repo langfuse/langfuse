@@ -3,6 +3,21 @@ info:
   title: server
   version: ''
   description: >-
+    ## Real-time data
+
+
+    The only real-time path to get tracing data is to ingest via OpenTelemetry
+    (`POST /api/public/otel/v1/traces`) and retrieve via Observations API v2
+    (`GET /api/public/v2/observations`) and Metrics API v2 (`GET
+    /api/public/v2/metrics`). Other public API write and read endpoints can
+    delay data by about 10 minutes. Direct OpenTelemetry exporters must send the
+    `x-langfuse-ingestion-version: 4` header; current Python and JS SDKs already
+    do. See the [Public API
+    docs](https://langfuse.com/docs/api-and-data-platform/features/public-api)
+    and [real-time
+    ingestion](https://langfuse.com/integrations/native/opentelemetry.md#real-time-ingestion).
+
+
     ## Authentication
 
 
@@ -3731,6 +3746,11 @@ paths:
         with optimized performance.
 
 
+        Together with OpenTelemetry ingestion and Observations API v2, this is
+        the only real-time read path. Other public API endpoints can delay data
+        by about 10 minutes.
+
+
         ## V2 Differences
 
         - Supports `observations`, `scores-numeric`, `scores-boolean`, and
@@ -4309,6 +4329,11 @@ paths:
         field selection.
 
 
+        Together with OpenTelemetry ingestion and Metrics API v2, this is the
+        only real-time read path. Other public API endpoints can delay data by
+        about 10 minutes.
+
+
         ## Cursor-based Pagination
 
         This endpoint uses cursor-based pagination for efficient traversal of
@@ -4752,6 +4777,12 @@ paths:
         This endpoint implements the OTLP/HTTP specification for trace
         ingestion, providing native OpenTelemetry integration for Langfuse
         Observability.
+
+
+        Together with Observations API v2 and Metrics API v2, this is the only
+        real-time write path. Other public API endpoints can delay data by about
+        10 minutes. Direct exporters must send `x-langfuse-ingestion-version:
+        4`; current Python and JS SDKs already do.
 
 
         **Supported Formats:**

@@ -20,6 +20,7 @@ fn facts(project: &str) -> InferenceFacts {
         start_time_unix_ms: 1_735_689_600_000,
         duration_ms: 100,
         first_byte_ms: Some(10),
+        completion_start_ms: None,
         http_status: Some(200),
         metadata: json!({"project_id": project, "ingestion_mode": "usage"}),
         outcome: RelayOutcome::Eof,
@@ -120,7 +121,10 @@ async fn concurrent_projects_keep_their_original_grants_and_attribution() {
                 serde_json::from_str(metadata["value"]["stringValue"].as_str().unwrap()).unwrap();
             received.lock().unwrap().push((
                 authorization,
-                metadata["project_id"].as_str().unwrap().to_owned(),
+                metadata["langfuse.gateway.project_id"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned(),
             ));
             response(200, "{}")
         }
