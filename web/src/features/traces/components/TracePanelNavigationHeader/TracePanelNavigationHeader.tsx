@@ -403,7 +403,7 @@ function ViewModeSegment({
     <button
       type="button"
       onClick={disabled ? undefined : onClick}
-      disabled={disabled}
+      aria-disabled={disabled || undefined}
       aria-pressed={active}
       title={title ?? label}
       className={cn(
