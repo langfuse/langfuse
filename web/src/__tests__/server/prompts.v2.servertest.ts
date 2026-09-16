@@ -148,9 +148,9 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       const body = response.body;
 
-      expect(body).toHaveProperty("error");
+      expect(body).toHaveProperty("message");
       // @ts-expect-error
-      expect(body.error).toContain("Unauthorized");
+      expect(body.message).toMatch(/invalid (public key|credentials)/i);
     });
 
     it("should fetch a prompt", async () => {
