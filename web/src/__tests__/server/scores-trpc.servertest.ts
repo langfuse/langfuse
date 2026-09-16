@@ -230,6 +230,127 @@ describe("scores trpc", () => {
       expect(count.totalCount).toBe(1);
     });
 
+    it("reconstructs the latest version of a score id without FINAL", async () => {
+      // Two versions of one score id share the dedup key
+      // (project_id, toDate(timestamp), name, id) and differ only in event_ts.
+      // The FINAL-free rows path (ORDER BY event_ts DESC + LIMIT 1 BY) and count
+      // path (argMax) must both collapse them to the single latest version and
+      // return the whole latest row.
+      const scoreId = randomUUID();
+      const timestamp = new Date("2024-06-15T12:00:00.000Z");
+
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          name: "versioned-score",
+          timestamp,
+          event_ts: new Date("2024-06-15T12:00:00.000Z"),
+          value: 0.1,
+          comment: "stale",
+        }),
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          name: "versioned-score",
+          timestamp,
+          event_ts: new Date("2024-06-15T12:05:00.000Z"),
+          value: 0.9,
+          comment: "latest",
+        }),
+      ]);
+
+      const [rows, count] = await Promise.all([
+        caller.scores.allFromEvents({
+          projectId,
+          filter: [],
+          orderBy: { column: "timestamp", order: "DESC" },
+          page: 0,
+          limit: 50,
+        }),
+        caller.scores.countAllFromEvents({
+          projectId,
+          filter: [],
+          orderBy: null,
+        }),
+      ]);
+
+      expect(rows.scores.map((score) => score.id)).toEqual([scoreId]);
+      expect(rows.scores[0].value).toBe(0.9);
+      expect(rows.scores[0].comment).toBe("latest");
+      expect(count.totalCount).toBe(1);
+    });
+
+    it("filters mutable columns after dedup, never against a stale version", async () => {
+      // value/comment/timestamp/trace_id are mutable across a score's versions,
+      // so a filter must run AFTER dedup. Each id below has a stale version that
+      // disagrees with its latest on `value > 0.5`; filtering the raw rows
+      // pre-dedup would wrongly keep `latest-low` (its stale 0.9) and could drop
+      // `latest-high`. The predicate must be decided on the latest version only.
+      const latestLowId = randomUUID(); // stale 0.9, latest 0.1 -> excluded
+      const latestHighId = randomUUID(); // stale 0.1, latest 0.9 -> included
+      const timestamp = new Date("2024-06-15T12:00:00.000Z");
+
+      await createScoresCh([
+        createTraceScore({
+          id: latestLowId,
+          project_id: projectId,
+          name: "latest-low",
+          timestamp,
+          event_ts: new Date("2024-06-15T12:00:00.000Z"),
+          value: 0.9,
+        }),
+        createTraceScore({
+          id: latestLowId,
+          project_id: projectId,
+          name: "latest-low",
+          timestamp,
+          event_ts: new Date("2024-06-15T12:05:00.000Z"),
+          value: 0.1,
+        }),
+        createTraceScore({
+          id: latestHighId,
+          project_id: projectId,
+          name: "latest-high",
+          timestamp,
+          event_ts: new Date("2024-06-15T12:00:00.000Z"),
+          value: 0.1,
+        }),
+        createTraceScore({
+          id: latestHighId,
+          project_id: projectId,
+          name: "latest-high",
+          timestamp,
+          event_ts: new Date("2024-06-15T12:05:00.000Z"),
+          value: 0.9,
+        }),
+      ]);
+
+      const payload = {
+        projectId,
+        filter: [
+          {
+            column: "value",
+            type: "number" as const,
+            operator: ">" as const,
+            value: 0.5,
+          },
+        ],
+      };
+      const [rows, count] = await Promise.all([
+        caller.scores.allFromEvents({
+          ...payload,
+          orderBy: { column: "timestamp", order: "DESC" },
+          page: 0,
+          limit: 50,
+        }),
+        caller.scores.countAllFromEvents({ ...payload, orderBy: null }),
+      ]);
+
+      expect(rows.scores.map((score) => score.id)).toEqual([latestHighId]);
+      expect(count.totalCount).toBe(1);
+    });
+
     it("returns the recorded evaluator and resolves legacy scores by rule assignment and score name", async () => {
       const [recordedEvaluator, matchingEvaluator, otherEvaluator] =
         await Promise.all(
