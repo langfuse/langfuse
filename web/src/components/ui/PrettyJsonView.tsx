@@ -780,9 +780,6 @@ export function PrettyJsonView(props: {
   inset?: boolean;
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
-  /** Titled sections (Input/Output/Metadata): header controls (copy,
-      expand-all) reveal on section hover instead of rendering always. */
-  hoverControls?: boolean;
   /** When set, rows show an actions menu with copy + add-to-filter shortcuts
       (metadata views only). */
   metadataActions?: MetadataFilterActions;
@@ -1464,7 +1461,7 @@ export function PrettyJsonView(props: {
     <div
       className={cn(
         "flex max-h-full min-h-0 flex-col",
-        props.hoverControls && "group/iosection",
+        "group/iosection",
         props.inset && "[&_.io-message-content]:px-2",
         props.className,
         props.scrollable ? "overflow-hidden" : "",
@@ -1486,7 +1483,7 @@ export function PrettyJsonView(props: {
               : undefined
           }
           inset={props.inset}
-          hoverRevealControls={props.hoverControls}
+          hoverRevealControls
           controlButtons={
             <>
               {expandCollapseButton}

@@ -220,7 +220,6 @@ export function MarkdownJsonView({
           title={title}
           titleIcon={titleIcon}
           className={className}
-          hoverControls
           media={media}
           currentView="pretty"
           controlButtons={controlButtons}
