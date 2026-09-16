@@ -131,21 +131,16 @@ const requireEventBusArn = (): string => {
   return eventBusArn;
 };
 
-const buildChbEventEntry = (
-  eventBusArn: string,
-  params: {
-    type: ChbProjectEventType;
-    chbOrganizationId: string;
-    projectId: string;
-  },
-) => ({
+type ChbProjectEvent = ReturnType<typeof buildChbProjectEventPayload>;
+
+const buildChbEventEntry = (eventBusArn: string, event: ChbProjectEvent) => ({
   EventBusName: eventBusArn,
   // CHB's bus policy whitelists the allowed event types by detail-type, so the
   // type has to travel here, not only in Detail — otherwise the bus rejects
   // the entry.
-  DetailType: params.type,
+  DetailType: event.payload.eventType,
   Source: CHB_EVENT_SOURCE,
-  Detail: JSON.stringify(buildChbProjectEventPayload(params)),
+  Detail: JSON.stringify(event),
 });
 
 /**
@@ -216,7 +211,13 @@ export async function sendChbProjectEvent(params: {
   // segment is present.
   const region = eventBusArn.split(":")[3];
 
-  await putChbEventBatch(region, [buildChbEventEntry(eventBusArn, params)]);
+  const event = buildChbProjectEventPayload(params);
+  await putChbEventBatch(region, [buildChbEventEntry(eventBusArn, event)]);
+
+  logger.info(
+    `[CHB Project Events] Emitted ${params.type} for project ${params.projectId} (CHB org ${params.chbOrganizationId})`,
+    { eventId: event.id },
+  );
 }
 
 /**
@@ -308,8 +309,8 @@ export async function backfillChbProjectEvents(params: {
       select: { id: true },
     });
 
-    const entries = projects.map((project) =>
-      buildChbEventEntry(eventBusArn, {
+    const events = projects.map((project) =>
+      buildChbProjectEventPayload({
         type: "LANGFUSE_PROJECT_CREATED",
         chbOrganizationId,
         projectId: project.id,
@@ -318,17 +319,27 @@ export async function backfillChbProjectEvents(params: {
 
     for (
       let offset = 0;
-      offset < entries.length;
+      offset < events.length;
       offset += EVENT_BUS_MAX_ENTRIES_PER_CALL
     ) {
-      const batch = entries.slice(
+      const batch = events.slice(
         offset,
         offset + EVENT_BUS_MAX_ENTRIES_PER_CALL,
       );
 
       try {
-        await putChbEventBatch(region, batch);
+        await putChbEventBatch(
+          region,
+          batch.map((event) => buildChbEventEntry(eventBusArn, event)),
+        );
         sent += batch.length;
+        logger.info(
+          `[CHB Project Events] Emitted ${batch.length} LANGFUSE_PROJECT_CREATED backfill events for org ${params.orgId} (CHB org ${chbOrganizationId})`,
+          {
+            projectIds: batch.map((event) => event.payload.projectId),
+            eventIds: batch.map((event) => event.id),
+          },
+        );
       } catch (error) {
         // A rejection knows exactly how many entries the bus refused; anything
         // else (timeout, transport) means the whole batch is unaccounted for.
