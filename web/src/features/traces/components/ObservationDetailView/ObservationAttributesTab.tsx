@@ -1,8 +1,4 @@
-/**
- * Attributes tab: the three fact tables an observation carries, in one place.
- * Preview is input and output only — these tables used to sit below the output,
- * which on a large observation is a long scroll away.
- */
+/** Attributes, model parameters and metadata as three tables. */
 
 import { useMemo } from "react";
 
@@ -14,7 +10,7 @@ import {
   probeJsonField,
 } from "@/src/features/traces/components/IOPreview/fns/jsonViewSizeGate";
 
-// Same wrappers Preview uses for these tables, so both tabs line up.
+// Matches Preview's table wrappers.
 const SECTION_CLASS =
   "[&_.io-message-content]:px-3 [&_.io-message-header]:px-3";
 
@@ -30,11 +26,11 @@ export function ObservationAttributesTab({
   attributes: Record<string, unknown>;
   modelParameters: Record<string, unknown> | null;
   metadata: unknown;
-  /** Already parsed by Preview's worker; reused so the tab never re-parses. */
+  /** Reused from Preview so the tab never re-parses. */
   parsedMetadata?: unknown;
   observationId: string;
   projectId: string;
-  /** Same table / raw JSON switch the Preview honours, so the two agree. */
+  /** Shared with Preview's table / JSON switch. */
   currentView: "pretty" | "json";
 }) {
   const metadataActions: MetadataFilterActions = {
@@ -46,8 +42,7 @@ export function ObservationAttributesTab({
     metadata !== null &&
     metadata !== undefined &&
     !(typeof metadata === "object" && Object.keys(metadata).length === 0);
-  // Same gate Preview applies: PrettyJsonView is unvirtualized, so a multi-MB
-  // payload freezes the tab. Above the limit show the bounded fallback.
+  // PrettyJsonView is unvirtualized; oversized payloads get the fallback.
   const metadataProbe = useMemo(() => probeJsonField(metadata), [metadata]);
   const metadataTooLarge = metadataProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT;
 

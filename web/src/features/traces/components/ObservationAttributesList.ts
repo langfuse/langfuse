@@ -1,9 +1,4 @@
-/**
- * Observation attributes: the fixed-key facts Langfuse knows (model,
- * environment, release, version, session, user), and the LLM call's own
- * parameters. Both are rendered with the same PrettyJsonView table as
- * metadata; this module only supplies the objects to render.
- */
+/** Builds the objects behind the Attributes and Model parameters tables. */
 
 import { type JsonNested } from "@langfuse/shared";
 
@@ -28,14 +23,13 @@ export function buildObservationAttributes({
   if (environment) attributes.environment = environment;
   if (release) attributes.release = release;
   if (version) attributes.version = version;
-  // SDK spelling (`session_id`, `user_id`); both are search-bar aliases.
+  // SDK spelling; both are search-bar aliases.
   if (sessionId) attributes.session_id = sessionId;
   if (userId) attributes.user_id = userId;
   return attributes;
 }
 
-/** The LLM call's own parameters (temperature, tools, reasoning …), as sent by
- * the SDK. Null when there are none, so the table does not render empty. */
+/** Null when empty, so the table does not render. */
 export function buildModelParameters(
   modelParameters: JsonNested | null | undefined,
 ): Record<string, unknown> | null {

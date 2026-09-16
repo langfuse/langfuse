@@ -443,8 +443,7 @@ function JsonPrettyTable({
   showObservationTypeBadge?: boolean;
   metadataActions?: MetadataFilterActions;
   toneClasses?: (typeof PRETTY_JSON_VIEW_TONE_CLASSES)[PrettyJsonViewTone];
-  /** Drop the Path / Value header row; the section title already says what
-      the table is. */
+  /** Drop the Path / Value header row. */
   showHeader?: boolean;
 }) {
   const headerRef = useRef<HTMLTableRowElement>(null);
@@ -756,7 +755,7 @@ export function PrettyJsonView(props: {
   parsedJson?: unknown; // Pre-parsed data (optional, from useParsedObservation hook)
   title?: string;
   titleIcon?: React.ReactNode;
-  /** Drop the Path / Value header row of the table view. */
+  /** Drop the Path / Value header row. */
   showHeader?: boolean;
   className?: string;
   isLoading?: boolean;

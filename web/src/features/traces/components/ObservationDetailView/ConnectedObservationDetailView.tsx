@@ -176,8 +176,7 @@ export function ConnectedObservationDetailView({
     return aggregateTraceMetrics(allObservations);
   }, [isRoot, treeNode, observations, observation]);
 
-  // Map global tab to observation-specific tabs (preview, log, scores)
-  // "log" tab only available in v4 mode when there are observations
+  // "log" is v4-only and needs observations; everything else falls back to preview.
   const selectedTab = useMemo(() => {
     if (globalSelectedTab === "scores") return "scores" as const;
     if (globalSelectedTab === "attributes") return "attributes" as const;
@@ -383,8 +382,7 @@ export function ConnectedObservationDetailView({
               <TooltipProvider>
                 <TabsBarList>
                   <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
-                  {/* Attributes, model parameters and metadata: facts about
-                      the call, not its input and output. */}
+                  {/* Facts about the call, not its input and output. */}
                   <TabsBarTrigger value="attributes">Attributes</TabsBarTrigger>
                   {showScoresTab ? (
                     <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
@@ -556,8 +554,7 @@ export function ConnectedObservationDetailView({
                       objectStartTime: observation.startTime,
                     }),
                   commentedPathsByField,
-                  // Metadata moved to the Attributes tab; Preview is
-                  // input and output.
+                  // Metadata lives in the Attributes tab now.
                   showMetadata: false,
                   observationId: observation.id,
                   projectId,
