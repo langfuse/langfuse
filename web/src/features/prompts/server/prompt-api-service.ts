@@ -29,10 +29,6 @@ type ApiKeyProjectContext = {
   accessLevel: ApiAccessLevel;
 };
 
-type PromptApiAuthz = {
-  ctx?: AuthorizationContext;
-};
-
 type ListPromptsForApiInput = z.infer<typeof GetPromptsMetaSchema> & {
   projectId: string;
 };
@@ -152,7 +148,7 @@ async function assertInAppAgentMayMutateProtectedLabels(params: {
 /** authorizeProtectedLabelMutation runs the per-item seam and the in-app-agent creator check when the label set includes a protected label. */
 async function authorizeProtectedLabelMutation(params: {
   context: ApiKeyProjectContext;
-  authz: PromptApiAuthz;
+  ctx?: AuthorizationContext;
   labelsToCheck: string[];
   forbiddenErrorMessage: string;
 }): Promise<void> {
@@ -169,7 +165,7 @@ async function authorizeProtectedLabelMutation(params: {
   }
 
   const decision = shadowAuthorize({
-    ctx: params.authz.ctx,
+    ctx: params.ctx,
     action: "promptProtectedLabels:CUD",
     resource: { projectId: params.context.projectId },
     accessLevel: params.context.accessLevel,
@@ -190,10 +186,11 @@ export const createPromptForApi = async ({
 }: {
   context: ApiKeyProjectContext;
   input: z.infer<typeof CreatePromptSchema>;
-} & PromptApiAuthz) => {
+  ctx?: AuthorizationContext;
+}) => {
   await authorizeProtectedLabelMutation({
     context,
-    authz: { ctx },
+    ctx,
     labelsToCheck: input.labels ?? [],
     forbiddenErrorMessage:
       "You don't have permission to create a prompt with a protected label. Please contact your project admin for assistance.",
@@ -249,7 +246,8 @@ export const updatePromptLabelsForApi = async ({
   promptName: string;
   promptVersion: number;
   newLabels: string[];
-} & PromptApiAuthz) => {
+  ctx?: AuthorizationContext;
+}) => {
   const existingPrompt = await prisma.prompt.findUnique({
     where: {
       projectId_name_version: {
@@ -274,7 +272,7 @@ export const updatePromptLabelsForApi = async ({
 
   await authorizeProtectedLabelMutation({
     context,
-    authz: { ctx },
+    ctx,
     labelsToCheck: addedLabels,
     forbiddenErrorMessage:
       "You don't have permission to add a protected label to a prompt. Please contact your project admin for assistance.",
