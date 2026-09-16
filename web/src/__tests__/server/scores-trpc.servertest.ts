@@ -174,7 +174,7 @@ describe("scores trpc", () => {
       // toDate(timestamp) prune must drop other day-buckets pre-dedup, while the
       // exact timestamp bound (re-applied post-dedup) must still exclude an
       // in-bucket-but-out-of-window row. Regression guard for
-      // buildScoresCountDatePrune.
+      // buildScoresDatePrune.
       const from = new Date("2024-06-15T10:00:00.000Z");
       const to = new Date("2024-06-15T14:00:00.000Z");
 
