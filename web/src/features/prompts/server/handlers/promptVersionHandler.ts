@@ -24,7 +24,7 @@ export const promptVersionHandler = withMiddlewares({
     allowInAppAgentKey: true,
     isAdminApiKeyAuthAllowed: false,
     rateLimitResource: "prompts",
-    fn: async ({ body, req, auth, ctx, accessLevel }) => {
+    fn: async ({ body, req, auth, ctx }) => {
       const { newLabels } = body;
       const { promptName, promptVersion } = req.query;
 
@@ -34,7 +34,6 @@ export const promptVersionHandler = withMiddlewares({
         promptVersion: Number(promptVersion),
         newLabels,
         ctx,
-        accessLevel,
       });
 
       return updatedPrompt;

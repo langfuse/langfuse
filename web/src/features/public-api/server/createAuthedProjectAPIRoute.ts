@@ -110,7 +110,6 @@ export type AuthedProjectAPIRouteConfig<
      * enforce; absent in legacy and on gateway-token auth.
      */
     ctx?: AuthorizationContext;
-    accessLevel: RouteAccessLevel;
   }) => Promise<z.infer<TResponse>>;
 };
 
@@ -295,7 +294,6 @@ export const createAuthedProjectAPIRoute = <
           scope: { projectId: string; accessLevel: RouteAccessLevel };
         },
         ctx: authzCtx,
-        accessLevel: auth.scope.accessLevel,
       });
 
       if (env.NODE_ENV === "development" && routeConfig.responseSchema) {

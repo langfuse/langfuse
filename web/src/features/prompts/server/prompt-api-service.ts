@@ -26,11 +26,11 @@ type ApiKeyProjectContext = {
   projectId: string;
   orgId: string;
   apiKeyId: string;
+  accessLevel: ApiAccessLevel;
 };
 
 type PromptApiAuthz = {
   ctx?: AuthorizationContext;
-  accessLevel: ApiAccessLevel;
 };
 
 type ListPromptsForApiInput = z.infer<typeof GetPromptsMetaSchema> & {
@@ -172,7 +172,7 @@ async function authorizeProtectedLabelMutation(params: {
     ctx: params.authz.ctx,
     action: "promptProtectedLabels:CUD",
     resource: { projectId: params.context.projectId },
-    accessLevel: params.authz.accessLevel,
+    accessLevel: params.context.accessLevel,
   });
   if (!decision.success) throw decision.error;
 
@@ -187,14 +187,13 @@ export const createPromptForApi = async ({
   context,
   input,
   ctx,
-  accessLevel,
 }: {
   context: ApiKeyProjectContext;
   input: z.infer<typeof CreatePromptSchema>;
 } & PromptApiAuthz) => {
   await authorizeProtectedLabelMutation({
     context,
-    authz: { ctx, accessLevel },
+    authz: { ctx },
     labelsToCheck: input.labels ?? [],
     forbiddenErrorMessage:
       "You don't have permission to create a prompt with a protected label. Please contact your project admin for assistance.",
@@ -245,7 +244,6 @@ export const updatePromptLabelsForApi = async ({
   promptVersion,
   newLabels,
   ctx,
-  accessLevel,
 }: {
   context: ApiKeyProjectContext;
   promptName: string;
@@ -276,7 +274,7 @@ export const updatePromptLabelsForApi = async ({
 
   await authorizeProtectedLabelMutation({
     context,
-    authz: { ctx, accessLevel },
+    authz: { ctx },
     labelsToCheck: addedLabels,
     forbiddenErrorMessage:
       "You don't have permission to add a protected label to a prompt. Please contact your project admin for assistance.",

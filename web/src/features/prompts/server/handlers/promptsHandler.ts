@@ -35,12 +35,11 @@ export const promptsHandler = withMiddlewares({
     allowInAppAgentKey: true,
     isAdminApiKeyAuthAllowed: false,
     rateLimitResource: "prompts",
-    fn: async ({ body, auth, ctx, accessLevel }) => {
+    fn: async ({ body, auth, ctx }) => {
       return await createPromptForApi({
         context: auth.scope,
         input: body,
         ctx,
-        accessLevel,
       });
     },
   }),

@@ -100,7 +100,6 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
         const createdPrompt = await createPromptForApi({
           context,
           ctx: context.auth,
-          accessLevel: context.accessLevel,
           input: CreatePromptSchema.parse({
             name: input.name,
             type: PromptType.Text,
