@@ -16,7 +16,6 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Badge } from "@/src/components/ui/badge";
 import {
   tracesTableColsWithOptions,
-  type singleFilter,
   singleFilterList,
   availableTraceEvalVariables,
   datasetFormFilterColsWithOptions,
@@ -139,7 +138,7 @@ const TracesPreview = memo(
     filterState,
   }: {
     projectId: string;
-    filterState: z.infer<typeof singleFilter>[];
+    filterState: z.infer<typeof singleFilterList>[number][];
   }) => {
     const dateRange = useMemo(() => {
       return {
@@ -189,7 +188,7 @@ const ObservationsPreview = memo(
     compatibilityCheckWasPerformed,
   }: {
     projectId: string;
-    filterState: z.infer<typeof singleFilter>[];
+    filterState: z.infer<typeof singleFilterList>[number][];
     isNewCompatible: boolean;
     compatibilityCheckWasPerformed: boolean;
   }) => {
@@ -323,7 +322,7 @@ function CodeEvalSourceLink({
   );
 }
 
-const EMPTY_FILTER_STATE: z.infer<typeof singleFilter>[] = [];
+const EMPTY_FILTER_STATE: z.infer<typeof singleFilterList>[number][] = [];
 
 export const InnerEvaluatorForm = (props: {
   projectId: string;
@@ -1223,7 +1222,9 @@ export const InnerEvaluatorForm = (props: {
                                 columns={getFilterColumns()}
                                 filterState={field.value ?? []}
                                 onChange={(
-                                  value: z.infer<typeof singleFilter>[],
+                                  value: z.infer<
+                                    typeof singleFilterList
+                                  >[number][],
                                 ) => {
                                   field.onChange(value);
                                   if (router.query.traceId) {
