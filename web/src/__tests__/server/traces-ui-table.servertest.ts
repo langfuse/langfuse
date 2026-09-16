@@ -5,11 +5,12 @@ import {
   createObservation,
   createTrace,
   getTracesTable,
+  getTracesTableCount,
   type TracesTableUiReturnType,
   type ObservationRecordInsertType,
   type TraceRecordInsertType,
 } from "@langfuse/shared/src/server";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState, type TracingSearchType } from "@langfuse/shared";
 
 describe("Traces table API test", () => {
   it("should get a correct trace without observation", async () => {
@@ -247,4 +248,61 @@ describe("Traces table API test", () => {
       });
     });
   });
+
+  it.each(["ASC", "DESC"] as const)(
+    "pages past the first page with a metadata filter and content search (%s)",
+    async (order) => {
+      const project_id = v4();
+      const documentId = `doc-${v4()}`;
+      const needle = `needle-${v4()}`;
+      const traces = Array.from({ length: 12 }, (_, i) =>
+        createTrace({
+          id: `trace-${String(i).padStart(2, "0")}-${v4()}`,
+          project_id,
+          timestamp: Date.now() - i * 1_000,
+          metadata: { documentId },
+          input: `${needle} payload ${i}`,
+        }),
+      );
+      await createTracesCh(traces);
+
+      const filter: FilterState = [
+        {
+          column: "metadata",
+          type: "stringObject",
+          key: "documentId",
+          operator: "=",
+          value: documentId,
+        },
+      ];
+      const searchType: TracingSearchType[] = ["content"];
+      const query = {
+        projectId: project_id,
+        filter,
+        searchQuery: needle,
+        searchType,
+        orderBy: { column: "timestamp" as const, order },
+        limit: 5,
+      };
+
+      const [page0, page1, totalCount] = await Promise.all([
+        getTracesTable({ ...query, page: 0 }),
+        getTracesTable({ ...query, page: 1 }),
+        // Count matches the UI: orderBy is always null so the aggregate
+        // is not wrapped in a timestamp ORDER BY.
+        getTracesTableCount({
+          projectId: project_id,
+          filter,
+          searchQuery: needle,
+          searchType: ["content"],
+        }),
+      ]);
+
+      expect(totalCount).toBe(12);
+      expect(page0).toHaveLength(5);
+      expect(page1).toHaveLength(5);
+      const page0Ids = new Set(page0.map((row) => row.id));
+      expect(page1.every((row) => !page0Ids.has(row.id))).toBe(true);
+    },
+  );
 });

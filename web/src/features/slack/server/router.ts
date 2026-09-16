@@ -10,7 +10,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { TRPCError } from "@trpc/server";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { env } from "@/src/env.mjs";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 

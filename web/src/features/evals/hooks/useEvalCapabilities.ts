@@ -1,7 +1,7 @@
 import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 import { isNewLegacyEvalAllowed } from "@/src/features/evals/utils/legacyEvalGate";

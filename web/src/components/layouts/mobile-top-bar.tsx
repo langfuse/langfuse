@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import { useSession } from "next-auth/react";
 import { Menu } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { useSidebar } from "@/src/components/ui/sidebar";
@@ -8,6 +9,7 @@ import { TopbarAccount } from "@/src/components/nav/topbar-account";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
 import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 /**
  * Slim mobile top chrome for the minimal-chrome shell: hamburger · centered
@@ -27,8 +29,10 @@ export const MobileTopBar = ({
   leadingControl?: ReactNode;
 }) => {
   const { toggleSidebar } = useSidebar();
+  const session = useSession();
   const hasAppSidebar = useHasAppSidebar();
   const envLabel = useEnvLabel();
+  const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   const showHamburger = showSidebarTrigger && hasAppSidebar;
 
   return (
@@ -54,14 +58,14 @@ export const MobileTopBar = ({
       </div>
 
       {/* Center: the Langfuse wordmark. */}
-      <TopbarBrand variant="wordmark" />
+      {hasAppSidebar && <TopbarBrand variant="wordmark" />}
 
       {/* Right: the assistant launcher (prominent, gradient-bordered so it
           reads as a real entry point here) + account. Balances the left slot
           so the brand stays centered. */}
       <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
-        <InAppAiAgentButton prominent />
-        <TopbarAccount />
+        {isInAppAgentLauncherVisible && <InAppAiAgentButton prominent />}
+        {session.data?.user && <TopbarAccount user={session.data.user} />}
       </div>
     </div>
   );

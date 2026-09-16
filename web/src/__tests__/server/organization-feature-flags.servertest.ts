@@ -61,6 +61,29 @@ describe("organization feature preview defaults", () => {
     });
   });
 
+  it("enables the Compact Session default with the Session Timeline default", async () => {
+    const { actor, caller, org } = await prepare();
+    await prisma.user.update({
+      where: { id: actor.id },
+      data: { featureFlags: ["modernSession", "sessionTimeline"] },
+    });
+
+    await caller.organizations.setFeatureFlagOrgDefault({
+      orgId: org.id,
+      flag: "sessionTimeline",
+      enabled: true,
+    });
+
+    await expect(
+      prisma.organization.findUniqueOrThrow({
+        where: { id: org.id },
+        select: { featureFlagOrgDefaults: true },
+      }),
+    ).resolves.toEqual({
+      featureFlagOrgDefaults: ["sessionTimeline", "modernSession"],
+    });
+  });
+
   it("allows tested administrators and rejects ordinary organization members", async () => {
     const admin = await prepare("cloud:core", Role.ADMIN);
     await prisma.user.update({
@@ -209,6 +232,8 @@ describe("organization feature preview defaults", () => {
       // here. Asserting that two REGISTERED defaults resolve differently needs
       // a second preview; add that half back with the next one.
       modernSession: false,
+      sessionTimeline: false,
+      normalizedIoPreview: false,
     });
   });
 
@@ -241,6 +266,30 @@ describe("organization feature preview defaults", () => {
 });
 
 describe("organization member feature preview overrides", () => {
+  it("enables Compact Session when enabling Session Timeline for a member", async () => {
+    const { caller, org } = await prepare();
+    const target = await createUser();
+    await prisma.organizationMembership.create({
+      data: { orgId: org.id, userId: target.id, role: Role.MEMBER },
+    });
+
+    await caller.members.setUserFeaturePreviewEnabled({
+      orgId: org.id,
+      userId: target.id,
+      flag: "sessionTimeline",
+      enabled: true,
+    });
+
+    await expect(
+      prisma.user.findUniqueOrThrow({
+        where: { id: target.id },
+        select: { featureFlags: true },
+      }),
+    ).resolves.toEqual({
+      featureFlags: ["sessionTimeline", "modernSession"],
+    });
+  });
+
   it("persists an administrator's disable as a global user opt-out", async () => {
     const { caller, org } = await prepare();
     const target = await createUser({ featureFlags: ["modernSession"] });
@@ -261,7 +310,10 @@ describe("organization member feature preview overrides", () => {
         select: { featureFlags: true },
       }),
     ).resolves.toEqual({
-      featureFlags: [getFeaturePreviewOptOutFlag("modernSession")],
+      featureFlags: [
+        getFeaturePreviewOptOutFlag("modernSession"),
+        getFeaturePreviewOptOutFlag("sessionTimeline"),
+      ],
     });
   });
 
@@ -439,7 +491,11 @@ describe("organization member feature preview overrides", () => {
 
     // The state map surfaces every preview; the raw `featureFlags` array stays
     // hidden, which is what this guards.
-    expect(row?.featurePreviews).toEqual({ modernSession: true });
+    expect(row?.featurePreviews).toEqual({
+      modernSession: true,
+      sessionTimeline: false,
+      normalizedIoPreview: false,
+    });
     expect(row?.user).not.toHaveProperty("featureFlags");
     expect(row).not.toHaveProperty("organizationIds");
   });

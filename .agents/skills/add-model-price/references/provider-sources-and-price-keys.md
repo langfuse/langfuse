@@ -66,7 +66,8 @@ Always fetch pricing from the provider's official docs before editing.
   `googleAIStudioModels` while keeping the pricing JSON entries intact.
 - **Gemini cache-read ratio** — Google Gemini models consistently price cached input at
   10% of the base input price (e.g. Gemini 2.5 Flash: $0.30/MTok input → $0.03/MTok
-  cached). If a cache-read price in the file diverges from this ratio, treat it as
+  cached). Priority tables can round this differently (3.5 Flash-Lite: $0.05 cache
+  read on $0.54 input); use the published rate. If a cache-read price in the file diverges from this ratio, treat it as
   suspicious and verify against the official page before correcting.
 - **`ai.google.dev/pricing` has separate Free-tier and Paid-tier columns — do not confuse
   them (resolved July 31 2026)** — The official Gemini pricing table has both a "Free of
@@ -502,6 +503,160 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   none of the three 2.5-family pricing-file entries carry a `grounding_queries` key —
   the 0.014/query rate is correctly scoped to 3.x models only. No change needed; this
   confirms the existing scoping is correct rather than being a shared/hardcoded bug.
+- **September 6 2026 audit: full re-fetch found no price or catalog drift; a newer
+  Gemini specialized-model wave confirmed out of scope** — Re-fetched the full
+  Anthropic pricing table, the OpenAI aggregate Standard/Fast-mode/Flex pricing
+  tables plus the dedicated `gpt-6-astra` model page, and the Gemini AI Studio
+  pricing pages (`ai.google.dev/pricing` for the 2.5 family, plus
+  `ai.google.dev/gemini-api/docs/pricing` and `ai.google.dev/gemini-api/docs/models`
+  for the 3.x family and full model catalog). Every price already in the pricing
+  file — including `gpt-6-astra`'s six tiers and `gemini-3.8-flash`'s introductory
+  rate — matched verbatim; no updates were needed. `ai.google.dev/gemini-api/docs/models`
+  now additionally lists `gemini-3.5-transcribe` / `gemini-3.5-transcribe-live`
+  (speech-to-text), `gemini-omni-1.1-flash` (video generation/editing, replacing the
+  August 21 2026 wave's `gemini-omni-flash` name), `gemini-2.5-computer-use-preview-10-2025`
+  (UI automation), `deep-research-preview-04-2026` (research agent), and
+  `antigravity-preview-05-2026` — confirmed via a targeted fetch to be "a
+  general-purpose managed agent that autonomously plans, reasons, runs code, manages
+  files, and browses the web inside a secure, isolated Linux sandbox," i.e. an agentic
+  product with no standard `generateContent` per-token text pricing, not a chat model.
+  None of these five are a general-purpose text/chat completion model with standard
+  per-token text pricing, so none were added, consistent with the existing
+  modality-specific/restricted-access skip rule. Re-investigate only if one of them
+  gains a standard text-generation mode with its own per-token text pricing.
+- **September 8 2026 audit: no price or catalog drift; `gemini-2.0-flash` shutdown
+  status confirmed; another Gemini specialized-model wave confirmed out of scope** —
+  Re-fetched the full Anthropic pricing table, the OpenAI aggregate Standard pricing
+  table (all short- and long-context tiers for the gpt-5.x/gpt-6 families plus
+  gpt-4.1/gpt-4o/o3/o4-mini), and both Gemini pricing pages
+  (`ai.google.dev/pricing` for the 2.5 family, `ai.google.dev/gemini-api/docs/pricing`
+  for the 3.x family) plus `ai.google.dev/gemini-api/docs/models`. Every price already
+  in the file matched verbatim; no updates were needed. Two new pieces of
+  information: (1) `ai.google.dev/gemini-api/docs/models` now explicitly labels
+  `gemini-2.0-flash` "(Shut down)" under previous models — this resolves the
+  long-standing "not re-verified, retained for backward compatibility" note on this
+  entry into a confirmed-retired status, but per the automated-audit scope (no
+  removal category authorized) the pricing entry and `types.ts` selectable-model
+  entries were left in place unchanged, same treatment as the `gemini-3-pro-preview`
+  precedent above; (2) the models page now additionally lists
+  `gemini-3.1-flash-image` ("Nano Banana 2"), `gemini-3.1-flash-lite-image` ("Nano
+  Banana 2 Lite"), `gemini-3-pro-image` ("Nano Banana Pro"), `gemini-embedding-2-preview`,
+  `gemini-embedding-001`, `gemini-2.5-flash-native-audio-preview-12-2025`,
+  `gemini-2.5-flash-preview-tts`, `gemini-2.5-pro-preview-tts`,
+  `deep-research-max-preview-04-2026`, and `gemini-robotics-er-1.6-preview` — image
+  generation, embedding, native-audio, text-to-speech, and robotics endpoints, none a
+  general-purpose text/chat model with standard per-token text pricing, so none were
+  added, consistent with the existing modality-specific skip rule.
+- **September 9 2026 audit: full re-fetch found no price or catalog drift; Gemma
+  confirmed free-only; AWS Bedrock Amazon Nova confirmed a pre-existing, not
+  newly released, coverage gap** — Re-fetched the full Anthropic pricing table
+  (plus the models overview table), the OpenAI aggregate Standard/Fast-mode/Flex
+  pricing tables, both Gemini pricing pages (`ai.google.dev/gemini-api/docs/pricing`
+  for the 3.x family, `ai.google.dev/pricing` implicitly re-confirmed via the 2.5
+  family rows), the Gemini models catalog page, and the AWS Bedrock pricing page.
+  Every price already in the file — including all `gpt-6-astra` and `gemini-3.8-flash`
+  tiers — matched verbatim; no updates were needed. Two clarifications: (1) a
+  targeted fetch of the official pricing page confirms `Gemma 4` (and the Gemma
+  family generally) is listed with "Input price: Free of charge | Output price:
+  Free of charge" and "Paid Tier ... Not available" — it has no hosted per-token
+  API pricing on Google's own page, so it is out of scope for a Langfuse default
+  pricing entry (not merely unchecked); (2) AWS Bedrock's pricing page prominently
+  lists **Amazon Nova** as a foundation-model family, but `types.ts` and the
+  pricing file have never had a Nova entry — this is a pre-existing gap (Nova
+  launched in Dec 2024, well before this audit's history), not a newly released
+  model this run. Adding Nova would require its own model-ID/matchPattern and
+  Bedrock usage-key research (Nova is not an Anthropic-format model, per the
+  "Other Bedrock models" section below) and was left as a reportable gap rather
+  than a surgical same-run addition. Also reconfirmed the AWS Bedrock "Claude 3.5
+  Sonnet (Public Extended Access)" pricing is unchanged ($6.00/$30.00 input/output,
+  $7.50/$0.60 cache write/read) — same documented, non-representable limitation
+  as before. The Gemini models catalog also still lists the same image-generation
+  (`gemini-3.1-flash-image`, `gemini-3.1-flash-lite-image`, `gemini-3-pro-image`),
+  audio/TTS/translate, robotics, and agent-product waves noted in the September 6
+  and September 8 2026 entries above — no new modality-specific model needed
+  re-investigation.
+- **September 10 2026 audit: full re-fetch found no price or catalog drift;
+  OpenAI Daybreak cybersecurity family confirmed to include more than
+  `gpt-5.6-cyber`** — Re-fetched the full Anthropic pricing table plus the
+  models-overview table, the OpenAI aggregate Standard/Fast-mode/Flex pricing
+  tables plus the full model catalog (`developers.openai.com/api/docs/models/all`),
+  and both Gemini pricing pages (`ai.google.dev/gemini-api/docs/pricing` for the
+  3.x family, `ai.google.dev/pricing` for the 2.5 family) plus the Gemini models
+  catalog page. Every price already in the file — including every `gpt-6-astra`,
+  `gemini-3.8-flash`, `claude-fable-5-1`/`claude-mythos-5-1`, and `gpt-5.3-codex`
+  tier — matched verbatim; no updates were needed. One clarification: the OpenAI
+  model catalog groups `gpt-5.6-cyber` together with previously-unseen
+  `gpt-5.5-cyber` and `gpt-5.4-cyber` under a "Cyber/Daybreak models" heading, and
+  separately lists `gpt-oss-120b`/`gpt-oss-20b` as open-weight (self-hosted, no
+  OpenAI-hosted per-token price) models. Per the existing `gpt-5.6-cyber` scope
+  exclusion (gated Daybreak-program endpoint), `gpt-5.5-cyber` and `gpt-5.4-cyber`
+  are the same class of restricted, specialized-use endpoint and were not added;
+  no pricing was visible for either in this run's fetch, so there is nothing to
+  add even if the scope exclusion were lifted. Treat the whole Daybreak cyber
+  family (currently three members) as one standing scope exclusion rather than
+  re-investigating each member separately in future audits.
+- **Gemini Priority inference (verified September 14 2026)** — The
+  [Priority guide](https://ai.google.dev/gemini-api/docs/priority-inference)
+  documents `service_tier: "priority"` on the Interactions API. The
+  [OpenAI-compatible API](https://ai.google.dev/gemini-api/docs/openai#flex-and-priority-inference)
+  supports the same parameter. This is per-request Gemini Developer API
+  processing, not a Vertex capacity reservation.
+  Use the existing `model_parameters` condition on `service_tier`, with
+  `operator: "in"` and `values: ["priority"]`. Do not include OpenAI's `fast`
+  alias. For Pro models, evaluate Priority + >200K before plain Priority and
+  standard Large Context (ascending priorities 1, 2, 3).
+  Read the actual tier from the response's `x-gemini-service-tier` header:
+  requests can be downgraded to Standard and billed at Standard rates. Record
+  that actual value in Langfuse `modelParameters.service_tier`; the catalog
+  matcher cannot read HTTP headers. Generic OTEL `gen_ai.request.service_tier`
+  captures only the requested tier, and native Gemini response-header capture
+  is not automatic. Missing tier data falls back to ordinary context pricing.
+  The [paid pricing tables](https://ai.google.dev/gemini-api/docs/pricing)
+  supply the following Priority USD/MTok rates (input / output / cache read):
+
+  | Model | Input | Output, including thinking | Cache read |
+  | --- | --- | --- | --- |
+  | gemini-3.6-flash / 3.7-flash / 3.8-flash | 1.35 | 6.75 | 0.135 |
+  | gemini-3.5-flash | 2.70 | 16.20 | 0.27 |
+  | gemini-3.5-flash-lite | 0.54 | 4.50 | 0.05 |
+  | gemini-3.1-flash-lite | 0.45 | 2.70 | 0.045 |
+  | gemini-3-flash-preview | 0.90 | 5.40 | 0.09 |
+  | gemini-3.1-pro-preview, <=200K / >200K | 3.60 / 7.20 | 21.60 / 32.40 | 0.36 / 0.72 |
+  | gemini-2.5-pro, <=200K / >200K | 2.25 / 4.50 | 18 / 27 | 0.225 / 0.45 |
+  | gemini-2.5-flash | 0.54 | 4.50 | 0.054 |
+  | gemini-2.5-flash-lite | 0.18 | 0.72 | 0.018 |
+
+  Preserve all existing input, cache-read (including `input_cache_read`), output,
+  and reasoning aliases in each new tier. Existing audio-input keys use
+  $0.90/MTok for 3.1 Flash-Lite, $1.80 for 2.5 Flash, and $0.54 for 2.5 Flash-Lite.
+  Keep existing grounding rates unchanged. Do not infer a universal multiplier:
+  3.5 Flash-Lite explicitly lists a $0.05 cache rate. The 3.6/3.7/3.8 Flash rates
+  are introductory through December 31, 2026; recheck their January 1 increase.
+  These are Developer API rates; do not infer Vertex regional or reserved-capacity
+  pricing from them. Retired previews, media models, Flex, cache storage, and new
+  modality buckets require separate evidence and are outside this change.
+- **September 15 2026 audit: full re-fetch found no price or catalog drift;
+  "GPT-Rosalind" found and confirmed out of scope** — Re-fetched the Anthropic
+  pricing page, the Anthropic models-overview table, the OpenAI aggregate
+  Standard/Fast-mode/Flex pricing tables, the full OpenAI model catalog
+  (`developers.openai.com/api/docs/models/all`), both Gemini pricing pages
+  (`ai.google.dev/gemini-api/docs/pricing` for the 3.x family,
+  implicitly re-confirmed for the 2.5 family), and the Gemini models catalog
+  page. Every price already in the file — including every `gpt-6-astra`,
+  `gemini-3.6/3.7/3.8-flash`, and `claude-fable-5-1`/`claude-mythos-5-1` tier —
+  matched verbatim; no updates were needed. The Anthropic models-overview table
+  lists no model beyond the existing lineup. One new finding: the OpenAI model
+  catalog now lists **"GPT-Rosalind"** under a "Life sciences" heading,
+  described only as "Life sciences reasoning for approved organizations." A
+  dedicated model-page fetch (`developers.openai.com/api/docs/models/gpt-rosalind`)
+  404s, and the catalog page shows no model ID/slug or per-token price for it,
+  only a pointer to the pricing page. This is the same class of restricted,
+  approved-organizations-only specialized endpoint as the Daybreak cyber family
+  (`gpt-5.6-cyber`/`gpt-5.5-cyber`/`gpt-5.4-cyber`) — not added to the pricing
+  file or `types.ts` per the existing restricted-access skip rule, and there is
+  no confirmed model ID or price to add even if the scope exclusion were
+  lifted. Re-investigate only if OpenAI publishes a public model ID and
+  per-token price for it.
 
 Capture:
 
