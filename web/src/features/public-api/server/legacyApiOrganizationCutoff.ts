@@ -1,6 +1,7 @@
 import { type NextApiRequest } from "next";
 import { type ApiDeprecationInfo } from "@langfuse/shared";
 import {
+  extractPublicApiCallerAttribution,
   logger,
   recordIncrement,
   type ApiAccessScopeWithOptionalApiKeyId,
@@ -41,7 +42,21 @@ export function applyLegacyApiOrganizationCutoff(params: {
   }
 
   const apiPath = clickHouseRouteForRequest(params.req);
-  recordIncrement("langfuse.public_api.legacy_get_rejected", 1);
+  const callerAttribution = extractPublicApiCallerAttribution(
+    params.req.headers,
+  );
+  // `sdkName` is canonicalized and `sdkVersion` is only set for recognized SDK
+  // releases, so both are bounded enough to tag a counter with. `userAgent` is
+  // free-form client input that would add one time series per distinct value,
+  // so it is only available on the log line below.
+  recordIncrement("langfuse.public_api.legacy_get_rejected", 1, {
+    ...(callerAttribution.sdkName
+      ? { sdkName: callerAttribution.sdkName }
+      : {}),
+    ...(callerAttribution.sdkVersion
+      ? { sdkVersion: callerAttribution.sdkVersion }
+      : {}),
+  });
   logger.info(
     "Rejected legacy GET API request for organization created at or after cutoff",
     {
@@ -51,6 +66,7 @@ export function applyLegacyApiOrganizationCutoff(params: {
       apiPath,
       organizationCreatedAt: params.scope.organizationCreatedAt,
       cutoff: cutoff.toISOString(),
+      ...callerAttribution,
     },
   );
 

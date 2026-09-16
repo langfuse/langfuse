@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { Job, Processor } from "bullmq";
 import { z } from "zod";
 import {
