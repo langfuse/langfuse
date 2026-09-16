@@ -10,7 +10,6 @@
  * - Color Code Metrics (dependent on duration or cost being enabled)
  * - Collapse System Prompts
  * - Minimum Observation Level filter
- * - Show Graph (hidden when graph view not available)
  *
  * All preferences are managed via ViewPreferencesContext and persisted to localStorage.
  */

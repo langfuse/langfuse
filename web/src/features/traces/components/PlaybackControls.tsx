@@ -85,10 +85,14 @@ function usePlaybackClickHandlers() {
   const isPlaying = useIsPlaying();
   const showPlayhead = useShowPlayhead();
 
-  // Tree is stored as a null query param; anything else is still tree.
+  // Tree is stored as a null query param; an unrecognised value reads as tree.
   const props = {
     viewMode:
-      viewMode === "timeline" ? ("timeline" as const) : ("tree" as const),
+      viewMode === "timeline"
+        ? ("timeline" as const)
+        : viewMode === "graph"
+          ? ("graph" as const)
+          : ("tree" as const),
     observationCount: observations.length,
     ...analyticsDimensions,
   };

@@ -6,10 +6,8 @@
  * - Handle panel collapse/expand state for desktop
  * - Position the truncation + hidden-observation notices above content
  *
- * The graph used to render here as a resizable secondary panel below the
- * tree/timeline, with its own collapse bar and persisted split. It is a full
- * view on the Tree/Timeline/Graph switch now, so this wrapper is just header +
- * notices + content.
+ * Tree, Timeline and Graph all render as `children`; this wrapper owns only
+ * the header, the notices and the content area.
  *
  * Hooks:
  * - useDesktopLayoutContext() - for panel collapse state
