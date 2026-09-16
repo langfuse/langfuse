@@ -310,7 +310,8 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
       .$call(useFinal(["scores"]));
 
     const { sql: compiled } = compileClickhouseQuery(qb, ctx);
-    expect(compiled.toLowerCase()).toMatch(/scores as s final/);
+    expect(compiled.toLowerCase()).toMatch(/from scores as s final/);
+    expect(compiled.toLowerCase()).not.toMatch(/from scores as s,/);
   });
 
   it("rejects FINAL on events_core", () => {
