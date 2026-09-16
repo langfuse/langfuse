@@ -1,23 +1,14 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
-  capturedQueries,
   clickhouseFormatAvailable,
-  normalizeCapturedQueries,
-  resetCaptures,
+  formatSql,
+  normalizeParams,
 } from "./goldenHarness";
-
-vi.mock("../repositories/clickhouse", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("../repositories/clickhouse")>();
-  const { buildClickhouseMock } = await import("./goldenHarness.js");
-  return buildClickhouseMock(actual);
-});
-
 import {
-  getAggregatedScoresForPromptsFromEvents,
-  getScoresForExperimentItems,
-} from "../repositories/scores";
+  compileAggregatedScoresForPromptsFromEvents,
+  compileScoresForExperimentItems,
+} from "./scoresQueries";
 
 const FIXED_PROJECT_ID = "golden-project";
 const FIXED_EXPERIMENT_IDS = ["exp-a", "exp-b"];
@@ -35,26 +26,29 @@ if (!clickhouseFormatAvailable()) {
   );
 }
 
+function snapshotCompiled(compiled: {
+  sql: string;
+  params: Record<string, unknown>;
+}) {
+  return normalizeParams(formatSql(compiled.sql), compiled.params);
+}
+
 describeWithClickhouse("golden: scores.getScoresForExperimentItems", () => {
-  beforeEach(() => resetCaptures());
-
-  it("emits no query when experimentIds is empty", async () => {
-    await getScoresForExperimentItems(FIXED_PROJECT_ID, []);
-    expect(capturedQueries).toHaveLength(0);
-  });
-
-  it("experimentIds set", async () => {
-    await getScoresForExperimentItems(FIXED_PROJECT_ID, FIXED_EXPERIMENT_IDS);
-    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  it("experimentIds set", () => {
+    expect(
+      snapshotCompiled(
+        compileScoresForExperimentItems(
+          { projectId: FIXED_PROJECT_ID },
+          FIXED_EXPERIMENT_IDS,
+        ),
+      ),
+    ).toMatchSnapshot();
   });
 });
 
 describeWithClickhouse(
   "golden: scores.getAggregatedScoresForPromptsFromEvents",
   () => {
-    beforeEach(() => resetCaptures());
-    afterAll(() => resetCaptures());
-
     const variants: Array<{
       relation: "observation" | "trace";
       fromTimestamp?: Date;
@@ -79,18 +73,20 @@ describeWithClickhouse(
         .join("+");
       const name = `relation=${variant.relation} time=${bounds || "unset"}`;
 
-      it(name, async () => {
-        await getAggregatedScoresForPromptsFromEvents(
-          FIXED_PROJECT_ID,
-          FIXED_PROMPT_IDS,
-          variant.relation,
-          {
-            fromTimestamp: variant.fromTimestamp,
-            toTimestamp: variant.toTimestamp,
-          },
-        );
-
-        expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+      it(name, () => {
+        expect(
+          snapshotCompiled(
+            compileAggregatedScoresForPromptsFromEvents(
+              { projectId: FIXED_PROJECT_ID },
+              FIXED_PROMPT_IDS,
+              variant.relation,
+              {
+                fromTimestamp: variant.fromTimestamp,
+                toTimestamp: variant.toTimestamp,
+              },
+            ),
+          ),
+        ).toMatchSnapshot();
       });
     }
   },
