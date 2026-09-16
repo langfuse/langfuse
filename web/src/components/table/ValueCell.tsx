@@ -41,13 +41,10 @@ const ARRAY_PREVIEW_ITEMS = 3;
 const MONO_TEXT_CLASSES = "font-mono text-xs wrap-break-word";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
 
-/** Row hover controls take the section header's icon size, color and right
-    axis, so the column of controls reads as one. */
+/** Matches the section header's icon size, color and right axis. */
 const ROW_ACTION_BUTTON_CLASSES =
   "text-muted-foreground absolute top-0 h-5 w-5 rounded-sm p-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:bg-transparent hover:text-foreground";
-/** Aligned by ink, not by box: the copy glyph paints to 1px shy of its
-    viewBox, the vertical ellipsis to 5.5px, so equal offsets would read as
-    4.5px of drift down the column. */
+/** Differ because the ellipsis paints 5.5px shy of its viewBox, copy 1px. */
 const ROW_COPY_OFFSET = "-right-0.5";
 const ROW_MENU_OFFSET = "-right-1.5";
 
