@@ -1,5 +1,5 @@
 import { createObservation } from "../../test-utils";
-import type { Transcript, TranscriptConfig } from "../types";
+import type { Transcript } from "../types";
 
 /**
  * One transcript test case: a full observation tree as `createObservation`
@@ -25,7 +25,5 @@ export type TranscriptFixture = {
    * order, so fixtures never re-sort.
    */
   observations: Parameters<typeof createObservation>[0][];
-  /** Builder options for this case. Omitted means defaults. */
-  config?: TranscriptConfig;
   expected: Transcript | null | undefined;
 };

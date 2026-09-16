@@ -56,6 +56,17 @@ describe("transcript fixtures", () => {
     ).toEqual(["2", "3", "3"]);
   });
 
+  it("does not list a replay-only generation as a contributor", () => {
+    const transcript = getTranscript([
+      generation("1", ["A"], ["B"]),
+      generation("2", ["A", "B"], []),
+    ]);
+    expect(transcript?.threads).toHaveLength(1);
+    expect(transcript?.threads[0].observations).toEqual([
+      { id: "1", traceId: "trace-1" },
+    ]);
+  });
+
   it("have unique names", () => {
     const names = transcriptFixtures.map((fixture) => fixture.name);
     expect(new Set(names).size).toBe(names.length);

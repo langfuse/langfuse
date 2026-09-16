@@ -154,7 +154,7 @@ function append(
   isNewThread: boolean,
 ) {
   const { thread, shownCounts } = state;
-  thread.observations.push({ id: generation.id, traceId: generation.traceId });
+  const messageCount = thread.messages.length;
   if (isNewThread) {
     // Append all input messages, no deduplication checks required
     for (const entry of input) appendMessage(state, generation, entry);
@@ -172,6 +172,18 @@ function append(
   }
   // Append all output messages
   for (const entry of output) appendMessage(state, generation, entry);
+  if (
+    thread.messages.length > messageCount &&
+    !thread.observations.some(
+      ({ id, traceId }) =>
+        id === generation.id && traceId === generation.traceId,
+    )
+  ) {
+    thread.observations.push({
+      id: generation.id,
+      traceId: generation.traceId,
+    });
+  }
 }
 
 function appendMessage(

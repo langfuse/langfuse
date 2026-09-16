@@ -133,7 +133,7 @@ and observation provenance are excluded. All fields inside parts are included.
 transcript/
 ├── README.md
 ├── index.ts               getTranscript
-├── types.ts               TranscriptConfig, Transcript, Thread, ThreadMessage
+├── types.ts               Transcript, Thread, ThreadMessage
 └── fixtures/
     ├── README.md          how to turn a trace JSON export into a fixture
     ├── fixture-types.ts   TranscriptFixture

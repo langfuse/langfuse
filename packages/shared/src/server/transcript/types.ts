@@ -1,10 +1,5 @@
 import type { NormalizedMessage } from "../../utils/normalized-io/types";
 
-export type TranscriptConfig = {
-  /** Keep `system` messages in the transcript. Defaults to `true`. */
-  includeSystemMessages?: boolean;
-};
-
 export type ThreadMessage = NormalizedMessage & {
   /** Observation that first emitted this message. */
   observationId: string;

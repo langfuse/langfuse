@@ -703,7 +703,4 @@ export const vercelAiSdkDocsToolLoopFixture: TranscriptFixture = {
     },
   ],
   expected: undefined,
-  config: {
-    includeSystemMessages: false,
-  },
 };
