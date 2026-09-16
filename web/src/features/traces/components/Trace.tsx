@@ -20,6 +20,7 @@ import {
 } from "@/src/features/traces/contexts/TraceGraphDataContext";
 import { TraceLayoutMobile } from "@/src/features/traces/components/TraceLayoutMobile";
 import { TraceLayoutDesktop } from "@/src/features/traces/components/TraceLayoutDesktop";
+import { TraceSummaryStrip } from "@/src/features/traces/components/TraceSummaryStrip";
 import { TracePanelNavigation } from "@/src/features/traces/components/TracePanelNavigation";
 import { TracePanelDetail } from "@/src/features/traces/components/TracePanelDetail";
 import { TracePanelNavigationLayoutDesktop } from "@/src/features/traces/components/TracePanelNavigationLayoutDesktop/TracePanelNavigationLayoutDesktop";
@@ -200,13 +201,22 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const { isGraphViewAvailable } = useTraceGraphData();
   const shouldShowGraph = showGraph && isGraphViewAvailable;
 
-  return isMobile ? (
-    <MobileTraceContent shouldShowGraph={shouldShowGraph} />
-  ) : (
-    <DesktopTraceContent
-      shouldShowGraph={shouldShowGraph}
-      desktopLayout={desktopLayout}
-    />
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      {/* Trace-level totals and tags have their only home here — annotation
+          mode still needs them, so the strip is not gated on it. */}
+      <TraceSummaryStrip />
+      <div className="min-h-0 flex-1">
+        {isMobile ? (
+          <MobileTraceContent shouldShowGraph={shouldShowGraph} />
+        ) : (
+          <DesktopTraceContent
+            shouldShowGraph={shouldShowGraph}
+            desktopLayout={desktopLayout}
+          />
+        )}
+      </div>
+    </div>
   );
 }
 
