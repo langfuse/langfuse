@@ -13,7 +13,7 @@ import { useSearch } from "@/src/features/traces/contexts/SearchContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
-import { GRAPH_UNAVAILABLE_COPY } from "@/src/features/traces/fns/graphAvailability";
+import { type GraphUnavailableReason } from "@/src/features/traces/fns/graphAvailability";
 import {
   Tooltip,
   TooltipContent,
@@ -345,6 +345,12 @@ function TracePanelNavigationHeaderExpanded({
     </Command>
   );
 }
+
+const GRAPH_UNAVAILABLE_COPY: Record<GraphUnavailableReason, string> = {
+  "no-data": "No graph data on this trace.",
+  "too-large": "Too many observations to graph.",
+  "no-structure": "Nothing to graph. This trace has only one node.",
+};
 
 type TraceViewMode = "tree" | "timeline" | "graph";
 

@@ -10,12 +10,6 @@ export type GraphAvailability =
   | { available: true; isAgentGraph: boolean }
   | { available: false; reason: GraphUnavailableReason };
 
-export const GRAPH_UNAVAILABLE_COPY: Record<GraphUnavailableReason, string> = {
-  "no-data": "No graph data on this trace.",
-  "too-large": "Too many observations to graph.",
-  "no-structure": "Nothing to graph. This trace has only one node.",
-};
-
 export function resolveGraphAvailability(
   agentGraphData: AgentGraphDataResponse[],
 ): GraphAvailability {
