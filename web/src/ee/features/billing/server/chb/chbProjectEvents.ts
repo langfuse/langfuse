@@ -9,6 +9,7 @@ import { env } from "@/src/env.mjs";
 import { parseDbOrg } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger, recordIncrement } from "@langfuse/shared/src/server";
+import { randomUUID } from "crypto";
 
 /**
  * Project lifecycle events for ClickHouse Billing (CHB).
@@ -73,17 +74,20 @@ const buildChbProjectEventPayload = (params: {
   projectId: string;
 }) => {
   const cell = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  const timestamp = new Date();
 
   return {
-    type: params.type,
-    organizationId: params.chbOrganizationId,
-    projectId: params.projectId,
-    // CHB locates a deployment by provider region plus cell, not by our cell
-    // name alone: two cells can share one region (US and HIPAA both run in
-    // us-west-2), so the cell is what still tells them apart.
-    ...(cell ? CELL_LOCATION[cell] : null),
-    cell: cell?.toLowerCase(),
-    createdAt: new Date().toISOString(),
+    id: randomUUID(),
+    source: CHB_EVENT_SOURCE,
+    timestamp: timestamp.getTime(),
+    payload: {
+      type: params.type,
+      organizationId: params.chbOrganizationId,
+      projectId: params.projectId,
+      ...(cell ? CELL_LOCATION[cell] : null),
+      cell: cell?.toLowerCase(),
+      createdAt: timestamp.toISOString(),
+    },
   };
 };
 
