@@ -1,6 +1,14 @@
 import { type NextApiRequest } from "next";
 
-import { ApiError, type BaseError } from "@langfuse/shared";
+import {
+  ApiError,
+  ForbiddenError,
+  InvalidRequestError,
+  LangfuseNotFoundError,
+  ServiceUnavailableError,
+  UnauthorizedError,
+  type BaseError,
+} from "@langfuse/shared";
 import {
   type ApiAccessLevel,
   type ApiAccessScope,
@@ -116,13 +124,27 @@ async function runLegacyProjectAuth(
     const status = (error as { status?: unknown }).status;
     const message = (error as { message?: unknown }).message;
     const httpCode = typeof status === "number" ? status : 401;
-    return {
-      success: false,
-      error: new ApiError(
-        typeof message === "string" ? message : "Authentication failed",
-        httpCode,
-      ),
-    };
+    const text =
+      typeof message === "string" ? message : "Authentication failed";
+    return { success: false, error: legacyThrownAuthError(httpCode, text) };
+  }
+}
+
+/** legacyThrownAuthError maps verifyAuth's `{ status, message }` throw onto the public BaseError class for that status. */
+function legacyThrownAuthError(httpCode: number, message: string): BaseError {
+  switch (httpCode) {
+    case 401:
+      return new UnauthorizedError(message);
+    case 403:
+      return new ForbiddenError(message);
+    case 404:
+      return new LangfuseNotFoundError(message);
+    case 400:
+      return new InvalidRequestError(message);
+    case 503:
+      return new ServiceUnavailableError(message);
+    default:
+      return new ApiError(message, httpCode);
   }
 }
 

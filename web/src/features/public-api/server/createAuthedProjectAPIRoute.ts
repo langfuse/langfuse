@@ -10,6 +10,7 @@ import {
 import {
   BaseError,
   PayloadTooLargeError,
+  UnauthorizedError,
   type RateLimitResource,
   type ApiDeprecationInfo,
 } from "@langfuse/shared";
@@ -146,14 +147,20 @@ export const createAuthedProjectAPIRoute = <
       return;
     }
 
-    const renderAuthError = (statusCode: number, message: string) => {
+    const renderAuthError = (error: BaseError) => {
       if (routeConfig.errorContract === structuredPublicApiErrorContract) {
         return sendStructuredPublicApiErrorResponse(
           res,
-          createStructuredPublicApiAuthError({ statusCode, message }),
+          createStructuredPublicApiAuthError({
+            statusCode: error.httpCode,
+            message: error.message,
+          }),
         );
       }
-      res.status(statusCode).json({ message });
+      res.status(error.httpCode).json({
+        message: error.message,
+        error: error.name,
+      });
     };
 
     // A signed AI-gateway ingestion token authorizes the project directly,
@@ -169,8 +176,13 @@ export const createAuthedProjectAPIRoute = <
         );
       } catch (error) {
         renderAuthError(
-          error instanceof BaseError ? error.httpCode : 401,
-          error instanceof BaseError ? error.message : "Authentication failed",
+          error instanceof BaseError
+            ? error
+            : new UnauthorizedError(
+                error instanceof Error
+                  ? error.message
+                  : "Authentication failed",
+              ),
         );
         return;
       }
@@ -198,7 +210,7 @@ export const createAuthedProjectAPIRoute = <
       });
 
       if (!result.success) {
-        renderAuthError(result.error.httpCode, result.error.message);
+        renderAuthError(result.error);
         return;
       }
 

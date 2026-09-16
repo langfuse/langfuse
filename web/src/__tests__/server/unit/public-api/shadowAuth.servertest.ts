@@ -272,7 +272,7 @@ describe("project-family dispatch (allowedAccessLevels ['project'])", () => {
       legacyDenies(403);
       expect(await call()).toMatchObject({
         success: false,
-        error: { httpCode: 403, message: "legacy" },
+        error: { httpCode: 403, message: "legacy", name: "ForbiddenError" },
       });
       expect(mockEnforceAuth).not.toHaveBeenCalled();
     });
@@ -308,7 +308,7 @@ describe("project-family dispatch (allowedAccessLevels ['project'])", () => {
       authzAllows();
       expect(await call()).toMatchObject({
         success: false,
-        error: { httpCode: 401, message: "legacy" },
+        error: { httpCode: 401, message: "legacy", name: "UnauthorizedError" },
       });
     });
 

@@ -176,6 +176,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(res._getJSONData()).toEqual({
       message:
         "Invalid credentials. Confirm that you've configured the correct host.",
+      error: "UnauthorizedError",
     });
   });
 
@@ -189,6 +190,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(res.statusCode).toBe(503);
     expect(res._getJSONData()).toEqual({
       message: "Service Unavailable",
+      error: "ServiceUnavailableError",
     });
     expect(mockTraceException).toHaveBeenCalledWith(prismaLikeError);
   });
