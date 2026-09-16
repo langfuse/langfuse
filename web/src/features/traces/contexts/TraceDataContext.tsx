@@ -41,7 +41,7 @@ type TraceType = Omit<
 > & {
   input: string | null;
   output: string | null;
-  /** Server-derived total latency in seconds; absent on payloads that don't compute it. */
+  /** Server-derived, in seconds. */
   latency?: number;
 };
 

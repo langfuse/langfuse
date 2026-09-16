@@ -210,17 +210,13 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
     />
   );
 
-  // The annotation queue processor shows no trace-level metadata, and the
-  // badge row this strip replaces was gated the same way. Returning the
-  // panels bare keeps that surface byte-identical.
+  // Annotation mode shows no trace-level metadata.
   if (isAnnotationMode) {
     return panels;
   }
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {/* Trace totals and tags live here, not on the detail headers, so they
-          survive selecting an observation. */}
       <TraceSummaryStrip />
       <div className="min-h-0 flex-1">{panels}</div>
     </div>

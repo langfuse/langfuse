@@ -1,16 +1,4 @@
-/**
- * TraceSummaryStrip - persistent trace-level summary row.
- *
- * Renders directly under the page header, above the navigation/detail panels,
- * and stays visible regardless of which observation is selected. It carries
- * trace totals (latency, cost, tokens), the session/user reference links, and
- * tags. Env/release/version stay on the trace detail header instead, since
- * observations can differ from the trace.
- *
- * Totals are shuffled, not computed: latency comes from the tRPC trace payload
- * (server-derived from observation timestamps) and cost from the same
- * client-side aggregation the trace detail header already used.
- */
+/** Trace totals, session/user links and tags, above the panels. */
 
 import { useMemo, useState } from "react";
 
@@ -30,8 +18,6 @@ import {
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 
-// Tags shown before the rest folds into a "+N" toggle — tag-heavy traces must
-// not turn the one-line strip into a wall of chips.
 const MAX_VISIBLE_TAGS = 3;
 
 export function TraceSummaryStrip() {
@@ -44,8 +30,7 @@ export function TraceSummaryStrip() {
     [observations],
   );
 
-  // Mobile clips the whole row behind CollapsibleBadgeRow's chevron, so a +N
-  // here would reveal nothing. Cap on desktop only.
+  // Mobile clips the row behind its own chevron, so +N would reveal nothing.
   const visibleTags =
     isMobile || showAllTags
       ? trace.tags
@@ -83,7 +68,6 @@ export function TraceSummaryStrip() {
         )}
         {trace.tags.length > 0 && (
           <div className="flex min-w-0 items-center gap-1">
-            {/* v4 tags are immutable here, so no edit affordance. */}
             {visibleTags.map((tag) => (
               <TagButton key={tag} tag={tag} loading={false} viewOnly />
             ))}
