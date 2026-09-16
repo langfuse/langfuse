@@ -214,7 +214,7 @@ function TracePanelNavigationHeaderExpanded({
           panel min). If you ADD anything to this row, re-measure and retune all
           three — stale thresholds show up as a clipped switcher at default
           widths, which is what the folding exists to prevent. */}
-      <div className="@container/navheader flex flex-row items-center justify-between pr-2 pl-1">
+      <div className="@container/navheader flex flex-row items-center pr-2 pl-1">
         {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed
             version. Hidden while the detail panel is closed (nothing useful to
             collapse the full-width tree/timeline into). */}
@@ -230,14 +230,14 @@ function TracePanelNavigationHeaderExpanded({
         {/* Search Input */}
         <div
           className={cn(
-            "relative min-w-0 flex-1",
+            "relative hidden min-w-0 flex-1 @min-[360px]/navheader:block",
             isDetailPanelCollapsed && "pl-1",
           )}
         >
           <CommandInput
             showBorder={false}
             placeholder="Search"
-            className="h-7 min-w-0 border-0 pr-0 focus:ring-0"
+            className="h-7 min-w-20 border-0 pr-0 focus:ring-0"
             value={searchInputValue}
             onValueChange={setSearchInputValue}
             onKeyDown={handleSearchKeyDown}
@@ -245,7 +245,7 @@ function TracePanelNavigationHeaderExpanded({
         </div>
         <div className="flex shrink-0 flex-row items-center gap-0.5">
           {/* Minor tools — inline when the panel is wide enough. */}
-          <div className="hidden flex-row items-center gap-0.5 @min-[400px]/navheader:flex">
+          <div className="hidden flex-row items-center gap-0.5 @min-[510px]/navheader:flex">
             <Button
               onClick={handleToggleTreeNodes}
               variant="ghost"
@@ -286,7 +286,7 @@ function TracePanelNavigationHeaderExpanded({
                 size="icon"
                 title="More"
                 aria-label="More options"
-                className="h-7 w-7 @min-[400px]/navheader:hidden"
+                className="h-7 w-7 @min-[510px]/navheader:hidden"
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />
               </Button>
@@ -318,7 +318,7 @@ function TracePanelNavigationHeaderExpanded({
               folded into the overflow menu on a narrow panel, like the tools
               above it. Two more 28px buttons are what tipped this row over: the
               search input collapsed to "Se" and the switch clipped. */}
-          <div className="hidden flex-row items-center @min-[400px]/navheader:flex">
+          <div className="hidden flex-row items-center @min-[510px]/navheader:flex">
             <PlaybackControls />
           </div>
 
