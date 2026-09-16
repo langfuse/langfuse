@@ -1,0 +1,847 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden: events point-reads & existence family > getAgentGraphDataFromEventsTable 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-trace",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-01 01:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.parent_span_id AS parent_observation_id,
+    e.type AS type,
+    e.name AS name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_node'] AS node,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_step'] AS step
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.trace_id = {param2:String}) AND (e.start_time >= {param3:DateTime64(3)}) AND (e.start_time <= {param4:DateTime64(3)})",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getLastTraceTimestampsByProjectsFromEventsTable projectIds=empty 1`] = `[]`;
+
+exports[`golden: events point-reads & existence family > getLastTraceTimestampsByProjectsFromEventsTable projectIds=many 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": [
+        "golden-project",
+        "golden-project-b",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    project_id,
+    max(start_time) AS last_trace_at
+FROM events_core
+WHERE (project_id IN ({param1:Array(String)})) AND (start_time >= (now() - toIntervalDay(30))) AND (is_deleted = 0)
+GROUP BY project_id",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getLastTraceTimestampsByProjectsFromEventsTable projectIds=one 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": [
+        "golden-project",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    project_id,
+    max(start_time) AS last_trace_at
+FROM events_core
+WHERE (project_id IN ({param1:Array(String)})) AND (start_time >= (now() - toIntervalDay(30))) AND (is_deleted = 0)
+GROUP BY project_id",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getObservationByIdFromEventsTable base 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-span",
+      "param3": 1,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.name AS name,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.release AS release,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        COALESCE(
+            nullIf(e.trace_name, ''),
+            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.tags AS tags,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.provided_model_name AS provided_model_name,
+    e.model_id AS internal_model_id,
+    e.model_parameters AS model_parameters,
+    e.provided_usage_details AS provided_usage_details,
+    e.usage_details AS usage_details,
+    e.provided_cost_details AS provided_cost_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    e.completion_start_time AS completion_start_time,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.event_ts
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (span_id = {param2:String})
+ORDER BY
+    start_time DESC,
+    event_ts DESC
+LIMIT {param3:Int64}",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getObservationByIdFromEventsTable io=full 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-span",
+      "param3": 1,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.name AS name,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.release AS release,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        COALESCE(
+            nullIf(e.trace_name, ''),
+            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.tags AS tags,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.provided_model_name AS provided_model_name,
+    e.model_id AS internal_model_id,
+    e.model_parameters AS model_parameters,
+    e.provided_usage_details AS provided_usage_details,
+    e.usage_details AS usage_details,
+    e.provided_cost_details AS provided_cost_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    e.completion_start_time AS completion_start_time,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.event_ts,
+    input,
+    output
+FROM events_full AS e
+WHERE (e.project_id = {param1:String}) AND (span_id = {param2:String})
+ORDER BY
+    start_time DESC,
+    event_ts DESC
+LIMIT {param3:Int64}",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getObservationByIdFromEventsTable io=truncated 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-span",
+      "param3": 1,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.name AS name,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.release AS release,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        COALESCE(
+            nullIf(e.trace_name, ''),
+            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.tags AS tags,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.provided_model_name AS provided_model_name,
+    e.model_id AS internal_model_id,
+    e.model_parameters AS model_parameters,
+    e.provided_usage_details AS provided_usage_details,
+    e.usage_details AS usage_details,
+    e.provided_cost_details AS provided_cost_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    e.completion_start_time AS completion_start_time,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.event_ts,
+    leftUTF8(input, 1000) AS input,
+    leftUTF8(output, 1000) AS output
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (span_id = {param2:String})
+ORDER BY
+    start_time DESC,
+    event_ts DESC
+LIMIT {param3:Int64}",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getObservationByIdFromEventsTable startTime+type+traceId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-span",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2025-12-01 00:00:00.000",
+      "param5": "GENERATION",
+      "param6": "golden-trace",
+      "param7": 1,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.name AS name,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.release AS release,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        COALESCE(
+            nullIf(e.trace_name, ''),
+            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.tags AS tags,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.provided_model_name AS provided_model_name,
+    e.model_id AS internal_model_id,
+    e.model_parameters AS model_parameters,
+    e.provided_usage_details AS provided_usage_details,
+    e.usage_details AS usage_details,
+    e.provided_cost_details AS provided_cost_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    e.completion_start_time AS completion_start_time,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.event_ts
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (span_id = {param2:String}) AND (toStartOfMinute(start_time) = toStartOfMinute({param3:DateTime64(3)})) AND (start_time >= ({param4:DateTime64(3)} - toIntervalDay(2))) AND (type = {param5:String}) AND (trace_id = {param6:String})
+ORDER BY
+    start_time DESC,
+    event_ts DESC
+LIMIT {param7:Int64}",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getObservationsTraceIdsFromEventsTable 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-span",
+        "golden-span-b",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.trace_id AS trace_id,
+    e.span_id AS span_id
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (e.span_id IN ({param2:Array(String)}))",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getTraceByIdFromEventsTable base 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-trace",
+      ],
+      "param3": 1,
+    },
+    "route": "unknown",
+    "sql": "WITH traces AS
+    (
+        SELECT
+            trace_id AS id,
+            project_id,
+            COALESCE(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')),
+                    ''
+                )
+            ) AS name,
+            min(start_time) AS timestamp,
+            argMaxIf(environment, event_ts, environment != '') AS environment,
+            argMaxIf(version, event_ts, version != '') AS version,
+            argMaxIf(session_id, event_ts, session_id != '') AS session_id,
+            argMaxIf(user_id, event_ts, user_id != '') AS user_id,
+            argMaxIf(input, event_ts, parent_span_id = '') AS input,
+            argMaxIf(output, event_ts, parent_span_id = '') AS output,
+            argMaxIf(
+                mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)),
+                event_ts,
+                parent_span_id = ''
+            ) AS metadata,
+            min(created_at) AS created_at,
+            max(updated_at) AS updated_at,
+            sum(total_cost) AS total_cost,
+            dateDiff('millisecond', min(start_time), greatest(max(start_time), max(end_time))) AS latency_milliseconds,
+            groupUniqArrayIf(span_id, span_id != '') AS observation_ids,
+            length(
+                groupUniqArrayIf(span_id, (span_id != '') AND (span_id != concat('t-', trace_id)))
+            ) AS observation_count,
+            argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked,
+            max(public) AS public,
+            argMaxIf(experiment_item_id, event_ts, experiment_item_id != '') AS experiment_item_id,
+            sumMap(usage_details) AS usage_details,
+            sumMap(cost_details) AS cost_details,
+            multiIf(
+                arrayExists(x -> (x = 'ERROR'), groupArray(level)),
+                'ERROR',
+                arrayExists(x -> (x = 'WARNING'), groupArray(level)),
+                'WARNING',
+                arrayExists(x -> (x = 'DEFAULT'), groupArray(level)),
+                'DEFAULT',
+                'DEBUG'
+            ) AS aggregated_level,
+            countIf(level = 'WARNING') AS warning_count,
+            countIf(level = 'ERROR') AS error_count,
+            countIf(level = 'DEFAULT') AS default_count,
+            countIf(level = 'DEBUG') AS debug_count,
+            argMaxIf(tags, event_ts, notEmpty(tags)) AS tags,
+            argMaxIf(release, event_ts, release != '') AS release,
+            argMaxIf(evaluator_id, event_ts, evaluator_id != '') AS evaluator_id,
+            argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id != '') AS evaluation_rule_id,
+            any(experiment_id) AS experiment_id
+        FROM events_full AS e
+        WHERE (e.project_id = {param1:String}) AND (trace_id IN ({param2:Array(String)}))
+        GROUP BY
+            trace_id,
+            project_id
+        ORDER BY timestamp DESC
+    )
+SELECT
+    t.id,
+    t.name,
+    t.user_id,
+    t.release,
+    t.version,
+    t.project_id,
+    t.environment,
+    t.public,
+    t.bookmarked,
+    t.tags,
+    t.session_id,
+    t.timestamp,
+    t.created_at,
+    t.updated_at,
+    t.metadata,
+    0 AS is_deleted,
+    t.input,
+    t.output
+FROM traces AS t
+ORDER BY t.timestamp DESC
+LIMIT {param3:Int64}",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getTraceByIdFromEventsTable excludeInputOutput+excludeMetadata 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-trace",
+      ],
+      "param3": 1,
+    },
+    "route": "unknown",
+    "sql": "WITH traces AS
+    (
+        SELECT
+            trace_id AS id,
+            project_id,
+            COALESCE(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')),
+                    ''
+                )
+            ) AS name,
+            min(start_time) AS timestamp,
+            argMaxIf(environment, event_ts, environment != '') AS environment,
+            argMaxIf(version, event_ts, version != '') AS version,
+            argMaxIf(session_id, event_ts, session_id != '') AS session_id,
+            argMaxIf(user_id, event_ts, user_id != '') AS user_id,
+            argMaxIf(input, event_ts, parent_span_id = '') AS input,
+            argMaxIf(output, event_ts, parent_span_id = '') AS output,
+            argMaxIf(
+                mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)),
+                event_ts,
+                parent_span_id = ''
+            ) AS metadata,
+            min(created_at) AS created_at,
+            max(updated_at) AS updated_at,
+            sum(total_cost) AS total_cost,
+            dateDiff('millisecond', min(start_time), greatest(max(start_time), max(end_time))) AS latency_milliseconds,
+            groupUniqArrayIf(span_id, span_id != '') AS observation_ids,
+            length(
+                groupUniqArrayIf(span_id, (span_id != '') AND (span_id != concat('t-', trace_id)))
+            ) AS observation_count,
+            argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked,
+            max(public) AS public,
+            argMaxIf(experiment_item_id, event_ts, experiment_item_id != '') AS experiment_item_id,
+            sumMap(usage_details) AS usage_details,
+            sumMap(cost_details) AS cost_details,
+            multiIf(
+                arrayExists(x -> (x = 'ERROR'), groupArray(level)),
+                'ERROR',
+                arrayExists(x -> (x = 'WARNING'), groupArray(level)),
+                'WARNING',
+                arrayExists(x -> (x = 'DEFAULT'), groupArray(level)),
+                'DEFAULT',
+                'DEBUG'
+            ) AS aggregated_level,
+            countIf(level = 'WARNING') AS warning_count,
+            countIf(level = 'ERROR') AS error_count,
+            countIf(level = 'DEFAULT') AS default_count,
+            countIf(level = 'DEBUG') AS debug_count,
+            argMaxIf(tags, event_ts, notEmpty(tags)) AS tags,
+            argMaxIf(release, event_ts, release != '') AS release,
+            argMaxIf(evaluator_id, event_ts, evaluator_id != '') AS evaluator_id,
+            argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id != '') AS evaluation_rule_id,
+            any(experiment_id) AS experiment_id
+        FROM events_full AS e
+        WHERE (e.project_id = {param1:String}) AND (trace_id IN ({param2:Array(String)}))
+        GROUP BY
+            trace_id,
+            project_id
+        ORDER BY timestamp DESC
+    )
+SELECT
+    t.id,
+    t.name,
+    t.user_id,
+    t.release,
+    t.version,
+    t.project_id,
+    t.environment,
+    t.public,
+    t.bookmarked,
+    t.tags,
+    t.session_id,
+    t.timestamp,
+    t.created_at,
+    t.updated_at,
+    map() AS metadata,
+    0 AS is_deleted,
+    '' AS input,
+    '' AS output
+FROM traces AS t
+ORDER BY t.timestamp DESC
+LIMIT {param3:Int64}",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getTraceByIdFromEventsTable timestamp+fromTimestamp 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-trace",
+      ],
+      "param3": "2025-12-01 00:00:00.000",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": 1,
+    },
+    "route": "unknown",
+    "sql": "WITH traces AS
+    (
+        SELECT
+            trace_id AS id,
+            project_id,
+            COALESCE(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')),
+                    ''
+                )
+            ) AS name,
+            min(start_time) AS timestamp,
+            argMaxIf(environment, event_ts, environment != '') AS environment,
+            argMaxIf(version, event_ts, version != '') AS version,
+            argMaxIf(session_id, event_ts, session_id != '') AS session_id,
+            argMaxIf(user_id, event_ts, user_id != '') AS user_id,
+            argMaxIf(input, event_ts, parent_span_id = '') AS input,
+            argMaxIf(output, event_ts, parent_span_id = '') AS output,
+            argMaxIf(
+                mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)),
+                event_ts,
+                parent_span_id = ''
+            ) AS metadata,
+            min(created_at) AS created_at,
+            max(updated_at) AS updated_at,
+            sum(total_cost) AS total_cost,
+            dateDiff('millisecond', min(start_time), greatest(max(start_time), max(end_time))) AS latency_milliseconds,
+            groupUniqArrayIf(span_id, span_id != '') AS observation_ids,
+            length(
+                groupUniqArrayIf(span_id, (span_id != '') AND (span_id != concat('t-', trace_id)))
+            ) AS observation_count,
+            argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked,
+            max(public) AS public,
+            argMaxIf(experiment_item_id, event_ts, experiment_item_id != '') AS experiment_item_id,
+            sumMap(usage_details) AS usage_details,
+            sumMap(cost_details) AS cost_details,
+            multiIf(
+                arrayExists(x -> (x = 'ERROR'), groupArray(level)),
+                'ERROR',
+                arrayExists(x -> (x = 'WARNING'), groupArray(level)),
+                'WARNING',
+                arrayExists(x -> (x = 'DEFAULT'), groupArray(level)),
+                'DEFAULT',
+                'DEBUG'
+            ) AS aggregated_level,
+            countIf(level = 'WARNING') AS warning_count,
+            countIf(level = 'ERROR') AS error_count,
+            countIf(level = 'DEFAULT') AS default_count,
+            countIf(level = 'DEBUG') AS debug_count,
+            argMaxIf(tags, event_ts, notEmpty(tags)) AS tags,
+            argMaxIf(release, event_ts, release != '') AS release,
+            argMaxIf(evaluator_id, event_ts, evaluator_id != '') AS evaluator_id,
+            argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id != '') AS evaluation_rule_id,
+            any(experiment_id) AS experiment_id
+        FROM events_full AS e
+        WHERE (e.project_id = {param1:String}) AND (trace_id IN ({param2:Array(String)})) AND (start_time >= ({param3:DateTime64(3)} - toIntervalDay(2)))
+        GROUP BY
+            trace_id,
+            project_id
+        ORDER BY timestamp DESC
+    )
+SELECT
+    t.id,
+    t.name,
+    t.user_id,
+    t.release,
+    t.version,
+    t.project_id,
+    t.environment,
+    t.public,
+    t.bookmarked,
+    t.tags,
+    t.session_id,
+    t.timestamp,
+    t.created_at,
+    t.updated_at,
+    t.metadata,
+    0 AS is_deleted,
+    t.input,
+    t.output
+FROM traces AS t
+WHERE toDate(t.timestamp) = toDate({param4:DateTime64(3)})
+ORDER BY t.timestamp DESC
+LIMIT {param5:Int64}",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getTraceByIdFromEventsTable truncated 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-trace",
+      ],
+      "param3": 1,
+    },
+    "route": "unknown",
+    "sql": "WITH traces AS
+    (
+        SELECT
+            trace_id AS id,
+            project_id,
+            COALESCE(
+                nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                nullIf(
+                    argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')),
+                    ''
+                )
+            ) AS name,
+            min(start_time) AS timestamp,
+            argMaxIf(environment, event_ts, environment != '') AS environment,
+            argMaxIf(version, event_ts, version != '') AS version,
+            argMaxIf(session_id, event_ts, session_id != '') AS session_id,
+            argMaxIf(user_id, event_ts, user_id != '') AS user_id,
+            argMaxIf(input, event_ts, parent_span_id = '') AS input,
+            argMaxIf(output, event_ts, parent_span_id = '') AS output,
+            argMaxIf(
+                mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)),
+                event_ts,
+                parent_span_id = ''
+            ) AS metadata,
+            min(created_at) AS created_at,
+            max(updated_at) AS updated_at,
+            sum(total_cost) AS total_cost,
+            dateDiff('millisecond', min(start_time), greatest(max(start_time), max(end_time))) AS latency_milliseconds,
+            groupUniqArrayIf(span_id, span_id != '') AS observation_ids,
+            length(
+                groupUniqArrayIf(span_id, (span_id != '') AND (span_id != concat('t-', trace_id)))
+            ) AS observation_count,
+            argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked,
+            max(public) AS public,
+            argMaxIf(experiment_item_id, event_ts, experiment_item_id != '') AS experiment_item_id,
+            sumMap(usage_details) AS usage_details,
+            sumMap(cost_details) AS cost_details,
+            multiIf(
+                arrayExists(x -> (x = 'ERROR'), groupArray(level)),
+                'ERROR',
+                arrayExists(x -> (x = 'WARNING'), groupArray(level)),
+                'WARNING',
+                arrayExists(x -> (x = 'DEFAULT'), groupArray(level)),
+                'DEFAULT',
+                'DEBUG'
+            ) AS aggregated_level,
+            countIf(level = 'WARNING') AS warning_count,
+            countIf(level = 'ERROR') AS error_count,
+            countIf(level = 'DEFAULT') AS default_count,
+            countIf(level = 'DEBUG') AS debug_count,
+            argMaxIf(tags, event_ts, notEmpty(tags)) AS tags,
+            argMaxIf(release, event_ts, release != '') AS release,
+            argMaxIf(evaluator_id, event_ts, evaluator_id != '') AS evaluator_id,
+            argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id != '') AS evaluation_rule_id,
+            any(experiment_id) AS experiment_id
+        FROM events_core AS e
+        WHERE (e.project_id = {param1:String}) AND (trace_id IN ({param2:Array(String)}))
+        GROUP BY
+            trace_id,
+            project_id
+        ORDER BY timestamp DESC
+    )
+SELECT
+    t.id,
+    t.name,
+    t.user_id,
+    t.release,
+    t.version,
+    t.project_id,
+    t.environment,
+    t.public,
+    t.bookmarked,
+    t.tags,
+    t.session_id,
+    t.timestamp,
+    t.created_at,
+    t.updated_at,
+    t.metadata,
+    0 AS is_deleted,
+    leftUTF8(t.input, 1000) AS input,
+    leftUTF8(t.output, 1000) AS output
+FROM traces AS t
+ORDER BY t.timestamp DESC
+LIMIT {param3:Int64}",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > getTraceMetadataByIdsFromEvents traceIds=empty 1`] = `[]`;
+
+exports[`golden: events point-reads & existence family > getTraceMetadataByIdsFromEvents traceIds=set 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-trace",
+        "golden-trace-b",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.trace_id AS id,
+    COALESCE(
+        nullIf(e.trace_name, ''),
+        if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+    ) AS name,
+    e.user_id AS user_id,
+    e.tags AS tags
+FROM events_core AS e
+WHERE (e.project_id = {param1:String}) AND (COALESCE(nullIf(e.trace_name, ''), if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)) IS NOT NULL) AND (e.is_deleted = 0) AND (e.trace_id IN ({param2:Array(String)}))
+LIMIT 1 BY e.trace_id",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > hasAnySessionFromEventsTable 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+    },
+    "route": "unknown",
+    "sql": "SELECT 1
+FROM events_core
+WHERE (project_id = {param1:String}) AND (session_id IS NOT NULL) AND (session_id != '') AND (is_deleted = 0)
+LIMIT 1",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > hasAnyTraceFromEventsTable 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+    },
+    "route": "unknown",
+    "sql": "SELECT 1
+FROM events_core
+WHERE (project_id = {param1:String}) AND (is_deleted = 0)
+LIMIT 1",
+  },
+]
+`;
+
+exports[`golden: events point-reads & existence family > hasAnyUserFromEventsTable 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+    },
+    "route": "unknown",
+    "sql": "SELECT 1
+FROM events_core
+WHERE (project_id = {param1:String}) AND (user_id IS NOT NULL) AND (user_id != '') AND (is_deleted = 0)
+LIMIT 1",
+  },
+]
+`;

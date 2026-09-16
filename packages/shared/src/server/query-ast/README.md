@@ -40,6 +40,7 @@ SQL at the `repositories/clickhouse.ts` exec seam in test mode, then normalizes
 it via `clickhouse format` + positional param names for snapshot comparison — no
 ClickHouse server needed). Each migrated call site keeps its SQL baseline next to
 that call site, e.g. `../repositories/environments.golden.test.ts`,
+`../repositories/events.golden.test.ts`,
 `../repositories/scores.golden.test.ts`, and
 `../queries/clickhouse-sql/event-filter-options.golden.test.ts`.
 
@@ -74,13 +75,16 @@ suffix to run there. Promote it to a required check once it has proven stable.
 
 - **Compile only through `compileClickhouseQuery(query, ctx)`.** It is the one
   supported path from a builder to `{ sql, params }`; the repository layer hands
-  that to `queryClickhouse`. `ctx` (an `ExecutionContext` carrying `projectId`)
-  is required — omitting it is a compile-time type error and an empty one throws.
+  that to `queryClickhouse`. `ctx` (an `ExecutionContext` carrying `projectId`
+  or `projectIds`) is required — omitting it is a compile-time type error and
+  an empty one throws.
 - **Never filter `project_id` yourself.** The compile step injects
-  `project_id = {projectId}` into every tenanted relation, so call sites pass
-  only `{ projectId }` (see `../repositories/environments.ts`).
+  `project_id = {projectId}` (or `project_id IN {projectIds}` for an
+  authorized project list) into every tenanted relation, so call sites pass
+  only the scope (see `../repositories/environments.ts`).
 - **Dedup is declared per table and must be an existing production idiom.**
-  `events_core` is `none` (immutable at read time — no LIMIT BY, no FINAL).
+  `events_core` and `events_full` are `none` (immutable at read time — no
+  LIMIT BY, no FINAL).
   `limitBy` is the legacy `ORDER BY <version> DESC LIMIT 1 BY <key>` already
   used on traces / observations / scores. `$call(limitBy(...))` remains for
   explicit non-version LIMIT BY. Auto-lowering does not declare scores as
@@ -179,7 +183,8 @@ is where tenancy is enforced:
 1. A missing/empty `ExecutionContext` throws (`QueryCompileError`) — `ctx` is a
    required parameter, so omitting it is also a compile-time type error.
 2. `TenancyInjectionPlugin` walks every FROM/JOIN and injects
-   `project_id = {projectId}` on each tenanted physical table, unless the tree
+   `project_id = {projectId}` (or `project_id IN {projectIds}`) on each
+   tenanted physical table, unless the tree
    already carries a predicate that _proves_ that scope: the equality's value
    must equal the context project, and — when more than one tenanted relation is
    in scope — the column must be table-qualified. A qualified predicate covers a
@@ -188,8 +193,9 @@ is where tenancy is enforced:
    both. It then identity-stamps the tree (`WeakSet`); a copied
    `langfuseTenancy` property is not a valid stamp.
 3. `DedupLoweringPlugin` applies the table's declared read idiom
-   (`none` / `limitBy` / `final`). `events_core` is `none` — immutable at
-   read time, so the pass does not inject LIMIT BY or FINAL. `limitBy` is
+   (`none` / `limitBy` / `final`). `events_core` and `events_full` are
+   `none` — immutable at read time, so the pass does not inject LIMIT BY or
+   FINAL. `limitBy` is
    the existing legacy `ORDER BY <version> DESC LIMIT 1 BY <key>`.
    `final` remains fail-closed on the auto-lowering pass; callers opt in
    with `$call(useFinal(["scores"]))`. The pass restamps the rewritten root.

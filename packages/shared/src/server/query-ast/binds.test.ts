@@ -45,6 +45,41 @@ describe("typed params from the column registry", () => {
     expect(sql).not.toMatch(/metadata_names in \(\{p\d+:Array\(String\)\}\)/);
   });
 
+  it("keeps DateTime64(3) when comparing through toStartOfMinute / toDate", () => {
+    const start = "2026-01-01 00:00:00.000";
+    const { sql: minuteSql } = compile(
+      getClickhouseKysely()
+        .selectFrom("events_core")
+        .select("span_id")
+        .where((eb) =>
+          eb(
+            eb.fn("toStartOfMinute", ["start_time"]),
+            "=",
+            eb.fn("toStartOfMinute", [eb.val(start)]),
+          ),
+        ),
+    );
+    expect(minuteSql).toMatch(
+      /toStartOfMinute\(start_time\) = toStartOfMinute\(\{p\d+:DateTime64\(3\)\}\)/,
+    );
+
+    const { sql: dateSql } = compile(
+      getClickhouseKysely()
+        .selectFrom("traces as t")
+        .select("id")
+        .where((eb) =>
+          eb(
+            eb.fn("toDate", [eb.ref("t.timestamp")]),
+            "=",
+            eb.fn("toDate", [eb.val(start)]),
+          ),
+        ),
+    );
+    expect(dateSql).toMatch(
+      /toDate\(t\.timestamp\) = toDate\(\{p\d+:DateTime64\(3\)\}\)/,
+    );
+  });
+
   it("does not type a subquery LIMIT from an outer column comparison", () => {
     const { sql } = compile(
       getClickhouseKysely()
