@@ -1,5 +1,5 @@
 import { useFieldArray, useForm } from "react-hook-form";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   type BedrockApiKey,
@@ -43,7 +43,6 @@ import {
   BedrockAuthMethodSchema,
   type BedrockAuthMethod,
 } from "@/src/features/llm-api-key/types";
-import { logLlmConnectionDebug } from "./llmConnectionDebug";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
@@ -373,38 +372,6 @@ export function CreateLLMApiKeyForm({
             }),
           },
   });
-
-  useEffect(() => {
-    // #region agent log
-    logLlmConnectionDebug({
-      hypothesisId: "C,D",
-      location: "CreateLLMApiKeyForm.tsx:mount",
-      message: "LLM connection form mounted",
-      data: {
-        mode,
-        existingKeyPresent: existingKey !== undefined,
-        initialAdapter: form.getValues("adapter"),
-        initialProviderEmpty: !form.getValues("provider"),
-      },
-    });
-    // #endregion
-    return () => {
-      // #region agent log
-      logLlmConnectionDebug({
-        hypothesisId: "C,D,E",
-        location: "CreateLLMApiKeyForm.tsx:unmount",
-        message: "LLM connection form unmounted",
-        data: {
-          mode,
-          currentAdapter: form.getValues("adapter"),
-          currentProviderEmpty: !form.getValues("provider"),
-          providerHasError: form.getFieldState("provider").invalid,
-          modelsHaveError: form.getFieldState("customModels").invalid,
-        },
-      });
-      // #endregion
-    };
-  }, [existingKey, form, mode]);
 
   const currentAdapter = form.watch("adapter");
   const currentAuthMethod = form.watch("authMethod");
