@@ -137,8 +137,8 @@ export function ConnectedObservationDetailView({
   });
   const modelParameters = buildModelParameters(observation.modelParameters);
 
-  // Hide entire tabs bar when only Preview tab remains (cleaner annotation mode UI)
-  const showTabsBar = showLogViewTab || showScoresTab;
+  // Attributes is always present, so the bar always has more than Preview.
+  const showTabsBar = true;
 
   // for v4:
   // is this observation topmost in tree? we don't check for root observation here as this is not necessarily given.
