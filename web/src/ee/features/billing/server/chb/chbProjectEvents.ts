@@ -81,7 +81,7 @@ const buildChbProjectEventPayload = (params: {
     source: CHB_EVENT_SOURCE,
     timestamp: timestamp.getTime(),
     payload: {
-      type: params.type,
+      eventType: params.type,
       organizationId: params.chbOrganizationId,
       projectId: params.projectId,
       ...(cell ? CELL_LOCATION[cell] : null),
