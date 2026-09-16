@@ -4,11 +4,11 @@ export function logLlmConnectionDebug(entry: {
   message: string;
   data: Record<string, unknown>;
 }) {
-  if (process.env.NODE_ENV !== "development") return;
-
-  fetch("/api/debug/llm-connection-lifecycle", {
+  fetch("http://localhost:8765", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    mode: "no-cors",
+    headers: { "content-type": "text/plain" },
     body: JSON.stringify({ ...entry, timestamp: Date.now() }),
+    keepalive: true,
   }).catch(() => undefined);
 }
