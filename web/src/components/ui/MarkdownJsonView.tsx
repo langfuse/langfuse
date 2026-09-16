@@ -132,7 +132,7 @@ export function MarkdownJsonViewHeader({
               handleOnCopy(event);
               setTimeout(() => setIsCopied(false), 1000);
             }}
-            className="hover:bg-border -mr-2"
+            className="text-muted-foreground hover:bg-border"
           >
             {isCopied ? (
               <Check className="h-3 w-3" />

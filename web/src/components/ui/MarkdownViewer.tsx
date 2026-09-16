@@ -586,7 +586,6 @@ export function MarkdownView({
           title === "assistant" || title === "Output" || title === "Model"
             ? "bg-accent-light-green overflow-hidden rounded-md"
             : "",
-          title === "system" || title === "Input" ? "bg-card" : "",
           className,
         )}
       >

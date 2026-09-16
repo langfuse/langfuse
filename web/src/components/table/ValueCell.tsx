@@ -38,8 +38,19 @@ export type MetadataFilterActions = {
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
 const MAX_CELL_DISPLAY_CHARS = 2000;
 const ARRAY_PREVIEW_ITEMS = 3;
-const VALUE_TEXT_CLASSES = "text-sm/5 wrap-break-word";
+const VALUE_TEXT_CLASSES = "font-mono text-xs/5 wrap-break-word";
+const STRING_TEXT_CLASSES = "text-json-value-string";
 const PREVIEW_TEXT_CLASSES = "text-gray-500 dark:text-gray-400";
+
+/** Row hover controls sit on the same right axis and icon size as the section
+    header's copy button, so the column of icons reads as one. */
+const ROW_ACTION_BUTTON_CLASSES =
+  "text-muted-foreground absolute top-0 h-5 w-5 rounded-sm p-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:bg-transparent";
+/** Aligned by ink, not by box: the copy glyph paints to 1px shy of its
+    viewBox, the vertical ellipsis to 5.5px, so equal offsets would read as
+    4.5px of drift down the column. */
+const ROW_COPY_OFFSET = "-right-0.5";
+const ROW_MENU_OFFSET = "-right-1.5";
 
 function renderStringWithLinks(text: string): React.ReactNode {
   if (text.length >= MAX_STRING_LENGTH_FOR_LINK_DETECTION) {
@@ -399,7 +410,7 @@ export const ValueCell = memo(
           return {
             content: (
               <span
-                className={`text-blue-800 dark:text-blue-300 ${
+                className={`${STRING_TEXT_CLASSES} ${
                   preserveStringWhitespace
                     ? "whitespace-pre-wrap"
                     : "whitespace-pre-line"
@@ -413,28 +424,26 @@ export const ValueCell = memo(
         }
         case "number":
           return {
-            content: <span className="text-green-700">{String(value)}</span>,
+            content: (
+              <span className="text-json-value-number">{String(value)}</span>
+            ),
             needsTruncation: false,
           };
         case "boolean":
           return {
-            content: <span className="text-yellow-700">{String(value)}</span>,
+            content: (
+              <span className="text-json-value-boolean">{String(value)}</span>
+            ),
             needsTruncation: false,
           };
         case "null":
           return {
-            content: (
-              <span className="text-gray-500 dark:text-gray-400">null</span>
-            ),
+            content: <span className="text-json-value-nullish">null</span>,
             needsTruncation: false,
           };
         case "undefined":
           return {
-            content: (
-              <span className="text-gray-500 dark:text-gray-400">
-                undefined
-              </span>
-            ),
+            content: <span className="text-json-value-nullish">undefined</span>,
             needsTruncation: false,
           };
         case "array": {
@@ -557,12 +566,13 @@ export const ValueCell = memo(
                   aria-label="Value actions"
                   title="Actions"
                   className={cn(
-                    "text-muted-foreground hover:text-foreground absolute top-1/2 right-1 h-5 w-5 -translate-y-1/2 rounded-sm p-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:bg-transparent",
+                    ROW_ACTION_BUTTON_CLASSES,
+                    ROW_MENU_OFFSET,
                     isOpen && "opacity-100",
                   )}
                   onClick={(event) => event.stopPropagation()}
                 >
-                  <EllipsisVertical className="h-3.5 w-3.5" />
+                  <EllipsisVertical className="h-3 w-3" />
                 </Button>
               </Trigger>
             )}
@@ -571,15 +581,15 @@ export const ValueCell = memo(
           <Button
             variant="ghost"
             size="icon"
-            className="text-muted-foreground hover:text-foreground absolute top-0 right-0 h-5 w-5 rounded-sm p-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:bg-transparent"
+            className={cn(ROW_ACTION_BUTTON_CLASSES, ROW_COPY_OFFSET)}
             onClick={handleCopy}
             title="Copy value"
             aria-label="Copy cell value"
           >
             {showCopySuccess ? (
-              <Check className="h-2.5 w-2.5 text-green-600" />
+              <Check className="h-3 w-3" />
             ) : (
-              <Copy className="h-3.5 w-3.5" />
+              <Copy className="h-3 w-3" />
             )}
           </Button>
         )}

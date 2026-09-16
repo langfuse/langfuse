@@ -87,7 +87,6 @@ const DEFAULT_MAX_ROWS_IF_ROOT = 100;
 const MAX_CELL_DISPLAY_CHARS = 2000;
 
 const ASSISTANT_TITLES = ["assistant", "Output", "model"];
-const SYSTEM_TITLES = ["system", "Input"];
 
 const PREVIEW_TEXT_CLASSES = "text-gray-500 dark:text-gray-400";
 
@@ -175,13 +174,9 @@ function getContainerClasses(
   const toned = ASSISTANT_TITLES.includes(title || "");
   return cn(
     baseClasses,
-    toned
-      ? "bg-accent-light-green dark:border-accent-dark-green/30"
-      : SYSTEM_TITLES.includes(title || "")
-        ? "bg-card"
-        : "",
+    toned ? "bg-accent-light-green dark:border-accent-dark-green/30" : "",
     borderless
-      ? cn("rounded-md overflow-hidden", !toned && "bg-muted/40")
+      ? "rounded-md overflow-hidden"
       : scrollable
         ? ""
         : "rounded-sm border",
@@ -1241,12 +1236,9 @@ export function PrettyJsonView(props: {
     !emptyValueDisplay;
 
   const getBackgroundColorClass = () =>
-    cn(
-      ASSISTANT_TITLES.includes(props.title || "")
-        ? "bg-accent-light-green rounded-md overflow-hidden"
-        : "",
-      SYSTEM_TITLES.includes(props.title || "") ? "bg-card" : "",
-    );
+    ASSISTANT_TITLES.includes(props.title || "")
+      ? "bg-accent-light-green rounded-md overflow-hidden"
+      : "";
 
   const body = (
     <>
@@ -1417,7 +1409,7 @@ export function PrettyJsonView(props: {
           variant="ghost"
           size="icon-xs"
           onClick={() => expandAllRef.current?.()}
-          className="hover:bg-border -mr-2"
+          className="text-muted-foreground hover:bg-border"
           title={allRowsExpanded ? "Collapse all rows" : "Expand all rows"}
         >
           {allRowsExpanded ? (
@@ -1432,7 +1424,7 @@ export function PrettyJsonView(props: {
           variant="ghost"
           size="icon-xs"
           onClick={handleJsonToggleCollapse}
-          className="hover:bg-border -mr-2"
+          className="text-muted-foreground hover:bg-border"
           title={jsonIsCollapsed ? "Expand all" : "Collapse all"}
         >
           {jsonIsCollapsed ? (
