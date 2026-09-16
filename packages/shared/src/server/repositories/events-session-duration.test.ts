@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { queryClickhouse } from "./clickhouse";
 import { getObservationsV2FromEventsTableForPublicApi } from "./events";
+import {
+  clickhouseLocalAvailable,
+  executeClickhouseLocal,
+  substituteNamedParams,
+} from "../query-ast/goldenHarness";
 
 vi.mock("./clickhouse", () => ({
   queryClickhouse: vi.fn().mockResolvedValue([]),
@@ -34,6 +39,62 @@ const captureQuery = async (options: Partial<Options> = {}) => {
 };
 
 describe("public observations session duration filter", () => {
+  it.skipIf(!clickhouseLocalAvailable())(
+    "uses the latest version before grouping session membership and excluding deletions",
+    async () => {
+      const { query, params } = await captureQuery({ minSessionDuration: 60 });
+      const aggregation = query.match(
+        /session_duration AS \(([\s\S]*?GROUP BY session_id)\s*\)/,
+      )?.[1];
+      expect(aggregation).toBeDefined();
+
+      // Memory keeps every version, so a background merge cannot hide the bug.
+      // The schema also supports the shared Sessions UI aggregation.
+      const fixture = `
+        CREATE TABLE events_core (
+          project_id String, trace_id String, span_id String,
+          start_time DateTime64(6), end_time Nullable(DateTime64(6)),
+          session_id String, event_ts DateTime64(6), is_deleted UInt8,
+          parent_span_id String, user_id String, tags Array(String),
+          environment String, usage_details Map(String, UInt64),
+          cost_details Map(String, Decimal64(12))
+        ) ENGINE = Memory;
+        INSERT INTO events_core
+          (project_id, trace_id, span_id, start_time, end_time, session_id, event_ts, is_deleted)
+        SELECT project_id, trace_id, span_id, toDateTime64(start_seconds, 6),
+          toDateTime64(end_seconds, 6), session_id, toDateTime64(version, 6), is_deleted
+        FROM values(
+          'project_id String, trace_id String, span_id String, start_seconds Int64,
+           end_seconds Nullable(Int64), session_id String, version Int64, is_deleted UInt8',
+          ('project-one', 'shortened', 's', 0, 120, 'shortened', 1, 0),
+          ('project-one', 'shortened', 's', 0, 10, 'shortened', 2, 0),
+          ('project-one', 'null-end', 's', 0, 120, 'null-end', 1, 0),
+          ('project-one', 'null-end', 's', 0, NULL, 'null-end', 2, 0),
+          ('project-one', 'moved', 's', 0, 120, 'old-session', 1, 0),
+          ('project-one', 'moved', 's', 0, 10, 'new-session', 2, 0),
+          ('project-one', 'cleared', 's', 0, 120, 'cleared', 1, 0),
+          ('project-one', 'cleared', 's', 0, 10, '', 2, 0),
+          ('project-one', 'deleted', 's', 0, 120, 'deleted', 1, 0),
+          ('project-one', 'deleted', 's', 0, 120, 'deleted', 2, 1),
+          ('project-one', 'trace-a', 'same-span', 0, 120, 'split-traces', 1, 0),
+          ('project-one', 'trace-b', 'same-span', 0, 0, 'split-traces', 2, 0),
+          ('project-one', 'trace-c', 'same-span', 0, 0, 'split-times', 1, 0),
+          ('project-one', 'trace-c', 'same-span', 120, 120, 'split-times', 2, 0),
+          ('project-two', 'foreign', 's', 0, 999, 'shortened', 3, 0)
+        );
+      `;
+      const sql = substituteNamedParams(aggregation!, params ?? {});
+      expect(
+        executeClickhouseLocal(`${fixture}
+          SELECT session_id, duration FROM (${sql}) ORDER BY session_id;
+          SELECT session_id FROM (${sql}) WHERE duration >= 60 ORDER BY session_id;
+        `),
+      ).toBe(
+        "new-session\t10\nnull-end\t0\nshortened\t10\nsplit-times\t120\nsplit-traces\t120\nsplit-times\nsplit-traces",
+      );
+    },
+  );
+
   it.each([{ fields: ["basic"] }, { fields: ["basic", "io"] }] satisfies {
     fields: Options["fields"];
   }[])(
@@ -68,12 +129,17 @@ describe("public observations session duration filter", () => {
       );
       expect(aggregation).toContain("e.project_id = {projectId: String}");
       expect(aggregation).toContain("session_id != ''");
+      expect(aggregation).not.toMatch(/sumMap|groupUniqArray|uniq\(/);
       // Request filters and cursor must not truncate the duration aggregation.
-      expect(aggregation?.match(/\{\w+:/g)).toEqual(["{projectId:"]);
+      expect([...new Set(aggregation?.match(/\{\w+:/g))]).toEqual([
+        "{projectId:",
+      ]);
       const membership =
         "e.session_id IN (SELECT session_id FROM session_duration WHERE duration >= {minSessionDuration: Float64})";
       expect(query).toContain(membership);
-      expect(query.indexOf(membership)).toBeLessThan(query.indexOf("LIMIT"));
+      expect(query.indexOf(membership)).toBeLessThan(
+        query.lastIndexOf("LIMIT"),
+      );
       expect(params).toMatchObject({
         projectId: "project-one",
         minSessionDuration: 17.5,
