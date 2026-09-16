@@ -4,10 +4,12 @@ use std::collections::HashSet;
 use axum::http::HeaderMap;
 use opentelemetry::{Context, propagation::TextMapPropagator, trace::TraceContextExt};
 use opentelemetry_http::HeaderExtractor;
-use opentelemetry_sdk::propagation::TraceContextPropagator;
+use opentelemetry_sdk::{
+    propagation::TraceContextPropagator,
+    trace::{IdGenerator, RandomIdGenerator},
+};
 use serde::Serialize;
 use serde_json::{Map, Value};
-use uuid::Uuid;
 
 const MAX_HEADER_BYTES: usize = 8 * 1024;
 const MAX_FIELD_BYTES: usize = 1024;
@@ -44,9 +46,10 @@ pub(super) struct GenerationContext {
 
 impl GenerationContext {
     pub fn from_headers(headers: &HeaderMap) -> Self {
+        let ids = RandomIdGenerator::default();
         let mut result = Self {
-            trace_id: Uuid::new_v4().simple().to_string(),
-            observation_id: Uuid::new_v4().simple().to_string()[..16].to_owned(),
+            trace_id: ids.new_trace_id().to_string(),
+            observation_id: ids.new_span_id().to_string(),
             parent_span_id: None,
             trace_state: String::new(),
             attributes: Map::new(),
