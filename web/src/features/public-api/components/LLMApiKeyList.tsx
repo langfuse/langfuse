@@ -1,6 +1,6 @@
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { TrashIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
@@ -14,6 +14,7 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
 import { UpdateLLMApiKeyDialog } from "./UpdateLLMApiKeyDialog";
 import { type RouterOutput } from "@/src/utils/types";
+import { logLlmConnectionDebug } from "./llmConnectionDebug";
 
 type LlmApiKeyRow = RouterOutput["llmApiKey"]["all"]["data"][number];
 
@@ -42,6 +43,24 @@ export function LlmApiKeyList(props: { projectId: string }) {
       enabled: hasAccess,
     },
   );
+
+  useEffect(() => {
+    // #region agent log
+    logLlmConnectionDebug({
+      hypothesisId: "B,C,D",
+      location: "LLMApiKeyList.tsx:list-state",
+      message: "List query and selected editor state changed",
+      data: {
+        rowCount: apiKeys.data?.data.length ?? null,
+        editingKeySelected: editingKeyId !== null,
+        editingKeyStillPresent:
+          editingKeyId !== null &&
+          Boolean(apiKeys.data?.data.some((key) => key.id === editingKeyId)),
+        fetchStatus: apiKeys.fetchStatus,
+      },
+    });
+    // #endregion
+  }, [apiKeys.data?.data, apiKeys.fetchStatus, editingKeyId]);
 
   const hasExtraHeaderKeys = apiKeys.data?.data.some(
     (key) => key.extraHeaderKeys.length > 0,
@@ -112,6 +131,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
               <DeleteApiKeyButton
                 projectId={props.projectId}
                 apiKeyId={apiKey.id}
+                updateDialogOpen={editingKeyId === apiKey.id}
               />
             )}
           </div>
@@ -167,19 +187,58 @@ export function LlmApiKeyList(props: { projectId: string }) {
 }
 
 // show dialog to let user confirm that this is a destructive action
-function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
+function DeleteApiKeyButton(props: {
+  projectId: string;
+  apiKeyId: string;
+  updateDialogOpen: boolean;
+}) {
   const capture = usePostHogClientCapture();
 
   const utils = api.useUtils();
   const mutDeleteApiKey = api.llmApiKey.delete.useMutation({
-    onSuccess: () => utils.llmApiKey.invalidate(),
+    onSuccess: async () => {
+      // #region agent log
+      logLlmConnectionDebug({
+        hypothesisId: "B,C",
+        location: "LLMApiKeyList.tsx:delete-success-before-invalidate",
+        message: "Delete mutation succeeded; invalidating list",
+        data: { updateDialogOpen: props.updateDialogOpen },
+      });
+      // #endregion
+      await utils.llmApiKey.invalidate();
+      // #region agent log
+      logLlmConnectionDebug({
+        hypothesisId: "B,C,D",
+        location: "LLMApiKeyList.tsx:delete-success-after-invalidate",
+        message: "List invalidation completed",
+        data: { updateDialogOpen: props.updateDialogOpen },
+      });
+      // #endregion
+    },
   });
   const [open, setOpen] = useState(false);
 
   return (
     <ConfirmDialog
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(nextOpen) => {
+        // #region agent log
+        logLlmConnectionDebug({
+          hypothesisId: "A,E",
+          location: "LLMApiKeyList.tsx:delete-open-change",
+          message: "Delete confirmation open state requested",
+          data: {
+            nextOpen,
+            updateDialogOpen: props.updateDialogOpen,
+            bodyPointerEvents: document.body.style.pointerEvents,
+            openDialogCount: document.querySelectorAll(
+              '[role="dialog"][data-state="open"]',
+            ).length,
+          },
+        });
+        // #endregion
+        setOpen(nextOpen);
+      }}
       trigger={
         <Button variant="ghost" size="icon">
           <TrashIcon className="h-4 w-4" />
@@ -190,6 +249,14 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
       confirmLabel="Permanently delete"
       loading={mutDeleteApiKey.isPending}
       onConfirm={() => {
+        // #region agent log
+        logLlmConnectionDebug({
+          hypothesisId: "A,B,E",
+          location: "LLMApiKeyList.tsx:delete-confirm",
+          message: "Delete confirmation submitted",
+          data: { updateDialogOpen: props.updateDialogOpen },
+        });
+        // #endregion
         mutDeleteApiKey
           .mutateAsync({
             projectId: props.projectId,
