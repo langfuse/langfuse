@@ -35,6 +35,7 @@ import Link from "next/link";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 const displayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -256,7 +257,7 @@ function SignOutAllSessionsButton() {
         "Failed to Sign Out of All Sessions",
         error instanceof Error ? error.message : "An unexpected error occurred",
       );
-      return;
+      throw error;
     }
 
     // Sessions are already revoked server-side at this point, so a failure to
@@ -269,35 +270,20 @@ function SignOutAllSessionsButton() {
   };
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="destructive-secondary">
+    <ConfirmationDialogController
+      title="Sign Out of All Sessions"
+      text="This will sign you out on this device and every other device where you are currently signed in. You will need to sign in again."
+      confirmLabel="Sign Out of All Sessions"
+      variant="destructive"
+      loading={signOutAllSessions.isPending}
+      onConfirm={onConfirm}
+    >
+      {({ openDialog }) => (
+        <Button variant="destructive-secondary" onClick={openDialog}>
           Sign Out of All Sessions
         </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-bold">
-            Sign Out of All Sessions
-          </DialogTitle>
-          <DialogDescription>
-            This will sign you out on this device and every other device where
-            you are currently signed in. You will need to sign in again.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="destructive"
-            loading={signOutAllSessions.isPending}
-            onClick={onConfirm}
-            className="w-full"
-          >
-            Sign Out of All Sessions
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      )}
+    </ConfirmationDialogController>
   );
 }
 

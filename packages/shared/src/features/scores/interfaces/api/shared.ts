@@ -15,7 +15,7 @@ import {
   ScoreSourceEnum,
   TEXT_SCORE_MAX_LENGTH,
 } from "../../../../domain/scores";
-import { singleFilter } from "../../../../interfaces/filters";
+import { singleFilterList } from "../../../../interfaces/filters";
 import { InvalidRequestError } from "../../../../errors";
 
 const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
@@ -69,7 +69,7 @@ export const GetScoresQuery = z.object({
         throw new InvalidRequestError("Invalid JSON in filter parameter");
       }
     })
-    .pipe(z.array(singleFilter).optional()),
+    .pipe(singleFilterList.optional()),
 });
 
 // POST /scores

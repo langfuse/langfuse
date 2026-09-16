@@ -1,13 +1,14 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 import {
   handleUpdateProject,
   handleDeleteProject,
 } from "@/src/ee/features/admin-api/server/projects/projectById";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { type NextApiRequest, type NextApiResponse } from "next";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { writeProjectError } from "@/src/features/public-api/server/writeError";
 
 export default async function handler(
   req: NextApiRequest,
@@ -29,25 +30,13 @@ export default async function handler(
   }
 
   // CHECK AUTH
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-  if (!authCheck.validKey) {
-    return res.status(401).json({
-      message: authCheck.error,
-    });
-  }
-
-  // Check if using an organization API key
-  if (
-    authCheck.scope.accessLevel !== "organization" ||
-    !authCheck.scope.orgId
-  ) {
-    return res.status(403).json({
-      message:
-        "Invalid API key. Organization-scoped API key required for this operation.",
-    });
+  const authCheck = await shadowAuth({
+    req,
+    action: req.method === "PUT" ? "project:update" : "project:delete",
+    allowedAccessLevels: ["organization"],
+  });
+  if (!authCheck.success) {
+    return writeProjectError(res, authCheck.error);
   }
   // END CHECK AUTH
 

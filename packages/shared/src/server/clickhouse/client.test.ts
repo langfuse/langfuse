@@ -115,6 +115,17 @@ describe("ClickHouseClientManager compatibility settings", () => {
     });
   });
 
+  it("uses a new cached client when response compression is enabled", () => {
+    clickhouseClient();
+    clickhouseClient({ compression: { response: true } });
+
+    expect(mocks.createClient).toHaveBeenCalledTimes(2);
+    expect(mocks.createClient.mock.calls[0][0].compression).toBeUndefined();
+    expect(mocks.createClient.mock.calls[1][0].compression).toEqual({
+      response: true,
+    });
+  });
+
   it("lets explicit client settings override derived timeout settings", () => {
     clickhouseClient({
       request_timeout: 120_000,

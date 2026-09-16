@@ -19,6 +19,7 @@ import {
   type FilterState,
   type EvalExecutionMode,
   canRunEvalRule,
+  coerceLegacyEmptyMetadataFilters,
   mapEventEvalFilterColumnIdToField,
   observationVariableMappingList,
 } from "@langfuse/shared";
@@ -360,7 +361,9 @@ function evaluateFilter(
   observation: ObservationForEval,
   config: ObservationEvalRule,
 ): boolean {
-  const filterConditions = config.filter as FilterState;
+  const filterConditions = coerceLegacyEmptyMetadataFilters(
+    config.filter,
+  ) as FilterState;
 
   // Empty filter matches all (for filter purposes)
   const isEmptyFilter =

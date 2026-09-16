@@ -58,10 +58,11 @@ impl InferenceService {
         gateway_key: &str,
     ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
         let context = {
-            let _permit = self
-                .resolution_capacity
-                .try_acquire()
-                .map_err(|_| RequestPreparationError::Resolution(ResolutionError::Unavailable))?;
+            let _permit = self.resolution_capacity.try_acquire().map_err(|_| {
+                crate::observability::rejected("resolution");
+                RequestPreparationError::Resolution(ResolutionError::Unavailable)
+            })?;
+            let _active = crate::observability::Active::new("resolution");
             self.control_plane
                 .resolve(gateway_key, ApiFormat::OpenAiResponses)
                 .await

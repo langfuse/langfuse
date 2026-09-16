@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "4.36.1",
+  "version": "4.37.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -38,6 +38,7 @@
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
     "@langfuse/native": "workspace:*",
     "@langfuse/shared": "workspace:*",
+    "@node-rs/xxhash": "1.7.7",
     "@aws-sdk/client-lambda-microvms": "catalog:",
     "@mastra/core": "1.46.0",
     "@mastra/mcp": "1.8.1",

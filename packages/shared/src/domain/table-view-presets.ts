@@ -1,4 +1,4 @@
-import { singleFilter } from "../interfaces/filters";
+import { singleFilterList } from "../interfaces/filters";
 import { orderBy } from "../interfaces/orderBy";
 import z from "zod";
 
@@ -67,7 +67,7 @@ export const TableViewPresetDomainSchema = z.object({
   createdBy: z.string().nullable(),
   name: z.string(),
   tableName: z.enum(TableViewPresetTableName),
-  filters: z.array(singleFilter),
+  filters: singleFilterList,
   columnOrder: z.array(z.string()),
   columnVisibility: z.record(z.string(), z.boolean()),
   searchQuery: z.string().nullable(),

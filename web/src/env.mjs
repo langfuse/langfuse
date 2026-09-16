@@ -487,6 +487,9 @@ export const env = createEnv({
     // CHB's resource-server identifier. Defaulted because it is the same value
     // in every CHB tenant, and overridable in case that stops being true.
     CLICKHOUSE_BILLING_AUTH0_AUDIENCE: z.string().default("billing-api"),
+    // HMAC secret for inbound CHB webhooks. Unset makes the endpoint 500 rather
+    // than accept unverified events.
+    CLICKHOUSE_BILLING_WEBHOOK_SIGNING_SECRET: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
@@ -596,6 +599,15 @@ export const env = createEnv({
       .default("false"),
     LANGFUSE_API_TRACES_DEFAULT_FIELDS: z.string().optional(),
     LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS: z.string().optional(),
+    // Cloud rollout gate for rejecting deprecated GET APIs for organizations
+    // created on or after the cutoff date. Defaults off: the cutoff date is
+    // today, so a date-only gate would start rejecting on deploy.
+    LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED: z
+      .enum(["true", "false"])
+      .default("false"),
+    LANGFUSE_API_ORGANIZATION_CUTOFF_DATE: z.iso
+      .datetime()
+      .default("2026-09-16T00:00:00.000Z"),
 
     // V4 preview opt-in. See LFE-9778. Defaults on for the v4 target state so
     // the events read paths are available out of the box (v3 shipped "false").
@@ -1111,6 +1123,8 @@ export const env = createEnv({
       process.env.CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET,
     CLICKHOUSE_BILLING_AUTH0_AUDIENCE:
       process.env.CLICKHOUSE_BILLING_AUTH0_AUDIENCE,
+    CLICKHOUSE_BILLING_WEBHOOK_SIGNING_SECRET:
+      process.env.CLICKHOUSE_BILLING_WEBHOOK_SIGNING_SECRET,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
@@ -1176,6 +1190,10 @@ export const env = createEnv({
       process.env.LANGFUSE_API_TRACES_DEFAULT_FIELDS,
     LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS:
       process.env.LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS,
+    LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED:
+      process.env.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED,
+    LANGFUSE_API_ORGANIZATION_CUTOFF_DATE:
+      process.env.LANGFUSE_API_ORGANIZATION_CUTOFF_DATE,
     LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN:
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
     LANGFUSE_MIGRATION_V4_WRITE_MODE:

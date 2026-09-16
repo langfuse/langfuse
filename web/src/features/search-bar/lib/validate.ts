@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 // Semantic validation — the single "is this committable" gate.
 //
 // The tolerant parser accepts structurally-fine input that the flat Langfuse

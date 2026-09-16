@@ -8,7 +8,7 @@ import {
 import { z } from "zod";
 
 import { InvalidRequestError } from "../../errors";
-import { singleFilter } from "../../interfaces/filters";
+import { singleFilterList } from "../../interfaces/filters";
 import { granularities, metric as MetricSchema, viewsV2 } from "../query/types";
 
 import { isValidQuery } from "./isValidQuery";
@@ -29,10 +29,13 @@ export const ErrorAtLeastOneTrigger = "At least one automation is required";
 
 /**
  * MonitorFiltersSchema is the array of filters applied to a Monitor's
- * underlying query — a thin alias over `singleFilter[]` so all Monitor
- * schemas reference one source of truth.
+ * underlying query. It routes through `singleFilterList` so the scheduler's
+ * raw-SQL read path (which bypasses `monitorFromPrisma`) still coerces legacy
+ * empty-substring metadata filters to `is set` before the queue event is
+ * validated in the worker — otherwise a single legacy filter throws on parse
+ * and takes down the whole shared scheduler batch.
  */
-export const MonitorFiltersSchema = z.array(singleFilter);
+export const MonitorFiltersSchema = singleFilterList;
 export type MonitorFilters = z.infer<typeof MonitorFiltersSchema>;
 
 /** MonitorSeveritySchema is the wire form of Prisma's `MonitorSeverity` enum. */

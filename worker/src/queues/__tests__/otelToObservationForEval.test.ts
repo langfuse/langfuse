@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 /**
  * Test suite to verify that OTEL events coming through the ingestion pipeline
  * correctly conform to the ObservationForEval schema.

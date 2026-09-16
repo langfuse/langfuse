@@ -36,7 +36,7 @@ type ObservationMcpFieldType =
   | "unknown";
 
 const EXPENSIVE_FIELD_SCOPE_REQUIREMENT =
-  "Requires traceId, an exact id filter, or both fromStartTime and toStartTime.";
+  "Requires traceId, an exact id filter, or both fromStartTime and toStartTime with a maximum range of 14 days.";
 
 const OBSERVATION_MCP_FIELDS = OBSERVATION_FIELD_GROUPS_PUBLIC_API.flatMap(
   (group) => OBSERVATION_FIELD_GROUP_FIELD_NAMES[group],

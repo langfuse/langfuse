@@ -3,10 +3,11 @@ import {
   type PrismaClient,
   prisma as defaultPrisma,
 } from "@langfuse/shared/src/db";
-import { InternalServerError } from "@langfuse/shared";
+import { type InternalServerError } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 
 import {
+  internalServerError,
   type ErrorResult,
   type Success,
 } from "@/src/features/auth/policy/types";
@@ -23,12 +24,9 @@ export class ApiKeyRepository {
       });
       return { success: true, apiKey };
     } catch (error) {
-      return {
-        success: false,
-        error: new InternalServerError(
-          `api key lookup by fast hash failed: ${String(error)}`,
-        ),
-      };
+      return internalServerError(
+        `api key lookup by fast hash failed: ${String(error)}`,
+      );
     }
   }
 
@@ -40,12 +38,9 @@ export class ApiKeyRepository {
       });
       return { success: true, apiKey };
     } catch (error) {
-      return {
-        success: false,
-        error: new InternalServerError(
-          `api key lookup by public key failed: ${String(error)}`,
-        ),
-      };
+      return internalServerError(
+        `api key lookup by public key failed: ${String(error)}`,
+      );
     }
   }
 

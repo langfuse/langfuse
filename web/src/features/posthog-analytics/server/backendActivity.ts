@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { logger, redis } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";

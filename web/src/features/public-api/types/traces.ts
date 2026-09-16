@@ -7,7 +7,7 @@ import {
   orderBy,
   optionalJsonParam,
   publicApiPaginationZod,
-  singleFilter,
+  singleFilterList,
 } from "@langfuse/shared";
 import {
   stringDateTime,
@@ -85,7 +85,7 @@ export const GetTracesV1Query = z.object({
     unknownValues: "filter",
   }).transform((fields) => (fields && fields.length > 0 ? fields : null)),
   useEventsTable: useEventsTableSchema,
-  filter: optionalJsonParam(z.array(singleFilter), "filter"),
+  filter: optionalJsonParam(singleFilterList, "filter"),
 });
 export const GetTracesV1Response = z
   .object({

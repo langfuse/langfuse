@@ -88,6 +88,38 @@ describe("MonitorQueueEventSchema", () => {
         .success,
     ).toBe(true);
   });
+
+  // The scheduler reads monitors.filters via raw SQL and bypasses the coercion
+  // in monitorFromPrisma, so a monitor persisted with the legacy empty-substring
+  // presence spelling reaches this schema unrewritten. Parsing must coerce it to
+  // `is set` rather than throw — a throw here fails the whole shared scheduler
+  // batch, not just the one monitor.
+  it("coerces a legacy empty-substring metadata filter to `is set`", () => {
+    const result = MonitorQueueEventSchema.safeParse({
+      ...validQueueEvent,
+      filters: [
+        {
+          type: "stringObject",
+          column: "metadata",
+          key: "environment",
+          operator: "contains",
+          value: "",
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.filters).toEqual([
+        {
+          type: "stringObject",
+          column: "metadata",
+          key: "environment",
+          operator: "is set",
+          value: "",
+        },
+      ]);
+    }
+  });
 });
 
 describe("MonitorWebhookQueueEventSchema", () => {

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import React from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { SLOW_QUERY_HINT_TEXT } from "@langfuse/shared";

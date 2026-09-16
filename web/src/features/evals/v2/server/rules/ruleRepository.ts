@@ -4,6 +4,7 @@ import {
   type PrismaClient,
 } from "@langfuse/shared/src/db";
 import {
+  coerceLegacyEmptyMetadataFilters,
   EvalTargetObject,
   type FilterState,
   type ObservationVariableMapping,
@@ -294,7 +295,10 @@ export async function findActiveRuleWithMatchingFilterAndSampling(params: {
 
   return (
     rules.find((rule) =>
-      filtersMatch(rule.filter as FilterState, params.filter),
+      filtersMatch(
+        coerceLegacyEmptyMetadataFilters(rule.filter) as FilterState,
+        params.filter,
+      ),
     ) ?? null
   );
 }

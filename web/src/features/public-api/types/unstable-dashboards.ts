@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { singleFilter } from "@langfuse/shared";
+import { singleFilterList } from "@langfuse/shared";
 
 const pagination = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -54,7 +54,7 @@ export const DashboardSchema = z
     name: z.string(),
     description: z.string(),
     definition: PublicDashboardDefinitionSchema,
-    filters: z.array(singleFilter),
+    filters: singleFilterList,
   })
   .strict();
 
@@ -73,7 +73,7 @@ export const PostUnstableDashboardBody = z.object({
   name: z.string().min(1),
   description: z.string().default(""),
   definition: PublicDashboardDefinitionSchema.optional(),
-  filters: z.array(singleFilter).optional(),
+  filters: singleFilterList.optional(),
 });
 /** @alias */
 export const PostUnstableDashboardResponse = DashboardSchema;
@@ -86,7 +86,7 @@ export const PatchUnstableDashboardBody = z
     name: z.string().min(1).optional(),
     description: z.string().optional(),
     definition: PublicDashboardDefinitionSchema.optional(),
-    filters: z.array(singleFilter).optional(),
+    filters: singleFilterList.optional(),
   })
   .refine(
     (value) => Object.keys(value).length > 0,

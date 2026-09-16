@@ -1,3 +1,4 @@
+import { vi } from "vitest";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
@@ -888,6 +889,44 @@ describe("membersRouter.create - duplicate project membership", () => {
       where: { orgId: org.id, userId: user.id },
     });
     expect(orgMembership).toBeNull();
+  });
+});
+
+describe("membersRouter.create - duplicate org membership", () => {
+  it("returns BAD_REQUEST when a concurrent request already created the org membership", async () => {
+    const { org, caller } = await prepare("cloud:team");
+    const user = await createTestUser();
+
+    // Simulate the concurrent race the create path guards against: the
+    // existing-membership pre-check sees no row, but by the time the org
+    // membership is created another request has already inserted the
+    // (orgId, userId) row, so the unique constraint fires. Seed the real row
+    // and stub only the pre-check so the request reaches the create.
+    await prisma.organizationMembership.create({
+      data: {
+        userId: user.id,
+        orgId: org.id,
+        role: Role.MEMBER,
+      },
+    });
+    const findFirstSpy = vi
+      .spyOn(prisma.organizationMembership, "findFirst")
+      .mockResolvedValueOnce(null);
+
+    try {
+      await expect(
+        caller.members.create({
+          orgId: org.id,
+          email: user.email!,
+          orgRole: Role.MEMBER,
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "User is already a member of this organization",
+      });
+    } finally {
+      findFirstSpy.mockRestore();
+    }
   });
 });
 

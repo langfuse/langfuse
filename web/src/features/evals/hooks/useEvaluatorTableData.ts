@@ -1,9 +1,8 @@
 import { useMemo } from "react";
-import { z } from "zod";
 import {
   type EvaluatorBlockReason,
   type FilterState,
-  singleFilter,
+  singleFilterList,
   type OrderByState,
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
@@ -122,7 +121,7 @@ export const useEvaluatorTableData = ({
           blockReason: jobConfig.blockReason,
           scoreName: jobConfig.scoreName,
           target: jobConfig.targetObject,
-          filter: z.array(singleFilter).parse(jobConfig.filter),
+          filter: singleFilterList.parse(jobConfig.filter),
           result: generateJobExecutionCounts(executionCounts),
           isCostLoading: !costs.data,
           isResultLoading:

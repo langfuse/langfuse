@@ -1459,7 +1459,8 @@ const SCORE_COUNT_DEDUP_COLUMNS = [
 ] as const;
 
 /**
- * Coarse toDate(timestamp) prune for the count subquery's pre-dedup scan.
+ * Coarse toDate(timestamp) prune for a dedup subquery's pre-dedup scan (count
+ * and rows paths share it).
  *
  * The exact timestamp bound must NOT filter raw rows before dedup (a score's
  * timestamp is mutable across versions, so it could drop the latest one); it is
@@ -1468,7 +1469,7 @@ const SCORE_COUNT_DEDUP_COLUMNS = [
  * survives to the dedup. Operators are relaxed (> / < to >= / <=) and both
  * sides wrapped in toDate() so boundary-day rows are never lost.
  */
-const buildScoresCountDatePrune = (
+const buildScoresDatePrune = (
   filter: FilterState,
 ): { query: string; params: Record<string, unknown> } => {
   const timestampColumn = scoresTableUiColumnDefinitionsFromEvents.find(
@@ -1541,9 +1542,10 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   );
   const scoreOnlyFilterRes = scoreOnlyFilters.apply();
 
-  // Coarse pre-dedup prune for the count subquery; see buildScoresCountDatePrune.
+  // Coarse pre-dedup prune shared by the count and rows subqueries; see
+  // buildScoresDatePrune.
   const { query: innerDatePruneQuery, params: innerDatePruneParams } =
-    buildScoresCountDatePrune(filter);
+    buildScoresDatePrune(filter);
 
   // Trace-level filter entries from the frontend filter state
   const traceFilterState = filter.filter((filterEntry) =>
@@ -1631,29 +1633,36 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         ${includeHasMetadataFlag ? ",length(mapKeys(s.metadata)) > 0 AS has_metadata" : ""}
       `;
 
-  const whereClause = `
-      WHERE s.project_id = {projectId: String}
-      AND s.data_type IN ({dataTypes: Array(String)})
+  // Pre-dedup inner scan: project scope + coarse date prune only. Mutable-column
+  // filters run post-dedup in the outer WHERE (see the dedup rule below).
+  const innerScanWhere = `
+        WHERE s.project_id = {projectId: String}
+        ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}`;
+
+  // Post-dedup outer filters, shared by the count and rows paths.
+  const outerWhereClause = `
+      WHERE s.data_type IN ({dataTypes: Array(String)})
       ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}`;
 
-  // ── Count path: dedup without FINAL ──────────────────────────────────────
-  // Row reads dedup the ReplacingMergeTree with FINAL; for counts that is too
-  // slow. Instead reconstruct each score's latest version with one argMax pass:
-  //   GROUP BY project_id, toDate(timestamp), name, id  -- the sorting key
-  //                                                         FINAL collapses on
-  //   argMax(col, event_ts)                             -- latest value per col
+  // ── Dedup without FINAL ───────────────────────────────────────────────────
+  // Reads dedup the ReplacingMergeTree by reconstructing each score's latest
+  // version instead of FINAL: the count path via one argMax pass grouped on the
+  // sorting key, the rows path via ORDER BY event_ts DESC + LIMIT 1 BY that same
+  // key (keeps the whole latest row).
   //
   // Rule: filter AFTER dedup, never before. value / comment / timestamp /
   // trace_id are all mutable across a score's versions, so filtering raw rows
-  // can drop the true-latest version and let argMax rebuild a stale one — a
-  // count that disagrees with the row list. Example, filter `value > 0.5`:
+  // can drop the true-latest version and surface a stale one — a result that
+  // disagrees with FINAL. Example, filter `value > 0.5`:
   //   v1 @10:02 value=0.9,  v2 @10:07 value=0.1 (latest)
-  //   filter-then-dedup -> v1 counted     (WRONG)
+  //   filter-then-dedup -> v1 kept        (WRONG)
   //   dedup-then-filter -> 0.1 excluded   (matches FINAL)
   //
   // So every filter and the trace join runs in the OUTER query. The inner scan
   // carries only a coarse toDate(timestamp) prune (see innerDatePruneQuery):
   // whole buckets are kept or dropped, so the latest is never lost pre-dedup.
+  // Dedup granularity is the full sorting key, so different toDate(timestamp)
+  // buckets of one id stay distinct — matching FINAL.
   const query =
     props.select === "count"
       ? `
@@ -1668,21 +1677,25 @@ const getScoresUiGenericFromEvents = async <T>(props: {
             (c) => `argMax(s.${c}, s.event_ts) AS ${c}`,
           ).join(",\n          ")}
         FROM scores s
-        WHERE s.project_id = {projectId: String}
-        ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}
+        ${innerScanWhere}
         GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
       ) s
       ${eventsJoin}
-      WHERE s.data_type IN ({dataTypes: Array(String)})
-      ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}
+      ${outerWhereClause}
     `
       : `
       ${tracesCTEClause}
       SELECT
           ${rowSelect}
-      FROM scores s final
+      FROM (
+        SELECT *
+        FROM scores s
+        ${innerScanWhere}
+        ORDER BY s.event_ts DESC
+        LIMIT 1 BY s.project_id, toDate(s.timestamp), s.name, s.id
+      ) s
       ${eventsJoin}
-      ${whereClause}
+      ${outerWhereClause}
       ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;

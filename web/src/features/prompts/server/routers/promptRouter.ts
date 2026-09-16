@@ -30,7 +30,7 @@ import {
   StringNoHTMLNonEmpty,
   TracingSearchType,
   orderBy,
-  singleFilter,
+  singleFilterList,
   normalizeOrderByForTable,
 } from "@langfuse/shared";
 import {
@@ -63,7 +63,7 @@ const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
 
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
-  filter: z.array(singleFilter),
+  filter: singleFilterList,
   orderBy: orderBy,
   ...paginationZod,
   pathPrefix: z.string().optional(),
@@ -206,7 +206,7 @@ export const promptRouter = createTRPCRouter({
         searchQuery: z.string().optional(),
         searchType: z.array(TracingSearchType).optional(),
         pathPrefix: z.string().optional(),
-        filter: z.array(singleFilter).optional(),
+        filter: singleFilterList.optional(),
       }),
     )
     .query(async ({ input, ctx }) => {

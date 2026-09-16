@@ -1524,6 +1524,66 @@ describe("MCP Read Tools", () => {
       ).resolves.toMatchObject({ data: [] });
     });
 
+    it("should limit date-scoped expensive observation access", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleListObservations(
+          {
+            fields: ["input"],
+            fromStartTime: "2026-01-01T00:00:00.000Z",
+            toStartTime: "2026-01-16T00:00:00.000Z",
+            limit: 50,
+          },
+          context,
+        ),
+      ).rejects.toThrow(/maximum range of 14 days/i);
+
+      await expect(
+        handleListObservations(
+          {
+            fields: ["id"],
+            fromStartTime: "2026-01-01T00:00:00.000Z",
+            toStartTime: "2026-01-16T00:00:00.000Z",
+            filter: [
+              {
+                type: "string",
+                column: "input",
+                operator: "matches",
+                value: "needle",
+              },
+            ],
+            limit: 50,
+          },
+          context,
+        ),
+      ).rejects.toThrow(/maximum range of 14 days/i);
+
+      await expect(
+        handleListObservations(
+          {
+            fields: ["input", "output"],
+            fromStartTime: "2026-01-01T00:00:00.000Z",
+            toStartTime: "2026-01-15T00:00:00.000Z",
+            limit: 51,
+          },
+          context,
+        ),
+      ).rejects.toThrow(/maximum limit of 50/i);
+
+      await expect(
+        handleListObservations(
+          {
+            fields: ["input"],
+            fromStartTime: "2026-01-01T00:00:00.000Z",
+            toStartTime: "2026-01-15T00:00:00.000Z",
+            limit: 50,
+          },
+          context,
+        ),
+      ).resolves.toMatchObject({ data: [] });
+    });
+
     it("should treat an exact observation id filter as selective scope", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const observation = createObservationEvent({
@@ -2272,6 +2332,8 @@ describe("MCP Read Tools", () => {
                   "does not contain",
                   "starts with",
                   "ends with",
+                  "is set",
+                  "is not set",
                 ],
                 requiresKey: true,
               },

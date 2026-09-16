@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 /**
  * A focus+context lens over a list of rows — GROUNDWORK, not in use.
  *

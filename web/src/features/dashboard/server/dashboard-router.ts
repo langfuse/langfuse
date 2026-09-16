@@ -34,7 +34,7 @@ import {
   orderBy,
   StringNoHTML,
   InvalidRequestError,
-  singleFilter,
+  singleFilterList,
   LANGFUSE_HOME_DASHBOARD_ID,
   type FilterState,
 } from "@langfuse/shared";
@@ -100,7 +100,7 @@ const SetHomeDashboardInput = z.object({
 const UpdateDashboardFiltersInput = z.object({
   projectId: z.string(),
   dashboardId: z.string(),
-  filters: z.array(singleFilter),
+  filters: singleFilterList,
 });
 
 /**

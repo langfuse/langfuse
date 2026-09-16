@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -106,10 +107,9 @@ import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTabl
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
-import { DialogController } from "@/src/components/ui/dialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { DeleteTraceDialogContent } from "@/src/features/traces/components/DeleteTraceDialogContent";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 export type TracesTableRow = {
   // Shown by default
@@ -1621,20 +1621,34 @@ const TracesDynamicCell = ({
 export default function TracesTable(props: TracesTableProps) {
   const [traceIdToDelete, setTraceIdToDelete] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
+  const utils = api.useUtils();
+  const traceMutation = api.traces.deleteMany.useMutation({
+    onSuccess: () => {
+      capture("trace:delete", { source: "table-single-row" });
+      showSuccessToast({
+        title: "Trace deleted",
+        description:
+          "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 24 hours.",
+      });
+      utils.traces.all.invalidate();
+    },
+  });
 
   return (
-    <DialogController
-      closeOnInteractionOutside
-      size="default"
-      renderContent={({ closeDialog }) =>
-        traceIdToDelete ? (
-          <DeleteTraceDialogContent
-            closeDialog={closeDialog}
-            projectId={props.projectId}
-            traceId={traceIdToDelete}
-          />
-        ) : null
-      }
+    <ConfirmationDialogController
+      title="Please confirm"
+      text="This action cannot be undone. It removes all the data associated with this trace."
+      confirmLabel="Delete trace"
+      variant="destructive"
+      loading={traceMutation.isPending}
+      onConfirm={async () => {
+        if (!traceIdToDelete) return;
+
+        await traceMutation.mutateAsync({
+          traceIds: [traceIdToDelete],
+          projectId: props.projectId,
+        });
+      }}
     >
       {({ openDialog }) => (
         <TracesTableInternal
@@ -1648,6 +1662,6 @@ export default function TracesTable(props: TracesTableProps) {
           }}
         />
       )}
-    </DialogController>
+    </ConfirmationDialogController>
   );
 }

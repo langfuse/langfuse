@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { z } from "zod";
 
 export const MAX_STORED_HIDDEN_SESSION_HEADER_DETAILS = 1_000;

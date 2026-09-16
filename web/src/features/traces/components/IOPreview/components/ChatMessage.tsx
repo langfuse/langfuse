@@ -101,6 +101,7 @@ export function ChatMessage({
             title="Placeholder"
             json={message.name || "Unnamed placeholder"}
             currentView={currentView}
+            hoverControls
           />
         </div>
       </div>
@@ -115,6 +116,7 @@ export function ChatMessage({
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={message.json}
           currentView={currentView}
+          hoverControls
         />
       </div>
     );
@@ -129,6 +131,7 @@ export function ChatMessage({
           json={message.json}
           currentView="pretty"
           controlButtons={passthroughToggleButton}
+          hoverControls
         />
       </div>
     );
@@ -145,7 +148,6 @@ export function ChatMessage({
       <div className="hover:bg-muted transition-colors">
         <MarkdownJsonViewHeader
           title={title}
-          handleOnValueChange={() => {}}
           handleOnCopy={() => {
             // Shared stringify (not raw JSON.stringify) so \uXXXX escapes in
             // string fields are copied as real characters, like the rendered
@@ -218,6 +220,7 @@ export function ChatMessage({
             controlButtons={passthroughToggleButton}
             afterHeader={thinkingBlocks}
             isSystemPrompt={isSystemPrompt}
+            hoverControls
           />
           {showData && toolCalls.length > 0 && (
             <div className="mt-2">
@@ -240,6 +243,7 @@ export function ChatMessage({
           title={title || (isOutputMessage ? "Output" : "Input")}
           json={withoutUnsetFields(message)}
           currentView={currentView}
+          hoverControls
         />
       </div>
     );

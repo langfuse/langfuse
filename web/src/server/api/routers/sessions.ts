@@ -43,7 +43,7 @@ import {
   orderBy,
   paginationZod,
   type PrismaClient,
-  singleFilter,
+  singleFilterList,
   timeFilter,
   type SessionOptions,
   type ScoreDomain,
@@ -60,7 +60,7 @@ import {
 
 const SessionCountOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
-  filter: z.array(singleFilter).nullable(),
+  filter: singleFilterList.nullable(),
   orderBy: orderBy,
 });
 const SessionFilterOptions = SessionCountOptions.extend({
@@ -71,7 +71,7 @@ const SessionTraceObservationsInput = z.object({
   projectId: z.string(),
   sessionId: z.string(),
   traceId: z.string(),
-  filter: z.array(singleFilter).nullable(),
+  filter: singleFilterList.nullable(),
 });
 
 /**

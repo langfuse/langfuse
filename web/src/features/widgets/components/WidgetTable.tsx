@@ -1,5 +1,5 @@
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
-import { useEffect, useState } from "react";
+import { useEffect, type ReactNode } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
@@ -28,7 +28,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useRouter } from "next/router";
@@ -48,24 +48,23 @@ type WidgetTableRow = {
   owner: "PROJECT" | "LANGFUSE";
 };
 
-function WidgetActionsCell({
+function DeleteWidgetDialogController({
+  children,
+  hasDeleteAccess,
+  projectId,
   widgetId,
-  owner,
 }: {
+  children: (control: {
+    disabled: boolean;
+    openDialog: () => void;
+  }) => ReactNode;
+  hasDeleteAccess: boolean;
+  projectId: string | undefined;
   widgetId: string;
-  owner: "PROJECT" | "LANGFUSE";
 }) {
-  const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const hasCUDAccess = useHasProjectAccess({
-    projectId,
-    scope: "dashboards:CUD",
-  });
-  const hasDeleteAccess = hasCUDAccess && owner !== "LANGFUSE";
-
-  const mutDeleteWidget = api.dashboardWidgets.delete.useMutation({
+  const deleteWidget = api.dashboardWidgets.delete.useMutation({
     onSuccess: () => {
       utils.dashboardWidgets.invalidate();
       capture("dashboard:delete_widget_form_open");
@@ -76,11 +75,49 @@ function WidgetActionsCell({
           "Widget in use",
           "Widget is still in use. Please remove it from all dashboards before deleting it.",
         );
-      } else {
-        showErrorToast("Failed to delete widget", error.message);
+        return;
       }
+
+      showErrorToast("Failed to delete widget", error.message);
     },
   });
+
+  return (
+    <ConfirmationDialogController
+      title="Delete widget"
+      text="This action permanently deletes this widget. If the widget is currently used in any dashboard, you will need to remove it from those dashboards first."
+      confirmLabel="Delete Widget"
+      variant="destructive"
+      disabled={!hasDeleteAccess}
+      loading={deleteWidget.isPending}
+      onConfirm={async () => {
+        if (!projectId) {
+          console.error("Project ID is missing");
+          return;
+        }
+        await deleteWidget.mutateAsync({ projectId, widgetId });
+      }}
+    >
+      {({ openDialog }) => children({ disabled: !hasDeleteAccess, openDialog })}
+    </ConfirmationDialogController>
+  );
+}
+
+function WidgetActionsCell({
+  widgetId,
+  owner,
+}: {
+  widgetId: string;
+  owner: "PROJECT" | "LANGFUSE";
+}) {
+  const projectId = useProjectIdFromURL();
+  const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
+  const hasCUDAccess = useHasProjectAccess({
+    projectId,
+    scope: "dashboards:CUD",
+  });
+  const hasDeleteAccess = hasCUDAccess && owner !== "LANGFUSE";
   const { mutateAsync: createWidgetAsync } =
     api.dashboardWidgets.create.useMutation();
 
@@ -183,54 +220,47 @@ function WidgetActionsCell({
   };
 
   return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="xs" aria-label="Widget actions">
-            <MoreVertical className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={handleCopyToClipboard}>
-            <Copy className="mr-2 h-4 w-4" />
-            Copy widget
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={!hasCUDAccess} onClick={handleDuplicate}>
-            <CopyPlus className="mr-2 h-4 w-4" />
-            Clone
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleDownloadJson}>
-            <FileJson className="mr-2 h-4 w-4" />
-            Download as JSON
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            disabled={!hasDeleteAccess}
-            onClick={() => setIsDeleteDialogOpen(true)}
-            className="text-destructive focus:text-destructive"
-          >
-            <Trash className="mr-2 h-4 w-4" />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <ConfirmDialog
-        open={isDeleteDialogOpen}
-        onOpenChange={setIsDeleteDialogOpen}
-        title="Delete widget"
-        description="This action permanently deletes this widget. If the widget is currently used in any dashboard, you will need to remove it from those dashboards first."
-        confirmLabel="Delete Widget"
-        loading={mutDeleteWidget.isPending}
-        onConfirm={() => {
-          if (!projectId) {
-            console.error("Project ID is missing");
-            return;
-          }
-          mutDeleteWidget.mutate({ projectId, widgetId });
-          setIsDeleteDialogOpen(false);
-        }}
-      />
-    </>
+    <DeleteWidgetDialogController
+      hasDeleteAccess={hasDeleteAccess}
+      projectId={projectId}
+      widgetId={widgetId}
+    >
+      {({ disabled, openDialog }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="xs" aria-label="Widget actions">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleCopyToClipboard}>
+              <Copy className="mr-2 h-4 w-4" />
+              Copy widget
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={!hasCUDAccess}
+              onClick={handleDuplicate}
+            >
+              <CopyPlus className="mr-2 h-4 w-4" />
+              Clone
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleDownloadJson}>
+              <FileJson className="mr-2 h-4 w-4" />
+              Download as JSON
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              disabled={disabled}
+              onClick={openDialog}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </DeleteWidgetDialogController>
   );
 }
 

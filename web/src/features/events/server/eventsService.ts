@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { type z } from "zod";
 import {
   type FilterCondition,

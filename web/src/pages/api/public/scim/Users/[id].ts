@@ -1,12 +1,13 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { writeScimError } from "@/src/features/public-api/server/writeError";
 
 // Parse the first valid role from a SCIM `roles` array. Returns undefined when
 // the attribute is absent, empty, or unparsable, which the provisioning logic
@@ -356,31 +357,18 @@ export default async function handler(
   }
 
   // CHECK AUTH
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-  if (!authCheck.validKey) {
-    return res.status(401).json({
-      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail: authCheck.error,
-      status: 401,
-    });
+  const authCheck = await shadowAuth({
+    req,
+    action:
+      req.method === "GET"
+        ? "organizationMembers:read"
+        : "organizationMembers:CUD",
+    allowedAccessLevels: ["organization"],
+  });
+  if (!authCheck.success) {
+    return writeScimError(res, authCheck.error);
   }
   // END CHECK AUTH
-
-  // Check if using an organization API key
-  if (
-    authCheck.scope.accessLevel !== "organization" ||
-    !authCheck.scope.orgId
-  ) {
-    return res.status(403).json({
-      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail:
-        "Invalid API key. Organization-scoped API key required for this operation.",
-      status: 403,
-    });
-  }
 
   // Gate SCIM provisioning behind the `admin-api` entitlement, matching the
   // sibling organization admin endpoints (memberships, projects, apiKeys).

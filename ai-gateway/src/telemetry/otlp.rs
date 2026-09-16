@@ -5,6 +5,7 @@ use std::{
 
 use axum::http::{HeaderValue, header};
 use reqwest::{Client, Url};
+use reqwest_middleware::ClientWithMiddleware;
 use serde_json::{Value, json};
 
 use super::DeliveryContext;
@@ -16,7 +17,7 @@ const MAX_RESPONSE_BYTES: usize = 64 * 1024;
 const UPLOAD_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub(super) struct Uploader {
-    client: Client,
+    client: ClientWithMiddleware,
     endpoint: Url,
     service_key: String,
 }
@@ -60,7 +61,7 @@ impl Uploader {
             .build()
             .map_err(|_| ResolutionError::Configuration)?;
         Ok(Self {
-            client,
+            client: crate::observability::instrument_client(client, "ingestion"),
             endpoint: config.endpoint(INGESTION_PATH),
             service_key: config.service_key().to_owned(),
         })

@@ -26,7 +26,9 @@
 - Internal trace-batch queue: `src/server/redis/traceBatch.ts` (cloud-gated);
   payloads in `src/server/queues.ts` accept persisted single-project jobs.
   Full-event streaming reads live in `src/server/repositories/trace-batch.ts`;
-  the worker owns experiment enablement and lifecycle.
+  the worker owns experiment enablement and lifecycle. Reader options control
+  per-query threads/block size and experiment attribution; retain exact tenant
+  pairs and per-trace time windows when changing parameter chunking.
 - Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
 - Query-builder AST (server half, WIP): `src/server/query-ast/*` — golden-SQL

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 const BACKSLASH = 92;
 const U_CHAR = 117;
 // high surrogate is the first code of a surrogate pair (\uD83D\uDE00 -> 😀)

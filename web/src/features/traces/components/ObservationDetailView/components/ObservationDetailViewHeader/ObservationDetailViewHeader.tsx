@@ -40,10 +40,6 @@ import {
   VersionBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
-import {
-  SessionBadge,
-  UserIdBadge,
-} from "@/src/features/traces/components/TraceMetadataBadges";
 import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
 import {
   CostBadge,
@@ -739,18 +735,6 @@ export const ObservationDetailViewHeader = memo(
               <TimeToFirstTokenBadge
                 timeToFirstToken={observation.timeToFirstToken}
               />
-              {observation.sessionId && (
-                <SessionBadge
-                  sessionId={observation.sessionId}
-                  projectId={projectId}
-                />
-              )}
-              {observation.userId && (
-                <UserIdBadge
-                  userId={observation.userId}
-                  projectId={projectId}
-                />
-              )}
               {evaluatorId &&
                 (observation.environment ===
                   LangfuseInternalTraceEnvironment.LLMJudge ||

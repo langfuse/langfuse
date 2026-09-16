@@ -11,6 +11,7 @@ import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
+import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 
 function SessionTimelineReasoning({ part }: { part: ReasoningPart }) {
   const content = part.content;
@@ -22,7 +23,10 @@ function SessionTimelineReasoning({ part }: { part: ReasoningPart }) {
         variant="plain"
         alignment="row"
       >
-        <MarkdownView markdown={content.text} className="px-0 py-0" />
+        <MarkdownView
+          markdown={decodeUnicodeEscapesOnly(content.text, true)}
+          className="px-0 py-0"
+        />
       </SessionTimelineCollapsiblePart>
     );
   }
@@ -116,7 +120,10 @@ export function SessionTimelinePart({
         {part.refusal ? (
           <span className="text-dark-red text-[11px] font-bold">Refusal</span>
         ) : null}
-        <MarkdownView markdown={part.text} className="px-0 py-0" />
+        <MarkdownView
+          markdown={decodeUnicodeEscapesOnly(part.text, true)}
+          className="px-0 py-0"
+        />
       </div>
     );
   }

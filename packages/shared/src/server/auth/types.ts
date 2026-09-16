@@ -14,6 +14,7 @@ const ApiKeyBaseSchema = z.object({
   fastHashedSecretKey: z.string(),
   hashedSecretKey: z.string(),
   orgId: z.string(),
+  organizationCreatedAt: z.iso.datetime(),
   plan: z.enum(plans as unknown as [string, ...string[]]),
   rateLimitOverrides: CloudConfigRateLimit.nullish(),
   isIngestionSuspended: z.boolean().nullish(),
@@ -68,6 +69,7 @@ type BaseApiAccessScope = {
 
 type ApiAccessScopeMetadata = {
   orgId: string;
+  organizationCreatedAt?: string | null;
   plan: Plan;
   rateLimitOverrides: z.infer<typeof CloudConfigRateLimit>;
   apiKeyId: string;

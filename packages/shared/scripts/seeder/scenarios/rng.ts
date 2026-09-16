@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 /**
  * Midnight UTC of the current day. Scenario timestamps anchor here (instead
  * of Date.now()) so same-day re-runs produce identical ORDER BY tuples and

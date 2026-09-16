@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { compactEvents } from "@ag-ui/client";
 import { EventType } from "@ag-ui/core";
 

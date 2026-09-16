@@ -982,6 +982,63 @@ describe("InMemoryFilterService", () => {
       ).toBe(true);
     });
 
+    test("evaluates stringObject key presence/absence operators", () => {
+      const presence = (key: string, operator: "is set" | "is not set") =>
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "metadata",
+              type: "stringObject",
+              key,
+              operator,
+              value: "",
+            },
+          ],
+          fieldMapper,
+        );
+
+      expect(presence("userId", "is set")).toBe(true);
+      expect(presence("userId", "is not set")).toBe(false);
+      expect(presence("missingKey", "is set")).toBe(false);
+      expect(presence("missingKey", "is not set")).toBe(true);
+
+      // A key colliding with an inherited Object.prototype name counts as
+      // absent, mirroring the hasOwnProperty guard used by the value operators.
+      expect(presence("toString", "is set")).toBe(false);
+      expect(presence("toString", "is not set")).toBe(true);
+    });
+
+    test("treats a legacy empty substring value as key presence (matches when the key exists)", () => {
+      const emptySubstring = (
+        key: string,
+        operator: "contains" | "starts with" | "ends with",
+      ) =>
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "metadata",
+              type: "stringObject",
+              key,
+              operator,
+              value: "",
+            },
+          ],
+          fieldMapper,
+        );
+
+      // Legacy `contains ""` / `starts with ""` / `ends with ""` behaved as a
+      // key-existence check; persisted rules using it must keep matching a
+      // present key (they are coerced to `is set` at the read boundary, and the
+      // in-memory evaluator must not flip them to never-match if one slips
+      // through uncoerced).
+      for (const op of ["contains", "starts with", "ends with"] as const) {
+        expect(emptySubstring("userId", op)).toBe(true);
+        expect(emptySubstring("missingKey", op)).toBe(false);
+      }
+    });
+
     test("evaluates numberObject filters correctly", () => {
       expect(
         InMemoryFilterService.evaluateFilter(

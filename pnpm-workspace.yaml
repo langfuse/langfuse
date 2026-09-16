@@ -175,3 +175,6 @@ minimumReleaseAgeExclude:
   # Inefficient algorithmic complexity fix (CVE-2026-90776); 9.1.1 is the last
   # 9.x release, so the 10.x line is the only patched one.
   - nodemailer@10.0.5
+  # User impersonation via trusted-proxy confusion (CVE-2026-90711); 2.0.8 is
+  # the only patched release, pulled in transitively through express.
+  - proxy-addr@2.0.8

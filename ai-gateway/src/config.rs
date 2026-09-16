@@ -105,7 +105,6 @@ impl GatewayConfig {
             ));
         }
         let log_level = match log_level.unwrap_or("info") {
-            "trace" => LevelFilter::TRACE,
             "debug" => LevelFilter::DEBUG,
             "info" => LevelFilter::INFO,
             "warn" => LevelFilter::WARN,
@@ -113,7 +112,7 @@ impl GatewayConfig {
             "error" | "fatal" => LevelFilter::ERROR,
             _ => {
                 return Err(GatewayConfigError(
-                    "LANGFUSE_LOG_LEVEL must be trace, debug, info, warn, error or fatal",
+                    "LANGFUSE_LOG_LEVEL must be debug, info, warn, error or fatal",
                 ));
             }
         };
@@ -232,7 +231,6 @@ mod tests {
     #[test]
     fn accepts_shared_langfuse_log_levels() {
         for (value, expected) in [
-            ("trace", LevelFilter::TRACE),
             ("debug", LevelFilter::DEBUG),
             ("info", LevelFilter::INFO),
             ("warn", LevelFilter::WARN),
@@ -254,6 +252,7 @@ mod tests {
             (None, Some(sensitive_input), None),
             (None, None, Some(sensitive_input)),
             (None, None, Some("off")),
+            (None, None, Some("trace")),
             (None, None, Some("INFO")),
             (None, None, Some("3")),
             (None, None, Some("")),

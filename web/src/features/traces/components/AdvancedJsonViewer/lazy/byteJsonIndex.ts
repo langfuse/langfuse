@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 /**
  * Lazy UTF-8 JSON byte indexer (LFE-11082, spike LFE-11079).
  *

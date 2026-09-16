@@ -1,0 +1,36 @@
+{
+  "python": "3.14.3",
+  "versions": {
+    "langfuse": "4.15.0",
+    "opentelemetry-api": "1.40.0",
+    "opentelemetry-sdk": "1.40.0"
+  },
+  "inputs": {
+    "user_id": "user+name / snow雪",
+    "session_id": "session_with_underscore + value",
+    "trace_name": "Gateway \"quoted\" workflow / 雪",
+    "tags": [
+      "plain",
+      "comma,tag",
+      "double\"quote",
+      "single'quote",
+      "both'\"quotes",
+      "space tag",
+      "plus+tag",
+      "snow雪",
+      "雪",
+      "back\\slash"
+    ],
+    "metadata": {
+      "team_name": "search+ranking",
+      "request_note_with_underscores": "snow雪 / 雪 + value",
+      "numeric_value": 42,
+      "boolean_value": true
+    }
+  },
+  "carrier": {
+    "traceparent": "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+    "tracestate": "vendor=opaque-state",
+    "baggage": "langfuse_user_id=user%2Bname+%2F+snow%E9%9B%AA,langfuse_session_id=session_with_underscore+%2B+value,langfuse_tags=%5B%27plain%27%2C+%27comma%2Ctag%27%2C+%27double%22quote%27%2C+%22single%27quote%22%2C+%27both%5C%27%22quotes%27%2C+%27space+tag%27%2C+%27plus%2Btag%27%2C+%27snow%E9%9B%AA%27%2C+%27%E9%9B%AA%27%2C+%27back%5C%5Cslash%27%5D,langfuse_trace_name=Gateway+%22quoted%22+workflow+%2F+%E9%9B%AA,langfuse_metadata_team_name=search%2Branking,langfuse_metadata_request_note_with_underscores=snow%E9%9B%AA+%2F+%E9%9B%AA+%2B+value,langfuse_metadata_numeric_value=42,langfuse_metadata_boolean_value=True"
+  }
+}

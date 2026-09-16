@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { TRPCError } from "@trpc/server";
 import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import { type Cluster, type Redis } from "ioredis";

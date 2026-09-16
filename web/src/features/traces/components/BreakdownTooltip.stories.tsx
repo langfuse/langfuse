@@ -47,6 +47,13 @@ const providedTotalCostDetails = {
   total: 0.01,
 };
 
+const nearDecimalCostDetails = {
+  input: 0.0390650000001,
+  input_cached_tokens: 0.0034879999999,
+  output: 0.01579,
+  total: 0.058342999997,
+};
+
 const priceSource = {
   projectId: "project-1",
   modelId: "gpt-5.6/priority",
@@ -207,5 +214,26 @@ export const TestCostFormattingAndTruncation = meta.story({
     const longLabel = content.getByText("input_cached_tokens");
     await expect(longLabel).toHaveClass("truncate");
     await expect(longLabel).toHaveAttribute("title", "input_cached_tokens");
+  },
+});
+
+export const TestNearDecimalCostFormatting = meta.story({
+  name: "(Test) Ignores near-decimal floating point noise",
+  args: {
+    details: nearDecimalCostDetails,
+    children: <span>$0.058343</span>,
+    isCost: true,
+  },
+  play: async ({ canvasElement }) => {
+    const { content } = await openBreakdownTooltip(canvasElement, "$0.058343");
+
+    await expect(content.getAllByText("$0.039065")).toHaveLength(1);
+    await expect(content.getAllByText("$0.003488")).toHaveLength(1);
+    await expect(content.getAllByText("$0.015790")).toHaveLength(2);
+    await expect(content.getByText("$0.042553")).toBeInTheDocument();
+    await expect(content.getByText("$0.058343")).toBeInTheDocument();
+    await expect(
+      content.queryByText("$0.058342999997"),
+    ).not.toBeInTheDocument();
   },
 });

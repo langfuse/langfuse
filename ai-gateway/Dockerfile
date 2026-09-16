@@ -8,9 +8,11 @@ COPY --chown=gateway:gateway src ./src
 RUN cargo build --release --locked
 
 FROM debian:bookworm-slim AS runtime
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates wget \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/target/release/ai-gateway /usr/local/bin/ai-gateway
+ARG BUILD_ID
+ENV BUILD_ID=$BUILD_ID
 USER 10001:10001
 EXPOSE 8080
 STOPSIGNAL SIGTERM

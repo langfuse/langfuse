@@ -249,7 +249,6 @@ export function TraceDetailView({
           {/* Header section (extracted component) */}
           <TraceDetailViewHeader
             trace={trace}
-            observations={observations}
             parsedMetadata={parsedMetadata}
             projectId={projectId}
             traceScores={traceScores}

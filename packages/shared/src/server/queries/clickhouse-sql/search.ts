@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { InvalidRequestError } from "../../../errors";
 import {
   hasValidTracingSearchTypes,

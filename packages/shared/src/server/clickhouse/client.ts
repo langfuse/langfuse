@@ -100,6 +100,7 @@ export class ClickHouseClientManager {
       ...(opts.request_timeout
         ? { request_timeout: opts.request_timeout }
         : {}),
+      ...(opts.compression ? { compression: opts.compression } : {}),
 
       // Include any other relevant config options
     };

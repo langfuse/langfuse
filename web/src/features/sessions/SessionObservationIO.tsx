@@ -13,6 +13,7 @@ import { downloadJsonFile } from "@/src/features/sessions/actions/downloadSessio
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { compactNumberFormatter } from "@/src/utils/numbers";
+import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 import { parseJsonIfString } from "@langfuse/shared";
 
 export type SessionTraceObservation =
@@ -52,20 +53,23 @@ const TruncatedIOSection = ({
   truncated: boolean;
 }) => {
   const text = typeof value === "string" ? value : JSON.stringify(value);
-  const shown =
+  // Character counts stay on the raw slice; decode only the displayed value so
+  // \uXXXX escapes match PrettyJsonView / LargeStringFallback (and stay bounded).
+  const rawShown =
     text.length > PREVIEW_DISPLAY_CHARS
       ? text.slice(0, PREVIEW_DISPLAY_CHARS)
       : text;
+  const shown = decodeUnicodeEscapesOnly(rawShown, true);
 
   return (
     <div className="flex flex-col gap-1">
       <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
         <span className="font-bold">{label}</span>
-        {(truncated || shown.length < text.length) && (
+        {(truncated || rawShown.length < text.length) && (
           <span>
             {compactNumberFormatter(Math.max(fullLength, text.length), 1)}{" "}
             characters — showing the first{" "}
-            {compactNumberFormatter(shown.length, 1)}
+            {compactNumberFormatter(rawShown.length, 1)}
           </span>
         )}
       </div>
