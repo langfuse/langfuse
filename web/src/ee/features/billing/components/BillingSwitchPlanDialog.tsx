@@ -29,7 +29,6 @@ import {
   DISPLAY_PLAN_TIERS,
   getDisplayPlanComparison,
   includingTeamsPriceLabel,
-  PAID_USAGE_OVERAGE_LABEL,
   planChoiceReason,
   planTierFromPlan,
   planTierLabel,
@@ -51,6 +50,8 @@ import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 
 const PRICING_COMPARISON_HREF = "https://langfuse.com/pricing";
+const PRICING_CALCULATOR_HREF =
+  "https://langfuse.com/pricing#pricing-calculator";
 
 type DialogSource = "sidebar" | "billing";
 
@@ -301,7 +302,7 @@ function PlanCard({
   const scheduledHere =
     Boolean(product) && scheduledNewPlanId === product?.stripeProductId;
   const hobbyScheduled = displayTier === "hobby" && cancellationScheduled;
-  const choiceReason = planChoiceReason(displayTier);
+  const choiceReason = planChoiceReason(displayTier, teamsAddonOn);
 
   const priceLabel =
     displayTier === "hobby"
@@ -316,9 +317,7 @@ function PlanCard({
       : `${PAID_PLAN_INCLUDED_UNITS.toLocaleString("en-US")} units included`;
 
   const usageDetail =
-    displayTier === "hobby"
-      ? "No additional usage — capped"
-      : PAID_USAGE_OVERAGE_LABEL;
+    displayTier === "hobby" ? "No additional usage — capped" : null;
 
   return (
     <div
@@ -342,10 +341,24 @@ function PlanCard({
           </Badge>
         ) : null}
       </div>
-      <p className="mt-2 text-2xl font-bold">{priceLabel}</p>
+      <p className="mt-2 text-2xl font-bold whitespace-nowrap">{priceLabel}</p>
       <p className="text-muted-foreground mt-1 text-sm">{usageLabel}</p>
-      <p className="text-muted-foreground text-sm">{usageDetail}</p>
-      <p className="mt-2 min-h-10 text-sm">{choiceReason}</p>
+      {displayTier === "hobby" ? (
+        <p className="text-muted-foreground text-sm">{usageDetail}</p>
+      ) : (
+        <p className="text-muted-foreground text-sm">
+          + {product?.checkout?.usagePrice},{" "}
+          <a
+            href={PRICING_CALCULATOR_HREF}
+            target="_blank"
+            rel="noreferrer"
+            className="underline"
+          >
+            usage calculator ↗
+          </a>
+        </p>
+      )}
+      <p className="mt-2 min-h-16 text-sm">{choiceReason}</p>
       <div className="mt-3 flex-1 border-t pt-3">
         <p className="mb-2 text-xs font-bold tracking-wide uppercase">
           {comparison.heading}
@@ -389,7 +402,6 @@ function PlanCard({
           displayTier={displayTier}
           targetTier={targetTier}
           isCurrentTarget={isCurrentTarget}
-          isSuggested={isSuggested}
           productId={product?.stripeProductId ?? null}
           productTitle={product?.checkout?.title}
           currentProductId={currentProductId}
@@ -412,7 +424,6 @@ function PlanCardAction({
   displayTier,
   targetTier,
   isCurrentTarget,
-  isSuggested,
   productId,
   productTitle,
   currentProductId,
@@ -429,7 +440,6 @@ function PlanCardAction({
   displayTier: DisplayPlanTier;
   targetTier: PlanTier;
   isCurrentTarget: boolean;
-  isSuggested: boolean;
   productId: string | null;
   productTitle: string | undefined;
   currentProductId: string | null;
@@ -522,7 +532,7 @@ function PlanCardAction({
         <ActionButton
           onClick={() => onCheckout(productId)}
           loading={processing}
-          variant={isSuggested ? "default" : "secondary"}
+          variant="default"
         >
           {continueLabel}
         </ActionButton>
@@ -553,7 +563,7 @@ function PlanCardAction({
         onProcessing={onProcessing}
         processing={processing}
         buttonLabel={isThisUpgrade ? continueLabel : downgradeLabel}
-        buttonVariant={isSuggested ? "default" : "secondary"}
+        buttonVariant="default"
       />
       {displayTier === "enterprise" && salesHref ? (
         <TalkToSalesLink href={salesHref} />

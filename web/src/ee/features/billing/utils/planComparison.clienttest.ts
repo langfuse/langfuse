@@ -29,20 +29,25 @@ describe("planComparison", () => {
     expect(suggestedUpgradeTier("enterprise")).toBeNull();
   });
 
-  it("gives every paid plan a short reason to choose it", () => {
+  it("uses catalogue checkout copy as the reason to choose a plan", () => {
     expect(planChoiceReason("hobby")).toBeNull();
-    expect(planChoiceReason("core")).toBe("More usage and room to grow.");
+    expect(planChoiceReason("core")).toBe(
+      "Great to get started for most projects with unlimited users and 90 days data access.",
+    );
     expect(planChoiceReason("pro")).toBe(
-      "Longer history, higher limits, and advanced controls.",
+      "For projects that scale and need unlimited data access, high rate limits, and Slack support.",
+    );
+    expect(planChoiceReason("pro", true)).toBe(
+      "Organizational and security controls for larger teams.",
     );
     expect(planChoiceReason("enterprise")).toBe(
-      "Custom terms and dedicated support.",
+      "For large scale teams. Enterprise-grade support and security.",
     );
   });
 
   it("derives the Teams add-on price from catalogue list prices", () => {
     expect(teamsAddonPriceLabel()).toBe("+$300/mo");
-    expect(includingTeamsPriceLabel()).toBe("$499/month including Teams");
+    expect(includingTeamsPriceLabel()).toBe("$499/month incl. Teams");
     expect(teamsAddonBenefitLines()).toEqual([
       "Private Slack channel, 24h response",
       "Enterprise SSO and fine-grained RBAC",
@@ -57,7 +62,7 @@ describe("planComparison", () => {
 
     expect(comparison.heading).toBe("What you have today");
     expect(comparison.lines.map((line) => line.text)).toEqual([
-      "30 days of history",
+      "30 days of data retention",
       "2 users",
       "1,000 ingestion requests/min",
       "2 alerts",
@@ -77,7 +82,7 @@ describe("planComparison", () => {
       true,
     );
     expect(comparison.lines.map((line) => line.text)).toEqual([
-      "90 days of history",
+      "90 days of data retention",
       "Unlimited users",
       "4,000 ingestion requests/min",
       "20 alerts",
@@ -94,7 +99,7 @@ describe("planComparison", () => {
 
     expect(comparison.heading).toBe("Everything in Hobby, plus");
     expect(comparison.lines.map((line) => line.text)).toEqual([
-      "90 days of history",
+      "90 days of data retention",
       "Unlimited users",
       "4,000 ingestion requests/min",
       "20 alerts",
@@ -119,7 +124,7 @@ describe("planComparison", () => {
     );
     expect(comparison.lines.map((line) => line.text)).toEqual(
       expect.arrayContaining([
-        "30 days of history",
+        "30 days of data retention",
         "2 users — 5 of your 7 lose access",
         "Usage capped at included units",
         "No in-app support",
@@ -139,7 +144,7 @@ describe("planComparison", () => {
       true,
     );
     expect(comparison.lines.map((line) => line.text)).toEqual([
-      "3 years of history",
+      "3 years of data retention",
       "20,000 ingestion requests/min",
       "50 alerts",
       "Unlimited annotation queues",
@@ -229,7 +234,7 @@ describe("planComparison", () => {
       "100 alerts",
       "Audit logs and SCIM provisioning",
     ]);
-    expect(texts).not.toContain("3 years of history");
+    expect(texts).not.toContain("3 years of data retention");
     expect(texts).not.toContain("Unlimited users");
     expect(texts).not.toContain("Data retention management");
   });

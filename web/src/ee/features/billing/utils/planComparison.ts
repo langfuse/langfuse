@@ -224,8 +224,8 @@ const formatSupport = (support: SupportLevel) => {
   }
 };
 
-const formatHistory = (access: DataAccess) =>
-  `${formatDataAccess(access)} of history`;
+const formatDataRetention = (access: DataAccess) =>
+  `${formatDataAccess(access)} of data retention`;
 
 export const planTierLabel = (tier: PlanTier) => TIER_LABEL[tier];
 
@@ -251,24 +251,20 @@ export const suggestedUpgradeTier = (current: PlanTier): PlanTier | null => {
 
 export const planChoiceReason = (
   displayTier: DisplayPlanTier,
+  teamsAddonOn = false,
 ): string | null => {
-  switch (displayTier) {
-    case "core":
-      return "More usage and room to grow.";
-    case "pro":
-      return "Longer history, higher limits, and advanced controls.";
-    case "enterprise":
-      return "Custom terms and dedicated support.";
-    case "hobby":
-      return null;
+  if (displayTier === "hobby") {
+    return null;
   }
+
+  const reasonTier: Exclude<PlanTier, "hobby"> =
+    displayTier === "pro" && teamsAddonOn ? "team" : displayTier;
+
+  return checkoutProductForTier(reasonTier)?.checkout?.description ?? null;
 };
 
-export const PAID_USAGE_OVERAGE_LABEL =
-  "Additional usage from $8 / 100k units*";
-
 export const VOLUME_DISCOUNT_NOTE =
-  "* Volume discounts apply as usage grows. See the full comparison for the schedule.";
+  "*price per 100k drops with increasing usage";
 
 const ENTERPRISE_VALUE_LEAD = [
   "Negotiated usage on yearly terms",
@@ -321,7 +317,7 @@ const additionalCapabilityLines = (limits: PlanLimits): string[] => {
 const currentHeadlines = (tier: PlanTier): PlanComparisonLine[] => {
   const limits = LIMITS[tier];
   return [
-    { polarity: "neutral", text: formatHistory(limits.dataAccess) },
+    { polarity: "neutral", text: formatDataRetention(limits.dataAccess) },
     { polarity: "neutral", text: formatUsers(limits.users) },
     { polarity: "neutral", text: formatIngestion(limits.ingestion) },
     { polarity: "neutral", text: `${limits.alerts} alerts` },
@@ -339,7 +335,7 @@ const hobbyLossFromPaid = (
   memberCount?: number,
 ): PlanComparisonLine[] => {
   const lines: PlanComparisonLine[] = [
-    { polarity: "minus", text: formatHistory(LIMITS.hobby.dataAccess) },
+    { polarity: "minus", text: formatDataRetention(LIMITS.hobby.dataAccess) },
   ];
 
   if (typeof memberCount === "number" && memberCount > 2) {
@@ -400,7 +396,7 @@ const capabilityDiff = (
   const lines: PlanComparisonLine[] = [];
 
   if (dataAccessChanged(from.dataAccess, to.dataAccess)) {
-    lines.push({ polarity, text: formatHistory(to.dataAccess) });
+    lines.push({ polarity, text: formatDataRetention(to.dataAccess) });
   }
 
   if (from.users.kind !== to.users.kind) {
@@ -588,7 +584,7 @@ export const teamsAddonBenefitLines = () =>
 export const includingTeamsPriceLabel = () => {
   const team =
     checkoutProductForTier("team")?.checkout?.price ?? "$499 / month";
-  return `${team.replace(" / month", "/month")} including Teams`;
+  return `${team.replace(" / month", "/month")} incl. Teams`;
 };
 
 export const getPlanComparison = ({
