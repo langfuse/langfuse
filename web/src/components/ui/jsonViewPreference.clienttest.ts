@@ -19,7 +19,6 @@ describe("toPrettyOrJsonView", () => {
 });
 
 describe("isPrettyLikeJsonView", () => {
-  // json-beta fills the pane with the advanced viewer.
   it("treats both JSON views as not pretty-like", () => {
     expect(isPrettyLikeJsonView("json")).toBe(false);
     expect(isPrettyLikeJsonView("json-beta")).toBe(false);
