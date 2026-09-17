@@ -145,41 +145,9 @@ publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
 minimumReleaseAgeExclude:
-  # Temporary exact exceptions for the pnpm 12 migration.
-  - '@pnpm/exe.darwin-arm64@12.3.1'
-  - '@pnpm/exe.darwin-x64@12.3.1'
-  - '@pnpm/exe.linux-arm64@12.3.1'
-  - '@pnpm/exe.linux-arm64-musl@12.3.1'
-  - '@pnpm/exe.linux-x64@12.3.1'
-  - '@pnpm/exe.linux-x64-musl@12.3.1'
-  - '@pnpm/exe.win32-arm64@12.3.1'
-  - '@pnpm/exe.win32-x64@12.3.1'
-  - '@next/env@16.3.3'
-  - '@next/eslint-plugin-next@16.3.3'
-  - '@next/swc-darwin-arm64@16.3.3'
-  - '@next/swc-darwin-x64@16.3.3'
-  - '@next/swc-linux-arm64-gnu@16.3.3'
-  - '@next/swc-linux-arm64-musl@16.3.3'
-  - '@next/swc-linux-x64-gnu@16.3.3'
-  - '@next/swc-linux-x64-musl@16.3.3'
-  - '@next/swc-win32-arm64-msvc@16.3.3'
-  - '@next/swc-win32-x64-msvc@16.3.3'
-  - next@16.3.3
-  - pnpm@12.3.1
-  - qs@6.16.0
   # Case-sensitivity handling fix (CVE-2026-86472) on top of the host confusion
   # + output-escaping fixes (CVE-2026-84394, CVE-2026-84292).
   - fast-uri@3.1.8
-  # Certificate validation, request smuggling, and resource-exhaustion fixes
-  # in the 7.x line (CVE-2026-84961, CVE-2026-18540, CVE-2026-84890 and more).
-  - undici@7.29.1
-  # Uncaught-exception and request-smuggling fixes for the 6.x line pulled in
-  # transitively by @ai-sdk/provider-utils (CVE-2026-85024, CVE-2026-19534,
-  # CVE-2026-18540).
-  - undici@6.28.1
-  # Inefficient algorithmic complexity fix (CVE-2026-90776); 9.1.1 is the last
-  # 9.x release, so the 10.x line is the only patched one.
-  - nodemailer@10.0.5
   # User impersonation via trusted-proxy confusion (CVE-2026-90711); 2.0.8 is
   # the only patched release, pulled in transitively through express.
   - proxy-addr@2.0.8
