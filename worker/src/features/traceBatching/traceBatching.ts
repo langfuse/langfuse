@@ -541,6 +541,27 @@ const ACKNOWLEDGE_SCRIPT = `
   return removed
 `;
 
+function recordTrackingVolume(
+  stage: "eligible" | "sampled" | "recorded",
+  entries: Iterable<
+    readonly [
+      string,
+      { eventUpdateCount: number; serializedEventBytes: number },
+    ]
+  >,
+): void {
+  let updates = 0;
+  let bytes = 0;
+  for (const [, state] of entries) {
+    updates += state.eventUpdateCount;
+    bytes += state.serializedEventBytes;
+  }
+  recordIncrement("langfuse.trace_batch.event_updates", updates, { stage });
+  recordIncrement("langfuse.trace_batch.serialized_event_bytes", bytes, {
+    stage,
+  });
+}
+
 export async function trackTraceBatchActivity(
   projectId: string,
   events: {
@@ -579,6 +600,7 @@ export async function trackTraceBatchActivity(
   if (bounds.size === 0) return;
 
   try {
+    recordTrackingVolume("eligible", bounds);
     const samplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
     // Sample by trace ID so later observations and retries keep the same decision.
     // Dispatcher and consumer process admitted work without resampling.
@@ -601,6 +623,7 @@ export async function trackTraceBatchActivity(
       bounds.size - entries.length,
       { decision: "excluded" },
     );
+    recordTrackingVolume("sampled", entries);
     if (entries.length === 0) return;
     if (!redis) throw new Error("Trace batching requires Redis");
     // Bounded scripts keep ingestion from monopolizing the global Redis slot.
@@ -625,6 +648,8 @@ export async function trackTraceBatchActivity(
           ]),
         ),
       );
+      // Count only acknowledged chunks; a timeout can leave Redis's outcome unknown.
+      recordTrackingVolume("recorded", chunk);
       recordIncrement("langfuse.trace_batch.expired_traces", expired);
       recordIncrement("langfuse.trace_batch.tracked_traces", chunk.length);
     }
