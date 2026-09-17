@@ -35,7 +35,7 @@ const FIXED_TO_TIMESTAMP = new Date("2026-01-31T23:59:59.000Z");
 // also unavailable — shared compiles as CommonJS.
 async function snapshotCapturedQuery() {
   const { clickhouseFormatAvailable, formatSql, normalizeParams } =
-    await import("../query-ast/goldenHarness.js");
+    await import("./goldenHarness.js");
 
   if (!clickhouseFormatAvailable()) {
     throw new Error(
