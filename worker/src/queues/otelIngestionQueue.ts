@@ -832,7 +832,11 @@ export const otelIngestionQueueProcessorBuilder = (
         ? createObservationEvalSchedulerDeps()
         : null;
 
-      const traceBatchEvents: { traceId: string; startTimeISO: string }[] = [];
+      const traceBatchEvents: {
+        traceId: string;
+        startTimeISO: string;
+        serializedEventBytes: number;
+      }[] = [];
 
       await Promise.all(
         // Process each event independently
@@ -883,7 +887,8 @@ export const otelIngestionQueueProcessorBuilder = (
           // Step 3: Write to events table (independent of eval scheduling)
           if (shouldWriteToEventsTable) {
             try {
-              await ingestionService.writeEventRecord(eventRecord);
+              const serializedEventBytes =
+                await ingestionService.writeEventRecord(eventRecord);
               if (
                 env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
                 env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED === "true"
@@ -891,6 +896,7 @@ export const otelIngestionQueueProcessorBuilder = (
                 traceBatchEvents.push({
                   traceId: eventInput.traceId,
                   startTimeISO: eventInput.startTimeISO,
+                  serializedEventBytes,
                 });
               }
             } catch (error) {
