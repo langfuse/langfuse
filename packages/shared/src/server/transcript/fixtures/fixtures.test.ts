@@ -102,8 +102,6 @@ describe("transcript fixtures", () => {
         );
         const transcript = getTranscript(observations);
 
-        // console.log("----------Transcript-------------------");
-        // console.log(JSON.stringify(transcript, null, 2));
         console.log("----------Formatted Transcript-------------------");
         console.log(
           formatTranscript(fixture.name, transcript, observations, {
