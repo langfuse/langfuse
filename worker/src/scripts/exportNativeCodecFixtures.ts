@@ -9,7 +9,9 @@ import type { EventInput } from "../services/IngestionService/index.js";
 type JsonObject = Record<string, unknown>;
 
 const repoRoot = resolve(__dirname, "../../..");
-const outputArgument = process.argv.slice(2).find((argument) => argument !== "--");
+const outputArgument = process.argv
+  .slice(2)
+  .find((argument) => argument !== "--");
 const outputPath = resolve(
   repoRoot,
   outputArgument ?? "packages/native/target/native-codec-fixtures.json",
@@ -81,9 +83,7 @@ const eventInputFromCapture = (
   const isRoot = observation.parentObservationId == null;
   const usageDetails = numberMap(observation.usageDetails);
   const costDetails = numberMap(observation.costDetails);
-  const providedUsageDetails = numberMap(
-    observation.providedUsageDetails,
-  );
+  const providedUsageDetails = numberMap(observation.providedUsageDetails);
   const providedCostDetails = numberMap(observation.providedCostDetails);
 
   return {
@@ -102,7 +102,8 @@ const eventInputFromCapture = (
     environment: String(
       observation.environment ?? trace.environment ?? "default",
     ),
-    version: typeof observation.version === "string" ? observation.version : undefined,
+    version:
+      typeof observation.version === "string" ? observation.version : undefined,
     release: typeof trace.release === "string" ? trace.release : undefined,
     traceName: typeof trace.name === "string" ? trace.name : undefined,
     tags: Array.isArray(trace.tags)
@@ -113,7 +114,8 @@ const eventInputFromCapture = (
     userId: typeof trace.userId === "string" ? trace.userId : undefined,
     sessionId:
       typeof trace.sessionId === "string" ? trace.sessionId : undefined,
-    level: typeof observation.level === "string" ? observation.level : undefined,
+    level:
+      typeof observation.level === "string" ? observation.level : undefined,
     statusMessage:
       typeof observation.statusMessage === "string"
         ? observation.statusMessage
@@ -121,7 +123,8 @@ const eventInputFromCapture = (
     modelName:
       typeof observation.model === "string" ? observation.model : undefined,
     modelId: optionalString(observation.internalModelId),
-    modelParameters: observation.modelParameters as EventInput["modelParameters"],
+    modelParameters:
+      observation.modelParameters as EventInput["modelParameters"],
     providedUsageDetails:
       Object.keys(providedUsageDetails).length > 0
         ? providedUsageDetails
@@ -156,9 +159,8 @@ const eventInputFromCapture = (
 };
 
 const main = async (): Promise<void> => {
-  const { IngestionService } = await import(
-    "../services/IngestionService/index.js"
-  );
+  const { IngestionService } =
+    await import("../services/IngestionService/index.js");
 
   const normalizedRows: EventRecordInsertType[] = [];
   const capturedGenerationUsage = new Map<
@@ -227,7 +229,8 @@ const main = async (): Promise<void> => {
       rows: normalizedRows,
       // Keep the exact JavaScript JSONEachRow boundary alongside parsed rows. Rust uses these
       // lines for the independent ClickHouse comparison instead of reserializing numbers.
-      jsonEachRow: normalizedRows.map((row) => JSON.stringify(row)).join("\n") + "\n",
+      jsonEachRow:
+        normalizedRows.map((row) => JSON.stringify(row)).join("\n") + "\n",
     })}\n`,
   );
   process.stdout.write(
