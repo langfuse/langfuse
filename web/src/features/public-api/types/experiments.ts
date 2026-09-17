@@ -120,7 +120,9 @@ export const GetExperimentsV1ParsedQuery = z.object({
   limit: publicApiPaginationLimitZod,
   scoreLimit: experimentScoreLimitZod,
   cursor: EncodedExperimentCursorV1.optional(),
-  fromStartTime: z.iso.datetime({ offset: true }).optional(),
+  // Required: bounds the events-table scan on start_time (the partition and
+  // primary-key column). Keep it required unless a different scan guard is added.
+  fromStartTime: z.iso.datetime({ offset: true }),
   toStartTime: z.iso.datetime({ offset: true }).optional(),
   id: optionalStringArrayZod,
   name: optionalStringArrayZod,
@@ -134,7 +136,7 @@ export const GetExperimentsV1Query = z
     limit: publicApiPaginationLimitZod,
     scoreLimit: experimentScoreLimitZod,
     cursor: EncodedExperimentsCursorString.optional(),
-    fromStartTime: z.iso.datetime({ offset: true }).optional(),
+    fromStartTime: z.iso.datetime({ offset: true }),
     toStartTime: z.iso.datetime({ offset: true }).optional(),
     id: optionalCommaSeparatedStringArray,
     name: optionalCommaSeparatedStringArray,

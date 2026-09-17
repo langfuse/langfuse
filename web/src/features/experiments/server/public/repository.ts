@@ -67,7 +67,7 @@ type ExperimentCursor = {
 
 type QueryExperimentSummariesParams = {
   projectId: string;
-  fromTime?: Date;
+  fromTime: Date;
   toTime?: Date;
   limit: number;
   id?: string[];

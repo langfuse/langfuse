@@ -31,10 +31,12 @@ service:
             type: optional<string>
             docs: Versioned base64url cursor from the previous response page.
           fromStartTime:
-            type: optional<datetime>
+            type: datetime
             docs: |
-              Retrieve only experiments on or after this datetime. When omitted,
-              the most recent experiments are returned.
+              Required. Retrieve only experiments with events on or after this
+              datetime. A lower bound is required so the query stays fast on
+              large projects; pair it with `toStartTime` to select a specific
+              window.
           toStartTime:
             type: optional<datetime>
             docs: Retrieve only experiments before this datetime.
@@ -82,7 +84,11 @@ service:
             docs: Versioned base64url cursor from the previous response page.
           fromStartTime:
             type: datetime
-            docs: Retrieve only experiment items started on or after this datetime.
+            docs: |
+              Required. Retrieve only experiment items started on or after this
+              datetime. A lower bound is required so the query stays fast on
+              large projects; pair it with `toStartTime` to select a specific
+              window.
           toStartTime:
             type: optional<datetime>
             docs: Retrieve only experiment items started before this datetime.
