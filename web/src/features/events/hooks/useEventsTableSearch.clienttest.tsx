@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { TracingSearchType } from "@langfuse/shared";
 import { eventsSearchRegistry } from "../config/eventsSearchRegistry";
-import { useEventsTableSearch } from "./useEventsTableSearch";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 
 describe("embedded events search scopes", () => {
   it.each<TracingSearchType[]>([
@@ -11,18 +11,17 @@ describe("embedded events search scopes", () => {
     ["id", "output"],
     ["content"],
   ])(
-    "keeps the host scope %j when a phrase or another facet is edited",
+    "keeps the restored scope %j visible and intact when another facet is edited",
     (...scope) => {
       const setSearchType = vi.fn();
       const setSearchQuery = vi.fn();
       const setFilterState = vi.fn();
       const { result } = renderHook(() =>
-        useEventsTableSearch({
+        useEventsSearchBar({
           projectId: "p",
           tableName: "observations-events",
           enabled: true,
-          useHostSearchScopes: true,
-          registry: eventsSearchRegistry(["sessionId"]),
+          registry: eventsSearchRegistry(["sessionId"], true),
           filterState: [],
           searchQuery: "refund",
           searchType: scope,
@@ -32,9 +31,12 @@ describe("embedded events search scopes", () => {
           setSearchType,
         }),
       );
-      expect(result.current.store.getState().draft).toBe("refund ");
+      const restored = result.current.store.getState().draft.trim();
+      expect(restored).toContain("refund");
       act(() =>
-        result.current.store.getState().actions.setDraft("refund level:ERROR"),
+        result.current.store
+          .getState()
+          .actions.setDraft(`${restored} level:ERROR`),
       );
       act(() => result.current.commit("enter"));
       expect(setSearchType).not.toHaveBeenCalled();
@@ -50,14 +52,36 @@ describe("embedded events search scopes", () => {
     },
   );
 
+  it("changes an embedded payload scope back to its IDs and names default", () => {
+    const setSearchType = vi.fn();
+    const setSearchQuery = vi.fn();
+    const { result } = renderHook(() =>
+      useEventsSearchBar({
+        tableName: "observations-events",
+        enabled: true,
+        registry: eventsSearchRegistry(["userId"], true),
+        filterState: [],
+        searchQuery: "refund",
+        searchType: ["content"],
+        observed: undefined,
+        setFilterState: vi.fn(),
+        setSearchQuery,
+        setSearchType,
+      }),
+    );
+    act(() => result.current.store.getState().actions.setDraft("refund"));
+    act(() => result.current.commit("enter"));
+    expect(setSearchType).toHaveBeenCalledWith(["id"]);
+    expect(setSearchQuery).toHaveBeenCalledWith("refund");
+  });
+
   it("keeps the full-page grammar's original full-text default", () => {
     const setSearchType = vi.fn();
     const { result } = renderHook(() =>
-      useEventsTableSearch({
+      useEventsSearchBar({
         projectId: "p",
         tableName: "observations-events",
         enabled: true,
-        useHostSearchScopes: false,
         registry: eventsSearchRegistry([]),
         filterState: [],
         searchQuery: null,

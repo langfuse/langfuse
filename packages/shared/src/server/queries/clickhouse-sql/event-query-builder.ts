@@ -208,6 +208,10 @@ const EVENTS_FIELDS = {
     "if(isNull(e.completion_start_time), NULL, date_diff('millisecond', e.start_time, e.completion_start_time)) as \"time_to_first_token\"",
 } as const;
 
+const EVENTS_FIELD_ORDER_INDEX = new Map(
+  Object.keys(EVENTS_FIELDS).map((key, index) => [key, index]),
+);
+
 /**
  * Predefined field sets for common query patterns
  * Maps set names to arrays of field keys from EVENTS_FIELDS
@@ -595,7 +599,7 @@ const AGGREGATION_FIELD_SETS = {
  * // Use when you need to query across all projects (use with caution!)
  * const builder = new EventsQueryBuilder({ projectId: NoProjectId });
  */
-const NoProjectId = Symbol("NoProjectId");
+export const NoProjectId = Symbol("NoProjectId");
 export type NoProjectIdType = typeof NoProjectId;
 
 /**
@@ -1168,9 +1172,17 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
       fieldsToExclude.push("metadata");
     }
 
-    const fieldsToProcess = [...this.selectFields].filter(
-      (f) => !fieldsToExclude.includes(f),
-    );
+    // Canonicalize by EVENTS_FIELDS declaration order so SELECT column order
+    // does not follow caller field-set order. Clustered ClickHouse reads align
+    // result blocks by position; incompatible Map types (cost_details vs
+    // metadata) 500 when those columns swap places.
+    const fieldsToProcess = [...this.selectFields]
+      .filter((f) => !fieldsToExclude.includes(f))
+      .sort(
+        (a, b) =>
+          (EVENTS_FIELD_ORDER_INDEX.get(a) ?? Number.MAX_SAFE_INTEGER) -
+          (EVENTS_FIELD_ORDER_INDEX.get(b) ?? Number.MAX_SAFE_INTEGER),
+      );
 
     const fieldExpressions: string[] = fieldsToProcess.flatMap((fieldKey) => {
       const fieldExpr = EVENTS_FIELDS[fieldKey as keyof typeof EVENTS_FIELDS];
@@ -2136,12 +2148,21 @@ export function buildEventsFullTableSplitQuery(opts: {
       "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata",
     );
   }
+  // The tuple semi-join alone cannot prune events_full's primary key (raw
+  // start_time/trace_id vs the toStartOfMinute/xxHash32 key expressions), so
+  // bound start_time to base's own matched range. Derived from base (not the
+  // request filter) so it also tightens lookups that arrive without a time
+  // filter, and the values are never re-serialized as params.
   const ioQuery = [
     `SELECT ${ioSelectParts.join(", ")}`,
     "FROM events_full e",
     "WHERE e.project_id = {projectId: String}",
+    "AND e.start_time >= (SELECT io_min_start_time FROM io_bounds)",
+    "AND e.start_time <= (SELECT io_max_start_time FROM io_bounds)",
     'AND (e.start_time, e.trace_id, e.span_id) IN (SELECT "start_time", "trace_id", id FROM base)',
   ].join("\n");
+  const ioBoundsQuery =
+    "SELECT min(start_time) AS io_min_start_time, max(start_time) AS io_max_start_time FROM base";
 
   // Compose final query using CTEQueryBuilder
   let cteBuilder = new CTEQueryBuilder();
@@ -2154,11 +2175,17 @@ export function buildEventsFullTableSplitQuery(opts: {
     });
   }
 
-  // Register base and io CTEs, set up FROM and JOIN
+  // Register base, io_bounds, and io CTEs, set up FROM and JOIN. io_bounds must
+  // follow base (it aggregates over it) and precede io (which reads from it).
   cteBuilder = cteBuilder
     .withCTE("base", {
       query: baseQuery,
       params: baseParams,
+      schema: [] as string[],
+    })
+    .withCTE("io_bounds", {
+      query: ioBoundsQuery,
+      params: {},
       schema: [] as string[],
     })
     .withCTE("io", {

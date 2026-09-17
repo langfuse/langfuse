@@ -28,6 +28,7 @@ import {
 } from "@/src/features/filters/config/observations-config";
 import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
 import {
+  normalizeOrderByForTable,
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type ObservationLevelType,
   type FilterState,
@@ -57,6 +58,7 @@ import {
 } from "@/src/utils/observationCost";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
@@ -67,6 +69,7 @@ import {
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   BreakdownTooltip,
   calculateAggregatedUsage,
@@ -91,7 +94,6 @@ import {
 } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import { SearchScopeSelect } from "@/src/components/table/SearchScopeSelect";
 import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
 import { observationsFieldRegistry } from "@/src/features/filters/config/tracingSearchRegistry";
 import { useRouter } from "next/router";
@@ -312,6 +314,10 @@ export default function ObservationsTable({
   const [orderByState, setOrderByState] = useOrderByState({
     column: "startTime",
     order: "DESC",
+  });
+  const orderBy = normalizeOrderByForTable({
+    orderBy: orderByState,
+    expectedTimeColumn: "startTime",
   });
 
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
@@ -565,7 +571,10 @@ export default function ObservationsTable({
     facetOptions,
     queryFilterOptions,
   );
-  const searchRegistry = observationsFieldRegistry(observationsFilterConfig);
+  const searchRegistry = observationsFieldRegistry(
+    observationsFilterConfig,
+    legacyTracingIoSearchEnabled,
+  );
   const observedOptions = toObservedOptions(
     facetOptions,
     isSidebarFilterLoading,
@@ -614,7 +623,7 @@ export default function ObservationsTable({
     ...getCountPayload,
     page: limitRows ? 0 : paginationState.pageIndex,
     limit: limitRows ?? paginationState.pageSize,
-    orderBy: orderByState,
+    orderBy,
   };
 
   const generations = api.generations.all.useQuery(getAllPayload, {
@@ -694,7 +703,7 @@ export default function ObservationsTable({
       isBatchAction: selectAll,
       query: {
         filter: backendFilterState,
-        orderBy: orderByState,
+        orderBy,
       },
     });
     actions.clearSelection();
@@ -891,7 +900,11 @@ export default function ObservationsTable({
 
         return (
           <span>
-            {timeToFirstToken ? formatIntervalSeconds(timeToFirstToken) : "-"}
+            {timeToFirstToken ? (
+              formatIntervalSeconds(timeToFirstToken)
+            ) : (
+              <EmptyValue />
+            )}
           </span>
         );
       },
@@ -1139,7 +1152,6 @@ export default function ObservationsTable({
           id: "inputCost",
           header: "Input Cost",
           size: 120,
-          emptyValue: "-",
           formatter: (value, { row }) =>
             formatObservationCost(value, row.original.type),
           enableHiding: true,
@@ -1151,7 +1163,6 @@ export default function ObservationsTable({
           id: "outputCost",
           header: "Output Cost",
           size: 120,
-          emptyValue: "-",
           formatter: (value, { row }) =>
             formatObservationCost(value, row.original.type),
           enableHiding: true,
@@ -1348,22 +1359,8 @@ export default function ObservationsTable({
                 query: searchQuery,
                 type: searchType,
                 setQuery: handleSearchQueryChange,
+                setType: handleSearchTypeChange,
               }}
-              searchScope={
-                legacyTracingIoSearchEnabled ? (
-                  <SearchScopeSelect
-                    searchType={searchType}
-                    setSearchType={handleSearchTypeChange}
-                    metadataLabel="IDs / Names"
-                    fullTextLabel="Full Text"
-                    availableSearchTypes={{
-                      content: true,
-                      input: true,
-                      output: true,
-                    }}
-                  />
-                ) : undefined
-              }
             />
             <ObservationsDataTableToolbar
               rowClassName="my-1"
@@ -1386,7 +1383,7 @@ export default function ObservationsTable({
               setColumnVisibility={handleColumnVisibilityChange}
               columnOrder={columnOrder}
               setColumnOrder={handleColumnOrderChange}
-              orderByState={orderByState}
+              orderByState={orderBy}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
               timeRange={showControlsInPageHeader ? undefined : timeRange}
@@ -1445,7 +1442,7 @@ export default function ObservationsTable({
                     }
               }
               setOrderBy={handleOrderByChange}
-              orderBy={orderByState}
+              orderBy={orderBy}
               columnOrder={columnOrder}
               onColumnOrderChange={handleColumnOrderChange}
               columnVisibility={columnVisibility}
@@ -1495,7 +1492,7 @@ export default function ObservationsTable({
           projectId={projectId}
           rows={rows}
           backendFilterState={backendFilterState}
-          orderByState={orderByState}
+          orderByState={orderBy}
           searchQuery={searchQuery}
           searchType={searchType}
           totalCount={totalCount}
@@ -1541,6 +1538,10 @@ function ObservationsDataTableToolbar({
   totalCount,
   ...toolbarProps
 }: ObservationsDataTableToolbarProps) {
+  const hasBatchExportAccess = useHasProjectAccess({
+    projectId,
+    scope: "batchExports:create",
+  });
   const selectedObservationIds = useObservationsTableStore(
     (state) => state.selectedPageRowIds,
   );
@@ -1556,17 +1557,19 @@ function ObservationsDataTableToolbar({
       {...toolbarProps}
       orderByState={orderByState}
       actionButtons={[
-        <BatchExportTableButton
-          {...{
-            projectId,
-            filterState: backendFilterState,
-            orderByState,
-            searchQuery,
-            searchType,
-          }}
-          tableName={BatchExportTableName.Observations}
-          key="batchExport"
-        />,
+        hasBatchExportAccess ? (
+          <BatchExportTableButton
+            {...{
+              projectId,
+              filterState: backendFilterState,
+              orderByState,
+              searchQuery,
+              searchType,
+            }}
+            tableName={BatchExportTableName.Observations}
+            key="batchExport"
+          />
+        ) : null,
         selectedObservationIds.length > 0 || selectAll ? (
           <TableActionMenu
             key="observations-multi-select-actions"

@@ -24,6 +24,7 @@ import {
 } from "@/src/components/ui/input-command";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { rankFacetOptions } from "@/src/features/filters/lib/facet-display";
+import { isStringPresenceOperator } from "@/src/features/filters/lib/sidebar-filter-actions";
 import { Plus, X, Check, ChevronDown } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { ScoreTag } from "@/src/components/score-tag";
@@ -93,7 +94,11 @@ const STRING_OPERATOR_LABELS = {
   "=": "equals",
   contains: "contains",
   "does not contain": "does not contain",
+  "is set": "is set",
+  "is not set": "is not set",
 } as const;
+
+type StringOperator = keyof typeof STRING_OPERATOR_LABELS;
 
 const BOOLEAN_OPERATOR_LABELS = {
   "=": "equals",
@@ -282,11 +287,14 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
 
   const isComplete = (filter: KeyedFilterEntry) =>
     !!filter.key &&
-    (Array.isArray(filter.value)
-      ? filter.value.length > 0
-      : typeof filter.value === "string"
-        ? filter.value.trim() !== ""
-        : true);
+    // Presence rows (`is set` / `is not set`) need no value to be applied.
+    (isStringPresenceOperator(filter.operator)
+      ? true
+      : Array.isArray(filter.value)
+        ? filter.value.length > 0
+        : typeof filter.value === "string"
+          ? filter.value.trim() !== ""
+          : true);
 
   const updateFilters = (filters: KeyedFilterEntry[]) => {
     setDraftFilters(
@@ -591,11 +599,17 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                 {/* String operator select */}
                 <Select
                   value={filter.operator}
-                  onValueChange={(value) =>
+                  onValueChange={(value) => {
+                    const operator = value as StringOperator;
                     handleFilterChange(index, {
-                      operator: value as "=" | "contains" | "does not contain",
-                    })
-                  }
+                      operator,
+                      // Presence operators carry no value; clear it so no
+                      // stale string is persisted alongside `is set`.
+                      ...(isStringPresenceOperator(operator)
+                        ? { value: "" }
+                        : {}),
+                    });
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -611,16 +625,18 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   </SelectContent>
                 </Select>
 
-                {/* String value input, with observed-value suggestions */}
-                <SuggestingInput
-                  value={filter.value as string}
-                  onChange={(value) => handleFilterChange(index, { value })}
-                  suggestions={
-                    filter.key ? (valueOptions?.[filter.key] ?? []) : []
-                  }
-                  placeholder="Value"
-                  disabled={!filter.key}
-                />
+                {/* String value input, hidden for value-less presence operators */}
+                {isStringPresenceOperator(filter.operator) ? null : (
+                  <SuggestingInput
+                    value={filter.value as string}
+                    onChange={(value) => handleFilterChange(index, { value })}
+                    suggestions={
+                      filter.key ? (valueOptions?.[filter.key] ?? []) : []
+                    }
+                    placeholder="Value"
+                    disabled={!filter.key}
+                  />
+                )}
               </>
             )}
           </div>

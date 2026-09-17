@@ -193,7 +193,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install pinned Rust toolchain
-        run: rustup show
+        run: rustup toolchain install --no-self-update
       - name: Check Rust formatting
         run: cargo fmt --all -- --check
       - name: Lint Rust targets
@@ -269,7 +269,11 @@ jobs:
           cp .env.dev.example .env
       - name: lint web
         # Three packages with four ESLint workers leave headroom on 16 vCPUs.
-        run: pnpm turbo run lint --filter=!ai-gateway --concurrency=3 -- --concurrency=4
+        run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3 -- --concurrency=4
+      # Rust packages lint with cargo, which rejects the trailing ESLint flag
+      # above, so they run outside that invocation (ai-gateway in its own job).
+      - name: lint native addon (rustfmt, clippy)
+        run: pnpm --filter @langfuse/native run lint
       - name: typecheck
         run: pnpm run typecheck --filter=!ai-gateway
 
@@ -505,23 +509,7 @@ jobs:
         # same reason. `prisma generate` only reads the schema; it needs no DB.
         run: pnpm --filter=shared run db:generate
       - name: Install playwright
-        # apt-get (pulled in by --with-deps) occasionally stalls against a
-        # slow/unresponsive mirror and can ride the job's timeout-minutes
-        # instead of failing fast (observed: a 10-minute hang cancelled by
-        # the job timeout). A normal install takes well under a minute, so
-        # bound each attempt and retry instead of trusting the job-level
-        # timeout as the only guard.
-        run: |
-          attempt=1
-          until timeout 120 pnpm --filter=web exec playwright install --with-deps --only-shell chromium; do
-            if [ "$attempt" -ge 3 ]; then
-              echo "Playwright install failed after 3 attempts" >&2
-              exit 1
-            fi
-            echo "Attempt $attempt failed (possibly a stalled apt mirror), retrying in $((attempt * 15))s..." >&2
-            sleep $((attempt * 15))
-            attempt=$((attempt + 1))
-          done
+        run: bash scripts/ci/install-playwright.sh
       - name: run Storybook tests
         run: pnpm --filter web run test-storybook
       - name: build Storybook
@@ -1179,7 +1167,7 @@ jobs:
           (set +e; docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
       - name: Install playwright in background
         run: |
-          (set +e; pnpm --filter=web exec playwright install --with-deps --only-shell chromium > /tmp/playwright-install.log 2>&1; echo $? > /tmp/playwright-install.exit) &
+          (set +e; bash scripts/ci/install-playwright.sh > /tmp/playwright-install.log 2>&1; echo $? > /tmp/playwright-install.exit) &
       - name: Build
         run: pnpm run build --filter=!ai-gateway
         env:
@@ -1393,6 +1381,13 @@ jobs:
           pnpm run db:migrate
           pnpm --filter=shared run ch:up
           pnpm --filter=shared run db:seed
+      # Turbo starts the native addon and AI Gateway builds in parallel. They
+      # may use different workspace-pinned Rust toolchains, so install both
+      # serially before either build can trigger rustup.
+      - name: Install pinned Rust toolchains
+        run: |
+          (cd packages/native && rustup toolchain install --no-self-update)
+          (cd ai-gateway && rustup toolchain install --no-self-update)
       - name: Build
         run: pnpm run build
         env:

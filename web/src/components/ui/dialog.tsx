@@ -7,7 +7,8 @@ import { X } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/src/utils/tailwind";
-import { useLayerContainer } from "@/src/components/ui/layer";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { DialogController as DesignSystemDialogController } from "@/src/components/design-system/DialogController/DialogController";
 import motionStyles from "./dialog-motion.module.css";
 
 const Dialog = DialogPrimitive.Root;
@@ -175,6 +176,8 @@ DialogContent.displayName = DialogPrimitive.Content.displayName;
  * Owns dialog open state while callers retain trigger and content presentation.
  */
 type DialogControllerProps<State = void> = {
+  // Evaluated only when the controller mounts; later callback or dependency changes do not update the dialog.
+  initialState?: () => State | undefined;
   children: (control: {
     isOpen: boolean;
     openDialog: (...args: [State] extends [void] ? [] : [state: State]) => void;
@@ -190,50 +193,30 @@ type DialogControllerProps<State = void> = {
 };
 
 const DialogController = <State = void,>({
+  initialState,
   children,
   closeOnInteractionOutside,
   onBeforeClose,
   onDismiss,
   renderContent,
   size,
-}: DialogControllerProps<State>) => {
-  const [controllerState, setControllerState] = React.useState<
-    { active: false } | { active: boolean; state: State }
-  >({ active: false });
-  const closeDialog = () => {
-    if (onBeforeClose?.() === false) return false;
-    setControllerState((currentState) =>
-      "state" in currentState
-        ? { ...currentState, active: false }
-        : currentState,
-    );
-    return true;
-  };
-
-  return (
-    <Dialog
-      open={controllerState.active}
-      onOpenChange={(open) => {
-        if (open) return;
-        if (closeDialog()) onDismiss?.();
-      }}
-    >
-      {children({
-        isOpen: controllerState.active,
-        openDialog: (...args) =>
-          setControllerState({ active: true, state: args[0] as State }),
-      })}
-      {"state" in controllerState ? (
-        <DialogContent
-          size={size}
-          closeOnInteractionOutside={closeOnInteractionOutside}
-        >
-          {renderContent({ state: controllerState.state, closeDialog })}
-        </DialogContent>
-      ) : null}
-    </Dialog>
-  );
-};
+}: DialogControllerProps<State>) => (
+  <DesignSystemDialogController
+    initialState={initialState}
+    onBeforeClose={onBeforeClose}
+    onDismiss={onDismiss}
+    renderDialog={({ state, closeDialog }) => (
+      <DialogContent
+        size={size}
+        closeOnInteractionOutside={closeOnInteractionOutside}
+      >
+        {renderContent({ state, closeDialog })}
+      </DialogContent>
+    )}
+  >
+    {children}
+  </DesignSystemDialogController>
+);
 
 const dialogHeaderVariants = cva(
   "bg-modal sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg p-4",

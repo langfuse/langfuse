@@ -46,6 +46,7 @@ export const GatewayResolveResponseSchema = z
         project_id: z.string(),
         key_id: z.string(),
         key_metadata: GatewayMetadataSchema,
+        provider_connection_id: z.string(),
       })
       .strict(),
     ingestion_mode: z.enum(["usage", "full"]),

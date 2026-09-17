@@ -35,15 +35,8 @@ import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,
   TimeToFirstTokenBadge,
-  EnvironmentBadge,
-  ReleaseBadge,
-  VersionBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
-import {
-  SessionBadge,
-  UserIdBadge,
-} from "@/src/features/traces/components/TraceMetadataBadges";
 import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
 import {
   CostBadge,
@@ -51,7 +44,6 @@ import {
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { resolveObservationCostSource } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/costSource";
 import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
-import { ModelParametersBadges } from "@/src/features/traces/components/ObservationDetailView/components/ModelParametersBadges";
 import {
   type WithStringifiedMetadata,
   type MetadataDomainClient,
@@ -218,13 +210,14 @@ export const ObservationDetailViewHeader = memo(
       <div className="@container shrink-0 space-y-2 border-b p-2">
         {/* Title row with actions */}
         <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
-          <div className="flex w-full flex-row items-center gap-1">
+          <div className="flex w-full min-w-0 flex-row items-center gap-1">
             <ItemBadge type={observation.type as ObservationType} isSmall />
             <span
               className={cn(
-                "mb-0 line-clamp-2 min-w-0 font-bold break-all md:break-normal md:wrap-break-word",
+                "mb-0 min-w-0 truncate font-bold",
                 isMobile && "flex-1",
               )}
+              title={observation.name || observation.id}
             >
               {observation.name || observation.id}
             </span>
@@ -235,6 +228,15 @@ export const ObservationDetailViewHeader = memo(
               ]}
               observationType={observation.type}
               projectId={projectId}
+              observation={
+                isV4Enabled
+                  ? {
+                      id: observation.id,
+                      traceId,
+                      startTime: observation.startTime,
+                    }
+                  : undefined
+              }
               spanName={observation.name ?? ""}
               webCallout={{
                 traceId,
@@ -729,14 +731,6 @@ export const ObservationDetailViewHeader = memo(
               <TimeToFirstTokenBadge
                 timeToFirstToken={observation.timeToFirstToken}
               />
-              <SessionBadge
-                sessionId={observation.sessionId ?? null}
-                projectId={projectId}
-              />
-              <UserIdBadge
-                userId={observation.userId ?? null}
-                projectId={projectId}
-              />
               {evaluatorId &&
                 (observation.environment ===
                   LangfuseInternalTraceEnvironment.LLMJudge ||
@@ -749,8 +743,6 @@ export const ObservationDetailViewHeader = memo(
                     projectId={projectId}
                   />
                 )}
-              <EnvironmentBadge environment={observation.environment} />
-              <ReleaseBadge release={observation.release} />
               {displayedTotalCost != null && displayedCostDetails && (
                 <CostBadge
                   totalCost={displayedTotalCost}
@@ -778,7 +770,6 @@ export const ObservationDetailViewHeader = memo(
                       usageDetails={observation.usageDetails}
                     />
                   )}
-              <VersionBadge version={observation.version} />
               {observation.model && (
                 <ModelBadge
                   model={observation.model}
@@ -787,9 +778,6 @@ export const ObservationDetailViewHeader = memo(
                   usageDetails={observation.usageDetails}
                 />
               )}
-              <ModelParametersBadges
-                modelParameters={observation.modelParameters}
-              />
               {observation.level !== "DEFAULT" && (
                 <ObservationLevelBadge
                   level={observation.level}

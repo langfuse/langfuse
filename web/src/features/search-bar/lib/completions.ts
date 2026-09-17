@@ -191,6 +191,15 @@ const PATTERN_OPTIONS: CompletionOption[] = [
 // Ranking (prefix-before-substring) lives in ./rank so the filter sidebar's
 // per-facet value search can share it — see that module's header.
 
+function suggestedSearchScopes(registry: FieldRegistry) {
+  const defaults = new Set(registry.defaultSearchType);
+  return Object.entries(registry.searchScopes).filter(
+    ([, scope]) =>
+      new Set(scope.searchType).size !== defaults.size ||
+      scope.searchType.some((type) => !defaults.has(type)),
+  );
+}
+
 function fieldOptions(
   registry: FieldRegistry,
   includeVirtual = true,
@@ -204,6 +213,17 @@ function fieldOptions(
       detail: f.description,
       fieldId: f.id,
     }));
+  if (includeVirtual && registry.allowFreeText) {
+    opts.push(
+      ...suggestedSearchScopes(registry).map(([id, scope]) => ({
+        id: `field:${id}`,
+        kind: "field" as const,
+        label: id,
+        detail: scope.description,
+        fieldId: id,
+      })),
+    );
+  }
   if (includeVirtual && registry.metadata) {
     opts.push({
       id: "field:metadata.",
@@ -807,8 +827,18 @@ function valueStageSections(input: ValueStageInput): {
   if (valuePrefix.length > 0) return null;
 
   switch (ref.type) {
+    case "searchScope":
+      return typed.length > 0 && !negated
+        ? {
+            sections: section(
+              SECTION_SEARCH_IN,
+              scopeSwitchOptions(ref.id, typed, tokenSpan, registry),
+            ),
+            loading: false,
+          }
+        : null;
     case "pseudo": {
-      // `has` is the only pseudo-field: suggest the nullable fields it can name.
+      if (ref.id === "in") return null;
       const all = registry.nullableFields().map((f) => ({
         id: `value:${f.id}`,
         kind: "value" as const,
@@ -1175,7 +1205,7 @@ function freeTextRun(
 
 // The full-text scopes the bar can switch a value between. `default` is bare
 // free text (ids, names, input & output); input:/output: are the scoped forms.
-type FullTextScope = "default" | "input" | "output";
+type FullTextScope = string;
 
 // Switch options that move a full-text value between scopes, carrying the value
 // and replacing the WHOLE token/run (replaceSpan). Used in both directions:
@@ -1203,6 +1233,11 @@ function scopeSwitchOptions(
 ): CompletionOption[] {
   const v = serializeValue(value);
   const allDefs: { scope: FullTextScope; insert: string; detail: string }[] = [
+    ...suggestedSearchScopes(registry).map(([scope, definition]) => ({
+      scope,
+      insert: `${scope}:${v}`,
+      detail: definition.description,
+    })),
     {
       scope: "input",
       insert: `input:${v}`,
@@ -1222,8 +1257,11 @@ function scopeSwitchOptions(
     },
   ];
   const defs = allDefs.filter(
-    (d) =>
-      d.scope === "default" || registry.resolveField(d.scope)?.type === "field",
+    (d, index) =>
+      allDefs.findIndex((candidate) => candidate.scope === d.scope) === index &&
+      (d.scope === "default" ||
+        registry.resolveField(d.scope)?.type === "field" ||
+        registry.resolveField(d.scope)?.type === "searchScope"),
   );
   const alternatives = defs.filter((d) => d.scope !== current);
   if (alternatives.length === 0) return [];
@@ -1377,7 +1415,7 @@ export function planInputCompletions(
             const exactId =
               exact?.type === "field"
                 ? exact.field.id
-                : exact?.type === "pseudo"
+                : exact?.type === "pseudo" || exact?.type === "searchScope"
                   ? exact.id
                   : null;
             return exactId === null

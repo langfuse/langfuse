@@ -19,6 +19,7 @@ import {
 import type { FilePart, FinishReason } from "../../../types";
 import type {
   IOConvention,
+  MessageSource,
   PartHandler,
   ToolDefinitionCarrier,
   ToolDefinitionSource,
@@ -194,6 +195,21 @@ function aiSdkToolDefinitionSources(
 
 export const aiSdkProvider = {
   name: "ai-sdk",
+  claimMessages: (root, kind): MessageSource[] => {
+    if (kind !== "input" || root.messages !== undefined) return [];
+    if (typeof root.prompt === "string") {
+      return [{ kind: "single", value: root.prompt, fallbackRole: "user" }];
+    }
+    if (
+      Array.isArray(root.prompt) &&
+      root.prompt.every(
+        (message) => typeof asRecord(message)?.role === "string",
+      )
+    ) {
+      return [{ kind: "sequence", values: root.prompt, fallbackRole: "user" }];
+    }
+    return [];
+  },
   finishReasonTypeByRaw: AI_SDK_FINISH_REASON_TYPE_BY_RAW,
   // AI SDK / MCP tool declarations: { name?, description, inputSchema }.
   tryNormalizeToolDefinition: (value: Record<string, unknown>) => {
