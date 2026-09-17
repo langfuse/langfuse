@@ -145,15 +145,6 @@ publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
 minimumReleaseAgeExclude:
-  # Temporary exact exceptions for the pnpm 12 migration.
-  - '@pnpm/exe.darwin-arm64@12.3.1'
-  - '@pnpm/exe.darwin-x64@12.3.1'
-  - '@pnpm/exe.linux-arm64@12.3.1'
-  - '@pnpm/exe.linux-arm64-musl@12.3.1'
-  - '@pnpm/exe.linux-x64@12.3.1'
-  - '@pnpm/exe.linux-x64-musl@12.3.1'
-  - '@pnpm/exe.win32-arm64@12.3.1'
-  - '@pnpm/exe.win32-x64@12.3.1'
   - '@next/env@16.3.3'
   - '@next/eslint-plugin-next@16.3.3'
   - '@next/swc-darwin-arm64@16.3.3'
@@ -165,7 +156,6 @@ minimumReleaseAgeExclude:
   - '@next/swc-win32-arm64-msvc@16.3.3'
   - '@next/swc-win32-x64-msvc@16.3.3'
   - next@16.3.3
-  - pnpm@12.3.1
   - qs@6.16.0
   # Case-sensitivity handling fix (CVE-2026-86472) on top of the host confusion
   # + output-escaping fixes (CVE-2026-84394, CVE-2026-84292).
