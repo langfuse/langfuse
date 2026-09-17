@@ -30,7 +30,8 @@ type MarkdownJsonViewHeaderProps = {
   /** Hosts that render their own copy control (e.g. inside the content box)
       suppress the header's. */
   hideCopyButton?: boolean;
-  /** Reveal the controls on section hover; needs a `group/iosection` ancestor. */
+  /** Reveal the right-side controls only while hovering the hosting section
+      (requires a `group/iosection` ancestor). */
   hoverRevealControls?: boolean;
 };
 
