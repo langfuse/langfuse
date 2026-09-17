@@ -87,6 +87,18 @@ const experimentScoreLimitZod = z.preprocess(
   z.coerce.number().int().gte(1).lte(50).default(50),
 );
 
+// Required on the experiments endpoints: bounds the events-table scan on
+// start_time (the partition and primary-key column). Keep it required unless a
+// different scan guard is added. The custom error explains the requirement
+// instead of surfacing a bare format error when the parameter is omitted.
+const requiredFromStartTime = z.iso.datetime({
+  offset: true,
+  error: (issue) =>
+    issue.input === undefined
+      ? "fromStartTime is required. It bounds the query to a time window; pass an ISO 8601 datetime with offset (e.g. 2024-01-01T00:00:00Z)."
+      : "fromStartTime must be an ISO 8601 datetime with offset (e.g. 2024-01-01T00:00:00Z).",
+});
+
 const experimentFieldsZod = commaSeparatedEnumArray(EXPERIMENT_FIELD_GROUPS, [
   "core",
 ]).describe(
@@ -120,9 +132,7 @@ export const GetExperimentsV1ParsedQuery = z.object({
   limit: publicApiPaginationLimitZod,
   scoreLimit: experimentScoreLimitZod,
   cursor: EncodedExperimentCursorV1.optional(),
-  // Required: bounds the events-table scan on start_time (the partition and
-  // primary-key column). Keep it required unless a different scan guard is added.
-  fromStartTime: z.iso.datetime({ offset: true }),
+  fromStartTime: requiredFromStartTime,
   toStartTime: z.iso.datetime({ offset: true }).optional(),
   id: optionalStringArrayZod,
   name: optionalStringArrayZod,
@@ -136,7 +146,7 @@ export const GetExperimentsV1Query = z
     limit: publicApiPaginationLimitZod,
     scoreLimit: experimentScoreLimitZod,
     cursor: EncodedExperimentsCursorString.optional(),
-    fromStartTime: z.iso.datetime({ offset: true }),
+    fromStartTime: requiredFromStartTime,
     toStartTime: z.iso.datetime({ offset: true }).optional(),
     id: optionalCommaSeparatedStringArray,
     name: optionalCommaSeparatedStringArray,
@@ -154,7 +164,7 @@ export const GetExperimentItemsV1ParsedQueryBase = z.object({
   limit: publicApiPaginationLimitZod,
   scoreLimit: experimentScoreLimitZod,
   cursor: EncodedExperimentCursorV1.optional(),
-  fromStartTime: z.iso.datetime({ offset: true }),
+  fromStartTime: requiredFromStartTime,
   toStartTime: z.iso.datetime({ offset: true }).optional(),
   experimentId: optionalStringArrayZod,
   experimentName: optionalStringArrayZod,
@@ -173,7 +183,7 @@ export const GetExperimentItemsV1Query = z
     limit: publicApiPaginationLimitZod,
     scoreLimit: experimentScoreLimitZod,
     cursor: EncodedExperimentsCursorString.optional(),
-    fromStartTime: z.iso.datetime({ offset: true }),
+    fromStartTime: requiredFromStartTime,
     toStartTime: z.iso.datetime({ offset: true }).optional(),
     experimentId: optionalCommaSeparatedStringArray,
     experimentName: optionalCommaSeparatedStringArray,
