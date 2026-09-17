@@ -8,7 +8,6 @@ export const plexMono = localFont({
       style: "normal",
     },
     {
-      // 600 is this app's bold role (--font-weight-bold), not a 700.
       path: "./IBMPlexMono-Bold.woff2",
       weight: "600",
       style: "normal",

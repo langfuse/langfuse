@@ -177,7 +177,6 @@ export default defineConfig({
           "node_modules/next-query-params/dist/pages.esm.js",
         ),
       },
-      // next/font/local is a build-time loader; outside `next` it throws.
       {
         find: /^next\/font\/local$/,
         replacement: join(
