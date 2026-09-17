@@ -32,14 +32,23 @@ type ButtonProps = {
       disabled?: never;
       loading?: never;
       onClick?: never;
+      type?: never;
     }
-  | {
+  | ({
       href?: never;
       ref?: Ref<HTMLButtonElement>;
       disabled?: boolean;
       loading?: boolean;
-      onClick: () => void;
-    }
+    } & (
+      | {
+          type?: "button";
+          onClick: () => void;
+        }
+      | {
+          type: "submit";
+          onClick?: never;
+        }
+    ))
 );
 
 export function Button(props: ButtonProps) {
@@ -79,7 +88,7 @@ export function Button(props: ButtonProps) {
     <button
       className={className}
       ref={props.ref}
-      type="button"
+      type={props.type ?? "button"}
       disabled={props.disabled || props.loading}
       onClick={props.loading || props.disabled ? undefined : props.onClick}
       aria-busy={props.loading}

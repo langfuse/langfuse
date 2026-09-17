@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   validateExportSource,
@@ -9,10 +10,9 @@ import { useForm } from "react-hook-form";
 import { type z } from "zod";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
-import { FormField } from "@/src/components/design-system/FormField/FormField";
+import { Form } from "@/src/components/design-system/Form/Form";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
@@ -94,170 +94,173 @@ export function PostHogIntegrationForm({
       : ({ ok: true } as const);
 
   return (
-    <div className="space-y-8">
-      <form className="space-y-3" onSubmit={form.handleSubmit(onSubmit)}>
-        <FormField
-          control={form.control}
-          name="posthogHostname"
-          label="Posthog Hostname"
-          description="US region: https://us.posthog.com; EU region: https://eu.posthog.com"
+    <ConfirmationDialogController
+      title="Reset PostHog integration?"
+      text="This resets the PostHog integration for this project."
+      confirmLabel="Reset integration"
+      variant="destructive"
+      disabled={configurationState === "new"}
+      loading={actionState === "resetting"}
+      error={resetError}
+      onConfirm={onReset}
+    >
+      {({ openDialog }) => (
+        <Form
+          onSubmit={form.handleSubmit(onSubmit)}
+          actions={[
+            {
+              id: "save",
+              type: "submit",
+              text: "Save",
+              loading: actionState === "saving",
+            },
+            {
+              id: "reset",
+              type: "button",
+              text: "Reset",
+              variant: "ghost",
+              disabled: configurationState === "new",
+              onClick: openDialog,
+            },
+          ]}
         >
-          {(field) => (
-            <Input
-              id={field.id}
-              name={field.name}
-              value={field.value}
-              onBlur={field.onBlur}
-              onChange={field.onChange}
-              ref={field.ref}
-              aria-describedby={field.inputDescribedById}
-              aria-invalid={Boolean(field.error)}
-              error={Boolean(field.error)}
-            />
-          )}
-        </FormField>
-        <FormField
-          control={form.control}
-          name="posthogProjectApiKey"
-          label="Posthog Project API Key"
-          description={
-            configurationState === "configured"
-              ? "Leave blank to keep the current API key."
-              : undefined
-          }
-        >
-          {(field) => (
-            <PasswordInput
-              id={field.id}
-              name={field.name}
-              value={field.value}
-              onBlur={field.onBlur}
-              onChange={field.onChange}
-              ref={field.ref}
-              aria-describedby={field.inputDescribedById}
-              aria-invalid={Boolean(field.error)}
-              error={Boolean(field.error)}
-              placeholder={
-                configurationState === "configured"
-                  ? projectApiKeyDisplay
-                  : undefined
-              }
-            />
-          )}
-        </FormField>
-        {showExportSourceField ? (
-          <CustomTooltip
-            placement="bottom"
-            content={
-              <div className="space-y-2 py-1.5">
-                {exportSourceOptions.map((option) => (
-                  <div key={option.value} className="space-y-0.5">
-                    <div className="font-bold">{option.label}</div>
-                    <div className="text-muted-foreground text-xs">
-                      {option.description}
-                    </div>
-                  </div>
-                ))}
-                <div className="border-t pt-2">
-                  <a
-                    href="https://langfuse.com/docs/integrations/export-sources"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
-                  >
-                    For further information see
-                    <ExternalLink className="size-3" />
-                  </a>
-                </div>
-              </div>
+          <Form.Field
+            control={form.control}
+            name="posthogHostname"
+            label="Posthog Hostname"
+            description="US region: https://us.posthog.com; EU region: https://eu.posthog.com"
+          >
+            {(field) => (
+              <Input
+                id={field.id}
+                name={field.name}
+                value={field.value}
+                onBlur={field.onBlur}
+                onChange={field.onChange}
+                ref={field.ref}
+                aria-describedby={field.inputDescribedById}
+                aria-invalid={Boolean(field.error)}
+                error={Boolean(field.error)}
+              />
+            )}
+          </Form.Field>
+          <Form.Field
+            control={form.control}
+            name="posthogProjectApiKey"
+            label="Posthog Project API Key"
+            description={
+              configurationState === "configured"
+                ? "Leave blank to keep the current API key."
+                : undefined
             }
           >
-            {({ getTriggerProps }) => (
-              <FormField
-                control={form.control}
-                name="exportSource"
-                label="Export Source"
-                description="Choose which data sources to export to PostHog. Scores are always included."
-                registerLabelTooltip={getTriggerProps}
-              >
-                {(field) => (
-                  <SelectInput
-                    id={field.id}
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    aria-describedby={field.inputDescribedById}
-                    aria-invalid={Boolean(field.error)}
-                    error={Boolean(field.error)}
-                    placeholder="Select data to export"
-                    options={exportSourceOptions.map((option) => {
-                      if (option.unavailable) {
-                        return {
-                          value: option.value,
-                          label: `${option.label} (not available on this deployment)`,
-                          disabled: true as const,
-                          disabledReason: "Not available on this deployment.",
-                        };
-                      }
-
-                      return { value: option.value, label: option.label };
-                    })}
-                  />
-                )}
-              </FormField>
+            {(field) => (
+              <PasswordInput
+                id={field.id}
+                name={field.name}
+                value={field.value}
+                onBlur={field.onBlur}
+                onChange={field.onChange}
+                ref={field.ref}
+                aria-describedby={field.inputDescribedById}
+                aria-invalid={Boolean(field.error)}
+                error={Boolean(field.error)}
+                placeholder={
+                  configurationState === "configured"
+                    ? projectApiKeyDisplay
+                    : undefined
+                }
+              />
             )}
-          </CustomTooltip>
-        ) : null}
-        {!watchedValidation.ok ? (
-          <Alert variant="destructive">
-            <Alert.Title>
-              Saved export source is no longer available
-            </Alert.Title>
-            <Alert.Description>
-              {getExportSourceUnavailableMessage(watchedValidation.reason)}
-            </Alert.Description>
-          </Alert>
-        ) : null}
-        <FormField control={form.control} name="enabled" label="Enabled">
-          {(field) => (
-            <Switch
-              id={field.id}
-              name={field.name}
-              checked={field.value}
-              onBlur={field.onBlur}
-              onCheckedChange={field.onChange}
-              ref={field.ref}
-              aria-describedby={field.inputDescribedById}
-              aria-invalid={Boolean(field.error)}
-            />
-          )}
-        </FormField>
-      </form>
-      <div className="flex gap-2">
-        <Button
-          text="Save"
-          loading={actionState === "saving"}
-          onClick={form.handleSubmit(onSubmit)}
-        />
-        <ConfirmationDialogController
-          title="Reset PostHog integration?"
-          text="This resets the PostHog integration for this project."
-          confirmLabel="Reset integration"
-          variant="destructive"
-          disabled={configurationState === "new"}
-          loading={actionState === "resetting"}
-          error={resetError}
-          onConfirm={onReset}
-        >
-          {({ openDialog }) => (
-            <Button
-              text="Reset"
-              variant="ghost"
-              disabled={configurationState === "new"}
-              onClick={openDialog}
-            />
-          )}
-        </ConfirmationDialogController>
-      </div>
-    </div>
+          </Form.Field>
+          {showExportSourceField ? (
+            <CustomTooltip
+              placement="bottom"
+              content={
+                <div className="space-y-2 py-1.5">
+                  {exportSourceOptions.map((option) => (
+                    <div key={option.value} className="space-y-0.5">
+                      <div className="font-bold">{option.label}</div>
+                      <div className="text-muted-foreground text-xs">
+                        {option.description}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="border-t pt-2">
+                    <a
+                      href="https://langfuse.com/docs/integrations/export-sources"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
+                    >
+                      For further information see
+                      <ExternalLink className="size-3" />
+                    </a>
+                  </div>
+                </div>
+              }
+            >
+              {({ getTriggerProps }) => (
+                <Form.Field
+                  control={form.control}
+                  name="exportSource"
+                  label="Export Source"
+                  description="Choose which data sources to export to PostHog. Scores are always included."
+                  registerLabelTooltip={getTriggerProps}
+                >
+                  {(field) => (
+                    <SelectInput
+                      id={field.id}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      aria-describedby={field.inputDescribedById}
+                      aria-invalid={Boolean(field.error)}
+                      error={Boolean(field.error)}
+                      placeholder="Select data to export"
+                      options={exportSourceOptions.map((option) => {
+                        if (option.unavailable) {
+                          return {
+                            value: option.value,
+                            label: `${option.label} (not available on this deployment)`,
+                            disabled: true as const,
+                            disabledReason: "Not available on this deployment.",
+                          };
+                        }
+
+                        return { value: option.value, label: option.label };
+                      })}
+                    />
+                  )}
+                </Form.Field>
+              )}
+            </CustomTooltip>
+          ) : null}
+          {!watchedValidation.ok ? (
+            <Alert variant="destructive">
+              <Alert.Title>
+                Saved export source is no longer available
+              </Alert.Title>
+              <Alert.Description>
+                {getExportSourceUnavailableMessage(watchedValidation.reason)}
+              </Alert.Description>
+            </Alert>
+          ) : null}
+          <Form.Field control={form.control} name="enabled" label="Enabled">
+            {(field) => (
+              <Switch
+                id={field.id}
+                name={field.name}
+                checked={field.value}
+                onBlur={field.onBlur}
+                onCheckedChange={field.onChange}
+                ref={field.ref}
+                aria-describedby={field.inputDescribedById}
+                aria-invalid={Boolean(field.error)}
+              />
+            )}
+          </Form.Field>
+        </Form>
+      )}
+    </ConfirmationDialogController>
   );
 }
