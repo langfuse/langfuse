@@ -116,9 +116,9 @@ export function ChatMessageList({
   }, [media, shouldRenderMarkdown, visibleMessages, characterLimit]);
 
   return (
-    <div className="flex max-h-full min-h-0 flex-col gap-2">
-      <div className="flex max-h-full min-h-0 flex-col gap-2">
-        <div className="flex flex-col gap-2">
+    <div className="flex max-h-full min-h-0 flex-col gap-4">
+      <div className="flex max-h-full min-h-0 flex-col gap-4">
+        <div className="flex flex-col gap-4">
           {visibleMessages.map(({ message, originalIndex }) => (
             <Fragment key={originalIndex}>
               <ChatMessage
