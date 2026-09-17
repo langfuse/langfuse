@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { act, render, screen } from "@testing-library/react";
 
-import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { createEvaluatorSetupStore } from "../../../../store/evaluatorSetupStore/evaluatorSetupStore";
 import { EvaluatorTestPanelContainer } from "./EvaluatorTestPanelContainer";
 
 vi.mock(

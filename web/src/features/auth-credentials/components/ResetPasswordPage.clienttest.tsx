@@ -62,7 +62,7 @@ vi.mock(
   }),
 );
 
-import { ResetPasswordPage } from "@/src/features/auth-credentials/components/ResetPasswordPage";
+import { ResetPasswordPage } from "./ResetPasswordPage";
 
 describe("ResetPasswordPage re-authentication", () => {
   beforeEach(() => {

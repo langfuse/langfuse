@@ -16,11 +16,11 @@ import {
   type TreeNodeMetadata,
 } from "./VirtualizedTreeNodeWrapper";
 import { SpanContent } from "./SpanContent";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
-import { useIsObservationActive } from "@/src/features/traces/contexts/PlayheadContext";
-import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
-import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
+import { useTraceData } from "../contexts/TraceDataContext";
+import { useSelection } from "../contexts/SelectionContext";
+import { useIsObservationActive } from "../contexts/PlayheadContext";
+import { useHandlePrefetchObservation } from "../hooks/useHandlePrefetchObservation";
+import { useSelectTraceNode } from "../hooks/useSelectTraceNode";
 import { type TreeNode } from "../types/treeNode";
 import { cn } from "@/src/utils/tailwind";
 import type Decimal from "decimal.js";

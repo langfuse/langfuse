@@ -1,7 +1,7 @@
 import { Braces } from "lucide-react";
 
-import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";
-import type { VariableFieldState } from "@/src/features/evals/v2/types/variableMapping";
+import { evalVariableColumnLabel } from "../../fns/variableMapping/evalVariableColumnLabel";
+import type { VariableFieldState } from "../../types/variableMapping";
 import {
   EditableVariableMapping,
   type EditableVariableMappingProps,

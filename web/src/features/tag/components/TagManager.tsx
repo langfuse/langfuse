@@ -1,8 +1,8 @@
 /* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
-import TagCommandItem from "@/src/features/tag/components/TagCommandItem";
-import { TagInput } from "@/src/features/tag/components/TagInput";
-import TagList from "@/src/features/tag/components/TagList";
-import { useTagManager } from "@/src/features/tag/hooks/useTagManager";
+import TagCommandItem from "./TagCommandItem";
+import { TagInput } from "./TagInput";
+import TagList from "./TagList";
+import { useTagManager } from "../hooks/useTagManager";
 import {
   Popover,
   PopoverAnchor,

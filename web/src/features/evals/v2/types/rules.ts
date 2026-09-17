@@ -6,7 +6,7 @@ import type {
 import type { StoreApi } from "zustand/vanilla";
 import type { TableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { RouterOutputs } from "@/src/utils/api";
-import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
+import type { SampleObservation } from "../components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 
 type RuleDraftAssignment = {
   evaluatorId: string;

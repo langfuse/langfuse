@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-style-props */
 import { api } from "@/src/utils/api";
-import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
+import { DashboardCard } from "../cards/DashboardCard";
 import { type ScoreDataTypeType, type FilterState } from "@langfuse/shared";
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import {
@@ -13,9 +13,9 @@ import {
 } from "@/src/features/scores";
 import React, { useMemo } from "react";
 import { Separator } from "@/src/components/ui/separator";
-import { NumericScoreTimeSeriesChart } from "@/src/features/dashboard/components/score-analytics/NumericScoreTimeSeriesChart";
-import { CategoricalScoreChart } from "@/src/features/dashboard/components/score-analytics/CategoricalScoreChart";
-import { NumericScoreHistogram } from "@/src/features/dashboard/components/score-analytics/NumericScoreHistogram";
+import { NumericScoreTimeSeriesChart } from "./NumericScoreTimeSeriesChart";
+import { CategoricalScoreChart } from "./CategoricalScoreChart";
+import { NumericScoreHistogram } from "./NumericScoreHistogram";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import useLocalStorage from "@/src/components/useLocalStorage";

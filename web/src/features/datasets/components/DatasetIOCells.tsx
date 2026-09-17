@@ -1,7 +1,7 @@
 import { api } from "@/src/utils/api";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useTrpcError } from "@/src/hooks/useTrpcError";
-import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
+import { NotFoundCard } from "./NotFoundCard";
 
 const DATASET_IO_CELL_STALE_MS = 60 * 1000;
 

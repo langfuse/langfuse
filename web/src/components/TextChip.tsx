@@ -1,4 +1,4 @@
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "./ui/badge";
 
 /**
  * Quiet text-only chip for page and peek headers: no fill and muted text so it

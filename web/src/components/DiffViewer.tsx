@@ -1,7 +1,7 @@
 /* eslint-disable @repo/no-style-props */
 import React, { useEffect, useState } from "react";
-import { Card, CardContent } from "@/src/components/ui/card";
-import { cn } from "@/src/utils/tailwind";
+import { Card, CardContent } from "./ui/card";
+import { cn } from "../utils/tailwind";
 import { diffLines as calculateDiffLines, diffWords } from "diff";
 
 type DiffSegmentPart = {

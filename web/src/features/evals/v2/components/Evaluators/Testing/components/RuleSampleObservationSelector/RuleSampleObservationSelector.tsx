@@ -7,7 +7,7 @@ import { compactNumberFormatter } from "@/src/utils/numbers";
 import {
   SampleObservationSelectorBase,
   type SampleObservation,
-} from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
+} from "../SampleObservationSelectorBase/SampleObservationSelectorBase";
 
 function toEventsPreviewFilters(filters: FilterState): FilterState {
   return filters.map((filter) =>

@@ -4,8 +4,8 @@ import {
   type LegendSummaryMode,
   type MissingBucketValue,
 } from "@/src/features/widgets";
-import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
-import { type TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/hooks";
+import { timeSeriesToDataPoints } from "../lib/chart-data-adapters";
+import { type TimeSeriesChartDataPoint } from "./hooks";
 
 /**
  * Memoized LINE_TIME_SERIES card shared by the dashboard time-series panels.

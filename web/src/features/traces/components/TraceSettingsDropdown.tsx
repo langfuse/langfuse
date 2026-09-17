@@ -30,8 +30,8 @@ import {
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
+import { useViewPreferences } from "../contexts/ViewPreferencesContext";
+import { useTraceAnalyticsDimensions } from "../hooks/useTraceAnalyticsDimensions";
 
 export function TraceSettingsDropdown() {
   return (

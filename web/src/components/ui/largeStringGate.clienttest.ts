@@ -3,7 +3,7 @@
 import {
   LARGE_STRING_RENDER_CHAR_LIMIT,
   isLargeRenderString,
-} from "@/src/components/ui/largeStringGate";
+} from "./largeStringGate";
 
 describe("isLargeRenderString", () => {
   it("returns false for typical, KB-scale strings", () => {

@@ -2,8 +2,8 @@ import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { GatewayModelsView } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayModelsView/GatewayModelsView";
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import { GatewayModelsView } from "./components/GatewayModelsView/GatewayModelsView";
+import type { GatewayProvider } from "../../types/gatewayProvider";
 import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
 
 type Connection = RouterOutputs["aiGateway"]["listConnections"]["data"][number];

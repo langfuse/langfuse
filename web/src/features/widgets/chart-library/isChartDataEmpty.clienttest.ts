@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { isChartDataEmpty } from "@/src/features/widgets/chart-library/isChartDataEmpty";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import { isChartDataEmpty } from "./isChartDataEmpty";
+import { type DataPoint } from "./chart-props";
 
 const point = (metric: DataPoint["metric"], dimension?: string): DataPoint => ({
   time_dimension: "2026-01-01T00:00:00Z",

@@ -12,7 +12,7 @@ import { auditLog } from "@/src/features/audit-logs/server";
 import {
   type PostScoreConfigBody,
   type PutScoreConfigBody,
-} from "@/src/features/public-api/types/score-configs";
+} from "../types/score-configs";
 
 export { listScoreConfigs, getScoreConfig } from "@langfuse/shared/src/server";
 

@@ -1,14 +1,14 @@
 import { useStore } from "zustand";
 
-import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
-import { EvaluatorAssignmentsEditor } from "@/src/features/evals/v2/components/Rules/EvaluatorAssignmentsEditor/EvaluatorAssignmentsEditor";
-import { buildSelectedSampleObject } from "@/src/features/evals/v2/fns/evaluatorTesting/buildSelectedSampleObject";
+import { Stepper } from "../../../Stepper/Stepper";
+import { EvaluatorAssignmentsEditor } from "../../EvaluatorAssignmentsEditor/EvaluatorAssignmentsEditor";
+import { buildSelectedSampleObject } from "../../../../fns/evaluatorTesting/buildSelectedSampleObject";
 import type {
   RuleEvaluatorOption,
   RuleSetupStore,
-} from "@/src/features/evals/v2/types/rules";
+} from "../../../../types/rules";
 import { api, sendAsPostOption } from "@/src/utils/api";
-import { useRuleCostEstimate } from "@/src/features/evals/v2/hooks/useRuleCostEstimate";
+import { useRuleCostEstimate } from "../../../../hooks/useRuleCostEstimate";
 import { usdFormatter } from "@/src/utils/numbers";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";

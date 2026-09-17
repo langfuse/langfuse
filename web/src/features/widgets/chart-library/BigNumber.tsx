@@ -1,7 +1,7 @@
 /* eslint-disable @repo/no-style-props */
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { type ChartProps } from "./chart-props";
 
 // This should ideally be read based on the actual font sizes defined in Tailwind
 const baseFontSizeLookup = {

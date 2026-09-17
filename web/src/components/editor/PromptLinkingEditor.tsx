@@ -1,7 +1,7 @@
 /* eslint-disable @repo/no-style-props */
 import { useState, useRef, useEffect } from "react";
 import { CodeMirrorEditor } from "./CodeMirrorEditor";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "../ui/button";
 
 import { PromptSelectionDialog } from "@/src/features/prompts/components/PromptSelectionDialog";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";

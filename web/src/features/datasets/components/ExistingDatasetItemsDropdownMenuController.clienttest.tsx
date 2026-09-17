@@ -8,7 +8,7 @@ import {
 } from "react";
 import { vi } from "vitest";
 
-import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
+import { ExistingDatasetItemsDropdownMenuController } from "./ExistingDatasetItemsDropdownMenuController";
 import { type RouterOutputs } from "@/src/utils/api";
 
 const { radixKeyDown, radixPointerDown } = vi.hoisted(() => ({

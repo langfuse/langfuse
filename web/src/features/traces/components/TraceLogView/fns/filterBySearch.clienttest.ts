@@ -2,12 +2,9 @@
 
 // @vitest-environment jsdom
 
-import { filterBySearch } from "@/src/features/traces/components/TraceLogView/fns/filterBySearch";
-import { flattenChronological } from "@/src/features/traces/components/TraceLogView/fns/flattenChronological";
-import {
-  createNode,
-  createTraceRoot,
-} from "@/src/features/traces/components/TraceLogView/__tests__/treeNode.fixtures";
+import { filterBySearch } from "./filterBySearch";
+import { flattenChronological } from "./flattenChronological";
+import { createNode, createTraceRoot } from "../__tests__/treeNode.fixtures";
 
 describe("filterBySearch", () => {
   const createTestItems = (): ReturnType<typeof flattenChronological> => {

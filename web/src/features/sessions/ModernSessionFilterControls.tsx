@@ -14,10 +14,10 @@ import isEqual from "lodash/isEqual";
 import {
   ModernSessionFilterDialogContent,
   type ModernSessionFilterDialogViewActions,
-} from "@/src/features/sessions/ModernSessionFilterDialogContent";
-import { ModernSessionSaveViewDialogContent } from "@/src/features/sessions/ModernSessionSaveViewDialogContent";
-import { SESSION_DETAIL_SYSTEM_PRESETS } from "@/src/features/sessions/session-detail-presets";
-import { type ModernSessionSidebarFilterControls } from "@/src/features/sessions/ModernSessionSidebar";
+} from "./ModernSessionFilterDialogContent";
+import { ModernSessionSaveViewDialogContent } from "./ModernSessionSaveViewDialogContent";
+import { SESSION_DETAIL_SYSTEM_PRESETS } from "./session-detail-presets";
+import { type ModernSessionSidebarFilterControls } from "./ModernSessionSidebar";
 import {
   TableViewPresetsDrawerContent,
   TableViewPresetsDrawerRoot,
@@ -27,7 +27,7 @@ import { useViewData } from "@/src/components/table/table-view-presets/hooks/use
 import { useViewMutations } from "@/src/components/table/table-view-presets/hooks/useViewMutations";
 import { Dialog } from "@/src/components/ui/dialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "../posthog-analytics/usePostHogClientCapture";
 
 type ViewControllers = Pick<
   ReturnType<typeof useTableViewManager>,

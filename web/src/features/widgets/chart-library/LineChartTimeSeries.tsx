@@ -6,8 +6,8 @@ import {
   ChartTooltipContent,
   ChartTooltipPortal,
 } from "@/src/components/ui/chart";
-import { isolatedPointDot } from "@/src/features/widgets/chart-library/IsolatedPointDot";
-import { NearestSeriesProbe } from "@/src/features/widgets/chart-library/NearestSeriesProbe";
+import { isolatedPointDot } from "./IsolatedPointDot";
+import { NearestSeriesProbe } from "./NearestSeriesProbe";
 import {
   CartesianGrid,
   Label,
@@ -18,30 +18,27 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import {
-  type ChartProps,
-  type ChartThreshold,
-} from "@/src/features/widgets/chart-library/chart-props";
+import { type ChartProps, type ChartThreshold } from "./chart-props";
 import {
   formatMetric,
   getUniqueDimensions,
   groupDataByTimeDimension,
   toFullMetricString,
-} from "@/src/features/widgets/chart-library/utils";
-import { useChartTickBudget } from "@/src/features/widgets/chart-library/useChartTickBudget";
+} from "./utils";
+import { useChartTickBudget } from "./useChartTickBudget";
 import {
   prepareDenseSeries,
   prepareIsolatedPoints,
-} from "@/src/features/widgets/chart-library/prepareDenseSeries";
-import { prepareTimeAxis } from "@/src/features/widgets/chart-library/prepareTimeAxis";
-import { temporalAxisTickProp } from "@/src/features/widgets/chart-library/TimeAxisTick";
-import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
+} from "./prepareDenseSeries";
+import { prepareTimeAxis } from "./prepareTimeAxis";
+import { temporalAxisTickProp } from "./TimeAxisTick";
+import { prepareVisibleSeries } from "./prepareVisibleSeries";
 import {
   seriesColor,
   SeriesOverflowNote,
   TimeSeriesLegend,
   useSeriesLegend,
-} from "@/src/features/widgets/chart-library/TimeSeriesLegend";
+} from "./TimeSeriesLegend";
 
 /** computeMetricExtent returns the [min, max] of all numeric metric values across the data, for sizing the eq/neq band. */
 const computeMetricExtent = (

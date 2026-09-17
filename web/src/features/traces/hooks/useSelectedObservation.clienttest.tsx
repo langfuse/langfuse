@@ -1,7 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
+import { useSelectedObservation } from "./useSelectedObservation";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 
 const { mockByIdQuery } = vi.hoisted(() => ({ mockByIdQuery: vi.fn() }));

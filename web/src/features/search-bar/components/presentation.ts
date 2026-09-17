@@ -2,8 +2,8 @@
 // the autocomplete popover. A separate module (not a component file) so the
 // component files keep Fast Refresh eligibility.
 
-import type { ComposerSegment } from "@/src/features/search-bar/lib/composer-segments";
-import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
+import type { ComposerSegment } from "../lib/composer-segments";
+import type { FieldRegistry } from "../lib/fields";
 
 /** Per-view: the examples have to name fields the view actually has. */
 export function composerPlaceholder(registry: FieldRegistry): string {

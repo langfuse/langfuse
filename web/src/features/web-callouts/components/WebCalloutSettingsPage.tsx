@@ -44,7 +44,7 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   WEB_CALLOUT_BLOCKED_HEADER_NAMES,
   WEB_CALLOUT_HEADER_NAME_PATTERN,
-} from "@/src/features/web-callouts/headerRules";
+} from "../headerRules";
 import { api, type RouterOutputs } from "@/src/utils/api";
 
 type WebCalloutEndpoint = RouterOutputs["webCallouts"]["all"][number];

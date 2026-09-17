@@ -11,11 +11,8 @@ import {
   Sector,
   type PieSectorShapeProps,
 } from "recharts";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
-import {
-  formatMetric,
-  toFullMetricString,
-} from "@/src/features/widgets/chart-library/utils";
+import { type ChartProps } from "./chart-props";
+import { formatMetric, toFullMetricString } from "./utils";
 
 /**
  * PieChart component

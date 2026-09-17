@@ -10,7 +10,7 @@ import {
 import {
   AutocompleteListbox,
   type AutocompleteListboxProps,
-} from "@/src/features/search-bar/components/AutocompleteListbox";
+} from "./AutocompleteListbox";
 
 export type AutocompletePopoverProps = AutocompleteListboxProps & {
   /** Anchor x in px, relative to the positioned composer container. */

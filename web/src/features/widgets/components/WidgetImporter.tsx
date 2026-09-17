@@ -11,7 +11,7 @@ import {
   importWidgetFile,
   type ImportedWidgetFormSnapshot,
   type WidgetImportOptionSets,
-} from "@/src/features/widgets/utils/import-export-utils";
+} from "../utils/import-export-utils";
 
 /** observationLevelOptions is the static set of observation levels always offered on import. */
 const observationLevelOptions = ObservationLevelDomain.options.map((value) => ({

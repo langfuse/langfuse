@@ -1,10 +1,10 @@
 /* eslint-disable @repo/no-null-render */
 import * as SheetPrimitive from "@radix-ui/react-dialog";
-import { Sheet, SheetPortal } from "@/src/components/ui/sheet";
-import { Drawer, DrawerContent, DrawerTitle } from "@/src/components/ui/drawer";
-import { Separator } from "@/src/components/ui/separator";
+import { Sheet, SheetPortal } from "../ui/sheet";
+import { Drawer, DrawerContent, DrawerTitle } from "../ui/drawer";
+import { Separator } from "../ui/separator";
 import { type LayerName } from "@/src/context/LayerContext/layers";
-import { type LangfuseItemType } from "@/src/components/ItemBadge";
+import { type LangfuseItemType } from "../ItemBadge";
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
 import { memo, useCallback, useEffect, useState } from "react";
@@ -13,8 +13,8 @@ import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { getPathnameWithoutBasePath } from "@/src/utils/api";
 import { urlSearchParamsToQuery } from "@/src/utils/navigation";
 import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
-import { PeekHeader } from "@/src/components/table/peek/PeekHeader";
-import { usePeekPanelState } from "@/src/components/table/peek/usePeekPanelState";
+import { PeekHeader } from "./peek/PeekHeader";
+import { usePeekPanelState } from "./peek/usePeekPanelState";
 import { shouldIgnoreOutsideInteraction } from "@/src/utils/outside-interaction";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 

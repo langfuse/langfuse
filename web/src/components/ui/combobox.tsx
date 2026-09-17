@@ -5,7 +5,7 @@ import * as React from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "./button";
 import {
   Command,
   CommandEmpty,
@@ -13,13 +13,9 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/src/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import { Badge } from "@/src/components/ui/badge";
+} from "./command";
+import { Popover, PopoverContent, PopoverTrigger } from "./popover";
+import { Badge } from "./badge";
 
 interface ComboboxOption<T extends string | number | boolean | { id: string }> {
   value: T;

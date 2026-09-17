@@ -1,4 +1,4 @@
-import type { VariableMapping } from "@/src/features/evals/utils/evaluator-form-utils";
+import type { VariableMapping } from "../../utils/evaluator-form-utils";
 
 export type VariableFieldState = {
   [Key in "selectedColumnId" | "jsonSelector"]-?: Exclude<

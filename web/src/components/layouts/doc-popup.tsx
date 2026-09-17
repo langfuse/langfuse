@@ -5,7 +5,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
   HoverCardPortal,
-} from "@/src/components/ui/hover-card";
+} from "../ui/hover-card";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import { ExternalLink, Info } from "lucide-react";

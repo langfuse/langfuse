@@ -1,4 +1,4 @@
-import { calculateNumericDiff } from "@/src/features/datasets/lib/calculateBaselineDiff";
+import { calculateNumericDiff } from "../lib/calculateBaselineDiff";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 
 const getLatency = (runItem: EnrichedDatasetRunItem) => {

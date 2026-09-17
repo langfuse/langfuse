@@ -1,8 +1,8 @@
 import { useStore } from "zustand";
 
-import { TestRunButton } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestRunButton/TestRunButton";
-import { useEvaluatorTestAvailability } from "@/src/features/evals/v2/hooks/useEvaluatorTestAvailability";
-import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { TestRunButton } from "../../../../../Evaluators/Testing/components/TestRunButton/TestRunButton";
+import { useEvaluatorTestAvailability } from "../../../../../../hooks/useEvaluatorTestAvailability";
+import type { EvaluatorSetupStore } from "../../../../../../store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function TestRunCard({
   projectId,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { pickDefaultStripMetric } from "./pickDefaultStripMetric";
-import { buildMetricOptions } from "@/src/features/experiments/utils/charts";
+import { buildMetricOptions } from "../utils/charts";
 
 describe("pickDefaultStripMetric", () => {
   it("opens on the first numeric score, not on cost", () => {

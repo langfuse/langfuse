@@ -1,13 +1,13 @@
 /* eslint-disable @repo/no-style-props */
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
+import { DashboardCard } from "./cards/DashboardCard";
 import {
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
   isEmptyTimeSeries,
-} from "@/src/features/dashboard/components/hooks";
-import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
-import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
+} from "./hooks";
+import { TabComponent } from "./TabsComponent";
+import { TotalMetric } from "./TotalMetric";
 import { costFormatter, compactNumberFormatter } from "@/src/utils/numbers";
 import { api } from "@/src/utils/api";
 import {
@@ -15,15 +15,12 @@ import {
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
-import {
-  ModelSelectorPopover,
-  useModelSelection,
-} from "@/src/features/dashboard/components/ModelSelector";
+import { ModelSelectorPopover, useModelSelection } from "./ModelSelector";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { mapLegacyUiTableFilterToView } from "../lib/dashboardUiTableToViewMapping";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";
-import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import { DashboardLineTimeSeriesChart } from "./DashboardLineTimeSeriesChart";
+import { useScheduledDashboardExecuteQuery } from "../hooks/useDashboardQueryScheduler";
 import { useMemo } from "react";
 
 export const ModelUsageChart = ({

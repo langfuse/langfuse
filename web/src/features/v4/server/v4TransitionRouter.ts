@@ -13,7 +13,7 @@ import {
   getLegacyIntegrationSummaries,
   getSdkUsageSummaries,
   getTraceLevelEvalSummaries,
-} from "@/src/features/v4/server/v4TransitionService";
+} from "./v4TransitionService";
 
 export const v4TransitionRouter = createTRPCRouter({
   forceV3Experience: protectedProjectProcedure

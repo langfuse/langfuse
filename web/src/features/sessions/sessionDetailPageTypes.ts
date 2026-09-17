@@ -1,4 +1,4 @@
-import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
+import { type ListEntry } from "../navigate-detail-pages/context";
 import { type RouterOutputs } from "@/src/utils/api";
 import { type SingleValueOption } from "@langfuse/shared";
 

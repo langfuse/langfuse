@@ -9,7 +9,7 @@ import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { cn } from "@/src/utils/tailwind";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
-import { InputControl } from "../internal/InputControl/InputControl";
+import { InputControl } from "@/src/components/design-system/internal/InputControl/InputControl";
 
 type MultiSelectOption<V> = {
   value: V;

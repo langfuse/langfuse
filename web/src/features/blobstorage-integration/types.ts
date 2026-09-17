@@ -13,7 +13,7 @@ import {
   validateExportFieldGroups,
   exportStartDateNotInFuture,
   EXPORT_START_DATE_FUTURE_ERROR,
-} from "@/src/features/blobstorage-integration/validation";
+} from "./validation";
 
 export const blobStorageIntegrationFormSchemaBase = z.object({
   type: z.enum(BlobStorageIntegrationType),

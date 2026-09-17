@@ -1,7 +1,7 @@
 /* eslint-disable @repo/no-null-render */
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
 import {
   Select,
   SelectContent,
@@ -9,8 +9,8 @@ import {
   SelectSeparator,
   SelectTrigger,
   SelectValue,
-} from "@/src/components/ui/select";
-import { Slider } from "@/src/components/ui/slider";
+} from "../ui/select";
+import { Slider } from "../ui/slider";
 import { CreateLLMApiKeyDialog } from "@/src/features/public-api/components/CreateLLMApiKeyDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -23,17 +23,9 @@ import {
   type UIModelParams,
 } from "@langfuse/shared";
 import { InfoIcon, PlusIcon, Settings2 } from "lucide-react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import { FormDescription } from "@/src/components/ui/form";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { FormDescription } from "../ui/form";
 import { CodeMirrorEditor } from "../editor";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { LLMApiKeyComponent } from "./LLMApiKeyComponent";

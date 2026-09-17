@@ -1,4 +1,4 @@
-import { managedEvaluatorTemplateService } from "@/src/features/evals/v2/fns/templateGallery/managedEvaluatorTemplateService";
+import { managedEvaluatorTemplateService } from "./managedEvaluatorTemplateService";
 
 describe("managedEvaluatorTemplateService", () => {
   it("owns template lookup and filtering", () => {

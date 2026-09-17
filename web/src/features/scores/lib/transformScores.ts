@@ -7,11 +7,11 @@ import {
   ANNOTATION_SCORE_DATA_TYPES_ARRAY,
   type AnnotationScoreDataType,
   type AnnotationScore,
-} from "@/src/features/scores/types";
+} from "../types";
 import {
   decomposeAggregateScoreKey,
   normalizeScoreName,
-} from "@/src/features/scores/lib/aggregateScores";
+} from "./aggregateScores";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 /**

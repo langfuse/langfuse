@@ -11,9 +11,9 @@ import {
   EvaluatorForm,
   useEvaluatorFormTemplate,
 } from "@/src/features/evals/components/evaluator-form";
-import { type EvaluatorsStepProps } from "@/src/features/experiments/types/stepProps";
-import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
-import { ExperimentEvaluatorAssignments } from "@/src/features/experiments/components/ExperimentEvaluatorAssignments/ExperimentEvaluatorAssignments";
+import { type EvaluatorsStepProps } from "../../types/stepProps";
+import { StepHeader } from "../shared/StepHeader";
+import { ExperimentEvaluatorAssignments } from "../ExperimentEvaluatorAssignments/ExperimentEvaluatorAssignments";
 import { Skeleton } from "@/src/components/ui/skeleton";
 
 export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({

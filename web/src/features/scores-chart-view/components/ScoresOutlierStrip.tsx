@@ -16,26 +16,26 @@ import {
 } from "@/src/features/events";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { ScoreOutlierStripHeader } from "@/src/features/scores-chart-view/components/ScoreOutlierStripHeader";
-import { SCORE_OUTLIER_STRIP_METRICS } from "@/src/features/scores-chart-view/constants/scoreOutlierStripMetrics";
-import { canApplyScoreOutlierStripFilters } from "@/src/features/scores-chart-view/fns/outlierStripFilters";
+import { ScoreOutlierStripHeader } from "./ScoreOutlierStripHeader";
+import { SCORE_OUTLIER_STRIP_METRICS } from "../constants/scoreOutlierStripMetrics";
+import { canApplyScoreOutlierStripFilters } from "../fns/outlierStripFilters";
 import {
   mergeScoreOutlierRows,
   prepareScoreOutlierSeries,
   rowsToScoreOutlierBins,
   scoreOutlierCountQueryMetrics,
   scoreOutlierValueQueryMetrics,
-} from "@/src/features/scores-chart-view/fns/binning/scoreOutlierBinning";
+} from "../fns/binning/scoreOutlierBinning";
 import {
   type ScoreOutlierAggKey,
   type ScoreOutlierMetricKey,
   type ScoreOutlierQueryRow,
-} from "@/src/features/scores-chart-view/types";
-import { useScoreOutlierStripSettings } from "@/src/features/scores-chart-view/hooks/useScoreOutlierStripSettings";
+} from "../types";
+import { useScoreOutlierStripSettings } from "../hooks/useScoreOutlierStripSettings";
 import {
   ScoreOutlierBarStrip,
   type ScoreOutlierStripDrillTrigger,
-} from "@/src/features/scores-chart-view/components/ScoreOutlierBarStrip/ScoreOutlierBarStrip";
+} from "./ScoreOutlierBarStrip/ScoreOutlierBarStrip";
 
 /**
  * The outlier strip ("Pulse") above the scores table — the scores-table

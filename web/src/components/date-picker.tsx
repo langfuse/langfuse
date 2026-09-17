@@ -4,19 +4,15 @@
 import * as React from "react";
 import { Calendar as CalendarIcon, X, ChevronDown } from "lucide-react";
 import { addMinutes, format } from "date-fns";
-import { Button } from "@/src/components/ui/button";
-import { Calendar } from "@/src/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import { cn } from "@/src/utils/tailwind";
+import { Button } from "./ui/button";
+import { Calendar } from "./ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { cn } from "../utils/tailwind";
 import { type DateRange as RDPDateRange } from "react-day-picker";
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
-import { TimePicker } from "@/src/components/ui/time-picker";
-import { DashboardDateRangeDropdown } from "@/src/components/date-range-dropdowns";
+import { setBeginningOfDay, setEndOfDay } from "../utils/dates";
+import { TimePicker } from "./ui/time-picker";
+import { DashboardDateRangeDropdown } from "./date-range-dropdowns";
 import {
   DASHBOARD_AGGREGATION_PLACEHOLDER,
   type DashboardDateRangeOptions,
@@ -24,8 +20,8 @@ import {
   TIME_RANGES,
   formatDateRange,
   type TimeRange,
-} from "@/src/utils/date-range-utils";
-import { combineDateAndTime } from "@/src/components/ui/time-picker-utils";
+} from "../utils/date-range-utils";
+import { combineDateAndTime } from "./ui/time-picker-utils";
 
 export function DatePicker({
   date,

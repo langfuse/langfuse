@@ -5,4 +5,4 @@ export {
   getPublicDashboardWidget,
   listPublicDashboardWidgets,
   updatePublicDashboardWidget,
-} from "@/src/features/widgets/server/public-dashboard-widget-service";
+} from "./public-dashboard-widget-service";

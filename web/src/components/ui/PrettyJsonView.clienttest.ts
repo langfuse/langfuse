@@ -4,7 +4,7 @@ import {
   decodeUnicodeInJson,
   DECODE_UNICODE_MAX_DEPTH,
   DECODE_UNICODE_MAX_NODES,
-} from "@/src/components/ui/PrettyJsonView";
+} from "./PrettyJsonView";
 
 describe("decodeUnicodeInJson", () => {
   it("decodes \\uXXXX sequences in string values", () => {

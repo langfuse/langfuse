@@ -7,11 +7,11 @@ import {
 } from "@langfuse/shared";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { ScoresTableCell } from "@/src/components/scores-table-cell";
-import { toOrderedScoresList } from "@/src/features/scores/lib/helpers";
+import { toOrderedScoresList } from "../lib/helpers";
 import {
   getScoreDataTypeIcon,
   withPresentScoreKeys,
-} from "@/src/features/scores/lib/scoreColumns";
+} from "../lib/scoreColumns";
 
 // Simple score column creation - exported for reuse
 export function createScoreColumns<T extends Record<string, any>>({

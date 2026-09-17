@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { CloudRegionPicker } from "@/src/features/auth/components/CloudRegionPicker";
+import { CloudRegionPicker } from "./CloudRegionPicker";
 import { getAvailableCloudRegionOptions } from "@/src/features/organizations/cloudRegions";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";

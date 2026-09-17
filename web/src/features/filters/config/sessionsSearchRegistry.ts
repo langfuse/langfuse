@@ -3,7 +3,7 @@ import {
   SCORE_COLUMNS,
   type FieldRegistry,
 } from "@/src/features/search-bar/lib/fields";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import type { FilterConfig } from "../lib/filter-config";
 
 import { sessionEventsFilterConfig } from "./sessions-config";
 

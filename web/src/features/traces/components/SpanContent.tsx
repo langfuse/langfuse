@@ -20,16 +20,16 @@
 
 import { type TreeNode } from "../types/treeNode";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
-import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
+import { ObservationLevelBadge } from "./ObservationLevelBadge";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
-import { getSubtreeDurationOverflowMs } from "@/src/features/traces/fns/getSubtreeDurationOverflowMs";
-import { heatMapTextColor } from "@/src/features/traces/fns/heatMapTextColor";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
+import { getSubtreeDurationOverflowMs } from "../fns/getSubtreeDurationOverflowMs";
+import { heatMapTextColor } from "../fns/heatMapTextColor";
+import { useViewPreferences } from "../contexts/ViewPreferencesContext";
+import { useTraceData } from "../contexts/TraceDataContext";
+import { selectNodeScores } from "../fns/nodeScores";
 import type Decimal from "decimal.js";
 
 // How many distinct score groups to show inline on a tree/search row before

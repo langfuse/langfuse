@@ -1,11 +1,11 @@
 import { type ViewVersion } from "@langfuse/shared/query";
-import { DataTable } from "@/src/components/table/data-table";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { DataTable } from "../data-table";
+import { useRowHeightLocalStorage } from "../data-table-row-height-switch";
+import { DataTableToolbar } from "../data-table-toolbar";
 import {
   DataTableControlsProvider,
   DataTableControls,
-} from "@/src/components/table/data-table-controls";
+} from "../data-table-controls";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
@@ -13,9 +13,9 @@ import { createLinkTableColumn } from "@/src/components/design-system/table/colu
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
+import { ResizableFilterLayout } from "../resizable-filter-layout";
+import { type LangfuseColumnDef } from "../types";
+import { ConnectedIOTableCell } from "../ConnectedIOTableCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
   type UseSidebarFilterStateOptions,
@@ -23,7 +23,7 @@ import {
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "../peek/peek-trace-detail";
 import {
   getScoreFilterConfig,
   observationScopeFilter,
@@ -50,7 +50,7 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { api } from "@/src/utils/api";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "../table-header-controls";
 
 import type { RouterOutput } from "@/src/utils/types";
 import TagList from "@/src/features/tag/components/TagList";

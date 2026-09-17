@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { SplashScreen } from "@/src/components/ui/splash-screen";
+import { SplashScreen } from "../ui/splash-screen";
 import { Braces, Code, ListTree, Upload } from "lucide-react";
 import Link from "next/link";
 import {
@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/src/components/ui/dialog";
+} from "../ui/dialog";
 import { CsvUploadDialog } from "@/src/features/datasets/components/CsvUploadDialog";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";

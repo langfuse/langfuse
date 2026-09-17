@@ -9,7 +9,7 @@ import { GitCompareArrows, X } from "lucide-react";
 import {
   describeScoreComparisonFilter,
   type ScoreComparisonFilter,
-} from "@/src/features/experiments/fns/scoreComparisonFilter";
+} from "../../fns/scoreComparisonFilter";
 
 export type ScoreComparisonPill = {
   filter: ScoreComparisonFilter;

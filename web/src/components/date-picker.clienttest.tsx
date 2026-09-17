@@ -1,12 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { type DateRange } from "react-day-picker";
-import { Calendar } from "@/src/components/ui/calendar";
-import {
-  isRangeWithinMaxDuration,
-  nextRangeForDayClick,
-} from "@/src/components/date-picker";
-import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
+import { Calendar } from "./ui/calendar";
+import { isRangeWithinMaxDuration, nextRangeForDayClick } from "./date-picker";
+import { setBeginningOfDay, setEndOfDay } from "../utils/dates";
 
 /**
  * Regression coverage for LFE-8156. The range calendar used to feel "sticky":

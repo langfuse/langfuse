@@ -1,8 +1,8 @@
 import { useMemo } from "react";
-import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
-import { type ScoreTarget } from "@/src/features/scores/types";
-import { mergeScoresWithCache } from "@/src/features/scores/lib/mergeScoresWithCache";
-import { filterScoresByTarget } from "@/src/features/scores/lib/filterScoresByTarget";
+import { useScoreCache } from "../contexts/ScoreCacheContext";
+import { type ScoreTarget } from "../types";
+import { mergeScoresWithCache } from "./mergeScoresWithCache";
+import { filterScoresByTarget } from "./filterScoresByTarget";
 import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 

@@ -10,7 +10,7 @@ import { env } from "@/src/env.mjs";
 import {
   CodeEvalTestRunSetupError,
   runCodeEvalTestForJobConfig,
-} from "@/src/features/evals/server/codeEvalTestRun";
+} from "./codeEvalTestRun";
 import { assertUnreachable } from "@/src/utils/types";
 
 export type CodeEvalJobConfigErrorCode =

@@ -5,11 +5,11 @@
 // are deliberately absent: a Next.js page imports its feature's Page component
 // directly (same pattern as TracePage).
 
-export { SessionIO } from "@/src/features/sessions/SessionPages";
-export { LazyTraceEventsRow } from "@/src/features/sessions/TraceEventsRow";
-export { asCommentCounts } from "@/src/features/sessions/sessionDetailPageTypes";
+export { SessionIO } from "./SessionPages";
+export { LazyTraceEventsRow } from "./TraceEventsRow";
+export { asCommentCounts } from "./sessionDetailPageTypes";
 export {
   SESSION_DETAIL_SYSTEM_PRESETS,
   getSessionDetailPresetToApply,
-} from "@/src/features/sessions/session-detail-presets";
-export { default as SessionsTable } from "@/src/features/sessions/SessionsTable";
+} from "./session-detail-presets";
+export { default as SessionsTable } from "./SessionsTable";

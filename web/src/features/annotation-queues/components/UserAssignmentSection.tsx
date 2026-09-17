@@ -4,7 +4,7 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { Button } from "@/src/components/ui/button";
 import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
 import { useUserSearch } from "@/src/hooks/useUserSearch";
-import { useSelectedUsers } from "@/src/features/annotation-queues/hooks/useSelectedUsers";
+import { useSelectedUsers } from "../hooks/useSelectedUsers";
 import { showSuccessToast } from "@/src/features/notifications";
 import { useRef } from "react";
 

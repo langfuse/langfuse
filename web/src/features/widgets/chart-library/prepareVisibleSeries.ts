@@ -1,5 +1,5 @@
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
-import { getDimensionSummaries } from "@/src/features/widgets/chart-library/utils";
+import { type DataPoint } from "./chart-props";
+import { getDimensionSummaries } from "./utils";
 
 /**
  * Hard ceiling on how many series a multi-series time chart draws. High-

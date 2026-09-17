@@ -29,7 +29,7 @@ import {
   getMetricsColumnsWithCustomSelect,
   getMetricsFilterColumns,
   type GetMetricsFilterColumnsParams,
-} from "@/src/features/metrics/metricsFilterColumns";
+} from "../metricsFilterColumns";
 
 const observationLevelOptions = ObservationLevelDomain.options.map((value) => ({
   value,

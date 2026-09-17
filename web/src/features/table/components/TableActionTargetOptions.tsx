@@ -1,7 +1,7 @@
 import { SelectItem } from "@/src/components/ui/select";
 import { useOptionalEntitlement } from "@/src/features/entitlements";
-import { targetOptionsQueryMap } from "@/src/features/table/components/targetOptionsQueryMap";
-import { type TableAction } from "@/src/features/table/types";
+import { targetOptionsQueryMap } from "./targetOptionsQueryMap";
+import { type TableAction } from "../types";
 import { useSession } from "next-auth/react";
 
 export function TableActionTargetOptions({

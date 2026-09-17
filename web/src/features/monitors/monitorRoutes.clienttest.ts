@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renamedRouteRedirects } from "@/redirects.mjs";
-import EditMonitorPage from "@/src/features/monitors/pages/EditMonitorPage";
+import EditMonitorPage from "./pages/EditMonitorPage";
 
 describe("alerts/<id> route", () => {
   it("index route renders the same component as the edit route", async () => {

@@ -22,7 +22,7 @@ import {
   sendStructuredPublicApiErrorResponse,
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
-import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import { type RateLimitUpgradePath } from "./rateLimitUpgradePaths";
 
 export const RATE_LIMIT_REDIS_KEY_PREFIX = "rate-limit";
 

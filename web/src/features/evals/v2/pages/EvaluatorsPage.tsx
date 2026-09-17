@@ -30,7 +30,7 @@ import { EvaluatorBulkDeleteDialog } from "../components/Evaluators/EvaluatorBul
 import { EvaluatorGalleryDialog } from "../components/EvaluatorGalleryDialog/EvaluatorGalleryDialog";
 import { EvaluatorStatusBadge } from "../components/Evaluators/EvaluatorStatusBadge/EvaluatorStatusBadge";
 import { EvaluatorTypeBadge } from "../components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
-import { EvaluatorExecutionHistory } from "@/src/features/evals/v2/components/Rules/EvaluatorExecutionHistory/EvaluatorExecutionHistory";
+import { EvaluatorExecutionHistory } from "../components/Rules/EvaluatorExecutionHistory/EvaluatorExecutionHistory";
 import { OverviewSelectionBar } from "../components/OverviewSelectionBar/OverviewSelectionBar";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
@@ -38,7 +38,7 @@ import {
   useColumnVisibility,
 } from "@/src/features/column-visibility";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { useEvaluatorAlerts } from "@/src/features/evals/v2/hooks/useEvaluatorAlerts";
+import { useEvaluatorAlerts } from "../hooks/useEvaluatorAlerts";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters";
@@ -62,7 +62,7 @@ import {
   getEvalsV2Tabs,
 } from "@/src/features/navigation/utils/evals-v2-tabs";
 import { DefaultModelChangeConfirmationDialog } from "../components/Evaluators/ProjectDefaultModel/DefaultModelChangeConfirmationDialog";
-import { useProjectDefaultModel } from "@/src/features/evals/v2/hooks/useProjectDefaultModel";
+import { useProjectDefaultModel } from "../hooks/useProjectDefaultModel";
 import {
   JudgeModelPicker,
   JudgeModelPickerTrigger,
@@ -78,7 +78,7 @@ import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4Mi
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
-import { EvaluatorAlertButton } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAlertButton/EvaluatorAlertButton";
+import { EvaluatorAlertButton } from "../components/Evaluators/EvaluatorAlertButton/EvaluatorAlertButton";
 
 type EvaluatorRow = RouterOutputs["evalsV2"]["list"]["evaluators"][number];
 

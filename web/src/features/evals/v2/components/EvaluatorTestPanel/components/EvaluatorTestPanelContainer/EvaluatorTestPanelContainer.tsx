@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import { useStore } from "zustand";
 
-import { EvaluatorTestPanel } from "@/src/features/evals/v2/components/EvaluatorTestPanel/EvaluatorTestPanel";
-import { TestSectionContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/components/TestSectionContainer/TestSectionContainer";
+import { EvaluatorTestPanel } from "../../EvaluatorTestPanel";
+import { TestSectionContainer } from "../TestSection/components/TestSectionContainer/TestSectionContainer";
 import {
   selectHasValidModel,
   type EvaluatorSetupStore,
-} from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+} from "../../../../store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function EvaluatorTestPanelContainer({
   projectId,

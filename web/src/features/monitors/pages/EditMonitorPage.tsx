@@ -3,10 +3,10 @@ import { useState } from "react";
 
 import { ErrorPage } from "@/src/components/error-page";
 import Page from "@/src/components/layouts/page";
-import { DeleteMonitorButton } from "@/src/features/monitors/components/DeleteMonitorButton";
-import { MonitorForm } from "@/src/features/monitors/components/MonitorForm";
-import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";
-import { invalidateMonitorQueriesAfterDelete } from "@/src/features/monitors/fns/invalidateMonitorQueriesAfterDelete";
+import { DeleteMonitorButton } from "../components/DeleteMonitorButton";
+import { MonitorForm } from "../components/MonitorForm";
+import { MonitorPagePermissions } from "../components/MonitorPagePermissions";
+import { invalidateMonitorQueriesAfterDelete } from "../fns/invalidateMonitorQueriesAfterDelete";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api, type APIError } from "@/src/utils/api";

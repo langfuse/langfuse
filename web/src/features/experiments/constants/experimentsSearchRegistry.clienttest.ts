@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { getExperimentsFilterConfig } from "@/src/features/experiments/components/table/filter-config";
+import { getExperimentsFilterConfig } from "../components/table/filter-config";
 import {
   EXPERIMENTS_FIELD_REGISTRY,
   experimentsFieldRegistry,

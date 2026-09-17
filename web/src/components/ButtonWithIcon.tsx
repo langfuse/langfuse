@@ -1,4 +1,4 @@
-import { Button, type ButtonProps } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "./ui/button";
 import { type LucideIcon } from "lucide-react";
 import { forwardRef } from "react";
 

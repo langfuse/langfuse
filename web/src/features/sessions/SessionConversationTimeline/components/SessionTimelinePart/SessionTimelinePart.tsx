@@ -5,8 +5,8 @@ import {
   type ReasoningPart,
 } from "@langfuse/shared/src/utils/normalized-io";
 
-import { type SessionTimelineConversationMessage } from "@/src/features/sessions/SessionConversationTimeline/fns/processTimelineMessages";
-import { SessionTimelineCollapsiblePart } from "@/src/features/sessions/SessionConversationTimeline/components/SessionTimelineCollapsiblePart/SessionTimelineCollapsiblePart";
+import { type SessionTimelineConversationMessage } from "../../fns/processTimelineMessages";
+import { SessionTimelineCollapsiblePart } from "../SessionTimelineCollapsiblePart/SessionTimelineCollapsiblePart";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";

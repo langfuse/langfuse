@@ -1,8 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { usePeekPanelState } from "@/src/components/table/peek/usePeekPanelState";
-import { PEEK_DEFAULT_WIDTH_FRACTION } from "@/src/components/table/peek/store/peekPanelStore";
+import { usePeekPanelState } from "./usePeekPanelState";
+import { PEEK_DEFAULT_WIDTH_FRACTION } from "./store/peekPanelStore";
 
 const STORAGE_KEY = "peekViewWidthFraction";
 // Widget width is `min(<n>vw, calc(100vw - <sidebar>px))` — pull the leading

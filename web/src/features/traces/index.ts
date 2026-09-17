@@ -10,34 +10,34 @@
 
 // TracePage is deliberately absent: a Next.js page imports its feature's Page
 // component directly, which is what the RFC's own example does.
-export { Trace } from "@/src/features/traces/components/Trace";
-export { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
-export { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
-export { traceDetailTitle } from "@/src/features/traces/fns/traceDetailTitle";
-export { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
+export { Trace } from "./components/Trace";
+export { TraceDetailActions } from "./components/TraceDetailActions";
+export { TraceDetailBody } from "./components/TraceDetailBody";
+export { traceDetailTitle } from "./fns/traceDetailTitle";
+export { useTraceDetailData } from "./hooks/useTraceDetailData";
 
-export { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
-export { calculateAggregatedUsage } from "@/src/features/traces/fns/calculateAggregatedUsage";
-export { CopyIdsPopover } from "@/src/features/traces/components/CopyIdsPopover";
+export { BreakdownTooltip } from "./components/BreakdownTooltip";
+export { calculateAggregatedUsage } from "./fns/calculateAggregatedUsage";
+export { CopyIdsPopover } from "./components/CopyIdsPopover";
 
 export {
   IOPreview,
   type IOPreviewContentMode,
   type ViewMode,
-} from "@/src/features/traces/components/IOPreview/IOPreview";
-export { ChatMessageList } from "@/src/features/traces/components/ChatMessageList";
-export { ThinkingBlock } from "@/src/features/traces/components/ThinkingBlock";
+} from "./components/IOPreview/IOPreview";
+export { ChatMessageList } from "./components/ChatMessageList";
+export { ThinkingBlock } from "./components/ThinkingBlock";
 export {
   hasRenderableConversationMessages,
   isOnlyJsonMessage,
-} from "@/src/features/traces/fns/chatMessageUtils";
+} from "./fns/chatMessageUtils";
 export {
   useChatMLParser,
   type ChatMLParserResult,
-} from "@/src/features/traces/hooks/useChatMLParser";
+} from "./hooks/useChatMLParser";
 // The session view resolves observation media the same way trace detail does,
 // so a media-bearing message renders identically on both surfaces (LFE-14815).
-export { useMedia } from "@/src/features/traces/hooks/useMedia";
+export { useMedia } from "./hooks/useMedia";
 
 // The JSON viewer's comment-range contract. It cannot be promoted to
 // `src/fns` — it depends on the viewer's own path and row types — so the
@@ -45,4 +45,4 @@ export { useMedia } from "@/src/features/traces/hooks/useMedia";
 export {
   type CommentRange,
   type CommentedPathsByField,
-} from "@/src/features/traces/components/AdvancedJsonViewer/utils/commentRanges";
+} from "./components/AdvancedJsonViewer/utils/commentRanges";

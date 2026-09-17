@@ -10,11 +10,11 @@ import { type FullEventsObservations } from "@langfuse/shared/src/server";
 import { showSuccessToast } from "@/src/features/notifications";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { usePendingRowIds } from "@/src/components/table/hooks/usePendingRowIds";
-import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
+import { type EventBatchIOOutput } from "../server/eventsRouter";
 import {
   removeAppRootDefaultFilter,
   shouldRunAppRootFallbackQuery,
-} from "@/src/features/events/lib/appRootDefaultFilterPolicy";
+} from "../lib/appRootDefaultFilterPolicy";
 
 type FullEventsObservation = FullEventsObservations[number] & {
   scores?: ScoreAggregate;

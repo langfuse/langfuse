@@ -10,22 +10,22 @@ import React, {
   type CSSProperties,
   type UIEventHandler,
 } from "react";
-import DocPopup from "@/src/components/layouts/doc-popup";
-import { DataTablePagination } from "@/src/components/table/data-table-pagination";
-import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
+import DocPopup from "../layouts/doc-popup";
+import { DataTablePagination } from "./data-table-pagination";
+import { shouldIgnoreRowClickTarget } from "./shouldIgnoreRowClickTarget";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import {
   type CustomHeights,
   type RowHeight,
   getRowHeightTailwindClass,
-} from "@/src/components/table/data-table-row-height-switch";
-import { Skeleton } from "@/src/components/ui/skeleton";
+} from "./data-table-row-height-switch";
+import { Skeleton } from "../ui/skeleton";
 import {
   type DataTableCellBackground,
   type DataTableCellPadding,
   type LangfuseColumnDef,
-} from "@/src/components/table/types";
-import { type ModelTableRow } from "@/src/components/table/use-cases/models";
+} from "./types";
+import { type ModelTableRow } from "./use-cases/models";
 import {
   Table,
   TableBody,
@@ -34,7 +34,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/src/components/ui/table";
+} from "../ui/table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -52,17 +52,17 @@ import {
   type VisibilityState,
   type Row,
 } from "@tanstack/react-table";
-import { type DataTablePeekViewProps } from "@/src/components/table/peek";
+import { type DataTablePeekViewProps } from "./peek";
 import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
-import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
+import { useColumnSizing } from "./hooks/useColumnSizing";
 
 import { useAnimatedBusy } from "@/src/hooks/useAnimatedBusy";
 import {
   type TableSelectionStoreLike,
   useTableRowIsSelected,
   useTableSelectAll,
-} from "@/src/components/table/table-selection-store";
+} from "./table-selection-store";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];

@@ -2,12 +2,9 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
-import { InnerEvaluatorForm } from "@/src/features/evals/components/inner-evaluator-form";
-import {
-  mapLegacyToModernTarget,
-  isTraceTarget,
-} from "@/src/features/evals/utils/typeHelpers";
-import { type PartialConfig } from "@/src/features/evals/types";
+import { InnerEvaluatorForm } from "../components/inner-evaluator-form";
+import { mapLegacyToModernTarget, isTraceTarget } from "../utils/typeHelpers";
+import { type PartialConfig } from "../types";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Button } from "@/src/components/ui/button";
@@ -21,7 +18,7 @@ import {
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
 import { BotMessageSquare, ChevronDown, Zap } from "lucide-react";
-import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
+import { useEvalCapabilities } from "../hooks/useEvalCapabilities";
 import {
   useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
@@ -33,7 +30,7 @@ import { useProjectV4SdkData } from "@/src/features/v4-migration/hooks/useV4Migr
 import {
   DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING_V3,
   DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
-} from "@/src/features/evals/utils/evaluator-constants";
+} from "../utils/evaluator-constants";
 import { buildModernEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
 import { useReadPath } from "@/src/features/events";
 

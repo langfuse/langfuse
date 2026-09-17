@@ -30,8 +30,8 @@ import {
   type UseSidebarFilterStateOptions,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
-import { sortOptionValues } from "@/src/features/filters";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { sortOptionValues } from "../filters";
+import { useDetailPageLists } from "../navigate-detail-pages/context";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";

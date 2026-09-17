@@ -2,13 +2,13 @@ import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
 import { redis as defaultRedis } from "@langfuse/shared/src/server";
 import type { Cluster, Redis } from "ioredis";
 
-import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
-import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
+import type { GatewayApiKeyAuthContext } from "../../auth/gatewayApiKeyAuthenticator";
+import { GatewayControlPlaneError } from "../../gatewayControlPlaneError";
 import {
   type GatewayApiFormat,
   gatewayProviders,
   providerSupportsApiFormat,
-} from "@/src/features/ai-gateway/server/provider/registry";
+} from "../registry";
 import {
   type GatewayModelCatalogEntry,
   GatewayModelCatalogService,

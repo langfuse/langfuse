@@ -11,7 +11,7 @@ import {
   DrawerClose,
 } from "@/src/components/ui/drawer";
 import { Separator } from "@/src/components/ui/separator";
-import { useViewData } from "@/src/components/table/table-view-presets/hooks/useViewData";
+import { useViewData } from "../hooks/useViewData";
 import {
   Command,
   CommandInput,
@@ -20,7 +20,7 @@ import {
   CommandGroup,
   CommandItem,
 } from "@/src/components/ui/command";
-import { useViewMutations } from "@/src/components/table/table-view-presets/hooks/useViewMutations";
+import { useViewMutations } from "../hooks/useViewMutations";
 import { cn } from "@/src/utils/tailwind";
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {

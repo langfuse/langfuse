@@ -1,6 +1,6 @@
 import { useState, type ComponentProps, type Key } from "react";
 
-import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
+import { IOPreview } from "../IOPreview/IOPreview";
 import TagList from "@/src/features/tag/components/TagList";
 
 export interface ObservationPreviewProps {

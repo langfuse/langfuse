@@ -29,19 +29,19 @@ import { Button } from "@/src/components/ui/button";
 import { useState, type MouseEvent } from "react";
 import Link from "next/link";
 import { useExperimentEvaluatorSelection } from "@/src/features/experiments/hooks/useExperimentEvaluatorSelection";
-import { useTemplatesValidation } from "@/src/features/evals/hooks/useTemplatesValidation";
+import { useTemplatesValidation } from "../hooks/useTemplatesValidation";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useSingleTemplateValidation } from "@/src/features/evals/hooks/useSingleTemplateValidation";
-import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
-import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
+import { useSingleTemplateValidation } from "../hooks/useSingleTemplateValidation";
+import { getMaintainer } from "../utils/typeHelpers";
+import { MaintainerTooltip } from "./maintainer-tooltip";
 import { env } from "@/src/env.mjs";
-import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
-import { shouldShowEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
-import { getEvalTemplateFamilyKey } from "@/src/features/evals/utils/eval-template-family";
+import { useIsCodeEvalEnabled } from "../hooks/useIsCodeEvalEnabled";
+import { shouldShowEvalTemplate } from "../utils/code-eval-template-utils";
+import { getEvalTemplateFamilyKey } from "../utils/eval-template-family";
 
 type TemplateSelectorProps = {
   projectId: string;

@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-null-render */
-import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
+import { MAX_SELECTED_EXPERIMENTS } from "../../constants/comparison";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -13,9 +13,9 @@ import {
   useSidebarFilterState,
 } from "@/src/features/filters";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { experimentsFieldRegistry } from "@/src/features/experiments/constants/experimentsSearchRegistry";
-import { awaitsDatasetNames } from "@/src/features/experiments/fns/awaitsDatasetNames";
-import { withDatasetNamesResolved } from "@/src/features/experiments/fns/datasetNameFilter";
+import { experimentsFieldRegistry } from "../../constants/experimentsSearchRegistry";
+import { awaitsDatasetNames } from "../../fns/awaitsDatasetNames";
+import { withDatasetNamesResolved } from "../../fns/datasetNameFilter";
 import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
 import {
   getExperimentsFilterConfig,
@@ -74,15 +74,15 @@ import { ExperimentMetricStrip } from "../ExperimentMetricStrip";
 import {
   createExperimentsTableStore,
   type ExperimentsTableStore,
-} from "@/src/features/experiments/store/experimentsTableStore";
-import { useExperimentsTableSelectionSync } from "@/src/features/experiments/hooks/useExperimentsTableSelectionSync";
+} from "../../store/experimentsTableStore";
+import { useExperimentsTableSelectionSync } from "../../hooks/useExperimentsTableSelectionSync";
 import { createExperimentMetricColumn } from "./createExperimentMetricColumn";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   baselineChangedProps,
   comparisonChangedProps,
   scoreColumnScopeToggledProps,
-} from "@/src/features/experiments/lib/analytics";
+} from "../../lib/analytics";
 import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
 
 /**

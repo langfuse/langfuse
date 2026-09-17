@@ -2,12 +2,9 @@
 
 // @vitest-environment jsdom
 
-import { type TreeNode } from "@/src/features/traces/types/treeNode";
-import { flattenChronological } from "@/src/features/traces/components/TraceLogView/fns/flattenChronological";
-import {
-  createNode,
-  createTraceRoot,
-} from "@/src/features/traces/components/TraceLogView/__tests__/treeNode.fixtures";
+import { type TreeNode } from "../../../types/treeNode";
+import { flattenChronological } from "./flattenChronological";
+import { createNode, createTraceRoot } from "../__tests__/treeNode.fixtures";
 
 describe("flattenChronological", () => {
   it("should return empty array for trace with no observations", () => {

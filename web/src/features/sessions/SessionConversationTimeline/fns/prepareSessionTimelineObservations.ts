@@ -4,10 +4,10 @@ import {
   type ToolCallPart,
 } from "@langfuse/shared/src/utils/normalized-io";
 
-import { deduplicateTimelineInput } from "@/src/features/sessions/SessionConversationTimeline/fns/deduplicateTimelineInput";
-import { getToolObservationCallId } from "@/src/features/sessions/SessionConversationTimeline/fns/getToolObservationCallId";
-import { getStandaloneToolCallIds } from "@/src/features/sessions/SessionConversationTimeline/fns/getStandaloneToolCallIds";
-import { processTimelineMessages } from "@/src/features/sessions/SessionConversationTimeline/fns/processTimelineMessages";
+import { deduplicateTimelineInput } from "./deduplicateTimelineInput";
+import { getToolObservationCallId } from "./getToolObservationCallId";
+import { getStandaloneToolCallIds } from "./getStandaloneToolCallIds";
+import { processTimelineMessages } from "./processTimelineMessages";
 
 export type SessionTimelineObservation = {
   id: string;

@@ -2,7 +2,7 @@ import { CircleAlert, Loader2 } from "lucide-react";
 import { type ReactNode } from "react";
 
 import { cn } from "@/src/utils/tailwind";
-import type { InAppAgentActivityState } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
+import type { InAppAgentActivityState } from "../lib/inAppAgentActivity";
 
 /**
  * Trailing state for one recent-conversation row. Exactly one can show, so the

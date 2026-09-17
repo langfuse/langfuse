@@ -10,7 +10,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
-import type { ProjectDefaultModelConfig } from "@/src/features/evals/v2/types/ProjectDefaultModelConfig";
+import type { ProjectDefaultModelConfig } from "../../../types/ProjectDefaultModelConfig";
 
 export function JudgeModelConfigurationDialog({
   open,

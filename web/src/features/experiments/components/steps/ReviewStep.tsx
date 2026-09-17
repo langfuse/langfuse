@@ -8,8 +8,8 @@ import {
 import { Badge } from "@/src/components/ui/badge";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { InfoIcon } from "lucide-react";
-import { type ReviewStepProps } from "@/src/features/experiments/types/stepProps";
-import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
+import { type ReviewStepProps } from "../../types/stepProps";
+import { StepHeader } from "../shared/StepHeader";
 
 export const ReviewStep: React.FC<ReviewStepProps> = ({
   formState,

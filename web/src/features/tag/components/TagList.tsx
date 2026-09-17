@@ -1,5 +1,5 @@
 import { Badge } from "@/src/components/ui/badge";
-import { TagButton } from "@/src/features/tag/components/TagButton";
+import { TagButton } from "./TagButton";
 import { TagIcon } from "lucide-react";
 
 type TagListProps = {

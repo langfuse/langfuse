@@ -2,7 +2,7 @@
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
-import { type GetModelResult } from "@/src/features/models/validation";
+import { type GetModelResult } from "../validation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { useState } from "react";

@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
+import { useExperimentResultsState } from "../../hooks/useExperimentResultsState";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
@@ -35,7 +35,7 @@ import {
   COMPARISON_OPERATOR_PROPERTY,
   itemRegressionFilterAppliedProps,
   scoreColumnScopeToggledProps,
-} from "@/src/features/experiments/lib/analytics";
+} from "../../lib/analytics";
 import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
@@ -59,11 +59,11 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
-import { EXPERIMENT_ITEMS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentItemsSearchRegistry";
+import { EXPERIMENT_ITEMS_FIELD_REGISTRY } from "../../constants/experimentItemsSearchRegistry";
 import {
   reconcileFilterTargets,
   hasAmbiguousTargetChange,
-} from "@/src/features/experiments/lib/reconcileFilterTargets";
+} from "../../lib/reconcileFilterTargets";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { useExperimentItemsTableData } from "../../hooks/useExperimentItemsTableData";
@@ -88,24 +88,24 @@ import {
 } from "@/src/features/scores";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ExperimentCompareTable } from "./ExperimentCompareTable";
-import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
+import { useExperimentNames } from "../../hooks/useExperimentNames";
 import {
   useExperimentItemsFilterOptions,
   type ScoreColumnDef,
-} from "@/src/features/experiments/hooks/useExperimentItemsFilterOptions";
+} from "../../hooks/useExperimentItemsFilterOptions";
 import {
   calculateNumericDiff,
   computeScoreDiffs,
   DiffLabel,
 } from "@/src/features/datasets";
-import { describeRunComparison } from "@/src/features/experiments/fns/describeRunComparison";
+import { describeRunComparison } from "../../fns/describeRunComparison";
 import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/peek-experiment-item-detail";
 import { NotRecordedMetric } from "./NotRecordedMetric";
 import {
   summariseScoreColumn,
   type ScoreColumnDataType,
   type ScoreColumnSummary,
-} from "@/src/features/experiments/fns/summariseScoreColumn";
+} from "../../fns/summariseScoreColumn";
 import { ScoreColumnHeaderSummary } from "./ScoreColumnHeaderSummary";
 import {
   ScoreColumnFilterMenu,
@@ -116,17 +116,17 @@ import {
   ExperimentScoreMatrix,
   type ScoreMatrixRow,
 } from "./ExperimentScoreMatrix";
-import { useScoreComparisonFilters } from "@/src/features/experiments/hooks/useScoreComparisonFilters";
+import { useScoreComparisonFilters } from "../../hooks/useScoreComparisonFilters";
 import {
   describeEmptyScoreComparison,
   rowPassesScoreComparisonFilters,
   scoreFieldForLevel,
   type ScoreComparisonFilter,
   type ScoreLevel,
-} from "@/src/features/experiments/fns/scoreComparisonFilter";
-import { resetStaleDefaultColumnOrder } from "@/src/features/experiments/fns/experimentItemsColumnOrder";
+} from "../../fns/scoreComparisonFilter";
+import { resetStaleDefaultColumnOrder } from "../../fns/experimentItemsColumnOrder";
 import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
-import { resolveExperimentPeekTarget } from "@/src/features/experiments/fns/resolveExperimentPeekTarget";
+import { resolveExperimentPeekTarget } from "../../fns/resolveExperimentPeekTarget";
 
 /**
  * A row on its way into the peek, carrying which experiment's cell was

@@ -2,12 +2,12 @@ import { Responsive } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { type WidgetPlacement } from "../components/DashboardWidget";
-import { type WidgetExportSource } from "@/src/features/widgets/utils/import-export-utils";
+import { type WidgetExportSource } from "../utils/import-export-utils";
 import {
   PresetDashboardWidget,
   type PresetPlacement,
 } from "../components/PresetDashboardWidget";
-import { DashboardWidget } from "@/src/features/widgets";
+import { DashboardWidget } from "..";
 import type { ResolvedReadPath } from "@/src/features/events";
 import { type FilterState } from "@langfuse/shared";
 import { useState, useEffect, useRef } from "react";

@@ -5,9 +5,9 @@ import {
   SessionConversationTimeline,
   type SessionConversationTimelineController,
   type SessionConversationTimelineScrollTarget,
-} from "@/src/features/sessions/SessionConversationTimeline/SessionConversationTimeline";
-import { type SessionObservation } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
-import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
+} from "./SessionConversationTimeline";
+import { type SessionObservation } from "./components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
+import { type EventSessionTrace } from "../sessionDetailPageTypes";
 import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";

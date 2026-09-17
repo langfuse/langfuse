@@ -24,22 +24,22 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
-import { EditRuleDialog } from "@/src/features/evals/v2/components/Rules/EditRuleDialog/EditRuleDialog";
-import { RulesOverviewSelectionBar } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RulesOverviewSelectionBar/RulesOverviewSelectionBar";
-import { RuleActiveSwitchCell } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RuleActiveSwitchCell/RuleActiveSwitchCell";
-import { RuleNameCell } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RuleNameCell/RuleNameCell";
-import { RulesTableToolbar } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RulesTableToolbar/RulesTableToolbar";
+import { CreateRuleDialog } from "../CreateRuleDialog/CreateRuleDialog";
+import { EditRuleDialog } from "../EditRuleDialog/EditRuleDialog";
+import { RulesOverviewSelectionBar } from "./components/RulesOverviewSelectionBar/RulesOverviewSelectionBar";
+import { RuleActiveSwitchCell } from "./components/RuleActiveSwitchCell/RuleActiveSwitchCell";
+import { RuleNameCell } from "./components/RuleNameCell/RuleNameCell";
+import { RulesTableToolbar } from "./components/RulesTableToolbar/RulesTableToolbar";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
+import { RuleFilterPills } from "../RuleFilterPills/RuleFilterPills";
 import {
   useColumnOrder,
   useColumnVisibility,
 } from "@/src/features/column-visibility";
-import { EvaluatorExecutionHistory } from "@/src/features/evals/v2/components/Rules/EvaluatorExecutionHistory/EvaluatorExecutionHistory";
-import type { RuleTableRow } from "@/src/features/evals/v2/types/rules";
+import { EvaluatorExecutionHistory } from "../EvaluatorExecutionHistory/EvaluatorExecutionHistory";
+import type { RuleTableRow } from "../../../types/rules";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   Tooltip,
@@ -52,12 +52,12 @@ import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
   isLegacyEvalTarget,
   requiresLegacyMigrationAction,
-} from "@/src/features/evals/utils/typeHelpers";
+} from "../../../../utils/typeHelpers";
 import {
   getRuleNavigationAction,
   getRuleNavigationUrl,
-} from "@/src/features/evals/v2/utils/ruleNavigation";
-import { ruleExecutionsUrl } from "@/src/features/evals/v2/fns/rules/ruleExecutionsUrl";
+} from "../../../utils/ruleNavigation";
+import { ruleExecutionsUrl } from "../../../fns/rules/ruleExecutionsUrl";
 import { TableViewPresetTableName, type OrderByState } from "@langfuse/shared";
 import {
   omitFilterFacets,
@@ -65,13 +65,13 @@ import {
 } from "@/src/features/filters";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
-import { evaluationRulesListFieldRegistry } from "@/src/features/evals/v2/constants/tableSearchRegistry";
+import { evaluationRulesListFieldRegistry } from "../../../constants/tableSearchRegistry";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import {
   evaluationRuleTableFilterColumns,
   evaluationRuleTableFilterConfig,
   evaluationRuleTableFilterOptions,
-} from "@/src/features/evals/v2/constants/tableFilterColumns";
+} from "../../../constants/tableFilterColumns";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";

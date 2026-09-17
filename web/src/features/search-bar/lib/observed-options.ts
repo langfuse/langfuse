@@ -14,7 +14,7 @@ import { SCORE_COLUMNS } from "./fields";
 import {
   observedMetadataOptions,
   type StoredKeyInfo,
-} from "../../../fns/observedMetadata/metadataPaths";
+} from "@/src/fns/observedMetadata/metadataPaths";
 
 type ObservedValue = {
   value: string;

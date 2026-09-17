@@ -14,7 +14,7 @@ import {
   featurePreviewFlags,
   featurePreviewLabels,
   type FeaturePreviewFlag,
-} from "@/src/features/feature-flags/available-flags";
+} from "../available-flags";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 

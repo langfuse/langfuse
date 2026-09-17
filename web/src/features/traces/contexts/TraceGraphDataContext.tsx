@@ -15,7 +15,7 @@ import {
   MAX_NODES_FOR_GRAPH_UI,
   resolveGraphAvailability,
   type GraphAvailability,
-} from "@/src/features/traces/fns/graphAvailability";
+} from "../fns/graphAvailability";
 
 interface TraceGraphDataContextValue {
   /** Agent graph data for visualization */

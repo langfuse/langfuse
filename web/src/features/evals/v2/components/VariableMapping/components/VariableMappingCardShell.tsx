@@ -1,7 +1,7 @@
 import { Pencil, Trash2, TriangleAlert, X } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { CollapsibleCard } from "@/src/features/evals/v2/components/CollapsibleCard/CollapsibleCard";
+import { CollapsibleCard } from "../../CollapsibleCard/CollapsibleCard";
 
 function VariableMappingCardHeaderContent({
   variable,

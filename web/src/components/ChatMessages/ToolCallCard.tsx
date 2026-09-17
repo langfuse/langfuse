@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-margin-on-root-elements */
 import { type LLMToolCall } from "@langfuse/shared";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { PrettyJsonView } from "../ui/PrettyJsonView";
 
 export const ToolCallCard: React.FC<{ toolCall: LLMToolCall }> = ({
   toolCall,

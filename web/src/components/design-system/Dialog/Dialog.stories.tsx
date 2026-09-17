@@ -2,7 +2,7 @@ import * as React from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { DialogController } from "../DialogController/DialogController";
 
 import { Dialog } from "./Dialog";
 

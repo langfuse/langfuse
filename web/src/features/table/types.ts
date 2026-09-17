@@ -1,4 +1,4 @@
-import type { Entitlement } from "@/src/features/entitlements";
+import type { Entitlement } from "../entitlements";
 import {
   type ProjectScope,
   type BatchActionType,

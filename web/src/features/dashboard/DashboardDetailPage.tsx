@@ -26,7 +26,7 @@ import {
   MoreVertical,
   PencilIcon,
 } from "lucide-react";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "../notifications/showErrorToast";
 import {
   SelectWidgetDialog,
   type WidgetItem,
@@ -34,12 +34,12 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "../posthog-analytics/usePostHogClientCapture";
 import {
   DashboardGrid,
   type DashboardPlacement,
 } from "@/src/features/widgets/components/DashboardGrid";
-import { CloneFirstDialogController } from "@/src/features/dashboard/components/CloneFirstDialogController";
+import { CloneFirstDialogController } from "./components/CloneFirstDialogController";
 import { InlineEditText } from "@/src/components/design-system/InlineEditText/InlineEditText";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import {
@@ -48,14 +48,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { EditDialogDashboardContent } from "@/src/features/dashboard/components/EditDialogDashboardContent";
+import { EditDialogDashboardContent } from "./components/EditDialogDashboardContent";
 import { DialogController } from "@/src/components/ui/dialog";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
   toAbsoluteTimeRange,
 } from "@/src/utils/date-range-utils";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "../entitlements/hooks";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import {
@@ -67,7 +67,7 @@ import {
   getDashboardQuerySchedulerMaxConcurrent,
   getDashboardSchedulerResetKey,
   useDashboardQueryScheduler,
-} from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+} from "./hooks/useDashboardQueryScheduler";
 import {
   parsePastedWidget,
   toWidgetCreateFields,
@@ -79,15 +79,15 @@ import {
   parseDashboardImport,
   parsePastedPreset,
   type ParsedDashboardImport,
-} from "@/src/features/dashboard/utils/dashboard-import-export";
+} from "./utils/dashboard-import-export";
 import { type PresetPlacement } from "@/src/features/widgets/components/PresetDashboardWidget";
 import { pushDownForInsertion } from "@/src/features/widgets/utils/grid-placement";
 import { readTextFromClipboard } from "@/src/utils/clipboard";
 import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
 import { extractTransferFiles } from "@/src/components/editor/fileDropPaste";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useDashboardDefinitionDraft } from "@/src/features/dashboard/hooks/useDashboardDefinitionDraft";
+import { showSuccessToast } from "../notifications/showSuccessToast";
+import { useDashboardDefinitionDraft } from "./hooks/useDashboardDefinitionDraft";
 import {
   RouteParamsPendingFallback,
   useReadyRouteParams,

@@ -9,7 +9,7 @@ import {
 import {
   type createRuleSetupStore,
   isRuleDraftDirty,
-} from "@/src/features/evals/v2/stores/createRuleSetupStore";
+} from "../../../stores/createRuleSetupStore";
 
 export function RuleDialogFooter({
   ruleSetupStore,

@@ -33,11 +33,11 @@ import {
 } from "@/src/components/ui/popover";
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { type CreateExperiment } from "@/src/features/experiments/types";
-import { MultiStepExperimentForm } from "@/src/features/experiments/components/MultiStepExperimentForm";
-import { RemoteExperimentUpsertForm } from "@/src/features/experiments/components/RemoteExperimentUpsertForm";
-import { RemoteExperimentTriggerModal } from "@/src/features/experiments/components/RemoteExperimentTriggerModal";
-import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { type CreateExperiment } from "../types";
+import { MultiStepExperimentForm } from "./MultiStepExperimentForm";
+import { RemoteExperimentUpsertForm } from "./RemoteExperimentUpsertForm";
+import { RemoteExperimentTriggerModal } from "./RemoteExperimentTriggerModal";
+import { useExperimentAccess } from "../hooks/useExperimentAccess";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 

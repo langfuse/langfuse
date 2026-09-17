@@ -12,11 +12,11 @@ import {
 import { SiDiscord, SiGithub } from "react-icons/si";
 import { RainbowButton } from "@/src/components/magicui/rainbow-button";
 import { Separator } from "@/src/components/ui/separator";
-import { usePlan } from "@/src/features/entitlements";
+import { usePlan } from "../entitlements";
 import { isCloudPlan } from "@langfuse/shared";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useLangfuseCloudRegion } from "../organizations/hooks";
+import { usePostHogClientCapture } from "../posthog-analytics";
 
 type SupportType = "in-app-support" | "custom" | "community";
 

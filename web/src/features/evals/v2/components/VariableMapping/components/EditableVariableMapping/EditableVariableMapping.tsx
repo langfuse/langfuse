@@ -10,19 +10,19 @@ import {
 import type {
   ActiveVariableMapping,
   VariableFieldState,
-} from "@/src/features/evals/v2/types/variableMapping";
+} from "../../../../types/variableMapping";
 import { JsonPathEditor } from "../JsonPathEditor/JsonPathEditor";
 import { SampleDataTreeSelector } from "../SampleDataTreeSelector/SampleDataTreeSelector";
 import { VariableMappingCardShell } from "../VariableMappingCardShell";
 import { VariableMappingBinding } from "../VariableMappingBinding/VariableMappingBinding";
-import { buildJsonPathSuggestions } from "@/src/features/evals/v2/fns/variableMapping/buildJsonPathSuggestions";
-import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";
-import { extractVariableMappingValue } from "@/src/features/evals/v2/fns/variableMapping/extractVariableMappingValue";
+import { buildJsonPathSuggestions } from "../../../../fns/variableMapping/buildJsonPathSuggestions";
+import { evalVariableColumnLabel } from "../../../../fns/variableMapping/evalVariableColumnLabel";
+import { extractVariableMappingValue } from "../../../../fns/variableMapping/extractVariableMappingValue";
 import {
   jsonPathToSegments,
   segmentsToJsonPath,
   type PathSegment,
-} from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
+} from "../../../../fns/variableMapping/segmentsToJsonPath";
 import {
   deepParseJsonIterative,
   experimentTargetEvalVariableColumns,

@@ -21,10 +21,10 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { useSidebarFilterState } from "@/src/features/filters";
-import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
-import { gatewayModelsFilterConfig } from "@/src/features/ai-gateway/constants/modelsFilterConfig";
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
-import { GATEWAY_MODELS_FIELD_REGISTRY } from "@/src/features/ai-gateway/constants/modelsSearchRegistry";
+import { providerLabels } from "../../../../constants/providerLabels";
+import { gatewayModelsFilterConfig } from "../../../../constants/modelsFilterConfig";
+import type { GatewayProvider } from "../../../../types/gatewayProvider";
+import { GATEWAY_MODELS_FIELD_REGISTRY } from "../../../../constants/modelsSearchRegistry";
 import {
   TableSearchBar,
   toObservedOptions,

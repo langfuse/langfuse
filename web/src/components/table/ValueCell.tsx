@@ -7,16 +7,16 @@ import {
   SMALL_OBJECT_THRESHOLD,
   objectFitsInSingleRowPreview,
   type JsonTableRow,
-} from "@/src/components/table/utils/jsonExpansionUtils";
+} from "./utils/jsonExpansionUtils";
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "../ui/button";
 import {
   DropdownMenuController,
   DropdownMenuItem,
   DropdownMenuSeparator,
-} from "@/src/components/ui/dropdown-menu";
+} from "../ui/dropdown-menu";
 import { cn } from "@/src/utils/tailwind";
 import {
   buildEventsTablePathForMetadataFilter,

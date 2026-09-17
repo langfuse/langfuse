@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
+import { getSafeImageUrl, getSafeLinkUrl } from "./safe-url";
 
 describe("safe URL helpers", () => {
   it.each([

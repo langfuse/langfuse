@@ -1,15 +1,12 @@
 import { type RouterOutputs } from "@/src/utils/api";
 import { useState, useRef, useEffect } from "react";
 import { PromptVersionDiffDialogContent } from "./PromptVersionDiffDialog";
-import {
-  Timeline,
-  TimelineItem,
-} from "@/src/features/prompts/components/timeline";
+import { Timeline, TimelineItem } from "./timeline";
 import { Badge } from "@/src/components/ui/badge";
 import { CommandItem } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import { DialogController } from "@/src/components/ui/dialog";
-import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
+import { SetPromptVersionLabels } from "./SetPromptVersionLabels";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { FileDiffIcon } from "lucide-react";
 

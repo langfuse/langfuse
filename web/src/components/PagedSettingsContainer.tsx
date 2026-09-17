@@ -1,4 +1,4 @@
-import { cn } from "@/src/utils/tailwind";
+import { cn } from "../utils/tailwind";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { Fragment, type ReactNode } from "react";
@@ -10,7 +10,7 @@ import {
   SelectLabel,
   SelectTrigger,
   SelectValue,
-} from "@/src/components/ui/select";
+} from "./ui/select";
 import { useRouter } from "next/router";
 
 type SettingsProps = {

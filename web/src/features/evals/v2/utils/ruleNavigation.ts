@@ -1,4 +1,4 @@
-import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import { isLegacyEvalTarget } from "../../utils/typeHelpers";
 
 export function getRuleNavigationAction({
   targetObject,

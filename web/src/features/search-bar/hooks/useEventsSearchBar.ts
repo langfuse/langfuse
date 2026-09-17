@@ -16,24 +16,18 @@ import isEqual from "lodash/isEqual";
 
 import type { FilterState, TracingSearchType } from "@langfuse/shared";
 
-import {
-  classifySearchError,
-  planCommit,
-} from "@/src/features/search-bar/lib/commit";
-import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
-import {
-  EVENTS_FIELD_REGISTRY,
-  type FieldRegistry,
-} from "@/src/features/search-bar/lib/fields";
+import { classifySearchError, planCommit } from "../lib/commit";
+import { filterStateToQueryText } from "../lib/filter-state-to-query";
+import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "../lib/fields";
 import {
   type ObservedOptions,
   scoreTypeContextFromObserved,
-} from "@/src/features/search-bar/lib/observed-options";
-import { recordRecentSearch } from "@/src/features/search-bar/lib/recent-searches";
+} from "../lib/observed-options";
+import { recordRecentSearch } from "../lib/recent-searches";
 import {
   createSearchBarStore,
   type SearchBarStore,
-} from "@/src/features/search-bar/store/searchBarStore";
+} from "../store/searchBarStore";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 /** How a search-bar commit was triggered — the `trigger` analytics dimension. */

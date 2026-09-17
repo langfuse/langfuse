@@ -7,7 +7,7 @@ import { filterOperators, type FilterState } from "@langfuse/shared";
 import {
   getMetricsColumnsWithCustomSelect,
   getMetricsFilterColumns,
-} from "@/src/features/metrics/metricsFilterColumns";
+} from "../metricsFilterColumns";
 
 import { __test } from "./MetricsFilterBuilder";
 

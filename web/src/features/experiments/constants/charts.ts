@@ -1,8 +1,5 @@
 import type { ScoreLevel as ScoreTagLevel } from "@/src/components/score-tag";
-import type {
-  ScoreLevel,
-  ScoreMetricSpec,
-} from "@/src/features/experiments/types/charts";
+import type { ScoreLevel, ScoreMetricSpec } from "../types/charts";
 import type { WidgetDimensionConfig } from "@/src/features/widgets";
 import type { FilterCondition } from "@langfuse/shared";
 

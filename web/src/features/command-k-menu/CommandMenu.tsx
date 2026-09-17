@@ -12,16 +12,16 @@ import { useRouter } from "next/router";
 import { useEffect, memo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { env } from "@/src/env.mjs";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "../posthog-analytics";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
-import { useProjectSettingsPages } from "@/src/features/projects";
+import { useCommandMenu } from "./CommandMenuProvider";
+import { useProjectSettingsPages } from "../projects";
 import { useOrganizationSettingsPages } from "@/src/pages/organization/[organizationId]/settings";
 import { useAccountSettingsPages } from "@/src/pages/account/settings";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useQueryProjectOrOrganization } from "../projects/hooks";
 import { api } from "@/src/utils/api";
 import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "../events";
 
 type IdNavigationItem = {
   type: "trace_id" | "observation_id";

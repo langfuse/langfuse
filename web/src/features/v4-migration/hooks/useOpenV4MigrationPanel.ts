@@ -4,7 +4,7 @@ import {
   useV4MigrationPanel,
   type V4MigrationPanelOpenSource,
   type V4MigrationTargetProject,
-} from "@/src/features/v4-migration/V4MigrationPanelProvider";
+} from "../V4MigrationPanelProvider";
 
 export function useOpenV4MigrationPanel() {
   const { openForProject } = useV4MigrationPanel();

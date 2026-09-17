@@ -2,11 +2,11 @@ import { useMemo } from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
-import { CodeEvalTemplateFormBody } from "@/src/features/evals/components/code-eval-template-form-body";
-import { buildCodeEvalContextSnippet } from "@/src/features/evals/v2/fns/evaluatorTesting/buildCodeEvalContextSnippet";
-import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
-import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
-import type { CodeEvalValidationResult } from "@/src/features/evals/utils/code-eval-template-validation";
+import { CodeEvalTemplateFormBody } from "../../../../../../../../components/code-eval-template-form-body";
+import { buildCodeEvalContextSnippet } from "../../../../../../../fns/evaluatorTesting/buildCodeEvalContextSnippet";
+import { useEvaluatorSetupSample } from "../../../../../../../hooks/useEvaluatorSetupSample";
+import type { EvaluatorSetupStore } from "../../../../../../../store/evaluatorSetupStore/evaluatorSetupStore";
+import type { CodeEvalValidationResult } from "../../../../../../../../utils/code-eval-template-validation";
 
 export function CodeEditor({
   projectId,

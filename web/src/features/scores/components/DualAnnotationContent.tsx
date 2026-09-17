@@ -1,6 +1,6 @@
 import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
+import { AnnotationForm } from "./AnnotationForm";
 import { Separator } from "@/src/components/ui/separator";
 
 interface DualAnnotationContentProps {

@@ -5,7 +5,7 @@ import {
   encodeScoreComparisonFilter,
   isSameScoreComparisonTarget,
   type ScoreComparisonFilter,
-} from "@/src/features/experiments/fns/scoreComparisonFilter";
+} from "../fns/scoreComparisonFilter";
 
 /**
  * "Show only the items this run scored worse on than <comparison>" — Annabell's

@@ -1,11 +1,11 @@
 import React from "react";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { useRowHeightLocalStorage } from "../data-table-row-height-switch";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { type LangfuseColumnDef } from "../types";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { DataTable } from "@/src/components/table/data-table";
+import { DataTableToolbar } from "../data-table-toolbar";
+import { DataTable } from "../data-table";
 import {
   type ScoreConfigDataType,
   type Prisma,

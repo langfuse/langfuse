@@ -1,4 +1,4 @@
-import type { ActivationConfirmationRequest } from "@/src/features/evals/v2/types/rules";
+import type { ActivationConfirmationRequest } from "../types/rules";
 
 export type ActivationEstimate = {
   evaluatorId: string;

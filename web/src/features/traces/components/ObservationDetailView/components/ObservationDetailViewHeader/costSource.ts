@@ -1,4 +1,4 @@
-import type { CostSource } from "@/src/features/traces/components/BreakdownTooltip";
+import type { CostSource } from "../../../BreakdownTooltip";
 
 export function resolveObservationCostSource({
   hasSubtreeMetrics,

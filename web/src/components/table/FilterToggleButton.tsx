@@ -1,9 +1,9 @@
 /* eslint-disable @repo/no-style-props */
 import { Filter } from "lucide-react";
 
-import { useDataTableControls } from "@/src/components/table/data-table-controls";
-import { Badge } from "@/src/components/ui/badge";
-import { Button } from "@/src/components/ui/button";
+import { useDataTableControls } from "./data-table-controls";
+import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { type FilterState } from "@langfuse/shared";
 

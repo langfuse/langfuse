@@ -3,7 +3,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { DatasetForm } from "@/src/features/datasets/components/DatasetForm";
+import { DatasetForm } from "./DatasetForm";
 import { type Prisma } from "@langfuse/shared";
 
 export interface UpdateDatasetDialogProps {

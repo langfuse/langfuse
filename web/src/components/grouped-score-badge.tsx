@@ -1,15 +1,11 @@
 import { useState } from "react";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
-import { cn } from "@/src/utils/tailwind";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "./ui/hover-card";
+import { cn } from "../utils/tailwind";
 import { type LastUserScore, type ScoreDomain } from "@langfuse/shared";
-import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { scoreLevelFromScore } from "@/src/components/score-tag";
-import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
+import { type WithStringifiedMetadata } from "../utils/clientSideDomainTypes";
+import { scoreLevelFromScore } from "./score-tag";
+import { ScoreBadge } from "./ScoreBadge/ScoreBadge";
 
 /**
  * Bucket scores by name, the way the badges group them. Exported so a caller that

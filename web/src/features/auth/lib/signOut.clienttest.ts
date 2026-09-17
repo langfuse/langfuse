@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { signOutCleanly } from "@/src/features/auth/lib/signOut";
+import { signOutCleanly } from "./signOut";
 
 const { signOutMock, clearMock, sessionStorageClear } = vi.hoisted(() => ({
   signOutMock: vi.fn(async () => undefined),

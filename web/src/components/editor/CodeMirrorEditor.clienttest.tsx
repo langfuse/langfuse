@@ -5,7 +5,7 @@ import type * as ReactCodeMirror from "@uiw/react-codemirror";
 import {
   CodeMirrorEditor,
   getPromptVariableDiagnostics,
-} from "@/src/components/editor/CodeMirrorEditor";
+} from "./CodeMirrorEditor";
 
 vi.mock("@uiw/react-codemirror", async (importOriginal) => {
   const actual = await importOriginal<typeof ReactCodeMirror>();

@@ -22,7 +22,7 @@ import {
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { Textarea } from "@/src/components/ui/textarea";
 import { Input } from "@/src/components/ui/input";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "../rbac";
 import { api } from "@/src/utils/api";
 import { getRelativeTimestampFromNow } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
@@ -40,13 +40,13 @@ import React, {
 } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod";
-import { useMentionAutocomplete } from "@/src/features/comments/hooks/useMentionAutocomplete";
-import { MentionAutocomplete } from "@/src/features/comments/components/MentionAutocomplete";
+import { useMentionAutocomplete } from "./hooks/useMentionAutocomplete";
+import { MentionAutocomplete } from "./components/MentionAutocomplete";
 import { useRouter } from "next/router";
-import { ReactionPicker } from "@/src/features/comments/ReactionPicker";
-import { ReactionBar } from "@/src/features/comments/ReactionBar";
+import { ReactionPicker } from "./ReactionPicker";
+import { ReactionBar } from "./ReactionBar";
 import { stripMarkdown } from "@/src/utils/markdown";
-import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
+import { MENTION_USER_PREFIX } from "./lib/mentionParser";
 import { type SelectionData } from "./contexts/InlineCommentSelectionContext";
 import { Badge } from "@/src/components/ui/badge";
 import { useTheme } from "next-themes";

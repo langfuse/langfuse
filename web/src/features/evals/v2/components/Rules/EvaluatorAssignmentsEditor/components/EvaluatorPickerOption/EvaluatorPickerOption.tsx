@@ -1,7 +1,7 @@
 import { formatDistanceToNowStrict } from "date-fns";
 
-import { EvaluatorTypeBadge } from "@/src/features/evals/v2/components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
-import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
+import { EvaluatorTypeBadge } from "../../../../Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
+import type { RuleEvaluatorOption } from "../../../../../types/rules";
 
 export function EvaluatorPickerOption({
   evaluator,

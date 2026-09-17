@@ -17,7 +17,7 @@ import {
   type InAppAgentActivityConversation,
   type InAppAgentActivityReceipts,
   type InAppAgentDeliveredReceipts,
-} from "@/src/features/in-app-agent/lib/inAppAgentActivity";
+} from "./inAppAgentActivity";
 import { api } from "@/src/utils/api";
 
 const EMPTY_ACKNOWLEDGEMENTS: InAppAgentActivityAcknowledgement[] = [];

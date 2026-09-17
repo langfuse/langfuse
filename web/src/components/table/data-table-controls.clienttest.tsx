@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { eventsTableCols, type FilterState } from "@langfuse/shared";
 import { useStore } from "zustand";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
+import { TooltipProvider } from "../ui/tooltip";
 import {
   CategoricalFacet,
   DataTableControls,

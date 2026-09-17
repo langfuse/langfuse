@@ -1,10 +1,10 @@
-import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";
+import { MANAGED_TEMPLATES_CATALOG } from "../../constants/managedTemplatesCatalog";
 import {
   EVALUATOR_EMPTY_STATE_DOCS_HREF,
   EVALUATOR_EMPTY_STATE_STARTING_POINTS,
-} from "@/src/features/evals/v2/constants/evaluatorEmptyState";
-import { managedEvaluatorTemplateService } from "@/src/features/evals/v2/fns/templateGallery/managedEvaluatorTemplateService";
-import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
+} from "../../constants/evaluatorEmptyState";
+import { managedEvaluatorTemplateService } from "./managedEvaluatorTemplateService";
+import type { GalleryTemplate } from "../../types/templateGallery";
 
 type ManagedGalleryTemplate = Extract<GalleryTemplate, { source: "managed" }>;
 

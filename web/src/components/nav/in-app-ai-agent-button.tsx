@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { BotMessageSquare } from "lucide-react";
 
-import { Button } from "@/src/components/ui/button";
+import { Button } from "../ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   useInAppAiAgent,

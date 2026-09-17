@@ -8,7 +8,7 @@ import {
   useRef,
   useCallback,
 } from "react";
-import { ScrollArea } from "@/src/components/ui/scroll-area";
+import { ScrollArea } from "../ui/scroll-area";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   Select,
@@ -16,7 +16,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/src/components/ui/select";
+} from "../ui/select";
 import {
   facetNameRank,
   getFacetSummary,
@@ -32,7 +32,7 @@ import {
   EMPTY_FACET_ORDER,
 } from "@/src/features/filters/lib/facet-order";
 import { useMediaQuery } from "react-responsive";
-import useLocalStorage from "@/src/components/useLocalStorage";
+import useLocalStorage from "../useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
@@ -59,28 +59,24 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+} from "../ui/dropdown-menu";
 import {
   InputCommand,
   InputCommandGroup,
   InputCommandInput,
   InputCommandItem,
   InputCommandList,
-} from "@/src/components/ui/input-command";
+} from "../ui/input-command";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "../ui/badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
-import { Button } from "@/src/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import { Slider } from "@/src/components/ui/slider";
-import { Input } from "@/src/components/ui/input";
-import { Label } from "@/src/components/ui/label";
-import { Skeleton } from "@/src/components/ui/skeleton";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import { Button } from "../ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { Slider } from "../ui/slider";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import { Skeleton } from "../ui/skeleton";
+import DocPopup from "../layouts/doc-popup";
 import type {
   UIFilter,
   NumericUIFilter,
@@ -91,13 +87,9 @@ import type {
   StringKeyValueFilterEntry,
   TextFilterEntry,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import { DataTableAIFilters } from "@/src/components/table/data-table-ai-filters";
+import { KeyValueFilterBuilder } from "./key-value-filter-builder";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { DataTableAIFilters } from "./data-table-ai-filters";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { type FilterState } from "@langfuse/shared";
 

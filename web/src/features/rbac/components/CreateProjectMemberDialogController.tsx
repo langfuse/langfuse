@@ -1,14 +1,14 @@
 import { type ReactNode } from "react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { CreateProjectMemberDialog } from "@/src/features/rbac/components/CreateProjectMemberDialog";
+import { CreateProjectMemberDialog } from "./CreateProjectMemberDialog";
 import {
   useEntitlementLimit,
   useHasEntitlement,
 } from "@/src/features/entitlements";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasOrganizationAccess } from "../utils/checkOrganizationAccess";
+import { useHasProjectAccess } from "../utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 
 type CreateProjectMemberDialogControllerProps = {

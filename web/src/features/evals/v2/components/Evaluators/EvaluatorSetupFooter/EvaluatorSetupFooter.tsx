@@ -1,9 +1,9 @@
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
-import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
-import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
-import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
-import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { prepareEvaluatorDraft } from "../../../fns/evaluators/prepareEvaluatorDraft";
+import { getPromptMessagesValidationError } from "../../../fns/promptMessages/hasInvalidSystemPromptMessage";
+import { getScoreOutputValidation } from "../../../fns/scoreOutput/getScoreOutputValidation";
+import type { EvaluatorSetupStore } from "../../../store/evaluatorSetupStore/evaluatorSetupStore";
 import { EvaluatorSetupFooterView } from "./EvaluatorSetupFooterView";
 
 export function EvaluatorSetupFooter({

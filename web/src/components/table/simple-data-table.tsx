@@ -6,8 +6,8 @@ import {
 } from "@tanstack/react-table";
 import { Fragment, type ReactNode } from "react";
 
-import { Skeleton } from "@/src/components/ui/skeleton";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { Skeleton } from "../ui/skeleton";
+import { type LangfuseColumnDef } from "./types";
 import { cn } from "@/src/utils/tailwind";
 
 const ROW_CLICK_IGNORE_SELECTOR = "[data-row-click-ignore]";

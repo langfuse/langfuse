@@ -5,8 +5,8 @@ import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import {
   SAMPLING_SLIDER_MIN,
   SAMPLING_SLIDER_STEP,
-} from "@/src/features/evals/v2/constants/ruleSampling";
-import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
+} from "../../../../constants/ruleSampling";
+import type { RuleSetupStore } from "../../../../types/rules";
 
 export function RuleSamplingSection({ store }: { store: RuleSetupStore }) {
   const sampling = useStore(store, (state) => state.sampling);

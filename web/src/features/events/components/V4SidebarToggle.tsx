@@ -6,15 +6,15 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
-import { setReadPath } from "@/src/features/events/actions/setReadPath";
-import { usePendingReadPath } from "@/src/features/events/stores/readPathToggleStore";
-import { V4IntroDialog } from "@/src/features/events/components/V4IntroDialog";
+import { useReadPath } from "../hooks/useReadPath";
+import { setReadPath } from "../actions/setReadPath";
+import { usePendingReadPath } from "../stores/readPathToggleStore";
+import { V4IntroDialog } from "./V4IntroDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   getV4PreviewDisabledRedirect,
   getV4PreviewEnabledRedirect,
-} from "@/src/features/events/lib/v4PreviewRedirect";
+} from "../lib/v4PreviewRedirect";
 import { api } from "@/src/utils/api";
 import { ZapIcon } from "lucide-react";
 import { useId, useState } from "react";
@@ -28,7 +28,7 @@ import {
 import {
   V4_PREVIEW_LABEL,
   V4_PREVIEW_DESCRIPTION,
-} from "@/src/features/events/lib/v4PreviewLabel";
+} from "../lib/v4PreviewLabel";
 
 function asSingleValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;

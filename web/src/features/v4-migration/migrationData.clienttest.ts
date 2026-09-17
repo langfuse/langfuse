@@ -6,7 +6,7 @@ import {
   getMigrationCountState,
   getProjectMigrationReadiness,
   type ProjectMigrationStatus,
-} from "@/src/features/v4-migration/migrationData";
+} from "./migrationData";
 
 const loaded = (count: number) => ({ status: "loaded" as const, count });
 const loadedAction = (

@@ -1,7 +1,7 @@
 import { createTRPCRouter, publicProcedure } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
 import { logger } from "@langfuse/shared/src/server";
-import { CloudStatus } from "@/src/features/cloud-status-notification/types";
+import { CloudStatus } from "../types";
 import { z } from "zod";
 
 // Cache the response for 1 minute

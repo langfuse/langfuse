@@ -1,7 +1,7 @@
-import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
+import { ExpandListButton } from "./ChevronButton";
 import { type ReactNode, useState } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { useFitRowCount } from "@/src/features/dashboard/hooks/useFitRowCount";
+import { useFitRowCount } from "../../hooks/useFitRowCount";
 
 // Approximate rendered height of one <tr> (py-2 + text-xs) and of the sticky
 // header row, used to decide how many rows fit in the tile. (LFE-11035)

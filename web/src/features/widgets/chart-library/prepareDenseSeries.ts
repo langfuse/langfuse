@@ -1,5 +1,5 @@
-import { type MissingBucketValue } from "@/src/features/widgets/chart-library/chart-props";
-import { type TimeSeriesGroupedRow } from "@/src/features/widgets/chart-library/utils";
+import { type MissingBucketValue } from "./chart-props";
+import { type TimeSeriesGroupedRow } from "./utils";
 
 /**
  * Preparer (data -> visualiser seam): makes every (bucket, series) cell

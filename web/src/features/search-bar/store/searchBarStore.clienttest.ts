@@ -1,6 +1,6 @@
-import { createSearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
+import { createSearchBarStore } from "./searchBarStore";
 import { EVALUATOR_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
-import { withFieldOptions } from "@/src/features/search-bar/lib/fields";
+import { withFieldOptions } from "../lib/fields";
 
 describe("searchBarStore (draft-only)", () => {
   it("validates the draft on setDraft", () => {

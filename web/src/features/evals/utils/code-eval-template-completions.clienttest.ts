@@ -8,11 +8,11 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   getCodeEvalCompletionExtension,
   getCodeEvalCompletionSource,
-} from "@/src/features/evals/utils/code-eval-template-completions";
+} from "./code-eval-template-completions";
 import {
   CODE_EVAL_COMPLETION_CONTRACT,
   type CodeEvalSourceCodeLanguage,
-} from "@/src/features/evals/utils/code-eval-template-starter-examples";
+} from "./code-eval-template-starter-examples";
 
 const originalGetClientRects = Range.prototype.getClientRects;
 

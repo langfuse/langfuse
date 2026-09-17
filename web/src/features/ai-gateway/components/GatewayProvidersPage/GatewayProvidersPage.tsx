@@ -5,11 +5,11 @@ import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { DeleteProviderDialog } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/DeleteProviderDialog";
-import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/ProviderDialogController/ProviderDialogController";
-import { GatewayProvidersView } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/GatewayProvidersView/GatewayProvidersView";
-import { RetryProviderButton } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/RetryProviderButton";
-import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
+import { DeleteProviderDialog } from "./components/DeleteProviderDialog";
+import { ProviderDialogController } from "./components/ProviderDialogController/ProviderDialogController";
+import { GatewayProvidersView } from "./components/GatewayProvidersView/GatewayProvidersView";
+import { RetryProviderButton } from "./components/RetryProviderButton";
+import { buildGatewayModelsUrl } from "../../fns/gatewayUrls/buildGatewayModelsUrl";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
 export function GatewayProvidersPage({

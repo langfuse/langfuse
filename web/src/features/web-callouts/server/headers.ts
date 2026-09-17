@@ -1,11 +1,11 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
-import { type WebCalloutHeaders } from "@/src/features/web-callouts/types";
+import { type WebCalloutHeaders } from "../types";
 import {
   WEB_CALLOUT_BLOCKED_HEADER_NAMES,
   WEB_CALLOUT_HEADER_NAME_PATTERN,
-} from "@/src/features/web-callouts/headerRules";
+} from "../headerRules";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 
 const WEB_CALLOUT_MAX_HEADER_COUNT = 20;

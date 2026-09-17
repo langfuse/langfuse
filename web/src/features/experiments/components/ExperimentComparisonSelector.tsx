@@ -7,22 +7,22 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useExperimentSearch } from "@/src/features/experiments/hooks/useExperimentSearch";
-import { type ExperimentNameOption } from "@/src/features/experiments/hooks/useExperimentNames";
-import { formatRunRecency } from "@/src/features/experiments/fns/formatRunRecency";
+import { useExperimentSearch } from "../hooks/useExperimentSearch";
+import { type ExperimentNameOption } from "../hooks/useExperimentNames";
+import { formatRunRecency } from "../fns/formatRunRecency";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   autoComparisonPreferenceChangedProps,
   comparisonChangedProps,
   comparisonPickerOpenedProps,
-} from "@/src/features/experiments/lib/analytics";
+} from "../lib/analytics";
 import {
   MAX_SELECTED_EXPERIMENTS,
   MAX_VISIBLE_COMPARISON_CHIPS,
   NO_DATASET_KEY,
   NO_DATASET_LABEL,
   UNNAMED_DATASET_LABEL,
-} from "@/src/features/experiments/constants/comparison";
+} from "../constants/comparison";
 import { getExperimentColorStyles } from "./table/types";
 import { cn } from "@/src/utils/tailwind";
 

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { type UrlUpdateType } from "use-query-params";
-import { useExperimentComparisonAutoSelect } from "@/src/features/experiments/hooks/useExperimentComparisonAutoSelect";
-import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
+import { useExperimentComparisonAutoSelect } from "../hooks/useExperimentComparisonAutoSelect";
+import { useExperimentNames } from "../hooks/useExperimentNames";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   comparisonChangedProps,
   type ExperimentComparisonSource,
-} from "@/src/features/experiments/lib/analytics";
+} from "../lib/analytics";
 import { ExperimentBaselineControls } from "./ExperimentBaselineControls";
 import { ExperimentComparisonSelector } from "./ExperimentComparisonSelector";
 import { getExperimentColorStyles } from "./table/types";

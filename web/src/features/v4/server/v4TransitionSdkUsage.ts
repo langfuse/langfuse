@@ -14,7 +14,7 @@ import {
   type IngestionSdkAttributionStatus,
 } from "@langfuse/shared/src/server";
 import { getSdkVersionCapabilityStatus } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
-import { getExperimentPostUsageByProject } from "@/src/features/v4/server/v4TransitionQueryLogUsage";
+import { getExperimentPostUsageByProject } from "./v4TransitionQueryLogUsage";
 import {
   getV4TransitionDetectionWindow,
   isV4TransitionCacheAvailable,
@@ -24,7 +24,7 @@ import {
   writeSdkUsageCache,
   type CachedSdkUsageSeries,
   type SdkUsageCacheBlob,
-} from "@/src/features/v4/server/v4TransitionCache";
+} from "./v4TransitionCache";
 
 type MigrationIngressSource = (typeof MIGRATION_INGRESS_EVENT_SOURCES)[number];
 type MigrationIngestionPath = "otel" | "ingestion_api";

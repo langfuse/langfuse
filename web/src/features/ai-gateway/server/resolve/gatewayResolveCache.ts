@@ -10,10 +10,7 @@ import { env } from "@/src/env.mjs";
 // Imported from the registry rather than the provider barrel: the barrel pulls
 // in the provider services, which invalidate this cache, and the resulting
 // import cycle leaves these schemas undefined at module init.
-import {
-  GatewayMetadataSchema,
-  gatewayApiFormats,
-} from "@/src/features/ai-gateway/server/provider/registry";
+import { GatewayMetadataSchema, gatewayApiFormats } from "../provider/registry";
 
 const CACHE_PREFIX = "ai-gateway:resolve";
 

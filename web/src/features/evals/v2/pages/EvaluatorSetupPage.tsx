@@ -22,11 +22,11 @@ import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout
 import { EvaluatorVersionHistorySheet } from "../components/Evaluators/EvaluatorVersionHistorySheet/EvaluatorVersionHistorySheet";
 import type { EvaluatorVersion } from "../components/Evaluators/EvaluatorVersionHistorySheet/types";
 import { EvaluatorVersionConflictDialog } from "../components/Evaluators/EvaluatorVersionConflictDialog/EvaluatorVersionConflictDialog";
-import { EvaluatorSetupEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/EvaluatorSetupEditor";
-import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupFooter/EvaluatorSetupFooter";
-import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
-import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
-import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import { EvaluatorSetupEditor } from "../components/Evaluators/EvaluatorSetupEditor/EvaluatorSetupEditor";
+import { EvaluatorSetupFooter } from "../components/Evaluators/EvaluatorSetupFooter/EvaluatorSetupFooter";
+import { SampleObservationSelectorContainer } from "../components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
+import { EvaluatorTestPanelContainer } from "../components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
+import { prepareEvaluatorDraft } from "../fns/evaluators/prepareEvaluatorDraft";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
@@ -38,32 +38,32 @@ import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import {
   createEvaluatorSetupStore,
   type EvaluatorSetupStore,
-} from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
-import type { EvaluatorSetupDraft } from "@/src/features/evals/v2/types/templateGallery";
-import { EvaluatorRuleRelationships } from "@/src/features/evals/v2/components/Rules/EvaluatorRuleRelationships/EvaluatorRuleRelationships";
-import { DefaultModelChangeConfirmationDialog } from "@/src/features/evals/v2/components/Evaluators/ProjectDefaultModel/DefaultModelChangeConfirmationDialog";
-import { useProjectDefaultModel } from "@/src/features/evals/v2/hooks/useProjectDefaultModel";
+} from "../store/evaluatorSetupStore/evaluatorSetupStore";
+import type { EvaluatorSetupDraft } from "../types/templateGallery";
+import { EvaluatorRuleRelationships } from "../components/Rules/EvaluatorRuleRelationships/EvaluatorRuleRelationships";
+import { DefaultModelChangeConfirmationDialog } from "../components/Evaluators/ProjectDefaultModel/DefaultModelChangeConfirmationDialog";
+import { useProjectDefaultModel } from "../hooks/useProjectDefaultModel";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
-import { EvaluatorSavedDialogContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialogContainer/EvaluatorSavedDialogContainer";
-import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "@/src/features/evals/v2/constants/evaluatorFilterExperience";
-import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
+import { EvaluatorSavedDialogContainer } from "../components/Evaluators/EvaluatorSavedDialogContainer/EvaluatorSavedDialogContainer";
+import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "../constants/evaluatorFilterExperience";
+import type { EvaluatorFilterExperience } from "../types/evaluatorFilterExperience";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useProject } from "@/src/features/projects/hooks";
-import { EvaluatorBlockedBanner } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBlockedBanner/EvaluatorBlockedBanner";
+import { EvaluatorBlockedBanner } from "../components/Evaluators/EvaluatorBlockedBanner/EvaluatorBlockedBanner";
 import { useIsMobile } from "@/src/hooks/use-mobile";
-import { prepareEvaluatorMetadataForSave } from "@/src/features/evals/v2/fns/prepareEvaluatorMetadataForSave";
+import { prepareEvaluatorMetadataForSave } from "../fns/prepareEvaluatorMetadataForSave";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { useEvaluatorAlerts } from "@/src/features/evals/v2/hooks/useEvaluatorAlerts";
-import { useCodeEvalSourceValidation } from "@/src/features/evals/hooks/useCodeEvalSourceValidation";
-import { EvaluatorAlertButton } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAlertButton/EvaluatorAlertButton";
-import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
-import { getFirstCodeEvaluatorScoreDataType } from "@/src/features/evals/v2/fns/evaluators/getFirstCodeEvaluatorScoreDataType";
+import { useEvaluatorAlerts } from "../hooks/useEvaluatorAlerts";
+import { useCodeEvalSourceValidation } from "../../hooks/useCodeEvalSourceValidation";
+import { EvaluatorAlertButton } from "../components/Evaluators/EvaluatorAlertButton/EvaluatorAlertButton";
+import { toScoreOutputFormState } from "../fns/scoreOutput/toScoreOutputFormState";
+import { getFirstCodeEvaluatorScoreDataType } from "../fns/evaluators/getFirstCodeEvaluatorScoreDataType";
 import {
   getEvaluatorCreationAnalyticsProperties,
   getJudgePromptAnalyticsProperties,
   type EvaluatorCreationSource,
-} from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
-import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
+} from "../fns/evaluators/getEvaluatorCreationAnalyticsProperties";
+import { getFilterAnalyticsProperties } from "../fns/getFilterAnalyticsProperties";
 
 type InitialEvaluator = {
   id: string;

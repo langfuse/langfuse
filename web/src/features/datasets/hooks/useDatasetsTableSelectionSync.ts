@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { type DatasetsTableStore } from "@/src/features/datasets/store/datasetsTableStore";
+import { type DatasetsTableStore } from "../store/datasetsTableStore";
 
 /**
  * Bridges React Query page data into the selection store, and resets the

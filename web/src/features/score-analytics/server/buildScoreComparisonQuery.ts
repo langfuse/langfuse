@@ -27,7 +27,7 @@
 import {
   normalizeIntervalForClickHouse,
   getClickHouseTimeBucketFunction,
-} from "@/src/features/score-analytics/lib/clickhouse-time-utils";
+} from "../lib/clickhouse-time-utils";
 import { type IntervalConfig } from "@/src/utils/date-range-utils";
 import { buildObjectTypeFilter, buildSamplingExpression } from "./queryHelpers";
 

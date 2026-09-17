@@ -3,9 +3,9 @@ import { type ScoreDomain, type Prisma } from "@langfuse/shared";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { usePreserveRelativeScroll } from "@/src/features/traces/hooks/usePreserveRelativeScroll";
+import { usePreserveRelativeScroll } from "../../hooks/usePreserveRelativeScroll";
 import { type MediaReturnType } from "@/src/features/media/validation";
-import { type ExpansionState } from "@/src/features/traces/components/AdvancedJsonViewer/types";
+import { type ExpansionState } from "../AdvancedJsonViewer/types";
 
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
 import { IOPreviewJSON, type IOPreviewJSONProps } from "./IOPreviewJSON";

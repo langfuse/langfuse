@@ -3,7 +3,7 @@ import {
   type CodeEvalSourceCodeLanguage,
   type PythonCodeEvalCompletionName,
   type TypeScriptCodeEvalCompletionName,
-} from "@/src/features/evals/utils/code-eval-template-starter-examples";
+} from "./code-eval-template-starter-examples";
 
 export type CodeEvalHoverDocs = Record<string, string>;
 

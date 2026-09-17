@@ -6,23 +6,23 @@ import {
 } from "lucide-react";
 import { type Table } from "@tanstack/react-table";
 
-import { Button } from "@/src/components/ui/button";
+import { Button } from "../ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/src/components/ui/select";
+} from "../ui/select";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
-import { Input } from "@/src/components/ui/input";
+import { Input } from "../ui/input";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+} from "../ui/tooltip";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { useEffect, useState } from "react";
 

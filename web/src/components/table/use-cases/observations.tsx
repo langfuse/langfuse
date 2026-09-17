@@ -1,11 +1,11 @@
 import { api } from "@/src/utils/api";
-import { DataTable } from "@/src/components/table/data-table";
-import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { DataTable } from "../data-table";
+import { DataTableToolbar } from "../data-table-toolbar";
 import {
   DataTableControlsProvider,
   DataTableControls,
-} from "@/src/components/table/data-table-controls";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+} from "../data-table-controls";
+import { ResizableFilterLayout } from "../resizable-filter-layout";
 import {
   useEffect,
   useLayoutEffect,
@@ -48,7 +48,7 @@ import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { type LangfuseColumnDef } from "../types";
 import { getObservationLevelStatus } from "@/src/components/level-colors";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import {
@@ -56,16 +56,16 @@ import {
   isObservationCostDisplayable,
 } from "@/src/utils/observationCost";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { useRowHeightLocalStorage } from "../data-table-row-height-switch";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
-import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
+import { ConnectedIOTableCell } from "../ConnectedIOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import {
   toAbsoluteTimeRange,
   type TableDateRange,
 } from "@/src/utils/date-range-utils";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "../table-header-controls";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -85,7 +85,7 @@ import { createStatusTableColumn } from "@/src/components/design-system/table/co
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
-import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
+import { TablePeekViewObservationDetail } from "../peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
   detailPageListKeys,
@@ -96,12 +96,12 @@ import { useTableViewFilterChange } from "@/src/components/table/table-view-pres
 import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
 import { observationsFieldRegistry } from "@/src/features/filters/config/tracingSearchRegistry";
 import { useRouter } from "next/router";
-import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
+import { useFullTextSearch } from "./useFullTextSearch";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
-import { type DataTablePeekViewProps } from "@/src/components/table/peek";
+import { type DataTablePeekViewProps } from "../peek";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
@@ -110,7 +110,7 @@ import { getSafeRedirectPath } from "@/src/utils/redirect";
 import {
   REFRESH_INTERVALS,
   type RefreshInterval,
-} from "@/src/components/table/utils/refresh-intervals";
+} from "../utils/refresh-intervals";
 import {
   ObservationsTableStoreProvider,
   useObservationsTableStore,

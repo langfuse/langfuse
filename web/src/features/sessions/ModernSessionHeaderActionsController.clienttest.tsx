@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { type MouseEventHandler, type ReactNode } from "react";
 import { vi } from "vitest";
 
-import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
+import { ModernSessionHeaderActionsController } from "./ModernSessionHeaderActionsController";
 import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
 
 const { mockUseSession, copy } = vi.hoisted(() => ({

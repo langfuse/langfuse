@@ -1,7 +1,7 @@
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
-import { RuleEvaluatorCostEstimate } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleEvaluatorCostEstimate";
+import { RuleEvaluatorCostEstimate } from "../../../RuleSetup/components/RuleEvaluatorCostEstimate";
 import { usdFormatter } from "@/src/utils/numbers";
 
 export function ActivationCostEstimateView({

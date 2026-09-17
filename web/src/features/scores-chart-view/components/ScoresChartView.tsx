@@ -3,14 +3,14 @@ import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { api } from "@/src/utils/api";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { VIEW_BY_DATASET } from "@/src/features/scores-chart-view/constants/viewByDataset";
+import { VIEW_BY_DATASET } from "../constants/viewByDataset";
 import {
   buildScoresChartQuery,
   scoreChartConfigToWidgetInput,
   scoreRowsToDataPoints,
-} from "@/src/features/scores-chart-view/fns/scoreChartConfig";
-import { type ScoreChartViewConfig } from "@/src/features/scores-chart-view/types";
-import { ScoreChartViewPanel } from "@/src/features/scores-chart-view/components/ScoreChartViewPanel/ScoreChartViewPanel";
+} from "../fns/scoreChartConfig";
+import { type ScoreChartViewConfig } from "../types";
+import { ScoreChartViewPanel } from "./ScoreChartViewPanel/ScoreChartViewPanel";
 // Shared with the observations chart view; only the widget-input mapper
 // passed to it (`scoreChartConfigToWidgetInput`) is scores-specific.
 import { AddToDashboardButton } from "@/src/features/chart-view/components/AddToDashboardButton";

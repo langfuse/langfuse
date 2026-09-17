@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { MobileRightDrawer } from "@/src/components/layouts/app-layout/right-drawer/MobileRightDrawer";
+import { MobileRightDrawer } from "./MobileRightDrawer";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 const mocks = vi.hoisted(() => ({

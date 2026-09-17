@@ -10,7 +10,7 @@ import {
   createInAppAgentDisplayState,
   recordInAppAgentMessagesForDisplay,
   recordInAppAgentToolCallForDisplay,
-} from "@/src/features/in-app-agent/lib/display";
+} from "../lib/display";
 
 /**
  * Rebuilds both representations a browser needs from one read of the persisted

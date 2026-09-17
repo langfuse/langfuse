@@ -7,16 +7,8 @@
  * for wheel and touch while keyboard navigation still works.
  */
 import { fireEvent, render, screen } from "@testing-library/react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { Popover, PopoverContent, PopoverTrigger } from "./popover";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "./hover-card";
 
 describe("overlay content keeps scroll events local", () => {
   beforeAll(() => {

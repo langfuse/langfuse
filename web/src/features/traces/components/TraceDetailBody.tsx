@@ -1,6 +1,6 @@
-import { Trace, type TraceProps } from "@/src/features/traces/components/Trace";
+import { Trace, type TraceProps } from "./Trace";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
+import { type useTraceDetailData } from "../hooks/useTraceDetailData";
 
 type TraceDetailData = NonNullable<
   ReturnType<typeof useTraceDetailData>["data"]

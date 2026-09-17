@@ -9,18 +9,18 @@ import {
 } from "@langfuse/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 
-import { inferDefaultMapping } from "@/src/features/evals/utils/evaluator-form-utils";
-import { getDefaultCodeEvalSource } from "@/src/features/evals/utils/code-eval-template-starter-examples";
-import { DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING } from "@/src/features/evals/utils/evaluator-constants";
-import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
+import { inferDefaultMapping } from "../../../utils/evaluator-form-utils";
+import { getDefaultCodeEvalSource } from "../../../utils/code-eval-template-starter-examples";
+import { DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING } from "../../../utils/evaluator-constants";
+import type { SampleObservation } from "../../components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import type {
   ActiveVariableMapping,
   VariableFieldState,
-} from "@/src/features/evals/v2/types/variableMapping";
-import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
-import type { ScoreOutputFormState } from "@/src/features/evals/v2/scoreOutputTypes";
-import type { NormalizedEvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
-import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
+} from "../../types/variableMapping";
+import type { JudgeModel } from "../../judgeModel";
+import type { ScoreOutputFormState } from "../../scoreOutputTypes";
+import type { NormalizedEvaluatorDefinition } from "../../server/evaluators/evaluatorTypes";
+import { toScoreOutputFormState } from "../../fns/scoreOutput/toScoreOutputFormState";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 
 const DEFAULT_PROMPT = `Evaluate the quality of the response.

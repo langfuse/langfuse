@@ -8,7 +8,7 @@ import {
   BreakdownTooltip,
   type CostSource,
   type PriceSource,
-} from "@/src/features/traces/components/BreakdownTooltip";
+} from "./BreakdownTooltip";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
 import { InfoIcon } from "lucide-react";
 

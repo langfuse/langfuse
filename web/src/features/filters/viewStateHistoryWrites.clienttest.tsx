@@ -14,7 +14,7 @@ import {
 } from "use-query-params";
 import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
 import type { FilterConfig } from "./lib/filter-config";
-import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 
 // LFE-10715: programmatic view-state URL writes (stripping a stale frontend
 // system-preset viewId, auto-applying the session default view) must REPLACE

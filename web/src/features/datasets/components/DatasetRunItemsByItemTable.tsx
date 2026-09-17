@@ -19,12 +19,9 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { convertRunItemToItemsByItemUiTableRow } from "@/src/features/datasets/lib/convertRunItemDataToUiTableRow";
-import {
-  DatasetItemIOCell,
-  TraceObservationIOCell,
-} from "@/src/features/datasets/components/DatasetIOCells";
-import { type DatasetRunItemByItemRowData } from "@/src/features/datasets/lib/types";
+import { convertRunItemToItemsByItemUiTableRow } from "../lib/convertRunItemDataToUiTableRow";
+import { DatasetItemIOCell, TraceObservationIOCell } from "./DatasetIOCells";
+import { type DatasetRunItemByItemRowData } from "../lib/types";
 
 export function DatasetRunItemsByItemTable(props: {
   projectId: string;

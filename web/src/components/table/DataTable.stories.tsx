@@ -9,14 +9,11 @@ import {
 import { type OrderByState } from "@langfuse/shared";
 import Decimal from "decimal.js";
 
-import {
-  DataTable,
-  type AsyncTableData,
-} from "@/src/components/table/data-table";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
-import { Badge } from "@/src/components/ui/badge";
-import { Button } from "@/src/components/ui/button";
+import { DataTable, type AsyncTableData } from "./data-table";
+import { type LangfuseColumnDef } from "./types";
+import { type RowHeight } from "./data-table-row-height-switch";
+import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
@@ -27,7 +24,7 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { Skeleton } from "../ui/skeleton";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
 import {
@@ -35,16 +32,13 @@ import {
   formatIntervalSeconds,
 } from "@/src/utils/dates";
 import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
-import { MediaTag } from "@/src/components/MediaTag/MediaTag";
+import { MediaTag } from "../MediaTag/MediaTag";
 import { type MediaDescriptor } from "@/src/components/ui/media/mediaUtils";
-import {
-  LevelCountsDisplay,
-  type LevelCount,
-} from "@/src/components/level-counts-display";
-import { formatAsLabel, LevelSymbols } from "@/src/components/level-colors";
+import { LevelCountsDisplay, type LevelCount } from "../level-counts-display";
+import { formatAsLabel, LevelSymbols } from "../level-colors";
 import TagList from "@/src/features/tag/components/TagList";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
-import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
+import { DropdownMenuItem } from "../ui/dropdown-menu";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import {
   Copy,

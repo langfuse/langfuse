@@ -5,12 +5,12 @@ import {
 } from "@langfuse/shared";
 import { type views } from "@langfuse/shared/query";
 import { type z } from "zod";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { mapLegacyUiTableFilterToView } from "./dashboardUiTableToViewMapping";
 import {
   classifyViewFiltersForTable,
   tableTargetForView,
   type TableVersion,
-} from "@/src/features/dashboard/lib/viewFilterToTableFilter";
+} from "./viewFilterToTableFilter";
 import { rangeToString } from "@/src/utils/date-range-utils";
 
 type ViewName = z.infer<typeof views>;

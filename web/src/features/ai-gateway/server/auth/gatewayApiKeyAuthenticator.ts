@@ -1,20 +1,20 @@
 import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
 
-import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
-import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
+import { isGatewayEnabledForOrganization } from "../availability";
+import { GatewayControlPlaneError } from "../gatewayControlPlaneError";
 import {
   type GatewayApiFormat,
   type GatewayMetadata,
   GatewayMetadataSchema,
   gatewayProviders,
   providerSupportsApiFormat,
-} from "@/src/features/ai-gateway/server/provider/registry";
+} from "../provider/registry";
 import {
   type CachedResolveContext,
   GATEWAY_RESOLVE_KEY_NON_EXISTENT,
   GatewayResolveCache,
-} from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
-import { GatewayResolveRepository } from "@/src/features/ai-gateway/server/resolve/gatewayResolveRepository";
+} from "../resolve/gatewayResolveCache";
+import { GatewayResolveRepository } from "../resolve/gatewayResolveRepository";
 
 export type GatewayApiKeyAuthContext = CachedResolveContext;
 

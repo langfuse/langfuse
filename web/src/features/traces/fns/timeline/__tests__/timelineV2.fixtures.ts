@@ -4,7 +4,7 @@
  * the tests look at the same pixels.
  */
 
-import type { LayoutNode } from "@/src/features/traces/fns/timeline/layout";
+import type { LayoutNode } from "../layout";
 
 const BASE_START = new Date("2024-01-01T00:00:00.000Z").getTime();
 

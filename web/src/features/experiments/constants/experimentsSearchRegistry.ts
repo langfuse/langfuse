@@ -4,7 +4,7 @@ import {
 } from "@/src/features/search-bar";
 import type { FilterConfig } from "@/src/features/filters";
 
-import { experimentsFilterConfig } from "@/src/features/experiments/components/table/filter-config";
+import { experimentsFilterConfig } from "../components/table/filter-config";
 
 /**
  * Derived from the sidebar's FACET list, not the raw `ColumnDefinition[]` — the

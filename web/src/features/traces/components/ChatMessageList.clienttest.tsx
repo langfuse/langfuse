@@ -21,8 +21,8 @@ vi.mock(
   }),
 );
 
-import { ChatMessageList } from "@/src/features/traces/components/ChatMessageList";
-import { type ChatMlMessage } from "@/src/features/traces/fns/chatMessageUtils";
+import { ChatMessageList } from "./ChatMessageList";
+import { type ChatMlMessage } from "../fns/chatMessageUtils";
 import { type MediaReturnType } from "@/src/features/media/validation";
 
 // Pin the limit so the test does not depend on the ambient .env value.

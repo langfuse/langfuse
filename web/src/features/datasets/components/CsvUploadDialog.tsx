@@ -5,9 +5,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { PreviewCsvImport } from "@/src/features/datasets/components/PreviewCsvImport";
-import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatasetCsv";
-import type { CsvPreviewResult } from "@/src/features/datasets/lib/csv/types";
+import { PreviewCsvImport } from "./PreviewCsvImport";
+import { UploadDatasetCsv } from "./UploadDatasetCsv";
+import type { CsvPreviewResult } from "../lib/csv/types";
 import {
   Tooltip,
   TooltipContent,

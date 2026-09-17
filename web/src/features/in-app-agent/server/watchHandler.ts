@@ -6,7 +6,7 @@ import type { InAppAgentWatchFrame } from "../watchFrames";
 import { watchConversationFrames } from "./watch";
 import { z } from "zod";
 
-import { assertInAppAgentAvailable } from "@/src/features/in-app-agent/server/availability";
+import { assertInAppAgentAvailable } from "./availability";
 import { getServerAuthSessionForRequest } from "@/src/server/auth";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 

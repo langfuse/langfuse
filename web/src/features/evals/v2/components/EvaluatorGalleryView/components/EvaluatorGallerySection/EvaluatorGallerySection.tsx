@@ -7,15 +7,15 @@ import { EvaluatorTemplateRow } from "./components/EvaluatorTemplateRow/Evaluato
 import type {
   GalleryTemplate,
   GallerySection,
-} from "@/src/features/evals/v2/types/templateGallery";
+} from "../../../../types/templateGallery";
 import {
   EVALUATOR_GALLERY_PREVIEW_SIZE,
   EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
   EVALUATOR_GALLERY_SAFETY_CALLOUT,
   EVALUATOR_GALLERY_SAFETY_SECTION_KEY,
-} from "@/src/features/evals/v2/constants/evaluatorGallery";
-import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
-import { getGalleryTemplateId } from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
+} from "../../../../constants/evaluatorGallery";
+import { getGalleryCategoryPresentation } from "../../../../fns/templateGallery/galleryCategoryPresentation";
+import { getGalleryTemplateId } from "../../../../fns/templateGallery/galleryTemplatePresentation";
 import { cn } from "@/src/utils/tailwind";
 
 export function EvaluatorGallerySection({

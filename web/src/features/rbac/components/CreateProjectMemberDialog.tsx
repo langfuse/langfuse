@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
+import { RoleSelectItem } from "./RoleSelectItem";
 import { reportTrpcErrorWithoutToast } from "@/src/utils/api";
 
 const roleValues = {

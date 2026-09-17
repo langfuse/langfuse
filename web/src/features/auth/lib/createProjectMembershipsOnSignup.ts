@@ -11,7 +11,7 @@ import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
 import { projectRoleAccessRights } from "@langfuse/shared";
-import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
+import { type AdClickIds } from "./signupAttribution";
 
 export async function createProjectMembershipsOnSignup(
   user: {

@@ -1,4 +1,4 @@
-import { type ScoreChartDataset } from "@/src/features/scores-chart-view/types";
+import { type ScoreChartDataset } from "../types";
 
 /**
  * The view a config's `dataset` queries — one-to-one with the three score

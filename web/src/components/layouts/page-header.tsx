@@ -1,35 +1,29 @@
 /* eslint-disable @repo/no-style-props */
-import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
+import { EnvLabelBadge } from "../EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
-import {
-  getItemTypeLabels,
-  type LangfuseItemType,
-} from "@/src/components/ItemBadge";
-import { TextChip } from "@/src/components/TextChip";
-import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
-import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
-import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
-import { TopbarBrand } from "@/src/components/nav/topbar-brand";
-import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
+import { getItemTypeLabels, type LangfuseItemType } from "../ItemBadge";
+import { TextChip } from "../TextChip";
+import BreadcrumbComponent from "./breadcrumb";
+import { PageHeaderControlsSlotTarget } from "./page-header-controls-slot";
+import { InAppAiAgentButton } from "../nav/in-app-ai-agent-button";
+import { TopbarBrand } from "../nav/topbar-brand";
+import { useHasAppSidebar } from "../nav/sidebar-presence";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import DocPopup from "@/src/components/layouts/doc-popup";
-import { SidebarTrigger } from "@/src/components/ui/sidebar";
+import DocPopup from "./doc-popup";
+import { SidebarTrigger } from "../ui/sidebar";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import {
-  PageTabs,
-  type PageTabsProps,
-} from "@/src/components/layouts/page-tabs";
+} from "../ui/tooltip";
+import { PageTabs, type PageTabsProps } from "./page-tabs";
 import { cn } from "@/src/utils/tailwind";
 import { type ReactNode } from "react";
 import {
   APP_SHELL_CHROME_ROW_CLASS,
   APP_SHELL_CHROME_ROW_TEST_ID,
-} from "@/src/components/layouts/app-shell-chrome";
+} from "./app-shell-chrome";
 
 const containerLayoutClassName =
   "lg:mx-auto lg:w-full lg:max-w-screen-lg lg:px-8 xl:max-w-screen-xl 2xl:max-w-[1400px]";

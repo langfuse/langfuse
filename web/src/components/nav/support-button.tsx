@@ -1,5 +1,5 @@
 import { LifeBuoy } from "lucide-react";
-import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
+import { SidebarMenuButton, useSidebar } from "../ui/sidebar";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";

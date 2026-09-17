@@ -22,16 +22,16 @@ import {
 import {
   formatScoreColumnAggregate,
   formatScoreValue,
-} from "@/src/features/experiments/fns/formatScoreColumnAggregate";
+} from "../../fns/formatScoreColumnAggregate";
 import {
   summariseScoreColumn,
   type ScoreColumnDataType,
   type ScoreColumnSummary,
-} from "@/src/features/experiments/fns/summariseScoreColumn";
+} from "../../fns/summariseScoreColumn";
 import {
   scoreFieldForLevel,
   type ScoreLevel,
-} from "@/src/features/experiments/fns/scoreComparisonFilter";
+} from "../../fns/scoreComparisonFilter";
 import {
   getExperimentColorStyles,
   type ExperimentItemsTableRow,

@@ -5,8 +5,8 @@ import {
   metadataJsonPathsStorageKey,
   parseStoredMetadataJsonPaths,
   resolveMetadataJsonPath,
-} from "@/src/features/sessions/sessionMetadataJsonPath";
-import { getVisibleSessionObservations } from "@/src/features/sessions/sessionVisibleObservations";
+} from "./sessionMetadataJsonPath";
+import { getVisibleSessionObservations } from "./sessionVisibleObservations";
 
 const observation = ({
   id,

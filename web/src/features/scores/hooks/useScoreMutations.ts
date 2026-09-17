@@ -1,9 +1,6 @@
 import { api } from "@/src/utils/api";
-import {
-  isSessionScore,
-  isTraceScore,
-} from "@/src/features/scores/lib/helpers";
-import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
+import { isSessionScore, isTraceScore } from "../lib/helpers";
+import { useScoreCache } from "../contexts/ScoreCacheContext";
 import { type ScoreTarget } from "@langfuse/shared";
 import { showErrorToast } from "@/src/features/notifications";
 

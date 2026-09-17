@@ -2,7 +2,7 @@
 import { logger, redis } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
-import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
+import { ServerPosthog } from "../ServerPosthog";
 
 const BACKEND_ACTIVITY_EVENT = "backend:activity";
 const DEDUPLICATION_TTL_SECONDS = 60 * 60;

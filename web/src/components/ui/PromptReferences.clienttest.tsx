@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { extractVariables } from "@langfuse/shared";
-import { renderRichPromptContent } from "@/src/components/ui/PromptReferences";
+import { renderRichPromptContent } from "./PromptReferences";
 
 describe("renderRichPromptContent", () => {
   it("preserves triple-brace prompt variable text in rich prompt rendering", () => {

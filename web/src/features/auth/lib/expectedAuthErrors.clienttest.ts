@@ -5,8 +5,8 @@ import {
   isExpectedAuthErrorPageMessage,
   isNextAuthMissingSignInUrlError,
   isJsonParseSyntaxError,
-} from "@/src/features/auth/lib/expectedAuthErrors";
-import { MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE } from "@/src/features/auth/constants";
+} from "./expectedAuthErrors";
+import { MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE } from "../constants";
 
 describe("expectedAuthErrors", () => {
   describe("isExpectedSignInError", () => {

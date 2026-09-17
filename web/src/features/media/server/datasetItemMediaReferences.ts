@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { getMediaStorageServiceClient } from "@/src/features/media/server/getMediaStorageClient";
+import { getMediaStorageServiceClient } from "./getMediaStorageClient";
 import { type APIDatasetItemMediaReference } from "@/src/features/public-api/server";
 import { logger } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";

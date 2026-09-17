@@ -14,11 +14,8 @@ import {
 import { useCallback, useRef } from "react";
 import { useStore } from "zustand";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
-import {
-  type FilterConfig,
-  useSidebarFilterState,
-} from "@/src/features/filters";
-import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
+import { type FilterConfig, useSidebarFilterState } from "../filters";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {

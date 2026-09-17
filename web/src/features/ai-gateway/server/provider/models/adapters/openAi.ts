@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-import { getGatewayProviderDefinition } from "@/src/features/ai-gateway/server/provider/registry";
+import { getGatewayProviderDefinition } from "../../registry";
 import { requestJson, standardHttpError } from "./shared";
 import type { ModelDiscoveryAdapter } from "../types";
 

@@ -2,10 +2,10 @@ import { memo, useMemo, useRef } from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
-import { VariableMapping } from "@/src/features/evals/v2/components/VariableMapping/VariableMapping";
-import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
-import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
-import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { VariableMapping } from "../../../../../../VariableMapping/VariableMapping";
+import { buildEvaluatorVariableMappings } from "../../../../../../../fns/variableMapping/buildEvaluatorVariableMappings";
+import { useEvaluatorSetupSample } from "../../../../../../../hooks/useEvaluatorSetupSample";
+import type { EvaluatorSetupStore } from "../../../../../../../store/evaluatorSetupStore/evaluatorSetupStore";
 
 const StableVariableMapping = memo(VariableMapping);
 

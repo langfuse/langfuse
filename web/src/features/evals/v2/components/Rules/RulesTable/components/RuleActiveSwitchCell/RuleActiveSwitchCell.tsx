@@ -3,7 +3,7 @@ import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
-import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import { isLegacyEvalTarget } from "../../../../../../utils/typeHelpers";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["list"]["rules"][number];
 

@@ -1,8 +1,8 @@
 import type * as z from "zod";
 import { useSession } from "next-auth/react";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useLangfuseCloudRegion } from "../hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import type { organizationFormSchema } from "@/src/features/organizations/utils/organizationNameSchema";
+import type { organizationFormSchema } from "../utils/organizationNameSchema";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { NewOrganizationForm } from "./NewOrganizationForm";
 

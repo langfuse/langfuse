@@ -8,9 +8,9 @@ import {
   type RuleEvaluatorOption,
 } from "@/src/features/evals";
 import { api, sendAsPostOption } from "@/src/utils/api";
-import { ExperimentEvaluatorAssignmentsEditor } from "@/src/features/experiments/components/ExperimentEvaluatorAssignments/components/ExperimentEvaluatorAssignmentsEditor/ExperimentEvaluatorAssignmentsEditor";
-import { buildExperimentEvaluatorSampleObject } from "@/src/features/experiments/components/ExperimentEvaluatorAssignments/fns/buildExperimentEvaluatorSampleObject";
-import type { ExperimentEvaluatorAssignmentsHandle } from "@/src/features/experiments/components/ExperimentEvaluatorAssignments/types/experimentEvaluatorAssignmentsHandle";
+import { ExperimentEvaluatorAssignmentsEditor } from "./components/ExperimentEvaluatorAssignmentsEditor/ExperimentEvaluatorAssignmentsEditor";
+import { buildExperimentEvaluatorSampleObject } from "./fns/buildExperimentEvaluatorSampleObject";
+import type { ExperimentEvaluatorAssignmentsHandle } from "./types/experimentEvaluatorAssignmentsHandle";
 
 type ExperimentEvaluatorAssignmentsProps = {
   projectId: string;

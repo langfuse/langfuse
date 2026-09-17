@@ -1,6 +1,6 @@
-import { EvaluatorGalleryMethodBadge } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryMethodBadge/EvaluatorGalleryMethodBadge";
-import { getGalleryTemplatePresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
-import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
+import { EvaluatorGalleryMethodBadge } from "../../../EvaluatorGalleryMethodBadge/EvaluatorGalleryMethodBadge";
+import { getGalleryTemplatePresentation } from "../../../../../../fns/templateGallery/galleryTemplatePresentation";
+import type { GalleryTemplate } from "../../../../../../types/templateGallery";
 
 export function EvaluatorTemplateRow({
   template,

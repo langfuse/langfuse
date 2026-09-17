@@ -12,8 +12,8 @@ import {
   extractVariables,
 } from "@langfuse/shared";
 import { type PrismaClient, Prisma } from "@langfuse/shared/src/db";
-import { removeLabelsFromPreviousPromptVersions } from "@/src/features/prompts/server/utils/updatePromptLabels";
-import { updatePromptTagsOnAllVersions } from "@/src/features/prompts/server/utils/updatePromptTags";
+import { removeLabelsFromPreviousPromptVersions } from "../utils/updatePromptLabels";
+import { updatePromptTagsOnAllVersions } from "../utils/updatePromptTags";
 import {
   PromptContentSchema,
   PromptService,
@@ -23,7 +23,7 @@ import {
   extractPlaceholderNames,
   type PromptResult,
 } from "@langfuse/shared/src/server";
-import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
+import { promptChangeEventSourcing } from "../promptChangeEventSourcing";
 
 export type CreatePromptParams = CreatePromptTRPCType & {
   createdBy: string;

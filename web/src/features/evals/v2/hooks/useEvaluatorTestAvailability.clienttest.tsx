@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { createEvaluatorSetupStore } from "../store/evaluatorSetupStore/evaluatorSetupStore";
 
 import { useEvaluatorTestAvailability } from "./useEvaluatorTestAvailability";
 

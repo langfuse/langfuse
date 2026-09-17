@@ -4,7 +4,7 @@ import {
   ScoreDataTypeEnum,
 } from "@langfuse/shared";
 
-import { type ScoreOutputFormState } from "@/src/features/evals/v2/scoreOutputTypes";
+import { type ScoreOutputFormState } from "../../scoreOutputTypes";
 
 export function toScoreOutputFormState(
   outputDefinition: unknown,

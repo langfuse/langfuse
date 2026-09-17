@@ -30,22 +30,22 @@ import {
   evalConfigFilterColumns,
   evalConfigsTableCols,
 } from "@/src/server/api/definitions/evalConfigsTable";
-import { resetEvalConfigBlockFields } from "@/src/features/evals/server/evalConfigState";
-import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import { resetEvalConfigBlockFields } from "./evalConfigState";
+import { isLegacyEvalTarget } from "../utils/typeHelpers";
 import {
   getEvalTemplateVariables,
   prepareConfigsForTemplateUpgrade,
   prepareVariableMappingForEvaluatorUpgrade,
-} from "@/src/features/evals/server/evaluatorUpgrade";
-import { getSupportedCodeEvalTemplateLanguages } from "@/src/features/evals/server/isCodeEvalEnabled";
-import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";
-import type { ManagedTemplate } from "@/src/features/evals/v2/types/templateGallery";
-import type { EvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+} from "./evaluatorUpgrade";
+import { getSupportedCodeEvalTemplateLanguages } from "./isCodeEvalEnabled";
+import { MANAGED_TEMPLATES_CATALOG } from "../v2/constants/managedTemplatesCatalog";
+import type { ManagedTemplate } from "../v2/types/templateGallery";
+import type { EvaluatorDefinition } from "../v2/server/evaluators/evaluatorTypes";
 import {
   getLegacyEvaluatorPrompt,
   reconcileEvaluatorPromptMessages,
   toEvaluatorDefinition,
-} from "@/src/features/evals/v2/server/evaluators/evaluatorService";
+} from "../v2/server/evaluators/evaluatorService";
 
 const MANAGED_TEMPLATE_ID_PREFIX = "managed:";
 

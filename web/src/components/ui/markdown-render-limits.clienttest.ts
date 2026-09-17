@@ -2,7 +2,7 @@ import {
   MARKDOWN_MAX_NESTING_DEPTH,
   estimateMarkdownNestingDepth,
   exceedsMarkdownRenderLimits,
-} from "@/src/components/ui/markdown-render-limits";
+} from "./markdown-render-limits";
 
 const DEFAULT_CHARACTER_LIMIT = 150_000;
 const exceedsDefaultLimits = (content: string) =>

@@ -1,4 +1,4 @@
-import type { BlobStorageSyncStatus } from "@/src/features/blobstorage-integration/types";
+import type { BlobStorageSyncStatus } from "./types";
 
 const MAX_RUN_AGE_MS = 2 * 60 * 60 * 1000;
 

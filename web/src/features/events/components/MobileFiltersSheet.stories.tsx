@@ -3,7 +3,7 @@ import { useState, type ComponentProps } from "react";
 import { fn } from "storybook/test";
 import { ChevronDown, RefreshCw } from "lucide-react";
 
-import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";
+import { MobileFiltersSheet } from "./MobileFiltersSheet";
 import { ControlsContext } from "@/src/components/table/data-table-controls";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";

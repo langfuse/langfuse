@@ -18,14 +18,14 @@ import {
 import {
   removeInternalEvaluationEnvironmentColumnOptions,
   removeInternalEvaluationEnvironmentOptions,
-} from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/buildSampleQueryFilters";
+} from "../fns/buildSampleQueryFilters";
 import {
   DATASET_NAME_COLUMN,
   DATASET_NAME_FILTER_COLUMN,
   addDatasetNameObservedOptions,
   type DatasetFilterOption,
-} from "@/src/features/evals/v2/utils/datasetNameFilter";
-import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
+} from "../../../../../../utils/datasetNameFilter";
+import type { EvaluatorFilterExperience } from "../../../../../../types/evaluatorFilterExperience";
 
 export type MapSampleObservedOptions = (
   observed: ObservedOptions | undefined,

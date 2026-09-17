@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TracePanelDetail } from "@/src/features/traces/components/TracePanelDetail";
+import { TracePanelDetail } from "./TracePanelDetail";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 
 const { mockUseSelection, mockUseTraceData, mockByIdQuery } = vi.hoisted(

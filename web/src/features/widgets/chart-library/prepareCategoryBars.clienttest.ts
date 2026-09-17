@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   CATEGORY_COLOR_LIMIT,
   prepareCategoryBars,
-} from "@/src/features/widgets/chart-library/prepareCategoryBars";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+} from "./prepareCategoryBars";
+import { type DataPoint } from "./chart-props";
 
 const bars = (count: number): DataPoint[] =>
   Array.from({ length: count }, (_, index) => ({

@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react";
 
-import { EVALUATOR_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
+import { EVALUATOR_FIELD_REGISTRY } from "../../../../../../constants/evaluatorSearchRegistry";
 import { useSampleObservationFilterOptions } from "./useSampleObservationFilterOptions";
 
 const { useEventsFilterOptionsMock } = vi.hoisted(() => ({

@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 
 import { env } from "@/src/env.mjs";
-import { type WebCalloutInvokeInput } from "@/src/features/web-callouts/types";
+import { type WebCalloutInvokeInput } from "../types";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import {

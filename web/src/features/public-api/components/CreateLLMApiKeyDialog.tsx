@@ -11,7 +11,7 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
-import { CreateLLMApiKeyForm } from "@/src/features/public-api/components/CreateLLMApiKeyForm";
+import { CreateLLMApiKeyForm } from "./CreateLLMApiKeyForm";
 
 export function CreateLLMApiKeyDialog({
   open,

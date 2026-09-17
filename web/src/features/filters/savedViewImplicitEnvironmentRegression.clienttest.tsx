@@ -14,11 +14,8 @@ import {
 import { useState } from "react";
 import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
 import type { FilterConfig } from "./lib/filter-config";
-import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
-import {
-  EVENTS_FIELD_REGISTRY,
-  filterStateToQueryText,
-} from "@/src/features/search-bar";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { EVENTS_FIELD_REGISTRY, filterStateToQueryText } from "../search-bar";
 import {
   buildManagedEnvironmentPolicyConfig,
   toSearchBarEnvironmentFilters,

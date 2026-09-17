@@ -4,12 +4,12 @@ import { useState } from "react";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
 import { FormDescription, FormLabel } from "@/src/components/ui/form";
-import { derivePriorities } from "@/src/features/models/fns/derivePriorities";
-import { makeUsageTypeKeys } from "@/src/features/models/fns/makeUsageTypeKeys";
+import { derivePriorities } from "../../fns/derivePriorities";
+import { makeUsageTypeKeys } from "../../fns/makeUsageTypeKeys";
 import { TierAccordionItem } from "./components/TierAccordionItem";
 import { TierPriceEditor } from "./components/TierPriceEditor";
 import { TierPrefillButtons } from "./components/TierPrefillButtons";
-import type { FormUpsertModel } from "@/src/features/models/validation";
+import type { FormUpsertModel } from "../../validation";
 
 type PricingSectionProps = {
   form: UseFormReturn<FormUpsertModel>;

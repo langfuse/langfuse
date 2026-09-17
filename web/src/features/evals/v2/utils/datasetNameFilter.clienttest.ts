@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   EVALUATOR_FIELD_REGISTRY,
   RULE_SAMPLE_FIELD_REGISTRY,
-} from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
+} from "../constants/evaluatorSearchRegistry";
 import {
   type FieldRegistry,
   filterStateToQueryText,

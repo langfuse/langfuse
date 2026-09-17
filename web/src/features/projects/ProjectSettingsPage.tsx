@@ -1,21 +1,21 @@
 import Header from "@/src/components/layouts/header";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
-import { DeleteProjectDialogController } from "@/src/features/projects/components/DeleteProjectDialogController";
-import { HostNameProject } from "@/src/features/projects/components/HostNameProject";
-import RenameProject from "@/src/features/projects/components/RenameProject";
+import { DeleteProjectDialogController } from "./components/DeleteProjectDialogController";
+import { HostNameProject } from "./components/HostNameProject";
+import RenameProject from "./components/RenameProject";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { LlmApiKeyList } from "@/src/features/public-api/components/LLMApiKeyList";
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useQueryProject } from "./hooks";
 import { MembershipInvitesPage } from "@/src/features/rbac/components/MembershipInvitesPage";
 import { MembersTable } from "@/src/features/rbac/components/MembersTable";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { PostHogLogo } from "@/src/components/PosthogLogo";
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import { Card } from "@/src/components/ui/card";
-import { TransferProjectDialogController } from "@/src/features/projects/components/TransferProjectDialogController";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { TransferProjectDialogController } from "./components/TransferProjectDialogController";
+import { useHasEntitlement } from "../entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
@@ -24,7 +24,7 @@ import { BatchExportsSettingsPage } from "@/src/features/batch-exports/component
 import { BatchActionsSettingsPage } from "@/src/features/batch-actions/components/BatchActionsSettingsPage";
 import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/AuditLogsSettingsPage";
 import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
-import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
+import ConfigureRetention from "./components/ConfigureRetention";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import ProtectedLabelsSettings from "@/src/features/prompts/components/ProtectedLabelsSettings";
@@ -35,7 +35,7 @@ import { PersonalNotificationSettings } from "@/src/features/notifications/compo
 import { ProjectNotificationChannels } from "@/src/features/notifications/components/ProjectNotificationChannels";
 import { WebCalloutIntegrationCard } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
 import { DeveloperToolsSettings } from "@/src/features/developer-tools/components/DeveloperToolsSettings";
-import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useV4UpgradeUiFlag } from "../v4-migration/useV4UpgradeUiEnabled";
 
 type ProjectSettingsPageEntry = {
   title: string;

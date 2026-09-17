@@ -3,11 +3,8 @@ import { type ZodType } from "zod";
 import {
   createAuthedProjectAPIRoute,
   type AuthedProjectAPIRouteConfig,
-} from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import {
-  withMiddlewares,
-  type HttpMethod,
-} from "@/src/features/public-api/server/withMiddlewares";
+} from "./createAuthedProjectAPIRoute";
+import { withMiddlewares, type HttpMethod } from "./withMiddlewares";
 import { structuredPublicApiErrorContract } from "./structuredPublicApiErrorContract";
 
 type StablePublicApiRouteConfig<

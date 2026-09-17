@@ -4,13 +4,13 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Lock, Plus } from "lucide-react";
-import EvalsTemplateTable from "@/src/features/evals/components/eval-templates-table";
+import EvalsTemplateTable from "../components/eval-templates-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   getEvalsTabs,
   EVALS_TABS,
 } from "@/src/features/navigation/utils/evals-tabs";
-import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
+import { ManageDefaultEvalModel } from "../components/manage-default-eval-model";
 import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export default function TemplatesPage() {

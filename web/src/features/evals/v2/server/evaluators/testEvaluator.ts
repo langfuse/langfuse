@@ -19,7 +19,7 @@ import {
   runCodeBasedEvaluationDispatch,
   type ExtractedVariable,
 } from "@langfuse/shared/src/server";
-import { getObservationForEvalById } from "@/src/features/evals/server/getObservationForEvalById";
+import { getObservationForEvalById } from "../../../server/getObservationForEvalById";
 import type { NormalizedEvaluatorDefinition } from "./evaluatorTypes";
 import {
   assertCompleteEvaluatorVariableMapping,

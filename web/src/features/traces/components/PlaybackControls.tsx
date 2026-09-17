@@ -26,12 +26,12 @@ import {
   usePlayhead,
   useIsPlaying,
   useShowPlayhead,
-} from "@/src/features/traces/contexts/PlayheadContext";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
-import { useSearch } from "@/src/features/traces/contexts/SearchContext";
+} from "../contexts/PlayheadContext";
+import { useTraceData } from "../contexts/TraceDataContext";
+import { useTraceGraphData } from "../contexts/TraceGraphDataContext";
+import { useSearch } from "../contexts/SearchContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
+import { useTraceAnalyticsDimensions } from "../hooks/useTraceAnalyticsDimensions";
 
 // A 22px ring around the ~28px (h-7) button; 2px stroke reads at this size.
 const RING_SIZE = 22;

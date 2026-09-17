@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GATEWAY_MODELS_FIELD_REGISTRY } from "@/src/features/ai-gateway/constants/modelsSearchRegistry";
+import { GATEWAY_MODELS_FIELD_REGISTRY } from "../../../../../constants/modelsSearchRegistry";
 import {
   filterStateToQueryText,
   planCommit,

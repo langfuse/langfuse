@@ -1,11 +1,7 @@
 import { InfoIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../tooltip";
 
 export function InfoTooltip({
   label,

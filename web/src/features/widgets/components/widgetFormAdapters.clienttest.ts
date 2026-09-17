@@ -8,13 +8,13 @@ import {
   mapWidgetUiTableFilterToView,
   normalizeStoredWidgetFiltersForEditor,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+import { isTimeSeriesChart } from "../chart-library/utils";
 import {
   buildWidgetDescription,
   buildWidgetName,
   sanitizePivotTableDefaultSort,
   type WidgetChartConfig,
-} from "@/src/features/widgets/utils";
+} from "../utils";
 
 import {
   applyChartTypeChange,

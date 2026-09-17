@@ -2,7 +2,7 @@ import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import type {
   ActivationConfirmationState,
   ActivationEstimateState,
-} from "@/src/features/evals/v2/hooks/useActivationConfirmation";
+} from "../../../hooks/useActivationConfirmation";
 import { ActivationCostEstimateDetails } from "./components/ActivationCostEstimateDetails/ActivationCostEstimateDetails";
 
 export function ActivationConfirmationDialog({

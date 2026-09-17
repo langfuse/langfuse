@@ -1,4 +1,4 @@
-import useLocalStorage from "@/src/components/useLocalStorage";
+import useLocalStorage from "../useLocalStorage";
 
 /**
  * Controls how I/O cells render their value:

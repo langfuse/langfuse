@@ -1,11 +1,11 @@
-import { Button } from "@/src/components/ui/button";
+import { Button } from "./ui/button";
 import { AlertCircle } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 import Link from "next/link";
-import { reportError } from "@/src/utils/reportError";
-import { stripBasePath } from "@/src/utils/redirect";
+import { reportError } from "../utils/reportError";
+import { stripBasePath } from "../utils/redirect";
 
 export const ErrorPage = ({
   title = "Error",

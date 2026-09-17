@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
   completeCloudSignupOnboarding,
   getCloudSignupOnboardingStatus,
-} from "@/src/features/onboarding/server/onboardingService";
+} from "./onboardingService";
 import {
   createTRPCRouter,
   authenticatedProcedure,

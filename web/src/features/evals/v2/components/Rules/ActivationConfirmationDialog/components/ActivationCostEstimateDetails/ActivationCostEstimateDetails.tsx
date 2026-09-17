@@ -3,8 +3,8 @@ import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import {
   SAMPLING_SLIDER_MIN,
   SAMPLING_SLIDER_STEP,
-} from "@/src/features/evals/v2/constants/ruleSampling";
-import type { ActivationEstimate } from "@/src/features/evals/v2/fns/requestRuleActivation";
+} from "../../../../../constants/ruleSampling";
+import type { ActivationEstimate } from "../../../../../fns/requestRuleActivation";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { ActivationCostEstimateView } from "../ActivationCostEstimateView/ActivationCostEstimateView";
 

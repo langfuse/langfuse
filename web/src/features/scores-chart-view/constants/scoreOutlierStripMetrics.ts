@@ -1,8 +1,5 @@
 import { numberFormatter } from "@/src/utils/numbers";
-import {
-  type ScoreOutlierAggKey,
-  type ScoreOutlierMetricKey,
-} from "@/src/features/scores-chart-view/types";
+import { type ScoreOutlierAggKey, type ScoreOutlierMetricKey } from "../types";
 
 type ScoreOutlierAggregationDef = {
   /** The user-facing option key (currently 1:1 with the query aggregation). */

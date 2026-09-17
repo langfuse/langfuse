@@ -7,7 +7,7 @@ import {
 import { useState } from "react";
 import Decimal from "decimal.js";
 import Link from "next/link";
-import { type Details } from "@/src/features/traces/fns/calculateAggregatedUsage";
+import { type Details } from "../fns/calculateAggregatedUsage";
 import { ExternalLink } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { cva, type VariantProps } from "class-variance-authority";

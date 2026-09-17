@@ -1,18 +1,18 @@
 import { z } from "zod";
 
-import { auditLog } from "@/src/features/audit-logs/server";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { auditLog } from "../audit-logs/server";
+import { throwIfNoEntitlement } from "../entitlements/server";
+import { throwIfNoProjectAccess } from "../rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { blobStorageIntegrationFormSchemaBase } from "@/src/features/blobstorage-integration/types";
+import { blobStorageIntegrationFormSchemaBase } from "./types";
 import {
   validateAzureContainerName,
   validateExportFieldGroups,
-} from "@/src/features/blobstorage-integration/validation";
-import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
+} from "./validation";
+import { upsertBlobStorageIntegration } from "./service";
 import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";

@@ -1,10 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 import { ExperimentFormatSetting } from "@/src/features/experiments/components/ExperimentFormatSetting";
-import {
-  DataTableToolbar,
-  type MultiSelect,
-} from "@/src/components/table/data-table-toolbar";
+import { DataTableToolbar, type MultiSelect } from "./data-table-toolbar";
 
 const baseMultiSelect = (overrides: Partial<MultiSelect>): MultiSelect => ({
   selectAll: false,

@@ -4,10 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { FilterState, TracingSearchType } from "@langfuse/shared";
 
-import { DEFAULT_SEARCH_TYPE } from "@/src/features/search-bar/lib/commit";
-import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { DEFAULT_SEARCH_TYPE } from "../lib/commit";
+import { useEventsSearchBar } from "./useEventsSearchBar";
 import { SCORES_FIELD_REGISTRY } from "@/src/features/scores/constants/scoresSearchRegistry";
-import * as recentSearches from "@/src/features/search-bar/lib/recent-searches";
+import * as recentSearches from "../lib/recent-searches";
 
 afterEach(() => vi.restoreAllMocks());
 

@@ -1,7 +1,7 @@
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 
-import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
+import { type ResolvedReadPath } from "../hooks/useReadPath";
 
 type ReadPathToggleState = {
   /** The read path a toggle is currently committing; null when idle. */

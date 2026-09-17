@@ -1,11 +1,8 @@
 import { useMemo } from "react";
-import {
-  type ScoreTarget,
-  type AnnotationScore,
-} from "@/src/features/scores/types";
-import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
-import { mergeAnnotationScoresWithCache } from "@/src/features/scores/lib/mergeScoresWithCache";
-import { filterScoresByTarget } from "@/src/features/scores/lib/filterScoresByTarget";
+import { type ScoreTarget, type AnnotationScore } from "../types";
+import { useScoreCache } from "../contexts/ScoreCacheContext";
+import { mergeAnnotationScoresWithCache } from "./mergeScoresWithCache";
+import { filterScoresByTarget } from "./filterScoresByTarget";
 
 /**
  * Hook for merging server annotation scores with cached scores

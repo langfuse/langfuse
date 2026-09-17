@@ -11,12 +11,7 @@ import {
   KeyboardShortcut,
   type KeyboardShortcutProps,
 } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogHeader,
-} from "@/src/components/ui/dialog";
+import { Dialog, DialogBody, DialogContent, DialogHeader } from "./dialog";
 
 const commandDialogSurfaceClass = "bg-popover";
 

@@ -3,7 +3,7 @@ import { useStore } from "zustand";
 import {
   type SessionDetailStore,
   type SessionDetailStoreState,
-} from "@/src/features/sessions/sessionDetailStore";
+} from "./sessionDetailStore";
 
 const SessionDetailStoreContext = createContext<SessionDetailStore | null>(
   null,

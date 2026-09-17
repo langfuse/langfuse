@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { DashboardWidgetChartType } from "@langfuse/shared";
 import { metricAggregations } from "@langfuse/shared/query";
-import { defineTool } from "@/src/features/mcp/core/define-tool";
-import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
+import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 import {
   DashboardWidgetChartConfigBaseSchema,
   DashboardWidgetFilterBaseSchema,
-} from "@/src/features/mcp/server/dashboardWidgets/tools/createDashboardWidget";
+} from "./createDashboardWidget";
 import {
   buildDashboardUrl,
   buildDashboardWidgetUrl,

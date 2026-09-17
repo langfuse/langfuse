@@ -6,7 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { type ObjectType } from "@/src/features/score-analytics/lib/analytics-url-state";
+import { type ObjectType } from "../../lib/analytics-url-state";
 
 const OBJECT_TYPE_OPTIONS: Array<{ value: ObjectType; label: string }> = [
   { value: "all", label: "All Objects" },

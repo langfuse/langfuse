@@ -1,8 +1,8 @@
 /* eslint-disable @repo/no-style-props */
 import * as React from "react";
-import { Button, type ButtonProps } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "./ui/button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { cn } from "@/src/utils/tailwind";
+import { cn } from "../utils/tailwind";
 
 export interface IconOnlyButtonProps extends Omit<
   ButtonProps,

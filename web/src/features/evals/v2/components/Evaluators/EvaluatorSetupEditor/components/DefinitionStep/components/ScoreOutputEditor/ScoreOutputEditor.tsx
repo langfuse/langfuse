@@ -1,7 +1,7 @@
 import { useStore } from "zustand";
 
-import { ScoreOutputConfiguration } from "@/src/features/evals/v2/components/Evaluators/Judges/ScoreOutputConfiguration/ScoreOutputConfiguration";
-import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { ScoreOutputConfiguration } from "../../../../../Judges/ScoreOutputConfiguration/ScoreOutputConfiguration";
+import type { EvaluatorSetupStore } from "../../../../../../../store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function ScoreOutputEditor({ store }: { store: EvaluatorSetupStore }) {
   const scoreOutput = useStore(store, (state) => state.scoreOutput);

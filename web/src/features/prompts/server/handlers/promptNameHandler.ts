@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
-import { getPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
-import { deletePrompt } from "@/src/features/prompts/server/actions/deletePrompt";
+import { getPromptForApi } from "../prompt-api-service";
+import { deletePrompt } from "../actions/deletePrompt";
 import {
   withMiddlewares,
   RateLimitService,

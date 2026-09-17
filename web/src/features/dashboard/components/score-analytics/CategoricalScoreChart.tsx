@@ -1,5 +1,5 @@
 import { type FilterState } from "@langfuse/shared";
-import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
+import { createTracesTimeFilter } from "../../lib/dashboard-utils";
 import {
   type DashboardDateRangeAggregationOption,
   dashboardDateRangeAggregationSettings,
@@ -10,13 +10,13 @@ import {
   type ScoreData,
 } from "@/src/features/scores";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { mapLegacyUiTableFilterToView } from "../../lib/dashboardUiTableToViewMapping";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets";
-import { scoreChartDataToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
-import { isEmptyChart } from "@/src/features/dashboard/lib/score-analytics-utils";
+import { scoreChartDataToDataPoints } from "../../lib/chart-data-adapters";
+import { isEmptyChart } from "../../lib/score-analytics-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "../../hooks/useDashboardQueryScheduler";
 
 export function CategoricalScoreChart(props: {
   projectId: string;

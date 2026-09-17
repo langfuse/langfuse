@@ -1,8 +1,5 @@
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import {
-  type AggregationFn,
-  type TimeGranularity,
-} from "@/src/features/chart-view/types";
+import { type AggregationFn, type TimeGranularity } from "../chart-view/types";
 
 /**
  * All types for the scores chart view + outlier strip, in one module —

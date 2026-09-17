@@ -5,7 +5,7 @@ import {
   BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbSeparator,
-} from "@/src/components/ui/breadcrumb";
+} from "../ui/breadcrumb";
 import { Fragment } from "react";
 import { ChevronDownIcon, Slash } from "lucide-react";
 import { env } from "@/src/env.mjs";
@@ -17,9 +17,9 @@ import { useSession } from "next-auth/react";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import Link from "next/link";
-import { Badge } from "@/src/components/ui/badge";
-import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
-import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
+import { Badge } from "../ui/badge";
+import { OrganizationDropdownMenu } from "../OrganizationDropdownMenu/OrganizationDropdownMenu";
+import { ProjectDropdownMenu } from "../ProjectDropdownMenu/ProjectDropdownMenu";
 
 const BreadcrumbComponent = ({
   items,

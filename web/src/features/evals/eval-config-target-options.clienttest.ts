@@ -4,13 +4,13 @@ import {
   EvalTargetObject,
   LangfuseInternalTraceEnvironment,
 } from "@langfuse/shared";
-import { resolveCheckboxOperator } from "@/src/features/filters";
+import { resolveCheckboxOperator } from "../filters";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import {
   DEFAULT_OBSERVATION_FILTER,
   DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
   DEFAULT_TRACE_FILTER,
-} from "@/src/features/evals/utils/evaluator-constants";
+} from "./utils/evaluator-constants";
 
 describe("eval config target behavior", () => {
   it("should exclude all non-trace targets when selecting trace", () => {

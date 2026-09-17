@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { constructDatasetRunAggregateColumns } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
+import { constructDatasetRunAggregateColumns } from "../components/DatasetRunAggregateColumnHelpers";
 import { api } from "@/src/utils/api";
 import {
   datasetRunItemsTableColsWithOptions,

@@ -22,11 +22,11 @@ import { PopoverController } from "@/src/components/ui/popover";
 import {
   evaluatorAlertsListUrl,
   evaluatorAlertUrl,
-} from "@/src/features/evals/v2/fns/evaluators/evaluatorAlertUrl";
+} from "../../../fns/evaluators/evaluatorAlertUrl";
 import { MonitorSeverityBadge } from "@/src/features/monitors";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { renderEvaluatorAlertLastFired } from "@/src/features/evals/v2/fns/evaluators/renderEvaluatorAlertLastFired";
-import { renderEvaluatorAlertTriggerCondition } from "@/src/features/evals/v2/fns/evaluators/renderEvaluatorAlertTriggerCondition";
+import { renderEvaluatorAlertLastFired } from "../../../fns/evaluators/renderEvaluatorAlertLastFired";
+import { renderEvaluatorAlertTriggerCondition } from "../../../fns/evaluators/renderEvaluatorAlertTriggerCondition";
 import type { RouterOutputs } from "@/src/utils/api";
 
 type ConnectedAlert =

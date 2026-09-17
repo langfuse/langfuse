@@ -13,7 +13,7 @@ import { CodeMirrorEditor } from "@/src/components/editor";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { cn } from "@/src/utils/tailwind";
 import { isValidVariableName, MUSTACHE_REGEX } from "@langfuse/shared";
-import { truncateEnd } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
+import { truncateEnd } from "../../../../fns/variableMapping/segmentsToJsonPath";
 
 export type InterpolatedPromptPreviewState =
   | {

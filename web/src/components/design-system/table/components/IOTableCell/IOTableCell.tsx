@@ -17,7 +17,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
-import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
+import { EmptyValue } from "../EmptyValue/EmptyValue";
 
 export type IOTableCellVariant = "default" | "input" | "output";
 type IOTableCellSize = "default" | "compact";

@@ -2,9 +2,9 @@ import { showSuccessToast } from "@/src/features/notifications";
 import { type ReactNode, useState } from "react";
 
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
-import { DeleteOrganizationDialogContent } from "@/src/features/organizations/components/DeleteOrganizationDialogContent";
+import { DeleteOrganizationDialogContent } from "./DeleteOrganizationDialogContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useQueryOrganization } from "@/src/features/organizations/hooks";
+import { useQueryOrganization } from "../hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { env } from "@/src/env.mjs";

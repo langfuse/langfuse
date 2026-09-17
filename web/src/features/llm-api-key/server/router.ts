@@ -6,7 +6,7 @@ import {
   UpdateLlmApiKey,
   SafeLlmApiKeySchema,
   type BedrockAuthMethod,
-} from "@/src/features/llm-api-key/types";
+} from "../types";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,

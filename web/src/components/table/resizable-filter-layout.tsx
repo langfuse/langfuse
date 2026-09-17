@@ -1,8 +1,8 @@
 "use client";
 
 import { type PropsWithChildren, Children } from "react";
-import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
-import { Sheet, SheetContent, SheetTitle } from "@/src/components/ui/sheet";
+import { ResizableSplitLayout } from "../ui/resizable-split-layout";
+import { Sheet, SheetContent, SheetTitle } from "../ui/sheet";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useDataTableControls } from "./data-table-controls";
 

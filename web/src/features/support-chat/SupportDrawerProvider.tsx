@@ -5,7 +5,7 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
-import { type Topic } from "@/src/features/support-chat/formConstants";
+import { type Topic } from "./formConstants";
 
 export type SupportDrawerMode = "intro" | "form";
 

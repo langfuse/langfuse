@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Clock, Moon, Sun } from "lucide-react";
-import { type Period } from "@/src/components/ui/time-picker-utils";
+import { type Period } from "./time-picker-utils";
 
 const isNoon = (date: Date) =>
   date.getHours() === 12 && date.getMinutes() === 0 && date.getSeconds() === 0;

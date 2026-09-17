@@ -5,16 +5,16 @@ import {
   type ComboboxOptionGroup,
 } from "@/src/components/ui/combobox";
 import { X } from "lucide-react";
-import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
-import { formatRunRecency } from "@/src/features/experiments/fns/formatRunRecency";
+import { useExperimentNames } from "../hooks/useExperimentNames";
+import { formatRunRecency } from "../fns/formatRunRecency";
 import {
   NO_DATASET_KEY,
   NO_DATASET_LABEL,
   UNNAMED_DATASET_LABEL,
-} from "@/src/features/experiments/constants/comparison";
+} from "../constants/comparison";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { baselineChangedProps } from "@/src/features/experiments/lib/analytics";
+import { baselineChangedProps } from "../lib/analytics";
 
 type ExperimentBaselineControlsProps = {
   projectId: string;

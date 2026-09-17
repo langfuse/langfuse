@@ -33,21 +33,18 @@ import {
 } from "@/src/components/ui/hover-card";
 
 // Preview tab components
-import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
+import { IOPreview } from "../IOPreview/IOPreview";
 import TagList from "@/src/features/tag/components/TagList";
-import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
-import { useMedia } from "@/src/features/traces/hooks/useMedia";
+import { useJsonExpansion } from "../../contexts/JsonExpansionContext";
+import { useMedia } from "../../hooks/useMedia";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 
 // Contexts and hooks
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import {
-  type DetailTab,
-  useSelection,
-} from "@/src/features/traces/contexts/SelectionContext";
+import { useTraceData } from "../../contexts/TraceDataContext";
+import { useViewPreferences } from "../../contexts/ViewPreferencesContext";
+import { type DetailTab, useSelection } from "../../contexts/SelectionContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
+import { useTraceAnalyticsDimensions } from "../../hooks/useTraceAnalyticsDimensions";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -56,7 +53,7 @@ import { useSession } from "next-auth/react";
 // Extracted components
 import { TraceDetailViewHeader } from "./components/TraceDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
-import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
+import { TRACE_VIEW_CONFIG } from "../../constants/traceViewConfig";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 

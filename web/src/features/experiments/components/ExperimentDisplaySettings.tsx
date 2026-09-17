@@ -12,7 +12,7 @@ import { Settings2, Check } from "lucide-react";
 import {
   type ExperimentDiffMode,
   type ExperimentResultsLayout,
-} from "@/src/features/experiments/hooks/useExperimentResultsState";
+} from "../hooks/useExperimentResultsState";
 
 type ExperimentDisplaySettingsProps = {
   layout: ExperimentResultsLayout;

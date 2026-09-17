@@ -1,7 +1,7 @@
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { Dialog } from "../Dialog/Dialog";
 
 import { DialogController } from "./DialogController";
 

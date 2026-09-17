@@ -1,6 +1,6 @@
 import preview from "../../../../.storybook/preview";
 import type { FilterState } from "@langfuse/shared";
-import { EvaluatorFilterCell } from "@/src/features/evals/components/EvaluatorFilterCell";
+import { EvaluatorFilterCell } from "./EvaluatorFilterCell";
 
 const SHORT_FILTER = [
   {

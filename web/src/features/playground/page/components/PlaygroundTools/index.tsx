@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect } from "react";
 
-import { usePlaygroundContext } from "@/src/features/playground/page/context";
+import { usePlaygroundContext } from "../../context";
 import { Button } from "@/src/components/ui/button";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { PlusIcon, PencilIcon, MinusCircle, WrenchIcon } from "lucide-react";
@@ -17,7 +17,7 @@ import {
   CommandSeparator,
 } from "@/src/components/ui/command";
 
-import { type PlaygroundTool } from "@/src/features/playground/page/types";
+import { type PlaygroundTool } from "../../types";
 
 export type PlaygroundToolDialogRequest = {
   existingLlmTool?: LlmTool;

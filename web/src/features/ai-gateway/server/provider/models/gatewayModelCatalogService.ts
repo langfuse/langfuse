@@ -8,12 +8,9 @@ import { redis as defaultRedis } from "@langfuse/shared/src/server";
 import type { Cluster, Redis } from "ioredis";
 
 import { auditLog } from "@/src/features/audit-logs/server";
-import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { invalidateGatewayResolveCacheForOrganization } from "../../resolve/gatewayResolveCache";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
-import {
-  type GatewayProviderName,
-  gatewayProviders,
-} from "@/src/features/ai-gateway/server/provider/registry";
+import { type GatewayProviderName, gatewayProviders } from "../registry";
 import { GatewayProviderRepository } from "../connection/gatewayProviderRepository";
 import {
   type GatewayModelCatalogEntry,

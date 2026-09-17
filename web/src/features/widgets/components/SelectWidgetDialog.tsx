@@ -13,8 +13,8 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import startCase from "lodash/startCase";
-import { getChartTypeDisplayName } from "@/src/features/widgets/chart-library/utils";
-import { ChartTypeIllustration } from "@/src/features/widgets/components/ChartTypeIllustration";
+import { getChartTypeDisplayName } from "../chart-library/utils";
+import { ChartTypeIllustration } from "./ChartTypeIllustration";
 import { type HomeDashboardPresetId } from "@langfuse/shared";
 import {
   isSuggestedWidgetView,

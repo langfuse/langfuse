@@ -1,6 +1,6 @@
 import { useSession } from "next-auth/react";
 
-import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
+import { useForceV3Experience } from "./useForceV3Experience";
 
 /**
  * Whether this deployment shows the v4 migration UI at all, before the

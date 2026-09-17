@@ -8,7 +8,7 @@ import { verifyHmacSha256 } from "@/src/server/utils/hmac";
 import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
-import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
+import { GatewayControlPlaneError } from "../gatewayControlPlaneError";
 
 const RESOLVE_METHOD = "POST";
 const MODELS_METHOD = "GET";

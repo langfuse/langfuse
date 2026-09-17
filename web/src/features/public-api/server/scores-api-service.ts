@@ -5,7 +5,7 @@ import {
   _handleGetScoresCountForPublicApi,
   convertScoreToPublicApi,
   type ScoreQueryType,
-} from "@/src/features/public-api/server/scores";
+} from "./scores";
 import { auditLog } from "@/src/features/audit-logs/server";
 import {
   InternalServerError,

@@ -15,15 +15,15 @@ import { ClickHouseResourceError } from "@langfuse/shared/src/server";
 import {
   createStructuredPublicApiError,
   StructuredPublicApiError,
-} from "@/src/features/public-api/types/structuredPublicApiError";
+} from "../types/structuredPublicApiError";
 import type {
   StructuredPublicApiErrorCodeType,
   StructuredPublicApiErrorDetailsType,
-} from "@/src/features/public-api/types/structuredPublicApiErrorSchema";
+} from "../types/structuredPublicApiErrorSchema";
 import {
   getRateLimitUpgradeMessage,
   type RateLimitUpgradePath,
-} from "@/src/features/public-api/server/rateLimitUpgradePaths";
+} from "./rateLimitUpgradePaths";
 
 export const structuredPublicApiErrorContract = "structured";
 export type PublicApiErrorContract = typeof structuredPublicApiErrorContract;

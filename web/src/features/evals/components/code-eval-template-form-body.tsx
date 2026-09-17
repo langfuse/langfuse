@@ -40,16 +40,16 @@ import {
   getCodeEvalHoverDocs,
   PROPERTY_ACCESS_ONLY_HOVER_KEYS,
   type CodeEvalHoverDocs,
-} from "@/src/features/evals/utils/code-eval-template-hover-docs";
+} from "../utils/code-eval-template-hover-docs";
 import {
   getCodeEvalCompletionExtension,
   isInsideStringOrComment,
-} from "@/src/features/evals/utils/code-eval-template-completions";
+} from "../utils/code-eval-template-completions";
 import {
   formatPythonCodeEvalSourceWithRuff,
   type CodeEvalSourceCodeLanguage,
   type CodeEvalValidationResult,
-} from "@/src/features/evals/utils/code-eval-template-validation";
+} from "../utils/code-eval-template-validation";
 
 type CodeEvalTemplateFormBodyProps = {
   sourceCode: string;

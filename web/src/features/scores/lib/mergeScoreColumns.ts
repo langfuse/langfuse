@@ -1,5 +1,5 @@
-import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
-import { type ScoreColumn } from "@/src/features/scores/types";
+import { useScoreCache } from "../contexts/ScoreCacheContext";
+import { type ScoreColumn } from "../types";
 
 /**
  * Merges server score columns with cached score columns.

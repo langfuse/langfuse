@@ -2,7 +2,7 @@ import { cva } from "class-variance-authority";
 
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { cn } from "@/src/utils/tailwind";
+import { cn } from "../utils/tailwind";
 
 /**
  * The context a score was created in — its "level". A score's meaning depends

@@ -1,13 +1,13 @@
 import { type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { Menu } from "lucide-react";
-import { Button } from "@/src/components/ui/button";
-import { useSidebar } from "@/src/components/ui/sidebar";
-import { TopbarBrand } from "@/src/components/nav/topbar-brand";
-import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
-import { TopbarAccount } from "@/src/components/nav/topbar-account";
-import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
-import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
+import { Button } from "../ui/button";
+import { useSidebar } from "../ui/sidebar";
+import { TopbarBrand } from "../nav/topbar-brand";
+import { useHasAppSidebar } from "../nav/sidebar-presence";
+import { TopbarAccount } from "../nav/topbar-account";
+import { InAppAiAgentButton } from "../nav/in-app-ai-agent-button";
+import { EnvLabelBadge } from "../EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 

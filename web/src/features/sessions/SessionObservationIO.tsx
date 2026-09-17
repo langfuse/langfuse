@@ -7,11 +7,11 @@ import {
   type ChatMLParserResult,
   type IOPreviewContentMode,
   type ViewMode,
-} from "@/src/features/traces";
+} from "../traces";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { downloadJsonFile } from "@/src/features/sessions/actions/downloadSessionAsJson";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { downloadJsonFile } from "./actions/downloadSessionAsJson";
+import { showErrorToast } from "../notifications/showErrorToast";
+import { usePostHogClientCapture } from "../posthog-analytics/usePostHogClientCapture";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 import { parseJsonIfString } from "@langfuse/shared";

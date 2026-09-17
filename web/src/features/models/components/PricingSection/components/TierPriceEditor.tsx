@@ -13,9 +13,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { parsePriceInput } from "@/src/features/models/fns/parsePriceInput";
-import { PricePreview } from "@/src/features/models/components/PricePreview";
-import type { FormUpsertModel } from "@/src/features/models/validation";
+import { parsePriceInput } from "../../../fns/parsePriceInput";
+import { PricePreview } from "../../PricePreview";
+import type { FormUpsertModel } from "../../../validation";
 
 type TierPriceEditorProps = {
   tierIndex: number;

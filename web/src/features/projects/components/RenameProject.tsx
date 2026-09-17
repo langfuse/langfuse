@@ -16,7 +16,7 @@ import { projectNameSchema } from "@/src/features/auth";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { LockIcon } from "lucide-react";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useQueryProject } from "../hooks";
 import { useSession } from "next-auth/react";
 import { useHasProjectAccess } from "@/src/features/rbac";
 

@@ -1,9 +1,6 @@
 // @vitest-environment node
 
-import {
-  omitFilterFacets,
-  type FilterConfig,
-} from "@/src/features/filters/lib/filter-config";
+import { omitFilterFacets, type FilterConfig } from "./lib/filter-config";
 
 describe("omitFilterFacets", () => {
   it("removes omitted facets and default-expanded entries", () => {

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
-import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
+import type { RuleSetupStore } from "../types/rules";
 import { api } from "@/src/utils/api";
 
 export type RuleCostEstimate = {

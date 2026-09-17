@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TraceTruncationNotice } from "@/src/features/traces/components/TraceTruncationNotice";
+import { TraceTruncationNotice } from "./TraceTruncationNotice";
 
 const { mockUseTraceData } = vi.hoisted(() => ({ mockUseTraceData: vi.fn() }));
 

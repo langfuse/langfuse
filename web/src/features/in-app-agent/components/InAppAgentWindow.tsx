@@ -54,19 +54,19 @@ import type {
   InAppAgentMessageSource,
 } from "../schema";
 import { IN_APP_AGENT_GENERIC_ERROR_MESSAGE } from "@langfuse/shared/in-app-agent";
-import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
-import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
-import type { SettledActivityOutcome } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
-import { ConversationActivityIndicator } from "@/src/features/in-app-agent/components/ConversationActivityIndicator";
-import { InAppAgentBackgroundHint } from "@/src/features/in-app-agent/components/InAppAgentBackgroundHint";
-import { InAppAgentNotice } from "@/src/features/in-app-agent/components/InAppAgentNotice";
-import { useInAppAgentBackgroundHint } from "@/src/features/in-app-agent/lib/useInAppAgentBackgroundHint";
-import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
+import type { InAppAgentScreenContextDescription } from "../context";
+import type { InAppAgentActivityByConversationId } from "../lib/inAppAgentActivity";
+import type { SettledActivityOutcome } from "../lib/backgroundExecutionSession";
+import { ConversationActivityIndicator } from "./ConversationActivityIndicator";
+import { InAppAgentBackgroundHint } from "./InAppAgentBackgroundHint";
+import { InAppAgentNotice } from "./InAppAgentNotice";
+import { useInAppAgentBackgroundHint } from "../lib/useInAppAgentBackgroundHint";
+import { InAppAgentToolCallCard } from "./InAppAgentToolCallCard";
 import {
   getInAppAgentActivityProgressLabel,
   type InAppAgentError,
   isInAppAgentRateLimited,
-} from "@/src/features/in-app-agent/components/utils/utils";
+} from "./utils/utils";
 import { deduplicateBy } from "@/src/utils/arrays";
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
@@ -79,7 +79,7 @@ import {
   type InAppAgentQuickAction,
   type InAppAgentQuickActionContext,
   type InAppAgentSubmitOptions,
-} from "@/src/features/in-app-agent/quickActions";
+} from "../quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 

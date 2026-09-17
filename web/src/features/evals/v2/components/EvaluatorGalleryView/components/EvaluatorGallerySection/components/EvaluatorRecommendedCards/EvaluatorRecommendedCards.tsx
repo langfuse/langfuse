@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
-import { EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
-import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
+import { EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY } from "../../../../../../constants/evaluatorGallery";
+import { getGalleryCategoryPresentation } from "../../../../../../fns/templateGallery/galleryCategoryPresentation";
 import { cn } from "@/src/utils/tailwind";
 
 export function EvaluatorRecommendedCards({

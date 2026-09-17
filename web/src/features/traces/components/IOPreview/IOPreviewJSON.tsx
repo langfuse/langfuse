@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useTheme } from "next-themes";
-import { countJsonRows } from "@/src/features/traces/components/AdvancedJsonViewer/utils/rowCount";
+import { countJsonRows } from "../AdvancedJsonViewer/utils/rowCount";
 import {
   MultiSectionJsonViewer,
   type MultiSectionJsonViewerHandle,
-} from "@/src/features/traces/components/AdvancedJsonViewer/MultiSectionJsonViewer";
+} from "../AdvancedJsonViewer/MultiSectionJsonViewer";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import { ChevronUp, ChevronDown, WrapText, Minus, Copy } from "lucide-react";
-import { useJsonViewPreferences } from "@/src/features/traces/components/AdvancedJsonViewer/hooks/useJsonViewPreferences";
+import { useJsonViewPreferences } from "../AdvancedJsonViewer/hooks/useJsonViewPreferences";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import {
   HoverCard,
@@ -22,8 +22,8 @@ import {
 } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { CommentableJsonView } from "@/src/features/comments/components/CommentableJsonView";
 import { InlineCommentBubble } from "@/src/features/comments/components/InlineCommentBubble";
-import { type CommentedPathsByField } from "@/src/features/traces/components/AdvancedJsonViewer/utils/commentRanges";
-import { type ExpansionState } from "@/src/features/traces/components/AdvancedJsonViewer/types";
+import { type CommentedPathsByField } from "../AdvancedJsonViewer/utils/commentRanges";
+import { type ExpansionState } from "../AdvancedJsonViewer/types";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import {
   decodeUnicodeInJson,
@@ -31,7 +31,7 @@ import {
 } from "@/src/utils/decodeUnicodeInJson";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
-import { LazyJsonViewer } from "@/src/features/traces/components/AdvancedJsonViewer/lazy/react/LazyJsonViewer";
+import { LazyJsonViewer } from "../AdvancedJsonViewer/lazy/react/LazyJsonViewer";
 import {
   JSON_VIEW_RENDER_ROW_LIMIT,
   probeJsonField,

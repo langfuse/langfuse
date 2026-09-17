@@ -5,12 +5,12 @@ import {
   objectEntriesForPreview,
   previewOf,
   typeBadge,
-} from "@/src/features/evals/v2/components/VariableMapping/formatValue";
+} from "../../formatValue";
 import {
   LAST,
   WILDCARD,
   type PathSegment,
-} from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
+} from "../../../../fns/variableMapping/segmentsToJsonPath";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import {
   classifyMediaValue,

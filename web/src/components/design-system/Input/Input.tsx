@@ -1,5 +1,5 @@
 import { type InputHTMLAttributes, type Ref } from "react";
-import { InputControl } from "../internal/InputControl/InputControl";
+import { InputControl } from "@/src/components/design-system/internal/InputControl/InputControl";
 
 type InputProps = Pick<
   InputHTMLAttributes<HTMLInputElement>,

@@ -1,8 +1,5 @@
-import { BASE_CHART_IDS } from "@/src/features/experiments/constants/charts";
-import type {
-  MetricOption,
-  ScoreCoverageByLevel,
-} from "@/src/features/experiments/types/charts";
+import { BASE_CHART_IDS } from "../constants/charts";
+import type { MetricOption, ScoreCoverageByLevel } from "../types/charts";
 import { normalizeScoreName } from "@/src/features/scores";
 
 /** Score chart ids are `${level}-score-${dataType}:${scoreName}`. */

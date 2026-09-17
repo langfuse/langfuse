@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { canApplyScoreOutlierStripFilters } from "@/src/features/scores-chart-view/fns/outlierStripFilters";
+import { canApplyScoreOutlierStripFilters } from "./outlierStripFilters";
 
 describe("canApplyScoreOutlierStripFilters", () => {
   it("allows an empty filter state", () => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { EXPERIMENT_ITEMS_FIELD_REGISTRY } from "./experimentItemsSearchRegistry";
 import { planCommit } from "@/src/features/search-bar/lib/commit";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
-import { hasAmbiguousTargetChange } from "@/src/features/experiments/lib/reconcileFilterTargets";
+import { hasAmbiguousTargetChange } from "../lib/reconcileFilterTargets";
 import type { FilterState } from "@langfuse/shared";
 
 describe("experiment item search contract", () => {

@@ -6,7 +6,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/src/components/ui/select";
+} from "./ui/select";
 
 import {
   dashboardDateRangeAggregationSettings,
@@ -17,7 +17,7 @@ import {
   isDashboardDateRangeOptionAvailable,
   getAbbreviatedTimeRange,
   getTimeRangeLabel,
-} from "@/src/utils/date-range-utils";
+} from "../utils/date-range-utils";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useMemo } from "react";
 import {
@@ -25,7 +25,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
   HoverCardPortal,
-} from "@/src/components/ui/hover-card";
+} from "./ui/hover-card";
 
 type BaseDateRangeDropdownProps<T> = {
   selectedOption: T;

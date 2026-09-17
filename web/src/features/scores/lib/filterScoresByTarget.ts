@@ -1,4 +1,4 @@
-import type { AnnotationScore, ScoreTarget } from "@/src/features/scores/types";
+import type { AnnotationScore, ScoreTarget } from "../types";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { type ScoreDomain } from "@langfuse/shared";
 

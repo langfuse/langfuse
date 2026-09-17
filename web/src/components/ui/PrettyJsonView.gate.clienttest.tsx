@@ -6,7 +6,7 @@
  * normal small string still mounts the viewer.
  */
 import { render, screen } from "@testing-library/react";
-import type * as CodeJsonViewerModule from "@/src/components/ui/CodeJsonViewer";
+import type * as CodeJsonViewerModule from "./CodeJsonViewer";
 
 // LargeStringFallback's only provider-bound dependency — stub it so the test
 // needs no PostHogProvider.
@@ -27,8 +27,8 @@ vi.mock("@/src/components/ui/CodeJsonViewer", async (importOriginal) => {
   };
 });
 
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { LARGE_STRING_RENDER_CHAR_LIMIT } from "@/src/components/ui/largeStringGate";
+import { PrettyJsonView } from "./PrettyJsonView";
+import { LARGE_STRING_RENDER_CHAR_LIMIT } from "./largeStringGate";
 
 describe("PrettyJsonView large-string gate (LFE-10991)", () => {
   it("renders the bounded fallback and mounts neither the JSON viewer nor the table for an over-limit string", () => {

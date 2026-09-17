@@ -1,12 +1,9 @@
 // @vitest-environment node
 
-import type { ASTNode } from "@/src/features/search-bar/lib/ast";
-import { parse, serialize, termAt } from "@/src/features/search-bar/lib/langQ";
-import {
-  removeToken,
-  tidyQueryText,
-} from "@/src/features/search-bar/lib/edits";
-import { validateQuery } from "@/src/features/search-bar/lib/validate";
+import type { ASTNode } from "./ast";
+import { parse, serialize, termAt } from "./langQ";
+import { removeToken, tidyQueryText } from "./edits";
+import { validateQuery } from "./validate";
 
 /** Structural copy without spans, for deep-equal comparisons. */
 function strip(node: ASTNode | null): unknown {

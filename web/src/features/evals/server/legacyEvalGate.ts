@@ -1,8 +1,8 @@
 import { env } from "@/src/env.mjs";
 import { InvalidRequestError } from "@langfuse/shared";
 import { isForceV3ExperienceProject } from "@langfuse/shared/src/server";
-import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
-import { isNewLegacyEvalAllowed } from "@/src/features/evals/utils/legacyEvalGate";
+import { isLegacyEvalTarget } from "../utils/typeHelpers";
+import { isNewLegacyEvalAllowed } from "../utils/legacyEvalGate";
 
 /**
  * Server-side guard mirroring the UI capability hook: reject creating a *new*

@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { isProductAnalyticsAvailable } from "@/src/features/posthog-analytics/productAnalyticsAvailability";
+import { isProductAnalyticsAvailable } from "./productAnalyticsAvailability";
 import { PostHog } from "posthog-node";
 
 const FALLBACK_POSTHOG_KEY = "phc_zkMwFajk8ehObUlMth0D7DtPItFnxETi3lmSvyQDrwB";

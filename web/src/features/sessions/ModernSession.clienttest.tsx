@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { type ComponentProps, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { ModernSession } from "@/src/features/sessions/ModernSession";
+import { ModernSession } from "./ModernSession";
 
 vi.mock("@/src/features/sessions/ConnectedModernSessionBodyLegacy", () => ({
   ConnectedModernSessionBodyLegacy: () => <div>Legacy body</div>,

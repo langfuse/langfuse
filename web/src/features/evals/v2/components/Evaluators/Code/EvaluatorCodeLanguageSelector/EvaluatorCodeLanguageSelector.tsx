@@ -5,7 +5,7 @@ import {
 } from "@langfuse/shared";
 
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
+import { sourceCodeLanguageLabel } from "../../../../fns/evaluators/sourceCodeLanguageLabel";
 
 /** Selects the runtime language for a code evaluator. */
 export function EvaluatorCodeLanguageSelector({

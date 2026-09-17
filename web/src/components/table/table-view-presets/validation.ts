@@ -1,4 +1,4 @@
-import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { type LangfuseColumnDef } from "../types";
 import {
   type FilterState,
   type ColumnDefinition,

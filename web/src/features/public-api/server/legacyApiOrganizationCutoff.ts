@@ -8,8 +8,8 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
-import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
-import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
+import { clickHouseRouteForRequest } from "./clickHouseRequestTags";
+import { attachDeprecation } from "./deprecations";
 
 const utcDateFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",

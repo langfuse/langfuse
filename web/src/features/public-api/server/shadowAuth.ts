@@ -10,17 +10,17 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 
 import { env } from "@/src/env.mjs";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "./apiAuth";
 import {
   verifyAuth as verifyLegacyProjectAuth,
   type RouteAccessLevel,
-} from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
+} from "./verifyProjectApiKeyAuth";
 import {
   enforceAuth,
   type EnforceAuthParams,
   type EnforceAuthResult,
-} from "@/src/features/public-api/server/enforceAuth";
-import { shadowAuthDiff } from "@/src/features/public-api/server/shadowAuthDiff";
+} from "./enforceAuth";
+import { shadowAuthDiff } from "./shadowAuthDiff";
 import {
   forbiddenError,
   serviceUnavailableError,

@@ -52,7 +52,7 @@ import { InAppAgentToolCallDetails } from "./InAppAgentToolCallDetails";
 import {
   getInAppAgentToolDisplayName,
   type InAppAgentToolCallContent,
-} from "@/src/features/in-app-agent/components/utils/utils";
+} from "./utils/utils";
 
 export type InAppAgentMessageRole = "assistant" | "user";
 

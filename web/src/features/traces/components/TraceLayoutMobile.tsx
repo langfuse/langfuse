@@ -37,7 +37,7 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { useSelection } from "../contexts/SelectionContext";
 import { TraceTruncationNotice } from "./TraceTruncationNotice";
 
 export type MobileTraceTab = "tree" | "timeline" | "graph" | "info";

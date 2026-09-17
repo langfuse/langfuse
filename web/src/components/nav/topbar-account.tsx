@@ -12,7 +12,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+} from "../ui/dropdown-menu";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { cn } from "@/src/utils/tailwind";

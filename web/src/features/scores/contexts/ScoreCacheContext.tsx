@@ -6,11 +6,8 @@ import {
   useContext,
   useState,
 } from "react";
-import {
-  type AnnotationScoreDataType,
-  type ScoreColumn,
-} from "@/src/features/scores/types";
-import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import { type AnnotationScoreDataType, type ScoreColumn } from "../types";
+import { composeAggregateScoreKey } from "../lib/aggregateScores";
 
 /**
  * Cached score shape - stored in client-side cache for optimistic updates

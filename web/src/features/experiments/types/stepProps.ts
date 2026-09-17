@@ -1,5 +1,5 @@
 import { type UseFormReturn } from "react-hook-form";
-import { type CreateExperiment } from "@/src/features/experiments/types";
+import { type CreateExperiment } from "./";
 import { type UIModelParams } from "@langfuse/shared/src/server";
 import { type ModelParamsContext } from "@/src/components/ModelParameters";
 import {
@@ -12,7 +12,7 @@ import type {
   RuleDraft,
   RuleEvaluatorOption,
 } from "@/src/features/evals/v2/types/rules";
-import type { ExperimentEvaluatorAssignmentsHandle } from "@/src/features/experiments/components/ExperimentEvaluatorAssignments/types/experimentEvaluatorAssignmentsHandle";
+import type { ExperimentEvaluatorAssignmentsHandle } from "../components/ExperimentEvaluatorAssignments/types/experimentEvaluatorAssignmentsHandle";
 import type { Ref } from "react";
 
 type ValidationResult =

@@ -5,7 +5,7 @@ import type {
 } from "@langfuse/shared/src/db";
 import { auditLog } from "@/src/features/audit-logs/server";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
-import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { invalidateGatewayResolveCacheForOrganization } from "../resolve/gatewayResolveCache";
 import { GatewayConfigRepository } from "./gatewayConfigRepository";
 
 export class GatewayConfigService {

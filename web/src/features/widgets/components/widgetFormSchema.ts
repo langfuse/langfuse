@@ -16,18 +16,18 @@ import {
   mapWidgetUiTableFilterToView,
   normalizeStoredWidgetFiltersForEditor,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import { dashboardWidgetChartTypeSchema } from "@/src/features/widgets/lib/dashboardWidgetChartTypes";
+import { isTimeSeriesChart } from "../chart-library/utils";
+import { dashboardWidgetChartTypeSchema } from "../lib/dashboardWidgetChartTypes";
 import {
   buildWidgetDescription,
   buildWidgetName,
   sanitizePivotTableDefaultSort,
   type WidgetChartConfig,
-} from "@/src/features/widgets/utils";
+} from "../utils";
 import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
-} from "@/src/features/widgets/utils/pivot-table-utils";
+} from "../utils/pivot-table-utils";
 
 /**
  * The set of widget chart types that accept a breakdown dimension. This mirrors

@@ -1,1 +1,1 @@
-export { projectsRouter } from "@/src/features/projects/server/projectsRouter";
+export { projectsRouter } from "./projectsRouter";

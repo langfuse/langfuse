@@ -9,11 +9,11 @@ import {
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useColumnVisibility } from "@/src/features/column-visibility";
-import { EvaluatorFilterCell } from "@/src/features/evals/components/EvaluatorFilterCell";
+import { EvaluatorFilterCell } from "./EvaluatorFilterCell";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
-import { LEGACY_EVALUATORS_FIELD_REGISTRY } from "@/src/features/evals/constants/tableSearchRegistry";
+import { LEGACY_EVALUATORS_FIELD_REGISTRY } from "../constants/tableSearchRegistry";
 import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
 import { useSidebarFilterState } from "@/src/features/filters";
 import { api } from "@/src/utils/api";
@@ -21,8 +21,8 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { useCallback, useEffect, useState, useMemo } from "react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { isEventTarget } from "@/src/features/evals/utils/typeHelpers";
-import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
+import { isEventTarget } from "../utils/typeHelpers";
+import { useEvalCapabilities } from "../hooks/useEvalCapabilities";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
 import { ExternalLinkIcon, Pen } from "lucide-react";
@@ -41,13 +41,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import {
-  EvaluatorForm,
-  useEvaluatorFormTemplate,
-} from "@/src/features/evals/components/evaluator-form";
+import { EvaluatorForm, useEvaluatorFormTemplate } from "./evaluator-form";
 import { useRouter } from "next/router";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
-import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
+import { MaintainerTooltip } from "./maintainer-tooltip";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { usdFormatter } from "@/src/utils/numbers";
@@ -58,7 +55,7 @@ import { createStatusTableColumn } from "@/src/components/design-system/table/co
 import {
   type EvaluatorDataRow,
   useEvaluatorTableData,
-} from "@/src/features/evals/hooks/useEvaluatorTableData";
+} from "../hooks/useEvaluatorTableData";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";

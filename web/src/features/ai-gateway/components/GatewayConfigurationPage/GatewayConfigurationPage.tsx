@@ -4,7 +4,7 @@ import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { GatewayConfigurationView } from "@/src/features/ai-gateway/components/GatewayConfigurationPage/components/GatewayConfigurationView/GatewayConfigurationView";
+import { GatewayConfigurationView } from "./components/GatewayConfigurationView/GatewayConfigurationView";
 import { showSuccessToast } from "@/src/features/notifications";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 

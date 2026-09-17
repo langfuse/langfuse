@@ -2,15 +2,12 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  groupDataByTimeDimension,
-  type TimeSeriesGroupedRow,
-} from "@/src/features/widgets/chart-library/utils";
+import { groupDataByTimeDimension, type TimeSeriesGroupedRow } from "./utils";
 import {
   prepareDenseSeries,
   prepareIsolatedPoints,
-} from "@/src/features/widgets/chart-library/prepareDenseSeries";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+} from "./prepareDenseSeries";
+import { type DataPoint } from "./chart-props";
 
 const point = (
   time: string,
