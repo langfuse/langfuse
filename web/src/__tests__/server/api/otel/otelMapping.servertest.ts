@@ -320,16 +320,43 @@ describe("OTel Resource Span Mapping", () => {
       expect(events[1].providedUsageDetails ?? {}).toEqual({});
     });
 
-    it("suppresses aggregate usage for other Mastra providers", () => {
-      const resourceSpan = buildSpan();
-      const provider = resourceSpan.scopeSpans[0].spans[0].attributes.find(
-        ({ key }) => key === "gen_ai.provider.name",
-      )!;
-      provider.value = { stringValue: "openai" };
-      const event = createTestOtelProcessor().processToEvent([resourceSpan])[0];
-      expect(event.modelName).toBeUndefined();
-      expect(event.providedUsageDetails ?? {}).toEqual({});
-    });
+    it.each(["openai", "google", "mistral", undefined])(
+      "preserves parent accounting unless step parsing supports provider %s",
+      async (providerName) => {
+        const resourceSpan = buildSpan();
+        const parent = resourceSpan.scopeSpans[0].spans[0];
+        parent.attributes = parent.attributes.filter(
+          ({ key }) => key !== "gen_ai.provider.name",
+        );
+        if (providerName) {
+          parent.attributes.push({
+            key: "gen_ai.provider.name",
+            value: { stringValue: providerName },
+          });
+        }
+        const suppressed = providerName === "openai";
+        const event = createTestOtelProcessor().processToEvent([
+          resourceSpan,
+        ])[0];
+        expect(event.type).toBe(suppressed ? "SPAN" : "GENERATION");
+        expect(event.modelName).toBe(suppressed ? undefined : "test-model");
+        expect(event.providedUsageDetails ?? {}).toEqual(
+          suppressed ? {} : { input: 62, output: 10 },
+        );
+        expect(event.providedCostDetails ?? {}).toEqual(
+          suppressed ? {} : { total: 1 },
+        );
+        const observations = (
+          await convertOtelSpanToIngestionEvent(resourceSpan, new Set())
+        ).filter((event) => event.type !== "trace-create");
+        expect(observations[0].type).toBe(
+          suppressed ? "span-create" : "generation-create",
+        );
+        expect(observations[0].body.usageDetails ?? {}).toEqual(
+          suppressed ? {} : { input: 62, output: 10 },
+        );
+      },
+    );
 
     it("retains model-call usage for ordinary chat spans", async () => {
       const resourceSpan = buildSpan();

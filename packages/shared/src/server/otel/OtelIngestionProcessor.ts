@@ -2781,16 +2781,22 @@ export class OtelIngestionProcessor {
   }
 
   /**
-   * AI SDK agent spans and Mastra model_generation spans aggregate child usage.
+   * AI SDK agent spans and supported Mastra parents aggregate child usage.
    * Skip their model, usage, and cost to avoid double counting or inferring tokens.
    */
   private isAggregateUsageSpan(attributes: Record<string, unknown>): boolean {
     const operationName = attributes["gen_ai.operation.name"];
 
+    const mastraProvider =
+      attributes["gen_ai.provider.name"] ??
+      this.parseJsonPayload(attributes["mastra.metadata.modelMetadata"])
+        ?.modelProvider;
+
     return (
       (typeof operationName === "string" &&
         ["invoke_agent", "agent_step"].includes(operationName)) ||
-      attributes["mastra.span.type"] === "model_generation"
+      (attributes["mastra.span.type"] === "model_generation" &&
+        (mastraProvider === "openai" || mastraProvider === "anthropic"))
     );
   }
 
