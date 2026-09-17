@@ -24,17 +24,17 @@ fn captured(execution: &ExecutionCapture) -> &OpenAiResponsesCapture {
 
 async fn observer(mode: &'static str) -> ExecutionCapture {
     let context = resolved_request_context_with_mode("provider-secret", mode).await;
-    ExecutionCapture::openai_responses(&context, &HeaderMap::new(), br#"{"model":"requested","instructions":"prompt-canary","input":[{"role":"user","content":"hello"}],"tools":[{"type":"function","name":"weather","parameters":{"type":"object"}}],"text":{"format":{"type":"json_schema","schema":{"description":"schema-canary"}}},"service_tier":"auto","metadata":{"label":"request-metadata-canary"},"safety_identifier":"safety-id-canary","prompt_cache_key":"cache-id-canary","user":"user-id-canary"}"#)
+    ExecutionCapture::for_openai_responses(&context, &HeaderMap::new(), br#"{"model":"requested","instructions":"prompt-canary","input":[{"role":"user","content":"hello"}],"tools":[{"type":"function","name":"weather","parameters":{"type":"object"}}],"text":{"format":{"type":"json_schema","schema":{"description":"schema-canary"}}},"service_tier":"auto","metadata":{"label":"request-metadata-canary"},"safety_identifier":"safety-id-canary","prompt_cache_key":"cache-id-canary","user":"user-id-canary"}"#)
 }
 
-fn response(observer: &mut ExecutionCapture, content_type: &'static str) {
+fn record_response(observer: &mut ExecutionCapture, content_type: &'static str) {
     let mut headers = HeaderMap::new();
     headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
     headers.insert(
         "x-request-id",
         HeaderValue::from_static("provider-request-1"),
     );
-    observer.response(200, &headers);
+    observer.record_response(200, &headers);
 }
 
 fn event(kind: &str, fields: Value) -> String {
@@ -60,7 +60,7 @@ fn terminal(status: &str, count: usize) -> String {
 #[tokio::test]
 async fn captures_completed_items_only_in_order_without_duplication() {
     let mut observer = observer("full").await;
-    response(&mut observer, "text/event-stream; charset=utf-8");
+    record_response(&mut observer, "text/event-stream; charset=utf-8");
     let body = format!(
         ": ping\n\n{}{}{}{}{}",
         event(
@@ -73,7 +73,7 @@ async fn captures_completed_items_only_in_order_without_duplication() {
         terminal("completed", 2)
     );
     for byte in body.as_bytes() {
-        observer.bytes(&[*byte]);
+        observer.push_bytes(&[*byte]);
     }
     observer.end_body();
     let capture = captured(&observer);
@@ -104,9 +104,10 @@ async fn captures_completed_items_only_in_order_without_duplication() {
 #[tokio::test]
 async fn eof_and_item_completion_are_not_provider_completion() {
     let mut observer = observer("full").await;
-    response(&mut observer, "text/event-stream");
-    observer.bytes(completed_item(0, "completed item").as_bytes());
-    observer.bytes(event("response.output_text.delta", json!({"delta":"unfinished"})).as_bytes());
+    record_response(&mut observer, "text/event-stream");
+    observer.push_bytes(completed_item(0, "completed item").as_bytes());
+    observer
+        .push_bytes(event("response.output_text.delta", json!({"delta":"unfinished"})).as_bytes());
     observer.end_body();
     let capture = captured(&observer);
     assert_eq!(capture.items.len(), 1);
@@ -119,8 +120,8 @@ async fn eof_and_item_completion_are_not_provider_completion() {
 async fn failed_and_incomplete_responses_keep_usage_and_native_status() {
     for status in ["failed", "incomplete"] {
         let mut observer = observer("full").await;
-        response(&mut observer, "text/event-stream");
-        observer.bytes(terminal(status, 0).as_bytes());
+        record_response(&mut observer, "text/event-stream");
+        observer.push_bytes(terminal(status, 0).as_bytes());
         observer.end_body();
         let capture = captured(&observer);
         assert_eq!(capture.facts.provider_status.as_deref(), Some(status));
@@ -136,10 +137,10 @@ async fn failed_and_incomplete_responses_keep_usage_and_native_status() {
 async fn json_and_streaming_capture_equivalent_native_items_and_facts() {
     let item = json!({"type":"function_call","id":"item-1","call_id":"call-1","name":"weather","arguments":"{\"city\":\"Berlin\"}"});
     let mut json_observer = observer("full").await;
-    response(&mut json_observer, "application/json");
+    record_response(&mut json_observer, "application/json");
     let body = json!({"id":"resp-1","model":"actual","status":"completed","output":[item.clone()],"usage":{"input_tokens":5,"output_tokens":2,"total_tokens":7}}).to_string();
     for chunk in body.as_bytes().chunks(3) {
-        json_observer.bytes(chunk);
+        json_observer.push_bytes(chunk);
     }
     json_observer.end_body();
     let captured = captured(&json_observer);
@@ -154,9 +155,9 @@ async fn json_and_streaming_capture_equivalent_native_items_and_facts() {
 #[tokio::test]
 async fn usage_mode_excludes_content_and_context_credentials() {
     let mut observer = observer("usage").await;
-    response(&mut observer, "text/event-stream");
-    observer.bytes(completed_item(0, "output-canary").as_bytes());
-    observer.bytes(terminal("completed", 1).as_bytes());
+    record_response(&mut observer, "text/event-stream");
+    observer.push_bytes(completed_item(0, "output-canary").as_bytes());
+    observer.push_bytes(terminal("completed", 1).as_bytes());
     observer.end_body();
     let capture = captured(&observer);
     assert!(capture.facts.input.is_none());
@@ -233,36 +234,36 @@ async fn completion_time_requires_sse_generated_content_in_either_ingestion_mode
             ),
         ] {
             let mut observer = observer(mode).await;
-            response(&mut observer, "text/event-stream; charset=utf-8");
-            observer.bytes(b": keepalive\n\n");
-            observer.bytes(
+            record_response(&mut observer, "text/event-stream; charset=utf-8");
+            observer.push_bytes(b": keepalive\n\n");
+            observer.push_bytes(
                 event(
                     "response.created",
                     json!({"response":{"status":"in_progress"}}),
                 )
                 .as_bytes(),
             );
-            observer.bytes(event(kind, json!({field:""})).as_bytes());
+            observer.push_bytes(event(kind, json!({field:""})).as_bytes());
             assert!(observer.first_byte_ms.is_some());
             assert!(observer.completion_start_ms.is_none());
             let delta = event(kind, json!({field:"hello"}));
             let split = delta.len() - 1;
-            observer.bytes(&delta.as_bytes()[..split]);
+            observer.push_bytes(&delta.as_bytes()[..split]);
             assert!(observer.completion_start_ms.is_none());
-            observer.bytes(&delta.as_bytes()[split..]);
+            observer.push_bytes(&delta.as_bytes()[split..]);
             let first = observer.completion_start_ms.unwrap();
-            observer.bytes(event(kind, json!({field:"later"})).as_bytes());
+            observer.push_bytes(event(kind, json!({field:"later"})).as_bytes());
             assert_eq!(observer.completion_start_ms, Some(first));
         }
         // The upstream content type controls timing even if the request asks to stream.
         let context = resolved_request_context_with_mode("provider-secret", mode).await;
-        let mut observer = ExecutionCapture::openai_responses(
+        let mut observer = ExecutionCapture::for_openai_responses(
             &context,
             &HeaderMap::new(),
             br#"{"stream":true,"input":"hello"}"#,
         );
-        response(&mut observer, "application/json; charset=utf-8");
-        observer.bytes(br#"{"output":[],"status":"completed"}"#);
+        record_response(&mut observer, "application/json; charset=utf-8");
+        observer.push_bytes(br#"{"output":[],"status":"completed"}"#);
         observer.end_body();
         assert!(observer.first_byte_ms.is_some());
         assert!(observer.completion_start_ms.is_none());
@@ -274,7 +275,7 @@ async fn provider_error_details_are_bounded_and_full_mode_only() {
     for mode in ["full", "usage"] {
         for streaming in [false, true] {
             let mut observer = observer(mode).await;
-            response(
+            record_response(
                 &mut observer,
                 if streaming {
                     "text/event-stream"
@@ -288,7 +289,7 @@ async fn provider_error_details_are_bounded_and_full_mode_only() {
             } else {
                 json!({"error":error}).to_string()
             };
-            observer.bytes(body.as_bytes());
+            observer.push_bytes(body.as_bytes());
             observer.end_body();
             let facts = &captured(&observer).facts;
             if mode == "full" {
@@ -305,10 +306,10 @@ async fn provider_error_details_are_bounded_and_full_mode_only() {
 #[tokio::test]
 async fn oversized_and_malformed_events_do_not_prevent_later_facts() {
     let mut observer = observer("full").await;
-    response(&mut observer, "text/event-stream");
-    observer.bytes(b"data: malformed\n\n");
-    observer.bytes(format!("data: {}\n\n", "x".repeat(MAX_CAPTURE_BYTES + 1)).as_bytes());
-    observer.bytes(terminal("completed", 0).as_bytes());
+    record_response(&mut observer, "text/event-stream");
+    observer.push_bytes(b"data: malformed\n\n");
+    observer.push_bytes(format!("data: {}\n\n", "x".repeat(MAX_CAPTURE_BYTES + 1)).as_bytes());
+    observer.push_bytes(terminal("completed", 0).as_bytes());
     observer.end_body();
     let capture = captured(&observer);
     assert!(!capture.facts.capture_complete);
@@ -323,9 +324,9 @@ async fn oversized_and_malformed_events_do_not_prevent_later_facts() {
 #[tokio::test]
 async fn capture_limits_and_encoded_bodies_are_explicit() {
     let mut observer = observer("full").await;
-    response(&mut observer, "text/event-stream");
+    record_response(&mut observer, "text/event-stream");
     for index in 0..=MAX_ITEMS {
-        observer.bytes(completed_item(index as u64, "x").as_bytes());
+        observer.push_bytes(completed_item(index as u64, "x").as_bytes());
     }
     assert_eq!(captured(&observer).items.len(), MAX_ITEMS);
     assert!(!captured(&observer).facts.capture_complete);
@@ -336,8 +337,8 @@ async fn capture_limits_and_encoded_bodies_are_explicit() {
         HeaderValue::from_static("application/json"),
     );
     headers.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
-    encoded.response(200, &headers);
-    encoded.bytes(b"opaque compressed bytes");
+    encoded.record_response(200, &headers);
+    encoded.push_bytes(b"opaque compressed bytes");
     encoded.end_body();
     assert!(matches!(captured(&encoded).body, ResponseBody::Unavailable));
     assert!(!captured(&encoded).facts.output_complete);
@@ -380,9 +381,9 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for LogWriter {
 async fn debug_record_is_emitted_once_and_only_at_debug_level() {
     for level in [tracing::Level::DEBUG, tracing::Level::INFO] {
         let mut observer = observer("full").await;
-        response(&mut observer, "text/event-stream");
-        observer.bytes(completed_item(0, "output-canary").as_bytes());
-        observer.bytes(terminal("completed", 1).as_bytes());
+        record_response(&mut observer, "text/event-stream");
+        observer.push_bytes(completed_item(0, "output-canary").as_bytes());
+        observer.push_bytes(terminal("completed", 1).as_bytes());
         observer.end_body();
         observer.metadata["key_metadata"] = json!({"secret": "metadata-canary"});
         let ProtocolCapture::OpenAiResponses(capture) = observer.protocol.as_mut().unwrap();
@@ -724,8 +725,8 @@ async fn capture_regression_large_request_does_not_invalidate_output() {
     let request = json!({"input": "x".repeat(MAX_CAPTURE_BYTES)}).to_string();
     for streaming in [false, true] {
         let mut observer =
-            ExecutionCapture::openai_responses(&context, &HeaderMap::new(), request.as_bytes());
-        response(
+            ExecutionCapture::for_openai_responses(&context, &HeaderMap::new(), request.as_bytes());
+        record_response(
             &mut observer,
             if streaming {
                 "text/event-stream"
@@ -738,7 +739,7 @@ async fn capture_regression_large_request_does_not_invalidate_output() {
         } else {
             json!({"status":"completed","output":[]}).to_string()
         };
-        observer.bytes(body.as_bytes());
+        observer.push_bytes(body.as_bytes());
         observer.end_body();
         let facts = &captured(&observer).facts;
         assert!(!facts.input_complete);
@@ -760,12 +761,12 @@ async fn capture_regression_preserves_native_request_and_usage() {
         ] {
             let request = json!({"model":"requested","input":input,"instructions":"be brief","future_request_field":{"enabled":true}});
             for streaming in [false, true] {
-                let mut execution = ExecutionCapture::openai_responses(
+                let mut execution = ExecutionCapture::for_openai_responses(
                     &context,
                     &HeaderMap::new(),
                     request.to_string().as_bytes(),
                 );
-                response(
+                record_response(
                     &mut execution,
                     if streaming {
                         "text/event-stream"
@@ -779,7 +780,7 @@ async fn capture_regression_preserves_native_request_and_usage() {
                 } else {
                     native.to_string()
                 };
-                execution.bytes(body.as_bytes());
+                execution.push_bytes(body.as_bytes());
                 execution.end_body();
                 let facts = &captured(&execution).facts;
                 let mut expected_input = request.clone();
@@ -803,7 +804,7 @@ async fn capture_regression_preserves_native_request_and_usage() {
 async fn downstream_cancellation_does_not_erase_completed_capture() {
     for streaming in [false, true] {
         let mut execution = observer("full").await;
-        response(
+        record_response(
             &mut execution,
             if streaming {
                 "text/event-stream"
@@ -816,7 +817,7 @@ async fn downstream_cancellation_does_not_erase_completed_capture() {
         } else {
             json!({"status":"completed","output":[]}).to_string()
         };
-        execution.bytes(body.as_bytes());
+        execution.push_bytes(body.as_bytes());
         execution.end_body();
         let writer = LogWriter::default();
         let subscriber = tracing_subscriber::fmt()
