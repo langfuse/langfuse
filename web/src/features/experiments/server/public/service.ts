@@ -152,7 +152,7 @@ export async function listExperimentsForPublicApi({
     id: query.id,
     name: query.name,
     datasetId: query.datasetId,
-    fromTime: new Date(query.fromStartTime),
+    fromTime: query.fromStartTime ? new Date(query.fromStartTime) : undefined,
     toTime: query.toStartTime ? new Date(query.toStartTime) : undefined,
     advancedFilters: query.filter,
     cursor: query.cursor

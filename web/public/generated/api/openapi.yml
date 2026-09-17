@@ -2479,11 +2479,14 @@ paths:
             nullable: true
         - name: fromStartTime
           in: query
-          description: Retrieve only experiments on or after this datetime.
-          required: true
+          description: |-
+            Retrieve only experiments on or after this datetime. When omitted,
+            the most recent experiments are returned.
+          required: false
           schema:
             type: string
             format: date-time
+            nullable: true
         - name: toStartTime
           in: query
           description: Retrieve only experiments before this datetime.

@@ -31,8 +31,10 @@ service:
             type: optional<string>
             docs: Versioned base64url cursor from the previous response page.
           fromStartTime:
-            type: datetime
-            docs: Retrieve only experiments on or after this datetime.
+            type: optional<datetime>
+            docs: |
+              Retrieve only experiments on or after this datetime. When omitted,
+              the most recent experiments are returned.
           toStartTime:
             type: optional<datetime>
             docs: Retrieve only experiments before this datetime.

@@ -148,6 +148,37 @@ describe("Public API experiments repository", () => {
       expect(Number(row!.item_count)).toBe(2);
     });
 
+    it("returns rows when fromTime is omitted", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now();
+      const olderExperimentId = `exp-${randomUUID()}`;
+      const newerExperimentId = `exp-${randomUUID()}`;
+
+      await createEventsCh([
+        createExperimentRootEvent({
+          projectId,
+          experimentId: olderExperimentId,
+          startTimeMs: startTimeMs - 60 * 60 * 1_000,
+        }),
+        createExperimentRootEvent({
+          projectId,
+          experimentId: newerExperimentId,
+          startTimeMs,
+        }),
+      ]);
+
+      const rows = await queryExperimentSummariesForPublicApi({
+        projectId,
+        fromTime: undefined,
+        includeMetadata: false,
+        limit: 10,
+      });
+
+      expect(rows.map((row) => row.experiment_id)).toEqual(
+        expect.arrayContaining([olderExperimentId, newerExperimentId]),
+      );
+    });
+
     it("orders by latest experiment activity while surfacing the earliest start time", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const startTimeMs = Date.now();
