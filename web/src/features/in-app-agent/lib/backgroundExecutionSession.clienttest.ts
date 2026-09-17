@@ -39,6 +39,7 @@ const runningView = {
     cancelRequested: false,
   },
   pendingToolApprovals: [],
+  pendingUserInputs: [],
 } satisfies Omit<
   BackgroundExecutionView,
   "attachment" | "cancelStatus" | "liveMessageRevision"
@@ -630,6 +631,64 @@ describe("BackgroundExecutionSessionController", () => {
     expect(unsubscribe).toHaveBeenCalledOnce();
   });
 
+  it("owns streamed ask-user interrupts separately from tool approval", async () => {
+    let subscriber: AgentSubscriber | undefined;
+    const agent = {
+      ...createAgent(),
+      subscribe: vi.fn((nextSubscriber: AgentSubscriber) => {
+        subscriber = nextSubscriber;
+        return { unsubscribe: vi.fn() };
+      }),
+    };
+    const session = new BackgroundExecutionSessionController({
+      agent,
+      hydrate: vi.fn().mockResolvedValue(runningView),
+      cancelRun: vi.fn(),
+      decideApproval: vi.fn(),
+      decideUserInput: vi.fn().mockResolvedValue(undefined),
+    });
+
+    await subscriber?.onCustomEvent?.({
+      event: {
+        type: EventType.CUSTOM,
+        name: "on_interrupt",
+        value: {
+          type: "mastra_suspend",
+          toolCallId: "ask-1",
+          toolName: "ask_user",
+          args: {
+            question: "Which environment should I query?",
+            options: [{ label: "production" }, { label: "staging" }],
+            selectionMode: "single_select",
+          },
+          runId: "run-1",
+        },
+      },
+    } as never);
+
+    expect(session.getSnapshot().pendingUserInputs).toMatchObject([
+      {
+        runId: "run-1",
+        status: "pending",
+        userInputRequest: {
+          type: "user_input_request",
+          reason: "input_required",
+          toolCallId: "ask-1",
+          message: "Which environment should I query?",
+        },
+      },
+    ]);
+    expect(session.getSnapshot().pendingToolApprovals).toEqual([]);
+
+    await session.decideUserInput({
+      runId: "run-1",
+      toolCallId: "ask-1",
+      payload: { answer: "production" },
+    });
+
+    expect(session.getSnapshot().pendingUserInputs).toEqual([]);
+  });
+
   it("reattaches an accepted approval from a coherent persisted snapshot", async () => {
     let installedMessages: AgUiMessage[] = [];
     let installedCursor = -1;
@@ -876,6 +935,7 @@ describe("BackgroundExecutionSessionController hydration", () => {
         eventCursor: 7,
         currentRun: runningView.currentRun,
         pendingToolApprovals: [],
+        pendingUserInputs: [],
       })
       // Keep the completed-run convergence open so this assertion observes
       // the live projection rather than a subsequently hydrated snapshot.
@@ -1013,6 +1073,7 @@ describe("BackgroundExecutionSessionController hydration", () => {
         eventCursor: 7,
         currentRun: runningView.currentRun,
         pendingToolApprovals: [],
+        pendingUserInputs: [],
       })
       // The post-execution converge would refetch the settled transcript and
       // hide any damage the live tail did, so hold it open.

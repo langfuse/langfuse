@@ -1,5 +1,8 @@
 import z from "zod";
-import { AgUiContextSchema } from "../../in-app-agent/schema";
+import {
+  AgUiContextSchema,
+  InAppAgentUserInputPayloadSchema,
+} from "../../in-app-agent/schema";
 
 /**
  * Lifecycle states of an in-app agent run (`in_app_agent_runs.status`).
@@ -104,18 +107,38 @@ export const InAppAgentRunRequestSchema = z.discriminatedUnion("kind", [
     /** Inherited sanitized context; defaults for legacy continuation rows. */
     context: z.array(AgUiContextSchema).default([]),
   }),
+  z.object({
+    kind: z.literal("userInputDecision"),
+    parentRunId: z.string(),
+    rootRunId: z.string().optional(),
+    traceStartedAt: z.iso.datetime({ offset: true }).optional(),
+    approvalRequestedAt: z.iso.datetime({ offset: true }).optional(),
+    continuationNumber: z.number().int().positive().optional(),
+    toolCallId: z.string(),
+    status: z.enum(["resolved", "cancelled"]),
+    payload: InAppAgentUserInputPayloadSchema.optional(),
+    context: z.array(AgUiContextSchema).default([]),
+  }),
 ]);
 
 export type InAppAgentRunRequest = z.infer<typeof InAppAgentRunRequestSchema>;
 
-// Approval continuations inherit the root run's trace ids, so telemetry keyed
+export const isContinuationRunRequest = (
+  request: InAppAgentRunRequest,
+): request is Extract<
+  InAppAgentRunRequest,
+  { kind: "approvalDecision" | "userInputDecision" }
+> =>
+  request.kind === "approvalDecision" || request.kind === "userInputDecision";
+
+// Interrupt continuations inherit the root run's trace ids, so telemetry keyed
 // off a run must resolve the root first.
 export const resolveInAppAgentRootRunId = (
   request: unknown,
   runId: string,
 ): string => {
   const parsed = InAppAgentRunRequestSchema.safeParse(request);
-  return parsed.success && parsed.data.kind === "approvalDecision"
+  return parsed.success && isContinuationRunRequest(parsed.data)
     ? (parsed.data.rootRunId ?? parsed.data.parentRunId)
     : runId;
 };

@@ -29,7 +29,7 @@ Closing the drawer detaches observation without cancelling the worker run.
 - `packages/shared/src/in-app-agent/schema.ts`: runtime-neutral AG-UI and durable
   human-in-the-loop wire contracts.
 - `packages/shared/src/in-app-agent/interrupts.ts`: browser-safe durable
-  approval interrupt parsing used by browser, web, and worker.
+  interrupt parsing (tool approval and ask-user) used by browser, web, and worker.
 - Explicit `packages/shared/src/in-app-agent/server/*` modules own persistence,
   lifecycle, MCP policy, persisted tool-result handling, compaction, tunables,
   and the seeded system prompt. There is no aggregate server barrel.
@@ -40,7 +40,7 @@ Closing the drawer detaches observation without cancelling the worker run.
   it builds a conversation snapshot.
 - `server/conversationSnapshot.ts`: rebuilds canonical messages and display state
   from one read of the persisted event log.
-- `server/router.ts`: tRPC routes for durable run start/cancel/approval, conversation snapshots and lists, and feedback.
+- `server/router.ts`: tRPC routes for durable run start/cancel/approval/user-input, conversation snapshots and lists, and feedback.
 - `worker/src/features/in-app-agent/runtime/*`: Mastra/Bedrock/MCP execution,
   continuation handling, instrumentation, prompt loading, tools, skills, and
   sandbox providers.
@@ -56,7 +56,7 @@ Closing the drawer detaches observation without cancelling the worker run.
 
 The worker entrypoint at `worker/src/features/in-app-agent/executeInAppAgentRun.ts`
 owns runtime credentials, sandbox lifecycle, event persistence, approval
-continuations, and terminal run transitions.
+and ask-user continuations, and terminal run transitions.
 
 Outside this feature folder, `packages/in-app-agent-sandbox-runtime/src/*` provides the shared sandbox runtime and contract types used by both the local Docker provider and the Lambda MicroVM image.
 
@@ -238,7 +238,9 @@ RBAC is the first gate for Langfuse MCP tools. Before a tool is exposed to the m
 
 Human approval is separate from the MCP tool override. Shared `mcpPolicy.ts` classifies every Langfuse MCP tool in `IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES`, using unprefixed MCP registry names and either `"auto"` or `"approval"`. The web in-app-agent server test imports the MCP registry's `McpToolName` contract and verifies both type equality and runtime registry equality, so adding a Langfuse MCP tool requires an explicit in-app agent approval classification without making MCP bootstrap depend on the in-app agent.
 
-The internal auto-approval set is derived from that map by prefixing Langfuse MCP tools with `langfuse_` and adding local tools such as `IN_APP_AGENT_REDIRECT_TOOL_NAME`; docs MCP tools are auto-approved by the `langfuseDocs_` prefix. The worker runtime agent marks every other tool with Mastra `requireApproval: true`. Mastra emits an interrupt, the browser asks the user, and the router records the decision for a durable worker continuation. The browser-safe `interrupts.ts` parser adapts Mastra's runtime payload into the Langfuse-owned `tool_approval_request` contract from `schema.ts`; browser, web server, and worker all consume that same parser.
+The internal auto-approval set is derived from that map by prefixing Langfuse MCP tools with `langfuse_` and adding local tools such as `IN_APP_AGENT_REDIRECT_TOOL_NAME`; docs MCP tools are auto-approved by the `langfuseDocs_` prefix. The worker runtime agent marks every other tool with Mastra `requireApproval: true`. Mastra emits an interrupt, the browser asks the user, and the router records the decision for a durable worker continuation. The browser-safe `interrupts.ts` parser adapts Mastra's runtime payload into the Langfuse-owned interrupt union in `schema.ts` (`tool_approval_request` and AG-UI-shaped `user_input_request` with `reason: "input_required"`). Browser, web server, and worker all consume that same parser. Ask-user parks on the same `on_interrupt` / `AWAITING_APPROVAL` path as tool approval; the continuation injects the answer as an `ask_user` tool result and does not execute the tool.
+
+A later protocol translation should bump `@ag-ui/core` / `@ag-ui/client` (and likely `@ag-ui/mastra`), flip `emitInterruptOutcome: true`, dual-read persisted `on_interrupt` plus `RUN_FINISHED.outcome`, move the resume channel from `forwardedProps.command.resume` to `RunAgentInput.resume[]`, and emit only `ToolCallResult` on resume. Until then keep `emitInterruptOutcome: false`. Do not take CopilotKit frontend tools or in-process AI SDK HITL for this park/resume.
 
 The `InAppAgentPendingToolApproval` table is not used by background execution.
 It remains temporarily so existing rows and Prisma relations stay valid.

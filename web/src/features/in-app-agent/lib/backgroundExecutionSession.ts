@@ -4,9 +4,13 @@ import {
   type AgUiContext,
   type AgUiMessage,
   type InAppAgentToolApprovalRequest,
+  type InAppAgentUserInputPayload,
+  type InAppAgentUserInputRequest,
   AgUiMessageSchema,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
+  isInAppAgentToolApprovalRequest,
+  isInAppAgentUserInputRequest,
   parseInAppAgentInterruptEvent,
 } from "@langfuse/shared/in-app-agent";
 import { createInAppAgentMessageId } from "../ids";
@@ -30,6 +34,12 @@ export type ApprovalDecision = {
   approvalScope?: "once" | "conversation";
 };
 
+export type UserInputDecision = {
+  runId: string;
+  toolCallId: string;
+  payload: InAppAgentUserInputPayload;
+};
+
 export type BackgroundExecutionRunView = {
   id: string;
   status: InAppAgentRunStatus;
@@ -40,6 +50,12 @@ export type BackgroundExecutionRunView = {
 export type BackgroundExecutionApprovalView = {
   runId: string;
   approvalRequest: InAppAgentToolApprovalRequest;
+  status: "pending" | "submitting";
+};
+
+export type BackgroundExecutionUserInputView = {
+  runId: string;
+  userInputRequest: InAppAgentUserInputRequest;
   status: "pending" | "submitting";
 };
 
@@ -61,6 +77,7 @@ export type BackgroundExecutionView = {
   eventCursor: number;
   currentRun: BackgroundExecutionRunView | null;
   pendingToolApprovals: BackgroundExecutionApprovalView[];
+  pendingUserInputs: BackgroundExecutionUserInputView[];
   cancelStatus: "idle" | "submitting";
   attachment: BackgroundExecutionAttachment;
 };
@@ -71,6 +88,7 @@ export type BackgroundExecutionSession = {
   run(command: BackgroundExecutionRunCommand): Promise<void> | null;
   cancel(): Promise<void>;
   decide(input: ApprovalDecision): Promise<void>;
+  decideUserInput(input: UserInputDecision): Promise<void>;
   detach(): void;
   dispose(): void;
   getSnapshot(): BackgroundExecutionView;
@@ -121,6 +139,9 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
   private readonly decideApproval: (
     input: ApprovalDecision,
   ) => Promise<unknown>;
+  private readonly decideUserInputRequest: (
+    input: UserInputDecision,
+  ) => Promise<unknown>;
   private readonly onSettled?: () => void;
   private readonly onHydratedSnapshot?: (
     snapshot: BackgroundExecutionHydration,
@@ -137,6 +158,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     hydrate: () => Promise<BackgroundExecutionHydration>;
     cancelRun: (runId: string) => Promise<unknown>;
     decideApproval: (input: ApprovalDecision) => Promise<unknown>;
+    decideUserInput?: (input: UserInputDecision) => Promise<unknown>;
     subscriber?: BackgroundExecutionAgentSubscriber;
     onSettled?: () => void;
     /**
@@ -153,6 +175,11 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     this.hydrate = config.hydrate;
     this.cancelRun = config.cancelRun;
     this.decideApproval = config.decideApproval;
+    this.decideUserInputRequest =
+      config.decideUserInput ??
+      (async () => {
+        throw new Error("User input decisions are not configured");
+      });
     this.onSettled = config.onSettled;
     this.onHydratedSnapshot = config.onHydratedSnapshot;
     this.onError = config.onError;
@@ -163,6 +190,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       eventCursor: -1,
       currentRun: null,
       pendingToolApprovals: [],
+      pendingUserInputs: [],
       cancelStatus: "idle",
       attachment: { status: "detached" },
       ...config.initialView,
@@ -206,17 +234,25 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
         }
       },
       onCustomEvent: ({ event }) => {
-        const approvalRequest = parseInAppAgentInterruptEvent(event);
-        if (approvalRequest) {
+        const interrupt = parseInAppAgentInterruptEvent(event);
+        if (isInAppAgentToolApprovalRequest(interrupt)) {
           this.observeApproval({
-            runId: approvalRequest.runId,
-            approvalRequest,
+            runId: interrupt.runId,
+            approvalRequest: interrupt,
+            status: "pending",
+          });
+        }
+        if (isInAppAgentUserInputRequest(interrupt)) {
+          this.observeUserInput({
+            runId: interrupt.runId,
+            userInputRequest: interrupt,
             status: "pending",
           });
         }
       },
       onToolCallResultEvent: async (params) => {
         this.resolveApproval(params.event.toolCallId);
+        this.resolveUserInput(params.event.toolCallId);
         return config.subscriber?.onToolCallResultEvent?.(params);
       },
     });
@@ -351,6 +387,19 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     await this.refreshAttachmentAfterCommand(attachmentGeneration);
   }
 
+  async decideUserInput(input: UserInputDecision): Promise<void> {
+    const attachmentGeneration = this.attachGeneration;
+    this.setUserInputStatus(input.toolCallId, "submitting");
+    try {
+      await this.decideUserInputRequest(input);
+    } catch (error) {
+      this.setUserInputStatus(input.toolCallId, "pending");
+      throw error;
+    }
+    this.resolveUserInput(input.toolCallId);
+    await this.refreshAttachmentAfterCommand(attachmentGeneration);
+  }
+
   detach(): void {
     this.attachGeneration += 1;
     this.agent.abortRun();
@@ -440,6 +489,41 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     });
   }
 
+  private observeUserInput(userInput: BackgroundExecutionUserInputView): void {
+    const pendingUserInputs = this.view.pendingUserInputs.filter(
+      (pending) =>
+        pending.userInputRequest.toolCallId !==
+        userInput.userInputRequest.toolCallId,
+    );
+    this.setView({
+      ...this.view,
+      pendingUserInputs: [...pendingUserInputs, userInput],
+    });
+  }
+
+  private resolveUserInput(toolCallId: string): void {
+    this.setView({
+      ...this.view,
+      pendingUserInputs: this.view.pendingUserInputs.filter(
+        (pending) => pending.userInputRequest.toolCallId !== toolCallId,
+      ),
+    });
+  }
+
+  private setUserInputStatus(
+    toolCallId: string,
+    status: BackgroundExecutionUserInputView["status"],
+  ): void {
+    this.setView({
+      ...this.view,
+      pendingUserInputs: this.view.pendingUserInputs.map((pending) =>
+        pending.userInputRequest.toolCallId === toolCallId
+          ? { ...pending, status }
+          : pending,
+      ),
+    });
+  }
+
   private observeExecution(
     execution: Promise<unknown>,
     generation: number,
@@ -503,6 +587,8 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     this.agent.setCursor(hydrated.eventCursor);
     this.setView({
       ...hydrated,
+      pendingToolApprovals: hydrated.pendingToolApprovals ?? [],
+      pendingUserInputs: hydrated.pendingUserInputs ?? [],
       liveMessageRevision: this.view.liveMessageRevision,
       cancelStatus: "idle",
       attachment: { status: "detached" },

@@ -229,3 +229,56 @@ export const InAppAgentToolApprovalRequestSchema = z.object({
 export type InAppAgentToolApprovalRequest = z.infer<
   typeof InAppAgentToolApprovalRequestSchema
 >;
+
+export const InAppAgentAskUserOptionSchema = z.object({
+  label: z.string().min(1).max(80),
+  description: z.string().max(200).optional(),
+});
+
+export const InAppAgentAskUserArgsSchema = z.object({
+  question: z.string().min(1).max(2000),
+  options: z.array(InAppAgentAskUserOptionSchema).max(8).optional(),
+  selectionMode: z.enum(["single_select", "multi_select"]).optional(),
+});
+
+export type InAppAgentAskUserArgs = z.infer<typeof InAppAgentAskUserArgsSchema>;
+
+export const InAppAgentUserInputPayloadSchema = z.object({
+  answer: z.union([
+    z.string().min(1).max(2000),
+    z.array(z.string().min(1).max(80)).min(1).max(8),
+  ]),
+  details: z.string().max(2000).optional(),
+});
+
+export type InAppAgentUserInputPayload = z.infer<
+  typeof InAppAgentUserInputPayloadSchema
+>;
+
+/**
+ * AG-UI Interrupt envelope for an ask-user park (`reason: "input_required"`).
+ * Stored on the current `on_interrupt` CUSTOM event so a later translation
+ * onto `RUN_FINISHED.outcome` can reuse this shape without a second payload.
+ */
+export const InAppAgentUserInputRequestSchema = z.object({
+  type: z.literal("user_input_request"),
+  id: z.string().min(1),
+  reason: z.literal("input_required"),
+  message: z.string().min(1),
+  responseSchema: z.unknown().optional(),
+  toolCallId: z.string().min(1),
+  toolName: z.string().min(1),
+  args: InAppAgentAskUserArgsSchema,
+  runId: z.string().min(1),
+});
+
+export type InAppAgentUserInputRequest = z.infer<
+  typeof InAppAgentUserInputRequestSchema
+>;
+
+export const InAppAgentInterruptSchema = z.discriminatedUnion("type", [
+  InAppAgentToolApprovalRequestSchema,
+  InAppAgentUserInputRequestSchema,
+]);
+
+export type InAppAgentInterrupt = z.infer<typeof InAppAgentInterruptSchema>;

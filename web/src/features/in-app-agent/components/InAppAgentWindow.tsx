@@ -53,7 +53,10 @@ import type {
   InAppAgentMessageFeedbackValue,
   InAppAgentMessageSource,
 } from "../schema";
-import { IN_APP_AGENT_GENERIC_ERROR_MESSAGE } from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
+  type InAppAgentUserInputPayload,
+} from "@langfuse/shared/in-app-agent";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
 import type { SettledActivityOutcome } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
@@ -62,6 +65,7 @@ import { InAppAgentBackgroundHint } from "@/src/features/in-app-agent/components
 import { InAppAgentNotice } from "@/src/features/in-app-agent/components/InAppAgentNotice";
 import { useInAppAgentBackgroundHint } from "@/src/features/in-app-agent/lib/useInAppAgentBackgroundHint";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
+import { InAppAgentUserInputCard } from "@/src/features/in-app-agent/components/InAppAgentUserInputCard";
 import {
   getInAppAgentActivityProgressLabel,
   type InAppAgentError,
@@ -372,7 +376,9 @@ function buildConversationDisplayItems(
       return [message];
     }
 
-    const visibleTools = message.content.tools.filter((tool) => !tool.approval);
+    const visibleTools = message.content.tools.filter(
+      (tool) => !tool.approval && !tool.userInput,
+    );
     if (visibleTools.length === 0) {
       return [];
     }
@@ -886,6 +892,10 @@ export type InAppAgentWindowProps = {
   onApproveToolCall: (approvalId: string) => Promise<void>;
   onAlwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   onRejectToolCall: (approvalId: string) => Promise<void>;
+  onSubmitUserInput?: (
+    userInputId: string,
+    payload: InAppAgentUserInputPayload,
+  ) => Promise<void>;
   onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
   onSubmit: (
@@ -988,6 +998,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onApproveToolCall,
     onAlwaysAllowToolCall,
     onRejectToolCall,
+    onSubmitUserInput,
     onOpenConversationHistory,
     onSelectConversation,
     onSubmit,
@@ -1040,7 +1051,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const conversationTitle = selectedConversationTitle?.trim() || null;
   const pendingToolCalls = messages.flatMap((message) =>
     message.content.type === "toolGroup"
-      ? message.content.tools.filter((tool) => tool.approval)
+      ? message.content.tools.filter((tool) => tool.approval || tool.userInput)
       : [],
   );
   // Rebuilding every turn on each composer keystroke is wasted work: the
@@ -1502,17 +1513,27 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 isExpanded && "mx-auto max-w-3xl",
               )}
             >
-              {pendingToolCalls.map((tool, index) => (
-                <InAppAgentToolCallCard
-                  key={`${tool.approval?.id ?? tool.name}-${index}`}
-                  tool={tool}
-                  isCompact={!isExpanded}
-                  isDisabled={isRateLimited}
-                  onApproveToolCall={onApproveToolCall}
-                  onAlwaysAllowToolCall={onAlwaysAllowToolCall}
-                  onRejectToolCall={onRejectToolCall}
-                />
-              ))}
+              {pendingToolCalls.map((tool, index) =>
+                tool.userInput ? (
+                  <InAppAgentUserInputCard
+                    key={`${tool.userInput.id}-${index}`}
+                    userInput={tool.userInput}
+                    isCompact={!isExpanded}
+                    isDisabled={isRateLimited}
+                    onSubmitUserInput={onSubmitUserInput}
+                  />
+                ) : (
+                  <InAppAgentToolCallCard
+                    key={`${tool.approval?.id ?? tool.name}-${index}`}
+                    tool={tool}
+                    isCompact={!isExpanded}
+                    isDisabled={isRateLimited}
+                    onApproveToolCall={onApproveToolCall}
+                    onAlwaysAllowToolCall={onAlwaysAllowToolCall}
+                    onRejectToolCall={onRejectToolCall}
+                  />
+                ),
+              )}
             </div>
           </div>
         ) : null}
