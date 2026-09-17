@@ -5,7 +5,6 @@ import {
   getItemTypeLabels,
   type LangfuseItemType,
 } from "@/src/components/ItemBadge";
-import { TextChip } from "@/src/components/TextChip";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
@@ -166,11 +165,11 @@ const PageHeader = ({
           >
             {/* Left side content */}
             <div className="flex grow flex-wrap items-center md:grow-0">
-              <div className="mr-2 flex items-center gap-1">
+              <div className="mr-2 flex items-baseline gap-1.5">
                 {itemType && (
-                  <div className="flex items-center">
-                    <TextChip text={getItemTypeLabels(itemType).displayLabel} />
-                  </div>
+                  <span className="text-muted-foreground text-xs">
+                    {getItemTypeLabels(itemType).displayLabel}
+                  </span>
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">
                   {/* Explicit color: the SidebarProvider shell sets
