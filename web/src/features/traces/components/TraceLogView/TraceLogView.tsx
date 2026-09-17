@@ -379,7 +379,6 @@ export const TraceLogView = ({
       )}
 
       {/* Table view mode - render as expandable table */}
-      {/* Every view but raw JSON uses table mode: "json-beta" because the advanced I/O viewer works in expandable rows, pinned styles because they are Formatted */}
       {flatItems.length > 0 && currentView !== "json" && (
         <JSONTableView
           items={flatItems}

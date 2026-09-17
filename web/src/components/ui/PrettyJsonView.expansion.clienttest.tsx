@@ -61,8 +61,6 @@ describe("PrettyJsonView short-list expansion", () => {
     ).not.toBeInTheDocument();
     expect(within(expandedTable).getByText("0")).toBeInTheDocument();
     expect(within(expandedTable).getByText("1")).toBeInTheDocument();
-    // String values render bare in the table; the collapsed preview above
-    // is the only place the JSON quotes show.
     expect(within(expandedTable).getByText("email")).toBeInTheDocument();
     expect(within(expandedTable).getByText("paid_social")).toBeInTheDocument();
   });

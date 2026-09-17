@@ -96,7 +96,6 @@ export function SelectionProvider({ children }: SelectionProviderProps) {
     : DEFAULT_TAB;
 
   // Map localStorage JsonViewPreference to ViewPref format
-  // Both JSON views map to "json"; Formatted and pinned styles to "formatted".
   const localStorageViewPref: ViewPref = isPrettyLikeJsonView(
     jsonViewPreference,
   )

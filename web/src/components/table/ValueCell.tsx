@@ -42,13 +42,8 @@ const VALUE_TEXT_CLASSES = "font-mono text-xs/5 wrap-break-word";
 const STRING_TEXT_CLASSES = "text-json-value-string";
 const PREVIEW_TEXT_CLASSES = "text-gray-500 dark:text-gray-400";
 
-/** Row hover controls sit on the same right axis and icon size as the section
-    header's copy button, so the column of icons reads as one. */
 const ROW_ACTION_BUTTON_CLASSES =
   "text-muted-foreground absolute top-0 h-5 w-5 rounded-sm p-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:bg-transparent hover:text-foreground";
-/** Aligned by ink, not by box: the copy glyph paints to 1px shy of its
-    viewBox, the vertical ellipsis to 5.5px, so equal offsets would read as
-    4.5px of drift down the column. */
 const ROW_COPY_OFFSET = "-right-0.5";
 const ROW_MENU_OFFSET = "-right-1.5";
 
@@ -372,8 +367,6 @@ export const ValueCell = memo(
 
     const handleCopy = async (e: React.MouseEvent) => {
       e.stopPropagation();
-      // The cell shows strings bare; the copy button hands over the raw JSON
-      // form, quotes included. The actions menu keeps bare copies for filters.
       const copyValue =
         typeof value === "string" ? JSON.stringify(value) : getCopyValue(value);
 
@@ -459,8 +452,6 @@ export const ValueCell = memo(
               needsTruncation: false,
             };
           }
-          // Arrays always show previews, never truncate. A collapsed preview
-          // stays on one line and truncates with an ellipsis; the row expands on click.
           const arrayPreview = arrayPreviewText(value as unknown[]);
           return {
             content: renderPreview(arrayPreview),
@@ -477,7 +468,6 @@ export const ValueCell = memo(
               needsTruncation: false,
             };
           }
-          // Objects always show previews, never truncate; single line like arrays.
           const objectPreview = objectPreviewText(
             value as Record<string, unknown>,
           );
@@ -508,7 +498,6 @@ export const ValueCell = memo(
     };
 
     const { content, needsTruncation, previewTitle } = getDisplayValue();
-    // Collapsed array / object previews stay on one line and ellipsise.
     const singleLine = previewTitle !== undefined;
 
     return (

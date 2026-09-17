@@ -65,11 +65,6 @@ import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { isLargeRenderString } from "@/src/components/ui/largeStringGate";
 import { LargeStringFallback } from "@/src/components/ui/LargeStringFallback";
 
-// Table layout: the key column is sized to its keys (capped at 40 % of the
-// table), each row carries a hairline divider, and dotted keys wrap at the
-// dots. Keys are mono one step down the type scale from the sans values:
-// mono reads larger than sans at an equal size, and the values are the
-// content.
 const INDENTATION_PER_LEVEL = 16;
 /** Width in px reserved for the chevron column at level 0. */
 const INDENTATION_BASE = 12;
@@ -394,8 +389,6 @@ const JsonTableRowComponent = memo(
             className={cn(
               "h-full border-b [:last-child_>_&]:border-b-0",
               CELL_CLASSES,
-              // Auto table layout sizes the key column to content; unbreakable
-              // value tokens (URLs, paths) must not push the table wider.
               cell.column.id === "value" && "[&>div]:wrap-anywhere",
               toneClasses?.cell,
             )}
@@ -452,8 +445,6 @@ function JsonPrettyTable({
   const topLevelRowRef = useRef<HTMLTableRowElement>(null);
   const [topLevelRowHeight, setTopLevelRowHeight] = useState(32);
 
-  // Sticky top-level rows sit at the top of the scroll container (there is no
-  // header row); nested sticky keys clear one top-level row below them.
   useEffect(() => {
     if (stickyTopLevelKey && topLevelRowRef.current) {
       setTopLevelRowHeight(topLevelRowRef.current.offsetHeight);
@@ -554,18 +545,13 @@ function JsonPrettyTable({
       const isLongValue = valueLength > MAX_CELL_DISPLAY_CHARS / 3; // already long if we don't truncate
 
       if (isLongValue) {
-        // calculate sticky position based on level and stickyTopLevelKey setting
         let topPosition = "0";
         if (stickyTopLevelKey) {
-          // Level 0 sticks at the top; deeper levels clear one top-level row.
           topPosition =
             row.original.level === 0 ? "0" : `${topLevelRowHeight}px`;
         }
 
         return (
-          // py-1 with -my-1 keeps the sticky box padded when it sticks under
-          // the header without adding height, so the key stays on the value's
-          // baseline instead of sitting one padding step lower.
           <div className="sticky z-5 -my-1 py-1" style={{ top: topPosition }}>
             {content}
           </div>

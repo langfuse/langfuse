@@ -109,7 +109,6 @@ export function TraceDetailView({
 
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
-  // Formatted and the pinned styles share the pretty layout; JSON views differ.
   const isPrettyLikeView = isPrettyLikeJsonView(currentView);
 
   const selectedViewTab = jsonViewToggleTab(jsonViewPreference);
