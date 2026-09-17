@@ -2,6 +2,56 @@ import type { SpanIO, ToolDefinition } from "../../../types";
 
 import type { NormalizedIOFixture } from "../fixture-types";
 
+// Docs-derived requests, not captured traces:
+// https://ai-sdk.dev/docs/reference/ai-sdk-core/generate-text
+export const documentedPromptFixtures: NormalizedIOFixture[] = [
+  { name: "string prompt", input: { prompt: "Weather in San Francisco?" } },
+  {
+    name: "system and prompt",
+    input: { system: "Answer briefly.", prompt: "Weather in San Francisco?" },
+  },
+  {
+    name: "message prompt",
+    input: { prompt: [{ role: "user", content: "Weather in San Francisco?" }] },
+  },
+  {
+    name: "messages",
+    input: {
+      messages: [{ role: "user", content: "Weather in San Francisco?" }],
+    },
+  },
+].flatMap(({ name, input }) =>
+  [false, true].map(
+    (serialized): NormalizedIOFixture => ({
+      name: `documented AI SDK ${name}${serialized ? " (JSON)" : ""}`,
+      spanIO: {
+        input: serialized ? JSON.stringify(input) : input,
+        output: undefined,
+        metadata: undefined,
+      },
+      expected: {
+        messages: [
+          ...(input.system
+            ? [
+                {
+                  source: "input" as const,
+                  role: "system" as const,
+                  parts: [{ type: "text" as const, text: input.system }],
+                },
+              ]
+            : []),
+          {
+            source: "input",
+            role: "user",
+            parts: [{ type: "text", text: "Weather in San Francisco?" }],
+          },
+        ],
+        toolDefinitions: [],
+      },
+    }),
+  ),
+);
+
 const inputToolCallId = "call_5iGKBMczvh1pevPChrZNGSFB";
 const outputToolCallId = "toolu_01XXtujJ3DBaYEZGzn96xpGt";
 
@@ -579,10 +629,8 @@ export const capturedTraceFixtures: NormalizedIOFixture[] = [
           role: "user",
           parts: [
             {
-              type: "data",
-              value: {
-                prompt: "What is the weather like today in San Francisco?",
-              },
+              type: "text",
+              text: "What is the weather like today in San Francisco?",
             },
           ],
           source: "input",
