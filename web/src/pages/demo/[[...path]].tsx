@@ -1,5 +1,4 @@
 import { type GetServerSideProps, type GetServerSidePropsResult } from "next";
-import { CloudConfigSchema } from "@langfuse/shared";
 
 import { env } from "@/src/env.mjs";
 import { getServerAuthSession } from "@/src/server/auth";
@@ -10,12 +9,10 @@ const DemoRedirectPage = () => null;
 export default DemoRedirectPage;
 
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
-  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-    return redirect("/");
-  }
-
   const demoProject =
-    env.NEXT_PUBLIC_DEMO_ORG_ID && env.NEXT_PUBLIC_DEMO_PROJECT_ID
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+    env.NEXT_PUBLIC_DEMO_ORG_ID &&
+    env.NEXT_PUBLIC_DEMO_PROJECT_ID
       ? await prisma.project.findUnique({
           where: {
             orgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
@@ -24,20 +21,11 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
           },
           select: {
             id: true,
-            organization: {
-              select: {
-                cloudConfig: true,
-              },
-            },
           },
         })
       : null;
 
-  const isCloudDemoOrg = CloudConfigSchema.safeParse(
-    demoProject?.organization.cloudConfig,
-  ).success;
-
-  if (!demoProject || !isCloudDemoOrg) {
+  if (!demoProject) {
     return redirect("/");
   }
 
