@@ -38,7 +38,7 @@ export const TagButton: React.FC<{
         key={tag}
         type="button"
         disabled={loading}
-        className="w-fit max-w-40 min-w-0 gap-1"
+        className="focus-visible:ring-ring hover:bg-tertiary w-fit max-w-40 min-w-0 gap-1 focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
       >
         {label}
       </button>

@@ -181,7 +181,7 @@ describe("UpsertModelFormDialog price editor", () => {
     const label = within(trigger).getByText("claude-sonnet-4-5");
 
     expect(trigger.tagName).toBe("BUTTON");
-    expect(label.parentElement).toHaveClass("bg-tertiary");
+    expect(label.parentElement).toHaveClass("border-border");
     expect(label.parentElement?.querySelector("svg")).not.toBeNull();
   });
 
