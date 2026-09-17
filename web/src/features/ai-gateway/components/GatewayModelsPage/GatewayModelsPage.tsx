@@ -16,7 +16,11 @@ const providerFormats: Record<GatewayProvider, string[]> = {
 
 type ModelRow = {
   id: string;
-  availableVia: Array<{ connectionName: string; provider: GatewayProvider }>;
+  availableVia: Array<{
+    connectionId: string;
+    connectionName: string;
+    provider: GatewayProvider;
+  }>;
   apiFormats: string[];
 };
 
@@ -97,6 +101,7 @@ function aggregateModels(
     for (const modelId of result.models) {
       const existing = models.get(modelId);
       const availableVia = {
+        connectionId: connection.id,
         connectionName: connection.name,
         provider: connection.provider,
       };

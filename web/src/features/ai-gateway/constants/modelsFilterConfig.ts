@@ -4,6 +4,13 @@ import { providerLabels } from "./providerLabels";
 
 const filterColumns: ColumnDefinition[] = [
   {
+    name: "Provider credentials",
+    id: "connection",
+    type: "arrayOptions",
+    internal: "connection",
+    options: [],
+  },
+  {
     name: "Provider",
     id: "provider",
     type: "arrayOptions",
@@ -25,8 +32,13 @@ const filterColumns: ColumnDefinition[] = [
 export const gatewayModelsFilterConfig: FilterConfig = {
   tableName: "gateway-models",
   columnDefinitions: filterColumns,
-  defaultExpanded: ["provider", "apiFormat"],
+  defaultExpanded: ["connection", "provider", "apiFormat"],
   facets: [
+    {
+      type: "categorical",
+      column: "connection",
+      label: "Provider credentials",
+    },
     { type: "categorical", column: "provider", label: "Provider" },
     { type: "categorical", column: "apiFormat", label: "API format" },
   ],

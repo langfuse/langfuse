@@ -52,9 +52,7 @@ const OptionItem = ({
  * second line is measured against, and whether items missing from the baseline
  * are listed.
  *
- * All three live in the URL, so they travel with a shared link — which is the
- * line between this menu and the table's "Table settings" popover, where the
- * per-user preferences (columns, row height, cell format) live.
+ * These settings live in the URL and travel with a shared link.
  */
 export function ExperimentDisplaySettings({
   layout,

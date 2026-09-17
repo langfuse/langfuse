@@ -12,3 +12,4 @@ export {
   SESSION_DETAIL_SYSTEM_PRESETS,
   getSessionDetailPresetToApply,
 } from "@/src/features/sessions/session-detail-presets";
+export { default as SessionsTable } from "@/src/features/sessions/SessionsTable";

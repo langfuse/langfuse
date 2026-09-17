@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import type { FilterState, TracingSearchType } from "@langfuse/shared";
 import { EventsSearchBarRow } from "./EventsSearchBarRow";
 import { useEventsSearchBar } from "../hooks/useEventsSearchBar";
@@ -17,7 +16,6 @@ export function TableSearchBar({
   observed,
   isV4,
   search,
-  searchScope,
   onRequestColumns,
   erroredColumns,
 }: {
@@ -32,13 +30,12 @@ export function TableSearchBar({
     query: string | null;
     type?: TracingSearchType[];
     setQuery: (query: string | null) => void;
+    setType?: (type: TracingSearchType[]) => void;
   };
-  searchScope?: ReactNode;
   onRequestColumns?: (columns: readonly string[]) => void;
   erroredColumns?: ReadonlySet<string>;
 }) {
-  // The host owns search scopes. Bare text edits its existing search lane
-  // without translating a persisted scope into a different column filter.
+  // The host owns the applied query and scope; the bar edits both together.
   const { store, commit, applyFilters } = useEventsSearchBar({
     projectId,
     tableName,
@@ -50,9 +47,9 @@ export function TableSearchBar({
     observed,
     searchQuery: search?.query ?? null,
     setSearchQuery: search?.setQuery ?? noSearchLane,
-    searchType: DEFAULT_SEARCH_TYPE,
-    analyticsSearchType: search?.type ?? [],
-    setSearchType: noSearchLane,
+    searchType: search?.type ?? DEFAULT_SEARCH_TYPE,
+    analyticsSearchType: search?.setType ? undefined : (search?.type ?? []),
+    setSearchType: search?.setType ?? noSearchLane,
   });
 
   return (
@@ -71,7 +68,6 @@ export function TableSearchBar({
           erroredColumns={erroredColumns}
         />
       </div>
-      {searchScope}
     </div>
   );
 }

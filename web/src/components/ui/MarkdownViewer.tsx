@@ -15,11 +15,9 @@ import ReactMarkdown, {
   type ExtraProps as ReactMarkdownExtraProps,
 } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
+import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { useTheme } from "next-themes";
 import { ImageOff, Info } from "lucide-react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { MentionBadge } from "@/src/features/comments/components/MentionBadge";
 import {
   OpenAIUrlImageUrl,
@@ -507,10 +505,8 @@ export function MarkdownView({
       role. Falls back to matching the title for callers without role data. */
   isSystemPrompt?: boolean;
 }) {
-  const capture = usePostHogClientCapture();
   const { forcedTheme, resolvedTheme } = useTheme();
   const theme = forcedTheme ?? resolvedTheme;
-  const { setIsMarkdownEnabled } = useMarkdownContext();
 
   const markdownContent =
     typeof markdown === "string" ? markdown : parseOpenAIContentParts(markdown);
@@ -541,13 +537,6 @@ export function MarkdownView({
     copyTextToClipboard(markdownContent);
   };
 
-  const handleOnValueChange = () => {
-    setIsMarkdownEnabled(false);
-    capture("trace_detail:io_pretty_format_toggle_group", {
-      renderMarkdown: false,
-    });
-  };
-
   const inlineMediaReferenceStrings =
     typeof markdown === "string"
       ? getStandaloneMediaReferenceStrings(markdown)
@@ -569,14 +558,14 @@ export function MarkdownView({
   ) : null;
 
   return (
-    <div className="overflow-hidden" key={theme}>
+    <div className="group/iosection overflow-hidden" key={theme}>
       {title ? (
         <>
           <MarkdownJsonViewHeader
             title={title}
             titleIcon={titleIcon}
-            handleOnValueChange={handleOnValueChange}
             handleOnCopy={handleOnCopy}
+            hoverRevealControls
             controlButtons={controlButtons}
             collapseControl={
               shouldBeCollapsible
@@ -587,13 +576,12 @@ export function MarkdownView({
                 : undefined
             }
           />
-          <div className="border-t" />
         </>
       ) : null}
       {afterHeader}
       <div
         className={cn(
-          "io-message-content ph-no-capture grid grid-flow-row gap-2 px-1 py-2",
+          "io-message-content ph-no-capture text-foreground-secondary grid grid-flow-row gap-2 px-1 pt-1 pb-2",
           title === "assistant" || title === "Output" || title === "Model"
             ? "bg-accent-light-green"
             : "",

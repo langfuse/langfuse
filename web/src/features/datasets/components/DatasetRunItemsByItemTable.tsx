@@ -73,7 +73,6 @@ export function DatasetRunItemsByItemTable(props: {
       header: "Run Name",
       size: 150,
       isPinnedLeft: true,
-      emptyValue: "-",
     }),
     createDateTableColumn<DatasetRunItemByItemRowData>({
       accessorKey: "runAt",

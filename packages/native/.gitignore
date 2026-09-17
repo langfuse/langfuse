@@ -1,0 +1,5 @@
+# Cargo build output
+target/
+
+# Platform-specific binaries produced by `napi build`
+*.node

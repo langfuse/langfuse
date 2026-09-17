@@ -718,7 +718,7 @@ export default function ExperimentsTable({
       headerTooltip: {
         description: "Average duration of the root span per experiment item.",
       },
-      formatter: (value) => `${numberFormatter(value / 1000, 4)}s`,
+      formatter: (value) => `Ø ${numberFormatter(value / 1000, 4)}s`,
       metricsLoading,
     }),
     createExperimentMetricColumn<ExperimentsTableRow>({
@@ -985,7 +985,6 @@ export default function ExperimentsTable({
               orderByState={orderByState}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
-              mergeSettingsIntoPopover
               timeRange={showControlsInPageHeader ? undefined : timeRange}
               setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
               actionButtons={[

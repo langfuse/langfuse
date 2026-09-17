@@ -12,7 +12,7 @@ import { useCallback, useEffect } from "react";
 import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
 import { ExperimentFormatSetting } from "@/src/features/experiments/components/ExperimentFormatSetting";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { ExperimentSelectionControls } from "@/src/features/experiments/components/ExperimentSelectionControls";
 import { useIoRenderModeLocalStorage } from "@/src/components/table/data-table-io-render-mode-switch";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -44,6 +44,7 @@ export default function ExperimentResults() {
     itemVisibility,
     setItemVisibility,
     allExperimentIds,
+    colorExperimentIds,
   } = useExperimentResultsState();
   const [ioRenderMode, setIoRenderMode] = useIoRenderModeLocalStorage(
     "experiment-items",
@@ -139,6 +140,7 @@ export default function ExperimentResults() {
             baselineId={baselineId}
             baselineName={experiment?.name}
             comparisonIds={comparisonIds}
+            colorExperimentIds={colorExperimentIds}
             selectedExperimentCount={allExperimentIds.length}
             onBaselineChange={setBaseline}
             onBaselineClear={clearBaseline}
@@ -177,7 +179,7 @@ export default function ExperimentResults() {
             key={ioRenderMode}
             projectId={projectId}
             ioRenderMode={ioRenderMode}
-            settingsSections={
+            toolbarSettings={
               <ExperimentFormatSetting
                 ioRenderMode={ioRenderMode}
                 onIoRenderModeChange={setIoRenderMode}

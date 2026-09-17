@@ -12,7 +12,20 @@ export const PROMPTS_FIELD_REGISTRY = fieldRegistryFromColumns(
   {
     id: "prompts",
     allowFreeText: true,
-    freeTextScopeLabel: "prompt names, tags and content",
+    defaultSearchType: ["id"],
+    freeTextScopeLabel: "prompt names and tags",
+    searchScopes: {
+      content: {
+        searchType: ["content"],
+        label: "Prompt content",
+        description: "search only the prompt content",
+      },
+      all: {
+        searchType: ["id", "content"],
+        label: "Names, tags and content",
+        description: "search prompt names, tags and content",
+      },
+    },
     recentSearches: true,
     searchExamples: ["type:chat", "labels:production", "version:>1"],
     fields: {
