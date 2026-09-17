@@ -26,7 +26,6 @@ export const TagButton: React.FC<{
   );
 
   if (viewOnly) {
-    // Badge takes no className, so the width cap lives on a wrapper.
     return (
       <span className="inline-flex max-w-40 min-w-0">
         <BadgeShell color="neutral">{label}</BadgeShell>
