@@ -6,7 +6,7 @@ const mockEnv = vi.hoisted(() => ({
 
 vi.mock("@/src/env.mjs", () => mockEnv);
 
-import { getDemoCallbackRedirectPath } from "@/src/features/onboarding/components/ConnectedOnboardingSurvey";
+import { getDemoCallbackRedirectPath } from "@/src/features/onboarding/lib/demoCallbackRedirect";
 
 describe("getDemoCallbackRedirectPath", () => {
   beforeEach(() => {
