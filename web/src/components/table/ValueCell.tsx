@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { memo, type JSX, useState } from "react";
 import { useRouter } from "next/router";
 import { type Row } from "@tanstack/react-table";

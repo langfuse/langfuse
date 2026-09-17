@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useId, useState, type ReactNode } from "react";
 import { ChevronDown, Plus, TriangleAlert } from "lucide-react";
 

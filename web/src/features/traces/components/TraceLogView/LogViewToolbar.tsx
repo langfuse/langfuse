@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * LogViewToolbar - Controls for log view search and actions.
  *

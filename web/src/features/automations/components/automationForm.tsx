@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React from "react";
 import {

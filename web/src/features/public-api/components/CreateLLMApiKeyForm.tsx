@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useFieldArray, useForm } from "react-hook-form";
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";

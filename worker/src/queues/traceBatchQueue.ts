@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { type Processor } from "bullmq";
 import { randomUUID } from "node:crypto";
 import {

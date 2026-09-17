@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { InvalidRequestError } from "@langfuse/shared";
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
