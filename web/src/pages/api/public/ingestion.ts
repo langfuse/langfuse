@@ -11,6 +11,7 @@ import {
   markProjectIngestFailure,
   createIngestionAttribution,
   processEventBatch,
+  redactLangfuseSecretKeys,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
@@ -27,6 +28,10 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
+import {
+  attachDeprecation,
+  INGESTION_DEPRECATION,
+} from "@/src/features/public-api/server/deprecations";
 import {
   SDK_NAME_ATTRIBUTE,
   SDK_VERSION_ATTRIBUTE,
@@ -77,9 +82,13 @@ export default async function handler(
         header.toLowerCase().startsWith("x-langfuse") ||
         header.toLowerCase().startsWith("x_langfuse")
       ) {
+        const value = req.headers[header];
+        if (value === undefined) return;
         currentSpan?.setAttributes({
           [`langfuse.header.${header.slice(11).toLowerCase().replaceAll("_", "-")}`]:
-            req.headers[header],
+            Array.isArray(value)
+              ? value.map(redactLangfuseSecretKeys)
+              : redactLangfuseSecretKeys(value),
         });
       }
     });
@@ -162,9 +171,9 @@ export default async function handler(
 
         await telemetry();
 
-        // V4 events_only mode: refuse trace/observation events because their
-        // writes would land in the legacy ClickHouse tables this deployment no
-        // longer reads. Scores and SDK logs are unaffected and pass through.
+        // V4 events_only mode: refuse every non-score event because trace and
+        // observation writes target legacy ClickHouse tables this deployment
+        // no longer reads. SDK logs are no longer accepted in this mode.
         // Reject per-event so a mixed batch still processes its score events.
         const isEventsOnlyMode =
           env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only";
@@ -194,7 +203,17 @@ export default async function handler(
         if (rejectedErrors.length > 0) {
           result.errors = [...result.errors, ...rejectedErrors];
         }
-        return res.status(207).json(result);
+
+        // Cloud-only: a 207 with every event 201 is how agents conclude the
+        // legacy write path is healthy. Stamp when the original batch asked
+        // to write a trace or observation, including events_only rejections.
+        const deprecation =
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+          batchContainsTraceOrObservationEvent(parsedSchema.data.batch)
+            ? INGESTION_DEPRECATION
+            : undefined;
+
+        return res.status(207).json(attachDeprecation(result, deprecation));
       } catch (error) {
         if (!(error instanceof BaseError && error.isUserError())) {
           markProjectIngestFailure(projectId, {
@@ -257,13 +276,18 @@ export default async function handler(
   }
 }
 
-// Event types that may continue to ingest in V4 events_only mode. Scores keep
-// their own ClickHouse table (no legacy traces/observations write); SDK logs
-// are non-persisting.
-const EVENTS_ONLY_ALLOWED_TYPES = new Set<string>([
-  eventTypes.SCORE_CREATE,
-  eventTypes.SDK_LOG,
-]);
+// Scores keep their own ClickHouse table and are the only event type accepted
+// by this endpoint in V4 events_only mode.
+const EVENTS_ONLY_ALLOWED_TYPES = new Set<string>([eventTypes.SCORE_CREATE]);
+
+const TRACE_OR_OBSERVATION_EVENT_TYPES = new Set<string>(
+  Object.values(eventTypes).filter(
+    (type) =>
+      type !== eventTypes.SCORE_CREATE &&
+      type !== eventTypes.SDK_LOG &&
+      type !== eventTypes.DATASET_RUN_ITEM_CREATE,
+  ),
+);
 
 const EVENTS_ONLY_INGESTION_DOCS_URL =
   "https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4";
@@ -274,7 +298,7 @@ const EVENTS_ONLY_INGESTION_REMEDIATION = [
   `Docs: ${EVENTS_ONLY_INGESTION_DOCS_URL}`,
 ].join(" ");
 
-function filterBatchForEventsOnly(
+export function filterBatchForEventsOnly(
   batch: unknown[],
   isEventsOnlyMode: boolean,
 ): {
@@ -315,10 +339,25 @@ function filterBatchForEventsOnly(
         id,
         status: 400,
         message: "Event type not accepted",
-        error: `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score and log events. ${EVENTS_ONLY_INGESTION_REMEDIATION}`,
+        error: `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score events. ${EVENTS_ONLY_INGESTION_REMEDIATION}`,
       });
     }
   }
 
   return { batchForProcessing, rejectedErrors };
+}
+
+function eventTypeOf(event: unknown): string | null {
+  if (typeof event !== "object" || event === null) {
+    return null;
+  }
+  const type = (event as { type?: unknown }).type;
+  return typeof type === "string" ? type : null;
+}
+
+function batchContainsTraceOrObservationEvent(batch: unknown[]): boolean {
+  return batch.some((event) => {
+    const type = eventTypeOf(event);
+    return type !== null && TRACE_OR_OBSERVATION_EVENT_TYPES.has(type);
+  });
 }

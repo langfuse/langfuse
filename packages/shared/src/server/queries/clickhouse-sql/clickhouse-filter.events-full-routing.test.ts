@@ -84,6 +84,11 @@ describe("metadataFilterIsEventsCoreSafe", () => {
     expect(metadataFilterIsEventsCoreSafe("is not null", undefined)).toBe(true);
   });
 
+  it("keeps key presence/absence checks on events_core (metadata_names is untruncated)", () => {
+    expect(metadataFilterIsEventsCoreSafe("is set", "")).toBe(true);
+    expect(metadataFilterIsEventsCoreSafe("is not set", "")).toBe(true);
+  });
+
   it("counts by code point, not UTF-16 unit (astral chars near the boundary)", () => {
     // 100 astral code points = 200 UTF-16 units but only 100 code points, so an
     // `=` filter stays on events_core.
@@ -151,6 +156,64 @@ describe("filtersRequireEventsFull metadata routing", () => {
     expect(requires(metadataString("does not contain", "x"))).toBe(true);
     expect(requires(metadataString("=", exactly200))).toBe(true);
     expect(requires(metadataString("starts with", over200))).toBe(true);
+  });
+});
+
+describe("StringObjectFilter key presence/absence operators", () => {
+  it("compiles `is set` / `is not set` to has() on events tables", () => {
+    expect(metadataString("is set", "").apply().query).toMatch(
+      /^has\(metadata_names, \{stringObjectKeyFilter\w+: String\}\)$/,
+    );
+    expect(metadataString("is not set", "").apply().query).toMatch(
+      /^NOT \(has\(metadata_names, \{stringObjectKeyFilter\w+: String\}\)\)$/,
+    );
+  });
+
+  it("compiles `is set` / `is not set` to mapContains() on map tables", () => {
+    const mapFilter = (operator: StringObjectFilter["operator"]) =>
+      new StringObjectFilter({
+        clickhouseTable: "traces",
+        field: "metadata",
+        key: "some_key",
+        operator,
+        value: "",
+      });
+    expect(mapFilter("is set").apply().query).toMatch(
+      /^mapContains\(metadata, \{stringObjectKeyFilter\w+: String\}\)$/,
+    );
+    expect(mapFilter("is not set").apply().query).toMatch(
+      /^NOT \(mapContains\(metadata, \{stringObjectKeyFilter\w+: String\}\)\)$/,
+    );
+  });
+
+  it("keeps presence/absence filters on events_core", () => {
+    expect(
+      filtersRequireEventsFull(new FilterList([metadataString("is set", "")])),
+    ).toBe(false);
+    expect(
+      filtersRequireEventsFull(
+        new FilterList([metadataString("is not set", "")]),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("StringObjectFilter empty-value rejection", () => {
+  it.each(["contains", "starts with", "ends with"] as const)(
+    "rejects an empty value for the substring operator `%s`",
+    (operator) => {
+      expect(() => metadataString(operator, "").apply()).toThrow(
+        /Empty value is not allowed/,
+      );
+    },
+  );
+
+  it("allows a non-empty value for substring operators", () => {
+    expect(() => metadataString("contains", "x").apply()).not.toThrow();
+  });
+
+  it("allows an empty value for `=` (empty-string equality is a valid match)", () => {
+    expect(() => metadataString("=", "").apply()).not.toThrow();
   });
 });
 

@@ -116,12 +116,15 @@ export const ExperimentScoreMatrix = ({
   rows,
   scoreRows,
   experiments,
+  colorExperimentIds,
   isLoading,
   pagination,
 }: {
   rows: ExperimentItemsTableRow[];
   scoreRows: ScoreMatrixRow[];
   experiments: ScoreMatrixColumn[];
+  /** The run order every surface colours by. See `useExperimentResultsState`. */
+  colorExperimentIds: string[];
   isLoading: boolean;
   pagination: {
     totalCount: number | null;
@@ -209,8 +212,6 @@ export const ExperimentScoreMatrix = ({
       </div>
     );
 
-  const allExperimentIds = experiments.map((exp) => exp.experimentId);
-
   // The empty state shares the footer, so the page controls stay reachable
   // when the items on this page happen to carry none of the visible scores.
   if (scoreRows.length === 0)
@@ -242,22 +243,31 @@ export const ExperimentScoreMatrix = ({
                 Score
               </th>
               {experiments.map((experiment) => {
-                const colorStyles = getExperimentColorStyles(
+                // Same run, same colour as everywhere else — and no marker at
+                // all when the colour order is empty, so this layout cannot
+                // show a colour the run pickers do not name.
+                const colorStyles = colorExperimentIds.includes(
                   experiment.experimentId,
-                  allExperimentIds,
-                );
+                )
+                  ? getExperimentColorStyles(
+                      experiment.experimentId,
+                      colorExperimentIds,
+                    )
+                  : undefined;
                 return (
                   <th
                     key={experiment.experimentId}
                     className="bg-background sticky top-0 z-10 min-w-[150px] border-b p-2 text-left font-normal"
                   >
                     <span className="flex min-w-0 items-center gap-1">
-                      <span
-                        className={cn(
-                          "block h-3 w-0.5 shrink-0 rounded-full",
-                          colorStyles.markerClass,
-                        )}
-                      />
+                      {colorStyles && (
+                        <span
+                          className={cn(
+                            "block h-3 w-0.5 shrink-0 rounded-full",
+                            colorStyles.markerClass,
+                          )}
+                        />
+                      )}
                       {/* No `baseline` badge: this column is already the
                           first one and the only one whose cells carry no
                           delta, and a 150px header has room for the run's

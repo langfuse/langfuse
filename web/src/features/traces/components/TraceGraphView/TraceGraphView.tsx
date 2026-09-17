@@ -14,12 +14,17 @@ import { useActiveObservationIds } from "@/src/features/traces/contexts/Playhead
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
+import { useTraceSearchMatches } from "@/src/features/traces/hooks/useTraceSearchMatches";
 import { useMobileLayoutContextOptional } from "../TraceLayoutMobile";
 
 export function TraceGraphView() {
   const { agentGraphData, isLoading } = useTraceGraphData();
   const activeObservationIds = useActiveObservationIds();
   const { graphViewMode, setGraphViewMode } = useViewPreferences();
+  // The trace panel's search box, resolved by the same hook the Timeline reads.
+  // The graph projects these observation ids onto its own nodes, which is
+  // view-mode dependent and therefore its job, not this wrapper's.
+  const search = useTraceSearchMatches();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
   // Optional (null on desktop): jump to the Info tab when a canvas click selects
@@ -70,6 +75,11 @@ export function TraceGraphView() {
       viewMode={graphViewMode}
       onViewModeChange={handleViewModeChange}
       onObservationSelect={handleObservationSelect}
+      search={
+        search
+          ? { matchedObservationIds: search.matchedIds, label: search.label }
+          : undefined
+      }
     />
   );
 }

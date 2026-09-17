@@ -131,6 +131,17 @@ export const DatasetItemDetailPage = ({
     }
   };
 
+  const datasetItemDialogPayload = item.data
+    ? {
+        fromDatasetId: item.data.datasetId,
+        traceId: item.data.sourceTraceId ?? undefined,
+        observationId: item.data.sourceObservationId ?? undefined,
+        input: JSON.stringify(item.data.input),
+        output: JSON.stringify(item.data.expectedOutput),
+        metadata: JSON.stringify(item.data.metadata),
+      }
+    : null;
+
   return (
     <Page
       withPadding={withPadding}
@@ -219,28 +230,21 @@ export const DatasetItemDetailPage = ({
               }
               listKey="datasetItems"
             />
-            {item.data ? (
+            {datasetItemDialogPayload ? (
               <NewDatasetItemFromExistingObjectDialogController
                 projectId={projectId}
-                fromDatasetId={item.data.datasetId}
-                traceId={item.data.sourceTraceId ?? undefined}
-                observationId={item.data.sourceObservationId ?? undefined}
-                input={JSON.stringify(item.data.input)}
-                output={JSON.stringify(item.data.expectedOutput)}
-                metadata={JSON.stringify(item.data.metadata)}
               >
-                {({ Trigger }) => (
-                  <Trigger asChild>
-                    <ActionButton
-                      variant="outline"
-                      size="icon"
-                      hasAccess={hasAccess}
-                      title="Copy item"
-                      aria-label="Copy item"
-                    >
-                      <CopyIcon className="size-3" />
-                    </ActionButton>
-                  </Trigger>
+                {({ openDialog }) => (
+                  <ActionButton
+                    variant="outline"
+                    size="icon"
+                    hasAccess={hasAccess}
+                    title="Copy item"
+                    aria-label="Copy item"
+                    onClick={() => openDialog(datasetItemDialogPayload)}
+                  >
+                    <CopyIcon className="size-3" />
+                  </ActionButton>
                 )}
               </NewDatasetItemFromExistingObjectDialogController>
             ) : (

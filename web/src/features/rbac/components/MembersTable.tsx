@@ -428,21 +428,20 @@ export function MembersTable({
               hasOnlySingleProjectAccess,
               isSubmitting,
               usageLimit,
-              Trigger,
+              openDialog,
             }) => (
-              <Trigger asChild>
-                <ActionButton
-                  variant="secondary"
-                  loading={isSubmitting}
-                  hasAccess={hasAccess}
-                  usageLimit={usageLimit}
-                  icon={<PlusIcon className="h-5 w-5" aria-hidden="true" />}
-                >
-                  {hasOnlySingleProjectAccess
-                    ? "Add project member"
-                    : "Add new member"}
-                </ActionButton>
-              </Trigger>
+              <ActionButton
+                variant="secondary"
+                loading={isSubmitting}
+                hasAccess={hasAccess}
+                usageLimit={usageLimit}
+                icon={<PlusIcon className="h-5 w-5" aria-hidden="true" />}
+                onClick={openDialog}
+              >
+                {hasOnlySingleProjectAccess
+                  ? "Add project member"
+                  : "Add new member"}
+              </ActionButton>
             )}
           </CreateProjectMemberDialogController>
         }

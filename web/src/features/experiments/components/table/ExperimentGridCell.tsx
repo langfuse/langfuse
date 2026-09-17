@@ -2,6 +2,8 @@
    selected (`getExperimentColorStyles`) — so it arrives as a class rather than
    as a variant, the same way `DiffLabel` takes one. */
 /* eslint-disable @repo/no-style-props */
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
+import { EMPTY_VALUE_PLACEHOLDER } from "@/src/components/design-system/table/constants";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { Badge } from "@/src/components/ui/badge";
 import {
@@ -80,6 +82,8 @@ type ExperimentGridCellProps = {
   columnVisibility?: VisibilityState;
   markerClassName?: string;
   showScoreLevelLabels: boolean;
+  /** Clicking this experiment's cell selects it in peek navigation instead of the row's default (baseline) target. */
+  onExperimentClick?: (event: React.MouseEvent) => void;
 };
 
 /**
@@ -237,15 +241,17 @@ const ScoreMetadataPeek = ({
  * quote the same value the cell shows.
  */
 const scoreValueOf = (aggregate?: AggregatedScoreData | null): string => {
-  if (!aggregate) return "-";
+  if (!aggregate) return EMPTY_VALUE_PLACEHOLDER;
   if (aggregate.type === "CATEGORICAL") {
     if (aggregate.valueCounts && aggregate.valueCounts.length > 0) {
       return [...aggregate.valueCounts].sort((a, b) => b.count - a.count)[0]
         .value;
     }
-    return aggregate.values?.[0] ?? "-";
+    return aggregate.values?.[0] ?? EMPTY_VALUE_PLACEHOLDER;
   }
-  return aggregate.average !== undefined ? aggregate.average.toFixed(2) : "-";
+  return aggregate.average !== undefined
+    ? aggregate.average.toFixed(2)
+    : EMPTY_VALUE_PLACEHOLDER;
 };
 
 /**
@@ -300,8 +306,14 @@ const ScoreItem = ({
       <div className="flex max-w-[50%] min-w-0 items-center gap-1">
         {showScoreLevelLabel && <ScoreTag level={level} />}
         <HoverCard>
-          <HoverCardTrigger className="min-w-0 cursor-default">
-            <span className="text-muted-foreground block truncate" title={name}>
+          {/* `asChild` keeps this a <span>. Without it Radix renders its
+              default <a>, which `shouldIgnoreRowClickTarget` excludes — the
+              score name would be a dead zone in a cell that opens on click. */}
+          <HoverCardTrigger asChild>
+            <span
+              className="text-muted-foreground block min-w-0 truncate"
+              title={name}
+            >
               {name}
             </span>
           </HoverCardTrigger>
@@ -332,8 +344,10 @@ const ScoreItem = ({
           clipped value reads as data, so the move wraps under it instead. */}
       <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-1 gap-y-0.5">
         <span className="flex max-w-full shrink-0 items-center gap-1">
-          {displayValue === "-" ? (
-            <span className="text-muted-foreground text-xs">-</span>
+          {displayValue === EMPTY_VALUE_PLACEHOLDER ? (
+            <span className="text-xs">
+              <EmptyValue />
+            </span>
           ) : (
             <Badge
               variant="secondary"
@@ -696,6 +710,7 @@ export const ExperimentGridCell = ({
   columnVisibility = {},
   markerClassName,
   showScoreLevelLabels,
+  onExperimentClick,
 }: ExperimentGridCellProps) => {
   const scoreDiffs = useMemo(
     () =>
@@ -864,7 +879,13 @@ export const ExperimentGridCell = ({
   // `scrollbar-visible` is what says so — under the platform's overlay
   // scrollbars a cell with more to show reads as one that was cut off.
   return (
-    <div className="scrollbar-visible flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-auto">
+    <div
+      className={cn(
+        "scrollbar-visible flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-auto",
+        onExperimentClick && "cursor-pointer",
+      )}
+      onClick={onExperimentClick}
+    >
       {sectionsToRender.map((section, index) => {
         const { row, content } = section;
         const isFirst = index === 0;
