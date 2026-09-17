@@ -51,7 +51,6 @@ export function TopicPipelineForm({
   const [targetRunIds, setTargetRunIds] = useState<Record<string, string>>({});
   const [sourceExecutionIds, setSourceExecutionIds] = useState<string[]>([]);
   const [exploratory, setExploratory] = useState(false);
-  const [budget, setBudget] = useState("0.25");
   const [dimensions, setDimensions] = useState("768");
   const [forceRefresh, setForceRefresh] = useState(false);
   const embeddingConfig = topicEmbeddingConfigSchema.safeParse({
@@ -127,7 +126,6 @@ export function TopicPipelineForm({
       const base = {
         projectId,
         facetVersionIds,
-        budgetUsd: Number(budget),
         exploratory,
         forceRefresh: operation === "refresh" && forceRefresh,
         embeddingConfig: topicEmbeddingConfigSchema.parse({
@@ -314,19 +312,6 @@ export function TopicPipelineForm({
             Small sample mode (10+ summaries; provisional topics)
           </label>
         )}
-        <label className="flex flex-col gap-1 text-sm">
-          Execution budget (USD)
-          <Input
-            aria-label="Execution budget (USD)"
-            type="number"
-            min="0.001"
-            max="0.25"
-            step="0.01"
-            className="w-28"
-            value={budget}
-            onChange={(event) => setBudget(event.target.value)}
-          />
-        </label>
         <Button
           disabled={
             !canWrite ||
@@ -349,7 +334,6 @@ export function TopicPipelineForm({
           Run on {traceIds.length.toLocaleString()} traces across{" "}
           {facetVersionIds.length} facets. Existing summaries are reused when
           their inputs match. Uncached inputs and outputs are sent to OpenAI.
-          The aggregate $0.25 validation budget still applies.
         </p>
       ) : null}
       {operation === "refresh" && (

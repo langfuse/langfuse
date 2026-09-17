@@ -1,5 +1,4 @@
 import {
-  getTopicsArtifactRoot,
   isTopicsEnabled,
   readTopicExecution,
   writeTopicExecution,
@@ -36,11 +35,6 @@ import {
   TOPICS_SUMMARY_PROMPT_VERSION,
   TOPICS_NAMING_MODEL,
 } from "./models";
-import {
-  TopicsBudget,
-  TopicsBudgetExhausted,
-  TopicsUncertainCall,
-} from "./budget";
 import { TopicsProviderUnavailable } from "./provider-error";
 import {
   buildTopicPrototypes,
@@ -60,8 +54,6 @@ const artifactKey = (kind: string, value: unknown) =>
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Topics processing failed.";
 const isExecutionFailure = (error: unknown) =>
-  error instanceof TopicsBudgetExhausted ||
-  error instanceof TopicsUncertainCall ||
   error instanceof TopicsProviderUnavailable;
 
 async function checkpoint<T>(
@@ -82,11 +74,6 @@ async function checkpoint<T>(
 
 async function saveProgress(execution: TopicExecution, phase: string) {
   execution.phase = phase;
-  Object.assign(
-    execution,
-    await new TopicsBudget(getTopicsArtifactRoot()).totals(execution.id),
-  );
-  execution.estimatedCostUsd = execution.reservedCostUsd;
   await writeTopicExecution(execution);
 }
 
@@ -356,7 +343,6 @@ async function ensureEmbedding(
           processedAt: new Date().toISOString(),
           metadata: { ...source.metadata, summaryReusedFromId: source.id },
         };
-  await writeTopicSummaries([summary]);
   const complete = await checkpoint<TopicSummary>(
     execution,
     artifactKey("complete", [summary.id, execution.input.embeddingConfig]),
@@ -372,7 +358,10 @@ async function ensureEmbedding(
         },
         summary.summary,
         embeddingDimensions,
-      );
+      ).catch(async (error: unknown) => {
+        await writeTopicSummaries([summary]);
+        throw error;
+      });
       return {
         ...summary,
         state: "complete",
@@ -1216,8 +1205,7 @@ export async function processTopicsExecution({
       : "completed";
     await saveProgress(execution, "completed");
   } catch (error) {
-    execution.status =
-      error instanceof TopicsBudgetExhausted ? "budget_exhausted" : "failed";
+    execution.status = "failed";
     execution.error = errorMessage(error);
     await saveProgress(execution, execution.status);
   }

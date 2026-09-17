@@ -60,7 +60,6 @@ vi.mock("@langfuse/shared/topics/server", () => ({
       },
     };
   },
-  getTopicsArtifactRoot: () => "/unused",
   readTopicExecution: async (_project: string, id: string) =>
     state.executions.get(id) ?? null,
   writeTopicExecution: async (execution: TopicExecution) => {
@@ -106,6 +105,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
     ids.flatMap((id) => state.summaries.get(id) ?? []),
   writeTopicSummaries: async (rows: TopicSummary[]) =>
     rows.forEach((row) => {
+      state.events.push(`write-summary:${row.state}`);
       if (
         (state.summaries.get(row.id)?.resultVersion ?? 0) <= row.resultVersion
       )
@@ -192,15 +192,6 @@ vi.mock("@langfuse/shared/topics/server", () => ({
     return [...latest.values()];
   },
 }));
-vi.mock("./budget", () => ({
-  TopicsBudgetExhausted: class extends Error {},
-  TopicsUncertainCall: class extends Error {},
-  TopicsBudget: class {
-    async totals() {
-      return { reservedCostUsd: 0, spentCostUsd: 0 };
-    }
-  },
-}));
 vi.mock("./models", () => ({
   TOPICS_SUMMARY_PROMPT_VERSION: "3",
   TOPICS_NAMING_MODEL: "gpt-5.6-luna",
@@ -232,7 +223,6 @@ function execution(
     projectId: "project",
     requestId: id,
     facetVersionIds: facets.map((selected) => selected.id),
-    budgetUsd: 0.25,
     exploratory: false,
     embeddingConfig: {
       embeddingModel: "text-embedding-3-small" as const,
@@ -257,9 +247,6 @@ function execution(
     phase: "queued",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
-    estimatedCostUsd: 0,
-    reservedCostUsd: 0,
-    spentCostUsd: 0,
     facets: facets.map((selected) => ({
       facetVersionId: selected.id,
       outcome: "pending",
@@ -442,6 +429,9 @@ describe("Topics execution", () => {
       projectId: "project",
       executionId: "dims-first",
     });
+    expect(
+      state.events.filter((event) => event.startsWith("write-summary:")),
+    ).toEqual(["write-summary:complete"]);
     const second = execution("dims-second", 1);
     second.input.embeddingConfig.embeddingDimensions = 32;
     state.executions.set(second.id, second);
@@ -451,6 +441,9 @@ describe("Topics execution", () => {
     });
     expect(state.summarize).toHaveBeenCalledTimes(1);
     expect(state.embed.mock.calls.map((call) => call[2])).toEqual([16, 32]);
+    expect(
+      state.events.filter((event) => event.startsWith("write-summary:")),
+    ).toEqual(["write-summary:complete", "write-summary:complete"]);
     expect(
       new Set([...state.summaries.values()].map((row) => row.facetVersionId)),
     ).toEqual(new Set([facet.id]));
@@ -775,7 +768,6 @@ describe("Topics execution", () => {
       requestId: recluster.id,
       operation: "recluster",
       facetVersionIds: [facet.id],
-      budgetUsd: 0.25,
       exploratory: false,
       embeddingConfig: {
         embeddingModel: "text-embedding-3-small",
@@ -856,6 +848,13 @@ describe("Topics execution", () => {
       executionId: "resume",
     });
     expect(state.executions.get("resume")?.status).toBe("failed");
+    const [saved] = [...state.summaries.values()];
+    expect(saved).toMatchObject({
+      state: "summarized",
+      resultVersion: 1,
+      summary: "trace0",
+      embedding: [],
+    });
     state.sourceUnavailable = true;
     state.executions.get("resume")!.status = "queued";
     await processTopicsExecution({
@@ -866,6 +865,16 @@ describe("Topics execution", () => {
     expect(state.executions.get("resume")?.facets[0].counts.complete).toBe(1);
     expect(state.summarize).toHaveBeenCalledTimes(1);
     expect(state.embed).toHaveBeenCalledTimes(2);
+    expect(state.summaries.size).toBe(1);
+    expect(state.summaries.get(saved.id)).toMatchObject({
+      state: "complete",
+      resultVersion: 2,
+      summary: saved.summary,
+    });
+    expect(state.summaries.get(saved.id)?.embedding).toHaveLength(16);
+    expect(
+      state.events.filter((event) => event.startsWith("write-summary:")),
+    ).toEqual(["write-summary:summarized", "write-summary:complete"]);
   });
   it("regenerates source input for a new execution and preserves earlier summaries", async () => {
     state.executions.set("first", execution("first", 1));
@@ -1154,7 +1163,6 @@ describe("Topics execution", () => {
       requestId: "C",
       operation: "recluster",
       facetVersionIds: [facet.id],
-      budgetUsd: 0.25,
       exploratory: false,
       embeddingConfig: {
         embeddingModel: "text-embedding-3-small",

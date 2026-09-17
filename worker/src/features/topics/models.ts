@@ -8,7 +8,6 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   countTopicTokens,
-  getTopicsArtifactRoot,
   readTopicArtifact,
   writeTopicArtifact,
 } from "@langfuse/shared/topics/server";
@@ -19,7 +18,6 @@ import {
   type TopicFacetVersion,
 } from "@langfuse/shared/topics";
 import { env } from "../../env";
-import { TopicsBudget } from "./budget";
 import { topicHash } from "./classifier";
 import {
   TopicsProviderUnavailable,
@@ -64,7 +62,7 @@ async function structuredCall<T>(
     throw new TopicsProviderUnavailable(
       "OPENAI_API_KEY is required for the local Topics PoC. Reload worker credentials before resuming.",
     );
-  // Budget includes a conservative allowance for the structured-output schema and message framing.
+  // Include the structured-output schema and message framing in the input limit.
   if (
     countTopicTokens(system + input + JSON.stringify(z.toJSONSchema(schema))) +
       256 >
@@ -77,8 +75,6 @@ async function structuredCall<T>(
     { role: "system" as const, content: system },
     { role: "user" as const, content: input },
   ];
-  const budget = new TopicsBudget(getTopicsArtifactRoot());
-  const reservationKey = `${context.execution.id}-${checkpoint}`;
   const isNaming = model === TOPICS_NAMING_MODEL;
   // Luna's long-context rate applies to the entire request above 272k input tokens.
   const rates = (tokens: number) =>
@@ -88,16 +84,6 @@ async function structuredCall<T>(
           output: tokens > 272_000 ? 1.8 : 1.2,
         }
       : { input: 0.1, output: 0.4 };
-  const reservedRates = rates(inputLimit);
-  const estimate =
-    (inputLimit * reservedRates.input + outputLimit * reservedRates.output) /
-    1_000_000;
-  await budget.reserve(
-    reservationKey,
-    context.execution.id,
-    estimate,
-    context.execution.input.budgetUsd,
-  );
   const result = await generateLLMText({
     model: { adapter: LLMAdapter.OpenAI, id: model },
     connection: {
@@ -131,7 +117,6 @@ async function structuredCall<T>(
     checkpoint,
     accepted,
   );
-  await budget.complete(reservationKey, accepted.costUsd);
   return accepted;
 }
 
@@ -267,14 +252,6 @@ export async function embedTopicSummary(
   }
   if (inputTokens < 1 || inputTokens > 1024)
     throw new Error("Topics embedding input must contain 1-1024 tokens.");
-  const budget = new TopicsBudget(getTopicsArtifactRoot());
-  const reservationKey = `${context.execution.id}-${checkpoint}`;
-  await budget.reserve(
-    reservationKey,
-    context.execution.id,
-    (1024 * 0.02) / 1_000_000,
-    context.execution.input.budgetUsd,
-  );
   const response = await fetch("https://api.openai.com/v1/embeddings", {
     method: "POST",
     redirect: "error",
@@ -317,6 +294,5 @@ export async function embedTopicSummary(
     checkpoint,
     accepted,
   );
-  await budget.complete(reservationKey, accepted.costUsd);
   return accepted;
 }

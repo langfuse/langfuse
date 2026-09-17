@@ -90,6 +90,9 @@ replay without reading the source. It does not persist source
 snapshots, transcripts, projections, or model request bodies. Shared deterministic
 assembly is used by the worker and the on-demand summary inspector. Accepted
 model outputs are immutable local artifacts, written before ClickHouse results.
+Successful extraction writes the summary and embedding together to ClickHouse.
+If embedding fails, the summary is saved without a vector; a successful resume
+writes the complete result under the same row identity with a higher result version.
 Unchanged effective input and summary recipe reuse accepted summary text. Embedding
 settings belong to the execution, not the facet version. Compatible vectors are
 reused; a changed configuration creates a new combined summary/vector revision
@@ -107,7 +110,7 @@ audio transcripts. Structural ordering and proven replay-prefix references are
 shared across facets. This is a normalized representation, not a lossless export.
 
 If transcript plus instructions/schema exceeds a facet version's input allowance,
-the worker fails before reserving budget or calling the provider; it does not
+the worker fails before calling the provider; it does not
 silently change the evidence for that facet. Transcript format participates in
 input identity and is recorded in summary metadata. New executions cannot reuse
 legacy projected summaries accidentally; accepted historical checkpoints and
@@ -186,29 +189,25 @@ containing a summary or evidence is rejected, not silently repaired. Real model
 quality checks remain necessary; mocked tests cannot establish summary accuracy.
 
 `.topics-data/` contains private local journals, accepted inference outputs,
-cohort manifests, numerical results, and `.topics-data/developer-budget.json`.
+cohort manifests, and numerical results.
 Transcripts and raw source snapshots are regenerated from the original trace
 data and are not stored here. This local directory is ignored by git.
 
-Before each provider call, the worker durably reserves its maximum estimated
-cost. **All executions together are capped at $0.25**, also subject to each
-execution's lower budget. Completed reservations are retained at their estimate;
-actual provider usage is recorded separately. Estimates use $0.10/M input and
+Provider usage and calculated model costs are recorded with accepted results.
+Calculations use $0.10/M input and
 $0.40/M output for nano, $0.20/M input and $1.20/M output for Luna, and $0.02/M
 embedding input tokens. Luna requests above 272k input tokens use 2x input and
 1.5x output rates for the whole request. See the [model documentation](https://developers.openai.com/api/docs/models/gpt-5.6-luna).
 Extraction defaults to 8,000/512 input/output tokens (version-specific). Naming
-reserves its counted full input plus 10% and 512 framing tokens, and 1,000 output
+allows its counted full input plus 10% and 512 framing tokens, and 1,000 output
 tokens. Inputs exceeding a conservative 900k-token context allowance fail before
 calling the provider; member summaries are never silently discarded. Embedding
 input remains capped at 1,024 tokens.
-Provider retries are disabled. These are conservative local estimates, not a
-provider billing limit.
+Provider retries are disabled.
 
-An accepted call checkpoint can replay without another charge. A reservation
-without an accepted checkpoint is uncertain and is not automatically retried.
-A surviving budget lock after a process crash requires inspection before manual
-recovery. Never delete the ledger to make an execution appear unspent.
+An accepted call checkpoint can replay without another charge. If a worker
+stops after a provider call succeeds but before saving its result, a manual
+resume may repeat that call.
 
 Resume advances pending or failed stages from their accepted checkpoints.
 Once extraction finishes, the accepted summary cohort and its failed-trace count

@@ -35,7 +35,6 @@ const executionLabels: Record<TopicExecutionStatus, string> = {
   completed: "Run complete",
   completed_with_errors: "Run finished with errors",
   failed: "Run failed",
-  budget_exhausted: "Budget limit reached",
 };
 const facetOutcomeLabels: Record<TopicFacetOutcome, string> = {
   pending: "Waiting for results",
@@ -200,10 +199,7 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
               {execution.input.operation} ·{" "}
               {new Date(execution.createdAt).toLocaleString()}
             </span>
-            <span>
-              {execution.facets.length} facets · $
-              {execution.spentCostUsd.toFixed(4)}
-            </span>
+            <span>{execution.facets.length} facets</span>
             <Badge variant="outline">{executionLabels[execution.status]}</Badge>
           </button>
         ))}
@@ -364,17 +360,9 @@ function ExecutionPanel({
                 <dd className="capitalize">
                   {execution.phase.replaceAll("_", " ")}
                 </dd>
-                <dt className="text-muted-foreground">Estimated spend</dt>
-                <dd>${execution.spentCostUsd.toFixed(5)}</dd>
-                <dt className="text-muted-foreground">Reserved budget</dt>
-                <dd>${execution.reservedCostUsd.toFixed(5)}</dd>
                 <dt className="text-muted-foreground">Embedding dimensions</dt>
                 <dd>{execution.input.embeddingConfig.embeddingDimensions}</dd>
               </dl>
-              <p className="text-muted-foreground text-xs">
-                Reserved budget is the maximum estimated cost set aside for
-                model calls, not an additional charge.
-              </p>
             </div>
           )}
         >
@@ -408,7 +396,6 @@ function ExecutionPanel({
       )}
       {canWrite &&
         !busy(execution.status) &&
-        execution.status !== "budget_exhausted" &&
         (execution.status === "failed" ||
           (execution.status === "completed_with_errors" &&
             execution.facets.some(

@@ -455,10 +455,6 @@ export const topicsRouter = createTRPCRouter({
         input.projectId,
         input.executionId,
       );
-      if (execution.status === "budget_exhausted")
-        throw new InvalidRequestError(
-          "The validation budget is exhausted. This run cannot make further model calls.",
-        );
       if (
         execution.status !== "failed" &&
         !(

@@ -111,9 +111,6 @@ export class TopicExecutionStore {
       phase: "queued",
       createdAt: now,
       updatedAt: now,
-      estimatedCostUsd: 0,
-      reservedCostUsd: 0,
-      spentCostUsd: 0,
       facets: input.facetVersionIds.map((facetVersionId) => ({
         facetVersionId,
         outcome: "pending",

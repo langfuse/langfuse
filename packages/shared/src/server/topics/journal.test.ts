@@ -18,7 +18,6 @@ const input: TopicExecutionInput = {
   operation: "discover",
   facetVersionIds: ["facet-v1"],
   traceIds: ["trace-a", "trace-b"],
-  budgetUsd: 0.25,
   exploratory: false,
   embeddingConfig: {
     embeddingModel: "text-embedding-3-small",
@@ -166,12 +165,10 @@ describe("local Topics execution journal", () => {
       ...execution,
       status: "running",
       phase: "embedding",
-      reservedCostUsd: 0.1,
     });
     expect(await store.read(input.projectId, execution.id)).toMatchObject({
       status: "running",
       phase: "embedding",
-      reservedCostUsd: 0.1,
     });
     await expect(
       store.write({ ...execution, revision: "999" }),

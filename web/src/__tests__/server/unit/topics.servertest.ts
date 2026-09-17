@@ -54,7 +54,6 @@ const input: TopicExecutionInput = {
   operation: "discover",
   facetVersionIds: [facetVersionId],
   traceIds: ["trace-a"],
-  budgetUsd: 0.25,
   exploratory: false,
   forceRefresh: false,
   embeddingConfig: topicEmbeddingConfigSchema.parse({}),
@@ -90,9 +89,6 @@ function execution(): TopicExecution {
     phase: "completed",
     createdAt: "2026-09-16T00:00:00Z",
     updatedAt: "2026-09-16T00:00:00Z",
-    estimatedCostUsd: 0,
-    reservedCostUsd: 0,
-    spentCostUsd: 0,
     facets: [
       {
         facetVersionId,
@@ -560,7 +556,6 @@ describe("Topics local execution access and publication", () => {
           operation: "recluster",
           facetVersionIds: [facetVersionId],
           sourceExecutionIds: ["foreign-execution"],
-          budgetUsd: 0.25,
           exploratory: false,
           forceRefresh: false,
           embeddingConfig: topicEmbeddingConfigSchema.parse({}),
@@ -610,7 +605,6 @@ describe("Topics local execution access and publication", () => {
       caller().trigger({
         projectId,
         requestId: "request-a",
-        budgetUsd: 0.25,
         exploratory: false,
         operation: "recluster",
         facetVersionIds: [facetVersionId, "issues-v2"],
@@ -731,17 +725,10 @@ describe("Topics local execution access and publication", () => {
     expect(unavailable.inputHash).toBe(summary.inputHash);
   });
 
-  it("does not retry terminal partial facets or exhausted budgets", async () => {
+  it("does not retry terminal partial facets", async () => {
     mocks.readTopicExecution.mockResolvedValue({
       ...execution(),
       status: "completed_with_errors",
-    });
-    await expect(
-      caller().retry({ projectId, executionId: "execution-a" }),
-    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-    mocks.readTopicExecution.mockResolvedValue({
-      ...execution(),
-      status: "budget_exhausted",
     });
     await expect(
       caller().retry({ projectId, executionId: "execution-a" }),

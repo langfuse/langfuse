@@ -18,6 +18,6 @@ export function topicProviderError(error: unknown): TopicsProviderUnavailable {
     current = record.cause;
   }
   return new TopicsProviderUnavailable(
-    `Topics provider call failed${status ? ` (HTTP ${status})` : ""}. Processing stopped. Check worker credentials or provider availability, then start a new execution. The failed call's conservative budget reservation remains counted.`,
+    `Topics provider call failed${status ? ` (HTTP ${status})` : ""}. Processing stopped. Check worker credentials or provider availability, then resume the execution.`,
   );
 }

@@ -18,7 +18,7 @@
 - Feature processors: `src/features/*`
 - Local Topics pipeline: `src/features/topics/processTopicsExecution.ts`,
   registered by `src/queues/topicsQueue.ts`. Read `src/features/topics/README.md`
-  for native numerical setup, frozen execution checkpoints, and the small-model budget.
+  for native numerical setup, frozen execution checkpoints, and model configuration.
   Canonical transcript assembly is shared with the web evidence inspector through
   `@langfuse/shared/topics/server` (`loadTopicTranscript`) and stays in memory.
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and

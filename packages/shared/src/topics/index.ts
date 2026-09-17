@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-export const TOPICS_DEFAULT_BUDGET_USD = 0.25;
 export const TOPICS_SUMMARY_MODEL = "gpt-4.1-nano";
 export const TOPICS_EMBEDDING_MODEL = "text-embedding-3-small";
 
@@ -30,7 +29,6 @@ const executionBase = {
   projectId: topicIdSchema,
   requestId: topicIdSchema,
   facetVersionIds: z.array(topicIdSchema).min(1),
-  budgetUsd: z.number().positive().max(5).default(TOPICS_DEFAULT_BUDGET_USD),
   exploratory: z.boolean().default(false),
   embeddingConfig: topicEmbeddingConfigSchema.default(() =>
     topicEmbeddingConfigSchema.parse({}),
@@ -79,8 +77,7 @@ export type TopicExecutionStatus =
   | "running"
   | "completed"
   | "completed_with_errors"
-  | "failed"
-  | "budget_exhausted";
+  | "failed";
 export type TopicFacetOutcome =
   | "pending"
   | "published"
@@ -224,9 +221,6 @@ export interface TopicExecution {
   phase: string;
   createdAt: string;
   updatedAt: string;
-  estimatedCostUsd: number;
-  reservedCostUsd: number;
-  spentCostUsd: number;
   facets: TopicFacetProgress[];
   traceErrors: { traceId: string; error: string }[];
   error: string | null;

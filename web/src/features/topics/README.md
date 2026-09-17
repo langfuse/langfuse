@@ -10,11 +10,11 @@ existing local-development and project-access checks still apply.
   Results appear first at full width, then pipeline controls and past executions.
   Without an execution URL parameter, `CurrentTopics.tsx` displays current per-trace
   assignments across runs and facets; explicit execution links remain historical.
-  A single run-status label sits alongside the heading; stage, operation and cost
-  estimates live in Run details. Facet outcomes use result-oriented labels and
+  A single run-status label sits alongside the heading; stage and operation
+  live in Run details. Facet outcomes use result-oriented labels and
   omit zero-valued exception counts. Facet prompts and summary processing settings
   are versioned; embedding dimensions belong to executions.
-- `TopicPipelineForm.tsx` owns operation, facet versions, budgets and submission.
+- `TopicPipelineForm.tsx` owns operation, facet versions and submission.
   Every available facet starts selected. Update topics is the default operation,
   accumulating traces into the existing cohort, with an explicit force-refresh
   option. Embedding dimensions are configured per execution. Reclustering offers only completed
@@ -78,5 +78,5 @@ the PoC does not retain a UMAP transform. Missing artifacts show an explanation
 instead of fabricated coordinates. Missing source summaries do not shift the
 remaining points' indices.
 
-Runtime, numerical pipeline, and local budgets:
+Runtime and numerical pipeline:
 [`worker/src/features/topics/README.md`](../../../../worker/src/features/topics/README.md).

@@ -4,7 +4,6 @@ import type { TopicExecution } from "@langfuse/shared/topics";
 
 const state = vi.hoisted(() => ({
   call: vi.fn(),
-  reserve: vi.fn(),
   artifacts: new Map<string, unknown>(),
 }));
 vi.mock("../../env", () => ({
@@ -20,7 +19,6 @@ vi.mock("@langfuse/shared/src/server", () => ({
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
   countTopicTokens: (text: string) => Math.ceil(text.length / 4),
-  getTopicsArtifactRoot: () => "/unused",
   readTopicArtifact: async (
     _project: string,
     _execution: string,
@@ -35,21 +33,13 @@ vi.mock("@langfuse/shared/topics/server", () => ({
     state.artifacts.set(key, value);
   },
 }));
-vi.mock("./budget", () => ({
-  TopicsBudget: class {
-    reserve = state.reserve;
-    async complete() {}
-  },
-}));
 
 import { nameTopicGroups, summarizeTopicTrace } from "./models";
-import { TopicsProviderUnavailable } from "./provider-error";
 import { topicProcessingConfigSchema } from "@langfuse/shared/topics";
 
 const execution = {
   projectId: "project",
   id: "execution",
-  input: { budgetUsd: 0.25 },
 } as TopicExecution;
 const evidence = {
   groups: [
@@ -69,7 +59,6 @@ const evidence = {
 beforeEach(() => {
   state.artifacts.clear();
   state.call.mockReset();
-  state.reserve.mockReset();
 });
 
 describe("Topics naming boundary", () => {
@@ -127,7 +116,7 @@ describe("Topics naming boundary", () => {
       [...state.artifacts.keys()].some((key) => key.startsWith("call-")),
     ).toBe(true);
   });
-  it("rejects an oversized shared transcript before reserving budget or calling the provider", async () => {
+  it("rejects an oversized shared transcript before calling the provider", async () => {
     const facet = {
       id: "facet-version",
       projectId: "project",
@@ -148,15 +137,6 @@ describe("Topics naming boundary", () => {
       ),
     ).rejects.toThrow("transcript is never shortened per facet");
     expect(state.call).not.toHaveBeenCalled();
-    await expect(
-      summarizeTopicTrace(
-        { execution, key: "oversized" },
-        facet,
-        "Trace evidence. ".repeat(1000),
-        ["block-a"],
-      ),
-    ).rejects.not.toBeInstanceOf(TopicsProviderUnavailable);
-    expect(state.reserve).not.toHaveBeenCalled();
   });
 
   it("keeps the summary provider schema bounded for traces with many evidence blocks", async () => {
