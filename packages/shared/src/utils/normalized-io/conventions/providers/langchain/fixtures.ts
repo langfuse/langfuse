@@ -684,6 +684,8 @@ export const langgraphProductionShapeFixture = {
 // Verbatim stored observation IO from ChatML integration-example exports.
 export const capturedTraceFixtures: NormalizedIOFixture[] = [
   // Source: worker/src/__tests__/chatml/framework-traces/langgraph-js-2025-10-30.trace.json; observation 0856a1825ccee968
+  // Host and user identifiers in metadata resourceAttributes replaced with
+  // placeholders; input and output are unmodified.
   {
     name: "verbatim langgraph-js-2025-10-30.trace.json / 0856a1825ccee968",
     spanIO: {
@@ -692,7 +694,7 @@ export const capturedTraceFixtures: NormalizedIOFixture[] = [
       output:
         '{"content":"It\'s always sunny in San Francisco! \\n\\nWould you like more details (current temperature, hourly forecast, or a multi-day outlook)?","role":"assistant"}',
       metadata:
-        '{"tags":["seq:step:2"],"langgraph_step":3,"langgraph_node":"model_request","langgraph_triggers":["branch:to:model_request"],"langgraph_path":["__pregel_pull","model_request"],"langgraph_checkpoint_ns":"model_request:3d72c0f6-1849-5286-bc3f-b198da3bc9cb|model_request:c51cebc4-7aca-5acb-951c-245ef0a1809c","__pregel_task_id":"3d72c0f6-1849-5286-bc3f-b198da3bc9cb","checkpoint_ns":"model_request:3d72c0f6-1849-5286-bc3f-b198da3bc9cb","ls_provider":"openai","ls_model_name":"gpt-5-mini","ls_model_type":"chat","resourceAttributes":{"host.name":"Janniks-MacBook-Pro.local","host.arch":"arm64","host.id":"04B49C49-15E0-55D5-9040-4D6FF6E415E6","process.pid":97650,"process.executable.name":"deno","process.executable.path":"/opt/homebrew/bin/deno","process.command_args":["/opt/homebrew/bin/deno","/Users/jannik/Documents/GitHub/playground/js/$deno$jupyter.mts"],"process.runtime.version":"20.11.1","process.runtime.name":"nodejs","process.runtime.description":"Node.js","process.command":"/Users/jannik/Documents/GitHub/playground/js/$deno$jupyter.mts","process.owner":"jannik","service.name":"unknown_service:/opt/homebrew/bin/deno","telemetry.sdk.language":"nodejs","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"2.1.0"},"scope":{"name":"langfuse-sdk","version":"4.3.0","attributes":{}}}',
+        '{"tags":["seq:step:2"],"langgraph_step":3,"langgraph_node":"model_request","langgraph_triggers":["branch:to:model_request"],"langgraph_path":["__pregel_pull","model_request"],"langgraph_checkpoint_ns":"model_request:3d72c0f6-1849-5286-bc3f-b198da3bc9cb|model_request:c51cebc4-7aca-5acb-951c-245ef0a1809c","__pregel_task_id":"3d72c0f6-1849-5286-bc3f-b198da3bc9cb","checkpoint_ns":"model_request:3d72c0f6-1849-5286-bc3f-b198da3bc9cb","ls_provider":"openai","ls_model_name":"gpt-5-mini","ls_model_type":"chat","resourceAttributes":{"host.name":"dev-machine.local","host.arch":"arm64","host.id":"00000000-0000-0000-0000-000000000000","process.pid":97650,"process.executable.name":"deno","process.executable.path":"/opt/homebrew/bin/deno","process.command_args":["/opt/homebrew/bin/deno","/Users/dev/Documents/GitHub/playground/js/$deno$jupyter.mts"],"process.runtime.version":"20.11.1","process.runtime.name":"nodejs","process.runtime.description":"Node.js","process.command":"/Users/dev/Documents/GitHub/playground/js/$deno$jupyter.mts","process.owner":"dev","service.name":"unknown_service:/opt/homebrew/bin/deno","telemetry.sdk.language":"nodejs","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"2.1.0"},"scope":{"name":"langfuse-sdk","version":"4.3.0","attributes":{}}}',
     },
     expected: {
       messages: [
