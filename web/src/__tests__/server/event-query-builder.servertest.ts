@@ -237,6 +237,29 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(built.params).not.toHaveProperty("optionReserved");
   });
 
+  it("translates whole metadata null filters to the physical events columns", () => {
+    const built = buildEventsFilterOptionsForColumnsQuery({
+      projectId: "test-project",
+      filter: [
+        {
+          column: "metadata",
+          operator: "is null",
+          value: "",
+          type: "null",
+        },
+      ],
+      columns: ["name"],
+      limit: 10,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("empty(e.metadata_names)");
+    expect(built.query).not.toContain("e.metadata is null");
+    expect(built.query).toContain("FROM events_core e");
+  });
+
   it("reuses row-selection score dependencies and full-table routing", () => {
     const built = buildEventsFilterOptionsForColumnsQuery({
       projectId: "test-project",

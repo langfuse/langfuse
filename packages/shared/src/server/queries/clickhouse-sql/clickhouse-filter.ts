@@ -583,6 +583,24 @@ export class NullFilter implements Filter {
   apply(): ClickhouseFilter {
     const fieldWithPrefix = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
 
+    // `metadata` is a computed map alias on events tables. The physical
+    // events_core/events_full columns are metadata_names/metadata_values, so
+    // whole-column null checks must test whether the names array is empty
+    // instead of referring to the alias in the WHERE clause.
+    if (
+      isFtsEventsTable(this.clickhouseTable) &&
+      isFtsMetadataField(this.field)
+    ) {
+      const metadataNames = `${fieldWithPrefix}_names`;
+      return {
+        query:
+          this.operator === "is null"
+            ? `empty(${metadataNames})`
+            : `notEmpty(${metadataNames})`,
+        params: {},
+      };
+    }
+
     // '' ≡ NULL: treat empty string and NULL as the same value
     if (this.emptyEqualsNull) {
       const isNull = this.operator === "is null";

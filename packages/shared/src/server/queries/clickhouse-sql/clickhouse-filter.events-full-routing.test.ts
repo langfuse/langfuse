@@ -198,6 +198,35 @@ describe("StringObjectFilter key presence/absence operators", () => {
   });
 });
 
+describe("NullFilter metadata filters on events tables", () => {
+  it.each([
+    ["is null", "empty(e.metadata_names)"],
+    ["is not null", "notEmpty(e.metadata_names)"],
+  ] as const)("compiles `%s` against metadata_names", (operator, expected) => {
+    const filter = new NullFilter({
+      clickhouseTable: "events_proto",
+      field: "metadata",
+      operator,
+      tablePrefix: "e",
+    });
+
+    expect(filter.apply()).toEqual({ query: expected, params: {} });
+  });
+
+  it("keeps null filters on legacy map tables unchanged", () => {
+    const filter = new NullFilter({
+      clickhouseTable: "traces",
+      field: "metadata",
+      operator: "is null",
+    });
+
+    expect(filter.apply()).toEqual({
+      query: "metadata is null",
+      params: {},
+    });
+  });
+});
+
 describe("StringObjectFilter empty-value rejection", () => {
   it.each(["contains", "starts with", "ends with"] as const)(
     "rejects an empty value for the substring operator `%s`",
