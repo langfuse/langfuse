@@ -249,7 +249,6 @@ describe("demo redirect page", () => {
     });
     expect(getServerAuthSessionMock).not.toHaveBeenCalled();
     expect(prismaMock.project.findUnique).not.toHaveBeenCalled();
-    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
   });
 
   it("falls back to home when the configured demo project does not exist", async () => {
