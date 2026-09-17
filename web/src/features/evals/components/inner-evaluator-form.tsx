@@ -16,7 +16,7 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Badge } from "@/src/components/ui/badge";
 import {
   tracesTableColsWithOptions,
-  singleFilter,
+  singleFilterList,
   availableTraceEvalVariables,
   datasetFormFilterColsWithOptions,
   observationEvalFilterColsWithOptions,
@@ -36,7 +36,7 @@ import {
 import { z } from "zod";
 import { useEffect, useMemo, useState, memo, Suspense, lazy } from "react";
 import { api } from "@/src/utils/api";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { InlineFilterBuilder } from "@/src/features/filters";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
 import { reportError } from "@/src/utils/reportError";
@@ -63,7 +63,10 @@ import {
 } from "@/src/utils/date-range-utils";
 import { type PartialConfig } from "@/src/features/evals/types";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
-import { EvalVersionCallout } from "@/src/features/evals/components/eval-version-callout";
+import {
+  EvalVersionCallout,
+  getEvalVersionCalloutContent,
+} from "@/src/features/evals/components/eval-version-callout";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   Dialog,
@@ -106,7 +109,7 @@ import {
 } from "@/src/features/evals/utils/evaluator-constants";
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
 import { VariableMappingCard } from "@/src/features/evals/components/variable-mapping-card";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import {
   isCodeEvalTemplate,
@@ -135,7 +138,7 @@ const TracesPreview = memo(
     filterState,
   }: {
     projectId: string;
-    filterState: z.infer<typeof singleFilter>[];
+    filterState: z.infer<typeof singleFilterList>[number][];
   }) => {
     const dateRange = useMemo(() => {
       return {
@@ -185,7 +188,7 @@ const ObservationsPreview = memo(
     compatibilityCheckWasPerformed,
   }: {
     projectId: string;
-    filterState: z.infer<typeof singleFilter>[];
+    filterState: z.infer<typeof singleFilterList>[number][];
     isNewCompatible: boolean;
     compatibilityCheckWasPerformed: boolean;
   }) => {
@@ -319,7 +322,7 @@ function CodeEvalSourceLink({
   );
 }
 
-const EMPTY_FILTER_STATE: z.infer<typeof singleFilter>[] = [];
+const EMPTY_FILTER_STATE: z.infer<typeof singleFilterList>[number][] = [];
 
 export const InnerEvaluatorForm = (props: {
   projectId: string;
@@ -451,7 +454,7 @@ export const InnerEvaluatorForm = (props: {
         props.existingEvaluator?.scoreName ?? `${props.evalTemplate.name}`,
       target: defaultTarget,
       filter: props.existingEvaluator?.filter
-        ? z.array(singleFilter).parse(props.existingEvaluator.filter)
+        ? singleFilterList.parse(props.existingEvaluator.filter)
         : defaultTarget === EvalTargetObject.TRACE
           ? // For new trace evaluators, exclude internal environments by default
             DEFAULT_TRACE_FILTER
@@ -566,6 +569,10 @@ export const InnerEvaluatorForm = (props: {
   const previewTableVisible = !props.disabled && !props.hidePreviewTable;
   const previewAlreadyShowsSdkWarning =
     previewTableVisible && shouldShowEventsPreview;
+  const evalVersionCalloutContent = getEvalVersionCalloutContent(
+    watchedTarget,
+    props.evalCapabilities,
+  );
   const eventsPreviewFilterState = useMemo(
     () =>
       shouldShowExperimentEventsPreview
@@ -596,7 +603,7 @@ export const InnerEvaluatorForm = (props: {
       values = props.preprocessFormValues(values);
     }
 
-    const validatedFilter = z.array(singleFilter).safeParse(values.filter);
+    const validatedFilter = singleFilterList.safeParse(values.filter);
 
     if (
       props.existingEvaluator?.timeScope.includes("EXISTING") &&
@@ -1002,11 +1009,9 @@ export const InnerEvaluatorForm = (props: {
             {!props.hideTargetSelection &&
               props.mode !== "edit" &&
               !props.disabled &&
-              !previewAlreadyShowsSdkWarning && (
-                <EvalVersionCallout
-                  targetObject={watchedTarget}
-                  evalCapabilities={props.evalCapabilities}
-                />
+              !previewAlreadyShowsSdkWarning &&
+              evalVersionCalloutContent && (
+                <EvalVersionCallout content={evalVersionCalloutContent} />
               )}
 
             {!props.hideAdvancedSettings &&
@@ -1217,7 +1222,9 @@ export const InnerEvaluatorForm = (props: {
                                 columns={getFilterColumns()}
                                 filterState={field.value ?? []}
                                 onChange={(
-                                  value: z.infer<typeof singleFilter>[],
+                                  value: z.infer<
+                                    typeof singleFilterList
+                                  >[number][],
                                 ) => {
                                   field.onChange(value);
                                   if (router.query.traceId) {
@@ -1358,9 +1365,12 @@ export const InnerEvaluatorForm = (props: {
         <CodeEvalTestRunCard
           projectId={props.projectId}
           evalTemplate={props.evalTemplate}
-          target={watchedTarget}
+          target={
+            isEventTarget(watchedTarget)
+              ? EvalTargetObject.EVENT
+              : EvalTargetObject.EXPERIMENT
+          }
           scoreName={watchedScoreName}
-          disabled={props.disabled}
           enableExecutionTracePeek={!props.existingEvaluator}
         />
       ) : isCodeEvalConfig ? null : (

@@ -17,7 +17,7 @@ import {
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
-import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
+import { getScoreDataTypeIcon } from "@/src/features/scores";
 
 export default function QueueItems({
   projectId,

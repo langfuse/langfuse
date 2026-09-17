@@ -1,4 +1,4 @@
-import { createDatasetItemForApi } from "@/src/features/datasets/server/publicDatasetService";
+import { createDatasetItemForApi } from "@/src/features/datasets/server";
 import { PostDatasetItemsV1Response } from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { buildDatasetItemUrl } from "@langfuse/shared/src/server";
@@ -18,7 +18,11 @@ export const [upsertDatasetItemTool, handleUpsertDatasetItem] = defineTool({
       attributes: { "mcp.dataset_id": input.datasetId },
       fn: async () => {
         const result = await createDatasetItemForApi({
-          input,
+          input: {
+            ...input,
+            expectedOutput:
+              input.expectedOutput === null ? "" : input.expectedOutput,
+          },
           projectId: context.projectId,
           auditScope: context,
         });

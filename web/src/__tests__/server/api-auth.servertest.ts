@@ -37,10 +37,12 @@ describe("Authenticate API calls", () => {
   };
 
   let testApiKey: TestApiKeyFixture;
+  const cacheKeyPrefix = `api-auth-test:${v4()}:`;
 
   const createRedisClient = (): RedisTestClient => {
     return createRedisTestClient({
       maxRetriesPerRequest: null,
+      keyPrefix: cacheKeyPrefix,
     });
   };
 
@@ -365,6 +367,35 @@ describe("Authenticate API calls", () => {
       warnSpy.mockRestore();
     });
 
+    it("redacts a secret key submitted in the public key slot from the mismatch warning", async () => {
+      await new ApiAuthService(prisma, null).verifyAuthHeaderAndReturnScope(
+        getValidAuthHeader(),
+      );
+
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const auth = await new ApiAuthService(
+        prisma,
+        null,
+      ).verifyAuthHeaderAndReturnScope(
+        createBasicAuthHeader(testApiKey.secretKey, testApiKey.secretKey),
+      );
+
+      expect(auth.validKey).toBe(true);
+
+      const mismatchWarning = warnSpy.mock.calls
+        .map((call) => String(call[0]))
+        .find((message) => message.includes("Public key mismatch"));
+      expect(mismatchWarning).toBeDefined();
+      expect(mismatchWarning).not.toContain(testApiKey.secretKey);
+      expect(mismatchWarning).toContain(
+        getDisplaySecretKey(testApiKey.secretKey),
+      );
+      expect(mismatchWarning).toContain(testApiKey.publicKey);
+
+      warnSpy.mockRestore();
+    });
+
     it("does not warn when the submitted public key matches", async () => {
       await new ApiAuthService(prisma, null).verifyAuthHeaderAndReturnScope(
         getValidAuthHeader(),
@@ -419,6 +450,24 @@ describe("Authenticate API calls", () => {
       redis.disconnect();
     }, 20_000);
 
+    it("clears only this suite's API-key cache entries", async () => {
+      const otherClient = createRedisTestClient({ keyPrefix: "" });
+      const ownKey = `api-key:${v4()}`;
+      const otherKey = `api-key:${v4()}`;
+      try {
+        await setRedisValue(redis, ownKey, "owned");
+        await setRedisValue(otherClient, otherKey, "other-suite");
+
+        await clearApiKeyCacheSafely(redis);
+
+        expect(await getRedisValue(redis, ownKey)).toBeNull();
+        expect(await getRedisValue(otherClient, otherKey)).toBe("other-suite");
+      } finally {
+        await otherClient.del(otherKey);
+        otherClient.disconnect();
+      }
+    });
+
     it("should create new api key and read from cache", async () => {
       const legacySecretKey = ["legacy", "secret", "key", v4()].join("-");
       const legacyPublicKey = `legacy-public-key-${v4()}`;
@@ -464,6 +513,9 @@ describe("Authenticate API calls", () => {
       const apiKey = await prisma.apiKey.findUnique({
         where: { publicKey: legacyPublicKey },
       });
+      const organization = await prisma.organization.findUniqueOrThrow({
+        where: { id: testApiKey.orgId },
+      });
 
       expect(apiKey).not.toBeNull();
       expect(apiKey?.fastHashedSecretKey).not.toBeNull();
@@ -503,6 +555,7 @@ describe("Authenticate API calls", () => {
           },
         ],
         createdAt: apiKey?.createdAt.toISOString(),
+        organizationCreatedAt: organization.createdAt.toISOString(),
         isIngestionSuspended: expect.anything(),
       });
 
@@ -619,6 +672,7 @@ describe("Authenticate API calls", () => {
           },
         ],
         createdAt: apiKey?.createdAt.toISOString(),
+        organizationCreatedAt: expect.any(String),
         isIngestionSuspended: expect.anything(),
       });
 
@@ -749,6 +803,7 @@ describe("Authenticate API calls", () => {
         orgId: testApiKey.orgId,
         plan: "cloud:hobby",
         scope: "PROJECT",
+        organizationCreatedAt: expect.any(String),
       });
     });
 
@@ -836,6 +891,7 @@ describe("Authenticate API calls", () => {
         orgId: testApiKey.orgId,
         plan: "cloud:hobby",
         createdAt: apiKey?.createdAt.toISOString(),
+        organizationCreatedAt: expect.any(String),
         scope: "PROJECT",
         isIngestionSuspended: expect.anything(),
       });

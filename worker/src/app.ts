@@ -15,7 +15,8 @@ import {
 } from "./queues/evalQueue";
 import { codeEvalExecutionQueueProcessorBuilder } from "./queues/codeEvalQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
-import { onShutdown } from "./utils/shutdown";
+import { drainAndClose, onShutdown } from "./utils/shutdown";
+import { installProcessErrorHandlers } from "@langfuse/shared/src/server";
 import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
 import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
@@ -57,6 +58,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseReadSkipCache } from "./utils/clickhouseReadSkipCache";
 import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
+import { traceBatchQueueProcessor } from "./queues/traceBatchQueue";
+import { TraceBatchDispatcher } from "./features/traceBatching/traceBatching";
 import { projectDeleteProcessor } from "./queues/projectDelete";
 import {
   postHogIntegrationProcessingProcessor,
@@ -134,6 +137,24 @@ ClickhouseReadSkipCache.getInstance(prisma)
   .catch((err) => {
     logger.error("Error initializing ClickhouseReadSkipCache", err);
   });
+
+export let traceBatchDispatcher: TraceBatchDispatcher | null = null;
+if (
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+  env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true"
+) {
+  traceBatchDispatcher = new TraceBatchDispatcher();
+  traceBatchDispatcher.start();
+}
+
+if (
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+  env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true"
+) {
+  WorkerManager.register(QueueName.TraceBatch, traceBatchQueueProcessor, {
+    concurrency: env.LANGFUSE_TRACE_BATCH_CONCURRENCY,
+  });
+}
 
 if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
   // Register workers for all trace upsert queue shards
@@ -820,5 +841,14 @@ if (env.LANGFUSE_MONITOR_SCHEDULER_ENABLED === "true") {
 
 process.on("SIGINT", () => onShutdown("SIGINT"));
 process.on("SIGTERM", () => onShutdown("SIGTERM"));
+
+// On a fatal error (uncaught exception / unhandled rejection), drain in-flight
+// jobs and flush pending writes before exiting instead of dying abruptly. A
+// repeated fatal mid-drain forces an immediate exit.
+installProcessErrorHandlers({
+  onFatal: async () => {
+    await drainAndClose();
+  },
+});
 
 export default app;

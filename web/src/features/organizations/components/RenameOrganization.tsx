@@ -12,7 +12,7 @@ import {
   FormItem,
   FormMessage,
 } from "@/src/components/ui/form";
-import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
+import { projectNameSchema } from "@/src/features/auth";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";

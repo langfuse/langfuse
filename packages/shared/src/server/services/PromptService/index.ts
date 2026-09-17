@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { Redis, Cluster } from "ioredis";
 import { randomBytes } from "crypto";
 import { env } from "../../../env";

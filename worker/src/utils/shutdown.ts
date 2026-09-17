@@ -24,15 +24,35 @@ import {
   queueMetricsRunner,
   monitorRunners,
   inAppAgentDlqRetryRunner,
+  traceBatchDispatcher,
 } from "../app";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   logger.info(`Received ${signal}, closing server...`);
+  await drainAndClose();
+};
+
+let drainPromise: Promise<void> | null = null;
+
+// Flip readiness to unhealthy, stop accepting new work, drain in-flight jobs
+// and flush pending writes, then close connections. Shared by the
+// SIGTERM/SIGINT path and the fatal-error path; memoized so concurrent
+// triggers reuse one drain instead of closing workers/connections twice.
+export const drainAndClose = (): Promise<void> => {
+  if (!drainPromise) {
+    drainPromise = runDrainAndClose();
+  }
+  return drainPromise;
+};
+
+const runDrainAndClose = async () => {
   setSigtermReceived();
 
-  // Stop accepting new connections
   server?.close();
   logger.info("Server has been closed.");
+
+  // Give in-flight dispatch up to five seconds before continuing shutdown.
+  await traceBatchDispatcher?.drain();
 
   // Stop batch project cleaners
   for (const cleaner of batchProjectCleaners) {

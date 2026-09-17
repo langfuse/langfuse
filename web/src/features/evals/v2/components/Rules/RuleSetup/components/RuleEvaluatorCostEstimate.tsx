@@ -3,6 +3,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { EvaluatorCostCalculationTooltipContent } from "@/src/features/evals/v2/components/EvaluatorCostCalculationTooltipContent/EvaluatorCostCalculationTooltipContent";
 import { formatEvaluatorCostCalculation } from "@/src/features/evals/v2/fns/formatEvaluatorCostCalculation";
 import type { RuleCostEstimate } from "@/src/features/evals/v2/hooks/useRuleCostEstimate";
 import { usdFormatter } from "@/src/utils/numbers";
@@ -24,7 +25,9 @@ export function RuleEvaluatorCostEstimate({
         </span>
       </TooltipTrigger>
       <TooltipContent className="max-w-72">
-        {formatEvaluatorCostCalculation(estimate)}
+        <EvaluatorCostCalculationTooltipContent
+          {...formatEvaluatorCostCalculation(estimate)}
+        />
       </TooltipContent>
     </Tooltip>
   );

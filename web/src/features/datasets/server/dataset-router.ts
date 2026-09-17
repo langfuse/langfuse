@@ -6,7 +6,7 @@ import {
 import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { createMediaUploadUrl } from "@/src/features/media/server/mediaService";
 import {
   datasetItemMediaReferenceKey,
@@ -15,7 +15,7 @@ import {
 import { MediaContentType } from "@/src/features/media/validation";
 import {
   paginationZod,
-  singleFilter,
+  singleFilterList,
   StringNoHTML,
   StringNoHTMLNonEmpty,
   type FilterState,
@@ -492,7 +492,7 @@ export const datasetRouter = createTRPCRouter({
       if (input.datasetIds.length === 0) return { metrics: [] };
 
       const [runsMetrics, itemsCounts] = await Promise.all([
-        env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only"
+        ctx.session.user.v4BetaEnabled === true
           ? getDatasetExperimentMetricsFromEvents({
               projectId: input.projectId,
               datasetIds: input.datasetIds,
@@ -542,7 +542,7 @@ export const datasetRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(), // Required for protectedProjectProcedure
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -1108,7 +1108,7 @@ export const datasetRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         datasetId: z.string(),
-        filter: z.array(singleFilter).nullish(),
+        filter: singleFilterList.nullish(),
         searchQuery: z.string().optional(),
         searchType: z.array(TracingSearchType).optional(),
         version: z.date().optional(),
@@ -1851,7 +1851,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         datasetRunId: z.string(),
         datasetItemIds: z.array(z.string()).optional(),
-        filter: z.array(singleFilter),
+        filter: singleFilterList,
         ...optionalPaginationZod,
       }),
     )
@@ -1950,9 +1950,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         runIds: z.array(z.string()),
         filterByRun: z
-          .array(
-            z.object({ runId: z.string(), filters: z.array(singleFilter) }),
-          )
+          .array(z.object({ runId: z.string(), filters: singleFilterList }))
           .nullish(),
         ...paginationZod,
       }),
@@ -2026,9 +2024,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         runIds: z.array(z.string()),
         filterByRun: z
-          .array(
-            z.object({ runId: z.string(), filters: z.array(singleFilter) }),
-          )
+          .array(z.object({ runId: z.string(), filters: singleFilterList }))
           .nullish(),
       }),
     )

@@ -12,7 +12,7 @@ import {
   LangfuseNotFoundError,
   PRODUCTION_LABEL,
 } from "@langfuse/shared";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { prisma } from "@langfuse/shared/src/db";
 
 const getPromptNameHandler = async (

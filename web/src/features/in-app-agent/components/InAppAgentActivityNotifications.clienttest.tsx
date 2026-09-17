@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { InAppAgentActivityNotifications } from "./InAppAgentActivityNotifications";
 import type { InAppAgentActivityCard } from "./InAppAgentActivityCards";
 
-vi.mock("@/src/components/ui/layer", () => ({
+vi.mock("@/src/components/design-system/Layer/Layer", () => ({
   Layer: ({ children }: { children?: unknown }) => children,
 }));
 

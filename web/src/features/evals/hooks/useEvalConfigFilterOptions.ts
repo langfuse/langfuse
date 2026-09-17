@@ -1,4 +1,4 @@
-import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+import { sortOptionValues } from "@/src/features/filters";
 import { api } from "@/src/utils/api";
 import {
   type ExperimentEvalOptions,

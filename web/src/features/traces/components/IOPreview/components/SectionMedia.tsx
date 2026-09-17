@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type MediaReturnType } from "@/src/features/media/validation";
 
@@ -11,10 +10,6 @@ export interface SectionMediaProps {
  * SectionMedia renders media attachments at the bottom of the message list.
  */
 export function SectionMedia({ media }: SectionMediaProps) {
-  if (media.length === 0) {
-    return null;
-  }
-
   return (
     <>
       <div className="text-muted-foreground my-1 px-2 py-1 text-xs">Media</div>

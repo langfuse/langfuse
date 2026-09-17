@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
@@ -10,13 +11,16 @@ import { type RouterOutput } from "@/src/utils/types";
 import { useEffect, useMemo, useState } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import {
   type Prisma,
   datasetRunsTableColsWithOptions,
   type ScoreAggregate,
 } from "@langfuse/shared";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useQueryFilterState } from "@/src/features/filters";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
@@ -29,7 +33,6 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { type RowSelectionState } from "@tanstack/react-table";
 import Link from "next/link";
@@ -43,37 +46,28 @@ import {
   compareViewChartDataToDataPoints,
   getCompareViewChartUnit,
 } from "@/src/features/dashboard/lib/chart-data-adapters";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { CompareViewAdapter } from "@/src/features/scores/adapters";
+import { Chart } from "@/src/features/widgets";
+import {
+  addPrefixToScoreKeys,
+  CompareViewAdapter,
+  convertScoreColumnsToAnalyticsData,
+  getScoreLabelFromKey,
+  scoreFilters,
+  useScoreColumns,
+} from "@/src/features/scores";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
-import {
-  Dialog,
-  DialogContent,
-  DialogController,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
 import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
 } from "@/src/components/ui/resizable";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import {
-  scoreFilters,
-  addPrefixToScoreKeys,
-  convertScoreColumnsToAnalyticsData,
-} from "@/src/features/scores/lib/scoreColumns";
-import { getScoreLabelFromKey } from "@/src/features/scores/lib/aggregateScores";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { DeleteDatasetRunDialogContent } from "@/src/features/datasets/components/DeleteDatasetRunDialogContent";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 type DatasetRunRowData = {
   id: string;
@@ -101,7 +95,6 @@ const DatasetRunTableMultiSelectAction = ({
   datasetId: string;
   setRowSelection: (value: Record<string, boolean>) => void;
 }) => {
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const mutDelete = api.datasets.deleteDatasetRuns.useMutation({
@@ -112,80 +105,53 @@ const DatasetRunTableMultiSelectAction = ({
   });
 
   return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            disabled={selectedRunIds.length < 1}
-            onClick={() => capture("dataset_run:compare_view_click")}
-          >
-            Actions ({selectedRunIds.length} selected)
-            <ChevronDown className="h-5 w-5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent key="dropdown-menu-content">
-          <Link
-            key="compare"
-            href={{
-              pathname: `/project/${projectId}/datasets/${datasetId}/compare`,
-              query: { runs: selectedRunIds },
-            }}
-          >
-            <DropdownMenuItem>
-              <Columns3 className="mr-2 h-4 w-4" />
-              <span>Compare</span>
-            </DropdownMenuItem>
-          </Link>
-          <DropdownMenuItem
-            key="delete"
-            onClick={() => setIsDeleteDialogOpen(true)}
-          >
-            <Trash className="mr-2 h-4 w-4" />
-            <span>Delete</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <Dialog
-        key="delete-dialog"
-        open={isDeleteDialogOpen}
-        onOpenChange={(isOpen) => {
-          if (!mutDelete.isPending) {
-            setIsDeleteDialogOpen(isOpen);
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle className="mb-4">Please confirm</DialogTitle>
-            <DialogDescription className="p-0">
-              This action cannot be undone and removes all the data associated
-              with {selectedRunIds.length} dataset run
-              {selectedRunIds.length > 1 ? "s" : ""}.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
+    <ConfirmationDialogController
+      title="Please confirm"
+      text={`This action cannot be undone and removes all the data associated with ${selectedRunIds.length} dataset run${selectedRunIds.length > 1 ? "s" : ""}.`}
+      confirmLabel="Delete Experiments"
+      variant="destructive"
+      loading={mutDelete.isPending}
+      onConfirm={async () => {
+        capture("dataset_run:delete_form_submit");
+        await mutDelete.mutateAsync({
+          projectId,
+          datasetId,
+          datasetRunIds: selectedRunIds,
+        });
+      }}
+    >
+      {({ openDialog }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <Button
-              variant="destructive"
-              loading={mutDelete.isPending}
-              disabled={mutDelete.isPending}
-              onClick={async (event) => {
-                event.preventDefault();
-                capture("dataset_run:delete_form_submit");
-                await mutDelete.mutateAsync({
-                  projectId,
-                  datasetId,
-                  datasetRunIds: selectedRunIds,
-                });
-                setIsDeleteDialogOpen(false);
+              disabled={selectedRunIds.length < 1}
+              onClick={() => capture("dataset_run:compare_view_click")}
+            >
+              Actions ({selectedRunIds.length} selected)
+              <ChevronDown className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent key="dropdown-menu-content">
+            <Link
+              key="compare"
+              href={{
+                pathname: `/project/${projectId}/datasets/${datasetId}/compare`,
+                query: { runs: selectedRunIds },
               }}
             >
-              Delete Experiments
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+              <DropdownMenuItem>
+                <Columns3 className="mr-2 h-4 w-4" />
+                <span>Compare</span>
+              </DropdownMenuItem>
+            </Link>
+            <DropdownMenuItem key="delete" onClick={openDialog}>
+              <Trash className="mr-2 h-4 w-4" />
+              <span>Delete</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </ConfirmationDialogController>
   );
 };
 
@@ -235,6 +201,7 @@ function DatasetRunsTableInternal(
     api.datasets.runFilterOptions.useQuery(
       { projectId: props.projectId, datasetId: props.datasetId },
       {
+        enabled: Boolean(props.projectId) && Boolean(props.datasetId),
         refetchOnMount: false,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
@@ -250,13 +217,16 @@ function DatasetRunsTableInternal(
 
   const setFilterState = useDebounce(setUserFilterState);
 
-  const runs = api.datasets.runsByDatasetId.useQuery({
-    projectId: props.projectId,
-    datasetId: props.datasetId,
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
-    filter: userFilterState,
-  });
+  const runs = api.datasets.runsByDatasetId.useQuery(
+    {
+      projectId: props.projectId,
+      datasetId: props.datasetId,
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+      filter: userFilterState,
+    },
+    { enabled: Boolean(props.projectId) && Boolean(props.datasetId) },
+  );
 
   const runsMetrics = api.datasets.runsByDatasetIdMetrics.useQuery(
     {
@@ -819,21 +789,28 @@ export function DatasetRunsTable(props: DatasetRunsTableProps) {
     string | null
   >(null);
   const capture = usePostHogClientCapture();
+  const utils = api.useUtils();
+  const deleteDatasetRun = api.datasets.deleteDatasetRuns.useMutation({
+    onSuccess: () => utils.datasets.invalidate(),
+  });
 
   return (
-    <DialogController
-      closeOnInteractionOutside
-      size="default"
-      renderContent={({ closeDialog }) =>
-        datasetRunIdToDelete ? (
-          <DeleteDatasetRunDialogContent
-            closeDialog={closeDialog}
-            projectId={props.projectId}
-            datasetId={props.datasetId}
-            datasetRunId={datasetRunIdToDelete}
-          />
-        ) : null
-      }
+    <ConfirmationDialogController
+      title="Please confirm"
+      text="This action cannot be undone. Traces linked to this run must be deleted manually."
+      confirmLabel="Delete Dataset Run"
+      variant="destructive"
+      loading={deleteDatasetRun.isPending}
+      onConfirm={async () => {
+        if (!datasetRunIdToDelete) return;
+
+        capture("dataset_run:delete_form_submit");
+        await deleteDatasetRun.mutateAsync({
+          projectId: props.projectId,
+          datasetId: props.datasetId,
+          datasetRunIds: [datasetRunIdToDelete],
+        });
+      }}
     >
       {({ openDialog }) => (
         <DatasetRunsTableInternal
@@ -845,6 +822,6 @@ export function DatasetRunsTable(props: DatasetRunsTableProps) {
           }}
         />
       )}
-    </DialogController>
+    </ConfirmationDialogController>
   );
 }
