@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { z } from "zod";
 import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
 import type { InAppAgentPendingToolApproval } from "../InAppAiAgentProvider";

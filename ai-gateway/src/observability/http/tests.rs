@@ -1,4 +1,12 @@
 use super::*;
+use crate::{
+    inference::InferenceService,
+    providers::openai::{OpenAiProvider, ProviderLimits},
+    resolution::ControlPlaneConfig,
+    server::GatewayLifecycleState,
+    telemetry::Telemetry,
+    test_support::{FakeServer, resolution_response},
+};
 use axum::body::Bytes;
 use axum::{
     Router,
@@ -15,6 +23,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tower::ServiceExt;
+use tracing::Instrument;
 use tracing_subscriber::prelude::*;
 
 #[derive(Clone, Default)]
@@ -76,13 +85,14 @@ fn incoming() -> HttpRequest<Body> {
             "traceparent",
             "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
         )
+        .header("tracestate", "caller=state-canary")
         .header("baggage", "private=content-canary")
         .body(Body::empty())
         .unwrap()
 }
 
 #[tokio::test]
-async fn inherits_trace_and_preserves_stream_lifetime_bytes_and_trailers() {
+async fn starts_independent_trace_and_preserves_stream_lifetime_bytes_and_trailers() {
     let recording = Recording::start();
     let app = instrument(Router::new().fallback(|| async {
         let mut trailers = HeaderMap::new();
@@ -93,7 +103,12 @@ async fn inherits_trace_and_preserves_stream_lifetime_bytes_and_trailers() {
         ];
         Body::new(StreamBody::new(futures_util::stream::iter(frames)))
     }));
-    let response = app.oneshot(incoming()).await.unwrap();
+    let ambient = tracing::info_span!("ambient");
+    let response = app
+        .oneshot(incoming())
+        .instrument(ambient.clone())
+        .await
+        .unwrap();
     assert!(recording.exporter.get_finished_spans().unwrap().is_empty());
     let summaries = recording.summaries();
     assert_eq!(summaries.len(), 1);
@@ -117,11 +132,16 @@ async fn inherits_trace_and_preserves_stream_lifetime_bytes_and_trailers() {
     assert_eq!(spans.len(), 1);
     let server = &spans[0];
     assert_eq!(server.span_kind, SpanKind::Server);
-    assert_eq!(
+    assert_ne!(
         server.span_context.trace_id().to_string(),
         "4bf92f3577b34da6a3ce929d0e0e4736"
     );
-    assert_eq!(server.parent_span_id.to_string(), "00f067aa0ba902b7");
+    assert_ne!(
+        server.span_context.trace_id(),
+        ambient.context().span().span_context().trace_id()
+    );
+    assert_eq!(server.parent_span_id, opentelemetry::trace::SpanId::INVALID);
+    assert!(server.span_context.trace_state().header().is_empty());
     assert_eq!(
         summaries[0]["trace_id"],
         server.span_context.trace_id().to_string()
@@ -170,7 +190,8 @@ async fn provider_http_errors_are_traced_without_changing_the_response() {
                 .unwrap()
         })
         .await;
-        let provider = OpenAiProvider::for_test(upstream.url.clone(), ProviderLimits::default());
+        let provider =
+            OpenAiProvider::for_test(format!("{}/v1", upstream.url), ProviderLimits::default());
         let recording = Recording::start();
         let response = provider
             .forward(
@@ -208,4 +229,187 @@ async fn provider_http_errors_are_traced_without_changing_the_response() {
         );
         assert_eq!(upstream.calls(), 1);
     }
+}
+
+#[tokio::test]
+async fn generation_context_is_isolated_from_operational_spans_and_outbound_headers() {
+    opentelemetry::global::set_text_map_propagator(
+        opentelemetry_sdk::propagation::TraceContextPropagator::new(),
+    );
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let web_calls = observed.clone();
+    let web = FakeServer::start(move |request| {
+        let web_calls = web_calls.clone();
+        async move {
+            let (parts, body) = request.into_parts();
+            let bytes = axum::body::to_bytes(body, 64 * 1024).await.unwrap();
+            let ingestion = parts.uri.path() == "/api/public/otel/v1/traces";
+            web_calls.lock().unwrap().push((
+                if ingestion { "ingestion" } else { "resolver" },
+                parts.headers,
+                serde_json::from_slice::<Value>(&bytes).unwrap(),
+            ));
+            if ingestion {
+                Response::new(Body::from("{}"))
+            } else {
+                resolution_response("provider-secret")
+            }
+        }
+    })
+    .await;
+    let provider_calls = observed.clone();
+    let provider = FakeServer::start(move |request| {
+        provider_calls.lock().unwrap().push((
+            "provider.headers",
+            request.headers().clone(),
+            Value::Null,
+        ));
+        async {
+            Response::builder()
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"id":"resp_1","output":[]}"#))
+                .unwrap()
+        }
+    })
+    .await;
+    let telemetry =
+        Telemetry::new(&ControlPlaneConfig::new(&web.url, "test-service-key").unwrap()).unwrap();
+    let service = InferenceService::for_test(
+        web.control_plane(),
+        OpenAiProvider::for_test(provider.url.clone(), ProviderLimits::default())
+            .with_telemetry(telemetry.clone()),
+        1,
+    );
+    let recording = Recording::start();
+    let lifecycle = GatewayLifecycleState::default();
+    let app = instrument(crate::http::router(Some(service), lifecycle.clone()));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let mut serving = Box::pin(crate::server::serve(
+        listener,
+        app.clone(),
+        lifecycle,
+        std::future::pending(),
+        Duration::from_secs(1),
+    ));
+    assert!(futures_util::poll!(serving.as_mut()).is_pending());
+    let response = app.oneshot(generation_request()).await.unwrap();
+    assert_eq!(response.status(), 200);
+    axum::body::to_bytes(response.into_body(), 4096)
+        .await
+        .unwrap();
+    telemetry
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await;
+    let spans = recording.exporter.get_finished_spans().unwrap();
+    let server = spans
+        .iter()
+        .find(|span| span.span_kind == SpanKind::Server)
+        .unwrap();
+    assert_eq!(spans.len(), 4);
+    assert_eq!(server.parent_span_id, opentelemetry::trace::SpanId::INVALID);
+    assert_ne!(
+        server.span_context.trace_id().to_string(),
+        "4bf92f3577b34da6a3ce929d0e0e4736"
+    );
+    let observed = observed.lock().unwrap();
+    assert_eq!(observed.len(), 3);
+    for (name, headers, payload) in &*observed {
+        let child = spans.iter().find(|span| span.name == *name).unwrap();
+        assert_eq!(
+            child.span_context.trace_id(),
+            server.span_context.trace_id()
+        );
+        assert!(child.span_context.trace_state().header().is_empty());
+        assert_eq!(child.parent_span_id, server.span_context.span_id());
+        assert_outbound_context(headers, (*name != "provider.headers").then_some(child));
+        if *name == "ingestion" {
+            assert_generation_context(payload);
+        }
+    }
+}
+
+fn generation_request() -> HttpRequest<Body> {
+    HttpRequest::post("/openai/v1/responses")
+        .header("authorization", "Bearer gateway-secret")
+        .header(
+            "traceparent",
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00",
+        )
+        .header("tracestate", "caller=state-canary")
+        .header(
+            "baggage",
+            "langfuse_user_id=baggage-user,langfuse_metadata_source=python",
+        )
+        .header("langfuse-trace-name", "caller trace")
+        .header("langfuse-user-id", "caller-user")
+        .header("langfuse-session-id", "caller-session")
+        .header("langfuse-tags", "one,two")
+        .header("langfuse-metadata", "team:search")
+        .body(Body::from(r#"{"model":"test-model"}"#))
+        .unwrap()
+}
+
+fn assert_outbound_context(headers: &HeaderMap, span: Option<&opentelemetry_sdk::trace::SpanData>) {
+    if let Some(span) = span {
+        assert!(
+            headers
+                .get("tracestate")
+                .is_none_or(axum::http::HeaderValue::is_empty)
+        );
+        assert_eq!(
+            headers["traceparent"],
+            format!(
+                "00-{}-{}-01",
+                span.span_context.trace_id(),
+                span.span_context.span_id()
+            )
+        );
+    } else {
+        assert!(!headers.contains_key("traceparent"));
+        assert!(!headers.contains_key("tracestate"));
+    }
+    for name in [
+        "baggage",
+        "langfuse-trace-name",
+        "langfuse-user-id",
+        "langfuse-session-id",
+        "langfuse-tags",
+        "langfuse-metadata",
+    ] {
+        assert!(
+            !headers.contains_key(name),
+            "unexpected outbound header {name}"
+        );
+    }
+}
+
+fn assert_generation_context(payload: &Value) {
+    let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+    assert_eq!(span["traceId"], "4bf92f3577b34da6a3ce929d0e0e4736");
+    assert_eq!(span["parentSpanId"], "00f067aa0ba902b7");
+    assert_eq!(span["traceState"], "caller=state-canary");
+    assert_eq!(span["flags"], 1);
+    let attributes: std::collections::HashMap<_, _> = span["attributes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|attribute| {
+            (
+                attribute["key"].as_str().unwrap(),
+                attribute["value"]["stringValue"].as_str().unwrap(),
+            )
+        })
+        .collect();
+    for (key, expected) in [
+        ("langfuse.trace.name", "caller trace"),
+        ("user.id", "caller-user"),
+        ("session.id", "caller-session"),
+        ("langfuse.trace.tags", r#"["one","two"]"#),
+    ] {
+        assert_eq!(attributes[key], expected);
+    }
+    let metadata: Value =
+        serde_json::from_str(attributes["langfuse.observation.metadata"]).unwrap();
+    assert_eq!(metadata["team"], "search");
+    assert_eq!(metadata["source"], "python");
 }

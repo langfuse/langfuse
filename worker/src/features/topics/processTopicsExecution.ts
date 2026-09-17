@@ -1087,8 +1087,9 @@ export async function processTopicsExecution({
         // Scope the promise to one trace, including a rejected source read.
         // Accepted summary checkpoints never invoke the loader.
         let input: ReturnType<typeof loadTopicTranscript> | undefined;
-        const getTranscript = () =>
-          (input ??= (async () => {
+        const getTranscript = () => {
+          if (input) return input;
+          input = (async () => {
             const accepted = await Promise.all(
               execution.facets.map((progress) =>
                 readTopicArtifact<TopicSummary>(
@@ -1109,7 +1110,9 @@ export async function processTopicsExecution({
                 "Trace input changed since an accepted facet summary. Start a new execution to process the updated trace.",
               );
             return loaded;
-          })());
+          })();
+          return input;
+        };
         for (const { facet, progress, summaries, cached } of extracting) {
           try {
             summaries.push(

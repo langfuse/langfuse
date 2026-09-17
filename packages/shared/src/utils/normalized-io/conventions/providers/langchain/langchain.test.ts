@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { normalizeSpanIO } from "../../../parser";
 import {
+  capturedTraceFixtures,
   langchainBatchedMessagesFixture,
   langchainDictToolMessageFixture,
   langchainMultiBatchMessagesFixture,
@@ -11,6 +12,7 @@ import {
 
 describe("LangChain normalized I/O", () => {
   it.each([
+    ...capturedTraceFixtures,
     langchainBatchedMessagesFixture,
     langchainMultiBatchMessagesFixture,
     langchainDictToolMessageFixture,

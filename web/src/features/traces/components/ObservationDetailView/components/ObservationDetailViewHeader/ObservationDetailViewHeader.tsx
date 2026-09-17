@@ -35,15 +35,8 @@ import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,
   TimeToFirstTokenBadge,
-  EnvironmentBadge,
-  ReleaseBadge,
-  VersionBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
-import {
-  SessionBadge,
-  UserIdBadge,
-} from "@/src/features/traces/components/TraceMetadataBadges";
 import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
 import {
   CostBadge,
@@ -51,7 +44,6 @@ import {
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { resolveObservationCostSource } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/costSource";
 import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
-import { ModelParametersBadges } from "@/src/features/traces/components/ObservationDetailView/components/ModelParametersBadges";
 import {
   type WithStringifiedMetadata,
   type MetadataDomainClient,
@@ -739,18 +731,6 @@ export const ObservationDetailViewHeader = memo(
               <TimeToFirstTokenBadge
                 timeToFirstToken={observation.timeToFirstToken}
               />
-              {observation.sessionId && (
-                <SessionBadge
-                  sessionId={observation.sessionId}
-                  projectId={projectId}
-                />
-              )}
-              {observation.userId && (
-                <UserIdBadge
-                  userId={observation.userId}
-                  projectId={projectId}
-                />
-              )}
               {evaluatorId &&
                 (observation.environment ===
                   LangfuseInternalTraceEnvironment.LLMJudge ||
@@ -763,8 +743,6 @@ export const ObservationDetailViewHeader = memo(
                     projectId={projectId}
                   />
                 )}
-              <EnvironmentBadge environment={observation.environment} />
-              <ReleaseBadge release={observation.release} />
               {displayedTotalCost != null && displayedCostDetails && (
                 <CostBadge
                   totalCost={displayedTotalCost}
@@ -792,7 +770,6 @@ export const ObservationDetailViewHeader = memo(
                       usageDetails={observation.usageDetails}
                     />
                   )}
-              <VersionBadge version={observation.version} />
               {observation.model && (
                 <ModelBadge
                   model={observation.model}
@@ -801,9 +778,6 @@ export const ObservationDetailViewHeader = memo(
                   usageDetails={observation.usageDetails}
                 />
               )}
-              <ModelParametersBadges
-                modelParameters={observation.modelParameters}
-              />
               {observation.level !== "DEFAULT" && (
                 <ObservationLevelBadge
                   level={observation.level}

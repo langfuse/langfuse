@@ -136,4 +136,56 @@ describe("SessionConversationTimelineTrace", () => {
       screen.queryByRole("button", { name: /tools: tool/i }),
     ).not.toBeInTheDocument();
   });
+
+  it("decodes Unicode escapes in truncated observation previews", () => {
+    const truncated = prepareSessionTimelineObservations([
+      {
+        ...observation("gen", null, "GENERATION", new Date(0)),
+        input: '{"text":"\\u4f60\\u597d"}',
+        output: "\\u4f60\\u597d",
+        inputTruncated: true,
+        outputTruncated: true,
+      },
+    ]);
+
+    render(
+      <SessionConversationTimelineTrace
+        trace={{ ...trace, observationCount: 1 }}
+        turnNumber={1}
+        state={{ type: "loaded", observations: truncated }}
+        onOpenTrace={vi.fn()}
+        onOpenObservation={vi.fn()}
+        scrollTarget={null}
+      />,
+    );
+
+    expect(screen.getAllByText(/你好/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/\\u4f60\\u597d/)).not.toBeInTheDocument();
+  });
+
+  it("decodes Unicode escapes in full (non-truncated) timeline message text", () => {
+    // Modern timeline hydrates full I/O via sessionBatchIO without truncation
+    // flags; plain-string output still carries literal \uXXXX from storage.
+    const loaded = prepareSessionTimelineObservations([
+      {
+        ...observation("gen", null, "GENERATION", new Date(0)),
+        input: '[{"role":"user","content":"hi"}]',
+        output: "\\u4f60\\u597d world",
+      },
+    ]);
+
+    render(
+      <SessionConversationTimelineTrace
+        trace={{ ...trace, observationCount: 1 }}
+        turnNumber={1}
+        state={{ type: "loaded", observations: loaded }}
+        onOpenTrace={vi.fn()}
+        onOpenObservation={vi.fn()}
+        scrollTarget={null}
+      />,
+    );
+
+    expect(screen.getByText(/你好 world/)).toBeInTheDocument();
+    expect(screen.queryByText(/\\u4f60\\u597d/)).not.toBeInTheDocument();
+  });
 });

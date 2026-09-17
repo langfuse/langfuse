@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { eventsTableTraceNameSelectSql, singleFilter } from "@langfuse/shared";
+import {
+  eventsTableTraceNameSelectSql,
+  singleFilterList,
+} from "@langfuse/shared";
 import { topicIdSchema } from "@langfuse/shared/topics";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
@@ -12,7 +15,9 @@ import {
 export const topicTraceSelectionSchema = z
   .object({
     projectId: topicIdSchema,
-    filter: z.array(singleFilter).max(100),
+    filter: singleFilterList.refine((filters) => filters.length <= 100, {
+      message: "Select at most 100 filters.",
+    }),
     from: z.date(),
     to: z.date(),
     limit: z.number().int().positive().nullable().default(null),

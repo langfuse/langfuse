@@ -908,7 +908,10 @@ function FilterBuilderForm({
               operator: value as any,
               // Value-less operators keep an empty string for schema compatibility.
               value:
-                filter.type === "null" || value === "is not empty"
+                filter.type === "null" ||
+                value === "is not empty" ||
+                value === "is set" ||
+                value === "is not set"
                   ? ""
                   : (filter.value as any),
             },
@@ -935,7 +938,10 @@ function FilterBuilderForm({
     const valueControl = keyPending ? (
       <Input disabled value="" />
     ) : filter.type === "string" &&
-      filter.operator === "is not empty" ? null : stringObjectSuggest &&
+      filter.operator === "is not empty" ? null : filter.type ===
+        "stringObject" &&
+      (filter.operator === "is set" ||
+        filter.operator === "is not set") ? null : stringObjectSuggest &&
       filter.type === "stringObject" ? (
       <SingleSelect
         title="Value"
