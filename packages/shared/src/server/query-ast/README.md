@@ -38,7 +38,8 @@ The golden-SQL harness lives in `../repositories/goldenHarness.ts` (it captures
 SQL at the `repositories/clickhouse.ts` exec seam in test mode, then normalizes
 it via `clickhouse format` + positional param names for snapshot comparison — no
 ClickHouse server needed). Each migrated call site keeps its SQL baseline next to
-that call site, e.g. `../repositories/environments.golden.test.ts` and
+that call site, e.g. `../repositories/environments.golden.test.ts`,
+`../repositories/scores.golden.test.ts`, and
 `../queries/clickhouse-sql/event-filter-options.golden.test.ts`.
 
 Regenerate baselines with `-u` after an intentional SQL change. Filter by the
