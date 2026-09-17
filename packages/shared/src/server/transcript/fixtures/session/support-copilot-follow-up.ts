@@ -1,5 +1,18 @@
+import type { NormalizedMessage } from "../../../../utils/normalized-io";
 import type { TranscriptFixture } from "../fixture-types";
-import { supportCopilotRefundLoopFixture } from "../trace/support-copilot-refund-loop";
+import {
+  charges,
+  classification,
+  copilotSystemPrompt,
+  createRefundArguments,
+  createRefundToolCallId,
+  customerMessage,
+  finalReply,
+  findChargesArguments,
+  findChargesToolCallId,
+  refund,
+  supportCopilotRefundLoopFixture,
+} from "../trace/support-copilot-refund-loop";
 
 const firstTrace = supportCopilotRefundLoopFixture;
 const firstThread = firstTrace.expected.threads[0];
@@ -49,25 +62,107 @@ const followUpObservations = firstTrace.observations.map((original) => {
   return observation;
 });
 
+/** The first conversation as every generation of the second trace receives it. */
+const replayedHistory: NormalizedMessage[] = [
+  {
+    role: "system",
+    source: "input",
+    parts: [{ type: "text", text: copilotSystemPrompt }],
+  },
+  {
+    role: "user",
+    source: "input",
+    parts: [{ type: "text", text: customerMessage }],
+  },
+  {
+    role: "assistant",
+    source: "input",
+    parts: [{ type: "text", text: classification.content }],
+  },
+  {
+    role: "assistant",
+    source: "input",
+    parts: [
+      {
+        type: "tool-call",
+        toolCallId: findChargesToolCallId,
+        toolName: "stripe_find_charges",
+        input: findChargesArguments,
+        toolType: "function",
+      },
+    ],
+  },
+  {
+    role: "tool",
+    source: "input",
+    parts: [
+      {
+        type: "tool-result",
+        toolCallId: findChargesToolCallId,
+        output: charges,
+      },
+    ],
+  },
+  {
+    role: "assistant",
+    source: "input",
+    parts: [
+      {
+        type: "tool-call",
+        toolCallId: createRefundToolCallId,
+        toolName: "stripe_create_refund",
+        input: createRefundArguments,
+        toolType: "function",
+      },
+    ],
+  },
+  {
+    role: "tool",
+    source: "input",
+    parts: [
+      {
+        type: "tool-result",
+        toolCallId: createRefundToolCallId,
+        output: refund,
+      },
+    ],
+  },
+  {
+    role: "assistant",
+    source: "input",
+    parts: [{ type: "text", text: "Resolution complete." }],
+  },
+  {
+    role: "user",
+    source: "input",
+    parts: [{ type: "text", text: "Draft the reply." }],
+  },
+  {
+    role: "assistant",
+    source: "input",
+    parts: [{ type: "text", text: finalReply }],
+  },
+];
+
 export const supportCopilotFollowUpFixture = {
   name: "support copilot follow-up replays history across two traces",
   scope: "session",
   description:
-    "Two complete refund workflows share a conversation. The second trace replays the first trace's final history in every generation; repeated history retains its first attribution, and new calls/results retain the second trace's IDs.",
+    "Two complete refund workflows share a conversation. Each trace is built on its own: the second trace's generations replay the first trace's final history, which becomes the conversation history, and the current turn holds only the second workflow with the second trace's IDs.",
   observations: [...firstTrace.observations, ...followUpObservations],
   expected: {
     threads: [
+      firstThread,
       {
-        observations: [
-          ...firstThread.observations,
-          ...followUpCopy(firstThread.observations),
-        ],
-        messages: [
-          ...firstThread.messages,
-          ...followUpCopy(
-            firstThread.messages.filter((message) => message.role !== "system"),
+        conversationHistory: replayedHistory,
+        currentTurn: {
+          messages: followUpCopy(
+            firstThread.currentTurn.messages.filter(
+              (message) => message.role !== "system",
+            ),
           ),
-        ],
+          observations: followUpCopy(firstThread.currentTurn.observations),
+        },
       },
     ],
   },

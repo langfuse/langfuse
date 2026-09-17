@@ -41,25 +41,28 @@ export const standaloneToolObservationFixture = {
   expected: {
     threads: [
       {
-        messages: [
-          {
-            role: "user",
-            parts: [{ type: "text", text: "Find my orders." }],
-            source: "input",
-            observationId: "standalone-generation",
-            traceId: "standalone-tool-trace",
-          },
-          {
-            role: "assistant",
-            parts: [{ type: "text", text: "I'll look up your orders." }],
-            source: "output",
-            observationId: "standalone-generation",
-            traceId: "standalone-tool-trace",
-          },
-        ],
-        observations: [
-          { id: "standalone-generation", traceId: "standalone-tool-trace" },
-        ],
+        conversationHistory: [],
+        currentTurn: {
+          messages: [
+            {
+              role: "user",
+              parts: [{ type: "text", text: "Find my orders." }],
+              source: "input",
+              observationId: "standalone-generation",
+              traceId: "standalone-tool-trace",
+            },
+            {
+              role: "assistant",
+              parts: [{ type: "text", text: "I'll look up your orders." }],
+              source: "output",
+              observationId: "standalone-generation",
+              traceId: "standalone-tool-trace",
+            },
+          ],
+          observations: [
+            { id: "standalone-generation", traceId: "standalone-tool-trace" },
+          ],
+        },
       },
     ],
   },

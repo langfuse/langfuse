@@ -8,7 +8,7 @@ export const reorderedHistoryFixture = {
   name: "Reordered history across two session traces",
   scope: "session",
   description:
-    "Desired result is one thread with A, B, C, New, Answer; this deliberately exercises order-insensitive reconciliation beyond prefix matching.",
+    "Built one trace at a time, so the second trace keeps its input order B, C, A, New, Answer. Replayed user messages without an assistant or tool message cannot be told apart from new input, so nothing moves into the conversation history.",
   observations: [
     {
       id: "reordered-history-generation-1",
@@ -71,78 +71,49 @@ export const reorderedHistoryFixture = {
   expected: {
     threads: [
       {
-        messages: [
-          {
-            role: "user",
-            parts: [
-              {
-                type: "text",
-                text: "A",
-              },
-            ],
-            source: "input",
+        conversationHistory: [],
+        currentTurn: {
+          messages: ["A", "B", "C"].map((text) => ({
+            role: "user" as const,
+            parts: [{ type: "text" as const, text }],
+            source: "input" as const,
             observationId: "reordered-history-generation-1",
             traceId: "reordered-history-trace-1",
-          },
-          {
-            role: "user",
-            parts: [
-              {
-                type: "text",
-                text: "B",
-              },
-            ],
-            source: "input",
-            observationId: "reordered-history-generation-1",
-            traceId: "reordered-history-trace-1",
-          },
-          {
-            role: "user",
-            parts: [
-              {
-                type: "text",
-                text: "C",
-              },
-            ],
-            source: "input",
-            observationId: "reordered-history-generation-1",
-            traceId: "reordered-history-trace-1",
-          },
-          {
-            role: "user",
-            parts: [
-              {
-                type: "text",
-                text: "New",
-              },
-            ],
-            source: "input",
-            observationId: "reordered-history-generation-2",
-            traceId: "reordered-history-trace-2",
-          },
-          {
-            role: "assistant",
-            parts: [
-              {
-                type: "text",
-                text: "Answer",
-              },
-            ],
-            source: "output",
-            observationId: "reordered-history-generation-2",
-            traceId: "reordered-history-trace-2",
-          },
-        ],
-        observations: [
-          {
-            id: "reordered-history-generation-1",
-            traceId: "reordered-history-trace-1",
-          },
-          {
-            id: "reordered-history-generation-2",
-            traceId: "reordered-history-trace-2",
-          },
-        ],
+          })),
+          observations: [
+            {
+              id: "reordered-history-generation-1",
+              traceId: "reordered-history-trace-1",
+            },
+          ],
+        },
+      },
+      {
+        conversationHistory: [],
+        currentTurn: {
+          messages: [
+            ...["B", "C", "A", "New"].map((text) => ({
+              role: "user" as const,
+              parts: [{ type: "text" as const, text }],
+              source: "input" as const,
+              observationId: "reordered-history-generation-2",
+              traceId: "reordered-history-trace-2",
+            })),
+            {
+              role: "assistant",
+              parts: [{ type: "text", text: "Answer" }],
+              source: "output",
+              observationId: "reordered-history-generation-2",
+              traceId: "reordered-history-trace-2",
+            },
+          ],
+          observations: [
+            {
+              id: "reordered-history-generation-2",
+              traceId: "reordered-history-trace-2",
+            },
+          ],
+        },
       },
     ],
   },

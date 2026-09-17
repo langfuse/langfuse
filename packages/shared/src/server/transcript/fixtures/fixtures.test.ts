@@ -1,20 +1,39 @@
 import { describe, expect, it } from "vitest";
+import type { Observation } from "../../../domain";
 import { transcriptFixtures } from "./index";
 import { createObservation } from "../../test-utils";
 import { convertObservation } from "../../repositories/observations_converters";
-import { getTranscript } from "../index";
+import { getTranscript, type Transcript } from "../index";
 import { formatTranscript } from "./format-transcript";
 import { orderSupportRoutingFixture } from "./session/order-support-routing";
+
+/**
+ * Build every trace on its own, never a whole session, and concatenate the
+ * threads in the order the traces first appear.
+ */
+function getTranscriptPerTrace(observations: Observation[]): Transcript | null {
+  const traces = new Map<string | null, Observation[]>();
+  for (const observation of observations) {
+    const trace = traces.get(observation.traceId) ?? [];
+    trace.push(observation);
+    traces.set(observation.traceId, trace);
+  }
+  const threads = [...traces.values()].flatMap(
+    (trace) => getTranscript(trace)?.threads ?? [],
+  );
+  return threads.length ? { threads } : null;
+}
 
 /**
  * Structural checks on fixtures and exact transcript expectations.
  */
 describe("transcript fixtures", () => {
+  const traceId = "trace";
   const generation = (id: string, input: string[], output: string[]) =>
     convertObservation(
       createObservation({
         id,
-        trace_id: `trace-${id}`,
+        trace_id: traceId,
         type: "GENERATION",
         start_time: `2026-01-01T12:00:0${id}.000Z`,
         input: JSON.stringify(
@@ -31,8 +50,8 @@ describe("transcript fixtures", () => {
     expect(getTranscript([empty])).toBeNull();
     const transcript = getTranscript([empty, generation("2", ["A"], [])]);
     expect(transcript?.threads).toHaveLength(1);
-    expect(transcript?.threads[0].observations).toEqual([
-      { id: "2", traceId: "trace-2" },
+    expect(transcript?.threads[0].currentTurn.observations).toEqual([
+      { id: "2", traceId },
     ]);
   });
 
@@ -42,15 +61,19 @@ describe("transcript fixtures", () => {
       generation("2", ["B"], []),
       generation("3", ["B", "A"], ["C"]),
     ]);
-    expect(transcript?.threads.map((thread) => thread.observations)).toEqual([
-      [{ id: "1", traceId: "trace-1" }],
+    expect(
+      transcript?.threads.map((thread) => thread.currentTurn.observations),
+    ).toEqual([
+      [{ id: "1", traceId }],
       [
-        { id: "2", traceId: "trace-2" },
-        { id: "3", traceId: "trace-3" },
+        { id: "2", traceId },
+        { id: "3", traceId },
       ],
     ]);
     expect(
-      transcript?.threads[1].messages.map((message) => message.observationId),
+      transcript?.threads[1].currentTurn.messages.map(
+        (message) => message.observationId,
+      ),
     ).toEqual(["2", "3", "3"]);
   });
 
@@ -60,8 +83,8 @@ describe("transcript fixtures", () => {
       generation("2", ["A", "B"], []),
     ]);
     expect(transcript?.threads).toHaveLength(1);
-    expect(transcript?.threads[0].observations).toEqual([
-      { id: "1", traceId: "trace-1" },
+    expect(transcript?.threads[0].currentTurn.observations).toEqual([
+      { id: "1", traceId },
     ]);
   });
 
@@ -92,15 +115,15 @@ describe("transcript fixtures", () => {
     });
 
     // Complete each seed into a full ClickHouse observation record and convert
-    // it to a domain `Observation`, then build the transcript.
+    // it to a domain `Observation`, then build each trace on its own.
     // Routing history is an opaque string; its transcript expectation is deferred.
     it.skipIf(fixture === orderSupportRoutingFixture)(
-      "returns the expected transcript",
+      "returns the expected transcript for every trace",
       () => {
         const observations = fixture.observations.map((observation) =>
           convertObservation(createObservation(observation)),
         );
-        const transcript = getTranscript(observations);
+        const transcript = getTranscriptPerTrace(observations);
 
         console.log("----------Formatted Transcript-------------------");
         console.log(

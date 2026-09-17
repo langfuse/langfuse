@@ -141,6 +141,10 @@ plus a one-line registration in `fixtures/index.ts`. Use
 9. **Define the expectation.** Review message order, thread boundaries, tool
    results, and provenance against the input. Store a static `expected`
    transcript; do not derive it from the transcript builder in the test.
+   The test builds every trace on its own, so a multi-trace fixture lists the
+   threads of each trace in the order the traces first appear. Each thread
+   has a `conversationHistory` (input replayed from earlier turns, without
+   provenance) and a `currentTurn` (new messages with their observations).
 
 10. **Write the description.** Two to five sentences on what makes this tree
     interesting for transcript semantics: history replay or its absence,
@@ -151,7 +155,7 @@ plus a one-line registration in `fixtures/index.ts`. Use
     `sessionTranscriptFixtures` in `fixtures/index.ts`, then run:
 
     ```bash
-    pnpm --filter @langfuse/shared run test src/utils/transcript/fixtures/fixtures.test.ts
+    pnpm --filter @langfuse/shared run test src/server/transcript/fixtures/fixtures.test.ts
     ```
 
     ```bash
@@ -205,7 +209,14 @@ export const <camelCaseName>Fixture = {
   scope: "trace",
   description: "<step 10>",
   observations,
-  expected: { threads: [/* reviewed threads and messages */] },
+  expected: {
+    threads: [
+      {
+        conversationHistory: [/* replayed messages, no provenance */],
+        currentTurn: { messages: [/* … */], observations: [/* … */] },
+      },
+    ],
+  },
 } satisfies TranscriptFixture;
 ```
 

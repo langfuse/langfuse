@@ -6,6 +6,7 @@ import {
   append,
   findThread,
   messageKey,
+  splitTurn,
   type ThreadState,
   type TranscriptObservation,
 } from "./threads";
@@ -69,5 +70,7 @@ export function getTranscript(observations: Observation[]): Transcript | null {
     append(state, observation, input, output, isNewThread, toolCalls);
   }
 
-  return states.length ? { threads: states.map(({ thread }) => thread) } : null;
+  return states.length
+    ? { threads: states.map(({ thread }) => splitTurn(thread)) }
+    : null;
 }

@@ -7,12 +7,16 @@ import type { Transcript } from "../types";
  * The behavior test completes each seed with `createObservation` and converts
  * it to a domain `Observation` with `convertObservation` before building.
  *
- * Expectations pin reviewed message ordering, thread boundaries, and provenance.
+ * Expectations pin reviewed message ordering, thread boundaries, the split
+ * between conversation history and current turn, and provenance.
  */
 export type TranscriptFixture = {
   /** Test name. Describes the tree shape the case exercises. */
   name: string;
-  /** `trace`: one trace. `session`: every trace of one session. */
+  /**
+   * `trace`: one trace. `session`: several traces of one session. The test
+   * builds every trace on its own, never a whole session.
+   */
   scope: "trace" | "session";
   /** Why this tree is interesting for transcript semantics. */
   description: string;
@@ -22,5 +26,10 @@ export type TranscriptFixture = {
    * order, so fixtures never re-sort.
    */
   observations: Parameters<typeof createObservation>[0][];
+  /**
+   * Threads of every trace, built one trace at a time and concatenated in
+   * the order the traces first appear in `observations`. `null` when no
+   * trace yields a transcript.
+   */
   expected: Transcript | null;
 };

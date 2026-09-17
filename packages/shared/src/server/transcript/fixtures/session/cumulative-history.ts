@@ -8,7 +8,7 @@ export const cumulativeHistoryFixture = {
   name: "Cumulative history across two session traces",
   scope: "session",
   description:
-    "Adapted from Ben's cumulative-history test. Expect one thread with the initial exchange and follow-up once each; replayed messages retain the first trace and generation IDs.",
+    "Adapted from Ben's cumulative-history test. Each trace is built on its own: the second generation replays the first exchange, which becomes the conversation history up to the assistant's reply, and only the follow-up exchange is the current turn.",
   observations: [
     {
       id: "cumulative-history-generation-1",
@@ -62,66 +62,69 @@ export const cumulativeHistoryFixture = {
   expected: {
     threads: [
       {
-        messages: [
+        conversationHistory: [],
+        currentTurn: {
+          messages: [
+            {
+              role: "user",
+              parts: [{ type: "text", text: "Initial request" }],
+              source: "input",
+              observationId: "cumulative-history-generation-1",
+              traceId: "cumulative-history-trace-1",
+            },
+            {
+              role: "assistant",
+              parts: [{ type: "text", text: "First response" }],
+              source: "output",
+              observationId: "cumulative-history-generation-1",
+              traceId: "cumulative-history-trace-1",
+            },
+          ],
+          observations: [
+            {
+              id: "cumulative-history-generation-1",
+              traceId: "cumulative-history-trace-1",
+            },
+          ],
+        },
+      },
+      {
+        conversationHistory: [
           {
             role: "user",
-            parts: [
-              {
-                type: "text",
-                text: "Initial request",
-              },
-            ],
+            parts: [{ type: "text", text: "Initial request" }],
             source: "input",
-            observationId: "cumulative-history-generation-1",
-            traceId: "cumulative-history-trace-1",
           },
           {
             role: "assistant",
-            parts: [
-              {
-                type: "text",
-                text: "First response",
-              },
-            ],
-            source: "output",
-            observationId: "cumulative-history-generation-1",
-            traceId: "cumulative-history-trace-1",
-          },
-          {
-            role: "user",
-            parts: [
-              {
-                type: "text",
-                text: "Follow-up request",
-              },
-            ],
+            parts: [{ type: "text", text: "First response" }],
             source: "input",
-            observationId: "cumulative-history-generation-2",
-            traceId: "cumulative-history-trace-2",
-          },
-          {
-            role: "assistant",
-            parts: [
-              {
-                type: "text",
-                text: "Second response",
-              },
-            ],
-            source: "output",
-            observationId: "cumulative-history-generation-2",
-            traceId: "cumulative-history-trace-2",
           },
         ],
-        observations: [
-          {
-            id: "cumulative-history-generation-1",
-            traceId: "cumulative-history-trace-1",
-          },
-          {
-            id: "cumulative-history-generation-2",
-            traceId: "cumulative-history-trace-2",
-          },
-        ],
+        currentTurn: {
+          messages: [
+            {
+              role: "user",
+              parts: [{ type: "text", text: "Follow-up request" }],
+              source: "input",
+              observationId: "cumulative-history-generation-2",
+              traceId: "cumulative-history-trace-2",
+            },
+            {
+              role: "assistant",
+              parts: [{ type: "text", text: "Second response" }],
+              source: "output",
+              observationId: "cumulative-history-generation-2",
+              traceId: "cumulative-history-trace-2",
+            },
+          ],
+          observations: [
+            {
+              id: "cumulative-history-generation-2",
+              traceId: "cumulative-history-trace-2",
+            },
+          ],
+        },
       },
     ],
   },

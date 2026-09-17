@@ -20,6 +20,11 @@ getTranscript(
 type Transcript = { threads: Thread[] };
 
 type Thread = {
+  conversationHistory: NormalizedMessage[]; // replayed from earlier turns, no provenance
+  currentTurn: Turn;
+};
+
+type Turn = {
   messages: ThreadMessage[];
   observations: { id: string; traceId: string }[]; // observations that contributed, in order
 };
@@ -38,6 +43,20 @@ A **transcript** contains the conversation threads inferred from the supplied
 observations. A **thread** is a sequence of messages connected by shared input
 history; it can span multiple traces. The consumer handles multiple threads
 and decides which, if any, is the main conversation.
+
+Each thread is split into **conversation history** and the **current turn**:
+
+- Callers supply one trace at a time; the fixtures test never builds a whole
+  session. Should a caller pass several traces, messages emitted by traces
+  other than the last contributing one are history.
+- Within the last trace, input replayed before the first output is history up
+  to and including the previous turn's last assistant or tool message. What
+  follows, typically the new user message, starts the current turn.
+- Replayed input without an assistant or tool message cannot be told apart
+  from new input and stays in the current turn. So does the system prompt of
+  a fresh conversation.
+- History messages carry no provenance. `currentTurn.observations` lists only
+  observations that emitted a current-turn message.
 
 ## Which observations contribute?
 
@@ -148,7 +167,7 @@ transcript/
 ├── index.ts               getTranscript
 ├── threads.ts             thread selection and message deduplication
 ├── tool-calls.ts          tool matching and response association
-├── types.ts               Transcript, Thread, ThreadMessage
+├── types.ts               Transcript, Thread, Turn, ThreadMessage
 └── fixtures/
     ├── README.md          how to turn a trace JSON export into a fixture
     ├── fixture-types.ts   TranscriptFixture
@@ -161,10 +180,11 @@ transcript/
 
 ## Fixtures and verification
 
-Fixtures contain observation trees and an optional expected transcript.
-**Fixtures with `expected: undefined` exercise parsing and structural checks,
-but do not verify transcript correctness.** Their printed output is for manual
-review; expectations are authored by hand once the desired behavior is decided.
+Fixtures contain observation trees and an expected transcript. The test builds
+every trace on its own and concatenates the threads in trace order, so a
+session fixture pins one history/current-turn split per trace. The fixture
+whose expectation is still deferred is skipped in the behavior test; its
+printed output is for manual review until the desired behavior is decided.
 
 Run with console output enabled to see it:
 
