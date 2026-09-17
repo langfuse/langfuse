@@ -28,6 +28,7 @@ import {
 } from "@/src/features/filters/config/observations-config";
 import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
 import {
+  normalizeOrderByForTable,
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type ObservationLevelType,
   type FilterState,
@@ -313,6 +314,10 @@ export default function ObservationsTable({
   const [orderByState, setOrderByState] = useOrderByState({
     column: "startTime",
     order: "DESC",
+  });
+  const orderBy = normalizeOrderByForTable({
+    orderBy: orderByState,
+    expectedTimeColumn: "startTime",
   });
 
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
@@ -618,7 +623,7 @@ export default function ObservationsTable({
     ...getCountPayload,
     page: limitRows ? 0 : paginationState.pageIndex,
     limit: limitRows ?? paginationState.pageSize,
-    orderBy: orderByState,
+    orderBy,
   };
 
   const generations = api.generations.all.useQuery(getAllPayload, {
@@ -698,7 +703,7 @@ export default function ObservationsTable({
       isBatchAction: selectAll,
       query: {
         filter: backendFilterState,
-        orderBy: orderByState,
+        orderBy,
       },
     });
     actions.clearSelection();
@@ -1378,7 +1383,7 @@ export default function ObservationsTable({
               setColumnVisibility={handleColumnVisibilityChange}
               columnOrder={columnOrder}
               setColumnOrder={handleColumnOrderChange}
-              orderByState={orderByState}
+              orderByState={orderBy}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
               timeRange={showControlsInPageHeader ? undefined : timeRange}
@@ -1437,7 +1442,7 @@ export default function ObservationsTable({
                     }
               }
               setOrderBy={handleOrderByChange}
-              orderBy={orderByState}
+              orderBy={orderBy}
               columnOrder={columnOrder}
               onColumnOrderChange={handleColumnOrderChange}
               columnVisibility={columnVisibility}
@@ -1487,7 +1492,7 @@ export default function ObservationsTable({
           projectId={projectId}
           rows={rows}
           backendFilterState={backendFilterState}
-          orderByState={orderByState}
+          orderByState={orderBy}
           searchQuery={searchQuery}
           searchType={searchType}
           totalCount={totalCount}
