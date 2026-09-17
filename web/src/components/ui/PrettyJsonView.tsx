@@ -1233,6 +1233,12 @@ export function PrettyJsonView(props: {
     }
   };
 
+  const hasExpandableRows = useMemo(() => {
+    if (typeof parsedJson !== "object" || parsedJson === null) return false;
+    return Object.values(parsedJson as Record<string, unknown>).some((value) =>
+      hasChildren(value, getValueType(value)),
+    );
+  }, [parsedJson]);
   const emptyValueDisplay = getEmptyValueDisplay(parsedJson);
   const isPrettyView = actualCurrentView === "pretty";
   const isMarkdownMode = isMarkdown && isPrettyView;
@@ -1424,7 +1430,7 @@ export function PrettyJsonView(props: {
 
   const expandCollapseButton = (
     <>
-      {shouldUseTableView && (
+      {shouldUseTableView && hasExpandableRows && (
         <Button
           variant="ghost"
           size="icon-xs"
