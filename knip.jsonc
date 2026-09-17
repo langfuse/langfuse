@@ -39,13 +39,15 @@
       ],
     },
     "web": {
+      // Components imported by MDX documentation, which Knip does not trace.
+      "entry": [".storybook/docs/**/*.tsx"],
       "ignoreFiles": [
         // Standalone benchmark invoked directly with Node rather than imported by the application.
         "src/features/traces/components/AdvancedJsonViewer/lazy/benchByteJsonIndex.ts",
         "src/__tests__/mocks/**",
       ],
       // Include runtime JavaScript modules such as src/env.mjs in dependency analysis.
-      "project": ["src/**/*.{ts,tsx,mjs}"],
+      "project": ["src/**/*.{ts,tsx,mjs}", ".storybook/docs/*.{ts,tsx}"],
       "ignoreDependencies": [
         // Tailwind loads this plugin from an @plugin directive in globals.css.
         "@tailwindcss/forms",
