@@ -6,7 +6,9 @@ import { z } from "zod";
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
+  type ChbPlanCode,
   chbPlanCodes,
+  chbPlanCodeToPlan,
   CloudConfigSchema,
   parseDbOrg,
   type ParsedOrganization,
@@ -21,6 +23,7 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 
+import { createDefaultSpendAlerts } from "../defaultSpendAlerts";
 import { type ChbAttachedPlan, getChbApiClient } from "./chbApiClient";
 import { sendChbProjectEvent } from "./chbProjectEvents";
 
@@ -500,16 +503,19 @@ async function readAttachedPlanState(
   // The pipeline already refused an unknown code on the event itself, so a
   // rejection here means CHB reports a code that has no mapping yet. Same
   // answer: the 500 keeps the event retryable until the mapping ships.
-  const planCode =
+  const reportedPlanCode =
     attachedPlan.plan?.code ?? event.data.payload.planCode ?? null;
   if (
-    planCode != null &&
-    !(chbPlanCodes as readonly string[]).includes(planCode)
+    reportedPlanCode != null &&
+    !(chbPlanCodes as readonly string[]).includes(reportedPlanCode)
   ) {
     throw new Error(
-      `Attached plan ${attachedPlan.id} for org ${parsedOrg.id} carries unknown plan code ${planCode}`,
+      `Attached plan ${attachedPlan.id} for org ${parsedOrg.id} carries unknown plan code ${reportedPlanCode}`,
     );
   }
+  // Narrowed against the membership check above, which is the runtime source
+  // of truth; callers need the code typed to map it onto a Langfuse plan.
+  const planCode = reportedPlanCode as ChbPlanCode | null;
 
   return {
     attachedPlan,
@@ -559,9 +565,24 @@ async function handleAttachedPlanCreated(
     },
   });
 
-  // No default spend alerts for CHB orgs. The spend-alert job computes current
-  // spend from the org's own Stripe subscription, which a CHB org does not
-  // have, so seeded alerts would show in billing settings and never fire.
+  // Seed the plan's default spend alerts, as the Stripe path does on a first
+  // subscription. Post-commit and best-effort: the plan is already applied, and
+  // an org without seeded alerts can still configure its own.
+  if (clickhouse.planCode) {
+    try {
+      await createDefaultSpendAlerts({
+        orgId: parsedOrg.id,
+        plan: chbPlanCodeToPlan[clickhouse.planCode],
+        source: "clickhouse",
+      });
+    } catch (error) {
+      logger.error(
+        `[CHB Webhook] Failed to create default spend alerts for org ${parsedOrg.id}`,
+        error,
+      );
+      traceException(error);
+    }
+  }
 
   // Backfill-emit LANGFUSE_PROJECT_CREATED for all existing projects: projects
   // created before checkout would otherwise be invisible to CHB metering.

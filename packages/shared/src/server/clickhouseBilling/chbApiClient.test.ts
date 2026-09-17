@@ -1,4 +1,3 @@
-import type * as SharedServer from "@langfuse/shared/src/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -12,21 +11,21 @@ const mocks = vi.hoisted(() => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock("@/src/env.mjs", () => ({ env: mocks.env }));
-
-vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
-  const actual = await importOriginal<typeof SharedServer>();
-  return { ...actual, logger: mocks.logger };
-});
+vi.mock("../logger", () => ({ logger: mocks.logger }));
 
 import {
-  buildChbApiClientFromEnv,
+  buildChbApiClient,
   ChbApiClient,
   ChbApiError,
   ChbPaymentRequiredError,
-  getChbApiClient,
-  resetChbApiClientForTests,
-} from "@/src/ee/features/billing/server/chb/chbApiClient";
+  chbPeriodUsageAmountUSD,
+} from "./chbApiClient";
+
+/**
+ * The env-reading wrapper each app keeps for itself; exercised here against the
+ * shared fail-closed rule it delegates to.
+ */
+const buildChbApiClientFromEnv = () => buildChbApiClient(mocks.env);
 
 const CH_ORG_ID = "6dd6ab1d-9e8d-4c1a-8b4f-9a3d1e2c4b5a";
 const AUTH0_DOMAIN = "chb-tenant.eu.auth0.com";
@@ -486,59 +485,69 @@ describe("chbApiClient", () => {
     });
   });
 
-  describe("getChbApiClient", () => {
-    const setAll = () => {
-      mocks.env.CLICKHOUSE_BILLING_BASE_URL = "https://chb.example.com";
-      mocks.env.CLICKHOUSE_BILLING_AUTH0_DOMAIN = AUTH0_DOMAIN;
-      mocks.env.CLICKHOUSE_BILLING_AUTH0_CLIENT_ID = "client-id";
-      mocks.env.CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET = "client-secret";
-    };
+  /**
+   * CHB computes this amount as the sum of the bill's line-item subtotals in
+   * ClickHouse Credits, rounded to two decimals and floored at zero, and
+   * converts CHC 1:1 into USD while refusing any other currency. So it is a
+   * major-unit figure — unlike `ChbInvoice.amount`, which is minor units — and
+   * a caller comparing it against a USD spend threshold uses it as-is.
+   */
+  describe("chbPeriodUsageAmountUSD", () => {
+    const withUsage = (usage: unknown) =>
+      ({
+        id: "ap_1",
+        period: { startDate: "2026-09-01T00:00:00.000Z", usage },
+      }) as Parameters<typeof chbPeriodUsageAmountUSD>[0];
 
-    beforeEach(() => resetChbApiClientForTests());
-    afterEach(() => resetChbApiClientForTests());
+    it("returns the amount unchanged as USD", () => {
+      expect(
+        chbPeriodUsageAmountUSD(
+          withUsage({ amount: 1234.56, currency: "USD" }),
+        ),
+      ).toBe(1234.56);
+    });
+
+    it("accepts a lowercase currency", () => {
+      expect(
+        chbPeriodUsageAmountUSD(withUsage({ amount: 10, currency: "usd" })),
+      ).toBe(10);
+    });
+
+    it("treats an absent currency as USD, which is all CHB emits", () => {
+      expect(chbPeriodUsageAmountUSD(withUsage({ amount: 10 }))).toBe(10);
+    });
+
+    /** Nothing spent yet is a reading; no reading is not. */
+    it("distinguishes zero spend from a missing amount", () => {
+      expect(
+        chbPeriodUsageAmountUSD(withUsage({ amount: 0, currency: "USD" })),
+      ).toBe(0);
+      expect(
+        chbPeriodUsageAmountUSD(withUsage({ amount: null, currency: "USD" })),
+      ).toBeNull();
+      expect(chbPeriodUsageAmountUSD(withUsage(null))).toBeNull();
+      expect(chbPeriodUsageAmountUSD({ id: "ap_1" })).toBeNull();
+    });
 
     /**
-     * The dispatch layer resolves a billing service per tRPC request. If that
-     * handed back a fresh client each time, every billing call would mint a new
-     * Auth0 token — the client's token cache and single-flight only do anything
-     * when one instance is shared.
+     * A non-USD currency means the contract moved; the number can no longer be
+     * held against a USD threshold, so it must not be guessed at.
      */
-    it("hands every caller the same client", () => {
-      setAll();
-      const first = getChbApiClient();
-      expect(first).toBeInstanceOf(ChbApiClient);
-      expect(getChbApiClient()).toBe(first);
-      expect(getChbApiClient()).toBe(first);
+    it("refuses a currency it cannot compare against a USD threshold", () => {
+      expect(
+        chbPeriodUsageAmountUSD(withUsage({ amount: 1000, currency: "EUR" })),
+      ).toBeNull();
     });
 
-    it("mints one token across calls made through the shared client", async () => {
-      setAll();
-      onChb(jsonResponse(200, { portalUrl: "https://chb.example.com/portal" }));
-      onChb(jsonResponse(200, { portalUrl: "https://chb.example.com/portal" }));
-
-      // Two separate resolutions, as two billing procedures in one page load.
-      await getChbApiClient()!.createPortalSession({
-        chOrganizationId: CH_ORG_ID,
-        returnUrl: "https://cloud.langfuse.com/return",
-      });
-      await getChbApiClient()!.createPortalSession({
-        chOrganizationId: CH_ORG_ID,
-        returnUrl: "https://cloud.langfuse.com/return",
-      });
-
-      expect(chbCalls()).toHaveLength(2);
-      expect(tokenCalls()).toHaveLength(1);
-    });
-
-    it("caches the unconfigured verdict instead of re-reading env", () => {
-      setAll();
-      mocks.env.CLICKHOUSE_BILLING_BASE_URL = undefined;
-      expect(getChbApiClient()).toBeNull();
-
-      // Env cannot change under a running process; a later call must not
-      // suddenly start talking to CHB.
-      setAll();
-      expect(getChbApiClient()).toBeNull();
+    it("refuses a non-finite amount", () => {
+      expect(
+        chbPeriodUsageAmountUSD(
+          withUsage({ amount: Number.POSITIVE_INFINITY, currency: "USD" }),
+        ),
+      ).toBeNull();
+      expect(
+        chbPeriodUsageAmountUSD(withUsage({ amount: NaN, currency: "USD" })),
+      ).toBeNull();
     });
   });
 });
