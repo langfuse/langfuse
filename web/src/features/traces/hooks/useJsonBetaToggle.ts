@@ -26,7 +26,6 @@ export function useJsonBetaToggle(
       localStorage.getItem(JSON_VIEW_PREFERENCE_STORAGE_KEY) === '"json-beta"',
   );
 
-  // Derive the toggle segment; both JSON views share the JSON segment.
   const selectedViewTab = jsonViewToggleTab(currentView);
 
   const handleViewTabChange = (tab: string) => {

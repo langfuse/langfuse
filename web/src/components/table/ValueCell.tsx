@@ -499,8 +499,6 @@ export const ValueCell = memo(
     const singleLine = previewTitle !== undefined;
 
     return (
-      // `w-0 min-w-full` keeps a nowrap preview from widening an auto-layout
-      // table: the cell contributes no intrinsic width, then fills its column.
       <div
         className={cn(
           VALUE_TEXT_CLASSES,

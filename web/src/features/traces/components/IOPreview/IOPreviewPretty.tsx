@@ -352,7 +352,6 @@ export function IOPreviewPretty({
           )}
         </div>
       ) : showData ? (
-        // Keeps the correction out of the section stack's gap.
         <div>
           <JsonInputOutputView {...jsonViewProps} />
           <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">

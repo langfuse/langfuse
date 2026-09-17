@@ -687,7 +687,6 @@ function JsonPrettyTable({
   return (
     <div className={cn("w-full", !noBorder && "rounded-sm border")}>
       <table className="w-full table-auto caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto text-sm">
-        {/* No visible header, so name the columns for screen readers. */}
         <thead className="sr-only">
           <tr>
             <th scope="col">Path</th>
