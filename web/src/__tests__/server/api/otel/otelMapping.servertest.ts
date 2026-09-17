@@ -1911,6 +1911,8 @@ describe("OTel Resource Span Mapping", () => {
               spans: [
                 {
                   ...defaultSpanProps,
+                  traceId: Buffer.from(defaultSpanProps.traceId.data),
+                  spanId: Buffer.from(defaultSpanProps.spanId.data),
                   attributes: [
                     {
                       key: "gen_ai.operation.name",
