@@ -11,6 +11,10 @@ vi.mock("@/src/env.mjs", () => ({ env }));
 
 import { __test } from "@/src/features/mcp/server/mcpServer";
 import type { ToolDefinition } from "@/src/features/mcp/core/define-tool";
+import {
+  __dangerouslySkipAuthz,
+  type ApiAction,
+} from "@/src/features/public-api/server/enforceAuth";
 import type { ServerContext } from "@/src/features/mcp/types";
 import {
   type AuthorizationContext,
@@ -56,7 +60,7 @@ const serverContext = (auth?: AuthorizationContext): ServerContext => ({
   auth,
 });
 
-const tool = (action: ProjectAction | null): ToolDefinition => ({
+const tool = (action: ApiAction): ToolDefinition => ({
   name: "someTool",
   description: "",
   action,
@@ -90,7 +94,10 @@ describe("assertToolAuthorized", () => {
 
   it("passes an ungated tool regardless of context", () => {
     expect(() =>
-      assertToolAuthorized(tool(null), serverContext(authContext([]))),
+      assertToolAuthorized(
+        tool(__dangerouslySkipAuthz),
+        serverContext(authContext([])),
+      ),
     ).not.toThrow();
   });
 

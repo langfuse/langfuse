@@ -21,6 +21,7 @@ import { isProductFeedbackAvailable } from "@/src/features/feedback/server/Feedb
 import { env } from "@/src/env.mjs";
 import { authorize } from "@/src/features/auth/policy/authorize";
 import { shadowAuthDiff } from "@/src/features/public-api/server/shadowAuthDiff";
+import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import { formatErrorForUser } from "../core/error-formatting";
 import type { ServerContext } from "../types";
 import type { ToolDefinition } from "../core/define-tool";
@@ -145,7 +146,7 @@ function assertToolAuthorized(
   context: ServerContext,
   diff = shadowAuthDiff,
 ): void {
-  if (definition.action === null || !context.auth) return;
+  if (definition.action === __dangerouslySkipAuthz || !context.auth) return;
   const decision = authorize(context.auth, definition.action, {
     projectId: context.projectId,
   });
