@@ -111,8 +111,8 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
         .and_then(Value::as_object)
     {
         for (key, value) in attribution {
-            // Attribution remains searchable, but cannot impersonate gateway or OTEL fields.
-            if !reserved_metadata(key) {
+            // Attribution remains searchable, but cannot impersonate gateway, agent or OTEL fields.
+            if !reserved_metadata(key) && !agent_metadata(key) {
                 metadata.insert(key.clone(), value.clone());
             }
             metadata.insert(
@@ -152,6 +152,10 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
         );
     }
     metadata
+}
+
+fn agent_metadata(key: &str) -> bool {
+    key == "agent" || key.starts_with("agent.")
 }
 
 fn observation_status(facts: &InferenceFacts) -> (&'static str, Option<String>) {
@@ -372,12 +376,15 @@ mod tests {
             "langfuse.gateway.provider.request_id": "spoofed-request",
             "langfuse.gateway.future_field": "spoofed-future",
             "langfuse.gateway.api-key.metadata.team": "spoofed-team",
+            "agent.name": "spoofed-agent",
             "scope": "spoofed-scope", "scope.name": "spoofed-scope-name",
             "resourceAttributes": "spoofed-resource",
             "attributes": "spoofed-attributes"
         });
         facts.inference.provider_response_id = Some("response".into());
-        let attrs = attributes(&span(facts, &context()));
+        let mut context = context();
+        context.metadata["agent.name"] = json!("opencode");
+        let attrs = attributes(&span(facts, &context));
         let metadata = metadata(&attrs);
         assert_eq!(metadata["team"], "search");
         assert_eq!(metadata["enabled"], true);
@@ -398,6 +405,11 @@ mod tests {
             "response"
         );
         assert_eq!(metadata["langfuse.gateway.organization_id"], "org");
+        assert_eq!(metadata["agent.name"], "opencode");
+        assert_eq!(
+            metadata["langfuse.gateway.api-key.metadata.agent.name"],
+            "spoofed-agent"
+        );
         for key in [
             "scope",
             "scope.name",
