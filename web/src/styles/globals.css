@@ -102,7 +102,6 @@
   --color-qlang-number: hsl(var(--qlang-number));
   --color-qlang-keyword: hsl(var(--qlang-keyword));
 
-  /* -value- because react18-json-view owns `--json-string`. */
   --color-json-value-string: var(--json-value-string);
   --color-json-value-number: var(--json-value-number);
   --color-json-value-boolean: var(--json-value-boolean);
@@ -399,7 +398,6 @@
     --qlang-number: 24 75% 42%;
     --qlang-keyword: 221 83% 53%;
 
-    /* Complete colors, not hsl() triplets — do not wrap these. */
     --json-value-string: var(--color-green-800);
     --json-value-number: var(--color-blue-800);
     --json-value-boolean: var(--color-orange-800);
