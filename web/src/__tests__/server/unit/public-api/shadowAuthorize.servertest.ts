@@ -16,6 +16,10 @@ vi.mock("@/src/features/public-api/server/shadowAuthDiff", () => ({
 
 import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
 import {
+  __dangerouslySkipAuthz,
+  type ApiAction,
+} from "@/src/features/public-api/server/enforceAuth";
+import {
   type AuthorizationContext,
   type Policy,
   type ProjectAction,
@@ -46,10 +50,7 @@ const authContext = (policies: Policy[]): AuthorizationContext => ({
   policies,
 });
 
-const params = (
-  action: ProjectAction | null,
-  ctx: AuthorizationContext | undefined,
-) => ({
+const params = (action: ApiAction, ctx: AuthorizationContext | undefined) => ({
   ctx,
   action,
   resource: { projectId: PRJ },
@@ -78,8 +79,10 @@ describe("shadowAuthorize", () => {
     ).toEqual({ success: true });
   });
 
-  it("passes an action-less item", () => {
-    expect(shadowAuthorize(params(null, authContext([])))).toEqual({
+  it("passes an ungated item", () => {
+    expect(
+      shadowAuthorize(params(__dangerouslySkipAuthz, authContext([]))),
+    ).toEqual({
       success: true,
     });
   });

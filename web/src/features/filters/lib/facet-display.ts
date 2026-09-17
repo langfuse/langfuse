@@ -111,6 +111,11 @@ export function getFacetSummary(filter: UIFilter): string | null {
   if (filter.type === "numeric") {
     if (!filter.isActive) return null;
     const unit = filter.unit ? ` ${filter.unit}` : "";
+    if (filter.value === null) {
+      return filter.conditions
+        .map((condition) => `${condition.operator} ${condition.value}${unit}`)
+        .join(" · ");
+    }
     return `${filter.value[0]}–${filter.value[1]}${unit}`;
   }
 

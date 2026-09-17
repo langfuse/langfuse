@@ -2,7 +2,7 @@ import { ActionButton } from "@/src/components/ActionButton";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Zap } from "lucide-react";
 import { api } from "@/src/utils/api";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 type AutomationButtonProps = {
   projectId: string;

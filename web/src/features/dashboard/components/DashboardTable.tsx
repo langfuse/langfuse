@@ -17,11 +17,11 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { Copy, Edit, Trash2, User as UserIcon } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
-import { DeleteDialogDashboardContent } from "@/src/features/dashboard/components/DeleteDialogDashboardContent";
 import { EditDialogDashboardContent } from "@/src/features/dashboard/components/EditDialogDashboardContent";
 import { CloneFirstDialogController } from "@/src/features/dashboard/components/CloneFirstDialogController";
 import { useRouter } from "next/router";
 import { DialogController } from "@/src/components/ui/dialog";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 type DashboardTableRow = {
   id: string;
@@ -51,6 +51,19 @@ export function DashboardTable() {
     },
     onError: (error) => {
       showErrorToast("Failed to clone dashboard", error.message);
+    },
+  });
+  const deleteDashboard = api.dashboard.delete.useMutation({
+    onSuccess: () => {
+      capture("dashboard:delete_dashboard_button_click");
+      showSuccessToast({
+        title: "Dashboard deleted",
+        description: "The dashboard has been deleted successfully",
+      });
+      utils.dashboard.invalidate();
+    },
+    onError: (error) => {
+      showErrorToast("Failed to delete dashboard", error.message);
     },
   });
 
@@ -172,18 +185,20 @@ export function DashboardTable() {
           }
         >
           {({ openDialog: openEditDialog }) => (
-            <DialogController
-              closeOnInteractionOutside={false}
-              size="default"
-              renderContent={({ closeDialog }) =>
-                selectedDashboard ? (
-                  <DeleteDialogDashboardContent
-                    closeDialog={closeDialog}
-                    projectId={projectId}
-                    dashboardId={selectedDashboard.id}
-                  />
-                ) : null
-              }
+            <ConfirmationDialogController
+              title="Delete dashboard"
+              text="This action cannot be undone. It permanently deletes this dashboard."
+              confirmLabel="Delete dashboard"
+              variant="destructive"
+              loading={deleteDashboard.isPending}
+              onConfirm={async () => {
+                if (!selectedDashboard) return;
+
+                await deleteDashboard.mutateAsync({
+                  projectId,
+                  dashboardId: selectedDashboard.id,
+                });
+              }}
             >
               {({ openDialog: openDeleteDialog }) => (
                 <DataTable
@@ -299,7 +314,7 @@ export function DashboardTable() {
                   cellPadding="comfortable"
                 />
               )}
-            </DialogController>
+            </ConfirmationDialogController>
           )}
         </DialogController>
       )}

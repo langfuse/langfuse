@@ -6,13 +6,35 @@ current_branch=$(git rev-parse --abbrev-ref HEAD)
 # Define the protected branch
 protected_branch="main"
 
+echo "Running pre-commit checks..."
+
+run_check() {
+  label="$1"
+  shift
+  start_time=$(node -p "Date.now()")
+
+  if output=$("$@" 2>&1); then
+    elapsed_ms=$(($(node -p "Date.now()") - start_time))
+    printf '%s passed in %d.%03ds.\n' "$label" "$((elapsed_ms / 1000))" "$((elapsed_ms % 1000))"
+  else
+    printf '%s\n' "$output"
+    elapsed_ms=$(($(node -p "Date.now()") - start_time))
+    printf '%s failed after %d.%03ds.\n' "$label" "$((elapsed_ms / 1000))" "$((elapsed_ms % 1000))"
+    return 1
+  fi
+}
+
+run_format_check() {
+  run_check "Formatting" pnpm run format:check
+}
+
 run_lint() {
   if [ -n "${LANGFUSE_PRE_COMMIT_SKIP_LINT-}" ]; then
     echo "Skipping lint because LANGFUSE_PRE_COMMIT_SKIP_LINT is set."
     return 0
   fi
 
-  pnpm run lint --filter=!ai-gateway
+  run_check "Lint" pnpm run lint --filter=!ai-gateway
 }
 
 # Check if the current branch is the protected branch
@@ -21,7 +43,7 @@ if [ "$current_branch" = "$protected_branch" ]; then
   read -r answer </dev/tty
   if [ "$answer" != "${answer#[Yy]}" ]; then
     # Commit approved, run checks
-    pnpm run format:check
+    run_format_check
     run_lint
   else
     echo "Commit to $protected_branch branch has been canceled."
@@ -30,5 +52,5 @@ if [ "$current_branch" = "$protected_branch" ]; then
 fi
 
 # If not the protected branch, run checks
-pnpm run format:check
+run_format_check
 run_lint

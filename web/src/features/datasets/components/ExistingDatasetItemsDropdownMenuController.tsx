@@ -123,7 +123,7 @@ export function ExistingDatasetItemsDropdownMenuController(props: {
                   asChild
                 >
                   <Link
-                    href={`/project/${props.projectId}/datasets/${datasetId}/items/${datasetItemId}`}
+                    href={`/project/${props.projectId}/datasets/${datasetId}/items/${encodeURIComponent(datasetItemId)}`}
                   >
                     {datasetName}
                   </Link>

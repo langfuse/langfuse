@@ -1556,7 +1556,7 @@ describe("Token Cost Calculation", () => {
 
     it("should warn when provided non-total buckets sum to more than the provided total", async () => {
       (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
-      const warnSpy = vi.spyOn(logger, "warn");
+      const debugSpy = vi.spyOn(logger, "debug");
       const generationId = uuidv4();
 
       const eventRecord = await (mockIngestionService as any).createEventRecord(
@@ -1576,7 +1576,7 @@ describe("Token Cost Calculation", () => {
         "testfile.txt",
       );
 
-      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+      const mismatchWarnings = debugSpy.mock.calls.filter(([message]) =>
         String(message).includes("exceeds provided total"),
       );
       expect(mismatchWarnings).toHaveLength(1);
@@ -1599,7 +1599,7 @@ describe("Token Cost Calculation", () => {
 
     it("should not warn when provided buckets are consistent with the provided total", async () => {
       (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
-      const warnSpy = vi.spyOn(logger, "warn");
+      const debugSpy = vi.spyOn(logger, "debug");
       const generationId = uuidv4();
 
       await (mockIngestionService as any).createEventRecord(
@@ -1619,7 +1619,7 @@ describe("Token Cost Calculation", () => {
         "testfile.txt",
       );
 
-      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+      const mismatchWarnings = debugSpy.mock.calls.filter(([message]) =>
         String(message).includes("exceeds provided total"),
       );
       expect(mismatchWarnings).toHaveLength(0);
@@ -1627,7 +1627,7 @@ describe("Token Cost Calculation", () => {
 
     it("should not warn when no total is provided", async () => {
       (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
-      const warnSpy = vi.spyOn(logger, "warn");
+      const debugSpy = vi.spyOn(logger, "debug");
       const generationId = uuidv4();
 
       await (mockIngestionService as any).createEventRecord(
@@ -1645,7 +1645,7 @@ describe("Token Cost Calculation", () => {
         "testfile.txt",
       );
 
-      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+      const mismatchWarnings = debugSpy.mock.calls.filter(([message]) =>
         String(message).includes("exceeds provided total"),
       );
       expect(mismatchWarnings).toHaveLength(0);
@@ -1653,7 +1653,7 @@ describe("Token Cost Calculation", () => {
 
     it("should warn on the direct event path even when no model is provided", async () => {
       (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
-      const warnSpy = vi.spyOn(logger, "warn");
+      const debugSpy = vi.spyOn(logger, "debug");
       const generationId = uuidv4();
 
       await (mockIngestionService as any).createEventRecord(
@@ -1671,7 +1671,7 @@ describe("Token Cost Calculation", () => {
         "testfile.txt",
       );
 
-      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+      const mismatchWarnings = debugSpy.mock.calls.filter(([message]) =>
         String(message).includes("exceeds provided total"),
       );
       expect(mismatchWarnings).toHaveLength(1);
@@ -1683,7 +1683,7 @@ describe("Token Cost Calculation", () => {
 
     it("should log the warning at most once per rate-limit interval", async () => {
       (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
-      const warnSpy = vi.spyOn(logger, "warn");
+      const debugSpy = vi.spyOn(logger, "debug");
 
       for (const spanId of [uuidv4(), uuidv4()]) {
         await (mockIngestionService as any).createEventRecord(
@@ -1703,7 +1703,7 @@ describe("Token Cost Calculation", () => {
         );
       }
 
-      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+      const mismatchWarnings = debugSpy.mock.calls.filter(([message]) =>
         String(message).includes("exceeds provided total"),
       );
       expect(mismatchWarnings).toHaveLength(1);
@@ -1711,7 +1711,7 @@ describe("Token Cost Calculation", () => {
 
     it("should warn on the legacy merge path when incoming events carry inconsistent usage", async () => {
       (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
-      const warnSpy = vi.spyOn(logger, "warn");
+      const debugSpy = vi.spyOn(logger, "debug");
       const generationId = uuidv4();
 
       const events = [
@@ -1740,7 +1740,7 @@ describe("Token Cost Calculation", () => {
         observationEventList: events,
       });
 
-      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+      const mismatchWarnings = debugSpy.mock.calls.filter(([message]) =>
         String(message).includes("exceeds provided total"),
       );
       expect(mismatchWarnings).toHaveLength(1);
@@ -1753,7 +1753,7 @@ describe("Token Cost Calculation", () => {
 
     it("should not warn on the legacy merge path when incoming events carry no usage", async () => {
       (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
-      const warnSpy = vi.spyOn(logger, "warn");
+      const debugSpy = vi.spyOn(logger, "debug");
       const generationId = uuidv4();
 
       // Partial update without usage: the guard must not fire even if merged
@@ -1779,7 +1779,7 @@ describe("Token Cost Calculation", () => {
         observationEventList: events,
       });
 
-      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+      const mismatchWarnings = debugSpy.mock.calls.filter(([message]) =>
         String(message).includes("exceeds provided total"),
       );
       expect(mismatchWarnings).toHaveLength(0);

@@ -1,6 +1,6 @@
 import { pipeline, Transform, type Readable } from "stream";
 import { monitorEventLoopDelay } from "perf_hooks";
-import { Job } from "bullmq";
+import { Job, UnrecoverableError } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   QueueName,
@@ -51,6 +51,7 @@ import {
   classifyCustomerFault,
   type CustomerFaultReason,
 } from "./isCustomerFaultError";
+import { isMultipartPartLimitError } from "./partLimitError";
 import { isRecordNotFoundError } from "../integrations/prismaErrors";
 import { isFinalBullmqAttempt } from "../integrations/bullmqAttempts";
 import { ByteCounter, TimedByteCounter } from "./byteCounters";
@@ -149,6 +150,14 @@ export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffe
 // (the key granularity) and well below any frequencyInterval so no meaningful data
 // is deferred.
 export const BLOB_STORAGE_REMAINDER_COALESCE_MS = 1000;
+
+// Persisted as lastError when a window exceeds S3's 10,000-part multipart cap.
+// Retrying re-queries a retention-shrinking window until a truncated object
+// commits as success, so the run stops loud instead of degrading silently.
+export const BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE =
+  "Blob storage export stopped: the export window exceeded the storage provider's " +
+  "10,000-part multipart upload limit. Increase the upload part size or reduce the " +
+  "export frequency so each window fits within the limit.";
 
 export async function* enrichObservationStream(
   stream: AsyncGenerator<Record<string, unknown>>,
@@ -1561,6 +1570,69 @@ export const handleBlobStorageIntegrationProjectJob = async (
       `[BLOB INTEGRATION] Successfully processed blob storage integration for project ${projectId}`,
     );
   } catch (error) {
+    // A part-count-limit exhaustion is terminal, not transient: the window is
+    // too large for the configured part size and no retry can shrink it safely.
+    // Fail loud and stop before BullMQ burns its remaining attempts re-querying
+    // ClickHouse against a retention-shrinking window. Runs BEFORE the generic
+    // customer-fault/transient handling below.
+    if (isMultipartPartLimitError(error)) {
+      // Missing-row-safe: a delete mid-run makes the job obsolete. lastSyncAt /
+      // nextSyncAt are left untouched so the window is not advanced past a
+      // failed export. enabled is left untouched: a too-large window is not a
+      // customer-config fault, so this never auto-disables. update (not
+      // updateMany) so the notification can read the post-write enabled state.
+      let integration;
+      try {
+        integration = await prisma.blobStorageIntegration.update({
+          where: { projectId },
+          data: {
+            lastError: BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE,
+            lastErrorAt: new Date(),
+            runStartedAt: null,
+          },
+        });
+      } catch (persistError) {
+        if (isRecordNotFoundError(persistError)) {
+          logger.info(
+            `[BLOB INTEGRATION] Blob storage integration for project ${projectId} was deleted before the part-limit failure could be recorded; dropping obsolete job`,
+          );
+          return;
+        }
+        throw persistError;
+      }
+
+      if (!watermarkAdvanced) {
+        recordExportFreshnessLag({
+          integration: "blob_storage",
+          window: windowClassFromBlobFrequency(
+            blobStorageIntegration.exportFrequency,
+          ),
+          status: "failure",
+          runStartTime,
+          maxExportedTimestamp: blobStorageIntegration.lastSyncAt,
+        });
+      }
+
+      // Cooldown-gated, not bypassed: the integration stays enabled and the
+      // watermark does not advance, so every scheduled run re-attempts the same
+      // too-large window and re-enters here. The cooldown caps this to one alert
+      // per cooldown window instead of one per run. (The disable notification
+      // bypasses the cooldown because it is a one-shot terminal event.)
+      //
+      // Gated on the post-write enabled state, mirroring the generic terminal
+      // path's stillEnabled check: a user who disabled the integration mid-run
+      // must not get an "export failed" alert for a run they already turned off.
+      if (integration.enabled) {
+        await notifyBlobStorageExportFailed(projectId, { disabled: false });
+      }
+
+      logger.error(
+        `[BLOB INTEGRATION] Blob storage export for project ${projectId} exceeded the multipart part-count limit; failing terminally without retry: ${errorChainText(error)}`,
+      );
+      // UnrecoverableError so BullMQ fails the job now instead of retrying.
+      throw new UnrecoverableError(BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE);
+    }
+
     const errorMessage = extractStorageErrorMessage(error);
 
     const isFinalAttempt = isFinalBullmqAttempt(job, error);
@@ -1594,7 +1666,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       case "disabled-by-us":
         // Awaited: the integration is now off, so the scheduler never revisits
         // it and nothing would carry an interrupted dispatch.
-        await notifyBlobStorageExportFailed(projectId, true);
+        await notifyBlobStorageExportFailed(projectId, { disabled: true });
         return; // resolving is the point; a throw would light the monitor
       case "lost-disable-race":
         return; // the winner sent the terminal email
@@ -1603,7 +1675,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
         // scheduled export" is no longer true. Not awaited: this path rethrows,
         // so the job is about to fail and be retried regardless.
         if (isFinalAttempt && outcome.stillEnabled) {
-          notifyBlobStorageExportFailed(projectId, false);
+          notifyBlobStorageExportFailed(projectId, { disabled: false });
         }
         break;
       case "persist-failed":
@@ -1711,16 +1783,19 @@ async function recordTerminalExportError({
 // even on the awaited path; the persisted lastError is the durable signal.
 async function notifyBlobStorageExportFailed(
   projectId: string,
-  disabled = false,
+  {
+    disabled = false,
+    bypassCooldown = disabled,
+  }: { disabled?: boolean; bypassCooldown?: boolean } = {},
 ): Promise<void> {
   try {
     // Called once per exhausted run. The cooldown gates across scheduled
     // runs (the scheduler re-enqueues every frequency period, and each
-    // failing run would otherwise email again). The disable notification
-    // bypasses it: it is a one-time, terminal event — the integration
-    // won't run again until the customer re-enables it — and a cooldown
-    // claim could silently drop the one email that says it was turned off.
-    if (!disabled) {
+    // failing run would otherwise email again). The disable notice bypasses
+    // it: that is a one-shot terminal event and a cooldown claim could
+    // silently drop the single email saying the integration was turned off.
+    // Recurring failures stay gated so they alert once per window, not per run.
+    if (!bypassCooldown) {
       const cooldownMs =
         env.LANGFUSE_BLOB_STORAGE_FAILURE_NOTIFICATION_COOLDOWN_HOURS *
         60 *

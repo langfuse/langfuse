@@ -19,7 +19,11 @@ export const [upsertDatasetItemTool, handleUpsertDatasetItem] = defineTool({
       attributes: { "mcp.dataset_id": input.datasetId },
       fn: async () => {
         const result = await createDatasetItemForApi({
-          input,
+          input: {
+            ...input,
+            expectedOutput:
+              input.expectedOutput === null ? "" : input.expectedOutput,
+          },
           projectId: context.projectId,
           auditScope: context,
         });

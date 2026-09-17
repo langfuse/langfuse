@@ -1,16 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { type ComponentProps, type ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ModernSession } from "@/src/features/sessions/ModernSession";
-
-const { useIsAuthenticatedAndProjectMember } = vi.hoisted(() => ({
-  useIsAuthenticatedAndProjectMember: vi.fn(() => true),
-}));
-
-vi.mock("@/src/features/auth/hooks", () => ({
-  useIsAuthenticatedAndProjectMember,
-}));
 
 vi.mock("@/src/features/sessions/ConnectedModernSessionBodyLegacy", () => ({
   ConnectedModernSessionBodyLegacy: () => <div>Legacy body</div>,
@@ -86,6 +78,9 @@ const defaultProps = {
     viewControllers: {
       selectedViewId: null,
       appliedViewId: null,
+      viewUpdateTarget: null,
+      filterEditorResetKey: 0,
+      handleUserStateChange: vi.fn(),
       handleSetViewId: vi.fn(),
       applyViewState: vi.fn(),
     },
@@ -101,10 +96,6 @@ const defaultProps = {
 } satisfies ComponentProps<typeof ModernSession>;
 
 describe("ModernSession", () => {
-  beforeEach(() => {
-    useIsAuthenticatedAndProjectMember.mockReturnValue(true);
-  });
-
   it("renders the shared header and legacy connected body by default", () => {
     render(<ModernSession {...defaultProps} />);
 
@@ -113,20 +104,11 @@ describe("ModernSession", () => {
     expect(screen.queryByText("Timeline body")).not.toBeInTheDocument();
   });
 
-  it("renders only the timeline connected body when enabled", () => {
+  it("renders the timeline whenever enabled, including public access", () => {
     render(<ModernSession {...defaultProps} isTimelineEnabled />);
 
     expect(screen.getByText("Modern session header")).toBeInTheDocument();
     expect(screen.getByText("Timeline body")).toBeInTheDocument();
     expect(screen.queryByText("Legacy body")).not.toBeInTheDocument();
-  });
-
-  it("renders the legacy body for public access when the timeline is enabled", () => {
-    useIsAuthenticatedAndProjectMember.mockReturnValue(false);
-
-    render(<ModernSession {...defaultProps} isTimelineEnabled />);
-
-    expect(screen.getByText("Legacy body")).toBeInTheDocument();
-    expect(screen.queryByText("Timeline body")).not.toBeInTheDocument();
   });
 });

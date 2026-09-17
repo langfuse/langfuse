@@ -18,7 +18,11 @@ import {
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
-import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
+import { env } from "@/src/env.mjs";
+import { authorize } from "@/src/features/auth/policy/authorize";
+import { shadowAuthDiff } from "@/src/features/public-api/server/shadowAuthDiff";
+import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
+import { formatErrorForUser } from "../core/error-formatting";
 import type { ServerContext } from "../types";
 import type { ToolDefinition } from "../core/define-tool";
 import { toolRegistry } from "./registry";
@@ -136,18 +140,25 @@ export function createMcpServer(context: ServerContext): Server {
   return server;
 }
 
-/** assertToolAuthorized authorizes a tool call through the per-item seam, throwing on an enforce-mode deny. */
+/** assertToolAuthorized checks the resolved context against a tool's action: enforce throws on deny, shadow only diffs, ungated tools and unresolved contexts (legacy) pass. */
 function assertToolAuthorized(
   definition: ToolDefinition,
   context: ServerContext,
+  diff = shadowAuthDiff,
 ): void {
-  const decision = shadowAuthorize({
-    ctx: context.auth,
-    action: definition.action,
-    resource: { projectId: context.projectId },
-    accessLevel: context.accessLevel,
+  if (definition.action === __dangerouslySkipAuthz || !context.auth) return;
+  const decision = authorize(context.auth, definition.action, {
+    projectId: context.projectId,
   });
-  if (!decision.success) throw decision.error;
+  if (env.API_AUTH_MIGRATION === "shadow") {
+    diff(
+      decision,
+      { success: true, scope: { accessLevel: context.accessLevel } },
+      definition.action,
+    );
+    return;
+  }
+  if (!decision.success) throw formatErrorForUser(decision.error);
 }
 
 export const __test = { assertToolAuthorized };

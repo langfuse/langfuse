@@ -163,6 +163,7 @@ function toPrincipalOrganization(
   const cloudConfig = getCloudConfig(org);
   return {
     orgId: org.id,
+    organizationCreatedAt: org.createdAt.toISOString(),
     plan: getOrganizationPlanServerSide(cloudConfig),
     rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
     projectIds: org.projects.map((p) => p.id),
