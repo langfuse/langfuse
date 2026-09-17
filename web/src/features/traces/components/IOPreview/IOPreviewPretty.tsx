@@ -58,7 +58,7 @@ function JsonInputOutputView({
   const showOutput = !hideOutput && !(hideIfNull && !parsedOutput);
 
   return (
-    <div className="space-y-4 [&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+    <div className="space-y-2 [&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
       {showInput && (
         <PrettyJsonView
           title="Input"
@@ -313,7 +313,7 @@ export function IOPreviewPretty({
   const shouldRenderMessages = hasRenderableChatMessages(parserResult);
 
   return (
-    <div className="space-y-4 pt-1">
+    <div className="space-y-2 pt-1">
       {showData && status ? (
         <StatusMessageSection status={status} currentView="pretty" />
       ) : null}

@@ -49,7 +49,7 @@ export function ObservationAttributesTab({
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col overflow-auto pb-4">
-      <div className="space-y-4 pt-1">
+      <div className="space-y-2 pt-1">
         {hasAttributes ? (
           <div className={SECTION_CLASS}>
             <PrettyJsonView
