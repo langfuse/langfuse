@@ -430,9 +430,14 @@ describe("trace micro-batch scheduling with Redis", () => {
   };
   const member = (projectId: string, traceId: string) =>
     JSON.stringify([projectId, traceId]);
-  const event = (traceId: string, start = 1_000_000) => ({
+  const event = (
+    traceId: string,
+    start = 1_000_000,
+    serializedEventBytes = 100,
+  ) => ({
     traceId,
     startTimeISO: new Date(start).toISOString(),
+    serializedEventBytes,
   });
   const runner = () => {
     const instance = new TraceBatchDispatcher();
@@ -822,24 +827,61 @@ describe("trace micro-batch scheduling with Redis", () => {
   it("preserves min/max across concurrent out-of-order arrivals, resets readiness, and separates tenants", async () => {
     await Promise.all(
       [30, 0, 20, 10].map((start) =>
-        trackTraceBatchActivity("project", [event("trace", start)]),
+        trackTraceBatchActivity("project", [
+          event("trace", start, 100 + start),
+          event("trace", start, 200 + start),
+        ]),
       ),
     );
     const state = JSON.parse(
       (await client().hget(stateKey, member("project", "trace")))!,
     );
-    expect(state).toMatchObject({ minStart: 0, maxStart: 30 });
+    expect(state).toMatchObject({
+      minStart: 0,
+      maxStart: 30,
+      eventUpdateCount: 8,
+      serializedEventBytes: 1_320,
+    });
     await makeDue("project", "trace");
-    await trackTraceBatchActivity("project", [event("trace", 15)]);
+    await trackTraceBatchActivity("project", [
+      event("trace", 15, 25),
+      event("trace", 15, 25),
+    ]);
+    expect(
+      JSON.parse((await client().hget(stateKey, member("project", "trace")))!),
+    ).toMatchObject({ eventUpdateCount: 10, serializedEventBytes: 1_370 });
     expect(
       Number(await client().zscore(dueKey, member("project", "trace"))),
     ).toBeGreaterThan(Date.now() + 590_000);
-    await trackTraceBatchActivity("other", [event("trace", 100)]);
+    await trackTraceBatchActivity("other", [event("trace", 100, 7)]);
     expect(
       JSON.parse((await client().hget(stateKey, member("other", "trace")))!),
-    ).toMatchObject({ minStart: 100, maxStart: 100 });
+    ).toMatchObject({
+      minStart: 100,
+      maxStart: 100,
+      eventUpdateCount: 1,
+      serializedEventBytes: 7,
+    });
     await runner().processBatch();
     expect(await queue.getWaitingCount()).toBe(0);
+    await makeDue("project", "trace");
+    await makeDue("other", "trace");
+    await runner().processBatch();
+    for (const [count, bytes] of [
+      [10, 1_370],
+      [1, 7],
+    ]) {
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.trace_batch.estimated_event_update_count",
+        count,
+        { scope: "trace", strategy: "project" },
+      );
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.trace_batch.estimated_serialized_event_bytes",
+        bytes,
+        { scope: "trace", strategy: "project" },
+      );
+    }
   });
 
   it.each([
@@ -855,9 +897,14 @@ describe("trace micro-batch scheduling with Redis", () => {
       );
       await trackTraceBatchActivity(
         "project",
-        traces.map((traceId) => event(traceId)),
+        traces.map((traceId, index) => event(traceId, 1_000_000, index + 1)),
       );
-      await trackTraceBatchActivity("other", [event("trace-0")]);
+      await trackTraceBatchActivity("project", [
+        event("trace-0", 1_000_000, 5),
+      ]);
+      await trackTraceBatchActivity("other", [
+        event("trace-0", 1_000_000, 10_000),
+      ]);
       await client().zadd(
         dueKey,
         ...traces.flatMap((traceId, index) => [
@@ -917,10 +964,157 @@ describe("trace micro-batch scheduling with Redis", () => {
           .map(([, value]) => value)
           .sort((a, b) => Number(a) - Number(b)),
       ).toEqual(projectCounts);
+      for (const [metric, estimate] of [
+        ["estimated_event_update_count", "count"],
+        ["estimated_serialized_event_bytes", "bytes"],
+      ] as const) {
+        const expected = add.mock.calls.map(([, job]) =>
+          job.payload.traces.reduce((total, trace) => {
+            if (trace.projectId === "other")
+              return total + (estimate === "count" ? 1 : 10_000);
+            const index = Number(trace.traceId.replace("trace-", ""));
+            const estimates =
+              index === 0
+                ? { count: 2, bytes: 6 }
+                : { count: 1, bytes: index + 1 };
+            return total + estimates[estimate];
+          }, 0),
+        );
+        expect(
+          vi
+            .mocked(recordDistribution)
+            .mock.calls.filter(
+              ([name, , tags]) =>
+                name === `langfuse.trace_batch.${metric}` &&
+                tags?.scope === "batch",
+            )
+            .map(([, value, tags]) => ({ value, tags })),
+        ).toEqual(
+          expected.map((value) => ({
+            value,
+            tags: { scope: "batch", strategy: "project" },
+          })),
+        );
+      }
+      for (const [, job] of add.mock.calls) {
+        for (const trace of job.payload.traces) {
+          expect(Object.keys(trace).sort()).toEqual([
+            "maxStart",
+            "minStart",
+            "projectId",
+            "revision",
+            "traceId",
+          ]);
+        }
+      }
       await runner().processBatch();
       expect(await queue.getWaitingCount()).toBe(sizes.length);
     },
   );
+
+  it("keeps legacy estimates unknown through updates and restores them after dispatch", async () => {
+    const legacyStates = [
+      {},
+      { eventUpdateCount: 4 },
+      { serializedEventBytes: 400 },
+    ];
+    const legacyIds = legacyStates.map((_, index) => `legacy-${index}`);
+    for (const [index, estimates] of legacyStates.entries()) {
+      await client().hset(
+        stateKey,
+        member("project", legacyIds[index]),
+        JSON.stringify({
+          minStart: 1_000_000,
+          maxStart: 1_000_000,
+          revision: randomUUID(),
+          ...estimates,
+        }),
+      );
+    }
+    await trackTraceBatchActivity("project", [
+      ...legacyIds.map((traceId) => event(traceId, 1_000_001, 20)),
+      event("known", 1_000_000, 30),
+    ]);
+    await makeDue("project", ...legacyIds, "known");
+    const dispatcher = runner();
+    await dispatcher.processBatch();
+    const [job] = await queue.getJobs(["wait"]);
+    expect(
+      job.data.payload.traces.map(({ traceId }) => traceId).sort(),
+    ).toEqual(["known", ...legacyIds].sort());
+    const estimateSamples = vi
+      .mocked(recordDistribution)
+      .mock.calls.filter(([name]) =>
+        name.startsWith("langfuse.trace_batch.estimated_"),
+      );
+    expect(estimateSamples).toHaveLength(2);
+    expect(estimateSamples).toEqual(
+      expect.arrayContaining([
+        [
+          "langfuse.trace_batch.estimated_event_update_count",
+          1,
+          { scope: "trace", strategy: "project" },
+        ],
+        [
+          "langfuse.trace_batch.estimated_serialized_event_bytes",
+          30,
+          { scope: "trace", strategy: "project" },
+        ],
+      ]),
+    );
+    for (const [scope, count] of [
+      ["trace", 3],
+      ["batch", 1],
+    ] as const) {
+      expect(
+        vi
+          .mocked(recordIncrement)
+          .mock.calls.filter(
+            ([name, , tags]) =>
+              name === "langfuse.trace_batch.estimates_unavailable" &&
+              tags?.scope === scope &&
+              tags?.strategy === "project",
+          )
+          .reduce((total, [, value]) => total + Number(value), 0),
+      ).toBe(count);
+    }
+    expect(await client().hlen(stateKey)).toBe(0);
+
+    vi.clearAllMocks();
+    await trackTraceBatchActivity(
+      "project",
+      legacyIds.map((traceId) => event(traceId, 1_000_002, 20)),
+    );
+    for (const traceId of legacyIds) {
+      expect(
+        JSON.parse(
+          (await client().hget(stateKey, member("project", traceId)))!,
+        ),
+      ).toMatchObject({
+        eventUpdateCount: 1,
+        serializedEventBytes: 20,
+      });
+    }
+    await makeDue("project", ...legacyIds);
+    await dispatcher.processBatch();
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.estimated_event_update_count",
+      3,
+      { scope: "batch", strategy: "project" },
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.estimated_serialized_event_bytes",
+      60,
+      { scope: "batch", strategy: "project" },
+    );
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.some(
+          ([name]) => name === "langfuse.trace_batch.estimates_unavailable",
+        ),
+    ).toBe(false);
+  });
 
   it.each(["project", "locality"] as const)(
     "dispatches the complete due cohort across hydration chunks with %s",

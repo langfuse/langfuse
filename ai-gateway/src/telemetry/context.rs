@@ -105,13 +105,13 @@ impl GenerationContext {
             result.parent_span_id = Some(parent.span_id().to_string());
             result.trace_state = parent.trace_state().header();
         }
-        result.baggage(headers);
+        result.apply_baggage(headers);
         for (header, _, attribute) in SCALARS {
             if let Some(value) = single_header(headers, header).and_then(|v| decode(v, false)) {
                 result.attributes.insert(attribute.into(), value.into());
             }
         }
-        result.tags(
+        result.apply_tags(
             list_entries(headers, "langfuse-tags")
                 .filter_map(|tag| decode(tag.trim(), false))
                 .collect(),
@@ -124,11 +124,11 @@ impl GenerationContext {
                 result.metadata.insert(key, value.into());
             }
         }
-        result.agent(headers);
+        result.apply_agent(headers);
         result
     }
 
-    fn baggage(&mut self, headers: &HeaderMap) {
+    fn apply_baggage(&mut self, headers: &HeaderMap) {
         // Do not use the generic baggage propagator: malformed input must never
         // be logged, and Python's exporter encodes spaces with quote_plus.
         for entry in list_entries(headers, "baggage") {
@@ -146,7 +146,7 @@ impl GenerationContext {
                 self.attributes.insert((*attribute).into(), value.into());
             } else if key == "langfuse_tags" {
                 if let Some(tags) = parse_tags(&value) {
-                    self.tags(tags);
+                    self.apply_tags(tags);
                 }
             } else if let Some(key) = key.strip_prefix("langfuse_metadata_")
                 && valid(key)
@@ -156,7 +156,7 @@ impl GenerationContext {
         }
     }
 
-    fn tags(&mut self, tags: Vec<String>) {
+    fn apply_tags(&mut self, tags: Vec<String>) {
         let mut seen = HashSet::new();
         let tags: Vec<Value> = tags
             .into_iter()
@@ -170,7 +170,7 @@ impl GenerationContext {
         }
     }
 
-    fn agent(&mut self, headers: &HeaderMap) {
+    fn apply_agent(&mut self, headers: &HeaderMap) {
         let Some(agent) = AgentContext::from_headers(headers) else {
             return;
         };
@@ -215,13 +215,13 @@ impl AgentContext {
         if bytes > MAX_AGENT_HEADER_BYTES {
             return None;
         }
-        Self::claude_code(headers)
-            .or_else(|| Self::codex(headers))
-            .or_else(|| Self::opencode(headers))
-            .or_else(|| Self::pi(headers))
+        Self::parse_claude_code(headers)
+            .or_else(|| Self::parse_codex(headers))
+            .or_else(|| Self::parse_opencode(headers))
+            .or_else(|| Self::parse_pi(headers))
     }
 
-    fn claude_code(headers: &HeaderMap) -> Option<Self> {
+    fn parse_claude_code(headers: &HeaderMap) -> Option<Self> {
         let session_id = agent_header(headers, "x-claude-code-session-id");
         let agent_id = agent_header(headers, "x-claude-code-agent-id");
         let parent_agent_id = agent_header(headers, "x-claude-code-parent-agent-id");
@@ -240,7 +240,7 @@ impl AgentContext {
         })
     }
 
-    fn codex(headers: &HeaderMap) -> Option<Self> {
+    fn parse_codex(headers: &HeaderMap) -> Option<Self> {
         let value = single_header(headers, "x-codex-turn-metadata")?;
         if value.len() > MAX_AGENT_METADATA_BYTES {
             return None;
@@ -265,7 +265,7 @@ impl AgentContext {
         })
     }
 
-    fn opencode(headers: &HeaderMap) -> Option<Self> {
+    fn parse_opencode(headers: &HeaderMap) -> Option<Self> {
         let project_id = agent_header(headers, "x-opencode-project");
         let direct_session_id = agent_header(headers, "x-opencode-session");
         let turn_id = agent_header(headers, "x-opencode-request");
@@ -297,7 +297,7 @@ impl AgentContext {
         })
     }
 
-    fn pi(headers: &HeaderMap) -> Option<Self> {
+    fn parse_pi(headers: &HeaderMap) -> Option<Self> {
         let identified = user_agent(headers)
             .is_some_and(|value| value.starts_with("pi/") || value.starts_with("pi ("));
         if !identified {

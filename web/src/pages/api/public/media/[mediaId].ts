@@ -16,7 +16,7 @@ import { ForbiddenError } from "@langfuse/shared";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Media data",
-    action: "media:create",
+    action: "media:read",
     querySchema: GetMediaQuerySchema,
     responseSchema: GetMediaResponseSchema,
     fn: async ({ query, auth }) => {

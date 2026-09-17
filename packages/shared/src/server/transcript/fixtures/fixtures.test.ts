@@ -4,12 +4,10 @@ import { createObservation } from "../../test-utils";
 import { convertObservation } from "../../repositories/observations_converters";
 import { getTranscript } from "../index";
 import { formatTranscript } from "./format-transcript";
+import { orderSupportRoutingFixture } from "./session/order-support-routing";
 
 /**
- * Structural checks on the fixtures themselves, plus the behavior assertion
- * against the transcript builder. Every fixture's transcript is printed
- * (visible with `--disableConsoleIntercept`) so expectations can be authored
- * from real output; the assertion only runs once `expected` is defined.
+ * Structural checks on fixtures and exact transcript expectations.
  */
 describe("transcript fixtures", () => {
   const generation = (id: string, input: string[], output: string[]) =>
@@ -95,24 +93,25 @@ describe("transcript fixtures", () => {
 
     // Complete each seed into a full ClickHouse observation record and convert
     // it to a domain `Observation`, then build the transcript.
-    it("returns the expected transcript", () => {
-      const observations = fixture.observations.map((observation) =>
-        convertObservation(createObservation(observation)),
-      );
-      const transcript = getTranscript(observations);
+    // Routing history is an opaque string; its transcript expectation is deferred.
+    it.skipIf(fixture === orderSupportRoutingFixture)(
+      "returns the expected transcript",
+      () => {
+        const observations = fixture.observations.map((observation) =>
+          convertObservation(createObservation(observation)),
+        );
+        const transcript = getTranscript(observations);
 
-      // console.log("----------Transcript-------------------");
-      // console.log(JSON.stringify(transcript, null, 2));
-      console.log("----------Formatted Transcript-------------------");
-      console.log(
-        formatTranscript(fixture.name, transcript, observations, {
-          hideReasoning: true,
-        }),
-      );
-      console.log("-------------------------------------------------");
+        console.log("----------Formatted Transcript-------------------");
+        console.log(
+          formatTranscript(fixture.name, transcript, observations, {
+            hideReasoning: true,
+          }),
+        );
+        console.log("-------------------------------------------------");
 
-      if (fixture.expected === undefined) return;
-      expect(transcript).toEqual(fixture.expected);
-    });
+        expect(transcript).toEqual(fixture.expected);
+      },
+    );
   });
 });

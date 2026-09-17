@@ -500,16 +500,17 @@ export class IngestionService {
    * supplied record is not mutated.
    *
    * @param eventRecord - The event record to write
+   * @returns The serialized byte size of the accepted event record
    */
   public async writeEventRecord(
     eventRecord: EventRecordInsertType,
-  ): Promise<void> {
-    const persistedRecord = await applyObservationFieldOverflow(eventRecord);
-
-    this.clickHouseWriter.addToQueue(
-      TableName.EventsFull,
-      withSerializedEventByteLength(persistedRecord),
+  ): Promise<number> {
+    const persistedRecord = withSerializedEventByteLength(
+      await applyObservationFieldOverflow(eventRecord),
     );
+
+    this.clickHouseWriter.addToQueue(TableName.EventsFull, persistedRecord);
+    return persistedRecord.event_bytes;
   }
 
   private async processDatasetRunItemEventList(params: {

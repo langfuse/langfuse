@@ -175,6 +175,14 @@ impl Gateway {
     fn post(&self) -> reqwest::RequestBuilder {
         reqwest::Client::new().post(format!("{}/openai/v1/responses", self.url))
     }
+
+    fn compact(&self) -> reqwest::RequestBuilder {
+        reqwest::Client::new().post(format!("{}/openai/v1/responses/compact", self.url))
+    }
+
+    fn models(&self) -> reqwest::RequestBuilder {
+        reqwest::Client::new().get(format!("{}/openai/v1/models", self.url))
+    }
 }
 
 impl Drop for Gateway {
@@ -186,10 +194,7 @@ impl Drop for Gateway {
 fn inference(web: &FakeServer, provider: &FakeServer) -> InferenceService {
     InferenceService::for_test(
         web.control_plane(),
-        OpenAiProvider::for_test(
-            format!("{}/v1/responses", provider.url),
-            ProviderLimits::default(),
-        ),
+        OpenAiProvider::for_test(format!("{}/v1", provider.url), ProviderLimits::default()),
         128,
     )
 }
@@ -271,6 +276,70 @@ async fn native_json_and_sse_traverse_resolution_and_relay() {
     assert_eq!(
         sse.text().await.unwrap(),
         "event: arbitrary\ndata: hello\n\n"
+    );
+    assert_eq!(web.calls(), 2);
+    assert_eq!(provider.calls(), 2);
+}
+
+#[tokio::test]
+async fn compact_relays_opaque_json_and_models_proxies_openai_list_without_query() {
+    let web = FakeServer::start(|_| async { resolution_response("provider-secret") }).await;
+    let provider = FakeServer::start(|request| async move {
+        let method = request.method().clone();
+        let uri = request.uri().to_string();
+        let body = to_bytes(request.into_body(), 4096).await.unwrap();
+        match (method.as_str(), uri.as_str()) {
+            ("POST", "/v1/responses/compact") => {
+                assert_eq!(
+                    body,
+                    r#"{"model":"gpt-4.1","encrypted_content":"opaque-ciphertext"}"#
+                );
+                Response::builder()
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"id":"comp_1","object":"response.compaction","encrypted_content":"opaque-ciphertext"}"#,
+                    ))
+                    .unwrap()
+            }
+            ("GET", "/v1/models") => {
+                assert!(body.is_empty());
+                Response::builder()
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"object":"list","data":[{"id":"gpt-4.1","object":"model"}]}"#,
+                    ))
+                    .unwrap()
+            }
+            other => panic!("unexpected provider request {other:?}"),
+        }
+    })
+    .await;
+    let gateway = Gateway::start(Some(inference(&web, &provider))).await;
+    let compact = gateway
+        .compact()
+        .bearer_auth("gateway-key")
+        .body(r#"{"model":"gpt-4.1","encrypted_content":"opaque-ciphertext"}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(compact.status(), StatusCode::OK);
+    assert_eq!(
+        compact.text().await.unwrap(),
+        r#"{"id":"comp_1","object":"response.compaction","encrypted_content":"opaque-ciphertext"}"#
+    );
+    let models = reqwest::Client::new()
+        .get(format!(
+            "{}/openai/v1/models?secret=query-canary",
+            gateway.url
+        ))
+        .bearer_auth("gateway-key")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(models.status(), StatusCode::OK);
+    assert_eq!(
+        models.text().await.unwrap(),
+        r#"{"object":"list","data":[{"id":"gpt-4.1","object":"model"}]}"#
     );
     assert_eq!(web.calls(), 2);
     assert_eq!(provider.calls(), 2);
@@ -453,6 +522,10 @@ async fn unconfigured_gateway_is_live_but_not_ready_and_inference_is_unavailable
     );
     assert_eq!(
         gateway.post().send().await.unwrap().status(),
+        StatusCode::SERVICE_UNAVAILABLE
+    );
+    assert_eq!(
+        gateway.models().send().await.unwrap().status(),
         StatusCode::SERVICE_UNAVAILABLE
     );
 }

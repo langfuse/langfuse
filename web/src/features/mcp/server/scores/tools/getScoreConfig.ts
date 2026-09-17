@@ -9,6 +9,7 @@ export const [getScoreConfigTool, handleGetScoreConfig] = defineTool({
   name: "getScoreConfig",
   description:
     "Fetch one score configuration by ID from the current Langfuse project. Returns the public score config object directly.",
+  action: "scoreConfigs:read",
   baseSchema: GetScoreConfigQuery,
   inputSchema: GetScoreConfigQuery,
   handler: async (input, context) => {

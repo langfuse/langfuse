@@ -9,6 +9,7 @@ import { clickhouseCompliantRandomCharacters } from "../../repositories";
 import { escapeSqlLikePattern } from "../../utils/sqlLike";
 import {
   assertValidFtsMatchFilter,
+  bareFtsField,
   FTS_OPERATOR_DESCRIPTORS,
   isFtsEventsTable,
   isFtsMetadataField,
@@ -51,6 +52,15 @@ const clickhouseAsciiLower = (value: string): string =>
 const NON_EMPTY_VALUE_METADATA_OPERATORS = new Set<
   (typeof filterOperators)["stringObject"][number]
 >(["contains", "starts with", "ends with"]);
+
+// Event tables expose these computed map aliases while storing each map as a
+// pair of physical arrays. Null checks must target the corresponding names
+// array because the qualified map aliases are not physical columns.
+const EVENTS_METADATA_MAP_FIELDS = new Set([
+  "metadata",
+  "experiment_metadata",
+  "experiment_item_metadata",
+]);
 
 export class StringFilter implements Filter {
   public clickhouseTable: string;
@@ -634,6 +644,22 @@ export class NullFilter implements Filter {
 
   apply(): ClickhouseFilter {
     const fieldWithPrefix = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
+
+    // Event metadata aliases are computed maps. Their physical names arrays
+    // are non-nullable, so emptiness represents a null/absent map.
+    if (
+      isFtsEventsTable(this.clickhouseTable) &&
+      EVENTS_METADATA_MAP_FIELDS.has(bareFtsField(this.field))
+    ) {
+      const metadataNames = `${fieldWithPrefix}_names`;
+      return {
+        query:
+          this.operator === "is null"
+            ? `empty(${metadataNames})`
+            : `notEmpty(${metadataNames})`,
+        params: {},
+      };
+    }
 
     // '' ≡ NULL: treat empty string and NULL as the same value
     if (this.emptyEqualsNull) {

@@ -17,6 +17,7 @@ export const [listExperimentItemsTool, handleListExperimentItems] = defineTool({
     "Results are sorted newest first by experiment item startTime.",
     "fromStartTime is required. Request io and metadata fields only when needed because they can be large.",
   ].join("\n"),
+  action: "experiments:read",
   baseSchema: ListExperimentItemsBaseSchema,
   inputSchema: ListExperimentItemsInputSchema,
   handler: async (input, context) =>
