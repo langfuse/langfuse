@@ -35,12 +35,12 @@ processing, and the shared queue accessor, including admin queue inspection.
 - `{trace-batch}:due`: sorted set, with JSON `[projectId, traceId]` members and
   Redis server time plus idle delay as the score.
 - `{trace-batch}:state`: hash with the same members and JSON
-  `{minStart, maxStart, revision}` values. Bounds describe observed event start
+  `{minStart, maxStart, revision, eventUpdateCount, serializedEventBytes}` values. Bounds describe observed event start
   times; revision protects newer ingestion from an older dispatch acknowledgment.
 - `{trace-batch}:dispatcher`: renewable dispatcher lease.
 
-No event payloads, per-trace byte counts or observation counts are stored here.
-Atomic Lua updates refresh bounds, revision and readiness. Each admitted intake
+No event payloads are stored here. Atomic Lua updates accumulate estimates and
+refresh bounds, revision and readiness. Each admitted intake
 sets a shared absolute expiry on both pending keys with `PEXPIREAT`, preserving
 any later existing expiry using `PEXPIRETIME` (Redis 7+). With no further intake,
 both keys expire after the retention period even if every application stops;
@@ -57,6 +57,31 @@ project, then hydrates and revalidates state in chunks of 1,000. Jobs contain up
 to the configured trace cap; project leftovers can share a job. The dispatcher
 enqueues before acknowledging matching revisions, so concurrent intake stays
 pending and failed enqueueing can be retried. Stable job IDs limit duplicates.
+
+### Pending-window size estimates
+
+Accepted direct-v4 writes contribute their final serialized UTF-8 event size after
+field overflow handling, reusing the writer's existing `event_bytes` calculation.
+The accounting field itself is excluded. Acceptance means admission to the writer,
+not confirmation of a ClickHouse flush. `eventUpdateCount` counts accepted updates,
+including retries and repeated observation versions; neither counter represents
+unique observations or a trace's lifetime total. Deletion after enqueue, readiness
+and two-hour retention are unchanged. Later arrivals start another pending window.
+Entries missing either counter remain unknown until dispatch or expiry removes them.
+
+The dispatcher emits `estimated_event_update_count` and
+`estimated_serialized_event_bytes` distributions under `langfuse.trace_batch`, tagged
+with `scope:trace|batch` and `strategy`. Batch totals require known estimates for
+every member; `estimates_unavailable` counts unknown traces and affected batches.
+Estimates stay out of queue payloads, job IDs and batch selection. They do not cap
+work or change oversized-trace handling. Dispatch retries can emit another sample.
+
+Serialized event bytes differ from the reader's `io_metadata_bytes` metric: they
+include the serialized event fields and JSON encoding, and do not represent RAM,
+network transfer or ClickHouse scan bytes. After rollout, collect a stable hour
+with unchanged sampling and batching settings; compare trace/batch distributions,
+unknown-estimate counts, ingestion latency and Redis command rate/CPU/memory with
+the baseline before choosing any size-aware batching policy.
 
 The worker streams full `events_full` payloads and records batch observation,
 trace, project and logical payload-byte metrics. The `input_bytes`, `output_bytes`
