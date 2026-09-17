@@ -44,19 +44,48 @@ observations. A **thread** is a sequence of messages connected by shared input
 history; it can span multiple traces. The consumer handles multiple threads
 and decides which, if any, is the main conversation.
 
-Each thread is split into **conversation history** and the **current turn**:
+## Conversation history and current turn
 
-- Callers supply one trace at a time; the fixtures test never builds a whole
-  session. Should a caller pass several traces, messages emitted by traces
-  other than the last contributing one are history.
-- Within the last trace, input replayed before the first output is history up
-  to and including the previous turn's last assistant or tool message. What
-  follows, typically the new user message, starts the current turn.
-- Replayed input without an assistant or tool message cannot be told apart
-  from new input and stays in the current turn. So does the system prompt of
-  a fresh conversation.
-- History messages carry no provenance. `currentTurn.observations` lists only
-  observations that emitted a current-turn message.
+The builder first produces one flat list of messages per thread, each tagged
+with the observation and trace that first emitted it. At the very end, one
+cut is made in that list. Everything before the cut is `conversationHistory`,
+everything after it is `currentTurn`. Two rules decide where the cut goes.
+
+**Rule A: cut between traces.** Every message knows its trace. The last trace
+that contributed is the current one, so the cut goes right after the last
+message from any earlier trace. With a single trace, every message belongs to
+the same trace and rule A does nothing. Callers are expected to supply one
+trace at a time; the fixtures test never builds a whole session.
+
+**Rule B: cut inside the replayed input.** Take the current trace's messages
+before its first output message. That is what the first generation received as
+input. Among them, find the last message from the assistant or from a tool:
+it ended the previous turn. The cut goes right after it. Without an assistant
+or tool message there, nothing is cut.
+
+One trace with one generation:
+
+```
+input:   User: Refund my order.
+         Assistant: [refund call]
+         Tool: Refund succeeded.
+         Assistant: Your refund is complete.   <- last assistant/tool before output
+         User: When will it arrive?
+output:  Assistant: Within five business days.
+```
+
+Rule A does nothing. Rule B cuts after "Your refund is complete". The four
+messages above the cut become `conversationHistory`, without provenance. The
+last two become `currentTurn.messages`, with provenance.
+`currentTurn.observations` lists only observations that emitted one of them.
+
+Two consequences of "last assistant or tool" rather than "last user":
+
+- A fresh conversation starts with `[System, User]`. There is no assistant
+  message, so nothing is cut and the system prompt stays with the turn.
+- Replayed input without any assistant or tool message looks like new input
+  and stays in the current turn. Two user messages sent in a row both stay in
+  the turn.
 
 ## Which observations contribute?
 
