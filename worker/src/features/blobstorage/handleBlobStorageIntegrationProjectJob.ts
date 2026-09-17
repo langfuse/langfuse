@@ -68,6 +68,7 @@ import {
   isLegacyExporter,
   resolveBlobExportTuning,
   DEFAULT_BLOB_EXPORT_PART_SIZE_BYTES,
+  LISTABLE_SCORE_TYPES,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 // Shared env for the buffered-upload flag (gates part-level upload stats).
@@ -284,7 +285,16 @@ const getMinTimestampForExport = async (
 // events_core (its materialized-view projection, which can lag): the events
 // export reads events_full for full I/O, and events_full ⊇ events_core, so the
 // probe never undercounts what the export would stream.
-type BlobExportProbeTable = { table: string; timestampColumn: string };
+// `visibilityFilter` is an extra WHERE predicate that mirrors the table's export
+// query so the probe counts only rows the export would actually stream. Without
+// it a window whose sole rows are ones the export drops (soft-deleted events,
+// CORRECTION scores) would be treated as non-empty and still write an empty file
+// for that table — the litter this probe exists to avoid.
+type BlobExportProbeTable = {
+  table: string;
+  timestampColumn: string;
+  visibilityFilter?: string;
+};
 
 // The source tables a run will actually upload for, given its export source and
 // the trace-only override. The existence probe counts exactly these so a window
@@ -298,9 +308,15 @@ const exportedProbeTables = (
   if (isTraceOnlyProject) {
     return [{ table: "traces", timestampColumn: "timestamp" }];
   }
-  // Scores are always exported for non-trace-only runs.
+  // Scores are always exported for non-trace-only runs. The scores export only
+  // streams listable data types (CORRECTION scores are excluded), so match that.
   const tables: BlobExportProbeTable[] = [
-    { table: "scores", timestampColumn: "timestamp" },
+    {
+      table: "scores",
+      timestampColumn: "timestamp",
+      visibilityFilter:
+        "AND data_type IN ({listableScoreTypes: Array(String)})",
+    },
   ];
   if (
     exportSource === "TRACES_OBSERVATIONS" ||
@@ -315,7 +331,12 @@ const exportedProbeTables = (
     exportSource === "EVENTS" ||
     exportSource === "TRACES_OBSERVATIONS_EVENTS"
   ) {
-    tables.push({ table: "events_full", timestampColumn: "start_time" });
+    // The events export filters is_deleted = 0; match its visibility.
+    tables.push({
+      table: "events_full",
+      timestampColumn: "start_time",
+      visibilityFilter: "AND is_deleted = 0",
+    });
   }
   return tables;
 };
@@ -338,10 +359,16 @@ const windowHasExportableRows = async (
   // input), so interpolating them into the query is safe.
   const perTableCounts = tables
     .map(
-      ({ table, timestampColumn }) => `(SELECT count() FROM ${table}
+      ({
+        table,
+        timestampColumn,
+        visibilityFilter,
+      }) => `(SELECT count() FROM ${table}
           WHERE project_id = {projectId: String}
           AND ${timestampColumn} >= {minTimestamp: DateTime64(3)}
-          AND ${timestampColumn} < {maxTimestamp: DateTime64(3)})`,
+          AND ${timestampColumn} < {maxTimestamp: DateTime64(3)}${
+            visibilityFilter ? `\n          ${visibilityFilter}` : ""
+          })`,
     )
     .join("\n        + ");
   const result = await queryClickhouse<{ total: string | number }>({
@@ -350,8 +377,14 @@ const windowHasExportableRows = async (
       projectId,
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+      // Referenced only by the scores subquery's visibility filter; unused
+      // params are ignored when a run does not probe scores.
+      listableScoreTypes: LISTABLE_SCORE_TYPES,
     },
     tags: { projectId, surface: "worker", route: "blob_export" },
+    // Keep this per-run count off the primary; read from the events replica the
+    // rest of the export path uses for its heaviest reads.
+    preferredClickhouseService: "EventsReadOnly",
   });
   return Number(result[0]?.total ?? 0) > 0;
 };

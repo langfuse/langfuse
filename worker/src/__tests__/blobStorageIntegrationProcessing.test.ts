@@ -1434,6 +1434,119 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       expect(updatedIntegration?.runStartedAt).toBeNull();
     });
 
+    it("treats a window whose only events are soft-deleted as empty (no upload)", async () => {
+      // The events export filters is_deleted = 0, so a window whose sole rows are
+      // soft-deleted events would otherwise still write an empty observations_v2
+      // file. The probe must apply the same visibility filter and skip.
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = `${projectId}/`;
+
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+      const dataTimeMs = oneHourAgo.getTime() + 10 * 60 * 1000;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: "",
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region,
+          endpoint: minioEndpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "weekly",
+          exportSource: "EVENTS",
+          lastSyncAt: oneHourAgo,
+          compressed: false,
+          fileType: BlobStorageIntegrationFileType.JSONL,
+        },
+      });
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "GENERATION",
+          start_time: dataTimeMs * 1000,
+          is_deleted: 1,
+        }),
+      ]);
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const files = await s3StorageService.listFiles(s3Prefix);
+      expect(files).toHaveLength(0);
+
+      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
+        {
+          where: { projectId },
+        },
+      );
+      expect(updatedIntegration?.lastSyncAt).not.toBeNull();
+      expect(updatedIntegration?.lastError).toBeNull();
+    });
+
+    it("treats a window whose only scores are CORRECTION as empty (no upload)", async () => {
+      // The scores export streams only listable data types (CORRECTION excluded),
+      // so a window whose sole rows are CORRECTION scores would otherwise still
+      // write an empty scores file. The probe must apply the same filter and skip.
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = `${projectId}/`;
+
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+      const dataTimeMs = oneHourAgo.getTime() + 10 * 60 * 1000;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: "",
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region,
+          endpoint: minioEndpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "weekly",
+          lastSyncAt: oneHourAgo,
+          compressed: false,
+        },
+      });
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          timestamp: dataTimeMs,
+          data_type: "CORRECTION",
+        }),
+      ]);
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const files = await s3StorageService.listFiles(s3Prefix);
+      expect(files).toHaveLength(0);
+
+      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
+        {
+          where: { projectId },
+        },
+      );
+      expect(updatedIntegration?.lastSyncAt).not.toBeNull();
+      expect(updatedIntegration?.lastError).toBeNull();
+    });
+
     it("should use prefix in file path when specified", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       s3Prefix = "test-prefix";
