@@ -717,10 +717,12 @@ function scriptFramePathname(filename: string): string | null {
 
 /**
  * True when the filename is a Next.js HTML document route (no script
- * extension, not under `/_next/`). Safari attributes some truncated-script
- * parse failures to the document URL at line 1 instead of the chunk
- * (`Unexpected EOF`, LANGFUSE-617). The project id lives in that path, so
- * leaving these ungrouped mints one Sentry issue per project.
+ * extension, not under `/_next/`). Some browsers attribute a truncated or
+ * unparsable script to the document URL instead of the chunk: Safari as
+ * `Unexpected EOF` (LANGFUSE-617), Chrome as
+ * `Failed to execute 'appendChild' on 'Node': Unexpected token ')'`
+ * when it inserts the script (LANGFUSE-61V). The project id lives in that
+ * path, so leaving these ungrouped mints one Sentry issue per project.
  */
 function isPageDocumentPath(pathname: string): boolean {
   if (!pathname.startsWith("/")) return false;
@@ -735,11 +737,13 @@ function isPageDocumentPath(pathname: string): boolean {
  * URL — the shapes a browser produces when a script's CONTENT fails to parse
  * (truncated download, or a stale client fetching a chunk that no longer
  * exists and receiving garbage after a deploy). Safari reports the same
- * failure against the document (`Unexpected EOF`) rather than the chunk.
- * Chunk filenames are content-hashed and document paths embed the project
- * id, so Sentry minted a new fingerprint per chunk per deploy
- * (LANGFUSE-5WH/5WG/5WD/5S7) and per project (LANGFUSE-617). The reload
- * banner (#15279) is the mitigation for the cause.
+ * failure against the document (`Unexpected EOF`); Chrome reports it as
+ * `Failed to execute 'appendChild' on 'Node': Unexpected token ')'` when
+ * the parser rejects the script as it is inserted. Chunk filenames are
+ * content-hashed and document paths embed the project id, so Sentry minted
+ * a new fingerprint per chunk per deploy (LANGFUSE-5WH/5WG/5WD/5S7) and
+ * per project (LANGFUSE-617 / LANGFUSE-61V). The reload banner (#15279)
+ * is the mitigation for the cause.
  *
  * These events are GROUPED under {@link STALE_CHUNK_PARSE_FINGERPRINT} in
  * `beforeSend`, NOT dropped: if a deploy ever ships a genuinely unparsable
