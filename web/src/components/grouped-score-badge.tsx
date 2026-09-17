@@ -98,18 +98,13 @@ export const GroupedScoreBadges = <
           key={name}
           name={name}
           scores={scores}
-          compact={compact}
           showLevels={showLevels}
         />
       ))}
       {Boolean(hiddenScores.length) && (
         <HoverCard>
           <HoverCardTrigger asChild>
-            <BadgeShell
-              asChild
-              color="neutral"
-              size={compact ? "sm" : "default"}
-            >
+            <BadgeShell asChild>
               <button
                 type="button"
                 className={overflowButtonClassName}
@@ -138,7 +133,6 @@ export const GroupedScoreBadges = <
                   key={name}
                   name={name}
                   scores={scores}
-                  compact={compact}
                   showLevels={showLevels}
                 />
               ))}
@@ -147,7 +141,7 @@ export const GroupedScoreBadges = <
         </HoverCard>
       )}
       {expanded && overflows && (
-        <BadgeShell asChild color="neutral" size={compact ? "sm" : "default"}>
+        <BadgeShell asChild>
           <button
             type="button"
             className={overflowButtonClassName}

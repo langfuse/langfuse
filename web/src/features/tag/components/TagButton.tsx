@@ -1,4 +1,3 @@
-import { Button } from "@/src/components/ui/button";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { cn } from "@/src/utils/tailwind";
 import { TagIcon } from "lucide-react";
@@ -28,21 +27,22 @@ export const TagButton: React.FC<{
   if (viewOnly) {
     return (
       <span className="inline-flex max-w-40 min-w-0">
-        <BadgeShell color="neutral">{label}</BadgeShell>
+        <BadgeShell>{label}</BadgeShell>
       </span>
     );
   }
 
   return (
-    <Button
-      key={tag}
-      variant="tertiary"
-      size="icon-sm"
-      className="w-fit max-w-40 min-w-16 gap-1"
-      loading={loading}
-    >
-      {label}
-    </Button>
+    <BadgeShell asChild>
+      <button
+        key={tag}
+        type="button"
+        disabled={loading}
+        className="w-fit max-w-40 min-w-0 gap-1"
+      >
+        {label}
+      </button>
+    </BadgeShell>
   );
 });
 TagButton.displayName = "TagButton";

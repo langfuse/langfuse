@@ -128,7 +128,7 @@ export const JudgeModelPickerTrigger = forwardRef<
               >
                 {defaultModel.provider} / {defaultModel.model}
               </span>
-              <Badge variant="secondary" size="sm" className="shrink-0">
+              <Badge variant="secondary" className="shrink-0">
                 Project default
               </Badge>
             </span>
@@ -146,7 +146,7 @@ export const JudgeModelPickerTrigger = forwardRef<
               {customSelectionLabel}
             </span>
             {customSelectionIsDefault ? (
-              <Badge variant="secondary" size="sm" className="shrink-0">
+              <Badge variant="secondary" className="shrink-0">
                 Project default
               </Badge>
             ) : null}
@@ -225,11 +225,7 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                     >
                       {defaultModel.provider} / {defaultModel.model}
                     </span>
-                    <Badge
-                      variant="secondary"
-                      size="sm"
-                      className="ml-auto shrink-0"
-                    >
+                    <Badge variant="secondary" className="ml-auto shrink-0">
                       Project default
                     </Badge>
                   </CommandItem>
@@ -274,7 +270,6 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                       {isProjectDefault ? (
                         <Badge
                           variant="outline"
-                          size="sm"
                           className="text-muted-foreground font-regular ml-auto shrink-0"
                         >
                           default

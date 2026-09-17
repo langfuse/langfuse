@@ -913,7 +913,6 @@ export const InnerEvaluatorForm = (props: {
                                 Traces
                                 <Badge
                                   variant="secondary"
-                                  size="sm"
                                   className="border-border border font-normal"
                                 >
                                   Legacy
@@ -994,7 +993,6 @@ export const InnerEvaluatorForm = (props: {
                           Low-level SDK methods
                           <Badge
                             variant="secondary"
-                            size="sm"
                             className="border-border border font-normal"
                           >
                             Legacy

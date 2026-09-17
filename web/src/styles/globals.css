@@ -281,9 +281,9 @@
        muted-foreground (langfuse.com/docs has the same 4th step). NOTE: ~2.8:1
        on white — flagged in review, kept per design preference for now. */
     --foreground-tertiary: 215 12% 62%;
-    /* Text between body and muted: slate-700. Content that is not a heading
+    /* Text between body and muted: slate-600. Content that is not a heading
        and not a label, e.g. JSON values. */
-    --foreground-secondary: 215 25% 27%;
+    --foreground-secondary: 215 19% 35%;
     /* Code blocks sit a step BELOW their surrounding surface ("code is a
          well"), matching the docs site's --surface-code convention. */
     --surface-code: 0 0% 92%;

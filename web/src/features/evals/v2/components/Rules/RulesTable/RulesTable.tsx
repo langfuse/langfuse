@@ -97,14 +97,12 @@ function RuleEvaluatorsCell({
       additionalOverflowCount={0}
       getKey={(assignment) => assignment.id}
       renderItem={(assignment) => (
-        <Badge variant="secondary" size="sm">
-          {assignment.evaluator.name}
-        </Badge>
+        <Badge variant="secondary">{assignment.evaluator.name}</Badge>
       )}
       renderOverflow={({ hiddenItems, overflowItemCount }) => (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="secondary" size="sm" className="font-normal">
+            <Badge variant="secondary" className="font-normal">
               +{overflowItemCount}
             </Badge>
           </TooltipTrigger>

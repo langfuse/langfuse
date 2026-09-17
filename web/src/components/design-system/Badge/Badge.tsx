@@ -4,12 +4,12 @@ import { type LucideIcon } from "lucide-react";
 import { type ComponentPropsWithoutRef } from "react";
 
 const badgeVariants = cva(
-  "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center rounded-sm border border-transparent text-xs font-normal",
+  "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center gap-1 rounded-xs border border-transparent px-1.5 py-0 text-xs leading-tight font-normal",
   {
     variants: {
       color: {
-        primary: "bg-primary text-primary-foreground",
-        neutral: "bg-tertiary text-tertiary-foreground",
+        primary: "bg-tertiary text-foreground-secondary",
+        outline: "border-border bg-transparent text-foreground-secondary",
         red: "bg-light-red/60 text-dark-red/90 dark:bg-light-red/40 dark:text-dark-red/90",
         yellow: "bg-light-yellow/80 text-dark-yellow",
         blue: "bg-light-blue text-dark-blue",
@@ -17,14 +17,9 @@ const badgeVariants = cva(
         teal: "bg-light-teal text-dark-teal",
         green: "bg-light-green text-dark-green",
       },
-      size: {
-        default: "gap-1 px-2.5 py-0.5",
-        sm: "gap-1 px-1 py-0 leading-tight",
-      },
     },
     defaultVariants: {
-      color: "neutral",
-      size: "default",
+      color: "primary",
     },
   },
 );
@@ -43,12 +38,11 @@ type BadgeShellProps = Omit<ComponentPropsWithoutRef<"span">, "className"> &
 export function BadgeShell({
   asChild = false,
   color,
-  size,
   ...props
 }: BadgeShellProps) {
   const Component = asChild ? Slot : "span";
 
-  return <Component className={badgeVariants({ color, size })} {...props} />;
+  return <Component className={badgeVariants({ color })} {...props} />;
 }
 
 type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
@@ -58,14 +52,13 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
 
 export function Badge({
   color,
-  size,
   text,
   title,
   trailingIcon: TrailingIcon,
   ...props
 }: BadgeProps) {
   return (
-    <BadgeShell color={color} size={size} {...props}>
+    <BadgeShell color={color} {...props}>
       <span className="truncate" title={title ?? text}>
         {text}
       </span>
