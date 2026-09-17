@@ -16,6 +16,25 @@ import {
 import { ScoreTag, scoreLevelFromScore } from "@/src/components/score-tag";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { cn } from "@/src/utils/tailwind";
+
+const SCORE_HUE_CLASSES = [
+  "bg-score-hue-1",
+  "bg-score-hue-2",
+  "bg-score-hue-3",
+  "bg-score-hue-4",
+  "bg-score-hue-5",
+  "bg-score-hue-6",
+  "bg-score-hue-7",
+  "bg-score-hue-8",
+] as const;
+
+/** Same score name, same hue, on every surface and every page load. */
+const scoreHueClass = (name: string) => {
+  let hash = 0;
+  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) % 4294967296;
+  return SCORE_HUE_CLASSES[hash % SCORE_HUE_CLASSES.length];
+};
 
 const hasMetadata = (
   score: WithStringifiedMetadata<ScoreDomain> | LastUserScore,
@@ -75,6 +94,10 @@ export const ScoreBadge = <
         <ScoreTag key={level} level={level} />
       ))}
       <BadgeShell>
+        <span
+          aria-hidden
+          className={cn("size-1 shrink-0 rounded-full", scoreHueClass(name))}
+        />
         <span className="min-w-0 flex-1 truncate" title={name}>
           {name}:
         </span>

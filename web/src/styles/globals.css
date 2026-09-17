@@ -76,6 +76,15 @@
   --color-muted-blue: hsl(var(--muted-blue));
   --color-muted-green: hsl(var(--muted-green));
   --color-muted-gray: hsl(var(--muted-gray));
+
+  --color-score-hue-1: var(--score-hue-1);
+  --color-score-hue-2: var(--score-hue-2);
+  --color-score-hue-3: var(--score-hue-3);
+  --color-score-hue-4: var(--score-hue-4);
+  --color-score-hue-5: var(--score-hue-5);
+  --color-score-hue-6: var(--score-hue-6);
+  --color-score-hue-7: var(--score-hue-7);
+  --color-score-hue-8: var(--score-hue-8);
   --color-accent-light-green: hsl(var(--accent-light-green));
   --color-accent-dark-green: hsl(var(--accent-dark-green));
   /* These six status tokens hold complete oklch colors (tints carry baked
@@ -357,6 +366,16 @@
     --muted-blue: 239 84% 67%;
     --muted-gray: 210 50% 91.1%;
 
+    /* Score identity hues: one per score name by stable hash, equal weight */
+    --score-hue-1: oklch(68% 0.18 0);
+    --score-hue-2: oklch(68% 0.18 40);
+    --score-hue-3: oklch(68% 0.18 80);
+    --score-hue-4: oklch(68% 0.18 125);
+    --score-hue-5: oklch(68% 0.18 165);
+    --score-hue-6: oklch(68% 0.18 265);
+    --score-hue-7: oklch(68% 0.18 300);
+    --score-hue-8: oklch(68% 0.18 335);
+
     --accent-light-green: 138 76.5% 98%;
     --accent-dark-green: 112 100% 32%;
 
@@ -535,6 +554,15 @@
     --muted-blue: 215 95% 73.1%;
     --muted-green: 142 76.7% 73.1%;
     --muted-magenta: 330 76.7% 73.1%;
+
+    --score-hue-1: oklch(75% 0.12 0);
+    --score-hue-2: oklch(75% 0.12 40);
+    --score-hue-3: oklch(75% 0.12 80);
+    --score-hue-4: oklch(75% 0.12 125);
+    --score-hue-5: oklch(75% 0.12 165);
+    --score-hue-6: oklch(75% 0.12 265);
+    --score-hue-7: oklch(75% 0.12 300);
+    --score-hue-8: oklch(75% 0.12 335);
     /* Stays clearly above --card so chart grids (--chart-grid) and disabled
        badge fills stay discernible on elevated surfaces, without the harshness
        of --border-contrast (26%). */

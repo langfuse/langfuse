@@ -1,8 +1,5 @@
-import { cva } from "class-variance-authority";
-
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { cn } from "@/src/utils/tailwind";
 
 /**
  * The context a score was created in — its "level". A score's meaning depends
@@ -53,68 +50,17 @@ export const scoreLevelFromScore = (score: {
           ? "experiment"
           : "trace";
 
-// The global score-level color coding: one hue per level, used identically on
-// every surface. Hue pairs live in the design-system Badge and globals.css:
-// observation=blue, trace=violet, session=teal, experiment=yellow.
-const scoreTagColors: Record<
-  ScoreLevel,
-  "blue" | "violet" | "teal" | "yellow"
-> = {
-  observation: "blue",
-  trace: "violet",
-  session: "teal",
-  experiment: "yellow",
-};
-
-const scoreDotVariants = cva("inline-block size-2 shrink-0 rounded-full", {
-  variants: {
-    level: {
-      observation: "bg-dark-blue",
-      trace: "bg-dark-violet",
-      session: "bg-dark-teal",
-      experiment: "bg-dark-yellow",
-    },
-  },
-});
-
 export interface ScoreTagProps {
   level: ScoreLevel;
-  /**
-   * Dense-view variant (trace tree / timeline rows): a color dot carrying the
-   * level name via tooltip + aria-label instead of a visible word.
-   */
-  compact?: boolean;
 }
 
-/**
- * Tags a score with the level it was created at, using the global score-level
- * color coding. Never color-alone: the full variant shows the level word, the
- * compact dot carries it via tooltip and aria-label.
- */
-export const ScoreTag = ({ level, compact = false }: ScoreTagProps) => {
-  if (compact) {
-    return (
-      <Tooltip label={SCORE_LEVEL_DESCRIPTIONS[level]}>
-        {({ getTriggerProps }) => (
-          <span
-            {...getTriggerProps()}
-            role="img"
-            aria-label={SCORE_LEVEL_DESCRIPTIONS[level]}
-            className={cn(scoreDotVariants({ level }))}
-          />
-        )}
-      </Tooltip>
-    );
-  }
-
+/** Tags a score with the level it was created at; the word carries the meaning. */
+export const ScoreTag = ({ level }: ScoreTagProps) => {
   return (
     <Tooltip label={SCORE_LEVEL_DESCRIPTIONS[level]}>
       {({ getTriggerProps }) => (
         <span {...getTriggerProps()}>
-          <Badge
-            color={scoreTagColors[level]}
-            text={SCORE_LEVEL_LABELS[level]}
-          />
+          <Badge text={SCORE_LEVEL_LABELS[level]} />
         </span>
       )}
     </Tooltip>

@@ -18,12 +18,9 @@ const meta = preview.meta({
 const allColors = Object.keys({
   primary: true,
   emphasis: true,
-  red: true,
-  yellow: true,
-  blue: true,
-  violet: true,
-  teal: true,
-  green: true,
+  error: true,
+  warning: true,
+  success: true,
 } satisfies Record<Color, true>) as Color[];
 
 export const Default = meta.story({});
