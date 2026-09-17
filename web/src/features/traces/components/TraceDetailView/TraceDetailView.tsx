@@ -409,7 +409,7 @@ export function TraceDetailView({
                       Tags
                     </div>
                     <div
-                      className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${!isPrettyLikeView ? "shrink-0" : ""}`}
+                      className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-4 ${!isPrettyLikeView ? "shrink-0" : ""}`}
                     >
                       <TagList selectedTags={trace.tags} isLoading={false} />
                     </div>
