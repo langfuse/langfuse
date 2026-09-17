@@ -21,6 +21,8 @@ const mocks = vi.hoisted(() => ({
   recordIncrement: vi.fn(),
   auditLog: vi.fn(),
   sendChbProjectEvent: vi.fn(),
+  getChbApiClient: vi.fn(),
+  getAttachedPlan: vi.fn(),
 }));
 
 vi.mock("@/src/env.mjs", () => ({ env: mocks.env }));
@@ -52,6 +54,10 @@ vi.mock("@/src/features/audit-logs/auditLog", () => ({
 
 vi.mock("@/src/ee/features/billing/server/chb/chbProjectEvents", () => ({
   sendChbProjectEvent: mocks.sendChbProjectEvent,
+}));
+
+vi.mock("@/src/ee/features/billing/server/chb/chbApiClient", () => ({
+  getChbApiClient: mocks.getChbApiClient,
 }));
 
 import {
@@ -89,7 +95,7 @@ describe("verifyChbSignature", () => {
   const timestamp = String(Math.floor(nowMs / 1000));
   const rawBody = JSON.stringify({
     eventId: "evt_1",
-    type: "attachedplan.created",
+    type: "BILLING_ATTACHEDPLAN_CREATED",
   });
 
   const verify = (header: string | null, body: string = rawBody) =>
@@ -201,17 +207,48 @@ describe("chbWebhookHandler", () => {
     });
   };
 
-  const attachedPlanCreated = (payment?: Record<string, unknown>) => ({
+  // The body as the control-plane dispatcher delivers it: `data` is the
+  // billing-api event bus record, and the organization lives in its payload.
+  const attachedPlanCreated = (payload: Record<string, unknown> = {}) => ({
     eventId: "evt_1",
-    type: "attachedplan.created",
+    type: "BILLING_ATTACHEDPLAN_CREATED",
     occurredAt: "2026-07-01T00:00:00Z",
     data: {
-      organizationId: CHB_ORG_ID,
-      id: "plan_1",
-      planCode: "LANGFUSE_PRO",
-      startDate: "2026-07-01T00:00:00Z",
-      ...(payment ? { payment } : {}),
+      id: "0de85656-bdc7-47e3-a656-a2ae2ec91b41",
+      source: "billing-api",
+      timestamp: 1_782_000_001_000,
+      version: 1,
+      payload: {
+        createdAt: 1_782_000_000_000,
+        eventType: "BILLING_ATTACHEDPLAN_CREATED",
+        organizationId: CHB_ORG_ID,
+        planCode: "LANGFUSE_CORE",
+        ...payload,
+      },
     },
+  });
+
+  // Any other attached-plan event: same envelope, different type.
+  const chbEvent = (type: string, overrides: Record<string, unknown> = {}) => ({
+    ...attachedPlanCreated({ eventType: type }),
+    type,
+    ...overrides,
+  });
+
+  // GET /attachedplan as CHB answers it for the org named in the event.
+  const attachedPlan = (overrides: Record<string, unknown> = {}) => ({
+    id: "plan_1",
+    plan: { code: "LANGFUSE_CORE" },
+    period: {
+      startDate: "2026-07-01T00:00:00Z",
+      endDate: "2026-08-01T00:00:00Z",
+    },
+    payment: {
+      status: "active",
+      provider: { name: "stripe", customerId: "cus_1" },
+    },
+    scheduled: null,
+    ...overrides,
   });
 
   beforeEach(() => {
@@ -229,15 +266,17 @@ describe("chbWebhookHandler", () => {
     // test rejects has to be pinned back here or it leaks into the next test.
     mocks.invalidateCachedOrgApiKeys.mockResolvedValue(undefined);
     mocks.auditLog.mockResolvedValue(undefined);
+    mocks.getChbApiClient.mockReturnValue({
+      getAttachedPlan: mocks.getAttachedPlan,
+    });
+    mocks.getAttachedPlan.mockResolvedValue(attachedPlan());
   });
 
   const orgColumnsOfUpdate = () =>
     mocks.updateOrg.mock.calls[0]?.[0]?.data ?? {};
 
-  it("un-suspends on attachedplan.created only once payment is active", async () => {
-    const response = await chbWebhookHandler(
-      post(attachedPlanCreated({ status: "active" })),
-    );
+  it("un-suspends on BILLING_ATTACHEDPLAN_CREATED only once payment is active", async () => {
+    const response = await chbWebhookHandler(post(attachedPlanCreated()));
 
     expect(response.status).toBe(200);
     expect(orgColumnsOfUpdate()).toMatchObject({
@@ -247,16 +286,15 @@ describe("chbWebhookHandler", () => {
 
   it.each([
     ["a pending initial payment", { status: "pending" }],
-    ["no payment block at all", undefined],
+    ["no payment block at all", null],
   ])(
-    "leaves the free-tier suspension in place on attachedplan.created with %s",
+    "leaves the free-tier suspension in place on BILLING_ATTACHEDPLAN_CREATED with %s",
     async (_label, payment) => {
       // A failed or pending first payment must not un-block ingestion for an org
-      // suspended at the free-tier limit; attachedplan.updated lifts it when the
-      // payment goes active.
-      const response = await chbWebhookHandler(
-        post(attachedPlanCreated(payment)),
-      );
+      // suspended at the free-tier limit.
+      mocks.getAttachedPlan.mockResolvedValue(attachedPlan({ payment }));
+
+      const response = await chbWebhookHandler(post(attachedPlanCreated()));
 
       expect(response.status).toBe(200);
       expect(orgColumnsOfUpdate()).not.toHaveProperty(
@@ -270,9 +308,7 @@ describe("chbWebhookHandler", () => {
   it("releases the dedupe claim when applying the event fails", async () => {
     mocks.updateOrg.mockRejectedValue(new Error("could not serialize access"));
 
-    const response = await chbWebhookHandler(
-      post(attachedPlanCreated({ status: "active" })),
-    );
+    const response = await chbWebhookHandler(post(attachedPlanCreated()));
 
     // Without the release, CHB's retry hits the claim this request took and is
     // dropped as a duplicate — the event is lost for the whole 24h TTL.
@@ -284,7 +320,7 @@ describe("chbWebhookHandler", () => {
   });
 
   it("keeps the dedupe claim when the event applied cleanly", async () => {
-    await chbWebhookHandler(post(attachedPlanCreated({ status: "active" })));
+    await chbWebhookHandler(post(attachedPlanCreated()));
 
     expect(mocks.redisDel).not.toHaveBeenCalled();
   });
@@ -297,9 +333,7 @@ describe("chbWebhookHandler", () => {
       ),
     );
 
-    const response = await chbWebhookHandler(
-      post(attachedPlanCreated({ status: "active" })),
-    );
+    const response = await chbWebhookHandler(post(attachedPlanCreated()));
 
     // Double-billed org: applying more CHB state would bury the contradiction.
     expect(response.status).toBe(200);
@@ -310,9 +344,7 @@ describe("chbWebhookHandler", () => {
   it("skips an event whose id was already claimed", async () => {
     mocks.redisSet.mockResolvedValue(null);
 
-    const response = await chbWebhookHandler(
-      post(attachedPlanCreated({ status: "active" })),
-    );
+    const response = await chbWebhookHandler(post(attachedPlanCreated()));
 
     expect(response.status).toBe(200);
     expect(mocks.findOrg).not.toHaveBeenCalled();
@@ -322,9 +354,7 @@ describe("chbWebhookHandler", () => {
   it("ignores an org that belongs to another region", async () => {
     mocks.findOrg.mockResolvedValue(null);
 
-    const response = await chbWebhookHandler(
-      post(attachedPlanCreated({ status: "active" })),
-    );
+    const response = await chbWebhookHandler(post(attachedPlanCreated()));
 
     expect(response.status).toBe(200);
     expect(mocks.updateOrg).not.toHaveBeenCalled();
@@ -334,7 +364,7 @@ describe("chbWebhookHandler", () => {
     const response = await chbWebhookHandler(
       new NextRequest("http://localhost/api/billing/clickhouse-webhook", {
         method: "POST",
-        body: JSON.stringify(attachedPlanCreated({ status: "active" })),
+        body: JSON.stringify(attachedPlanCreated()),
       }),
     );
 
@@ -346,10 +376,9 @@ describe("chbWebhookHandler", () => {
     expect(mocks.redisSet).not.toHaveBeenCalled();
   });
 
-  it("rejects an envelope without data.organizationId", async () => {
-    const event = attachedPlanCreated({ status: "active" });
+  it("rejects an envelope without data.payload.organizationId", async () => {
     const response = await chbWebhookHandler(
-      post({ ...event, data: { ...event.data, organizationId: undefined } }),
+      post(attachedPlanCreated({ organizationId: undefined })),
     );
 
     expect(response.status).toBe(400);
@@ -359,17 +388,39 @@ describe("chbWebhookHandler", () => {
     expect(mocks.findOrg).not.toHaveBeenCalled();
   });
 
-  it("persists data.organizationId and occurredAt on the clickhouse block", async () => {
-    await chbWebhookHandler(post(attachedPlanCreated({ status: "active" })));
+  it("reads the attached plan back from CHB and persists it with the event's organization and occurredAt", async () => {
+    await chbWebhookHandler(post(attachedPlanCreated()));
 
+    // The event names the organization but not the plan; the plan id and code
+    // come from GET /attachedplan for that organization.
+    expect(mocks.getAttachedPlan).toHaveBeenCalledWith({
+      chOrganizationId: CHB_ORG_ID,
+    });
     expect(orgColumnsOfUpdate().cloudConfig).toMatchObject({
       clickhouse: {
         organizationId: CHB_ORG_ID,
         attachedPlanId: "plan_1",
-        planCode: "LANGFUSE_PRO",
+        planCode: "LANGFUSE_CORE",
         lastEventCreatedAt: "2026-07-01T00:00:00Z",
       },
     });
+    expect(orgColumnsOfUpdate().cloudBillingCycleAnchor).toEqual(
+      new Date("2026-07-01T00:00:00Z"),
+    );
+  });
+
+  it("keeps the event retryable when the attached plan cannot be read", async () => {
+    mocks.getAttachedPlan.mockRejectedValue(
+      new Error("CHB API GET attachedplan failed with status 404"),
+    );
+
+    const response = await chbWebhookHandler(post(attachedPlanCreated()));
+
+    // Nothing was persisted, so the claim has to go back for CHB's retry to
+    // reach the read again once the plan is there.
+    expect(response.status).toBe(500);
+    expect(mocks.updateOrg).not.toHaveBeenCalled();
+    expect(mocks.redisDel).toHaveBeenCalledWith("chb-webhook-event:evt_1");
   });
 
   it("drops an event that occurred at or before the last applied one", async () => {
@@ -380,9 +431,7 @@ describe("chbWebhookHandler", () => {
       }),
     );
 
-    const response = await chbWebhookHandler(
-      post(attachedPlanCreated({ status: "active" })),
-    );
+    const response = await chbWebhookHandler(post(attachedPlanCreated()));
 
     expect(response.status).toBe(200);
     expect(mocks.updateOrg).not.toHaveBeenCalled();
@@ -391,9 +440,7 @@ describe("chbWebhookHandler", () => {
   it("keeps a failed project backfill out of the retry path", async () => {
     mocks.findProjects.mockRejectedValue(new Error("connection reset"));
 
-    const response = await chbWebhookHandler(
-      post(attachedPlanCreated({ status: "active" })),
-    );
+    const response = await chbWebhookHandler(post(attachedPlanCreated()));
 
     // The plan is already persisted, so the ordering guard would drop a
     // retry as already applied; a 500 here only asks CHB for a retry that can
@@ -409,9 +456,7 @@ describe("chbWebhookHandler", () => {
       new Error("connection reset"),
     );
 
-    const response = await chbWebhookHandler(
-      post(attachedPlanCreated({ status: "active" })),
-    );
+    const response = await chbWebhookHandler(post(attachedPlanCreated()));
 
     // Same commit-point rule; the stale cache entry expires with its TTL.
     expect(response.status).toBe(200);
@@ -422,9 +467,7 @@ describe("chbWebhookHandler", () => {
   it("keeps a failed audit log write out of the retry path", async () => {
     mocks.auditLog.mockRejectedValue(new Error("connection reset"));
 
-    const response = await chbWebhookHandler(
-      post(attachedPlanCreated({ status: "active" })),
-    );
+    const response = await chbWebhookHandler(post(attachedPlanCreated()));
 
     // Post-commit like the cache invalidation: the state change is applied,
     // so the missing audit row is logged and paged rather than retried.
@@ -436,16 +479,8 @@ describe("chbWebhookHandler", () => {
     );
   });
 
-  it("maps payment.dueDate and the provider customer onto the stored block", async () => {
-    await chbWebhookHandler(
-      post(
-        attachedPlanCreated({
-          status: "active",
-          dueDate: "2026-08-01T00:00:00Z",
-          provider: { name: "stripe", customerId: "cus_1" },
-        }),
-      ),
-    );
+  it("maps the attached plan's payment, period end and provider customer onto the stored block", async () => {
+    await chbWebhookHandler(post(attachedPlanCreated()));
 
     expect(orgColumnsOfUpdate().cloudConfig).toMatchObject({
       clickhouse: {
@@ -456,57 +491,145 @@ describe("chbWebhookHandler", () => {
     });
   });
 
-  it("refuses an unknown plan code and keeps the event retryable", async () => {
-    const event = attachedPlanCreated({ status: "active" });
+  it("refuses an unknown plan code on the event and keeps it retryable", async () => {
     const response = await chbWebhookHandler(
-      post({ ...event, data: { ...event.data, planCode: "LANGFUSE_ULTRA" } }),
+      post(attachedPlanCreated({ planCode: "LANGFUSE_ULTRA" })),
     );
 
     // Storing the code would null the plan and drop a paying org to hobby.
     // The 500 keeps the event in the dispatcher's retry budget until the
     // mapping ships, so the dedupe claim has to go back.
     expect(response.status).toBe(500);
+    expect(mocks.getAttachedPlan).not.toHaveBeenCalled();
     expect(mocks.updateOrg).not.toHaveBeenCalled();
     expect(mocks.redisDel).toHaveBeenCalledWith("chb-webhook-event:evt_1");
     expect(mocks.traceException).toHaveBeenCalled();
   });
 
-  const scheduledEvent = (scheduled: Record<string, unknown>) => ({
-    eventId: "evt_2",
-    type: "attachedplan.scheduled",
-    occurredAt: "2026-07-02T00:00:00Z",
-    data: { organizationId: CHB_ORG_ID, id: "plan_1", scheduled },
+  it("refuses an unknown plan code reported by GET /attachedplan the same way", async () => {
+    mocks.getAttachedPlan.mockResolvedValue(
+      attachedPlan({ plan: { code: "LANGFUSE_ULTRA" } }),
+    );
+
+    const response = await chbWebhookHandler(post(attachedPlanCreated()));
+
+    expect(response.status).toBe(500);
+    expect(mocks.updateOrg).not.toHaveBeenCalled();
+    expect(mocks.redisDel).toHaveBeenCalledWith("chb-webhook-event:evt_1");
   });
 
-  it("persists a scheduled cancellation with its end date", async () => {
+  it("rejects an event type outside the CHB enum", async () => {
+    const response = await chbWebhookHandler(
+      post(chbEvent("BILLING_ATTACHEDPLAN_DELETED")),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      message: "Webhook error: invalid payload",
+    });
+    expect(mocks.findOrg).not.toHaveBeenCalled();
+  });
+
+  it("re-reads the plan on BILLING_ATTACHEDPLAN_UPDATED and overwrites the snapshot without moving the billing cycle anchor", async () => {
     mocks.findOrg.mockResolvedValue(
-      orgRow({ organizationId: CHB_ORG_ID, attachedPlanId: "plan_1" }),
+      orgRow({
+        organizationId: CHB_ORG_ID,
+        attachedPlanId: "plan_1",
+        planCode: "LANGFUSE_CORE",
+        lastEventCreatedAt: "2026-07-01T00:00:00Z",
+      }),
+    );
+    mocks.getAttachedPlan.mockResolvedValue(
+      attachedPlan({ plan: { code: "LANGFUSE_PRO" } }),
     );
 
     const response = await chbWebhookHandler(
       post(
-        scheduledEvent({
-          type: "cancel",
-          when: "billing_cycle_end",
-          endDate: "2026-08-01T00:00:00Z",
+        chbEvent("BILLING_ATTACHEDPLAN_UPDATED", {
+          eventId: "evt_2",
+          occurredAt: "2026-07-15T00:00:00Z",
         }),
       ),
     );
 
     expect(response.status).toBe(200);
-    expect(orgColumnsOfUpdate().cloudConfig.clickhouse.scheduled).toEqual({
-      type: "cancel",
-      when: "billing_cycle_end",
-      endDate: "2026-08-01T00:00:00Z",
+    expect(orgColumnsOfUpdate().cloudConfig.clickhouse).toMatchObject({
+      attachedPlanId: "plan_1",
+      planCode: "LANGFUSE_PRO",
+      lastEventCreatedAt: "2026-07-15T00:00:00Z",
+    });
+    expect(orgColumnsOfUpdate()).not.toHaveProperty("cloudBillingCycleAnchor");
+    // Only a created plan backfills projects.
+    expect(mocks.findProjects).not.toHaveBeenCalled();
+  });
+
+  it("snapshots the pending change on BILLING_ATTACHEDPLAN_SCHEDULED and leaves the plan itself alone", async () => {
+    mocks.findOrg.mockResolvedValue(
+      orgRow({
+        organizationId: CHB_ORG_ID,
+        attachedPlanId: "plan_1",
+        planCode: "LANGFUSE_PRO",
+        lastEventCreatedAt: "2026-07-01T00:00:00Z",
+      }),
+    );
+    const scheduled = {
+      type: "downgrade",
+      planCode: "LANGFUSE_CORE",
+      startDate: "2026-08-01T00:00:00Z",
+    };
+    mocks.getAttachedPlan.mockResolvedValue(
+      attachedPlan({ plan: { code: "LANGFUSE_PRO" }, scheduled }),
+    );
+
+    const response = await chbWebhookHandler(
+      post(
+        chbEvent("BILLING_ATTACHEDPLAN_SCHEDULED", {
+          eventId: "evt_4",
+          occurredAt: "2026-07-20T00:00:00Z",
+        }),
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    // The plan flips when the terminal updated/cancelled event lands, not here;
+    // CHB's REST view wins over the plan code the event announced.
+    expect(orgColumnsOfUpdate().cloudConfig.clickhouse).toMatchObject({
+      planCode: "LANGFUSE_PRO",
+      scheduled,
+      lastEventCreatedAt: "2026-07-20T00:00:00Z",
     });
   });
 
-  it("rejects a scheduled change of an unknown type", async () => {
-    const response = await chbWebhookHandler(
-      post(scheduledEvent({ type: "pause", when: "immediate" })),
+  it("drops the plan on BILLING_ATTACHEDPLAN_CANCELLED without reading it back", async () => {
+    mocks.findOrg.mockResolvedValue(
+      orgRow({
+        organizationId: CHB_ORG_ID,
+        attachedPlanId: "plan_1",
+        planCode: "LANGFUSE_CORE",
+        paymentStatus: "active",
+        stripeCustomerId: "cus_1",
+        lastEventCreatedAt: "2026-07-01T00:00:00Z",
+      }),
     );
 
-    expect(response.status).toBe(400);
-    expect(mocks.updateOrg).not.toHaveBeenCalled();
+    const response = await chbWebhookHandler(
+      post(
+        chbEvent("BILLING_ATTACHEDPLAN_CANCELLED", {
+          eventId: "evt_3",
+          occurredAt: "2026-08-01T00:00:00Z",
+        }),
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    // GET /attachedplan may already answer 404 for a cancelled organization.
+    expect(mocks.getAttachedPlan).not.toHaveBeenCalled();
+    // Only the customer identity survives; the org resolves back to hobby.
+    expect(orgColumnsOfUpdate().cloudConfig.clickhouse).toEqual({
+      organizationId: CHB_ORG_ID,
+      stripeCustomerId: "cus_1",
+      lastEventCreatedAt: "2026-08-01T00:00:00Z",
+    });
+    expect(orgColumnsOfUpdate()).toHaveProperty("cloudBillingCycleAnchor");
   });
 });

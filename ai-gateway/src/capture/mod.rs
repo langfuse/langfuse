@@ -33,7 +33,7 @@ impl ProtocolCapture {
         }
     }
 
-    fn bytes(&mut self, bytes: &[u8]) {
+    fn bytes(&mut self, bytes: &[u8]) -> bool {
         match self {
             Self::OpenAiResponses(capture) => capture.bytes(bytes),
         }
@@ -60,6 +60,7 @@ pub(crate) struct ExecutionCapture {
     started: Instant,
     start_time_unix_ms: u128,
     first_byte_ms: Option<u128>,
+    completion_start_ms: Option<u128>,
     http_status: Option<u16>,
     metadata: Value,
     delivery: Option<(telemetry::Telemetry, telemetry::DeliveryContext)>,
@@ -100,6 +101,7 @@ impl ExecutionCapture {
             started,
             start_time_unix_ms,
             first_byte_ms: None,
+            completion_start_ms: None,
             http_status: None,
             metadata: json!({
                 "organization_id": attribution.organization_id(),
@@ -117,10 +119,11 @@ impl ExecutionCapture {
         &mut self,
         telemetry: telemetry::Telemetry,
         context: &ResolvedRequestContext,
+        headers: &HeaderMap,
     ) {
         self.delivery = Some((
             telemetry,
-            telemetry::DeliveryContext::from_resolved(context),
+            telemetry::DeliveryContext::from_resolved(context, headers),
         ));
     }
 
@@ -137,7 +140,10 @@ impl ExecutionCapture {
                 self.first_byte_ms
                     .get_or_insert_with(|| self.started.elapsed().as_millis());
             }
-            protocol.bytes(bytes);
+            if protocol.bytes(bytes) {
+                self.completion_start_ms
+                    .get_or_insert_with(|| self.started.elapsed().as_millis());
+            }
         }
     }
 
@@ -159,6 +165,7 @@ impl ExecutionCapture {
             start_time_unix_ms: self.start_time_unix_ms,
             duration_ms: self.started.elapsed().as_millis(),
             first_byte_ms: self.first_byte_ms,
+            completion_start_ms: self.completion_start_ms,
             http_status: self.http_status,
             metadata: std::mem::take(&mut self.metadata),
             outcome,
