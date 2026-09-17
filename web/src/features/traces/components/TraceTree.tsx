@@ -23,7 +23,10 @@ import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHan
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
 import { type TreeNode } from "../types/treeNode";
 import { cn } from "@/src/utils/tailwind";
-import type Decimal from "decimal.js";
+import {
+  resolveMetricEmphasisContext,
+  type MetricEmphasisContext,
+} from "@/src/features/traces/fns/metricEmphasis";
 
 /**
  * Feature-scoped row container: subscribes to the row's OWN playback-active
@@ -39,8 +42,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
   isCollapsed,
   onToggleCollapse,
   onSelect,
-  rootTotalCost,
-  rootTotalDuration,
+  emphasis,
   commentCount,
   onHover,
 }: {
@@ -50,8 +52,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onSelect: () => void;
-  rootTotalCost?: Decimal;
-  rootTotalDuration?: number;
+  emphasis?: MetricEmphasisContext;
   commentCount?: number;
   onHover: (node: TreeNode) => void;
 }) {
@@ -75,8 +76,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
       >
         <SpanContent
           node={node}
-          parentTotalCost={rootTotalCost}
-          parentTotalDuration={rootTotalDuration}
+          emphasis={emphasis}
           commentCount={commentCount}
           onSelect={onSelect}
           onHover={() => onHover(node)}
@@ -91,23 +91,6 @@ export function TraceTree() {
   const { selectedNodeId, collapsedNodes, toggleCollapsed } = useSelection();
   const { handleHover } = useHandlePrefetchObservation();
   const handleSelectNode = useSelectTraceNode("tree");
-
-  // TODO: Extract aggregation logic to shared utility - duplicated in tree-building.ts and TraceTimeline/index.tsx
-  // Calculate aggregated totals across all roots for heatmap color scaling
-  const rootTotalCost = roots.reduce(
-    (acc, r) => {
-      if (!r.totalCost) return acc;
-      return acc ? acc.plus(r.totalCost) : r.totalCost;
-    },
-    undefined as (typeof roots)[0]["totalCost"],
-  );
-
-  const rootTotalDuration =
-    roots.length > 0
-      ? Math.max(
-          ...roots.map((r) => (r.latency != null ? r.latency * 1000 : 0)),
-        )
-      : undefined;
 
   return (
     <VirtualizedTree
@@ -131,8 +114,7 @@ export function TraceTree() {
           isCollapsed={isCollapsed}
           onToggleCollapse={onToggleCollapse}
           onSelect={onSelect}
-          rootTotalCost={rootTotalCost}
-          rootTotalDuration={rootTotalDuration}
+          emphasis={resolveMetricEmphasisContext(node as TreeNode, roots)}
           commentCount={comments.get(node.id)}
           onHover={handleHover}
         />
