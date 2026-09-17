@@ -383,6 +383,28 @@ function openAiMessages(
   root: Record<string, unknown>,
   kind: "input" | "output",
 ): MessageSource[] {
+  // Responses API uses `input` instead of Chat Completions' `messages`:
+  if (kind === "input") {
+    if (typeof root.input === "string" && typeof root.model === "string") {
+      return [{ kind: "single", value: root.input, fallbackRole: "user" }];
+    }
+    const responseInput = parseArray(root.input);
+    if (
+      responseInput?.length &&
+      responseInput.every((item) => {
+        const record = asRecord(item);
+        return (
+          record &&
+          (typeof record.role === "string" || typeof record.type === "string")
+        );
+      })
+    ) {
+      return [
+        { kind: "sequence", values: responseInput, fallbackRole: "user" },
+      ];
+    }
+    return [];
+  }
   if (kind !== "output") return [];
 
   const choices = parseArray(root.choices);
@@ -560,4 +582,15 @@ export const openAiProvider: IOConvention = {
   typedParts: OPENAI_PART_HANDLERS,
   collectSiblingParts: openAiCollectSiblingParts,
   claimMessages: openAiMessages,
+  getSystemMessage: (root, kind) =>
+    kind === "input" &&
+    typeof root.instructions === "string" &&
+    openAiMessages(root, kind).length > 0
+      ? {
+          kind: "single",
+          value: root.instructions,
+          fallbackRole: "user",
+          roleOverride: "system",
+        }
+      : undefined,
 };

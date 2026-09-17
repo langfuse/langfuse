@@ -1,6 +1,100 @@
 import { expect } from "vitest";
 import type { NormalizedIOFixture } from "../fixture-types";
 
+// Docs-derived tool-result variants; the image data is a sample placeholder.
+// https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls
+export const documentedToolResultFixtures: NormalizedIOFixture[] = [
+  { label: "empty", content: undefined },
+  {
+    label: "text and image",
+    content: [
+      { type: "text", text: "15 degrees" },
+      {
+        type: "image",
+        source: { type: "base64", media_type: "image/jpeg", data: "aGVsbG8=" },
+      },
+    ],
+  },
+  {
+    label: "text and document",
+    content: [
+      { type: "text", text: "The weather is" },
+      {
+        type: "document",
+        source: { type: "text", media_type: "text/plain", data: "15 degrees" },
+      },
+    ],
+  },
+].map(
+  ({ label, content }): NormalizedIOFixture => ({
+    name: `Anthropic ${label} tool result with string system instruction`,
+    spanIO: {
+      input: {
+        system: "Be concise.",
+        messages: [
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_use",
+                id: "call_weather",
+                name: "get_weather",
+                input: { city: "Paris" },
+              },
+            ],
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "tool_result",
+                tool_use_id: "call_weather",
+                ...(content === undefined ? {} : { content }),
+              },
+            ],
+          },
+        ],
+      },
+      output: undefined,
+      metadata: undefined,
+    },
+    expected: {
+      messages: [
+        {
+          source: "input",
+          role: "system",
+          parts: [{ type: "text", text: "Be concise." }],
+        },
+        {
+          source: "input",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-call",
+              toolCallId: "call_weather",
+              toolName: "get_weather",
+              input: { city: "Paris" },
+              toolType: "tool_use",
+            },
+          ],
+        },
+        {
+          source: "input",
+          role: "tool",
+          parts: [
+            {
+              type: "tool-result",
+              toolCallId: "call_weather",
+              output: content ?? null,
+            },
+          ],
+        },
+      ],
+      toolDefinitions: [],
+    },
+  }),
+);
+
 const searchSchema = {
   type: "object",
   properties: { query: { type: "string" } },

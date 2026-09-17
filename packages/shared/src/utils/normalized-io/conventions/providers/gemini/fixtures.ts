@@ -1,6 +1,105 @@
 import { expect } from "vitest";
 import type { NormalizedIOFixture } from "../fixture-types";
 
+// Docs-derived GenerateContent history, not the separate Interactions API.
+// https://ai.google.dev/gemini-api/docs/function-calling
+export const documentedFunctionRoundTripFixtures: NormalizedIOFixture[] = [
+  false,
+  true,
+].map(
+  (python): NormalizedIOFixture => ({
+    name: `Gemini ${python ? "Python" : "REST"} function round trip with system instruction`,
+    spanIO: {
+      input: {
+        ...(python
+          ? {
+              config: {
+                system_instruction: { parts: [{ text: "Be concise." }] },
+              },
+            }
+          : { systemInstruction: { parts: [{ text: "Be concise." }] } }),
+        contents: [
+          { role: "user", parts: [{ text: "Weather in Paris?" }] },
+          {
+            role: "model",
+            parts: [
+              {
+                [python ? "function_call" : "functionCall"]: {
+                  id: "call_weather",
+                  name: "get_weather",
+                  args: { city: "Paris" },
+                },
+              },
+            ],
+          },
+          {
+            role: "user",
+            parts: [
+              {
+                [python ? "function_response" : "functionResponse"]: {
+                  id: "call_weather",
+                  name: "get_weather",
+                  response: { temperature: 15 },
+                },
+              },
+            ],
+          },
+        ],
+      },
+      output: {
+        candidates: [
+          { content: { role: "model", parts: [{ text: "15 degrees." }] } },
+        ],
+      },
+      metadata: undefined,
+    },
+    expected: {
+      messages: [
+        {
+          source: "input",
+          role: "system",
+          parts: [{ type: "text", text: "Be concise." }],
+        },
+        {
+          source: "input",
+          role: "user",
+          parts: [{ type: "text", text: "Weather in Paris?" }],
+        },
+        {
+          source: "input",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-call",
+              toolCallId: "call_weather",
+              toolName: "get_weather",
+              input: { city: "Paris" },
+              toolType: "functionCall",
+            },
+          ],
+        },
+        {
+          source: "input",
+          role: "tool",
+          parts: [
+            {
+              type: "tool-result",
+              toolCallId: "call_weather",
+              output: { temperature: 15 },
+            },
+          ],
+        },
+        {
+          source: "output",
+          role: "assistant",
+          parts: [{ type: "text", text: "15 degrees." }],
+        },
+      ],
+      toolDefinitions: [],
+    },
+  }),
+);
+
 /** Synthetic Gemini case adapted from the playground suite. */
 export const geminiEmbeddedToolDefinitionFixture = {
   name: "extracts Gemini tool-definition messages",

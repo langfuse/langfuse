@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { normalizeSpanIO } from "../../../parser";
 import {
   openAiChatCompletionToolSequenceFixture,
+  documentedResponsesFixtures,
   openAiChatMultimodalRichResponseFixture,
   openAiResponsesBuiltInToolsAndMediaFixture,
   openAiResponsesFunctionCallFixture,
@@ -13,6 +14,7 @@ import {
 describe("OpenAI normalized I/O", () => {
   it.each([
     ...capturedTraceFixtures,
+    ...documentedResponsesFixtures,
     openAiChatCompletionToolSequenceFixture,
     openAiChatMultimodalRichResponseFixture,
     openAiResponsesFunctionCallFixture,

@@ -1,6 +1,60 @@
 import { expect } from "vitest";
 import type { NormalizedIOFixture } from "../fixture-types";
 
+// Docs-derived Responses requests (not captured traces).
+// https://developers.openai.com/api/docs/guides/text
+export const documentedResponsesFixtures: NormalizedIOFixture[] = [
+  ...[
+    "Explain retries.",
+    [{ role: "user", content: "Explain retries." }],
+  ].flatMap((input) =>
+    [false, true].map((serialized): NormalizedIOFixture => {
+      const request = { model: "gpt-4.1", instructions: "Be concise.", input };
+      return {
+        name: `Responses ${typeof input === "string" ? "string" : "array"} input with instructions (${serialized ? "JSON" : "object"})`,
+        spanIO: {
+          input: serialized ? JSON.stringify(request) : request,
+          output: undefined,
+          metadata: undefined,
+        },
+        expected: {
+          messages: [
+            {
+              source: "input",
+              role: "system",
+              parts: [{ type: "text", text: "Be concise." }],
+            },
+            {
+              source: "input",
+              role: "user",
+              parts: [{ type: "text", text: "Explain retries." }],
+            },
+          ],
+          toolDefinitions: [],
+        },
+      };
+    }),
+  ),
+  {
+    name: "does not claim application data with an input field as Responses",
+    spanIO: {
+      input: { input: "invoice", total: 42 },
+      output: undefined,
+      metadata: undefined,
+    },
+    expected: {
+      messages: [
+        {
+          source: "input",
+          role: "user",
+          parts: [{ type: "data", value: { input: "invoice", total: 42 } }],
+        },
+      ],
+      toolDefinitions: [],
+    },
+  },
+];
+
 const toolCallId = "call_weather_001";
 const customToolCallId = "call_custom_002";
 
