@@ -139,8 +139,6 @@ export function ViewPreferencesProvider({
       JSON_VIEW_PREFERENCE_STORAGE_KEY,
       DEFAULT_JSON_VIEW_PREFERENCE,
     );
-  // A stale persisted value (e.g. the retired "pretty-beta") degrades to the
-  // Formatted view rather than breaking the toggle.
   const jsonViewPreference = normalizeJsonViewPreference(
     storedJsonViewPreference,
   );

@@ -55,7 +55,6 @@ export interface LogViewToolbarProps {
   isCopyOrDownloadCacheOnly?: boolean;
   /** Callback to copy JSON */
   onCopyJson?: () => void;
-  /** Current view; only raw JSON changes the toolbar */
   currentView?: JsonViewPreference;
   /** Whether indent visualization is enabled */
   indentEnabled?: boolean;

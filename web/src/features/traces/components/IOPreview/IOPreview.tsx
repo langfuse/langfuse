@@ -171,8 +171,6 @@ export function IOPreview({
     JSON_VIEW_PREFERENCE_STORAGE_KEY,
     DEFAULT_JSON_VIEW_PREFERENCE,
   );
-  // A stale persisted value (e.g. the retired "pretty-beta") falls back to
-  // the Formatted view.
   const selectedView =
     currentView ?? normalizeJsonViewPreference(localCurrentView);
   const showViewToggle = currentView === undefined;

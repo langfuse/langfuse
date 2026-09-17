@@ -25,9 +25,6 @@
   --font-sans:
     ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
     "Segoe UI Symbol", "Noto Color Emoji";
-  /* --font-plex-mono is set on <html> by next/font in _document. The
-     fallback keeps the declaration valid where that never runs (Storybook,
-     tests), otherwise an undefined var() voids the whole font-family. */
   --font-mono:
     var(--font-plex-mono, "IBM Plex Mono"), ui-monospace, SFMono-Regular, Menlo,
     Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -105,8 +102,6 @@
   --color-qlang-number: hsl(var(--qlang-number));
   --color-qlang-keyword: hsl(var(--qlang-keyword));
 
-  /* JSON value types in the pretty table view (PrettyJsonView / ValueCell).
-     Named -value- because react18-json-view owns `--json-string` et al. */
   --color-json-value-string: var(--json-value-string);
   --color-json-value-number: var(--json-value-number);
   --color-json-value-boolean: var(--json-value-boolean);
@@ -403,9 +398,6 @@
     --qlang-number: 24 75% 42%;
     --qlang-keyword: 221 83% 53%;
 
-    /* JSON value types in the pretty table view: string=green, number=blue,
-       boolean=amber, null/undefined=gray. Dark is deliberately lower
-       saturation than the light shades, not just lighter. */
     --json-value-string: var(--color-green-800);
     --json-value-number: var(--color-blue-800);
     --json-value-boolean: var(--color-orange-800);
@@ -587,7 +579,6 @@
     --qlang-number: 27 96% 61%;
     --qlang-keyword: 213 94% 68%;
 
-    /* JSON value types (dark). See :root for the contract. */
     --json-value-string: hsl(142 40% 60%);
     --json-value-number: hsl(213 50% 68%);
     --json-value-boolean: hsl(27 50% 61%);

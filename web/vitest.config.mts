@@ -170,7 +170,6 @@ export default defineConfig({
       // interop breaks when the package is inlined (server.deps.inline
       // below, needed so vi.mock("next/router") intercepts the adapter's
       // own router import). Point at the ESM bundle instead.
-      // next/font/local is a build-time loader; outside `next` it throws.
       {
         find: /^next\/font\/local$/,
         replacement: join(

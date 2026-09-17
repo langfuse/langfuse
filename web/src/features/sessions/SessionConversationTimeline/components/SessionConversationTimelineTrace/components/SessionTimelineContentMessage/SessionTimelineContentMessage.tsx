@@ -112,9 +112,6 @@ export function SessionTimelineContentMessage({
               className={cn(
                 "min-w-0 overflow-hidden",
                 presentation.container,
-                // An expanded JSON table shrink-wraps to its narrowest column
-                // widths inside a fit-content bubble; give it the bubble's full
-                // width cap so keys and values get room instead of wrapping.
                 isJsonOnly && isJsonExpanded && "w-full",
               )}
             >

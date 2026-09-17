@@ -92,7 +92,6 @@ function getValueType(value: unknown): JsonTableRow["type"] {
   return typeof value as JsonTableRow["type"];
 }
 
-/** Plain-text collapsed preview of an array; also the `title` of the cell. */
 function arrayPreviewText(arr: unknown[]): string {
   if (arr.length === 0) return "empty list";
 
@@ -150,7 +149,6 @@ function formatShortObjectPreview(obj: Record<string, unknown>): string | null {
   return `{${fields.join(", ")}}`;
 }
 
-/** Plain-text collapsed preview of an object; also the `title` of the cell. */
 function objectPreviewText(obj: Record<string, unknown>): string {
   const keys = Object.keys(obj);
   if (keys.length === 0) return "empty object";

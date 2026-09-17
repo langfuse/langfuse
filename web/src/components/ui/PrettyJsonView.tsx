@@ -66,7 +66,6 @@ import { isLargeRenderString } from "@/src/components/ui/largeStringGate";
 import { LargeStringFallback } from "@/src/components/ui/LargeStringFallback";
 
 const INDENTATION_PER_LEVEL = 16;
-/** Width in px reserved for the chevron column at level 0. */
 const INDENTATION_BASE = 12;
 const KEY_CLASSES = "text-muted-foreground font-mono text-xs/5 wrap-break-word";
 const CELL_CLASSES =
@@ -687,9 +686,6 @@ function JsonPrettyTable({
 
   return (
     <div className={cn("w-full", !noBorder && "rounded-sm border")}>
-      {/* Auto layout so the key column sizes to its keys. The table carries
-          no header row: the section title, or the surface around an untitled
-          table, is the only frame. */}
       <table className="w-full table-auto caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto text-sm">
         {/* No visible header, so name the columns for screen readers. */}
         <thead className="sr-only">
