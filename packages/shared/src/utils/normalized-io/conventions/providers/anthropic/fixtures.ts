@@ -727,3 +727,76 @@ export const capturedTraceFixtures: NormalizedIOFixture[] = [
     },
   },
 ];
+
+export const anthropicChatMlThinkingSpellingFixture: NormalizedIOFixture = {
+  name: "normalizes ChatML thinking parts that spell the text `content`",
+  spanIO: {
+    input: JSON.stringify({
+      messages: [
+        { role: "user", content: "Which file holds the config?" },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "thinking",
+              content:
+                "The user asked for a file path; I should check the repo layout first.",
+              signature: "sig_chatml",
+            },
+            { type: "text", text: "Let me look." },
+          ],
+        },
+      ],
+    }),
+    output: JSON.stringify({
+      role: "assistant",
+      content: "It is config/app.toml.",
+      thinking: [
+        {
+          type: "thinking",
+          content: "The listing showed exactly one config file.",
+        },
+      ],
+    }),
+    metadata: undefined,
+  },
+  expected: {
+    messages: [
+      {
+        role: "user",
+        parts: [{ type: "text", text: "Which file holds the config?" }],
+        source: "input",
+      },
+      {
+        role: "assistant",
+        parts: [
+          {
+            type: "reasoning",
+            content: {
+              kind: "text",
+              text: "The user asked for a file path; I should check the repo layout first.",
+              signature: "sig_chatml",
+            },
+          },
+          { type: "text", text: "Let me look." },
+        ],
+        source: "input",
+      },
+      {
+        role: "assistant",
+        parts: [
+          { type: "text", text: "It is config/app.toml." },
+          {
+            type: "reasoning",
+            content: {
+              kind: "text",
+              text: "The listing showed exactly one config file.",
+            },
+          },
+        ],
+        source: "output",
+      },
+    ],
+    toolDefinitions: [],
+  },
+};
