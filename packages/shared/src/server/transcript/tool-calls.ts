@@ -19,6 +19,7 @@ const key = (traceId: string, id: string) => JSON.stringify([traceId, id]);
 
 export function createToolCallRegistry() {
   const calls = new Map<string, Call>();
+  const callsByThread = new WeakMap<Thread, Map<string, Call>>();
   const pending = new Map<string, { calls: Call[]; next: number }>();
   const responseTails = new WeakMap<ThreadMessage, ThreadMessage>();
 
@@ -34,6 +35,10 @@ export function createToolCallRegistry() {
     if (id && calls.has(id)) return;
     const call: Call = { thread, message };
     if (id) calls.set(id, call);
+    if (part.toolCallId) {
+      if (!callsByThread.has(thread)) callsByThread.set(thread, new Map());
+      callsByThread.get(thread)!.set(part.toolCallId, call);
+    }
     const name = key(observation.traceId, part.toolName);
     if (!pending.has(name)) pending.set(name, { calls: [], next: 0 });
     pending.get(name)!.calls.push(call);
@@ -78,7 +83,8 @@ export function createToolCallRegistry() {
     if (part.type === "tool-call" && message.source === "output")
       register(observation, part, thread, message);
     if (part.type !== "tool-result" || !part.toolCallId) return false;
-    const call = calls.get(key(observation.traceId, part.toolCallId));
+    // Replayed history can refer to calls from an earlier trace in this thread.
+    const call = callsByThread.get(thread)?.get(part.toolCallId);
     if (!call) return false;
     setResponse(call, observation, [part]);
     return true;
