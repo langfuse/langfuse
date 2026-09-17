@@ -126,9 +126,10 @@ export function ItemBadge({
   const Icon = iconMap[type] || ListTree; // Default to ListTree if unknown type
 
   // Modify this line to ensure the icon is properly sized
+  // Beside a label the icon is decoration, so it sits a step below the text.
   const iconClass = cn(
     "shrink-0",
-    iconVariants({ type }),
+    showLabel ? "text-muted-foreground" : iconVariants({ type }),
     isSmall ? "h-3 w-3" : "h-4 w-4",
     className,
   );
@@ -140,7 +141,7 @@ export function ItemBadge({
       variant="outline"
       title={label}
       className={cn(
-        "bg-background flex max-w-fit items-center gap-1 overflow-hidden border-2 whitespace-nowrap",
+        "flex max-w-fit items-center gap-1 overflow-hidden whitespace-nowrap",
         // With a label the horizontal padding is what separates the icon from the
         // text. Without one there is nothing to separate, and the padding only
         // made a square icon sit in a rectangle. `max-w-none` is what lets it be
