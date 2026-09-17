@@ -124,8 +124,10 @@ import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/Pee
 const TracesTable = lazy(
   () => import("@/src/components/table/use-cases/traces"),
 );
-const ObservationsTable = lazy(
-  () => import("@/src/components/table/use-cases/observations"),
+const ObservationsTable = lazy(() =>
+  import("@/src/features/tracing-tables").then((m) => ({
+    default: m.ObservationsTable,
+  })),
 );
 
 const EventsTable = lazy(
