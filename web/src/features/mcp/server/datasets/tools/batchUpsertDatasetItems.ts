@@ -10,6 +10,7 @@ export const [batchUpsertDatasetItemsTool, handleBatchUpsertDatasetItems] =
     name: "batchUpsertDatasetItems",
     description:
       "Upsert multiple dataset items in one dataset. Items are processed in order. The operation stops on the first failure and is not atomic.",
+    action: "datasets:CUD",
     baseSchema: BatchUpsertDatasetItemsMcpInput,
     inputSchema: BatchUpsertDatasetItemsMcpInput,
     handler: async (input, context) =>

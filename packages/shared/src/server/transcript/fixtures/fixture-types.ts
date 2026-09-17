@@ -7,10 +7,7 @@ import type { Transcript } from "../types";
  * The behavior test completes each seed with `createObservation` and converts
  * it to a domain `Observation` with `convertObservation` before building.
  *
- * `expected` is authored by hand and stays `undefined` until the semantics of
- * the case are decided. Fixtures without an expectation are still valuable:
- * they document real trees, run through the integrity checks, and turn into
- * assertions the moment the expectation is filled in.
+ * Expectations pin reviewed message ordering, thread boundaries, and provenance.
  */
 export type TranscriptFixture = {
   /** Test name. Describes the tree shape the case exercises. */
@@ -25,5 +22,5 @@ export type TranscriptFixture = {
    * order, so fixtures never re-sort.
    */
   observations: Parameters<typeof createObservation>[0][];
-  expected: Transcript | null | undefined;
+  expected: Transcript | null;
 };

@@ -33,6 +33,7 @@ export type TraceBatchStrategy = "project" | "locality";
 export type PendingTrace = {
   member: string;
   due: number;
+  estimates?: { eventUpdateCount: number; serializedEventBytes: number };
   trace: TQueueJobTypes[QueueName.TraceBatch]["payload"]["traces"][number];
 };
 
@@ -451,18 +452,29 @@ const TRACK_SCRIPT = `
   ${EXPIRE_PENDING_SCRIPT}
   local clock = redis.call('TIME')
   local now = clock[1] * 1000 + math.floor(clock[2] / 1000)
-  for i = 3, #ARGV, 4 do
+  for i = 3, #ARGV, 6 do
     local member = ARGV[i]
     local minStart = tonumber(ARGV[i + 1])
     local maxStart = tonumber(ARGV[i + 2])
+    local eventUpdateCount = tonumber(ARGV[i + 4])
+    local serializedEventBytes = tonumber(ARGV[i + 5])
     local previous = redis.call('HGET', KEYS[2], member)
     if previous then
       local state = cjson.decode(previous)
       minStart = math.min(minStart, state.minStart)
       maxStart = math.max(maxStart, state.maxStart)
+      if state.eventUpdateCount and state.serializedEventBytes then
+        eventUpdateCount = eventUpdateCount + state.eventUpdateCount
+        serializedEventBytes = serializedEventBytes + state.serializedEventBytes
+      else
+        -- Missing history cannot be reconstructed from a later update.
+        eventUpdateCount = nil
+        serializedEventBytes = nil
+      end
     end
     redis.call('HSET', KEYS[2], member, cjson.encode({
-      minStart = minStart, maxStart = maxStart, revision = ARGV[i + 3]
+      minStart = minStart, maxStart = maxStart, revision = ARGV[i + 3],
+      eventUpdateCount = eventUpdateCount, serializedEventBytes = serializedEventBytes
     }))
     redis.call('ZADD', KEYS[1], now + tonumber(ARGV[1]), member)
   end
@@ -529,9 +541,34 @@ const ACKNOWLEDGE_SCRIPT = `
   return removed
 `;
 
+function recordTrackingVolume(
+  stage: "eligible" | "sampled" | "recorded",
+  entries: Iterable<
+    readonly [
+      string,
+      { eventUpdateCount: number; serializedEventBytes: number },
+    ]
+  >,
+): void {
+  let updates = 0;
+  let bytes = 0;
+  for (const [, state] of entries) {
+    updates += state.eventUpdateCount;
+    bytes += state.serializedEventBytes;
+  }
+  recordIncrement("langfuse.trace_batch.event_updates", updates, { stage });
+  recordIncrement("langfuse.trace_batch.serialized_event_bytes", bytes, {
+    stage,
+  });
+}
+
 export async function trackTraceBatchActivity(
   projectId: string,
-  events: { traceId: string; startTimeISO: string }[],
+  events: {
+    traceId: string;
+    startTimeISO: string;
+    serializedEventBytes: number;
+  }[],
 ): Promise<void> {
   if (
     !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
@@ -539,7 +576,15 @@ export async function trackTraceBatchActivity(
   )
     return;
 
-  const bounds = new Map<string, { minStart: number; maxStart: number }>();
+  const bounds = new Map<
+    string,
+    {
+      minStart: number;
+      maxStart: number;
+      eventUpdateCount: number;
+      serializedEventBytes: number;
+    }
+  >();
   for (const event of events) {
     const start = Date.parse(event.startTimeISO);
     if (!Number.isFinite(start)) continue;
@@ -547,11 +592,15 @@ export async function trackTraceBatchActivity(
     bounds.set(event.traceId, {
       minStart: Math.min(previous?.minStart ?? start, start),
       maxStart: Math.max(previous?.maxStart ?? start, start),
+      eventUpdateCount: (previous?.eventUpdateCount ?? 0) + 1,
+      serializedEventBytes:
+        (previous?.serializedEventBytes ?? 0) + event.serializedEventBytes,
     });
   }
   if (bounds.size === 0) return;
 
   try {
+    recordTrackingVolume("eligible", bounds);
     const samplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
     // Sample by trace ID so later observations and retries keep the same decision.
     // Dispatcher and consumer process admitted work without resampling.
@@ -574,6 +623,7 @@ export async function trackTraceBatchActivity(
       bounds.size - entries.length,
       { decision: "excluded" },
     );
+    recordTrackingVolume("sampled", entries);
     if (entries.length === 0) return;
     if (!redis) throw new Error("Trace batching requires Redis");
     // Bounded scripts keep ingestion from monopolizing the global Redis slot.
@@ -593,9 +643,13 @@ export async function trackTraceBatchActivity(
             state.maxStart,
             // Unique even after dispatch deletes and a later arrival recreates state.
             randomUUID(),
+            state.eventUpdateCount,
+            state.serializedEventBytes,
           ]),
         ),
       );
+      // Count only acknowledged chunks; a timeout can leave Redis's outcome unknown.
+      recordTrackingVolume("recorded", chunk);
       recordIncrement("langfuse.trace_batch.expired_traces", expired);
       recordIncrement("langfuse.trace_batch.tracked_traces", chunk.length);
     }
@@ -765,7 +819,26 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
       recordIncrement("langfuse.trace_batch.dispatched_traces", batch.length, {
         batch_kind: batch.length === 1 ? "singleton" : "multi",
       });
+      let estimatedEventUpdateCount = 0;
+      let estimatedSerializedEventBytes = 0;
+      let unavailableEstimates = 0;
       for (const entry of batch) {
+        if (entry.estimates) {
+          estimatedEventUpdateCount += entry.estimates.eventUpdateCount;
+          estimatedSerializedEventBytes += entry.estimates.serializedEventBytes;
+          recordDistribution(
+            "langfuse.trace_batch.estimated_event_update_count",
+            entry.estimates.eventUpdateCount,
+            { scope: "trace", strategy },
+          );
+          recordDistribution(
+            "langfuse.trace_batch.estimated_serialized_event_bytes",
+            entry.estimates.serializedEventBytes,
+            { scope: "trace", strategy },
+          );
+        } else {
+          unavailableEstimates++;
+        }
         recordDistribution(
           "langfuse.trace_batch.observed_start_span_ms",
           entry.trace.maxStart - entry.trace.minStart,
@@ -775,6 +848,31 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
           "langfuse.trace_batch.due_lag_ms",
           Math.max(0, Date.now() - entry.due),
         );
+      }
+      if (unavailableEstimates === 0) {
+        recordDistribution(
+          "langfuse.trace_batch.estimated_event_update_count",
+          estimatedEventUpdateCount,
+          { scope: "batch", strategy },
+        );
+        recordDistribution(
+          "langfuse.trace_batch.estimated_serialized_event_bytes",
+          estimatedSerializedEventBytes,
+          { scope: "batch", strategy },
+        );
+      } else {
+        recordIncrement(
+          "langfuse.trace_batch.estimates_unavailable",
+          unavailableEstimates,
+          {
+            scope: "trace",
+            strategy,
+          },
+        );
+        recordIncrement("langfuse.trace_batch.estimates_unavailable", 1, {
+          scope: "batch",
+          strategy,
+        });
       }
       const removed = Number(
         await redis!.eval(
@@ -818,11 +916,22 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         if (this.stopping) return;
         const member = hydrated[i];
         const [projectId, traceId] = JSON.parse(member) as [string, string];
+        const state = JSON.parse(hydrated[i + 1]);
         hydratedCandidates.push({
           member,
           due: Number(hydrated[i + 2]),
+          estimates:
+            Number.isSafeInteger(state.eventUpdateCount) &&
+            state.eventUpdateCount >= 0 &&
+            Number.isSafeInteger(state.serializedEventBytes) &&
+            state.serializedEventBytes >= 0
+              ? {
+                  eventUpdateCount: state.eventUpdateCount,
+                  serializedEventBytes: state.serializedEventBytes,
+                }
+              : undefined,
           trace: TraceBatchTraceSchema.parse({
-            ...JSON.parse(hydrated[i + 1]),
+            ...state,
             projectId,
             traceId,
           }),
