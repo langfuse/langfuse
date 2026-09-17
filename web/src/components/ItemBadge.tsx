@@ -126,10 +126,9 @@ export function ItemBadge({
   const Icon = iconMap[type] || ListTree; // Default to ListTree if unknown type
 
   // Modify this line to ensure the icon is properly sized
-  // Beside a label the icon is decoration, so it sits a step below the text.
   const iconClass = cn(
     "shrink-0",
-    showLabel ? "text-muted-foreground" : iconVariants({ type }),
+    iconVariants({ type }),
     isSmall ? "h-3 w-3" : "h-4 w-4",
     className,
   );
@@ -153,7 +152,7 @@ export function ItemBadge({
         isSmall && showLabel && "h-4",
       )}
     >
-      <Icon className={iconClass} />
+      {!showLabel && <Icon className={iconClass} />}
       {showLabel && (
         <span className="truncate" title={displayLabel}>
           {displayLabel}
