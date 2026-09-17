@@ -7,6 +7,7 @@ use opentelemetry_proto::tonic::collector::{
 use opentelemetry_proto::tonic::{
     common::v1::any_value::Value as AttributeValue,
     metrics::v1::{ResourceMetrics, metric::Data},
+    trace::v1::ResourceSpans,
 };
 use prost::Message;
 use serde_json::Value;
@@ -83,6 +84,9 @@ impl Gateway {
                     u8::from(sampled)
                 ),
             )
+            .header("tracestate", "caller=state-canary")
+            .header("baggage", "langfuse_user_id=baggage-canary")
+            .header("langfuse-session-id", "session-canary")
             .header("authorization", "Bearer secret-auth-token")
             .body(r#"{"input":"secret-prompt-content"}"#)
             .send()
@@ -176,38 +180,9 @@ async fn exports_otlp_traces_metrics_and_correlated_content_free_logs() {
         .collect();
     assert!(!traces.is_empty(), "traces must flush on shutdown");
     assert!(!metrics.is_empty(), "metrics must flush on shutdown");
-    let spans: Vec<_> = traces
-        .iter()
-        .flat_map(|resource| &resource.scope_spans)
-        .flat_map(|scope| &scope.spans)
-        .collect();
-    assert_eq!(spans.len(), 1);
-    assert_eq!(spans[0].name, "POST /openai/v1/responses");
-    assert_eq!(
-        spans[0].parent_span_id,
-        [0x00, 0xf0, 0x67, 0xaa, 0x0b, 0xa9, 0x02, 0xb7]
-    );
-    assert_eq!(spans[0].kind, 2);
-    assert!(
-        spans[0].events.is_empty(),
-        "log events must not be exported as span events"
-    );
     let logs = gateway.logs.lock().unwrap();
-    let summaries: Vec<_> = logs
-        .iter()
-        .filter(|value| value["message"] == "gateway response started")
-        .collect();
-    assert_eq!(summaries.len(), 2);
-    assert_eq!(summaries[0]["trace_id"], "4bf92f3577b34da6a3ce929d0e0e4736");
-    assert_eq!(
-        summaries[0]["span_id"].as_str().unwrap(),
-        opentelemetry::trace::SpanId::from_bytes(spans[0].span_id.as_slice().try_into().unwrap())
-            .to_string()
-    );
-    assert_eq!(summaries[0]["status"], 503);
+    assert_operational_traces(&traces, &logs);
     let serialized = serde_json::to_string(&*logs).unwrap();
-    assert!(!serialized.contains("secret-auth-token"));
-    assert!(!serialized.contains("secret-prompt-content"));
     let exported = format!("{traces:?}{metrics:?}");
     for secret in [
         "secret-auth-token",
@@ -215,11 +190,57 @@ async fn exports_otlp_traces_metrics_and_correlated_content_free_logs() {
         "query-canary",
         "host-canary",
         "scheme-canary",
+        "state-canary",
+        "baggage-canary",
+        "session-canary",
     ] {
         assert!(!exported.contains(secret));
         assert!(!serialized.contains(secret));
     }
     assert_http_metrics(&metrics);
+}
+
+fn assert_operational_traces(traces: &[ResourceSpans], logs: &[Value]) {
+    let spans: Vec<_> = traces
+        .iter()
+        .flat_map(|resource| &resource.scope_spans)
+        .flat_map(|scope| &scope.spans)
+        .collect();
+    assert_eq!(
+        spans.len(),
+        2,
+        "incoming sampling must not control operational tracing"
+    );
+    assert_ne!(spans[0].trace_id, spans[1].trace_id);
+    for span in &spans {
+        assert_eq!(span.name, "POST /openai/v1/responses");
+        assert!(span.parent_span_id.is_empty());
+        assert!(span.trace_state.is_empty());
+        assert_eq!(span.kind, 2);
+        assert!(
+            span.events.is_empty(),
+            "log events must not be exported as span events"
+        );
+    }
+    let summaries: Vec<_> = logs
+        .iter()
+        .filter(|value| value["message"] == "gateway response started")
+        .collect();
+    assert_eq!(summaries.len(), 2);
+    for (summary, span) in summaries.iter().zip(&spans) {
+        assert_ne!(summary["trace_id"], "4bf92f3577b34da6a3ce929d0e0e4736");
+        assert_eq!(
+            summary["trace_id"],
+            opentelemetry::trace::TraceId::from_bytes(span.trace_id.as_slice().try_into().unwrap())
+                .to_string()
+        );
+        assert_eq!(
+            summary["span_id"],
+            opentelemetry::trace::SpanId::from_bytes(span.span_id.as_slice().try_into().unwrap())
+                .to_string()
+        );
+        assert_eq!(summary["status"], 503);
+    }
 }
 
 fn assert_http_metrics(metrics: &[ResourceMetrics]) {

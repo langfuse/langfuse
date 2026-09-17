@@ -177,6 +177,13 @@ export default defineConfig({
           "node_modules/next-query-params/dist/pages.esm.js",
         ),
       },
+      {
+        find: /^next\/font\/local$/,
+        replacement: join(
+          import.meta.dirname,
+          "src/__tests__/mocks/nextFontLocal.ts",
+        ),
+      },
     ],
   },
   test: {

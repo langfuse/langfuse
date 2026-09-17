@@ -178,7 +178,7 @@ impl OpenAiProvider {
         let mut capture = if route.captures_generation() {
             let mut capture = ExecutionCapture::openai_responses(&context, headers, &body);
             if let Some(telemetry) = &self.telemetry {
-                capture.deliver_to(telemetry.clone(), &context);
+                capture.deliver_to(telemetry.clone(), &context, headers);
             }
             capture
         } else {

@@ -1,17 +1,8 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/src/components/ui/alert-dialog";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
@@ -21,13 +12,11 @@ import { SimpleDataTable } from "@/src/components/table/simple-data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
-  Dialog,
   DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/src/components/ui/dialog";
 import {
   Form,
@@ -47,7 +36,7 @@ import { SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso/types";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Check, Copy, TrashIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
@@ -201,6 +190,13 @@ function SsoConfigsTable({ orgId }: { orgId: string }) {
     return map;
   }, [ssoConfigsQuery.data]);
 
+  const data: SsoConfigTableRow[] = verifiedDomains.map(
+    (domain: { domain: string }) => ({
+      domain: domain.domain,
+      config: configByDomain.get(domain.domain) ?? null,
+    }),
+  );
+
   if (verifiedDomains.length === 0) {
     return (
       <Card className="overflow-hidden">
@@ -211,84 +207,124 @@ function SsoConfigsTable({ orgId }: { orgId: string }) {
     );
   }
 
-  const data: SsoConfigTableRow[] = verifiedDomains.map(
-    (domain: { domain: string }) => ({
-      domain: domain.domain,
-      config: configByDomain.get(domain.domain) ?? null,
-    }),
-  );
-
-  const columns: LangfuseColumnDef<SsoConfigTableRow>[] = [
-    createTextTableColumn<SsoConfigTableRow>({
-      accessorKey: "domain",
-      header: "Domain",
-    }),
-    {
-      accessorKey: "config",
-      header: "Provider",
-      cell: ({ row }) =>
-        row.original.config ? (
-          <Badge variant="default">
-            {providerLabel(row.original.config.authProvider)}
-          </Badge>
-        ) : (
-          <Badge variant="secondary">Not configured</Badge>
-        ),
-    },
-    {
-      accessorKey: "config",
-      id: "updatedAt",
-      header: "Updated",
-      hideBelowMd: true,
-      cell: ({ row }) =>
-        row.original.config
-          ? row.original.config.updatedAt.toLocaleDateString()
-          : "—",
-    },
-    {
-      accessorKey: "domain",
-      id: "actions",
-      header: "",
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-2">
-          <SsoConfigDialog
-            orgId={orgId}
-            domain={row.original.domain}
-            existing={row.original.config}
-          />
-          {row.original.config ? (
-            <DeleteSsoConfigButton orgId={orgId} domain={row.original.domain} />
-          ) : null}
-        </div>
-      ),
-    },
-  ];
-
   return (
-    <Card className="mb-4 overflow-hidden">
-      <SimpleDataTable
-        columns={columns}
-        data={data}
-        isLoading={false}
-        noResults={null}
-        bodyTone="muted"
-        rowVariant="primary-hover"
-      />
-    </Card>
+    <SsoConfigDialogController orgId={orgId}>
+      {({ openDialog: openConfigDialog }) => (
+        <DeleteSsoConfigDialogController orgId={orgId}>
+          {({ openDialog: openDeleteDialog }) => {
+            const columns: LangfuseColumnDef<SsoConfigTableRow>[] = [
+              createTextTableColumn<SsoConfigTableRow>({
+                accessorKey: "domain",
+                header: "Domain",
+              }),
+              {
+                accessorKey: "config",
+                header: "Provider",
+                cell: ({ row }) =>
+                  row.original.config ? (
+                    <Badge variant="default">
+                      {providerLabel(row.original.config.authProvider)}
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">Not configured</Badge>
+                  ),
+              },
+              {
+                accessorKey: "config",
+                id: "updatedAt",
+                header: "Updated",
+                hideBelowMd: true,
+                cell: ({ row }) =>
+                  row.original.config
+                    ? row.original.config.updatedAt.toLocaleDateString()
+                    : "—",
+              },
+              {
+                accessorKey: "domain",
+                id: "actions",
+                header: "",
+                cell: ({ row }) => (
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant={row.original.config ? "outline" : "default"}
+                      onClick={() => openConfigDialog(row.original)}
+                    >
+                      {row.original.config ? "Update" : "Configure SSO"}
+                    </Button>
+                    {row.original.config ? (
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label={`Delete SSO for ${row.original.domain}`}
+                        onClick={() => openDeleteDialog(row.original.domain)}
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                  </div>
+                ),
+              },
+            ];
+
+            return (
+              <Card className="mb-4 overflow-hidden">
+                <SimpleDataTable
+                  columns={columns}
+                  data={data}
+                  isLoading={false}
+                  noResults={null}
+                  bodyTone="muted"
+                  rowVariant="primary-hover"
+                />
+              </Card>
+            );
+          }}
+        </DeleteSsoConfigDialogController>
+      )}
+    </SsoConfigDialogController>
   );
 }
 
-function SsoConfigDialog({
+function SsoConfigDialogController({
+  orgId,
+  children,
+}: {
+  orgId: string;
+  children: (control: {
+    openDialog: (config: SsoConfigTableRow) => void;
+  }) => React.ReactNode;
+}) {
+  return (
+    <DialogController<SsoConfigTableRow>
+      renderDialog={({ state, closeDialog }) => (
+        <DialogContent className="sm:max-w-xl">
+          <SsoConfigDialogContent
+            key={state.domain}
+            orgId={orgId}
+            domain={state.domain}
+            existing={state.config}
+            closeDialog={closeDialog}
+          />
+        </DialogContent>
+      )}
+    >
+      {({ openDialog }) => children({ openDialog })}
+    </DialogController>
+  );
+}
+
+function SsoConfigDialogContent({
   orgId,
   domain,
   existing,
+  closeDialog,
 }: {
   orgId: string;
   domain: string;
   existing: SsoConfigRow | null;
+  closeDialog: () => void;
 }) {
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingValues, setPendingValues] = useState<FormValues | null>(null);
   const utils = api.useUtils();
 
@@ -314,12 +350,6 @@ function SsoConfigDialog({
     resolver: zodResolver(formSchema),
     defaultValues,
   });
-  // Reset the form when the dialog reopens against new defaults (e.g. user
-  // toggled between Configure and Update without remounting the component).
-  useEffect(() => {
-    if (dialogOpen) form.reset(defaultValues);
-  }, [dialogOpen, defaultValues, form]);
-
   const selectedProvider = form.watch("authProvider");
   const providerSpec = useMemo(
     () =>
@@ -339,8 +369,7 @@ function SsoConfigDialog({
         title: existing ? "SSO updated" : "SSO configured",
         description: `Active for @${domain} within 1 hour.`,
       });
-      setDialogOpen(false);
-      setConfirmOpen(false);
+      closeDialog();
       setPendingValues(null);
       form.reset();
     },
@@ -352,12 +381,7 @@ function SsoConfigDialog({
     },
   });
 
-  function onSubmit(values: FormValues) {
-    setPendingValues(values);
-    setConfirmOpen(true);
-  }
-
-  function handleConfirm() {
+  async function handleConfirm() {
     if (!pendingValues) return;
     const payload = buildSsoPayload(domain, pendingValues);
     const parsed = SsoProviderSchema.safeParse(payload);
@@ -395,21 +419,26 @@ function SsoConfigDialog({
           firstIssue.message,
         );
       }
-      setConfirmOpen(false);
       return;
     }
-    saveMutation.mutate({ orgId, payload: parsed.data });
+    await saveMutation.mutateAsync({ orgId, payload: parsed.data });
   }
 
   return (
-    <>
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogTrigger asChild>
-          <Button size="sm" variant={existing ? "outline" : "default"}>
-            {existing ? "Update" : "Configure SSO"}
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-xl">
+    <ConfirmationDialogController
+      title={
+        existing
+          ? `Replace SSO for @${domain}?`
+          : `Activate SSO for @${domain}?`
+      }
+      text={`Saving will activate SSO for @${domain} within 1 hour. Every user at that domain will be redirected to your identity provider on sign-in - they will not be able to use Google, GitHub, password, or any other method until SSO is deleted.${existing ? " The new credentials will replace the active configuration." : ""} Tip: sign in via the new SSO in a second browser to confirm it works before closing this tab.`}
+      confirmLabel={existing ? "Replace" : "Activate SSO"}
+      variant="default"
+      loading={saveMutation.isPending}
+      onConfirm={handleConfirm}
+    >
+      {({ openDialog }) => (
+        <>
           <DialogHeader>
             <DialogTitle>
               {existing
@@ -418,7 +447,12 @@ function SsoConfigDialog({
             </DialogTitle>
           </DialogHeader>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)}>
+            <form
+              onSubmit={form.handleSubmit((values) => {
+                setPendingValues(values);
+                openDialog();
+              })}
+            >
               <DialogBody className="space-y-4">
                 <FormField
                   control={form.control}
@@ -580,11 +614,7 @@ function SsoConfigDialog({
                 ) : null}
               </DialogBody>
               <DialogFooter>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setDialogOpen(false)}
-                >
+                <Button type="button" variant="ghost" onClick={closeDialog}>
                   Cancel
                 </Button>
                 <Button type="submit" loading={saveMutation.isPending}>
@@ -593,48 +623,9 @@ function SsoConfigDialog({
               </DialogFooter>
             </form>
           </Form>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {existing
-                ? `Replace SSO for @${domain}?`
-                : `Activate SSO for @${domain}?`}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              <span className="block">
-                Saving will activate SSO for{" "}
-                <span className="font-bold">@{domain}</span> within 1 hour.
-                Every user at that domain will be redirected to your identity
-                provider on sign-in &mdash; they will not be able to use Google,
-                GitHub, password, or any other method until SSO is deleted.
-              </span>
-              {existing ? (
-                <span className="mt-2 block">
-                  The new credentials will replace the active configuration.
-                </span>
-              ) : null}
-              <span className="mt-2 block">
-                Tip: sign in via the new SSO in a second browser to confirm it
-                works before closing this tab.
-              </span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirm}
-              disabled={saveMutation.isPending}
-            >
-              {existing ? "Replace" : "Activate SSO"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+        </>
+      )}
+    </ConfirmationDialogController>
   );
 }
 
@@ -696,13 +687,16 @@ function CopyableCallbackUrl({ value }: { value: string }) {
   );
 }
 
-function DeleteSsoConfigButton({
+function DeleteSsoConfigDialogController({
   orgId,
-  domain,
+  children,
 }: {
   orgId: string;
-  domain: string;
+  children: (control: {
+    openDialog: (domain: string) => void;
+  }) => React.ReactNode;
 }) {
+  const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
   const utils = api.useUtils();
 
   const deleteMutation = api.ssoConfig.delete.useMutation({
@@ -710,7 +704,7 @@ function DeleteSsoConfigButton({
       utils.ssoConfig.get.invalidate({ orgId });
       showSuccessToast({
         title: "SSO disabled",
-        description: `SSO for @${domain} has been removed.`,
+        description: `SSO for @${selectedDomain} has been removed.`,
       });
     },
     onError: (err) => {
@@ -719,35 +713,26 @@ function DeleteSsoConfigButton({
   });
 
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label={`Delete SSO for ${domain}`}
-        >
-          <TrashIcon className="h-4 w-4" />
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Remove SSO for @{domain}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Users at this domain will be able to sign in with any enabled method
-            again. Active sessions are not invalidated.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => deleteMutation.mutate({ orgId, domain })}
-            disabled={deleteMutation.isPending}
-          >
-            Remove
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmationDialogController
+      title={`Remove SSO for @${selectedDomain ?? "this domain"}?`}
+      text="Users at this domain will be able to sign in with any enabled method again. Active sessions are not invalidated."
+      confirmLabel="Remove"
+      variant="destructive"
+      loading={deleteMutation.isPending}
+      onConfirm={async () => {
+        if (!selectedDomain) return;
+        await deleteMutation.mutateAsync({ orgId, domain: selectedDomain });
+      }}
+    >
+      {({ openDialog }) =>
+        children({
+          openDialog: (domain) => {
+            setSelectedDomain(domain);
+            openDialog();
+          },
+        })
+      }
+    </ConfirmationDialogController>
   );
 }
 

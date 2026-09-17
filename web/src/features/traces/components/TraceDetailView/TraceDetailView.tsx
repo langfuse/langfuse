@@ -42,7 +42,10 @@ import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 // Contexts and hooks
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import {
+  type DetailTab,
+  useSelection,
+} from "@/src/features/traces/contexts/SelectionContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
@@ -78,7 +81,11 @@ export function TraceDetailView({
 }: TraceDetailViewProps) {
   const router = useRouter();
   // Tab and view state from URL (via SelectionContext)
-  const { selectedTab, setSelectedTab } = useSelection();
+  const { selectedTab: globalSelectedTab, setSelectedTab } = useSelection();
+  // `attributes` is observation-only; Radix renders nothing for a value with
+  // no Content, which blanks the panel.
+  const selectedTab =
+    globalSelectedTab === "attributes" ? "preview" : globalSelectedTab;
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
@@ -97,8 +104,6 @@ export function TraceDetailView({
 
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
-  // The Formatted view shares the pretty layout; JSON views differ.
-  const isPrettyLikeView = currentView === "pretty";
 
   const selectedViewTab =
     jsonViewPreference === "pretty" ? "pretty" : ("json" as const);
@@ -235,7 +240,7 @@ export function TraceDetailView({
         ...analyticsDimensions,
       });
     }
-    setSelectedTab(value as "preview" | "log" | "scores");
+    setSelectedTab(value as DetailTab);
   };
 
   return (
@@ -249,7 +254,6 @@ export function TraceDetailView({
           {/* Header section (extracted component) */}
           <TraceDetailViewHeader
             trace={trace}
-            observations={observations}
             parsedMetadata={parsedMetadata}
             projectId={projectId}
             traceScores={traceScores}
@@ -394,22 +398,12 @@ export function TraceDetailView({
                     : "overflow-auto pb-4"
                 }`}
               >
-                {/* Tags Section - scrolls with content except in JSON Beta (virtualized) */}
-                {trace.tags.length > 0 && (
-                  <>
-                    <div
-                      className={`px-2 pt-2 text-sm font-bold ${!isPrettyLikeView ? "shrink-0" : ""}`}
-                    >
-                      Tags
-                    </div>
-                    <div
-                      className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${!isPrettyLikeView ? "shrink-0" : ""}`}
-                    >
-                      <TagList selectedTags={trace.tags} isLoading={false} />
-                    </div>
-                  </>
+                {isAnnotationMode && trace.tags.length > 0 && (
+                  <div className="space-y-1 px-2 pt-1 pb-2">
+                    <div className="text-sm font-bold">Tags</div>
+                    <TagList selectedTags={trace.tags} isLoading={false} />
+                  </div>
                 )}
-
                 {/* I/O Preview (includes metadata in both views) */}
                 <IOPreview
                   key={trace.id + "-io"}

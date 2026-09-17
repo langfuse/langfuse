@@ -35,6 +35,14 @@ async fn preserves_opaque_bytes_and_isolates_request_and_response_headers() {
             "openai-project",
             "x-api-key",
             "x-forwarded-host",
+            "traceparent",
+            "tracestate",
+            "baggage",
+            "langfuse-trace-name",
+            "langfuse-session-id",
+            "langfuse-user-id",
+            "langfuse-tags",
+            "langfuse-metadata",
         ] {
             assert!(!request.headers().contains_key(name), "forwarded {name}");
         }
@@ -61,6 +69,17 @@ async fn preserves_opaque_bytes_and_isolates_request_and_response_headers() {
         ("openai-project", "wrong-project"),
         ("x-api-key", "wrong-key"),
         ("x-forwarded-host", "attacker.example"),
+        (
+            "traceparent",
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+        ),
+        ("tracestate", "caller=private"),
+        ("baggage", "langfuse_user_id=private"),
+        ("langfuse-trace-name", "private-trace"),
+        ("langfuse-session-id", "private-session"),
+        ("langfuse-user-id", "private-user"),
+        ("langfuse-tags", "private-tag"),
+        ("langfuse-metadata", "private:value"),
         ("content-type", "application/json"),
         ("accept-encoding", "gzip"),
         ("connection", "accept-encoding"),
@@ -348,7 +367,7 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
         ),
         (
             "text/event-stream",
-            "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp-1\",\"model\":\"actual\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":2,\"output_tokens\":1,\"total_tokens\":3}}}\n\n",
+            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp-1\",\"model\":\"actual\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":2,\"output_tokens\":1,\"total_tokens\":3}}}\n\n",
             503,
         ),
     ] {
@@ -382,11 +401,25 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
         .await;
         let relay = provider(&upstream, 1).with_telemetry(telemetry.clone());
         let context = resolved_request_context_with_mode("provider-secret", "full").await;
+        let headers = HeaderMap::from_iter([
+            (
+                axum::http::HeaderName::from_static("traceparent"),
+                HeaderValue::from_static("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"),
+            ),
+            (
+                axum::http::HeaderName::from_static("tracestate"),
+                HeaderValue::from_static("caller=state"),
+            ),
+            (
+                axum::http::HeaderName::from_static("langfuse-user-id"),
+                HeaderValue::from_static("caller-user"),
+            ),
+        ]);
         let response = relay
             .forward(
                 relay.try_admit().unwrap(),
                 context,
-                &HeaderMap::new(),
+                &headers,
                 Bytes::from_static(br#"{"model":"requested","input":"hello"}"#),
             )
             .await
@@ -404,7 +437,7 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
             .await
             .unwrap()
             .unwrap();
-        assert_completed_upload(&payload);
+        assert_completed_upload(&payload, content_type == "text/event-stream");
         release.notify_one();
         telemetry
             .shutdown(Instant::now() + Duration::from_secs(1))
@@ -488,9 +521,13 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
         )
         .unwrap();
         assert_eq!(
-            metadata["relay_outcome"],
-            if cancelled { "cancelled" } else { "timeout" }
+            attrs
+                .iter()
+                .find(|a| a["key"] == "langfuse.observation.level")
+                .unwrap()["value"]["stringValue"],
+            if cancelled { "WARNING" } else { "ERROR" }
         );
+        assert!(metadata.get("relay_outcome").is_none());
         telemetry
             .shutdown(Instant::now() + Duration::from_secs(1))
             .await;
@@ -590,8 +627,22 @@ async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
     assert_eq!(upstream.calls(), 2);
 }
 
-fn assert_completed_upload(payload: &serde_json::Value) {
+fn assert_completed_upload(payload: &serde_json::Value, streaming: bool) {
     use serde_json::{Value, json};
+
+    let generation = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+    assert_eq!(generation["traceId"], "4bf92f3577b34da6a3ce929d0e0e4736");
+    assert_eq!(generation["parentSpanId"], "00f067aa0ba902b7");
+    assert_eq!(generation["traceState"], "caller=state");
+    assert!(
+        generation["attributes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|attribute| {
+                attribute["key"] == "user.id" && attribute["value"]["stringValue"] == "caller-user"
+            })
+    );
     let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
     let attrs = span["attributes"].as_array().unwrap();
     assert!(
@@ -600,10 +651,11 @@ fn assert_completed_upload(payload: &serde_json::Value) {
             .any(|a| a["key"] == "langfuse.observation.model.name"
                 && a["value"]["stringValue"] == "actual")
     );
-    assert!(
+    assert_eq!(
         attrs
             .iter()
-            .any(|a| a["key"] == "langfuse.observation.completion_start_time")
+            .any(|a| a["key"] == "langfuse.observation.completion_start_time"),
+        streaming,
     );
     let metadata: Value = serde_json::from_str(
         attrs
@@ -614,9 +666,20 @@ fn assert_completed_upload(payload: &serde_json::Value) {
             .unwrap(),
     )
     .unwrap();
-    assert_eq!(metadata["relay_outcome"], "eof");
+    assert!(metadata.get("relay_outcome").is_none());
+    assert!(metadata.get("native_usage").is_none());
+    assert_eq!(metadata["langfuse.gateway.provider.response_id"], "resp-1");
+    let usage: Value = serde_json::from_str(
+        attrs
+            .iter()
+            .find(|a| a["key"] == "langfuse.observation.usage_details")
+            .unwrap()["value"]["stringValue"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(
-        metadata["native_usage"],
+        usage,
         json!({"input_tokens":2,"output_tokens":1,"total_tokens":3})
     );
     for secret in [

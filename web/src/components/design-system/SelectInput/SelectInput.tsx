@@ -39,6 +39,8 @@ type SelectInputProps<V> = {
   options: SelectInputNode<V>[];
   onValueChange: (newValue: V) => void;
   placeholder: string;
+  emptyMessage?: string;
+  error?: boolean;
 } & Pick<
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>,
   "id" | "aria-describedby" | "aria-invalid" | "aria-label" | "disabled"
@@ -54,6 +56,8 @@ function SelectInputInner<V extends string>(
     options,
     onValueChange,
     placeholder,
+    emptyMessage = "No options available.",
+    error,
     ...triggerProps
   }: SelectInputProps<V>,
   ref: React.ForwardedRef<HTMLButtonElement>,
@@ -67,6 +71,9 @@ function SelectInputInner<V extends string>(
   const selectedOption = options
     .flatMap((node) => (isSelectGroup(node) ? node.options : [node]))
     .find((option) => option.value === value);
+  const hasOptions = options.some((node) =>
+    isSelectGroup(node) ? node.options.length > 0 : true,
+  );
   const renderNode = useCallback(
     (
       node: SelectInputNode<V>,
@@ -124,7 +131,7 @@ function SelectInputInner<V extends string>(
       open={open}
       onOpenChange={setOpen}
     >
-      <InputControl contentLayout="spread">
+      <InputControl contentLayout="spread" error={error}>
         <SelectPrimitive.Trigger
           ref={ref}
           title={selectedOption?.label}
@@ -162,8 +169,17 @@ function SelectInputInner<V extends string>(
               bottom ? "after:opacity-100" : "after:opacity-0",
             )}
           >
-            {options.map((node, index) =>
-              renderNode(node, index > 0 && isSelectGroup(options[index - 1])),
+            {!hasOptions ? (
+              <div className="text-muted-foreground py-6 text-center text-sm">
+                {emptyMessage}
+              </div>
+            ) : (
+              options.map((node, index) =>
+                renderNode(
+                  node,
+                  index > 0 && isSelectGroup(options[index - 1]),
+                ),
+              )
             )}
           </SelectPrimitive.Viewport>
           <SelectPrimitive.ScrollDownButton

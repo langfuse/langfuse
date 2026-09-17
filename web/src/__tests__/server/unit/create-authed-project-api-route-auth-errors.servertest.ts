@@ -11,6 +11,7 @@ const {
   mockLoggerDebug,
   mockLoggerInfo,
   mockRecordIncrement,
+  mockExtractPublicApiCallerAttribution,
   mockFindOrganization,
   mockCreateStructuredPublicApiAuthError,
   mockSendStructuredPublicApiErrorResponse,
@@ -23,6 +24,17 @@ const {
   mockLoggerDebug: vi.fn(),
   mockLoggerInfo: vi.fn(),
   mockRecordIncrement: vi.fn(),
+  mockExtractPublicApiCallerAttribution: vi.fn(
+    (): {
+      userAgent?: string;
+      sdkName?: string;
+      sdkVersion?: string;
+    } => ({
+      userAgent: "langfuse-python/4.8.1",
+      sdkName: "python",
+      sdkVersion: "4.8.1",
+    }),
+  ),
   mockFindOrganization: vi.fn(),
   mockCreateStructuredPublicApiAuthError: vi.fn((value) => value),
   mockSendStructuredPublicApiErrorResponse: vi.fn(),
@@ -64,6 +76,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
     error: vi.fn(),
   },
   recordIncrement: mockRecordIncrement,
+  extractPublicApiCallerAttribution: mockExtractPublicApiCallerAttribution,
   traceException: mockTraceException,
   contextWithLangfuseProps: vi.fn(() => ({})),
   ClickHouseClientManager: {
@@ -173,6 +186,9 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       url: "/api/public/test",
       headers: {
         authorization: "Basic test",
+        "user-agent": "langfuse-python/4.8.1",
+        "x-langfuse-sdk-name": "langfuse-python",
+        "x-langfuse-sdk-version": "4.8.1",
       },
       query: {},
     });
@@ -213,6 +229,17 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(mockRecordIncrement).toHaveBeenCalledWith(
       "langfuse.public_api.legacy_get_rejected",
       1,
+      {
+        sdkName: "python",
+        sdkVersion: "4.8.1",
+      },
+    );
+    expect(mockExtractPublicApiCallerAttribution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        "user-agent": "langfuse-python/4.8.1",
+        "x-langfuse-sdk-name": "langfuse-python",
+        "x-langfuse-sdk-version": "4.8.1",
+      }),
     );
     expect(mockFindOrganization).not.toHaveBeenCalled();
     expect(mockLoggerInfo).toHaveBeenCalledWith(
@@ -224,7 +251,33 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
         apiPath: "GET /api/public/test",
         organizationCreatedAt: "2026-09-16T00:00:00.000Z",
         cutoff: "2026-09-16T00:00:00.000Z",
+        userAgent: "langfuse-python/4.8.1",
+        sdkName: "python",
+        sdkVersion: "4.8.1",
       },
+    );
+  });
+
+  it("keeps a caller-controlled user agent out of the rejection counter tags", async () => {
+    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockEnv.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED = "true";
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+    const unrecognizedClient = `curl/${"x".repeat(251)}`;
+    mockExtractPublicApiCallerAttribution.mockReturnValueOnce({
+      userAgent: unrecognizedClient,
+    });
+
+    const res = await callRoute({ deprecation });
+
+    expect(res.statusCode).toBe(410);
+    expect(mockRecordIncrement).toHaveBeenCalledWith(
+      "langfuse.public_api.legacy_get_rejected",
+      1,
+      {},
+    );
+    expect(mockLoggerInfo).toHaveBeenCalledWith(
+      "Rejected legacy GET API request for organization created at or after cutoff",
+      expect.objectContaining({ userAgent: unrecognizedClient }),
     );
   });
 
