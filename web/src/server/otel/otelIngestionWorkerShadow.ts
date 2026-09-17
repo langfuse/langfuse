@@ -90,6 +90,8 @@ async function runWorkerPreload(): Promise<void> {
 }
 
 export function preloadOtelIngestionWorkerShadow(): Promise<void> {
-  workerPreloadPromise ??= runWorkerPreload();
+  if (!workerPreloadPromise) {
+    workerPreloadPromise = runWorkerPreload();
+  }
   return workerPreloadPromise;
 }
