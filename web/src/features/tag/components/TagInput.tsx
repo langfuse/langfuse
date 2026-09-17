@@ -58,7 +58,7 @@ export const TagInput = React.forwardRef<
                 onClick={allowTagRemoval ? () => removeTag(tag) : undefined}
               >
                 {tag}
-                {allowTagRemoval && <X className="ml-1 h-3 w-3" />}
+                {allowTagRemoval && <X className="icon-sm ml-1" />}
               </Button>
             ))}
           </div>

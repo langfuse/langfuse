@@ -16,7 +16,7 @@ export function ConversationActivityIndicator({
   if (state === "approval") {
     return (
       <ConversationActivityIndicatorSlot label="Needs your approval">
-        <CircleAlert className="text-primary-accent size-3" />
+        <CircleAlert className="text-primary-accent icon-sm" />
       </ConversationActivityIndicatorSlot>
     );
   }
@@ -24,7 +24,7 @@ export function ConversationActivityIndicator({
   if (state === "running") {
     return (
       <ConversationActivityIndicatorSlot label="Working">
-        <Loader2 className="text-muted-foreground size-3 animate-spin" />
+        <Loader2 className="text-muted-foreground icon-sm animate-spin" />
       </ConversationActivityIndicatorSlot>
     );
   }

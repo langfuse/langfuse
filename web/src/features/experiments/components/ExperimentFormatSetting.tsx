@@ -24,7 +24,7 @@ export const ExperimentFormatSetting = ({
       aria-label="JSON"
       className="h-8 gap-1.5 rounded-r-none px-2.5 text-xs"
     >
-      <Braces className="h-3.5 w-3.5" />
+      <Braces className="icon-md" />
       JSON
     </ToggleGroupItem>
     <ToggleGroupItem
@@ -32,7 +32,7 @@ export const ExperimentFormatSetting = ({
       aria-label="Formatted"
       className="h-8 gap-1.5 rounded-l-none border-l-0 px-2.5 text-xs"
     >
-      <Text className="h-3.5 w-3.5" />
+      <Text className="icon-md" />
       Formatted
     </ToggleGroupItem>
   </ToggleGroup>

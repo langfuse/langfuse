@@ -320,7 +320,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
               >
                 <a href={url} target="_blank" rel="noopener noreferrer">
                   {openActionLabel ? <span>{openActionLabel}</span> : null}
-                  <ExternalLink className="h-3 w-3" />
+                  <ExternalLink className="icon-sm" />
                 </a>
               </Button>
             ) : (
@@ -332,7 +332,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
                 title="Open in new tab"
               >
                 {openActionLabel ? <span>{openActionLabel}</span> : null}
-                <ExternalLink className="h-3 w-3" />
+                <ExternalLink className="icon-sm" />
               </Button>
             )}
           </div>

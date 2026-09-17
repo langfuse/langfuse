@@ -749,6 +749,22 @@
   }
 }
 
+/* Icon size scale. icon-md is the default; anything outside the scale is a deliberate exception. */
+@utility icon-sm {
+  width: 0.75rem; /* 12px */
+  height: 0.75rem;
+}
+
+@utility icon-md {
+  width: 0.875rem; /* 14px */
+  height: 0.875rem;
+}
+
+@utility icon-lg {
+  width: 1rem; /* 16px */
+  height: 1rem;
+}
+
 /* A scrollport that says so. Overlay scrollbars — the platform default on
    macOS, and Chrome's default everywhere — paint nothing until a scroll is
    already under way, so a region holding more than it shows is

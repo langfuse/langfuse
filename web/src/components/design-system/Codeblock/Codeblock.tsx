@@ -49,9 +49,9 @@ const CodeBlock: FC<Props> = memo(
         onClick={handleCopy}
       >
         {isCopied ? (
-          <Check className="h-3 w-3" />
+          <Check className="icon-sm" />
         ) : (
-          <Copy className="h-3 w-3" />
+          <Copy className="icon-sm" />
         )}
         <span className="sr-only">Copy code</span>
       </Button>

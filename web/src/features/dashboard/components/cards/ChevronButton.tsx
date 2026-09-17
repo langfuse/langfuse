@@ -18,11 +18,11 @@ export const ExpandListButton = ({
     >
       {isExpanded ? (
         <>
-          <ChevronUp className="mr-2 h-4 w-4" /> See less
+          <ChevronUp className="icon-lg mr-2" /> See less
         </>
       ) : (
         <>
-          <ChevronDown className="mr-2 h-4 w-4" /> {expandText}
+          <ChevronDown className="icon-lg mr-2" /> {expandText}
         </>
       )}
     </Button>

@@ -96,7 +96,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
         }}
         aria-label="Close"
       >
-        <X size={14} />
+        <X className="icon-md" />
       </button>
     </div>
   );

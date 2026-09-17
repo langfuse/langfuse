@@ -46,7 +46,7 @@ export const CreateOrEditAnnotationQueueButton = ({
       {({ disabled, openDialog }) =>
         isTableAction ? (
           <IconOnlyButton
-            icon={<Pen className="h-4 w-4" />}
+            icon={<Pen className="icon-lg" />}
             label="Edit"
             aria-label="edit"
             disabledReason={disabled?.reason}
@@ -61,9 +61,9 @@ export const CreateOrEditAnnotationQueueButton = ({
             onClick={openDialog}
             icon={
               queueId ? (
-                <Edit className="h-4 w-4" aria-hidden="true" />
+                <Edit className="icon-lg" aria-hidden="true" />
               ) : (
-                <PlusIcon className="h-4 w-4" aria-hidden="true" />
+                <PlusIcon className="icon-lg" aria-hidden="true" />
               )
             }
             hasAccess={!disabled}

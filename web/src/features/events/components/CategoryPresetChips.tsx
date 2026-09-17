@@ -360,7 +360,7 @@ export function CategoryPresetChips({
                       </span>
                       {isPresetActive && (
                         <Check
-                          className="mt-0.5 h-4 w-4 shrink-0"
+                          className="icon-lg mt-0.5 shrink-0"
                           aria-hidden
                         />
                       )}

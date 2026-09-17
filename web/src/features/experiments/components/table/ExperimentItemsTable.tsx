@@ -2023,7 +2023,7 @@ export default function ExperimentItemsTable({
           type: BatchActionType.Create,
           label: "Evaluate",
           description: "Run evaluators on selected items",
-          icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
+          icon: <LightbulbIcon className="icon-lg sm:mr-2" />,
           customDialog: true,
           accessCheck: {
             scope: "evaluationRule:CUD",

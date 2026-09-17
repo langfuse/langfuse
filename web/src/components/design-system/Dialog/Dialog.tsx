@@ -124,7 +124,7 @@ function DialogRoot({
               className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -mt-2 -mr-2 inline-flex size-8 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
               tabIndex={-1}
             >
-              <X className="size-4" />
+              <X className="icon-lg" />
               <span className="sr-only">Close</span>
             </DialogPrimitive.Close>
           </div>

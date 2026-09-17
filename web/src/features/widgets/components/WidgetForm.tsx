@@ -918,7 +918,7 @@ export function WidgetForm({
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="sm">
-                        <Sparkles className="mr-2 h-4 w-4" />
+                        <Sparkles className="icon-lg mr-2" />
                         Presets
                       </Button>
                     </PopoverTrigger>
@@ -1445,7 +1445,7 @@ function PivotMetricsField({
                   onClick={() => removeSlot(index)}
                   className="text-muted-foreground hover:text-destructive h-6 w-6 p-0"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="icon-lg" />
                 </Button>
               )}
             </div>
@@ -1535,7 +1535,7 @@ function PivotMetricsField({
             onClick={addSlot}
             className="w-full"
           >
-            <Plus className="mr-1 h-3 w-3" />
+            <Plus className="icon-sm mr-1" />
             Add Metric {metrics.length + 1}
           </Button>
         )}

@@ -61,7 +61,7 @@ export function StringMapEditor({
                   updateRows(entries.filter((_, i) => i !== index))
                 }
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="icon-lg" />
               </Button>
             </div>
           ))}
@@ -74,7 +74,7 @@ export function StringMapEditor({
         onClick={() => updateRows([...entries, ["new_key", ""]])}
         className="w-full"
       >
-        <PlusCircle className="mr-2 h-4 w-4" />
+        <PlusCircle className="icon-lg mr-2" />
         Add Attribute
       </Button>
     </div>

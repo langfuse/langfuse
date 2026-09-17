@@ -87,7 +87,7 @@ const CommandInput = React.forwardRef<
       "cmdk-input-wrapper",
     )}
   >
-    <Search className="absolute top-1/2 left-2 mr-2 h-3.5 w-3.5 shrink-0 -translate-y-1/2 opacity-50" />
+    <Search className="icon-md absolute top-1/2 left-2 mr-2 shrink-0 -translate-y-1/2 opacity-50" />
     <CommandPrimitive.Input
       ref={ref}
       className={cn(
@@ -163,7 +163,7 @@ const CommandItem = React.forwardRef<
     ref={ref}
     className={cn(
       className,
-      "data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+      "data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground [&_svg]:icon-lg relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
     )}
     {...props}
   />

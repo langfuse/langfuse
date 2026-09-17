@@ -133,7 +133,7 @@ export default function PromptsWithFolder() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" disabled={isExporting}>
-                    <UploadIcon className="mr-1 h-4 w-4" />
+                    <UploadIcon className="icon-lg mr-1" />
                     {isExporting ? "Exporting…" : "Export"}
                   </Button>
                 </DropdownMenuTrigger>
@@ -156,14 +156,14 @@ export default function PromptsWithFolder() {
                     title={disabled?.reason}
                     onClick={openDialog}
                   >
-                    <Download className="mr-1 h-4 w-4" />
+                    <Download className="icon-lg mr-1" />
                     Import
                   </Button>
                 )}
               </ImportPromptsButtonDialogController>
             )}
             <ActionButton
-              icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+              icon={<PlusIcon className="icon-lg" aria-hidden="true" />}
               hasAccess={hasCUDAccess}
               href={`/project/${projectId}/prompts/new${folderQueryParam ? `?folder=${encodeURIComponent(folderQueryParam)}` : ""}`}
               trackingEventName="prompts:new_form_open"

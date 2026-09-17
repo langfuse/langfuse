@@ -403,7 +403,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                       >
                         {filter.key || keyPlaceholder}
                       </span>
-                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      <ChevronDown className="icon-lg ml-2 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-[200px] p-0" align="start">
@@ -429,7 +429,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                             >
                               <Check
                                 className={cn(
-                                  "mr-2 h-4 w-4",
+                                  "icon-lg mr-2",
                                   option === filter.key
                                     ? "visible"
                                     : "invisible",
@@ -474,7 +474,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                 onClick={() => handleRemoveFilter(index)}
                 className="h-8 w-8 p-0"
               >
-                <X className="h-4 w-4" />
+                <X className="icon-lg" />
               </Button>
             </div>
 
@@ -650,7 +650,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
         variant="outline"
         className="w-full"
       >
-        <Plus className="mr-2 h-4 w-4" />
+        <Plus className="icon-lg mr-2" />
         Add filter
       </Button>
     </div>

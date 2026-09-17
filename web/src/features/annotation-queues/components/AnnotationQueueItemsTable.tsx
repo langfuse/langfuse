@@ -76,7 +76,7 @@ const QueueItemTableMultiSelectAction = ({
               setOpen(true);
             }}
           >
-            <Trash className="mr-2 h-4 w-4" />
+            <Trash className="icon-lg mr-2" />
             <span>Delete</span>
           </DropdownMenuItem>
         </DropdownMenuContent>

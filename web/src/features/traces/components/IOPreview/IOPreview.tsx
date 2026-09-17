@@ -349,11 +349,11 @@ export function IOPreview({
               }}
               title="Dismiss"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="icon-md" />
             </Button>
             <div className="flex w-full flex-row items-center gap-2 pr-6">
               <div className="bg-accent flex h-8 w-8 items-center justify-center rounded-full">
-                <BookOpen className="text-muted-foreground h-4 w-4" />
+                <BookOpen className="text-muted-foreground icon-lg" />
               </div>
               <h3 className="text-sm font-bold">
                 Looks like this trace didn&apos;t receive an input or output.

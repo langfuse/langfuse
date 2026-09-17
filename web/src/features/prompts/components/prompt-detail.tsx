@@ -364,7 +364,7 @@ export const PromptDetail = ({
                 className="grid w-full place-items-center md:grid-flow-col"
                 href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
               >
-                <Plus className="h-4 w-4 md:mr-2" />
+                <Plus className="icon-lg md:mr-2" />
                 <span className="hidden lg:inline">New version</span>
               </Link>
             </Button>
@@ -473,9 +473,9 @@ export const PromptDetail = ({
                             : "cursor-pointer",
                         )}
                       >
-                        <Terminal className="h-4 w-4" />
+                        <Terminal className="icon-lg" />
                         <span className="hidden md:inline">Playground</span>
-                        <ChevronDown className="h-3 w-3" />
+                        <ChevronDown className="icon-sm" />
                       </Button>
                     </Trigger>
                   )}
@@ -491,7 +491,7 @@ export const PromptDetail = ({
                         disabled={!hasExperimentWriteAccess}
                         onClick={() => capture("dataset_run:new_form_open")}
                       >
-                        <FlaskConical className="h-4 w-4" />
+                        <FlaskConical className="icon-lg" />
                         <span className="hidden md:ml-2 md:inline">
                           Run experiment
                         </span>
@@ -539,10 +539,10 @@ export const PromptDetail = ({
                       className="gap-1"
                     >
                       {disabled ? (
-                        <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                        <MessageSquareOff className="text-muted-foreground icon-lg" />
                       ) : (
                         <>
-                          <MessageSquare className="h-4 w-4" />
+                          <MessageSquare className="icon-lg" />
                           <span>Add comment</span>
                           {getNumberFromMap(commentCounts, prompt.id) ? (
                             <ActionButtonCountBadge
@@ -559,7 +559,7 @@ export const PromptDetail = ({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="icon">
-                      <MoreVertical className="h-4 w-4" />
+                      <MoreVertical className="icon-lg" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent

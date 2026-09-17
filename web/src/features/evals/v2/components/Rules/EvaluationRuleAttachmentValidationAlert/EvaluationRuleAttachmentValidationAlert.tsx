@@ -23,7 +23,7 @@ export function EvaluationRuleAttachmentValidationAlert({
         aria-label="Dismiss validation warning"
         onClick={onDismiss}
       >
-        <X className="size-4 stroke-current" aria-hidden="true" />
+        <X className="icon-lg stroke-current" aria-hidden="true" />
       </button>
       <Alert.Title>Review evaluator variable mapping</Alert.Title>
       <Alert.Description>

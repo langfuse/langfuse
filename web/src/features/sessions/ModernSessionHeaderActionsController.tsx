@@ -103,7 +103,7 @@ export function ModernSessionHeaderActionsController({
             });
           }}
         >
-          <Share2 className="mr-2 h-3.5 w-3.5" />
+          <Share2 className="icon-md mr-2" />
           {isPublic ? "Unshare (make private)" : "Share (make public)"}
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -112,7 +112,7 @@ export function ModernSessionHeaderActionsController({
             await copy(sessionId);
           }}
         >
-          <CopyIcon className="mr-2 h-3.5 w-3.5" />
+          <CopyIcon className="icon-md mr-2" />
           Copy session ID
         </DropdownMenuItem>
         {session.data?.user?.admin === true &&
@@ -125,7 +125,7 @@ export function ModernSessionHeaderActionsController({
                 );
               }}
             >
-              <CopyIcon className="mr-2 h-3.5 w-3.5" />
+              <CopyIcon className="icon-md mr-2" />
               Copy {table} query
             </DropdownMenuItem>
           ))}

@@ -207,7 +207,7 @@ export function DefaultEvalModelSetup({
                 setIsEditing(true);
               }}
             >
-              <Pencil className="mr-2 h-4 w-4" />
+              <Pencil className="icon-lg mr-2" />
               {setup.selectedModel ? "Edit" : "Set up"}
             </Button>
           </DialogTrigger>

@@ -102,7 +102,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
                 aria-label={`Edit ${apiKey.provider} connection`}
                 onClick={() => openDialog(apiKey)}
               >
-                <PencilIcon className="h-4 w-4" />
+                <PencilIcon className="icon-lg" />
               </Button>
             )}
             {hasDeleteAccess && (
@@ -185,7 +185,7 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
       onOpenChange={setOpen}
       trigger={
         <Button variant="ghost" size="icon">
-          <TrashIcon className="h-4 w-4" />
+          <TrashIcon className="icon-lg" />
         </Button>
       }
       title="Delete LLM Connection"

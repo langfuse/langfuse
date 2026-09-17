@@ -296,7 +296,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           {...listeners}
           className="flex w-3 cursor-move items-center justify-center opacity-50 transition-opacity hover:opacity-100"
         >
-          <GripVertical className="h-3 w-3" />
+          <GripVertical className="icon-sm" />
         </div>
         <CardContent className="flex flex-1 flex-row items-center gap-2 p-0 pl-1">
           <div className="bg-background sticky top-0 bottom-0 z-10 flex w-16 shrink-0 flex-col gap-1">
@@ -377,7 +377,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             className="h-5 w-5 shrink-0 rounded-full p-0 opacity-60 transition-all hover:opacity-100"
             aria-label="Delete message"
           >
-            <MinusCircleIcon size={14} />
+            <MinusCircleIcon className="icon-md" />
           </Button>
         </CardContent>
       </div>

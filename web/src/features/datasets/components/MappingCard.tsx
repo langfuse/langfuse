@@ -140,7 +140,7 @@ function MappedColumnBadge({
         }}
         className="hover:bg-accent-dark-blue/80 flex items-center rounded-sm"
       >
-        <X className="h-3.5 w-3.5" />
+        <X className="icon-md" />
       </button>
     </div>
   );
@@ -207,7 +207,7 @@ export function MappingCard({
                 </Label>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <InfoIcon className="text-muted-foreground h-3 w-3" />
+                    <InfoIcon className="text-muted-foreground icon-sm" />
                   </TooltipTrigger>
                   <TooltipContent className="max-w-[250px]" side="left">
                     {useDirectMappingForInput
@@ -266,7 +266,7 @@ export function MappingCard({
                   </Label>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <InfoIcon className="text-muted-foreground h-3 w-3" />
+                      <InfoIcon className="text-muted-foreground icon-sm" />
                     </TooltipTrigger>
                     <TooltipContent className="max-w-[250px]" side="left">
                       {useDirectMappingForExpectedOutput

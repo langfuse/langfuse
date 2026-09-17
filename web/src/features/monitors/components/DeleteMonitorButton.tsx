@@ -42,7 +42,7 @@ export function DeleteMonitorButton({
           title="Delete alert"
           aria-label="Delete alert"
         >
-          <Trash2 className="text-destructive h-4 w-4" />
+          <Trash2 className="text-destructive icon-lg" />
         </Button>
       }
     />

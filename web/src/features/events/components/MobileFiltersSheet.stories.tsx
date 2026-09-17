@@ -40,14 +40,14 @@ const fakeHeaderControls = (
         size="icon"
         className="h-8 w-8 rounded-r-none border-r-0"
       >
-        <RefreshCw className="h-4 w-4" />
+        <RefreshCw className="icon-lg" />
       </Button>
       <Button
         variant="outline"
         size="icon"
         className="h-8 w-auto rounded-l-none border-l-0 px-2"
       >
-        <ChevronDown className="h-4 w-4" />
+        <ChevronDown className="icon-lg" />
       </Button>
     </div>
   </div>

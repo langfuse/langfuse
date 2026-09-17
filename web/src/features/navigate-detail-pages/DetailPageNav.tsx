@@ -160,7 +160,7 @@ export const DetailPageNav = (props: {
                 }
               }}
             >
-              <ArrowUp className="h-4 w-4" />
+              <ArrowUp className="icon-lg" />
               {!compact && (
                 <span className="hidden md:inline-flex">
                   <KeyboardShortcut keys={["K"]} />
@@ -188,7 +188,7 @@ export const DetailPageNav = (props: {
                 }
               }}
             >
-              <ArrowDown className="h-4 w-4" />
+              <ArrowDown className="icon-lg" />
               {!compact && (
                 <span className="hidden md:inline-flex">
                   <KeyboardShortcut keys={["J"]} />

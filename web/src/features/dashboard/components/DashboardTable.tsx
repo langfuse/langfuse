@@ -143,7 +143,7 @@ export function DashboardTable() {
           </span>
         ) : (
           <span className="flex gap-1 px-2 py-0.5 text-xs">
-            <UserIcon className="h-3 w-3" /> Project
+            <UserIcon className="icon-sm" /> Project
           </span>
         );
       },
@@ -233,7 +233,7 @@ export function DashboardTable() {
                                 openCloneFirstDialog();
                               }}
                             >
-                              <Edit className="mr-2 h-4 w-4" />
+                              <Edit className="icon-lg mr-2" />
                               Edit
                             </DropdownMenuItem>
                             <DropdownMenuItem
@@ -256,7 +256,7 @@ export function DashboardTable() {
                                 );
                               }}
                             >
-                              <Copy className="mr-2 h-4 w-4" />
+                              <Copy className="icon-lg mr-2" />
                               Clone
                             </DropdownMenuItem>
                             {dashboard.owner === "PROJECT" ? (
@@ -271,7 +271,7 @@ export function DashboardTable() {
                                   openDeleteDialog();
                                 }}
                               >
-                                <Trash2 className="mr-2 h-4 w-4" />
+                                <Trash2 className="icon-lg mr-2" />
                                 Delete
                               </DropdownMenuItem>
                             ) : null}

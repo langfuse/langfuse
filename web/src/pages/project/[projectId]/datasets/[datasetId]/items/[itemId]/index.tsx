@@ -137,12 +137,12 @@ function DatasetItemContent({
             >
               {isVersionPanelOpen ? (
                 <>
-                  <History className="mr-2 h-4 w-4" />
+                  <History className="icon-lg mr-2" />
                   Hide Version History
                 </>
               ) : (
                 <>
-                  <PanelRightOpen className="mr-2 h-4 w-4" />
+                  <PanelRightOpen className="icon-lg mr-2" />
                   Show Version History
                 </>
               )}

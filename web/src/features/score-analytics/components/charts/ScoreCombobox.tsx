@@ -104,7 +104,7 @@ export function ScoreCombobox({
           title="Clear selection"
           className="h-6 w-6 shrink-0"
         >
-          <X className="h-3 w-3" />
+          <X className="icon-sm" />
         </Button>
       )}
     </div>

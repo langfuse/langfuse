@@ -31,7 +31,7 @@ export default function Dashboards() {
         },
         actionButtonsRight: (
           <ActionButton
-            icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+            icon={<PlusIcon className="icon-lg" aria-hidden="true" />}
             hasAccess={hasCUDAccess}
             href={`/project/${projectId}/dashboards/new`}
             trackingEventName="dashboard:new_dashboard_form_open"

@@ -81,7 +81,7 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
                     else clearActiveCell();
                   }}
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="icon-lg" />
                 </Button>
               }
             />

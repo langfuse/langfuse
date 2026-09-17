@@ -451,7 +451,7 @@ export const ScoreChartLegendContent = React.forwardRef<
                   {hiddenCount > 0 && (
                     <span className="font-bold">(+{hiddenCount})</span>
                   )}
-                  <MoreVertical className="h-3 w-3" />
+                  <MoreVertical className="icon-sm" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent

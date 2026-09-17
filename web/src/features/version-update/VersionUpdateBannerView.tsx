@@ -54,12 +54,12 @@ export function VersionUpdateBannerView({
         className,
       )}
     >
-      <Sparkles className="text-primary h-4 w-4 shrink-0" />
+      <Sparkles className="text-primary icon-lg shrink-0" />
       <span className="text-foreground text-sm whitespace-nowrap">
         Langfuse just got an update
       </span>
       <Button size="sm" className="rounded-full" onClick={onReload}>
-        <RotateCw className="mr-1.5 h-3.5 w-3.5" />
+        <RotateCw className="icon-md mr-1.5" />
         Reload
       </Button>
       <Button
@@ -70,7 +70,7 @@ export function VersionUpdateBannerView({
         aria-label="Dismiss"
         title="Dismiss"
       >
-        <X className="h-4 w-4" />
+        <X className="icon-lg" />
       </Button>
     </div>
   );

@@ -126,7 +126,7 @@ export const UserAssignmentSection = ({
                 className="hover:bg-muted-foreground/20 h-4 w-4 p-0"
                 onClick={onRemove}
               >
-                <X className="h-3 w-3" />
+                <X className="icon-sm" />
               </Button>
             </div>
           );
@@ -200,7 +200,7 @@ export const UserAssignmentSection = ({
                           }
                           onClick={() => handleUserRemove(user.id)}
                         >
-                          <X className="h-3 w-3" />
+                          <X className="icon-sm" />
                         </Button>
                       </div>
                       {(index <
@@ -214,7 +214,7 @@ export const UserAssignmentSection = ({
               )}
               {hasMoreAssignedUsers && (
                 <div className="text-muted-foreground flex items-center gap-3 px-3 py-2">
-                  <MoreHorizontal className="h-4 w-4" />
+                  <MoreHorizontal className="icon-lg" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs italic">
                       {queueAssignmentsQuery.data.totalCount -

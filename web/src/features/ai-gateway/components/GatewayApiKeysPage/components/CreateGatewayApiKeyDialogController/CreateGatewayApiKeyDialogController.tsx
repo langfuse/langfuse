@@ -136,7 +136,7 @@ export function CreateGatewayApiKeyDialogController({
                         type="button"
                         className="group flex items-center gap-2 text-left text-sm"
                       >
-                        <ChevronRight className="text-muted-foreground size-3.5 transition-transform group-data-[state=open]:rotate-90" />
+                        <ChevronRight className="text-muted-foreground icon-md transition-transform group-data-[state=open]:rotate-90" />
                         <span>Metadata</span>
                         <span className="text-muted-foreground font-normal">
                           (optional)
@@ -194,7 +194,7 @@ export function CreateGatewayApiKeyDialogController({
                               )
                             }
                           >
-                            <X className="size-4" />
+                            <X className="icon-lg" />
                           </Button>
                         </div>
                       ))}
@@ -210,7 +210,7 @@ export function CreateGatewayApiKeyDialogController({
                         setNextMetadataId((current) => current + 1);
                       }}
                     >
-                      <Plus className="size-3.5" />
+                      <Plus className="icon-md" />
                       Add metadata
                     </button>
                   </CollapsibleContent>

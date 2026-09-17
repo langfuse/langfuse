@@ -274,7 +274,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               );
             }}
           >
-            <ExternalLinkIcon className="mr-1 h-3 w-3" />
+            <ExternalLinkIcon className="icon-sm mr-1" />
             View
           </Button>
         );
@@ -376,7 +376,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           <div className="flex items-center gap-1">
             <IconOnlyButton
               key={id}
-              icon={<Pen className="h-4 w-4" />}
+              icon={<Pen className="icon-lg" />}
               label="Edit"
               aria-label="edit"
               disabledReason={

@@ -191,7 +191,7 @@ export default function RemapEvaluatorPage() {
                         variant="secondary"
                         onClick={handleUseAssistant}
                       >
-                        <BotMessageSquare className="mr-1.5 h-4 w-4" />
+                        <BotMessageSquare className="icon-lg mr-1.5" />
                         Use Assistant to help with upgrade
                       </Button>
                     ) : null}
@@ -209,7 +209,7 @@ export default function RemapEvaluatorPage() {
                 onDismiss={onDismiss}
               >
                 <div className="flex items-start gap-2">
-                  <Zap className="mt-0.5 h-4 w-4 shrink-0" />
+                  <Zap className="icon-lg mt-0.5 shrink-0" />
                   <span>
                     <span className="font-bold">
                       This evaluator needs an upgrade for Langfuse v4.
@@ -338,7 +338,7 @@ export default function RemapEvaluatorPage() {
                               disabled={isLoading}
                               className="mt-3 rounded-l-none rounded-r-md border-l-2"
                             >
-                              <ChevronDown className="h-4 w-4" />
+                              <ChevronDown className="icon-lg" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">

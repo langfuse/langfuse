@@ -18,7 +18,7 @@ export function InfoTooltip({
     <Tooltip>
       <TooltipTrigger asChild>
         <InfoIcon
-          className="text-muted-foreground h-3.5 w-3.5 cursor-help"
+          className="text-muted-foreground icon-md cursor-help"
           aria-label={label}
         />
       </TooltipTrigger>

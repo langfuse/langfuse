@@ -132,7 +132,7 @@ export function ExistingDatasetItemsDropdownMenuController(props: {
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="capitalize" onSelect={openDialog}>
-              <PlusIcon size={16} className="mr-2" aria-hidden="true" />
+              <PlusIcon className="icon-lg mr-2" aria-hidden="true" />
               Add to more datasets
             </DropdownMenuItem>
           </DropdownMenuContent>

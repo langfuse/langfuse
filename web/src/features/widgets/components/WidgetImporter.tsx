@@ -69,7 +69,7 @@ export const WidgetImporter = ({
         size="sm"
         onClick={() => importInputRef.current?.click()}
       >
-        <Upload className="mr-2 h-4 w-4" />
+        <Upload className="icon-lg mr-2" />
         Import
       </Button>
     </>

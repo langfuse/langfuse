@@ -73,7 +73,7 @@ function DatasetRunLegacy() {
               }}
             >
               <Button>
-                <Columns3 className="mr-2 h-4 w-4" />
+                <Columns3 className="icon-lg mr-2" />
                 <span>Compare</span>
               </Button>
             </Link>
@@ -94,12 +94,12 @@ function DatasetRunLegacy() {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="icon">
-                      <MoreVertical className="h-4 w-4" />
+                      <MoreVertical className="icon-lg" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>
                     <DropdownMenuItem disabled={disabled} onSelect={openDialog}>
-                      <Trash className="h-4 w-4" />
+                      <Trash className="icon-lg" />
                       <span>Delete</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>

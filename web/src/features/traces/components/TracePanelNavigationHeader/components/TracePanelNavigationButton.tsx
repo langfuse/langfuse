@@ -33,9 +33,9 @@ export function TracePanelNavigationButton({
         className="h-7 w-7 shrink-0"
       >
         {isPanelCollapsed ? (
-          <PanelLeftOpen className="h-3.5 w-3.5" />
+          <PanelLeftOpen className="icon-md" />
         ) : (
-          <PanelLeftClose className="h-3.5 w-3.5" />
+          <PanelLeftClose className="icon-md" />
         )}
       </Button>
 

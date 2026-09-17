@@ -144,7 +144,7 @@ function ToolGroupHoverContent({
               className="flex min-w-0 items-center justify-between gap-2 rounded-sm px-2 py-1"
             >
               <div className="flex min-w-0 items-center gap-2">
-                <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                <Wrench className="text-muted-foreground icon-md shrink-0" />
                 <span
                   className="ph-no-capture text-foreground block truncate font-mono text-xs font-bold"
                   title={tool.name}
@@ -207,7 +207,7 @@ function ToolGroupSummary({
       <div className="flex min-w-0 items-center gap-2">
         <Wrench
           className={cn(
-            "text-muted-foreground h-3.5 w-3.5 shrink-0",
+            "text-muted-foreground icon-md shrink-0",
             isCalledGroup && "text-dark-green",
           )}
         />
@@ -233,9 +233,9 @@ function ToolGroupSummary({
           {expanded ? "hide" : "show"}
         </Badge>
         {expanded ? (
-          <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
+          <ChevronDown className="text-muted-foreground icon-md" />
         ) : (
-          <ChevronRight className="text-muted-foreground h-3.5 w-3.5" />
+          <ChevronRight className="text-muted-foreground icon-md" />
         )}
       </div>
     </button>
@@ -339,7 +339,7 @@ function ToolDefinitionRow({
         aria-expanded={isExpanded}
       >
         <div className="flex min-w-0 items-center gap-2">
-          <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+          <Wrench className="text-muted-foreground icon-md shrink-0" />
           <span
             className="ph-no-capture text-foreground block truncate font-mono text-xs font-bold"
             title={tool.name}
@@ -359,9 +359,9 @@ function ToolDefinitionRow({
           />
 
           {isExpanded ? (
-            <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
+            <ChevronDown className="text-muted-foreground icon-md" />
           ) : (
-            <ChevronRight className="text-muted-foreground h-3.5 w-3.5" />
+            <ChevronRight className="text-muted-foreground icon-md" />
           )}
         </div>
       </button>

@@ -70,7 +70,7 @@ export function InAppAgentWidgetComposer({
       className="bg-muted/30 flex flex-col gap-2 rounded-lg border p-3"
     >
       <div className="flex items-center gap-2 font-bold">
-        <Sparkles className="h-4 w-4" />
+        <Sparkles className="icon-lg" />
         Add with Langfuse Assistant
       </div>
       <p className="text-muted-foreground text-xs">
@@ -100,7 +100,7 @@ export function InAppAgentWidgetComposer({
           aria-label="Add with Langfuse Assistant"
           disabled={!request.trim()}
         >
-          <SendHorizontal className="h-4 w-4" />
+          <SendHorizontal className="icon-lg" />
         </Button>
       </div>
     </form>

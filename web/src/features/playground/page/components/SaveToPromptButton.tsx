@@ -104,7 +104,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
                   className,
                 )}
               >
-                <Save size={14} />
+                <Save className="icon-md" />
                 <span className="sr-only">Save as prompt</span>
               </Button>
             </PopoverTrigger>
@@ -119,7 +119,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
               className,
             )}
           >
-            <Save size={14} />
+            <Save className="icon-md" />
             <span>Save as prompt</span>
           </Button>
         </PopoverTrigger>
@@ -157,7 +157,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
                   >
                     <Check
                       className={cn(
-                        "mr-2 h-4 w-4",
+                        "icon-lg mr-2",
                         selectedPromptId === chatPrompt.id
                           ? "opacity-100"
                           : "opacity-0",

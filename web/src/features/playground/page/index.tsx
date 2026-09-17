@@ -181,7 +181,7 @@ export default function PlaygroundPage() {
                 {globalIsExecutingAll ? (
                   <Spinner size="xxs" />
                 ) : (
-                  <Play className="h-3 w-3" />
+                  <Play className="icon-sm" />
                 )}
                 <span className="hidden items-center gap-1 lg:inline-flex">
                   <span>Run All</span>

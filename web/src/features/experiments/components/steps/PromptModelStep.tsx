@@ -147,7 +147,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                     className="w-2/3 justify-between px-2 font-normal"
                   >
                     {selectedPromptName || "Select a prompt"}
-                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <ChevronDown className="icon-lg ml-2 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent
@@ -181,7 +181,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                                 {name}
                                 <CheckIcon
                                   className={cn(
-                                    "ml-auto h-4 w-4",
+                                    "icon-lg ml-auto",
                                     name === selectedPromptName
                                       ? "opacity-100"
                                       : "opacity-0",
@@ -207,7 +207,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                     {selectedPromptVersion
                       ? `Version ${selectedPromptVersion}`
                       : "Version"}
-                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <ChevronDown className="icon-lg ml-2 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent
@@ -248,7 +248,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                               </div>
                               <CheckIcon
                                 className={cn(
-                                  "ml-auto h-4 w-4 shrink-0",
+                                  "icon-lg ml-auto shrink-0",
                                   prompt.version === selectedPromptVersion
                                     ? "opacity-100"
                                     : "opacity-0",
@@ -269,7 +269,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
             </div>
             {selectedPromptToolConfig.status === "invalid" && (
               <p className="text-dark-yellow flex items-center gap-1.5 text-sm">
-                <TriangleAlert className="h-4 w-4 shrink-0" />
+                <TriangleAlert className="icon-lg shrink-0" />
                 Invalid tool config detected on this prompt version. Its tools
                 will be ignored when running the experiment.
               </p>
@@ -340,7 +340,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                           className="flex-1 justify-between px-2 font-normal"
                         >
                           {selectedSchema?.name || "Select schema"}
-                          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          <ChevronDown className="icon-lg ml-2 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent
@@ -373,7 +373,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                                   {schema.name}
                                   <CheckIcon
                                     className={cn(
-                                      "ml-auto h-4 w-4",
+                                      "icon-lg ml-auto",
                                       selectedSchema?.id === schema.id
                                         ? "opacity-100"
                                         : "opacity-0",
@@ -394,7 +394,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                         aria-label={`View schema ${selectedSchema.name}`}
                         onClick={() => openSchemaDialog(selectedSchema)}
                       >
-                        <EyeIcon className="h-4 w-4" />
+                        <EyeIcon className="icon-lg" />
                       </Button>
                     )}
                   </div>
@@ -404,7 +404,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                     className="w-full"
                     onClick={() => openSchemaDialog(null)}
                   >
-                    <PlusIcon className="mr-2 h-4 w-4" />
+                    <PlusIcon className="icon-lg mr-2" />
                     Add schema
                   </Button>
                 )}

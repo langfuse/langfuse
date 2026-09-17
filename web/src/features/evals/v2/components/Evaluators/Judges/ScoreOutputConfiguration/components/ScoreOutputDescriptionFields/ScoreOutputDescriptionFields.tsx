@@ -59,7 +59,7 @@ export function ScoreOutputDescriptionFields({
       >
         <ChevronDown
           className={cn(
-            "text-muted-foreground h-4 w-4 transition-transform",
+            "text-muted-foreground icon-lg transition-transform",
             !advancedOpen && "-rotate-90",
           )}
         />

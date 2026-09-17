@@ -231,7 +231,7 @@ export const VariableMappingCard = ({
                 rel="noopener noreferrer"
               >
                 Edit prompt
-                <ExternalLink className="ml-1 h-4 w-4" />
+                <ExternalLink className="icon-lg ml-1" />
               </Link>
             </Button>
           ) : (
@@ -242,7 +242,7 @@ export const VariableMappingCard = ({
               title="Only user-managed templates can be edited"
             >
               Edit prompt
-              <ExternalLink className="ml-1 h-4 w-4" />
+              <ExternalLink className="icon-lg ml-1" />
             </Button>
           )}
         </div>

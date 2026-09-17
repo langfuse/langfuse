@@ -249,7 +249,7 @@ export function SearchBarAiPrompt({
             onClick={onExit}
             className="text-muted-foreground hover:text-foreground hover:bg-accent -ml-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
           >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            <ArrowLeft className="icon-lg" aria-hidden="true" />
           </button>
           <input
             ref={inputRef}
@@ -290,10 +290,7 @@ export function SearchBarAiPrompt({
           />
           {pending ? (
             <span className="text-muted-foreground flex shrink-0 items-center gap-1.5 pr-1 text-xs">
-              <Loader2
-                className="h-3.5 w-3.5 animate-spin"
-                aria-hidden="true"
-              />
+              <Loader2 className="icon-md animate-spin" aria-hidden="true" />
               Generating…
             </span>
           ) : (
@@ -322,7 +319,7 @@ export function SearchBarAiPrompt({
                   "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent",
                 )}
               >
-                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                <ArrowRight className="icon-md" aria-hidden="true" />
               </button>
             </div>
           )}

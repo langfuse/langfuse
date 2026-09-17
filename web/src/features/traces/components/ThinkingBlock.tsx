@@ -26,7 +26,7 @@ export function ThinkingBlock({
       >
         <ChevronRight
           className={cn(
-            "mt-0.5 h-3 w-3 shrink-0 transition-transform",
+            "icon-sm mt-0.5 shrink-0 transition-transform",
             expanded && "rotate-90",
           )}
         />
@@ -69,7 +69,7 @@ export function RedactedThinkingBlock({
       >
         <ChevronRight
           className={cn(
-            "mt-0.5 h-3 w-3 shrink-0 transition-transform",
+            "icon-sm mt-0.5 shrink-0 transition-transform",
             expanded && "rotate-90",
           )}
         />

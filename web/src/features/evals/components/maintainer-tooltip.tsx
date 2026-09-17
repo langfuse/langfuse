@@ -9,7 +9,7 @@ function MaintainerIcon({ maintainer }: { maintainer: string }) {
   } else if (maintainer.includes("Langfuse")) {
     return <LangfuseIcon size={16} />;
   }
-  return <UserCircle2Icon className="h-4 w-4" />;
+  return <UserCircle2Icon className="icon-lg" />;
 }
 
 export function MaintainerTooltip({ maintainer }: { maintainer: string }) {

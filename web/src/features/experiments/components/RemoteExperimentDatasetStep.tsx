@@ -102,7 +102,7 @@ export const RemoteExperimentDatasetStep = ({
                   className="w-full justify-between px-2 font-normal"
                 >
                   {selectedDataset?.name ?? "Select a dataset"}
-                  <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  <ChevronDown className="icon-lg ml-2 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent
@@ -130,7 +130,7 @@ export const RemoteExperimentDatasetStep = ({
                           {dataset.name}
                           <CheckIcon
                             className={cn(
-                              "ml-auto h-4 w-4",
+                              "icon-lg ml-auto",
                               dataset.id === selectedDatasetId
                                 ? "opacity-100"
                                 : "opacity-0",

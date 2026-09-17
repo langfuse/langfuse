@@ -516,7 +516,7 @@ export function CommentList({
             <div className="flex items-center justify-between gap-2 px-2 py-1.5">
               <div className="text-sm font-bold">Comments</div>
               <div className="relative max-w-xs flex-1">
-                <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
+                <Search className="text-muted-foreground icon-md absolute top-1/2 left-2 -translate-y-1/2" />
                 <Input
                   ref={searchInputRef}
                   type="text"
@@ -533,7 +533,7 @@ export function CommentList({
                     className="absolute top-1/2 right-1 h-5 w-5 -translate-y-1/2"
                     onClick={() => setSearchQuery("")}
                   >
-                    <X className="h-3 w-3" />
+                    <X className="icon-sm" />
                   </Button>
                 )}
                 {!searchQuery && (
@@ -686,7 +686,7 @@ export function CommentList({
                           });
                       }}
                     >
-                      <Trash className="h-3 w-3" />
+                      <Trash className="icon-sm" />
                     </Button>
                   </div>
                 )}
@@ -782,7 +782,7 @@ export function CommentList({
                           }}
                           className="absolute right-1 bottom-1"
                         >
-                          <ArrowUpToLine className="h-3 w-3" />
+                          <ArrowUpToLine className="icon-sm" />
                         </Button>
                       </HoverCardTrigger>
                       <HoverCardContent

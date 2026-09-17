@@ -30,7 +30,7 @@ export function RuleRelationshipButton({
       }
       onClick={onClick}
     >
-      <ListTree className="mr-2 h-4 w-4" />
+      <ListTree className="icon-lg mr-2" />
       Rules
       {shouldCallAttention ? (
         <span

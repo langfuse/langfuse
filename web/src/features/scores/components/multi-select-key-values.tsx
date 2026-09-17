@@ -146,7 +146,7 @@ export function MultiSelectKeyValues<
           {option.value}
         </span>
         {option.isArchived && (
-          <Archive className="text-foreground/50 ml-2 h-4 w-4" />
+          <Archive className="text-foreground/50 icon-lg ml-2" />
         )}
         {option.count !== undefined && (
           <span className="ml-auto font-mono text-xs">{option.count}</span>
@@ -184,7 +184,7 @@ export function MultiSelectKeyValues<
           {iconLeft}
           {title}
           {iconRight}
-          <ChevronDown className="h-4 w-4 opacity-50" />
+          <ChevronDown className="icon-lg opacity-50" />
           {selectedValueKeys.size > 0 && (
             <>
               <Separator orientation="vertical" className="mx-2 h-4" />
@@ -231,7 +231,7 @@ export function MultiSelectKeyValues<
           className="flex items-center border-b px-2 py-1"
           onClick={handleInputClick}
         >
-          <Search className="mr-1 h-3 w-3 opacity-50" />
+          <Search className="icon-sm mr-1 opacity-50" />
           <Input
             ref={inputRef}
             placeholder={placeholder}
@@ -257,7 +257,7 @@ export function MultiSelectKeyValues<
             return (
               <DropdownMenuSub key={group.label}>
                 <DropdownMenuSubTrigger className="flex w-full items-center select-none">
-                  <Component className="mr-2 h-4 w-4 opacity-50" />
+                  <Component className="icon-lg mr-2 opacity-50" />
                   <span>{group.label}</span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="max-h-[300px] overflow-y-auto">

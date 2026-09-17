@@ -88,7 +88,7 @@ export function WebCalloutMenuItem({
           action.invokeCallout().catch(() => undefined);
         }}
       >
-        <Webhook className="mr-2 h-4 w-4" />
+        <Webhook className="icon-lg mr-2" />
         <span
           className="max-w-[260px] min-w-0 truncate"
           title={action.endpointName}
@@ -129,7 +129,7 @@ export function WebCalloutButton({
           action.invokeCallout().catch(() => undefined);
         }}
       >
-        <Webhook className="h-4 w-4 shrink-0" />
+        <Webhook className="icon-lg shrink-0" />
         <span className="min-w-0 truncate text-sm" title={label}>
           {label}
         </span>
@@ -150,7 +150,7 @@ export function WebCalloutButton({
             action.invokeCallout().catch(() => undefined);
           }}
         >
-          <Webhook className="h-4 w-4" />
+          <Webhook className="icon-lg" />
         </Button>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>

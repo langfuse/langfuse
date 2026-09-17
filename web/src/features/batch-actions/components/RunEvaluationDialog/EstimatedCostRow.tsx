@@ -103,7 +103,7 @@ export function EstimatedCostRow(props: EstimatedCostRowProps) {
           {({ getTriggerProps }) => (
             <InfoIcon
               {...getTriggerProps()}
-              className="text-muted-foreground h-3 w-3"
+              className="text-muted-foreground icon-sm"
             />
           )}
         </CustomTooltip>

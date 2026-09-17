@@ -52,7 +52,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
     <div className="mt-1 flex flex-col gap-6">
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2 text-base font-bold">
-          <Sparkles className="h-4 w-4" /> Ask AI
+          <Sparkles className="icon-lg" /> Ask AI
         </div>
         <p className="text-muted-foreground mt-1 text-sm">
           Get instant, helpful answers. Our AI knows the docs, examples, and
@@ -74,7 +74,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
 
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2 text-base font-bold">
-          <LibraryBig className="h-4 w-4" /> Docs
+          <LibraryBig className="icon-lg" /> Docs
         </div>
         <p className="text-muted-foreground text-sm">
           Dive into guides, concepts, and API reference — clear steps and
@@ -100,7 +100,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
         <>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 text-base font-bold">
-              <LifeBuoy className="h-4 w-4" /> Support
+              <LifeBuoy className="icon-lg" /> Support
             </div>
             <p className="text-muted-foreground text-sm">
               Ask AI & Docs did not unblock you? Get in touch with the support
@@ -158,7 +158,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
         <>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 text-base font-bold">
-              <LifeBuoy className="h-4 w-4" /> Email a Support Engineer
+              <LifeBuoy className="icon-lg" /> Email a Support Engineer
             </div>
             <p className="text-muted-foreground text-sm">
               Ask AI & Docs did not unblock you? One of our support engineers
@@ -177,7 +177,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
         <>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 text-base font-bold">
-              <LifeBuoy className="h-4 w-4" /> Community Support
+              <LifeBuoy className="icon-lg" /> Community Support
             </div>
             <p className="text-muted-foreground text-sm">
               Ask AI & Docs did not unblock you? Get help from and share
@@ -198,7 +198,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
                 target="_blank"
                 rel="noopener"
               >
-                <Lightbulb className="mr-2 h-4 w-4" /> Feature request ↗
+                <Lightbulb className="icon-lg mr-2" /> Feature request ↗
               </a>
             </Button>
             <Button variant="outline" asChild>
@@ -207,7 +207,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
                 target="_blank"
                 rel="noopener"
               >
-                <Bug className="mr-2 h-4 w-4" /> Report a bug ↗
+                <Bug className="icon-lg mr-2" /> Report a bug ↗
               </a>
             </Button>
           </div>
@@ -252,7 +252,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
                 className="flex items-center"
                 onClick={() => capture("support_chat:community_hours_click")}
               >
-                <Calendar className="mr-2 h-4 w-4" /> Community Hours ↗
+                <Calendar className="icon-lg mr-2" /> Community Hours ↗
               </a>
             </Button>
 
@@ -264,7 +264,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
                   rel="noopener"
                   className="flex items-center"
                 >
-                  <Radio className="mr-2 h-4 w-4" /> Status Page ↗
+                  <Radio className="icon-lg mr-2" /> Status Page ↗
                 </a>
               </Button>
             )}

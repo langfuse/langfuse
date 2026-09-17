@@ -137,7 +137,7 @@ export function BatchActionsTable(props: { projectId: string }) {
             <Tooltip>
               <TooltipTrigger>
                 <div className="flex items-center gap-1">
-                  <InfoIcon className="text-muted-foreground h-3 w-3" />
+                  <InfoIcon className="text-muted-foreground icon-sm" />
                   <span className="max-w-[250px] truncate text-xs" title={log}>
                     {log}
                   </span>

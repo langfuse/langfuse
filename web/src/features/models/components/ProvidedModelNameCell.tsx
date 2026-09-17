@@ -67,7 +67,7 @@ export function ProvidedModelNameCell({
         className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1 text-left"
       >
         <IdTableCell value={modelName} />
-        <PlusCircle className="h-3.5 w-3.5 shrink-0" />
+        <PlusCircle className="icon-md shrink-0" />
       </button>
     </UpsertModelFormDialog>
   );

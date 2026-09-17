@@ -78,7 +78,7 @@ function SessionTimelineFile({ part }: { part: FilePart }) {
   return (
     <div className="border-border/70 bg-background flex w-fit max-w-full flex-col gap-2 rounded-md border p-3">
       <div className="text-muted-foreground flex items-center gap-2 text-xs font-bold">
-        <FileIcon className="h-3.5 w-3.5" />
+        <FileIcon className="icon-md" />
         {part.filename ?? part.mediaType ?? "File"}
       </div>
       {reference ? (

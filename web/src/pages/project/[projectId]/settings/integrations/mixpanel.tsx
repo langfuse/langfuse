@@ -310,7 +310,7 @@ const MixpanelIntegrationSettingsForm = ({
                   Export Source
                   <Tooltip>
                     <TooltipTrigger>
-                      <Info className="text-muted-foreground h-3.5 w-3.5" />
+                      <Info className="text-muted-foreground icon-md" />
                     </TooltipTrigger>
                     <TooltipContent
                       side="bottom"
@@ -332,7 +332,7 @@ const MixpanelIntegrationSettingsForm = ({
                           className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                         >
                           For further information see
-                          <ExternalLink className="h-3 w-3" />
+                          <ExternalLink className="icon-sm" />
                         </a>
                       </div>
                     </TooltipContent>

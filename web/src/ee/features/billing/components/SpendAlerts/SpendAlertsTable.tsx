@@ -109,14 +109,14 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
         id ? (
           <>
             <DropdownMenuItem onClick={() => setEditingAlert(id)}>
-              <Edit className="mr-2 h-4 w-4" />
+              <Edit className="icon-lg mr-2" />
               Edit
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => setDeletingAlert(id)}
               className="text-destructive"
             >
-              <Trash2 className="mr-2 h-4 w-4" />
+              <Trash2 className="icon-lg mr-2" />
               Delete
             </DropdownMenuItem>
           </>

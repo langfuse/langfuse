@@ -55,7 +55,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
     {...props}
   >
     {children}
-    {!hasCustomIcon && <ChevronRight className="ml-auto h-4 w-4" />}
+    {!hasCustomIcon && <ChevronRight className="icon-lg ml-auto" />}
   </DropdownMenuPrimitive.SubTrigger>
 ));
 DropdownMenuSubTrigger.displayName =
@@ -524,8 +524,8 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
-        {checked === "indeterminate" && <Minus className="h-4 w-4" />}
-        {checked === true && <Check className="h-4 w-4" />}
+        {checked === "indeterminate" && <Minus className="icon-lg" />}
+        {checked === true && <Check className="icon-lg" />}
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}

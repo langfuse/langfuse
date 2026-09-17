@@ -854,7 +854,7 @@ function TracesTableInternal({
               ) : (
                 <EmptyValue />
               )}
-              <InfoIcon className="h-3 w-3" />
+              <InfoIcon className="icon-sm" />
             </div>
           </BreakdownTooltip>
         ) : null;
@@ -1211,7 +1211,7 @@ function TracesTableInternal({
                   }
                   onSelect={() => openDeleteTraceDialog(traceId)}
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
+                  <Trash2 className="icon-lg mr-2" />
                   Delete
                 </DropdownMenuItem>
               ) : null,

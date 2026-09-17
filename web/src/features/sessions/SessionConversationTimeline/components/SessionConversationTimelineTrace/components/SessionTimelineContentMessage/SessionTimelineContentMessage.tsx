@@ -138,7 +138,7 @@ export function SessionTimelineContentMessage({
                 >
                   <ChevronDown
                     className={cn(
-                      "h-3 w-3 shrink-0 transition-transform",
+                      "icon-sm shrink-0 transition-transform",
                       !isJsonExpanded && "-rotate-90",
                     )}
                     aria-hidden="true"

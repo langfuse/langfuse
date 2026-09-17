@@ -75,7 +75,7 @@ export function PromptLinkingEditor({
           className="flex items-center gap-1 px-2 py-1"
           onClick={() => setIsDialogOpen(true)}
         >
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus className="icon-lg mr-2" />
           <span className="text-xs">Add prompt reference</span>
         </Button>
       </div>

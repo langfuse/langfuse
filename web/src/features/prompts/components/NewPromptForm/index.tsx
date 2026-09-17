@@ -264,7 +264,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                             className="flex flex-row items-center"
                           >
                             Create a new version for it here.
-                            <SquareArrowOutUpRight className="ml-1 h-3 w-3" />
+                            <SquareArrowOutUpRight className="icon-sm ml-1" />
                           </Link>
                         ) : null}
                       </div>

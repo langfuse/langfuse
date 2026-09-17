@@ -148,7 +148,7 @@ function DomainsTable({ orgId }: { orgId: string }) {
               className="flex items-center gap-1"
             >
               <ChevronRight
-                className={`h-3 w-3 transition-transform ${
+                className={`icon-sm transition-transform ${
                   collapsedRows.has(row.original.id) ? "" : "rotate-90"
                 }`}
               />
@@ -344,9 +344,9 @@ function CopyableText({ value }: { value: string }) {
         }}
       >
         {isCopied ? (
-          <Check className="h-3 w-3" />
+          <Check className="icon-sm" />
         ) : (
-          <Copy className="h-3 w-3" />
+          <Copy className="icon-sm" />
         )}
       </Button>
     </div>
@@ -475,7 +475,7 @@ function DeleteDomainButton({
           aria-label={`Delete ${domain}`}
           onClick={openDialog}
         >
-          <TrashIcon className="h-4 w-4" />
+          <TrashIcon className="icon-lg" />
         </Button>
       )}
     </ConfirmationDialogController>

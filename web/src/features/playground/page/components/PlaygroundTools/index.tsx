@@ -108,10 +108,7 @@ export const PlaygroundToolsPopover = ({
               className="flex items-center justify-between px-1 py-2"
             >
               <div className="flex min-w-0 flex-1 items-center gap-2">
-                <WrenchIcon
-                  size={12}
-                  className="text-muted-foreground shrink-0"
-                />
+                <WrenchIcon className="text-muted-foreground icon-sm shrink-0" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-bold" title={tool.name}>
                     {tool.name}
@@ -135,7 +132,7 @@ export const PlaygroundToolsPopover = ({
                   });
                 }}
               >
-                <PencilIcon className="h-3.5 w-3.5" />
+                <PencilIcon className="icon-md" />
               </Button>
             </CommandItem>
           ))}
@@ -153,7 +150,7 @@ export const PlaygroundToolsPopover = ({
             })
           }
         >
-          <PlusIcon className="mr-2 h-4 w-4" />
+          <PlusIcon className="icon-lg mr-2" />
           Create new tool
         </Button>
       </div>
@@ -293,10 +290,10 @@ export const PlaygroundTools = ({ onOpenToolDialog }: PlaygroundToolsProps) => {
                     handleRemoveTool(tool.id);
                   }}
                 >
-                  <MinusCircle className="h-4 w-4" />
+                  <MinusCircle className="icon-lg" />
                 </Button>
                 <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1">
-                  <WrenchIcon className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+                  <WrenchIcon className="text-muted-foreground icon-lg mt-0.5 shrink-0" />
                   <div className="min-w-0">
                     <h3
                       className="truncate text-sm font-bold"

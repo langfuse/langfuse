@@ -129,7 +129,7 @@ function DatasetCompareLegacy() {
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
-                  <FlaskConical className="h-4 w-4" />
+                  <FlaskConical className="icon-lg" />
                   <span className="ml-2 hidden md:block">New experiment</span>
                 </Button>
               </DialogTrigger>
@@ -154,7 +154,7 @@ function DatasetCompareLegacy() {
               className="w-fit"
               variant="outline"
               hideClearButton
-              iconLeft={<List className="mr-2 h-4 w-4" />}
+              iconLeft={<List className="icon-lg mr-2" />}
               options={runs.map((run) => ({
                 key: run.key,
                 value: run.value,

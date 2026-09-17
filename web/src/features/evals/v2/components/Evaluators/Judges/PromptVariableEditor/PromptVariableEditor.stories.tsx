@@ -113,7 +113,7 @@ export const MessageHeader = meta.story({
           size="icon-xs"
           className="shrink-0"
         >
-          <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+          <ChevronDown className="icon-md shrink-0" />
         </Button>
         <Badge
           variant="tertiary"
@@ -131,7 +131,7 @@ export const MessageHeader = meta.story({
         size="icon-xs"
         aria-label="Prompt message settings"
       >
-        <MoreVertical className="h-3.5 w-3.5" />
+        <MoreVertical className="icon-md" />
       </Button>
     ),
   },
@@ -154,7 +154,7 @@ export const CollapsedMessage = meta.story({
           size="icon-xs"
           className="shrink-0"
         >
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 -translate-x-0.5 -rotate-90" />
+          <ChevronDown className="icon-md shrink-0 -translate-x-0.5 -rotate-90" />
         </Button>
         <Badge
           variant="tertiary"
@@ -175,7 +175,7 @@ export const CollapsedMessage = meta.story({
         size="icon-xs"
         aria-label="Prompt message settings"
       >
-        <MoreVertical className="h-3.5 w-3.5" />
+        <MoreVertical className="icon-md" />
       </Button>
     ),
   },

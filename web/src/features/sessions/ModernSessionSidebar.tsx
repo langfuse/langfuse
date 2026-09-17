@@ -173,7 +173,7 @@ function ObservationListRows({
                   className="text-muted-foreground hover:text-muted-foreground -my-1 -mr-0.5 h-8 w-8 shrink-0 hover:bg-transparent"
                   aria-label={`Actions for ${observation.name}`}
                 >
-                  <MoreHorizontal className="h-3.5 w-3.5" />
+                  <MoreHorizontal className="icon-md" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" sideOffset={0}>
@@ -282,7 +282,7 @@ const TurnCard = React.memo(
           >
             <ChevronDown
               className={cn(
-                "h-3 w-3 transition-transform duration-150",
+                "icon-sm transition-transform duration-150",
                 isCollapsed ? "-rotate-90" : "rotate-0",
               )}
               strokeWidth={1.6}
@@ -504,7 +504,7 @@ export function ModernSessionSidebar(
         <div className="flex items-center gap-1 px-2 py-2.5">
           <div className="relative min-w-0 flex-1">
             <Search
-              className="text-foreground-tertiary absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2"
+              className="text-foreground-tertiary icon-md absolute top-1/2 left-2 -translate-y-1/2"
               strokeWidth={1.6}
             />
             <Input
@@ -525,7 +525,7 @@ export function ModernSessionSidebar(
                 className="relative h-7 w-7 shrink-0 rounded-sm"
                 aria-label="Filter observations"
               >
-                <ListFilter className="h-3.5 w-3.5" />
+                <ListFilter className="icon-md" />
               </Button>
             </DropdownMenuTrigger>
             <ModernSessionViewDropdownMenu controls={filterControls} />
@@ -578,7 +578,7 @@ export function ModernSessionSidebar(
                         aria-label="Save filters as view"
                         onClick={filterControls.onOpenFilterDialog}
                       >
-                        <Save className="h-3 w-3" />
+                        <Save className="icon-sm" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>Save as view</TooltipContent>
@@ -594,7 +594,7 @@ export function ModernSessionSidebar(
                       aria-label="Edit filters"
                       onClick={filterControls.onOpenFilterDialog}
                     >
-                      <Pencil className="h-3 w-3" />
+                      <Pencil className="icon-sm" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Edit filters</TooltipContent>
@@ -609,7 +609,7 @@ export function ModernSessionSidebar(
                       aria-label="Clear filters"
                       onClick={filterControls.onClearFilters}
                     >
-                      <X className="h-3 w-3" />
+                      <X className="icon-sm" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Clear filters</TooltipContent>

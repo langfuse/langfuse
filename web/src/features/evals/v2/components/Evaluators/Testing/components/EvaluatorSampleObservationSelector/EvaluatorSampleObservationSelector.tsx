@@ -53,7 +53,7 @@ export function EvaluatorSampleObservationSelector({
         id: "sample",
         header: () => (
           <div className="flex w-full justify-center">
-            <Star aria-hidden="true" className="h-4 w-4" />
+            <Star aria-hidden="true" className="icon-lg" />
             <span className="sr-only">Sample</span>
           </div>
         ),

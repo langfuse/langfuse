@@ -20,18 +20,18 @@ const channels: OnboardingChannel[] = [
     actionType: "SLACK",
     label: "Connect Slack",
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- brand icon retained for parity with MonitorAutomationsPanel.
-    icon: <Slack className="h-4 w-4" aria-hidden="true" />,
+    icon: <Slack className="icon-lg" aria-hidden="true" />,
   },
   {
     actionType: "WEBHOOK",
     label: "Connect Webhooks",
-    icon: <Webhook className="h-4 w-4" aria-hidden="true" />,
+    icon: <Webhook className="icon-lg" aria-hidden="true" />,
   },
   {
     actionType: "GITHUB_DISPATCH",
     label: "Connect Github Actions",
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- see Slack note above.
-    icon: <Github className="h-4 w-4" aria-hidden="true" />,
+    icon: <Github className="icon-lg" aria-hidden="true" />,
   },
 ];
 
@@ -74,7 +74,7 @@ export function MonitorsOnboarding({
                         {channel.icon}
                         {channel.label}
                       </span>
-                      <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                      <ChevronRight className="icon-lg" aria-hidden="true" />
                     </Link>
                   </Button>
                 ))}
@@ -88,7 +88,7 @@ export function MonitorsOnboarding({
             content: (
               <ActionButton
                 hasAccess={hasCUDAccess}
-                icon={<Plus className="h-4 w-4" aria-hidden="true" />}
+                icon={<Plus className="icon-lg" aria-hidden="true" />}
                 href={`/project/${projectId}/alerts/new`}
                 variant="default"
                 size="lg"

@@ -154,7 +154,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
               {selectedOption.badge}
             </Badge>
           )}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDown className="icon-lg ml-2 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
@@ -198,7 +198,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                     >
                       <Check
                         className={cn(
-                          "mr-2 h-4 w-4",
+                          "icon-lg mr-2",
                           isEqual(value as T | undefined, option.value)
                             ? "opacity-100"
                             : "opacity-0",
@@ -249,7 +249,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                   >
                     <Check
                       className={cn(
-                        "mr-2 h-4 w-4",
+                        "icon-lg mr-2",
                         isEqual(value as T | undefined, option.value)
                           ? "opacity-100"
                           : "opacity-0",

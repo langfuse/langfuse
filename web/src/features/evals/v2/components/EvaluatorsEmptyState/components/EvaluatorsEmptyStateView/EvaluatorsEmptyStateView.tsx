@@ -57,7 +57,7 @@ function DetectTopicsStartingPointCard({
                 "pointer-events-auto relative shrink-0 gap-1 px-2 text-xs",
               )}
             >
-              <BotMessageSquare className="h-3 w-3" />
+              <BotMessageSquare className="icon-sm" />
               Set up with AI
             </Button>
           </div>
@@ -83,7 +83,7 @@ function BrowseLibraryCard({
       <EvaluatorRecommendedCardSurface>
         <EvaluatorRecommendedCardContent
           icon={
-            <LayoutGrid className="text-muted-foreground h-4 w-4 shrink-0" />
+            <LayoutGrid className="text-muted-foreground icon-lg shrink-0" />
           }
           badge={
             <span className="bg-muted text-muted-foreground inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs">

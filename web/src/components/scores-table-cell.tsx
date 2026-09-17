@@ -106,7 +106,7 @@ export const ScoresTableCell = ({
         {aggregate.comment && (
           <HoverCard>
             <HoverCardTrigger className="inline-flex shrink-0 cursor-pointer items-center">
-              <MessageCircleMore size={12} />
+              <MessageCircleMore className="icon-sm" />
             </HoverCardTrigger>
             <HoverCardContent className="flex flex-col p-0 text-xs break-normal whitespace-normal">
               {/* Name what the icon opened: a bare block of text next to a
@@ -123,9 +123,9 @@ export const ScoresTableCell = ({
                   aria-label={copied ? "Copied" : "Copy to clipboard"}
                 >
                   {copied ? (
-                    <Check className="h-3 w-3" />
+                    <Check className="icon-sm" />
                   ) : (
-                    <Copy className="h-3 w-3" />
+                    <Copy className="icon-sm" />
                   )}
                 </Button>
               </div>
@@ -219,7 +219,7 @@ function AggregateScoreMetadataPeek({
   return (
     <HoverCard onOpenChange={setIsOpen}>
       <HoverCardTrigger className="inline-flex shrink-0 cursor-pointer items-center">
-        <BracesIcon size={12} />
+        <BracesIcon className="icon-sm" />
       </HoverCardTrigger>
       <HoverCardContent className="overflow-hidden rounded-md border-none p-0 text-xs break-normal whitespace-normal">
         {metadataLoaded ? (

@@ -147,7 +147,7 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
                   value="create new rule"
                   onSelect={() => select(onCreateRule)}
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="icon-lg" />
                   Create a new rule
                 </CommandItem>
               </CommandGroup>
@@ -162,7 +162,7 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
                     title={reason}
                     className="py-2.5"
                   >
-                    <Check className="h-4 w-4 shrink-0" />
+                    <Check className="icon-lg shrink-0" />
                     <EvaluationRulePickerOption rule={rule} />
                   </CommandItem>
                 ))}
@@ -179,7 +179,7 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
                     className="py-2.5"
                     onSelect={() => select(() => onSelectAvailableRule(rule))}
                   >
-                    <Plus className="h-4 w-4 shrink-0" />
+                    <Plus className="icon-lg shrink-0" />
                     <EvaluationRulePickerOption rule={rule} />
                   </CommandItem>
                 ))

@@ -115,7 +115,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
           title="Duplicate folder including prompts"
           onClick={() => capture("prompt_detail:duplicate_button_click")}
         >
-          <Copy className="h-4 w-4" />
+          <Copy className="icon-lg" />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] min-h-0 sm:max-w-md">

@@ -48,7 +48,7 @@ export function EvaluatorActionsCell({
         onClick={handlePrimaryAction}
       >
         View scores
-        <SquarePercent className="ml-1 h-3.5 w-3.5" />
+        <SquarePercent className="icon-md ml-1" />
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -60,26 +60,26 @@ export function EvaluatorActionsCell({
             className="shrink-0"
           >
             <span className="sr-only">Open menu</span>
-            <MoreVertical className="h-4 w-4" />
+            <MoreVertical className="icon-lg" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {canViewExecutions ? (
             <DropdownMenuItem onClick={onViewExecutions}>
-              <ListTree className="mr-2 h-4 w-4" />
+              <ListTree className="icon-lg mr-2" />
               View executions
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuItem onClick={onEdit}>
-            <Pencil className="mr-2 h-4 w-4" />
+            <Pencil className="icon-lg mr-2" />
             Edit
           </DropdownMenuItem>
           <DropdownMenuItem onClick={onClone}>
-            <Copy className="mr-2 h-4 w-4" />
+            <Copy className="icon-lg mr-2" />
             Clone
           </DropdownMenuItem>
           <DropdownMenuItem onClick={onDelete}>
-            <Trash2 className="mr-2 h-4 w-4" />
+            <Trash2 className="icon-lg mr-2" />
             Delete
           </DropdownMenuItem>
         </DropdownMenuContent>

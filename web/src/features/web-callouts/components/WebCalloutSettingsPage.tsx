@@ -192,7 +192,7 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
                   size="icon"
                   onClick={() => openEditDialog(row.original)}
                 >
-                  <Pencil className="h-4 w-4" />
+                  <Pencil className="icon-lg" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Edit endpoint</TooltipContent>
@@ -205,7 +205,7 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button variant="ghost" size="icon" onClick={openDialog}>
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="icon-lg" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Delete endpoint</TooltipContent>
@@ -301,7 +301,7 @@ function AddEndpointButton(props: {
       className={props.disabledReason ? "pointer-events-none" : undefined}
       onClick={props.onClick}
     >
-      <Plus className="mr-1 h-4 w-4" />
+      <Plus className="icon-lg mr-1" />
       Add endpoint
     </Button>
   );
@@ -560,7 +560,7 @@ function WebCalloutEndpointDialog(props: {
                               size="icon"
                               onClick={() => remove(index)}
                             >
-                              <X className="h-4 w-4" />
+                              <X className="icon-lg" />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Remove header</TooltipContent>
@@ -580,7 +580,7 @@ function WebCalloutEndpointDialog(props: {
                     })
                   }
                 >
-                  <Plus className="mr-1 h-4 w-4" />
+                  <Plus className="icon-lg mr-1" />
                   Add header
                 </Button>
               </div>

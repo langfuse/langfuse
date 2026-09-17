@@ -180,7 +180,7 @@ export function V4SidebarToggle() {
       >
         <div>
           <div className="flex min-w-0 flex-1 items-center gap-2 group-data-[collapsible=icon]:hidden">
-            <ZapIcon className="h-4 w-4 shrink-0" />
+            <ZapIcon className="icon-lg shrink-0" />
             <Label
               htmlFor="v4-beta-toggle"
               className="block min-w-0 flex-1 cursor-pointer truncate text-sm font-normal"

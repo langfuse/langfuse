@@ -8,6 +8,7 @@ import { default as noMarginOnRootElements } from "./rules/no-margin-on-root-ele
 import { default as noNullRender } from "./rules/no-null-render.js";
 import { default as noOverlayZindex } from "./rules/no-overlay-zindex.js";
 import { default as noRawFontWeight } from "./rules/no-raw-font-weight.js";
+import { default as noRawIconSize } from "./rules/no-raw-icon-size.js";
 import { default as requireTitleWithTruncate } from "./rules/require-title-with-truncate.js";
 import { default as noStyleProps } from "./rules/no-style-props.js";
 import { default as noSwitchStatements } from "./rules/no-switch-statements.js";
@@ -25,6 +26,7 @@ const plugin = {
     "no-null-render": noNullRender,
     "no-overlay-zindex": noOverlayZindex,
     "no-raw-font-weight": noRawFontWeight,
+    "no-raw-icon-size": noRawIconSize,
     "no-style-props": noStyleProps,
     "no-switch-statements": noSwitchStatements,
     "no-tailwind-overflow-scroll": noTailwindOverflowScroll,

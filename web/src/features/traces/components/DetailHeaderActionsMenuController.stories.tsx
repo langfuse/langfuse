@@ -18,7 +18,7 @@ function DetailHeaderActionsMenuStory() {
             title="Options"
             variant="ghost"
           >
-            <EllipsisVertical className="h-4 w-4" />
+            <EllipsisVertical className="icon-lg" />
           </Button>
         </Trigger>
       )}

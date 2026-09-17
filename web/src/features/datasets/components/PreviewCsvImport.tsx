@@ -200,7 +200,7 @@ export function PreviewCsvImport({
                     </div>
                   ) : (
                     <div className="bg-background flex cursor-grabbing items-center gap-2 rounded-md border p-2 shadow-xl">
-                      <GripVertical className="text-muted-foreground/70 h-4 w-4 shrink-0" />
+                      <GripVertical className="text-muted-foreground/70 icon-lg shrink-0" />
                       <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                         <span
                           className="truncate text-sm"
@@ -249,7 +249,7 @@ export function PreviewCsvImport({
             </Label>
             <Tooltip>
               <TooltipTrigger asChild>
-                <InfoIcon className="text-muted-foreground h-3.5 w-3.5" />
+                <InfoIcon className="text-muted-foreground icon-md" />
               </TooltipTrigger>
               <TooltipContent className="max-w-[300px]">
                 When a single csv column is mapped to a dataset item field, wrap

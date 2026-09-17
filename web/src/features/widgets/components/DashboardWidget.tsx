@@ -639,17 +639,14 @@ export function DashboardWidget({
         <div className="flex space-x-2">
           {!readOnly && (hasCUDAccess || isLockedEditable) && (
             <>
-              <GripVerticalIcon
-                size={16}
-                className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
-              />
+              <GripVerticalIcon className="drag-handle text-muted-foreground hover:text-foreground icon-lg hidden cursor-grab active:cursor-grabbing lg:group-hover:block" />
               {isLockedEditable ? (
                 <button
                   onClick={onLockedEditAttempt}
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon size={16} />
+                  <PencilIcon className="icon-lg" />
                 </button>
               ) : widget.data.owner === "PROJECT" ? (
                 <button
@@ -657,7 +654,7 @@ export function DashboardWidget({
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon size={16} />
+                  <PencilIcon className="icon-lg" />
                 </button>
               ) : widget.data.owner === "LANGFUSE" ? (
                 <button
@@ -671,7 +668,7 @@ export function DashboardWidget({
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon size={16} />
+                  <PencilIcon className="icon-lg" />
                 </button>
               ) : null}
             </>
@@ -682,7 +679,7 @@ export function DashboardWidget({
                 className="text-muted-foreground hover:text-foreground hidden group-hover:block data-[state=open]:block"
                 aria-label="Widget actions"
               >
-                <MoreVerticalIcon size={16} />
+                <MoreVerticalIcon className="icon-lg" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -692,7 +689,7 @@ export function DashboardWidget({
                     onClick={handleViewAsTable}
                     title={viewAsTableHint?.title}
                   >
-                    <TableIcon className="mr-2 h-4 w-4" />
+                    <TableIcon className="icon-lg mr-2" />
                     <span className="flex flex-col">
                       <span>View as table</span>
                       {viewAsTableHint && (
@@ -708,7 +705,7 @@ export function DashboardWidget({
                 </>
               )}
               <DropdownMenuItem onClick={handleCopyToClipboard}>
-                <CopyIcon className="mr-2 h-4 w-4" />
+                <CopyIcon className="icon-lg mr-2" />
                 Copy widget
               </DropdownMenuItem>
               {onDuplicateWidget && (
@@ -717,13 +714,13 @@ export function DashboardWidget({
                     onDuplicateWidget(placement, widgetExportSource)
                   }
                 >
-                  <CopyPlusIcon className="mr-2 h-4 w-4" />
+                  <CopyPlusIcon className="icon-lg mr-2" />
                   Clone
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleDownloadJson}>
-                <FileJsonIcon className="mr-2 h-4 w-4" />
+                <FileJsonIcon className="icon-lg mr-2" />
                 Download as JSON
               </DropdownMenuItem>
               {/* Chart data download needs the query result to have loaded */}
@@ -733,7 +730,7 @@ export function DashboardWidget({
                   downloadChartDataCsv(transformedData, widget.data.name)
                 }
               >
-                <DownloadIcon className="mr-2 h-4 w-4" />
+                <DownloadIcon className="icon-lg mr-2" />
                 Download data as CSV
               </DropdownMenuItem>
               {!readOnly && (hasCUDAccess || isLockedEditable) && (
@@ -743,7 +740,7 @@ export function DashboardWidget({
                     onClick={handleDelete}
                     className="text-destructive focus:text-destructive"
                   >
-                    <TrashIcon className="mr-2 h-4 w-4" />
+                    <TrashIcon className="icon-lg mr-2" />
                     Delete
                   </DropdownMenuItem>
                 </>

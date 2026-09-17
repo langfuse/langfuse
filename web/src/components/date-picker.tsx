@@ -55,7 +55,7 @@ export function DatePicker({
               className,
             )}
           >
-            <CalendarIcon className="mr-2 h-4 w-4" />
+            <CalendarIcon className="icon-lg mr-2" />
             {date ? (
               format(date, includeTimePicker ? "PPP pp" : "PPP")
             ) : (
@@ -82,7 +82,7 @@ export function DatePicker({
           onClick={() => onChange(undefined)}
           title="reset date"
         >
-          <X size={14} />
+          <X className="icon-md" />
         </Button>
       )}
     </div>
@@ -234,7 +234,7 @@ export function DatePickerWithRange({
               !internalDateRange && "text-muted-foreground",
             )}
           >
-            <CalendarIcon className="mr-2 h-4 w-4" />
+            <CalendarIcon className="icon-lg mr-2" />
             {internalDateRange?.from ? (
               internalDateRange.to ? (
                 <>
@@ -517,7 +517,7 @@ export function TimeRangePicker({
       // Custom range - show calendar icon and date range
       return (
         <div className="flex items-center gap-2">
-          <CalendarIcon className="h-4 w-4" />
+          <CalendarIcon className="icon-lg" />
           <span>{customLabel}</span>
         </div>
       );
@@ -555,7 +555,7 @@ export function TimeRangePicker({
     }
     return (
       <div className="flex items-center gap-2">
-        <CalendarIcon className="h-4 w-4" />
+        <CalendarIcon className="icon-lg" />
         <span>Select time range</span>
       </div>
     );
@@ -581,7 +581,7 @@ export function TimeRangePicker({
             >
               {getDisplayContent()}
               <ChevronDown
-                className={cn("h-4 w-4 opacity-50", compact && "shrink-0")}
+                className={cn("icon-lg opacity-50", compact && "shrink-0")}
               />
             </div>
           </Button>
@@ -655,7 +655,7 @@ export function TimeRangePicker({
                 }}
               >
                 <span className="bg-muted flex h-5 w-10 items-center justify-center rounded px-1.5 text-center text-xs">
-                  <CalendarIcon className="h-3 w-3" />
+                  <CalendarIcon className="icon-sm" />
                 </span>
                 <span>Select from calendar</span>
               </div>

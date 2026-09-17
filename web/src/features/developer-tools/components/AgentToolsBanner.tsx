@@ -30,7 +30,7 @@ export function AgentToolsBanner() {
             onDismiss={onDismiss}
           >
             <div className="flex items-start gap-2 sm:items-center">
-              <Bot className="mt-0.5 h-4 w-4 shrink-0 sm:mt-0" />
+              <Bot className="icon-lg mt-0.5 shrink-0 sm:mt-0" />
               <span>
                 <span className="font-bold">
                   Langfuse works great with your AI coding agents.

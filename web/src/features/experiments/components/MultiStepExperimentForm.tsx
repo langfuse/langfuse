@@ -458,7 +458,7 @@ export const MultiStepExperimentForm = ({
     }
 
     if (isStepValid(stepId)) {
-      return <Check className="mr-1.5 h-3.5 w-3.5 text-green-600" />;
+      return <Check className="icon-md mr-1.5 text-green-600" />;
     }
 
     if (
@@ -468,7 +468,7 @@ export const MultiStepExperimentForm = ({
       return (
         <CircleX
           aria-label={`${stepLabel} has errors`}
-          className="mr-1.5 h-3.5 w-3.5 text-red-500"
+          className="icon-md mr-1.5 text-red-500"
         />
       );
     }
@@ -700,7 +700,7 @@ export const MultiStepExperimentForm = ({
                 }}
                 disabled={activeStep === "prompt"}
               >
-                <ChevronLeft className="mr-2 h-4 w-4" />
+                <ChevronLeft className="icon-lg mr-2" />
                 Previous
               </Button>
 
@@ -722,7 +722,7 @@ export const MultiStepExperimentForm = ({
                     }
                   >
                     Next
-                    <ChevronRight className="ml-2 h-4 w-4" />
+                    <ChevronRight className="icon-lg ml-2" />
                   </Button>
                 ) : (
                   <Button

@@ -96,7 +96,7 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
                     {field.value
                       ? datasets?.find((d) => d.id === field.value)?.name
                       : "Select a dataset"}
-                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <ChevronDown className="icon-lg ml-2 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent
@@ -124,7 +124,7 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
                             {dataset.name}
                             <CheckIcon
                               className={cn(
-                                "ml-auto h-4 w-4",
+                                "icon-lg ml-auto",
                                 dataset.id === field.value
                                   ? "opacity-100"
                                   : "opacity-0",
@@ -232,7 +232,7 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
               <CardHeader className="p-2">
                 <CardTitle className="text-dark-yellow flex items-center justify-between text-sm">
                   <span>Invalid configuration</span>
-                  <Info className="h-4 w-4" />
+                  <Info className="icon-lg" />
                 </CardTitle>
                 <CardDescription className="text-foreground">
                   {validationResult?.message}
@@ -245,7 +245,7 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
               <CardHeader className="p-2">
                 <CardTitle className="text-dark-green flex items-center justify-between text-sm">
                   <span>Valid configuration</span>
-                  <CircleCheck className="h-4 w-4" />
+                  <CircleCheck className="icon-lg" />
                 </CardTitle>
                 <div className="text-sm">
                   Matches between dataset items and prompt

@@ -116,7 +116,7 @@ export function PricingSection({ form }: PricingSectionProps) {
         />
 
         <Button type="button" variant="ghost" onClick={addTier}>
-          <PlusCircle className="mr-2 h-4 w-4" />
+          <PlusCircle className="icon-lg mr-2" />
           Add Custom Pricing Tier
         </Button>
       </div>
@@ -168,7 +168,7 @@ export function PricingSection({ form }: PricingSectionProps) {
       </AccordionPrimitive.Root>
 
       <Button type="button" variant="outline" onClick={addTier}>
-        <PlusCircle className="mr-2 h-4 w-4" />
+        <PlusCircle className="icon-lg mr-2" />
         Add Custom Tier
       </Button>
     </div>

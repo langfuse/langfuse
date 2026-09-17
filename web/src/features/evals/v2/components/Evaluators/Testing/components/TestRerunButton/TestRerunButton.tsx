@@ -21,7 +21,7 @@ export function TestRerunButton({
       title={disabledReason ?? "Run the test again"}
       onClick={onRerun}
     >
-      <Play className="mr-1.5 h-3.5 w-3.5" />
+      <Play className="icon-md mr-1.5" />
       Run again
     </Button>
   );

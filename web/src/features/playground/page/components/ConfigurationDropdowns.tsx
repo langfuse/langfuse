@@ -113,7 +113,7 @@ export const ConfigurationDropdowns: React.FC = () => {
                   {toolsCount}
                 </Badge>
               )}
-              <ChevronDown className="h-3 w-3" />
+              <ChevronDown className="icon-sm" />
             </Button>
           </PopoverTrigger>
           <PopoverContent
@@ -171,7 +171,7 @@ export const ConfigurationDropdowns: React.FC = () => {
                   {hasSchema}
                 </Badge>
               )}
-              <ChevronDown className="h-3 w-3" />
+              <ChevronDown className="icon-sm" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-80 p-4" align="start">
@@ -224,7 +224,7 @@ export const ConfigurationDropdowns: React.FC = () => {
                   {variablesCount}
                 </Badge>
               )}
-              <ChevronDown className="h-3 w-3" />
+              <ChevronDown className="icon-sm" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-80 p-4" align="start">

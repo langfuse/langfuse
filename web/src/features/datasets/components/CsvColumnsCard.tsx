@@ -28,7 +28,7 @@ function DraggableColumn({ column }: { column: CsvColumnPreview }) {
         isDragging && "opacity-30",
       )}
     >
-      <GripVertical className="text-muted-foreground/70 group-hover:text-primary h-4 w-4 shrink-0" />
+      <GripVertical className="text-muted-foreground/70 group-hover:text-primary icon-lg shrink-0" />
       <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
         <span className="truncate text-sm" title={column.name}>
           {column.name}

@@ -54,7 +54,7 @@ export function GatewayApiKeysPage({
         <CreateGatewayApiKeyDialogController organizationId={organizationId}>
           {({ openDialog }) => (
             <Button onClick={openDialog}>
-              <Plus className="mr-1.5 size-4" />
+              <Plus className="icon-lg mr-1.5" />
               Create key
             </Button>
           )}

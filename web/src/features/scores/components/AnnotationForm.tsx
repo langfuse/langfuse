@@ -109,7 +109,7 @@ function CommentField({
                 loading={loading}
                 onClick={() => onSave(null)}
               >
-                <Trash className="h-3 w-3" />
+                <Trash className="icon-sm" />
               </Button>
             </PopoverClose>
           )}
@@ -182,7 +182,7 @@ function AnnotateHeader({
             {showSaving ? (
               <Spinner size="xxs" />
             ) : (
-              <Check className="h-3 w-3" />
+              <Check className="icon-sm" />
             )}
           </div>
           <span className="text-muted-foreground text-xs">
@@ -951,9 +951,9 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                 }
                               >
                                 {score.comment ? (
-                                  <MessageCircleMore className="h-4 w-4" />
+                                  <MessageCircleMore className="icon-lg" />
                                 ) : (
-                                  <MessageCircle className="h-4 w-4" />
+                                  <MessageCircle className="icon-lg" />
                                 )}
                               </Button>
                             </PopoverTrigger>
@@ -1097,7 +1097,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                   title="Delete archived score"
                                   disabled={isScoreUnsaved(score.id)}
                                 >
-                                  <Archive className="h-4 w-4"></Archive>
+                                  <Archive className="icon-lg"></Archive>
                                 </Button>
                               </PopoverTrigger>
                               <PopoverContent>
@@ -1136,7 +1136,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                               }
                               onClick={() => handleDeleteScore(index)}
                             >
-                              <X className="h-4 w-4" />
+                              <X className="icon-lg" />
                             </Button>
                           )}
                         </div>

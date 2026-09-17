@@ -412,7 +412,7 @@ function MarkdownRenderer({
     return (
       <div className={cn("space-y-2 overflow-x-auto text-sm", className)}>
         <div className="text-muted-foreground flex items-center gap-1 text-xs">
-          <Info className="h-3 w-3" />
+          <Info className="icon-sm" />
           Content is too large or deeply nested to render as markdown.
           Displaying as plain text.
         </div>
@@ -452,7 +452,7 @@ function MarkdownRenderer({
     return (
       <>
         <div className="text-muted-foreground flex items-center gap-1 text-xs">
-          <Info className="h-3 w-3" />
+          <Info className="icon-sm" />
           Markdown parsing failed. Displaying raw JSON.
         </div>
         <JSONView json={markdown} className="min-w-0" />
@@ -696,7 +696,7 @@ export function MarkdownView({
           className="grid grid-cols-[auto_1fr] items-center gap-2"
         >
           <span title="<Base64 data URI>" className="h-4 w-4">
-            <ImageOff className="h-4 w-4" />
+            <ImageOff className="icon-lg" />
           </span>
           <span className="truncate text-sm" title={imageUrl.toString()}>
             {imageUrl.toString()}

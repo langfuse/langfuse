@@ -225,7 +225,7 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
                           className="flex items-center"
                         >
                           See JSON Schema examples here
-                          <ArrowUpRight className="h-3 w-3" />
+                          <ArrowUpRight className="icon-sm" />
                         </a>
                       </FormDescription>
                       <FormControl>

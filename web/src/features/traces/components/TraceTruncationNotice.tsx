@@ -53,7 +53,7 @@ export function TraceTruncationNotice() {
 
   return (
     <div className="text-muted-foreground border-border bg-muted/40 flex shrink-0 items-start gap-2 border-b py-1.5 pr-1 pl-2 text-xs">
-      <TriangleAlert className="text-foreground-tertiary mt-0.5 h-3.5 w-3.5 shrink-0" />
+      <TriangleAlert className="text-foreground-tertiary icon-md mt-0.5 shrink-0" />
       <p className="min-w-0 flex-1">
         {/* No total: the server stops counting at the cap, so we know "more than
             this", never how many. */}
@@ -71,7 +71,7 @@ export function TraceTruncationNotice() {
         onClick={() => setDismissedRank(rank)}
         className="hover:bg-muted-foreground/10 hover:text-foreground shrink-0 rounded p-0.5"
       >
-        <X className="h-3.5 w-3.5" />
+        <X className="icon-md" />
       </button>
     </div>
   );

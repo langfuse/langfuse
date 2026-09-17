@@ -38,7 +38,7 @@ export function RulesOverviewSelectionBarView({
           disabled={!hasWriteAccess || statusChangePending}
           onClick={onEnable}
         >
-          <Play className="mr-2 h-4 w-4" /> Enable
+          <Play className="icon-lg mr-2" /> Enable
         </Button>
         <Button
           type="button"
@@ -47,7 +47,7 @@ export function RulesOverviewSelectionBarView({
           disabled={!hasWriteAccess || statusChangePending}
           onClick={onDisable}
         >
-          <Pause className="mr-2 h-4 w-4" /> Disable
+          <Pause className="icon-lg mr-2" /> Disable
         </Button>
         <Button
           type="button"
@@ -56,7 +56,7 @@ export function RulesOverviewSelectionBarView({
           disabled={!hasWriteAccess}
           onClick={onDelete}
         >
-          <Trash2 className="mr-2 h-4 w-4" /> Delete
+          <Trash2 className="icon-lg mr-2" /> Delete
         </Button>
       </OverviewSelectionBar>
       <ConfirmDialog

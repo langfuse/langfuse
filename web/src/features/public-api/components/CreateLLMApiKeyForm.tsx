@@ -440,7 +440,7 @@ export function CreateLLMApiKeyForm({
                 variant="ghost"
                 onClick={() => remove(index)}
               >
-                <TrashIcon className="h-4 w-4" />
+                <TrashIcon className="icon-lg" />
               </Button>
             </span>
           ))}
@@ -492,7 +492,7 @@ export function CreateLLMApiKeyForm({
                 variant="ghost"
                 onClick={() => removeHeader(index)}
               >
-                <TrashIcon className="h-4 w-4" />
+                <TrashIcon className="icon-lg" />
               </Button>
             </div>
           ))}
@@ -1231,7 +1231,7 @@ export function CreateLLMApiKeyForm({
                         : "Show advanced settings"}
                     </span>
                     <ChevronDown
-                      className={`ml-1 h-4 w-4 transition-transform ${showAdvancedSettings ? "rotate-180" : "rotate-0"}`}
+                      className={`icon-lg ml-1 transition-transform ${showAdvancedSettings ? "rotate-180" : "rotate-0"}`}
                     />
                   </Button>
                 </div>

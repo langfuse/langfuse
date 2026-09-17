@@ -35,7 +35,7 @@ export function createDropdownTableColumn<
             {({ Trigger }) => (
               <Trigger asChild>
                 <Button variant="ghost" size="icon" aria-label="Open menu">
-                  <MoreVertical className="h-4 w-4" />
+                  <MoreVertical className="icon-lg" />
                 </Button>
               </Trigger>
             )}

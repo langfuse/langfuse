@@ -18,7 +18,7 @@ export const Default = meta.story({
 export const WithIcon = meta.story({
   args: {
     children: "Create item",
-    icon: <PlusIcon className="h-4 w-4" aria-hidden="true" />,
+    icon: <PlusIcon className="icon-lg" aria-hidden="true" />,
     onClick: fn(),
   },
 });

@@ -142,7 +142,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         const key: RowData["key"] = row.getValue("key");
         return !hasAccess ? (
           <Button size="sm" disabled>
-            <Lock className="mr-1 h-3 w-3" />
+            <Lock className="icon-sm mr-1" />
             <span className="text-xs">Process queue</span>
           </Button>
         ) : (
@@ -150,7 +150,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
             <Link
               href={`/project/${projectId}/annotation-queues/${key.id}/items`}
             >
-              <ClipboardPen className="mr-1 h-3 w-3" />
+              <ClipboardPen className="icon-sm mr-1" />
               <span className="text-xs">Process queue</span>
             </Link>
           </Button>

@@ -176,7 +176,7 @@ export const CreateExperimentsForm = ({
             <Card className="flex flex-1 flex-col">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Wand2 className="size-4" />
+                  <Wand2 className="icon-lg" />
                   via User Interface
                 </CardTitle>
                 <CardDescription>
@@ -219,7 +219,7 @@ export const CreateExperimentsForm = ({
             <Card className="flex flex-1 flex-col">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Code2 className="size-4" />
+                  <Code2 className="icon-lg" />
                   via Webhook
                 </CardTitle>
                 <CardDescription>
@@ -256,7 +256,7 @@ export const CreateExperimentsForm = ({
                             : (selectedRemoteExperimentDataset?.name ??
                               remoteExperimentDataset?.name ??
                               "Select a dataset")}
-                          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          <ChevronDown className="icon-lg ml-2 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent
@@ -289,7 +289,7 @@ export const CreateExperimentsForm = ({
                                   {dataset.name}
                                   <CheckIcon
                                     className={cn(
-                                      "ml-auto h-4 w-4",
+                                      "icon-lg ml-auto",
                                       dataset.id === datasetId
                                         ? "opacity-100"
                                         : "opacity-0",
@@ -340,7 +340,7 @@ export const CreateExperimentsForm = ({
                       title="Edit remote trigger settings"
                       onClick={() => setShowRemoteExperimentUpsertForm(true)}
                     >
-                      <Cog className="h-3 w-3" />
+                      <Cog className="icon-sm" />
                     </Button>
                   </div>
                 ) : (

@@ -1453,7 +1453,7 @@ export function TimelineDense({
           label="Zoom out"
           onClick={() => zoomBy(2 ** -BUTTON_ZOOM_LEVELS, 0.5, 0.5)}
         >
-          <Minus className="h-3 w-3" />
+          <Minus className="icon-sm" />
         </ToolbarButton>
         <ToolbarButton
           label="Zoom in"
@@ -1463,11 +1463,11 @@ export function TimelineDense({
               : zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)
           }
         >
-          <Plus className="h-3 w-3" />
+          <Plus className="icon-sm" />
         </ToolbarButton>
         {offerShowLabels ? (
           <ToolbarButton label="Show labels" onClick={showLabels}>
-            <UnfoldVertical className="h-3 w-3" />
+            <UnfoldVertical className="icon-sm" />
             <span className="pr-0.5" style={{ fontSize: "10px" }}>
               Show labels
             </span>
@@ -1485,7 +1485,7 @@ export function TimelineDense({
             {/* A viewfinder, not the diagonal arrows this used to wear: those
                 read as "fullscreen", so a control that was merely spent looked
                 broken. */}
-            <Scan className="h-3 w-3" />
+            <Scan className="icon-sm" />
           </ToolbarButton>
         )}
         {/* What the dimming means, said in words. Without it "nothing lit up"

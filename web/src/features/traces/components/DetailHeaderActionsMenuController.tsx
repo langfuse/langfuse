@@ -187,9 +187,9 @@ export function DetailHeaderActionsMenuController({
               onSelect={() => handleCopy(item.id)}
             >
               {copiedId === item.id ? (
-                <CheckIcon className="text-muted-green mr-2 h-4 w-4" />
+                <CheckIcon className="text-muted-green icon-lg mr-2" />
               ) : (
-                <CopyIcon className="mr-2 h-4 w-4" />
+                <CopyIcon className="icon-lg mr-2" />
               )}
               <span className="max-w-[260px] truncate" title={item.id}>
                 Copy {item.name}
@@ -202,9 +202,9 @@ export function DetailHeaderActionsMenuController({
               onSelect={() => handleCopy(clickHouseQuery)}
             >
               {copiedId === clickHouseQuery ? (
-                <CheckIcon className="text-muted-green mr-2 h-4 w-4" />
+                <CheckIcon className="text-muted-green icon-lg mr-2" />
               ) : (
-                <CopyIcon className="mr-2 h-4 w-4" />
+                <CopyIcon className="icon-lg mr-2" />
               )}
               Copy ClickHouse query
             </DropdownMenuItem>

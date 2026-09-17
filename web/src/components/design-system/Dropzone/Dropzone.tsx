@@ -143,7 +143,7 @@ export const Dropzone = ({
       <input {...getInputProps()} disabled={isDisabled} />
       {variant === "compact" && (
         <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
-          <PaperclipIcon className="h-4 w-4" />
+          <PaperclipIcon className="icon-lg" />
           <span className="truncate" title={contentText}>
             {contentText}
           </span>
@@ -152,7 +152,7 @@ export const Dropzone = ({
       {variant === "panel" && (
         <div className="flex flex-col items-center justify-center">
           <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
-            <UploadIcon size={16} />
+            <UploadIcon className="icon-lg" />
           </div>
           <p
             className={cn(

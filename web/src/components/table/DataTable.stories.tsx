@@ -377,7 +377,7 @@ function buildTraceColumns(
               ) : (
                 <span>-</span>
               )}
-              <InfoIcon className="h-3 w-3" />
+              <InfoIcon className="icon-sm" />
             </div>
           </BreakdownTooltip>
         ) : null;
@@ -442,7 +442,7 @@ function buildTraceColumns(
       isFixedPosition: true,
       renderMenu: () => (
         <DropdownMenuItem className="text-destructive">
-          <Trash className="mr-2 h-4 w-4" />
+          <Trash className="icon-lg mr-2" />
           Delete trace
         </DropdownMenuItem>
       ),
@@ -1274,17 +1274,17 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
               size="icon-xs"
               aria-label="Duplicate folder"
             >
-              <Copy className="h-4 w-4" />
+              <Copy className="icon-lg" />
             </Button>
             <Button variant="ghost" size="icon-xs" aria-label="Delete folder">
-              <Trash className="h-4 w-4" />
+              <Trash className="icon-lg" />
             </Button>
           </div>
         );
       }
       return (
         <Button variant="ghost" size="icon-xs" aria-label="Delete prompt">
-          <Trash className="h-4 w-4" />
+          <Trash className="icon-lg" />
         </Button>
       );
     },
@@ -1387,7 +1387,7 @@ const iconCellColumns: LangfuseColumnDef<IconCellRow>[] = [
               className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1 text-left"
             >
               <IdTableCell value={name} />
-              <PlusCircle className="h-3.5 w-3.5 shrink-0" />
+              <PlusCircle className="icon-md shrink-0" />
             </button>
           );
         case "link":

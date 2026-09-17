@@ -358,7 +358,7 @@ function VariableMappingRow({
     >
       {unmapped ? (
         <div className="text-dark-yellow flex w-full items-start gap-1.5 p-3 text-left text-sm">
-          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <TriangleAlert className="icon-lg mt-0.5 shrink-0" />
           {`{{${variable}}} is not mapped yet — click to choose the data it pulls in.`}
         </div>
       ) : !sourceObject ? (
@@ -372,7 +372,7 @@ function VariableMappingRow({
         </p>
       ) : extracted?.error ? (
         <div className="text-dark-yellow flex items-start gap-1.5 p-3 text-sm">
-          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <TriangleAlert className="icon-lg mt-0.5 shrink-0" />
           {extracted.error}
         </div>
       ) : !extracted?.value ? (

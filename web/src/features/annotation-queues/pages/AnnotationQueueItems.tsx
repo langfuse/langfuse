@@ -58,7 +58,7 @@ export default function QueueItems({
         ],
         actionButtonsRight: !hasWriteAccess ? (
           <Button disabled>
-            <Lock className="mr-1 h-4 w-4" />
+            <Lock className="icon-lg mr-1" />
             <span className="text-sm">Process queue</span>
           </Button>
         ) : (
@@ -66,7 +66,7 @@ export default function QueueItems({
             <Link
               href={`/project/${projectId}/annotation-queues/${queueId}/items`}
             >
-              <ClipboardPen className="mr-1 h-4 w-4" />
+              <ClipboardPen className="icon-lg mr-1" />
               <span className="text-sm">Process queue</span>
             </Link>
           </Button>

@@ -71,7 +71,7 @@ function MultiSelectInputInner<V extends string>(
           >
             {value.length > 0 ? selectedLabel : placeholder}
           </span>
-          <ChevronDown className="size-4 shrink-0 opacity-50" />
+          <ChevronDown className="icon-lg shrink-0 opacity-50" />
         </PopoverPrimitive.Trigger>
       </InputControl>
       <PopoverPrimitive.Portal container={container}>
@@ -84,7 +84,7 @@ function MultiSelectInputInner<V extends string>(
         >
           <CommandPrimitive className="bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-md">
             <div className="flex items-center border-b px-2">
-              <Search className="size-4 shrink-0 opacity-50" />
+              <Search className="icon-lg shrink-0 opacity-50" />
               <CommandPrimitive.Input
                 placeholder={searchPlaceholder}
                 className="placeholder:text-foreground-tertiary flex h-8 w-full rounded border-transparent bg-transparent px-2 py-3 text-sm outline-hidden focus:border-0 focus:border-none focus:border-transparent focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
@@ -140,7 +140,7 @@ function MultiSelectInputInner<V extends string>(
                       <span className="ml-auto flex size-3.5 shrink-0 items-center justify-center">
                         <Check
                           className={cn(
-                            "size-4",
+                            "icon-lg",
                             isSelected ? "opacity-100" : "opacity-0",
                           )}
                         />

@@ -259,7 +259,7 @@ function SsoConfigsTable({ orgId }: { orgId: string }) {
                         aria-label={`Delete SSO for ${row.original.domain}`}
                         onClick={() => openDeleteDialog(row.original.domain)}
                       >
-                        <TrashIcon className="h-4 w-4" />
+                        <TrashIcon className="icon-lg" />
                       </Button>
                     ) : null}
                   </div>
@@ -678,9 +678,9 @@ function CopyableCallbackUrl({ value }: { value: string }) {
         }}
       >
         {isCopied ? (
-          <Check className="h-3 w-3" />
+          <Check className="icon-sm" />
         ) : (
-          <Copy className="h-3 w-3" />
+          <Copy className="icon-sm" />
         )}
       </Button>
     </div>

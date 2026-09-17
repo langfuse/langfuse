@@ -53,7 +53,7 @@ export function InAppAgentActivityCards({
           >
             <BotMessageSquare
               className={cn(
-                "mt-0.5 size-4 shrink-0",
+                "icon-lg mt-0.5 shrink-0",
                 tone === "destructive"
                   ? "text-destructive"
                   : "text-primary-accent",
@@ -87,7 +87,7 @@ export function InAppAgentActivityCards({
                 onDismiss(card);
               }}
             >
-              <X className="size-3" />
+              <X className="icon-sm" />
             </Button>
           </div>
         );

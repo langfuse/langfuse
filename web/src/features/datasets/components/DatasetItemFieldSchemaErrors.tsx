@@ -21,7 +21,7 @@ export const DatasetItemFieldSchemaErrors: React.FC<
   return (
     <div className="border-destructive/50 bg-destructive/10 rounded-md border p-3">
       <div className="flex items-start gap-2">
-        <AlertCircle className="text-destructive mt-0.5 h-4 w-4" />
+        <AlertCircle className="text-destructive icon-lg mt-0.5" />
         <div className="flex-1 space-y-2">
           <p className="text-destructive text-sm font-bold">
             Schema validation failed

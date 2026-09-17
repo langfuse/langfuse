@@ -317,7 +317,7 @@ function CreateLlmEvaluatorWizard({
                   {isActive ? (
                     <BreadcrumbPage className="flex items-center font-bold">
                       {isComplete ? (
-                        <Check className="text-dark-green mr-1.5 h-3.5 w-3.5" />
+                        <Check className="text-dark-green icon-md mr-1.5" />
                       ) : null}
                       {index + 1}. {step.label}
                     </BreadcrumbPage>
@@ -331,7 +331,7 @@ function CreateLlmEvaluatorWizard({
                       className="flex cursor-pointer items-center"
                     >
                       {isComplete ? (
-                        <Check className="text-dark-green mr-1.5 h-3.5 w-3.5" />
+                        <Check className="text-dark-green icon-md mr-1.5" />
                       ) : null}
                       {index + 1}. {step.label}
                     </BreadcrumbLink>

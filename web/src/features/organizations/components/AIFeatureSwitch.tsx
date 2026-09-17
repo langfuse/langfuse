@@ -139,7 +139,7 @@ export default function AIFeatureSwitch() {
                   className="text-primary inline-flex items-center gap-1 hover:underline"
                 >
                   More details in the docs here.
-                  <ExternalLink className="h-3 w-3" />
+                  <ExternalLink className="icon-sm" />
                 </a>
               </p>
             ) : (
@@ -158,7 +158,7 @@ export default function AIFeatureSwitch() {
             />
             {!hasAccess && (
               <span title="No access">
-                <LockIcon className="text-muted absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
+                <LockIcon className="text-muted icon-lg absolute top-1/2 right-3 -translate-y-1/2 transform" />
               </span>
             )}
           </div>
@@ -184,7 +184,7 @@ export default function AIFeatureSwitch() {
                 />
                 {!hasAccess && (
                   <span title="No access">
-                    <LockIcon className="text-muted absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
+                    <LockIcon className="text-muted icon-lg absolute top-1/2 right-3 -translate-y-1/2 transform" />
                   </span>
                 )}
               </div>
@@ -227,7 +227,7 @@ export default function AIFeatureSwitch() {
                     className="text-primary inline-flex items-center gap-1 hover:underline"
                   >
                     Learn more in the docs.
-                    <ExternalLink className="h-3 w-3" />
+                    <ExternalLink className="icon-sm" />
                   </a>
                 </>
               )}

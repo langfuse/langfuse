@@ -46,7 +46,7 @@ export const WithIcon = meta.story({
   args: {
     children: (
       <>
-        <PlusIcon className="h-4 w-4" aria-hidden="true" />
+        <PlusIcon className="icon-lg" aria-hidden="true" />
         Add item
       </>
     ),
@@ -107,7 +107,7 @@ export const VariantMatrix = meta.story({
               aria-label={size.startsWith("icon") ? variant : undefined}
             >
               {size.startsWith("icon") ? (
-                <PlusIcon className="h-3 w-3" aria-hidden="true" />
+                <PlusIcon className="icon-sm" aria-hidden="true" />
               ) : (
                 "Button"
               )}

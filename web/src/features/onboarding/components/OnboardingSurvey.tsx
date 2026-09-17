@@ -139,7 +139,7 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
                               className="text-primary inline-flex items-center gap-1 hover:underline"
                             >
                               Learn more
-                              <ExternalLink className="h-3 w-3" />
+                              <ExternalLink className="icon-sm" />
                             </a>
                           </p>
                         </div>

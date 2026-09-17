@@ -36,7 +36,7 @@ export default function HfSpaces({ deploymentDomain }: PageProps) {
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <div className="flex items-center justify-center gap-2">
             <LangfuseIcon />
-            <PlusIcon size={12} className="ml-1" />
+            <PlusIcon className="icon-sm ml-1" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/assets/huggingface-logo.svg"

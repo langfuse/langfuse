@@ -80,10 +80,7 @@ export function FormField<
                   {...registerLabelTooltip()}
                   aria-label={`About ${label}`}
                 >
-                  <Info
-                    aria-hidden
-                    className="text-muted-foreground size-3.5"
-                  />
+                  <Info aria-hidden className="text-muted-foreground icon-md" />
                 </button>
               ) : null}
             </div>

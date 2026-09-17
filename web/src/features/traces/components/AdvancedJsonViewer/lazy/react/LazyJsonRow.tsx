@@ -65,7 +65,7 @@ function LazyJsonRowImpl({
         >
           {row.preview}
         </button>
-        {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+        {pending ? <Loader2 className="icon-sm animate-spin" /> : null}
       </div>
     );
   }
@@ -82,7 +82,7 @@ function LazyJsonRowImpl({
       <span className="flex h-4 w-4 shrink-0 items-center justify-center">
         {isContainer ? (
           pending ? (
-            <Loader2 className="text-muted-foreground h-3 w-3 animate-spin" />
+            <Loader2 className="text-muted-foreground icon-sm animate-spin" />
           ) : (
             <button
               type="button"
@@ -92,7 +92,7 @@ function LazyJsonRowImpl({
             >
               <ChevronRight
                 className={cn(
-                  "h-3 w-3 transition-transform",
+                  "icon-sm transition-transform",
                   row.expanded && "rotate-90",
                 )}
               />
@@ -142,7 +142,7 @@ function LazyJsonRowImpl({
           className="text-muted-foreground hover:text-foreground ml-1 shrink-0 opacity-0 group-hover:opacity-100"
           onClick={() => onCopyValue(row.nodeId)}
         >
-          <Copy className="h-3 w-3" />
+          <Copy className="icon-sm" />
         </button>
       ) : null}
     </div>

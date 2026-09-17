@@ -167,7 +167,7 @@ export function AddObservationsToDatasetDialog(
             <div className="grow">
               {showBackButton && (
                 <Button type="button" variant="ghost" onClick={goBack}>
-                  <ChevronLeft className="mr-1 h-4 w-4" />
+                  <ChevronLeft className="icon-lg mr-1" />
                   Back
                 </Button>
               )}

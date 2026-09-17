@@ -113,7 +113,7 @@ function SelectInputInner<V extends string>(
               <SelectPrimitive.ItemText>{node.label}</SelectPrimitive.ItemText>
             </span>
             <SelectPrimitive.ItemIndicator className="ml-auto flex size-3.5 shrink-0 items-center justify-center">
-              <Check className="size-4" />
+              <Check className="icon-lg" />
             </SelectPrimitive.ItemIndicator>
           </SelectPrimitive.SelectItem>
         );
@@ -144,7 +144,7 @@ function SelectInputInner<V extends string>(
             <SelectPrimitive.SelectValue placeholder={placeholder} />
           </span>
           <SelectPrimitive.Icon asChild>
-            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+            <ChevronDown className="icon-lg shrink-0 opacity-50" />
           </SelectPrimitive.Icon>
         </SelectPrimitive.Trigger>
       </InputControl>
@@ -158,7 +158,7 @@ function SelectInputInner<V extends string>(
             aria-label="Scroll up"
             className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 top-0 z-3 flex h-6 items-center justify-center duration-300 [animation-delay:.5s]"
           >
-            <ChevronUp className="size-4" />
+            <ChevronUp className="icon-lg" />
           </SelectPrimitive.ScrollUpButton>
           <SelectPrimitive.Viewport
             ref={register}
@@ -186,7 +186,7 @@ function SelectInputInner<V extends string>(
             aria-label="Scroll down"
             className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 bottom-0 z-3 flex h-6 items-center justify-center duration-300 [animation-delay:.5s]"
           >
-            <ChevronDown className="size-4" />
+            <ChevronDown className="icon-lg" />
           </SelectPrimitive.ScrollDownButton>
         </SelectPrimitive.Content>
       </SelectPrimitive.Portal>

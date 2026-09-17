@@ -182,7 +182,7 @@ export function PromptSelectionDialog({
                       passHref
                     >
                       <Button type="button" variant="outline" size="icon">
-                        <ExternalLinkIcon className="h-4 w-4" />
+                        <ExternalLinkIcon className="icon-lg" />
                       </Button>
                     </Link>
                   )}
@@ -205,7 +205,7 @@ export function PromptSelectionDialog({
                   className="absolute top-2 right-2"
                   onClick={copySelectedTag}
                 >
-                  <CopyIcon className="h-4 w-4" />
+                  <CopyIcon className="icon-lg" />
                 </Button>
               </div>
               <p className="text-muted-foreground text-xs">

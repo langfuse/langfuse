@@ -196,10 +196,7 @@ export function PresetDashboardWidget({
           only the edit affordances (drag, delete) are gated. */}
       <div className="bg-background/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex has-data-[state=open]:flex">
         {!readOnly && (hasCUDAccess || isLockedEditable) && (
-          <GripVerticalIcon
-            size={16}
-            className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:block"
-          />
+          <GripVerticalIcon className="drag-handle text-muted-foreground hover:text-foreground icon-lg hidden cursor-grab active:cursor-grabbing lg:block" />
         )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -207,17 +204,17 @@ export function PresetDashboardWidget({
               className="text-muted-foreground hover:text-foreground"
               aria-label="Widget actions"
             >
-              <MoreVerticalIcon size={16} />
+              <MoreVerticalIcon className="icon-lg" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={handleCopyToClipboard}>
-              <CopyIcon className="mr-2 h-4 w-4" />
+              <CopyIcon className="icon-lg mr-2" />
               Copy card
             </DropdownMenuItem>
             {onDuplicatePreset && (
               <DropdownMenuItem onClick={() => onDuplicatePreset(placement)}>
-                <CopyPlusIcon className="mr-2 h-4 w-4" />
+                <CopyPlusIcon className="icon-lg mr-2" />
                 Clone
               </DropdownMenuItem>
             )}
@@ -228,7 +225,7 @@ export function PresetDashboardWidget({
                   onClick={handleDelete}
                   className="text-destructive focus:text-destructive"
                 >
-                  <TrashIcon className="mr-2 h-4 w-4" />
+                  <TrashIcon className="icon-lg mr-2" />
                   Delete
                 </DropdownMenuItem>
               </>

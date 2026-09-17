@@ -59,7 +59,7 @@ export function UsageBadge({
         <Badge text={tokenText} trailingIcon={InfoIcon} />
       ) : (
         <BadgeShell aria-label="View usage breakdown">
-          <InfoIcon aria-hidden className="size-3" />
+          <InfoIcon aria-hidden className="icon-sm" />
         </BadgeShell>
       )}
     </BreakdownTooltip>

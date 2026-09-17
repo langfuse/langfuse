@@ -80,7 +80,7 @@ export const MessagePlaceholderComponent: React.FC<{
           onClick={() => deleteMessagePlaceholder(name)}
           className="p-0"
         >
-          {!isUsed && <TrashIcon size={16} />}
+          {!isUsed && <TrashIcon className="icon-lg" />}
         </Button>
       </div>
 

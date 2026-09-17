@@ -462,7 +462,7 @@ export function EvaluatorSavedDialogContainer({
               {selectedRule?.name ??
                 (selectedRuleId === null ? "New rule" : "Select a rule")}
             </span>
-            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+            <ChevronDown className="icon-lg shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
       )}

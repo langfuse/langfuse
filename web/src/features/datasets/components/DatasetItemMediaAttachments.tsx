@@ -203,9 +203,9 @@ function DatasetItemMediaUploadButton({
         onClick={() => inputRef.current?.click()}
       >
         {isUploading ? (
-          <Loader2 className="h-3 w-3 animate-spin" />
+          <Loader2 className="icon-sm animate-spin" />
         ) : (
-          <Paperclip className="h-3 w-3" />
+          <Paperclip className="icon-sm" />
         )}
       </Button>
     </>
@@ -233,7 +233,7 @@ function CopyFieldValueButton({ value }: { value: string }) {
         setTimeout(() => setCopied(false), 1000);
       }}
     >
-      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+      {copied ? <Check className="icon-sm" /> : <Copy className="icon-sm" />}
     </Button>
   );
 }

@@ -230,7 +230,7 @@ export function CustomMappingEditor({
             onClick={handleAddEntry}
             className="w-full"
           >
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="icon-lg mr-2" />
             Add field
           </Button>
         </div>
@@ -301,7 +301,7 @@ function KeyValueEntryRow({
             }
           >
             <Trash2
-              className={`h-4 w-4 ${
+              className={`icon-lg ${
                 !canRemove
                   ? "text-muted-foreground/30"
                   : "text-muted-foreground"

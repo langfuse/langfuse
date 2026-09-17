@@ -38,7 +38,7 @@ export function DeleteProviderDialog({
       onOpenChange={setOpen}
       trigger={
         <Button size="icon-xs" variant="ghost" aria-label="Delete credential">
-          <Trash2 className="size-4" />
+          <Trash2 className="icon-lg" />
         </Button>
       }
       title="Delete provider credential"

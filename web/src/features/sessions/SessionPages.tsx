@@ -156,7 +156,7 @@ function SessionUsers({
               <span className="truncate" title={userBadgeText}>
                 {userBadgeText}
               </span>
-              <ExternalLinkIcon className="ml-1 h-3 w-3" />
+              <ExternalLinkIcon className="icon-sm ml-1" />
             </Badge>
           </Link>
         );
@@ -193,7 +193,7 @@ function SessionUsers({
                           <span className="truncate" title={userBadgeText}>
                             {userBadgeText}
                           </span>
-                          <ExternalLinkIcon className="ml-1 h-3 w-3" />
+                          <ExternalLinkIcon className="icon-sm ml-1" />
                         </Badge>
                       </Link>
                     );
@@ -273,9 +273,9 @@ const SessionControlsBar = ({
       >
         <span className="flex min-w-0 items-center gap-2">{summary}</span>
         {isExpanded ? (
-          <ChevronUp className="h-4 w-4 shrink-0" />
+          <ChevronUp className="icon-lg shrink-0" />
         ) : (
-          <ChevronDown className="h-4 w-4 shrink-0" />
+          <ChevronDown className="icon-lg shrink-0" />
         )}
       </Button>
       {/* Keep children MOUNTED when collapsed (hidden, not unmounted): the
@@ -332,9 +332,9 @@ const CopySessionIdButton: React.FC<{
         onClick={onCopy}
       >
         {isCopied ? (
-          <CheckIcon className="text-muted-green h-4 w-4" />
+          <CheckIcon className="text-muted-green icon-lg" />
         ) : (
-          <CopyIcon className="h-4 w-4" />
+          <CopyIcon className="icon-lg" />
         )}
         <span className="text-sm">Copy session ID</span>
       </Button>
@@ -350,9 +350,9 @@ const CopySessionIdButton: React.FC<{
       onClick={onCopy}
     >
       {isCopied ? (
-        <CheckIcon className="text-muted-green h-4 w-4" />
+        <CheckIcon className="text-muted-green icon-lg" />
       ) : (
-        <CopyIcon className="h-4 w-4" />
+        <CopyIcon className="icon-lg" />
       )}
     </Button>
   );
@@ -554,7 +554,7 @@ export const SessionPage: React.FC<{
                 onClick={onDownloadSessionAsJson}
                 title="Download session as JSON"
               >
-                <Download className="h-4 w-4" />
+                <Download className="icon-lg" />
               </Button>
               {!router.query.peek && (
                 <DetailPageNav
@@ -589,10 +589,10 @@ export const SessionPage: React.FC<{
                     className="gap-1"
                   >
                     {disabled ? (
-                      <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                      <MessageSquareOff className="text-muted-foreground icon-lg" />
                     ) : (
                       <>
-                        <MessageSquare className="h-4 w-4" />
+                        <MessageSquare className="icon-lg" />
                         <span>Add comment</span>
                         {getNumberFromMap(
                           sessionCommentCounts.data,
@@ -636,9 +636,9 @@ export const SessionPage: React.FC<{
                       }
                     >
                       {disabled ? (
-                        <LockIcon className="mr-1.5 h-3 w-3" />
+                        <LockIcon className="icon-sm mr-1.5" />
                       ) : (
-                        <SquarePen className="mr-1.5 h-4 w-4" />
+                        <SquarePen className="icon-lg mr-1.5" />
                       )}
                       <span>Annotate</span>
                     </Button>
@@ -656,7 +656,7 @@ export const SessionPage: React.FC<{
                       className="rounded-l-none rounded-r-md border-l-2"
                     >
                       <span className="relative mr-1 text-xs">
-                        <ChevronDown className="h-3 w-3" />
+                        <ChevronDown className="icon-sm" />
                         {totalCount > 0 && (
                           <AnnotationQueueItemCountBadge
                             totalCount={totalCount}
@@ -714,9 +714,9 @@ export const SessionPage: React.FC<{
                     className="w-full justify-start gap-2 font-normal"
                   >
                     {disabled ? (
-                      <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                      <MessageSquareOff className="text-muted-foreground icon-lg" />
                     ) : (
-                      <MessageSquare className="h-4 w-4" />
+                      <MessageSquare className="icon-lg" />
                     )}
                     <span className="text-sm">Add comment</span>
                     {!disabled &&
@@ -756,9 +756,9 @@ export const SessionPage: React.FC<{
                     }
                   >
                     {disabled ? (
-                      <LockIcon className="h-3 w-3" />
+                      <LockIcon className="icon-sm" />
                     ) : (
-                      <SquarePen className="h-4 w-4" />
+                      <SquarePen className="icon-lg" />
                     )}
                     <span className="text-sm">Annotate</span>
                   </Button>
@@ -776,7 +776,7 @@ export const SessionPage: React.FC<{
                     disabled={disabled !== undefined}
                     className="w-full justify-start gap-2 font-normal"
                   >
-                    <ListPlus className="h-4 w-4" />
+                    <ListPlus className="icon-lg" />
                     <span className="text-sm">Add to queue</span>
                     {totalCount > 0 && (
                       <AnnotationQueueItemCountBadge
@@ -796,7 +796,7 @@ export const SessionPage: React.FC<{
                 onClick={onDownloadSessionAsJson}
                 className="w-full justify-start gap-2 font-normal"
               >
-                <Download className="h-4 w-4" />
+                <Download className="icon-lg" />
                 <span className="text-sm">Download JSON</span>
               </Button>
               <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
@@ -1630,10 +1630,10 @@ const LoadedSessionEventsPage: React.FC<{
                     className="gap-1"
                   >
                     {disabled ? (
-                      <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                      <MessageSquareOff className="text-muted-foreground icon-lg" />
                     ) : (
                       <>
-                        <MessageSquare className="h-4 w-4" />
+                        <MessageSquare className="icon-lg" />
                         <span>Add comment</span>
                         {getNumberFromMap(
                           sessionCommentCounts.data,
@@ -1677,9 +1677,9 @@ const LoadedSessionEventsPage: React.FC<{
                       }
                     >
                       {disabled ? (
-                        <LockIcon className="mr-1.5 h-3 w-3" />
+                        <LockIcon className="icon-sm mr-1.5" />
                       ) : (
-                        <SquarePen className="mr-1.5 h-4 w-4" />
+                        <SquarePen className="icon-lg mr-1.5" />
                       )}
                       <span>Annotate</span>
                       {isModernSessionEnabled && annotationCount > 0 ? (
@@ -1702,7 +1702,7 @@ const LoadedSessionEventsPage: React.FC<{
                       className="rounded-l-none rounded-r-md border-l-2"
                     >
                       <span className="relative mr-1 text-xs">
-                        <ChevronDown className="h-3 w-3" />
+                        <ChevronDown className="icon-sm" />
                         {totalCount > 0 && (
                           <AnnotationQueueItemCountBadge
                             totalCount={totalCount}
@@ -1748,7 +1748,7 @@ const LoadedSessionEventsPage: React.FC<{
                       size="icon"
                       aria-label="Session actions"
                     >
-                      <MoreVertical className="h-4 w-4" />
+                      <MoreVertical className="icon-lg" />
                     </Button>
                   </DropdownMenuTrigger>
                 </ModernSessionHeaderActionsController>
@@ -1787,9 +1787,9 @@ const LoadedSessionEventsPage: React.FC<{
                     className="w-full justify-start gap-2 font-normal"
                   >
                     {disabled ? (
-                      <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                      <MessageSquareOff className="text-muted-foreground icon-lg" />
                     ) : (
-                      <MessageSquare className="h-4 w-4" />
+                      <MessageSquare className="icon-lg" />
                     )}
                     <span className="text-sm">Add comment</span>
                     {!disabled &&
@@ -1829,9 +1829,9 @@ const LoadedSessionEventsPage: React.FC<{
                     }
                   >
                     {disabled ? (
-                      <LockIcon className="h-3 w-3" />
+                      <LockIcon className="icon-sm" />
                     ) : (
-                      <SquarePen className="h-4 w-4" />
+                      <SquarePen className="icon-lg" />
                     )}
                     <span className="text-sm">Annotate</span>
                     {isModernSessionEnabled && annotationCount > 0 ? (
@@ -1854,7 +1854,7 @@ const LoadedSessionEventsPage: React.FC<{
                     disabled={disabled !== undefined}
                     className="w-full justify-start gap-2 font-normal"
                   >
-                    <ListPlus className="h-4 w-4" />
+                    <ListPlus className="icon-lg" />
                     <span className="text-sm">Add to queue</span>
                     {totalCount > 0 && (
                       <AnnotationQueueItemCountBadge

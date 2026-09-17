@@ -72,7 +72,7 @@ export function MetricCard({
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <HelpCircle className="text-muted-foreground h-3 w-3" />
+                <HelpCircle className="text-muted-foreground icon-sm" />
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-xs">
                 <p className="text-xs">{helpText}</p>
@@ -116,7 +116,7 @@ export function MetricCard({
         {warning?.show && !isPlaceholder && !isNA && (
           <HoverCard>
             <HoverCardTrigger asChild>
-              <AlertCircle className="h-4 w-4 cursor-help text-amber-500" />
+              <AlertCircle className="icon-lg cursor-help text-amber-500" />
             </HoverCardTrigger>
             <HoverCardContent className="w-80">
               {warning.content}

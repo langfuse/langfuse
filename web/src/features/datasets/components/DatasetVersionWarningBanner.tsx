@@ -28,7 +28,7 @@ export function DatasetVersionWarningBanner({
     <div
       className={`border-accent-dark-blue/10 bg-accent-light-blue/30 flex items-start gap-3 border-b p-3 ${className}`}
     >
-      <Info className="mt-0.5 h-4 w-4 shrink-0" />
+      <Info className="icon-lg mt-0.5 shrink-0" />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex items-center justify-between gap-4">
           <p className="text-muted-foreground text-sm wrap-break-word">

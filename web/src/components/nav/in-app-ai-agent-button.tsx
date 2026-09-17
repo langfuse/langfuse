@@ -94,7 +94,7 @@ export const InAppAiAgentButton = ({
       )}
     >
       <BotMessageSquare
-        className={cn("h-4 w-4", prominent && open && "text-primary-accent")}
+        className={cn("icon-lg", prominent && open && "text-primary-accent")}
       />
       {/* Conversations still owed a look. Anchored to the button rather than
           the icon so it survives the prominent (icon-only) variant. Visual

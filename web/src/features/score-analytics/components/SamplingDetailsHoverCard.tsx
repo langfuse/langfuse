@@ -42,7 +42,7 @@ export function SamplingDetailsHoverCard({
         >
           {showLabel && <span>Sampled Data</span>}
           <Info
-            className={showLabel ? "h-3 w-3" : "text-muted-foreground h-3 w-3"}
+            className={showLabel ? "icon-sm" : "text-muted-foreground icon-sm"}
           />
         </button>
       </HoverCardTrigger>

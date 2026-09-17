@@ -33,7 +33,7 @@ export function DeletePrompt({ promptName }: { promptName: string }) {
     <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="xs" disabled={!hasAccess}>
-          <Trash className="h-4 w-4" />
+          <Trash className="icon-lg" />
         </Button>
       </PopoverTrigger>
       <PopoverContent>

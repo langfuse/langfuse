@@ -1256,7 +1256,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                             role="status"
                             aria-label="Saving"
                           >
-                            <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
+                            <Loader2 className="text-muted-foreground icon-lg animate-spin" />
                           </span>
                         )}
                         {hasCUDAccess && hasUnsavedFilterChanges && (
@@ -1272,7 +1272,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                         )}
                         {hasRbacCUDAccess && (
                           <Button onClick={handleAddWidget}>
-                            <PlusIcon size={16} className="mr-1 h-4 w-4" />
+                            <PlusIcon className="icon-lg icon-lg mr-1" />
                             Add Widget
                           </Button>
                         )}
@@ -1282,7 +1282,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                             onClick={handleCloneDashboard}
                             disabled={mutateCloneDashboard.isPending}
                           >
-                            <Copy size={16} className="mr-1 h-4 w-4" />
+                            <Copy className="icon-lg icon-lg mr-1" />
                             Clone
                           </Button>
                         )}
@@ -1294,7 +1294,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                                 size="icon"
                                 aria-label="More actions"
                               >
-                                <MoreVertical className="h-4 w-4" />
+                                <MoreVertical className="icon-lg" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
@@ -1305,7 +1305,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                                     pasteWidgetFromClipboard("dashboard_menu")
                                   }
                                 >
-                                  <ClipboardPasteIcon className="mr-2 h-4 w-4" />
+                                  <ClipboardPasteIcon className="icon-lg mr-2" />
                                   Paste widget
                                 </DropdownMenuItem>
                               )}
@@ -1330,14 +1330,14 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                                   });
                                 }}
                               >
-                                <HomeIcon className="mr-2 h-4 w-4" />
+                                <HomeIcon className="icon-lg mr-2" />
                                 {isCurrentHome
                                   ? "Shown on Home"
                                   : "Use as Home"}
                               </DropdownMenuItem>
                               {hasCUDAccess && (
                                 <DropdownMenuItem onSelect={openEditDialog}>
-                                  <PencilIcon className="mr-2 h-4 w-4" />
+                                  <PencilIcon className="icon-lg mr-2" />
                                   Edit name & description
                                 </DropdownMenuItem>
                               )}

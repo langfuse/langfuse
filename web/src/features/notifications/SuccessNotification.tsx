@@ -44,7 +44,7 @@ export const SuccessNotification: React.FC<SuccessNotificationProps> = ({
         onClick={onDismiss}
         aria-label="Close"
       >
-        <X size={14} />
+        <X className="icon-md" />
       </button>
     </div>
   );

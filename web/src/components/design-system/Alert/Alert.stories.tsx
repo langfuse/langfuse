@@ -34,7 +34,7 @@ const dismissibleChildren = (
       aria-label="Dismiss alert"
       onClick={dismiss}
     >
-      <X className="size-4" aria-hidden="true" />
+      <X className="icon-lg" aria-hidden="true" />
     </button>
     <Alert.Title>Review required</Alert.Title>
     <Alert.Description>Check this warning before continuing.</Alert.Description>

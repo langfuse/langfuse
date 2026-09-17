@@ -209,9 +209,9 @@ function PublicKeyCell({ publicKey }: { publicKey: string }) {
         }}
       >
         {isCopied ? (
-          <Check className="h-3 w-3" />
+          <Check className="icon-sm" />
         ) : (
-          <Copy className="h-3 w-3" />
+          <Copy className="icon-sm" />
         )}
       </Button>
     </div>
@@ -284,7 +284,7 @@ function DeleteApiKeyButton(props: {
       onOpenChange={setOpen}
       trigger={
         <Button variant="ghost" size="icon">
-          <TrashIcon className="h-4 w-4" />
+          <TrashIcon className="icon-lg" />
         </Button>
       }
       title="Delete API key"

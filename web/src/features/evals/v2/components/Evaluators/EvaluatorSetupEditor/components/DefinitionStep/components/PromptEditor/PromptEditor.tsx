@@ -176,7 +176,7 @@ export function PromptEditorContent({
             state.actions.addPromptMessage();
           }}
         >
-          <Plus className="h-3.5 w-3.5 shrink-0" />
+          <Plus className="icon-md shrink-0" />
           Add message
         </Button>
       </div>
@@ -244,7 +244,7 @@ function SortablePromptMessage({
     >
       {warningReason ? (
         <TriangleAlert
-          className="text-dark-yellow h-3.5 w-3.5"
+          className="text-dark-yellow icon-md"
           aria-label={
             hasEmptyContent
               ? "Empty prompt message"
@@ -286,7 +286,7 @@ function SortablePromptMessage({
           {...attributes}
           {...listeners}
         >
-          <GripVertical className="h-3.5 w-3.5" />
+          <GripVertical className="icon-md" />
         </button>
       ) : null}
       <PromptVariableEditor
@@ -315,7 +315,7 @@ function SortablePromptMessage({
             >
               <ChevronDown
                 className={cn(
-                  "h-3.5 w-3.5 shrink-0 transition-transform",
+                  "icon-md shrink-0 transition-transform",
                   !expanded && "-translate-x-0.5 -rotate-90",
                 )}
               />
@@ -355,7 +355,7 @@ function SortablePromptMessage({
                 aria-label="Prompt message settings"
                 title="Prompt message settings"
               >
-                <MoreVertical className="h-3.5 w-3.5" />
+                <MoreVertical className="icon-md" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
@@ -377,7 +377,7 @@ function SortablePromptMessage({
                   >
                     <span className="flex-1">{role.label}</span>
                     {message.role === role.value ? (
-                      <Check className="h-3.5 w-3.5" />
+                      <Check className="icon-md" />
                     ) : null}
                   </DropdownMenuItem>
                 );
@@ -388,7 +388,7 @@ function SortablePromptMessage({
                   copy(message.content).catch(() => undefined);
                 }}
               >
-                <Copy className="mr-2 h-3.5 w-3.5" />
+                <Copy className="icon-md mr-2" />
                 Copy prompt
               </DropdownMenuItem>
               {messageCount > 1 ? (
@@ -396,7 +396,7 @@ function SortablePromptMessage({
                   className="text-destructive focus:text-destructive"
                   onSelect={onRemove}
                 >
-                  <Trash2 className="mr-2 h-3.5 w-3.5" />
+                  <Trash2 className="icon-md mr-2" />
                   Delete message
                 </DropdownMenuItem>
               ) : null}

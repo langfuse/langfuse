@@ -388,7 +388,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                     })
                   }
                 >
-                  <PencilIcon className="h-4 w-4" />
+                  <PencilIcon className="icon-lg" />
                   <span className="sr-only">
                     Edit this dashboard in Dashboards
                   </span>
@@ -404,7 +404,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                 ) : (
                   <Button disabled>
                     <LockIcon
-                      className="mr-2 -ml-0.5 h-4 w-4"
+                      className="icon-lg mr-2 -ml-0.5"
                       aria-hidden="true"
                     />
                     Configure Tracing

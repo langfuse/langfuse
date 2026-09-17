@@ -164,7 +164,7 @@ export function SingleSelect({
               </span>
             ) : null}
           </span>
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+          <ChevronDown className="icon-lg shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -216,7 +216,7 @@ export function SingleSelect({
                   >
                     <Check
                       className={cn(
-                        "mr-2 h-4 w-4",
+                        "icon-lg mr-2",
                         isSelected ? "visible" : "invisible",
                       )}
                     />
@@ -272,7 +272,7 @@ export function SingleSelect({
                   value={search.trim()}
                   onSelect={() => commit(search.trim())}
                 >
-                  <Plus className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                  <Plus className="icon-lg mr-2 shrink-0 opacity-50" />
                   <div className="overflow-x-hidden text-ellipsis whitespace-nowrap">
                     Use &ldquo;{search.trim()}&rdquo;
                   </div>

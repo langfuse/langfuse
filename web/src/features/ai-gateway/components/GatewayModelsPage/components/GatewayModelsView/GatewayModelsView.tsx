@@ -238,7 +238,7 @@ export function GatewayModelsView({
         title="Gateway models"
         actionButtons={
           <Button variant="secondary" loading={isLoading} onClick={onSync}>
-            <RefreshCw className="mr-1.5 size-4" />
+            <RefreshCw className="icon-lg mr-1.5" />
             {hasSynced ? "Retry sync" : "Sync models"}
           </Button>
         }
@@ -354,7 +354,7 @@ function GatewayProviderIcon({ provider }: { provider: GatewayProvider }) {
     return <SiOpenai className="size-3" aria-hidden="true" />;
   if (provider === "ANTHROPIC")
     return <SiAnthropic className="size-3" aria-hidden="true" />;
-  return <Route className="size-3" aria-hidden="true" />;
+  return <Route className="icon-sm" aria-hidden="true" />;
 }
 
 function getApiFormatLabel(format: string) {

@@ -236,7 +236,7 @@ export function PeekHeader({
                       size="icon-xs"
                       aria-label="More actions"
                     >
-                      <MoreHorizontal className="h-4 w-4" />
+                      <MoreHorizontal className="icon-lg" />
                     </Button>
                   </PopoverTrigger>
                 </TooltipTrigger>
@@ -253,7 +253,7 @@ export function PeekHeader({
                     onClick={openInNewTab}
                     className="hover:bg-accent flex w-full items-center gap-2 rounded-sm py-1.5 pr-2 pl-1.5 text-sm"
                   >
-                    <ExternalLink className="h-4 w-4" />
+                    <ExternalLink className="icon-lg" />
                     Open in new tab
                   </button>
                 ) : null}
@@ -270,7 +270,7 @@ export function PeekHeader({
           {hasOpenInTab && !plan.foldOpenInTab && openInNewTab ? (
             <div ref={openInTabRef}>
               <HeaderIconButton label="Open in new tab" onClick={openInNewTab}>
-                <ExternalLink className="h-4 w-4" />
+                <ExternalLink className="icon-lg" />
               </HeaderIconButton>
             </div>
           ) : null}
@@ -296,14 +296,14 @@ export function PeekHeader({
                 onClick={expand.onToggle}
               >
                 {expand.isExpanded ? (
-                  <Minimize2 className="h-4 w-4" />
+                  <Minimize2 className="icon-lg" />
                 ) : (
-                  <Maximize2 className="h-4 w-4" />
+                  <Maximize2 className="icon-lg" />
                 )}
               </HeaderIconButton>
             )}
             <HeaderIconButton label="Close" onClick={onClose}>
-              <X className="h-4 w-4" />
+              <X className="icon-lg" />
             </HeaderIconButton>
           </div>
         </div>

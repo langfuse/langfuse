@@ -61,7 +61,7 @@ export const ScoreColumnFilterMenuTrigger = forwardRef<
     )}
     {...triggerProps}
   >
-    <ListFilter className="h-3 w-3" />
+    <ListFilter className="icon-sm" />
   </button>
 ));
 ScoreColumnFilterMenuTrigger.displayName = "ScoreColumnFilterMenuTrigger";
@@ -115,7 +115,7 @@ export const ScoreColumnFilterMenu = ({
                 onClick={() => onSelect(operator, targets[0].experimentId)}
               >
                 {isActive(operator, targets[0].experimentId) ? (
-                  <Check className="mr-2 h-4 w-4 shrink-0" />
+                  <Check className="icon-lg mr-2 shrink-0" />
                 ) : (
                   <span className="mr-2 h-4 w-4 shrink-0" />
                 )}
@@ -139,7 +139,7 @@ export const ScoreColumnFilterMenu = ({
                         onClick={() => onSelect(operator, target.experimentId)}
                       >
                         {isActive(operator, target.experimentId) ? (
-                          <Check className="mr-2 h-4 w-4 shrink-0" />
+                          <Check className="icon-lg mr-2 shrink-0" />
                         ) : (
                           <span className="mr-2 h-4 w-4 shrink-0" />
                         )}

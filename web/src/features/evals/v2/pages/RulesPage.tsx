@@ -42,7 +42,7 @@ export function RulesPage() {
             disabled={!hasWriteAccess}
             onClick={() => setCreateOpen(true)}
           >
-            <Plus className="mr-2 h-4 w-4" /> New rule
+            <Plus className="icon-lg mr-2" /> New rule
           </Button>
         ),
         tabsProps: {

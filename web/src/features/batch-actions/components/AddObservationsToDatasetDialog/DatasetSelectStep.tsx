@@ -47,7 +47,7 @@ export function DatasetSelectStep({
             className="w-full justify-between py-6 text-base"
           >
             {dataset.name || "Select dataset..."}
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            <ChevronsUpDown className="icon-lg ml-2 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[500px] p-0" align="start">
@@ -68,7 +68,7 @@ export function DatasetSelectStep({
                   <div className="flex items-center">
                     <Check
                       className={cn(
-                        "mr-2 h-4 w-4",
+                        "icon-lg mr-2",
                         dataset.id === d.id ? "opacity-100" : "opacity-0",
                       )}
                     />

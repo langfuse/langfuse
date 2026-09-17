@@ -64,7 +64,7 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
         onClick={() => onSubmit(value)}
         className="text-foreground-tertiary hover:bg-accent hover:text-accent-foreground flex aspect-square shrink-0 items-center justify-center disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <Search className="h-4 w-4" />
+        <Search className="icon-lg" />
       </button>
       <input
         ref={ref}
@@ -102,7 +102,7 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
                 </span>
                 {dropdown.labelAccessory}
               </span>
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+              <ChevronDown className="icon-lg shrink-0 opacity-50" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">

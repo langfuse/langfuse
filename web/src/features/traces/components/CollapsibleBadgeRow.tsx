@@ -59,9 +59,9 @@ export function CollapsibleBadgeRow({
         onClick={() => setExpanded((prev) => !prev)}
       >
         {expanded ? (
-          <ChevronUp className="h-4 w-4" />
+          <ChevronUp className="icon-lg" />
         ) : (
-          <ChevronDown className="h-4 w-4" />
+          <ChevronDown className="icon-lg" />
         )}
       </Button>
     </div>

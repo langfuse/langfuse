@@ -27,7 +27,7 @@ const TagList = ({
     ))
   ) : (
     <Badge variant="tertiary">
-      <TagIcon className="h-3.5 w-3.5" />
+      <TagIcon className="icon-md" />
     </Badge>
   );
 };

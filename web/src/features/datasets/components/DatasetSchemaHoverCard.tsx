@@ -61,7 +61,7 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
           aria-label={`View ${title}`}
           size="sm"
         >
-          <LockIcon className={showLabel ? "h-3 w-3" : "h-4 w-4"} />
+          <LockIcon className={showLabel ? "icon-sm" : "icon-lg"} />
           {showLabel && <span>Schema enforced</span>}
         </Button>
       </HoverCardTrigger>
@@ -79,7 +79,7 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
             className="hover:text-foreground inline-flex items-center underline"
           >
             JSON Schema
-            <ArrowUpRight className="ml-0.5 h-3 w-3" />
+            <ArrowUpRight className="icon-sm ml-0.5" />
           </a>
         </p>
         <div className="mt-2">
@@ -104,9 +104,9 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
                 className="h-7 px-2"
               >
                 {copied ? (
-                  <Check className="h-3 w-3" />
+                  <Check className="icon-sm" />
                 ) : (
-                  <Copy className="h-3 w-3" />
+                  <Copy className="icon-sm" />
                 )}
               </Button>
             </div>

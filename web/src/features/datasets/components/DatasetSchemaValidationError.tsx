@@ -48,9 +48,9 @@ export const DatasetSchemaValidationError: React.FC<
               className="h-auto p-0 text-sm font-bold hover:bg-transparent"
             >
               {isExpanded ? (
-                <ChevronDown className="mr-1 h-4 w-4" />
+                <ChevronDown className="icon-lg mr-1" />
               ) : (
-                <ChevronRight className="mr-1 h-4 w-4" />
+                <ChevronRight className="icon-lg mr-1" />
               )}
               {isExpanded ? "Hide" : "Show"} error details
             </Button>
@@ -74,7 +74,7 @@ export const DatasetSchemaValidationError: React.FC<
                           className="flex items-center gap-1 text-sm font-bold hover:underline"
                         >
                           Item: {error.datasetItemId}
-                          <ExternalLink className="h-3 w-3" />
+                          <ExternalLink className="icon-sm" />
                         </Link>
                       </div>
                       <span className="bg-destructive/20 rounded px-2 py-0.5 text-xs font-bold">

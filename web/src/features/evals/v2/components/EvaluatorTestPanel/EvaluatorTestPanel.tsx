@@ -19,7 +19,7 @@ export function EvaluatorTestPanel({
       <div className="flex h-12 shrink-0 items-center justify-between border-b px-6">
         {open ? (
           <div className="flex items-center gap-2">
-            <FlaskConical className="h-4 w-4" />
+            <FlaskConical className="icon-lg" />
             <h2 className="font-bold">Test with sample observations</h2>
           </div>
         ) : null}
@@ -32,9 +32,9 @@ export function EvaluatorTestPanel({
           onClick={() => onOpenChange(!open)}
         >
           {open ? (
-            <PanelRightClose className="h-4 w-4" />
+            <PanelRightClose className="icon-lg" />
           ) : (
-            <PanelRightOpen className="h-4 w-4" />
+            <PanelRightOpen className="icon-lg" />
           )}
         </Button>
       </div>

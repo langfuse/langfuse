@@ -37,9 +37,9 @@ export function ManageDefaultEvalModel({
     <div className="flex items-center">
       {!showEditButton &&
         (defaultModel ? (
-          <Check className="text-dark-green mr-2 h-4 w-4" />
+          <Check className="text-dark-green icon-lg mr-2" />
         ) : (
-          <TriangleAlert className="text-dark-yellow mr-2 h-4 w-4" />
+          <TriangleAlert className="text-dark-yellow icon-lg mr-2" />
         ))}
       {defaultModel ? (
         <span
@@ -77,7 +77,7 @@ export function ManageDefaultEvalModel({
           >
             <Pencil
               className={cn(
-                "h-3 w-3",
+                "icon-sm",
                 variant === "color-coded" &&
                   !defaultModel &&
                   "text-dark-yellow",

@@ -229,23 +229,23 @@ function WidgetActionsCell({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="xs" aria-label="Widget actions">
-              <MoreVertical className="h-4 w-4" />
+              <MoreVertical className="icon-lg" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={handleCopyToClipboard}>
-              <Copy className="mr-2 h-4 w-4" />
+              <Copy className="icon-lg mr-2" />
               Copy widget
             </DropdownMenuItem>
             <DropdownMenuItem
               disabled={!hasCUDAccess}
               onClick={handleDuplicate}
             >
-              <CopyPlus className="mr-2 h-4 w-4" />
+              <CopyPlus className="icon-lg mr-2" />
               Clone
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleDownloadJson}>
-              <FileJson className="mr-2 h-4 w-4" />
+              <FileJson className="icon-lg mr-2" />
               Download as JSON
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -254,7 +254,7 @@ function WidgetActionsCell({
               onClick={openDialog}
               className="text-destructive focus:text-destructive"
             >
-              <Trash className="mr-2 h-4 w-4" />
+              <Trash className="icon-lg mr-2" />
               Delete
             </DropdownMenuItem>
           </DropdownMenuContent>

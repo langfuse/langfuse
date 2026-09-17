@@ -1501,7 +1501,7 @@ export function SearchComposer({
               "ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
             )}
           >
-            <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            <WandSparkles className="icon-md" aria-hidden="true" />
             <span>Ask AI</span>
           </button>
         )}
@@ -1525,7 +1525,7 @@ export function SearchComposer({
             title={visibleDiagnostics.map((d) => d.message).join("; ")}
             aria-label="invalid query"
           >
-            <AlertCircle className="h-4 w-4" />
+            <AlertCircle className="icon-lg" />
           </span>
         </div>
       )}
@@ -1644,7 +1644,7 @@ function RemoveTokenButton({
         onRemove(segment);
       }}
     >
-      <X className="h-3 w-3" aria-hidden="true" />
+      <X className="icon-sm" aria-hidden="true" />
     </button>
   );
 }

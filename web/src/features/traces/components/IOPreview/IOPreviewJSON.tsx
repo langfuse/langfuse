@@ -403,11 +403,11 @@ function IOPreviewJSONInner({
   const wrapIcon = useMemo(
     () =>
       stringWrapMode === "truncate" ? (
-        <Minus size={14} />
+        <Minus className="icon-md" />
       ) : stringWrapMode === "wrap" ? (
-        <WrapText size={14} />
+        <WrapText className="icon-md" />
       ) : (
-        <ChevronDown size={14} className="-rotate-90" />
+        <ChevronDown className="icon-md -rotate-90" />
       ),
     [stringWrapMode],
   );
@@ -708,7 +708,7 @@ function IOPreviewJSONInner({
               onClick={handlePreviousMatch}
               title="Previous match (Shift+Enter)"
             >
-              <ChevronUp className="h-3.5 w-3.5" />
+              <ChevronUp className="icon-md" />
             </Button>
             <Button
               variant="ghost"
@@ -717,7 +717,7 @@ function IOPreviewJSONInner({
               onClick={handleNextMatch}
               title="Next match (Enter)"
             >
-              <ChevronDown className="h-3.5 w-3.5" />
+              <ChevronDown className="icon-md" />
             </Button>
           </>
         )}
@@ -741,7 +741,7 @@ function IOPreviewJSONInner({
           onClick={handleCopy}
           title="Copy to clipboard"
         >
-          <Copy className="h-3.5 w-3.5" />
+          <Copy className="icon-md" />
         </Button>
       </div>
 

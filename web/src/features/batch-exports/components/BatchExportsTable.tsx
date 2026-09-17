@@ -77,7 +77,7 @@ export function BatchExportsTable(props: { projectId: string }) {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
-                  <InfoIcon className="text-muted-foreground size-3" />
+                  <InfoIcon className="text-muted-foreground icon-sm" />
                 </TooltipTrigger>
                 <TooltipContent>
                   <div className="space-y-1">
@@ -136,7 +136,7 @@ export function BatchExportsTable(props: { projectId: string }) {
         if (isDownloadable) {
           return (
             <ActionButton
-              icon={<DownloadIcon size={16} />}
+              icon={<DownloadIcon className="icon-lg" />}
               size="sm"
               loading={downloadingIds.has(id)}
               onClick={() => {

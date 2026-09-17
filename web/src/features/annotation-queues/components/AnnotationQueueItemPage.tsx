@@ -442,7 +442,7 @@ export const AnnotationQueueItemPage: React.FC<{
                   )}
                   aria-label="Previous item"
                 >
-                  <ArrowLeft className="h-4 w-4" />
+                  <ArrowLeft className="icon-lg" />
                   <span className="hidden md:inline-flex">
                     <KeyboardShortcut keys={["ArrowLeft"]} />
                   </span>
@@ -490,7 +490,7 @@ export const AnnotationQueueItemPage: React.FC<{
                   variant="outline"
                   aria-label="Skip to next item"
                 >
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="icon-lg" />
                   <span className="hidden md:inline-flex">
                     <KeyboardShortcut keys={["ArrowRight"]} />
                   </span>
@@ -556,7 +556,7 @@ export const AnnotationQueueItemPage: React.FC<{
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
-              <Keyboard className="h-4 w-4" />
+              <Keyboard className="icon-lg" />
               Keyboard shortcuts
             </DialogTitle>
           </DialogHeader>

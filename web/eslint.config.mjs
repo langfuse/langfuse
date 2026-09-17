@@ -438,6 +438,7 @@ export default [
     files: ["src/**/*.{ts,tsx}"],
     rules: {
       "@repo/no-raw-font-weight": "error",
+      "@repo/no-raw-icon-size": "error",
       "@repo/no-arbitrary-colors": "error",
     },
   },

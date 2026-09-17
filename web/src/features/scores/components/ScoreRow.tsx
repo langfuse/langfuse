@@ -70,7 +70,7 @@ const ScoreValueSection = ({
       )}
       {aggregate?.comment && (
         <div className="flex h-3 w-3 items-center justify-center">
-          <MessageCircleMore size={12} className="text-muted-foreground" />
+          <MessageCircleMore className="text-muted-foreground icon-sm" />
         </div>
       )}
     </div>

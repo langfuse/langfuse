@@ -380,7 +380,7 @@ export const RemoteExperimentUpsertForm = ({
               <AccordionPrimitive.Item value="advanced">
                 <AccordionPrimitive.Header className="flex">
                   <AccordionPrimitive.Trigger className="flex flex-1 items-center justify-start gap-2 py-2 text-sm font-bold transition-all hover:underline [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
-                    <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                    <ChevronDown className="icon-lg shrink-0 transition-transform duration-200" />
                     Advanced Options
                   </AccordionPrimitive.Trigger>
                 </AccordionPrimitive.Header>
@@ -455,9 +455,9 @@ export const RemoteExperimentUpsertForm = ({
                               }
                             >
                               {isSecret ? (
-                                <Lock className="h-4 w-4 text-orange-500" />
+                                <Lock className="icon-lg text-orange-500" />
                               ) : (
-                                <LockOpen className="text-muted-foreground h-4 w-4" />
+                                <LockOpen className="text-muted-foreground icon-lg" />
                               )}
                             </Button>
                             <Button
@@ -466,7 +466,7 @@ export const RemoteExperimentUpsertForm = ({
                               size="icon"
                               onClick={() => removeHeader(index)}
                             >
-                              <X className="h-4 w-4" />
+                              <X className="icon-lg" />
                             </Button>
                           </div>
                         );
@@ -485,7 +485,7 @@ export const RemoteExperimentUpsertForm = ({
                         }
                         className="mt-2"
                       >
-                        <Plus className="mr-1 h-4 w-4" />
+                        <Plus className="icon-lg mr-1" />
                         Add Custom Header
                       </Button>
                     </div>

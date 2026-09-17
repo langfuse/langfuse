@@ -81,7 +81,7 @@ export function DataTableAIFilters({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Info className="text-muted-foreground h-4 w-4" />
+              <Info className="text-muted-foreground icon-lg" />
             </TooltipTrigger>
             <TooltipContent>
               <p className="text-xs">

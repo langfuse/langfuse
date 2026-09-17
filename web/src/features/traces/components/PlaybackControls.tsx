@@ -183,9 +183,9 @@ export function PlaybackControls() {
           />
         </svg>
         {isPlaying ? (
-          <Pause className="h-3 w-3" />
+          <Pause className="icon-sm" />
         ) : (
-          <Play className="h-3 w-3 translate-x-px" />
+          <Play className="icon-sm translate-x-px" />
         )}
       </Button>
       <Button
@@ -222,14 +222,14 @@ export function PlaybackMenuItems() {
     <>
       <DropdownMenuItem onSelect={handlePlayPause}>
         {isPlaying ? (
-          <Pause className="mr-2 h-3.5 w-3.5" />
+          <Pause className="icon-md mr-2" />
         ) : (
-          <Play className="mr-2 h-3.5 w-3.5" />
+          <Play className="icon-md mr-2" />
         )}
         {isPlaying ? "Pause playback" : "Play trace over time"}
       </DropdownMenuItem>
       <DropdownMenuItem onSelect={handleStop} disabled={!showPlayhead}>
-        <Square className="mr-2 h-3 w-3" />
+        <Square className="icon-sm mr-2" />
         Stop playback
       </DropdownMenuItem>
     </>

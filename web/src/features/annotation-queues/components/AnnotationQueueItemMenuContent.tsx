@@ -68,7 +68,7 @@ export function AnnotationQueueItemMenuContent({
       <DropdownMenuSeparator />
       <DropdownMenuItem className="hover:bg-accent" asChild>
         <div>
-          <ExternalLink className="mr-2 h-4 w-4" />
+          <ExternalLink className="icon-lg mr-2" />
           <Link href={`/project/${projectId}/annotation-queues`}>
             Manage queues
           </Link>

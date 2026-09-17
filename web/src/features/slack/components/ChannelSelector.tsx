@@ -239,9 +239,9 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
   const renderChannelItem = (channel: SlackChannel) => (
     <div className="flex w-full items-center gap-2">
       {channel.isPrivate ? (
-        <Lock className="text-muted-foreground h-4 w-4" />
+        <Lock className="text-muted-foreground icon-lg" />
       ) : (
-        <Hash className="text-muted-foreground h-4 w-4" />
+        <Hash className="text-muted-foreground icon-lg" />
       )}
       <span className="flex-1 truncate" title={channel.name}>
         {channel.name}
@@ -279,7 +279,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
               ) : (
                 <span className="text-muted-foreground">{placeholder}</span>
               )}
-              <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              <Search className="icon-lg ml-2 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-full p-0" align="start">
@@ -297,7 +297,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
                       onSelect={handleSelectByName}
                       className="cursor-pointer"
                     >
-                      <Hash className="text-muted-foreground h-4 w-4" />
+                      <Hash className="text-muted-foreground icon-lg" />
                       <span
                         className="flex-1 truncate"
                         title={`Use &quot; ${effectiveName} &quot;`}
@@ -347,7 +347,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
                       disabled
                       className="text-muted-foreground"
                     >
-                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <RefreshCw className="icon-lg animate-spin" />
                       <span
                         className="flex-1 truncate"
                         title="Loading Slack channels. This can take a while for large workspaces."
@@ -371,7 +371,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
             disabled={disabled || isRefreshing || isLoadingChannels}
           >
             <RefreshCw
-              className={`h-4 w-4 ${isRefreshing || isLoadingChannels ? "animate-spin" : ""}`}
+              className={`icon-lg ${isRefreshing || isLoadingChannels ? "animate-spin" : ""}`}
             />
           </Button>
         )}

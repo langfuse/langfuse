@@ -142,7 +142,7 @@ const ScoreCommentPeek = ({
           className="inline-flex cursor-pointer"
           aria-label="View score comment"
         >
-          <MessageCircleMore size={12} className="text-muted-foreground" />
+          <MessageCircleMore className="text-muted-foreground icon-sm" />
         </button>
       </HoverCardTrigger>
       <HoverCardContent className="flex flex-col p-0 text-xs break-normal whitespace-normal">
@@ -160,9 +160,9 @@ const ScoreCommentPeek = ({
             aria-label={copied ? "Copied" : "Copy to clipboard"}
           >
             {copied ? (
-              <Check className="h-3 w-3" />
+              <Check className="icon-sm" />
             ) : (
-              <Copy className="h-3 w-3" />
+              <Copy className="icon-sm" />
             )}
           </Button>
         </div>
@@ -176,7 +176,7 @@ const ScoreCommentPeek = ({
               rel="noopener noreferrer"
               onClick={(event) => event.stopPropagation()}
             >
-              <ExternalLink className="h-3 w-3" />
+              <ExternalLink className="icon-sm" />
               View execution trace
             </Link>
           )}
@@ -222,7 +222,7 @@ const ScoreMetadataPeek = ({
   return (
     <HoverCard onOpenChange={setIsOpen}>
       <HoverCardTrigger className="inline-flex cursor-pointer">
-        <BracesIcon size={12} className="text-muted-foreground" />
+        <BracesIcon className="text-muted-foreground icon-sm" />
       </HoverCardTrigger>
       <HoverCardContent className="overflow-hidden rounded-md border-none p-0 text-xs break-normal whitespace-normal">
         {metadataLoaded ? (
@@ -512,7 +512,7 @@ const CellIdentifiers = ({
                 >
                   {data.traceId}
                 </span>
-                <ExternalLink className="h-3 w-3 shrink-0" />
+                <ExternalLink className="icon-sm shrink-0" />
               </Link>
             ),
           },

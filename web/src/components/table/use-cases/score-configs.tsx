@@ -200,7 +200,7 @@ function ScoreConfigsTableContent({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost">
-                <MoreVertical className="h-4 w-4" />
+                <MoreVertical className="icon-lg" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -222,7 +222,7 @@ function ScoreConfigsTableContent({
                   })
                 }
               >
-                <Edit className="mr-2 h-4 w-4" />
+                <Edit className="icon-lg mr-2" />
                 Edit
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -236,7 +236,7 @@ function ScoreConfigsTableContent({
                   })
                 }
               >
-                <Archive className="mr-2 h-4 w-4" />
+                <Archive className="icon-lg mr-2" />
                 {isArchived ? "Restore" : "Archive"}
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -279,7 +279,7 @@ function ScoreConfigsTableContent({
                 onClick={openDialog}
               >
                 <PlusIcon
-                  className="mr-1.5 -ml-0.5 h-4 w-4"
+                  className="icon-lg mr-1.5 -ml-0.5"
                   aria-hidden="true"
                 />
                 Add new score config

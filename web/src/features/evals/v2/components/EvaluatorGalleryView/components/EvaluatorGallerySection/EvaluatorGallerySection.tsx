@@ -86,9 +86,9 @@ export function EvaluatorGallerySection({
           onClick={() => onExpandedChange(!expanded)}
         >
           {expanded ? (
-            <ChevronUp className="h-3.5 w-3.5" />
+            <ChevronUp className="icon-md" />
           ) : (
-            <ChevronDown className="h-3.5 w-3.5" />
+            <ChevronDown className="icon-md" />
           )}
           {expanded ? "Show fewer" : `Show all ${totalCount} templates`}
         </button>

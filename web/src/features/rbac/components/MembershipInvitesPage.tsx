@@ -136,7 +136,7 @@ export function MembershipInvitesPage({
                 }
               }}
             >
-              <Trash size={14} />
+              <Trash className="icon-md" />
             </button>
           </div>
         ) : null;

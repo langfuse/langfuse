@@ -35,7 +35,7 @@ export function CollapsibleCard({
               className="group hover:bg-accent hover:text-accent-foreground disabled:hover:bg-secondary disabled:hover:text-secondary-foreground flex min-h-9 min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left disabled:cursor-not-allowed disabled:opacity-50"
               title={triggerTitle}
             >
-              <ChevronDown className="text-muted-foreground h-3.5 w-3.5 shrink-0 -rotate-90 transition-transform group-data-[state=open]:rotate-0" />
+              <ChevronDown className="text-muted-foreground icon-md shrink-0 -rotate-90 transition-transform group-data-[state=open]:rotate-0" />
               <span className="flex min-w-0 flex-1 items-baseline gap-2">
                 {header}
               </span>

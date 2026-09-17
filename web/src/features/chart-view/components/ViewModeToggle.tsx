@@ -32,7 +32,7 @@ export const ViewModeToggle = React.memo(function ViewModeToggle({
         aria-label="Table view"
         className="h-8 gap-1.5 rounded-r-none px-2.5 text-xs"
       >
-        <Table className="h-3.5 w-3.5" />
+        <Table className="icon-md" />
         Table
       </ToggleGroupItem>
       <ToggleGroupItem
@@ -40,7 +40,7 @@ export const ViewModeToggle = React.memo(function ViewModeToggle({
         aria-label="Chart view"
         className="h-8 gap-1.5 rounded-l-none border-l-0 px-2.5 text-xs"
       >
-        <BarChart3 className="h-3.5 w-3.5" />
+        <BarChart3 className="icon-md" />
         Chart
       </ToggleGroupItem>
     </ToggleGroup>

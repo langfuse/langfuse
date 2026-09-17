@@ -400,7 +400,7 @@ function OrgStatusSection({
       cellPadding: "comfortable",
       cell: () => (
         <span className="text-dark-blue flex items-center justify-end gap-1 whitespace-nowrap opacity-0 transition-opacity group-hover/row:opacity-100">
-          Review <ArrowRight className="h-3 w-3 shrink-0" />
+          Review <ArrowRight className="icon-sm shrink-0" />
         </span>
       ),
     },

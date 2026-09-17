@@ -242,7 +242,7 @@ const RowCheckbox = ({ checked }: { checked: boolean }) => (
       checked && "bg-primary text-primary-foreground",
     )}
   >
-    {checked && <Check className="h-3.5 w-3.5" />}
+    {checked && <Check className="icon-md" />}
   </span>
 );
 
@@ -289,13 +289,13 @@ const AddAutomationDropdown = ({
             disabled={isDisabled}
             className={fullWidth ? "w-full" : undefined}
           >
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="icon-lg mr-2" />
             Automation
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuItem onSelect={() => setDraft({})}>
-            <Plus className="mr-2 h-3.5 w-3.5" />
+            <Plus className="icon-md mr-2" />
             New automation
           </DropdownMenuItem>
           {ActionTypeSchema.options.map((t) => (

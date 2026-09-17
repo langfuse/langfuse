@@ -130,7 +130,7 @@ export const MobilePageTitle = ({
                 aria-label="More actions"
                 className="ml-auto shrink-0"
               >
-                <MoreHorizontal className="h-4 w-4" />
+                <MoreHorizontal className="icon-lg" />
               </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-auto min-w-44 p-1">

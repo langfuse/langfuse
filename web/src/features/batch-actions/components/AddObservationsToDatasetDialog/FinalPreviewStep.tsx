@@ -207,7 +207,7 @@ function PreviewCard({
           onClick={onEdit}
           className="h-7 gap-1 text-xs"
         >
-          <Pencil className="h-3 w-3" />
+          <Pencil className="icon-sm" />
           Edit
         </Button>
       </div>

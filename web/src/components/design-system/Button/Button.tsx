@@ -72,7 +72,7 @@ export function Button(props: ButtonProps) {
           rel={isLangfuseDomain ? "noopener" : "noopener noreferrer"}
         >
           {props.text}
-          <ExternalLink className="size-3" aria-hidden />
+          <ExternalLink className="icon-sm" aria-hidden />
         </a>
       );
     }

@@ -119,7 +119,7 @@ const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
     >
       {user}
     </span>
-    <ArrowUpRight className="text-link h-3 w-3 shrink-0" />
+    <ArrowUpRight className="text-link icon-sm shrink-0" />
   </ModernSessionHeaderPill>
 );
 
@@ -158,9 +158,9 @@ const SessionHeaderDetailWithVisibilityControl = ({
         }
       >
         {isHidden ? (
-          <Eye aria-hidden="true" className="h-3 w-3" />
+          <Eye aria-hidden="true" className="icon-sm" />
         ) : (
-          <EyeOff aria-hidden="true" className="h-3 w-3" />
+          <EyeOff aria-hidden="true" className="icon-sm" />
         )}
       </button>
     </span>
@@ -223,7 +223,7 @@ const MetadataJsonPathPill = ({
           className="hover:bg-muted focus-visible:ring-ring inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
           onClick={() => onRemove(display.path)}
         >
-          <X className="h-3 w-3" />
+          <X className="icon-sm" />
         </button>
       </span>
     </ModernSessionHeaderPill>
@@ -644,7 +644,7 @@ export function ModernSessionHeader({
                 ariaLabel="Add metadata JSONPath"
                 ref={metadataEditorButtonRef}
               >
-                <Plus className="h-3 w-3" />
+                <Plus className="icon-sm" />
               </ModernSessionHeaderPill>
             </PopoverTrigger>
             {isMetadataEditorOpen ? (
@@ -705,7 +705,7 @@ export function ModernSessionHeader({
                 aria-label="All session details"
               >
                 <div className="relative border-b p-2">
-                  <Search className="text-muted-foreground absolute top-1/2 left-4 h-3.5 w-3.5 -translate-y-1/2" />
+                  <Search className="text-muted-foreground icon-md absolute top-1/2 left-4 -translate-y-1/2" />
                   <Input
                     ref={overflowSearchInputRef}
                     value={search}

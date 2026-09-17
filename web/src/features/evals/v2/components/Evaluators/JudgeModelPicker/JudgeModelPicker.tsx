@@ -134,7 +134,7 @@ export const JudgeModelPickerTrigger = forwardRef<
             </span>
           ) : (
             <span className="flex items-center gap-1.5">
-              <TriangleAlert className="text-dark-yellow h-3.5 w-3.5 shrink-0" />
+              <TriangleAlert className="text-dark-yellow icon-md shrink-0" />
               <span className="text-muted-foreground">
                 {missingDefaultLabel ?? "Select a model"}
               </span>
@@ -155,7 +155,7 @@ export const JudgeModelPickerTrigger = forwardRef<
         {loading ? (
           <Spinner size="sm" variant="muted" />
         ) : (
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+          <ChevronDown className="icon-lg shrink-0 opacity-50" />
         )}
       </Button>
     );
@@ -214,11 +214,11 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                   >
                     <Check
                       className={cn(
-                        "mr-2 h-4 w-4 shrink-0",
+                        "icon-lg mr-2 shrink-0",
                         props.mode === "default" ? "opacity-100" : "opacity-0",
                       )}
                     />
-                    <Sparkles className="text-muted-foreground mr-2 h-4 w-4 shrink-0" />
+                    <Sparkles className="text-muted-foreground icon-lg mr-2 shrink-0" />
                     <span
                       className="truncate"
                       title={`${defaultModel.provider} / ${defaultModel.model}`}
@@ -264,7 +264,7 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                     >
                       <Check
                         className={cn(
-                          "mr-2 h-4 w-4 shrink-0",
+                          "icon-lg mr-2 shrink-0",
                           isSelected ? "opacity-100" : "opacity-0",
                         )}
                       />
@@ -293,9 +293,9 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
               className="font-regular justify-start"
               onClick={() => selectAndClose(onConfigureProviders)}
             >
-              <Plug className="text-muted-foreground mr-2 h-3.5 w-3.5" />
+              <Plug className="text-muted-foreground icon-md mr-2" />
               Configure AI providers
-              <ExternalLink className="text-muted-foreground ml-auto h-3.5 w-3.5" />
+              <ExternalLink className="text-muted-foreground icon-md ml-auto" />
             </Button>
             <Button
               type="button"
@@ -308,7 +308,7 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
               }
               onClick={() => selectAndClose(onConfigureModel)}
             >
-              <Settings2 className="text-muted-foreground mr-2 h-3.5 w-3.5" />
+              <Settings2 className="text-muted-foreground icon-md mr-2" />
               Model configuration
               {hasModelConfiguration ? (
                 <>
@@ -336,7 +336,7 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                 }
                 onClick={() => selectAndClose(props.onSetProjectDefault)}
               >
-                <Sparkles className="text-muted-foreground mr-2 h-3.5 w-3.5" />
+                <Sparkles className="text-muted-foreground icon-md mr-2" />
                 Set selected model as project default
               </Button>
             ) : null}

@@ -38,7 +38,7 @@ export function RetryProviderButton({
       aria-label="Retry provider validation"
       onClick={retryConnection}
     >
-      <RefreshCw className="size-4" />
+      <RefreshCw className="icon-lg" />
     </Button>
   );
 }

@@ -13,7 +13,7 @@ export const Default = meta.story({
     onClear: fn(),
     children: (
       <Button type="button" variant="outline" size="sm" className="h-8">
-        <Trash2 className="h-4 w-4 sm:mr-2" />
+        <Trash2 className="icon-lg sm:mr-2" />
         <span className="hidden sm:inline">Delete</span>
       </Button>
     ),

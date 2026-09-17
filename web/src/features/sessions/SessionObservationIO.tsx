@@ -273,7 +273,7 @@ export const SessionObservationIO = ({
       )}
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={openInTraceView}>
-          <ExternalLinkIcon className="mr-1 h-3.5 w-3.5" />
+          <ExternalLinkIcon className="icon-md mr-1" />
           Open in trace view
         </Button>
         <Button
@@ -283,9 +283,9 @@ export const SessionObservationIO = ({
           disabled={isDownloading}
         >
           {isDownloading ? (
-            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+            <Loader2 className="icon-md mr-1 animate-spin" />
           ) : (
-            <Download className="mr-1 h-3.5 w-3.5" />
+            <Download className="icon-md mr-1" />
           )}
           Download I/O
         </Button>

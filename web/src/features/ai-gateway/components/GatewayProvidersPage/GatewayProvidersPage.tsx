@@ -109,7 +109,7 @@ export function GatewayProvidersPage({
         <ProviderDialogController organizationId={organizationId}>
           {({ openDialog }) => (
             <Button onClick={openDialog}>
-              <Plus className="mr-1.5 size-4" />
+              <Plus className="icon-lg mr-1.5" />
               Add credential
             </Button>
           )}
@@ -140,7 +140,7 @@ export function GatewayProvidersPage({
                   aria-label="Edit credential"
                   onClick={openDialog}
                 >
-                  <Pencil className="size-4" />
+                  <Pencil className="icon-lg" />
                 </Button>
               )}
             </ProviderDialogController>

@@ -64,7 +64,7 @@ export const V4MigrationPanel = ({
           onClick={() => setOpen(false)}
           aria-label="Close"
         >
-          <X className="h-4 w-4" />
+          <X className="icon-lg" />
         </Button>
       )}
       <div className="flex-1 overflow-y-auto">

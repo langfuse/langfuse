@@ -187,12 +187,12 @@ export function MultiSelect({
               <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
                 {selectedBadges}
               </div>
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+              <ChevronDown className="icon-lg shrink-0 opacity-50" />
             </>
           ) : (
             <>
               {label ?? "Select"}
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+              <ChevronDown className="icon-lg shrink-0 opacity-50" />
               {selectedValues.size > 0 && (
                 <>
                   <Separator orientation="vertical" className="mr-auto h-4" />
@@ -231,7 +231,7 @@ export function MultiSelect({
                           : "opacity-50 [&_svg]:invisible",
                       )}
                     >
-                      <Check className="h-4 w-4" />
+                      <Check className="icon-lg" />
                     </div>
                     <div className="font-bold">
                       {allSelectedState ? "Deselect All" : "Select All"}
@@ -271,7 +271,7 @@ export function MultiSelect({
                           : "opacity-50 [&_svg]:invisible",
                       )}
                     >
-                      <Check className="h-4 w-4" />
+                      <Check className="icon-lg" />
                     </div>
                     <div
                       className={cn(
@@ -339,7 +339,7 @@ export function MultiSelect({
                         : "opacity-50 [&_svg]:invisible",
                     )}
                   >
-                    <Check className="h-4 w-4" />
+                    <Check className="icon-lg" />
                   </div>
                   <Input
                     type="text"

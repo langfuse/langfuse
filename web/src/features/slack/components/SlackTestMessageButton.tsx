@@ -102,7 +102,7 @@ export const SlackTestMessageButton: React.FC<SlackTestMessageButtonProps> = ({
         </>
       ) : (
         <>
-          <Zap className="h-4 w-4" />
+          <Zap className="icon-lg" />
           {showText && <span>{buttonText}</span>}
         </>
       )}

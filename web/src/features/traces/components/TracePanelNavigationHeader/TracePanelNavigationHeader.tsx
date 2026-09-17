@@ -254,9 +254,9 @@ function TracePanelNavigationHeaderExpanded({
               className="h-7 w-7"
             >
               {isEverythingCollapsed ? (
-                <UnfoldVertical className="h-3.5 w-3.5" />
+                <UnfoldVertical className="icon-md" />
               ) : (
-                <FoldVertical className="h-3.5 w-3.5" />
+                <FoldVertical className="icon-md" />
               )}
             </Button>
 
@@ -271,9 +271,9 @@ function TracePanelNavigationHeaderExpanded({
               className="h-7 w-7"
             >
               {isDownloading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="icon-md animate-spin" />
               ) : (
-                <Download className="h-3.5 w-3.5" />
+                <Download className="icon-md" />
               )}
             </Button>
           </div>
@@ -288,15 +288,15 @@ function TracePanelNavigationHeaderExpanded({
                 aria-label="More options"
                 className="h-7 w-7 @min-[510px]/navheader:hidden"
               >
-                <MoreHorizontal className="h-3.5 w-3.5" />
+                <MoreHorizontal className="icon-md" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="center" className="w-64">
               <DropdownMenuItem onSelect={handleToggleTreeNodes}>
                 {isEverythingCollapsed ? (
-                  <UnfoldVertical className="mr-2 h-3.5 w-3.5" />
+                  <UnfoldVertical className="icon-md mr-2" />
                 ) : (
-                  <FoldVertical className="mr-2 h-3.5 w-3.5" />
+                  <FoldVertical className="icon-md mr-2" />
                 )}
                 {isEverythingCollapsed ? "Expand all" : "Collapse all"}
               </DropdownMenuItem>
@@ -304,7 +304,7 @@ function TracePanelNavigationHeaderExpanded({
                 onSelect={() => handleDownload()}
                 disabled={isDownloading}
               >
-                <Download className="mr-2 h-3.5 w-3.5" />
+                <Download className="icon-md mr-2" />
                 Download trace as JSON
               </DropdownMenuItem>
               <PlaybackMenuItems />

@@ -405,7 +405,7 @@ function ProviderPriorityCell({
         aria-label={`Drag ${connection.name} to reorder`}
         className="text-muted-foreground flex size-6 shrink-0 cursor-grab touch-none items-center justify-center p-0 opacity-50 hover:opacity-100 active:cursor-grabbing disabled:cursor-not-allowed"
       >
-        <GripVertical className="size-3.5" />
+        <GripVertical className="icon-md" />
       </button>
       <span className="flex size-6 shrink-0 translate-y-px items-center justify-center font-mono leading-none">
         {index + 1}
@@ -419,7 +419,7 @@ function ProviderPriorityCell({
           aria-label="Move credential up"
           onClick={() => onMove(index - 1)}
         >
-          <ArrowUp className="size-3" />
+          <ArrowUp className="icon-sm" />
         </Button>
         <Button
           size="icon-xs"
@@ -429,7 +429,7 @@ function ProviderPriorityCell({
           aria-label="Move credential down"
           onClick={() => onMove(index + 1)}
         >
-          <ArrowDown className="size-3" />
+          <ArrowDown className="icon-sm" />
         </Button>
       </div>
     </div>
@@ -459,7 +459,7 @@ function ProviderName({ provider }: { provider: GatewayProvider }) {
     ) : provider === "ANTHROPIC" ? (
       <SiAnthropic className="size-4" aria-hidden="true" />
     ) : (
-      <Route className="size-4" aria-hidden="true" />
+      <Route className="icon-lg" aria-hidden="true" />
     );
 
   return (

@@ -141,7 +141,7 @@ export function AutocompleteListbox({
                 ))}
               {o.kind === "value" && o.active && (
                 <Check
-                  className="text-foreground/80 h-3.5 w-3.5 flex-none"
+                  className="text-foreground/80 icon-md flex-none"
                   aria-label="selected"
                 />
               )}

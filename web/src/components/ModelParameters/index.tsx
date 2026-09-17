@@ -124,7 +124,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
           className="relative h-7 w-7"
           disabled={formDisabled}
         >
-          <Settings2 size={14} />
+          <Settings2 className="icon-md" />
           {modelSettingsUsed && (
             <div className="bg-primary absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full" />
           )}
@@ -593,7 +593,7 @@ const ProviderOptionsInput = ({
           </span>
           <Tooltip>
             <TooltipTrigger>
-              <InfoIcon className="text-muted-foreground size-3" />
+              <InfoIcon className="text-muted-foreground icon-sm" />
             </TooltipTrigger>
             <TooltipContent className="max-w-[200px] p-2">
               Additional options to pass to the invocation. Please check your

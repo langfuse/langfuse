@@ -69,7 +69,7 @@ export function createTokenUsageTableColumn<
         >
           <div className="flex items-center gap-1">
             {content}
-            <InfoIcon className="h-3 w-3" />
+            <InfoIcon className="icon-sm" />
           </div>
         </BreakdownTooltip>
       );

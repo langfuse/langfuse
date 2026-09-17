@@ -21,7 +21,7 @@ export function TestModelMatchButton({
     <>
       <ActionButton
         variant={variant ?? "secondary"}
-        icon={<FlaskConical className="h-4 w-4" />}
+        icon={<FlaskConical className="icon-lg" />}
         onClick={() => setOpen(true)}
         data-testid="test-model-match-button"
       >

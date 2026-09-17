@@ -76,7 +76,7 @@ export const DataTableRowHeightSwitch = ({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="icon" title="Row height">
-          <Rows3 className="h-4 w-4" />
+          <Rows3 className="icon-lg" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuPortal>

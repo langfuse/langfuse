@@ -231,9 +231,9 @@ export function AnnotationQueueFormDialogContent({
                         >
                           <div className="flex items-center gap-2">
                             {isAdvancedOpen ? (
-                              <ChevronDown className="text-muted-foreground h-4 w-4" />
+                              <ChevronDown className="text-muted-foreground icon-lg" />
                             ) : (
-                              <ChevronRight className="text-muted-foreground h-4 w-4" />
+                              <ChevronRight className="text-muted-foreground icon-lg" />
                             )}
                             <span className="text-sm font-bold">
                               User Assignment

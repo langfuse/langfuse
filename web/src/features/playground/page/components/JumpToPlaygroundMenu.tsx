@@ -28,11 +28,11 @@ export function JumpToPlaygroundMenu({
   return (
     <>
       <DropdownMenuItem onSelect={() => onPlaygroundAction("fresh")}>
-        <Terminal className="mr-2 h-4 w-4" />
+        <Terminal className="icon-lg mr-2" />
         Fresh playground
       </DropdownMenuItem>
       <DropdownMenuItem onSelect={() => onPlaygroundAction("existing")}>
-        <Terminal className="mr-2 h-4 w-4" />
+        <Terminal className="icon-lg mr-2" />
         Add to existing
       </DropdownMenuItem>
       {props.source === "generation" && (

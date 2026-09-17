@@ -180,7 +180,7 @@ const PeekViewEvaluatorConfigDetail = ({
               {evalConfig.evalTemplate.projectId === null ? (
                 <LangfuseIcon size={16} />
               ) : (
-                <UserCircle2Icon className="h-4 w-4" />
+                <UserCircle2Icon className="icon-lg" />
               )}
             </TooltipTrigger>
             <TooltipContent>

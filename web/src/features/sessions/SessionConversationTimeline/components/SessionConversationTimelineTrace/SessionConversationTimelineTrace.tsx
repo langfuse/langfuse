@@ -365,7 +365,7 @@ function SessionTimelineToolRow({
         >
           <ChevronDown
             className={cn(
-              "h-3.5 w-3.5 transition-transform",
+              "icon-md transition-transform",
               !isExpanded && "-rotate-90",
             )}
             aria-hidden="true"
@@ -393,7 +393,7 @@ function SessionTimelineToolRow({
                   className="text-muted-foreground hover:text-foreground shrink-0"
                   aria-label={`Actions for ${observation.name ?? observation.id}`}
                 >
-                  <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                  <MoreHorizontal className="icon-md" aria-hidden="true" />
                 </Button>
               </DropdownMenuTrigger>
               <SessionObservationActionsMenuContent
@@ -409,7 +409,7 @@ function SessionTimelineToolRow({
                   role="img"
                   aria-label="Actions available on parent observation"
                 >
-                  <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                  <MoreHorizontal className="icon-md" aria-hidden="true" />
                 </span>
               </TooltipTrigger>
               <TooltipContent side="top">
@@ -529,7 +529,7 @@ function SessionTimelineConversationObservation({
                 aria-label="Content truncated"
                 title="Content truncated"
               >
-                <FileWarning className="h-3 w-3" aria-hidden="true" />
+                <FileWarning className="icon-sm" aria-hidden="true" />
               </span>
             ) : null}
             {hasNoConversationalContent ? (
@@ -539,7 +539,7 @@ function SessionTimelineConversationObservation({
                 aria-label="No conversational content"
                 title="No conversational content"
               >
-                <MessageSquareOff className="h-3 w-3" aria-hidden="true" />
+                <MessageSquareOff className="icon-sm" aria-hidden="true" />
               </span>
             ) : null}
             {observation.metadataTruncated ? (
@@ -549,7 +549,7 @@ function SessionTimelineConversationObservation({
                 aria-label="Metadata omitted because it is too large"
                 title="Metadata omitted because it is too large"
               >
-                <FileWarning className="h-3 w-3" aria-hidden="true" />
+                <FileWarning className="icon-sm" aria-hidden="true" />
               </span>
             ) : null}
             {observation.latency !== null && observation.type !== "EVENT" ? (
@@ -570,10 +570,7 @@ function SessionTimelineConversationObservation({
                     className="text-muted-foreground hover:text-foreground shrink-0"
                     aria-label={`Actions for ${observation.name ?? observation.id}`}
                   >
-                    <MoreHorizontal
-                      className="h-3.5 w-3.5"
-                      aria-hidden="true"
-                    />
+                    <MoreHorizontal className="icon-md" aria-hidden="true" />
                   </Button>
                 </DropdownMenuTrigger>
                 <SessionObservationActionsMenuContent
@@ -987,9 +984,9 @@ function LoadedSessionConversationTimeline({
                     }}
                   >
                     {isCollapsed ? (
-                      <ChevronsUpDown className="h-3 w-3" aria-hidden="true" />
+                      <ChevronsUpDown className="icon-sm" aria-hidden="true" />
                     ) : (
-                      <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                      <ChevronDown className="icon-sm" aria-hidden="true" />
                     )}
                   </Button>
                   {isCollapsed ? (

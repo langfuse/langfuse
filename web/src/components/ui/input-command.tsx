@@ -43,7 +43,7 @@ const InputCommandInput = React.forwardRef<
       "cmdk-input-wrapper",
     )}
   >
-    <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+    <Search className="icon-lg mr-2 shrink-0 opacity-50" />
     <CommandPrimitive.Input
       ref={ref}
       className={cn(

@@ -257,7 +257,7 @@ export function DatasetItemsTable({
                 setEditDialogOpen(true);
               }}
             >
-              <Edit className="mr-2 h-4 w-4" />
+              <Edit className="icon-lg mr-2" />
               Edit
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -280,7 +280,7 @@ export function DatasetItemsTable({
                 });
               }}
             >
-              <Archive className="mr-2 h-4 w-4" />
+              <Archive className="icon-lg mr-2" />
               {status === DatasetStatus.ARCHIVED ? "Unarchive" : "Archive"}
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -301,7 +301,7 @@ export function DatasetItemsTable({
                 }
               }}
             >
-              <Trash2 className="mr-2 h-4 w-4" />
+              <Trash2 className="icon-lg mr-2" />
               Delete
             </DropdownMenuItem>
           </>

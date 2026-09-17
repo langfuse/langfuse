@@ -8,7 +8,7 @@ export function CommentCountIcon({ count }: { count: number }) {
     // the trace timeline's metric cluster — cut a two-digit count mid-glyph.
     // In flow, the overhang is part of the footprint and everything reserves it.
     <span className="mr-1 inline-flex items-start text-xs">
-      <MessageSquareMore className="h-4 w-4 shrink-0" />
+      <MessageSquareMore className="icon-lg shrink-0" />
       <span
         data-testid="comment-count"
         className="border-muted-foreground bg-muted-foreground text-muted dark:bg-muted dark:text-muted-foreground -ml-2 flex max-h-[0.8rem] min-w-[0.8rem] shrink-0 items-center justify-center rounded-sm border px-[0.2rem] text-[8px] shadow-xs"

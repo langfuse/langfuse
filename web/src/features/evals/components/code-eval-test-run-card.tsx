@@ -116,7 +116,7 @@ export function CodeEvalTestRunCard({
                   rel="noopener noreferrer"
                 >
                   Source code
-                  <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                  <ExternalLink className="icon-md ml-1" />
                 </Link>
               </Button>
             ) : (
@@ -126,7 +126,7 @@ export function CodeEvalTestRunCard({
                 title="Only user-managed templates can be edited"
               >
                 Source code
-                <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                <ExternalLink className="icon-md ml-1" />
               </Button>
             )}
             <Button
@@ -151,9 +151,9 @@ export function CodeEvalTestRunCard({
               }}
             >
               {testRunMutation.data ? (
-                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                <RotateCcw className="icon-md mr-1.5" />
               ) : (
-                <Play className="mr-1.5 h-3.5 w-3.5" />
+                <Play className="icon-md mr-1.5" />
               )}
               Test
             </Button>
@@ -307,7 +307,7 @@ function CodeEvalTestRunResultView({
             size="sm"
             onClick={() => onShowExecutionTrace(result.executionTraceId)}
           >
-            <ListTree className="mr-1.5 h-3.5 w-3.5" />
+            <ListTree className="icon-md mr-1.5" />
             Show execution trace
           </Button>
         ) : null}

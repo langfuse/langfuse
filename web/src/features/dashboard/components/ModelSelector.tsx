@@ -48,7 +48,7 @@ export const ModelSelectorPopover = ({
           className="w-56 justify-between"
         >
           {buttonText}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDown className="icon-lg ml-2 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-56 p-0">
@@ -59,7 +59,7 @@ export const ModelSelectorPopover = ({
             <InputCommandItem onSelect={handleSelectAll}>
               <Check
                 className={cn(
-                  "mr-2 h-4 w-4",
+                  "icon-lg mr-2",
                   isAllSelected ? "opacity-100" : "opacity-0",
                 )}
               />
@@ -82,7 +82,7 @@ export const ModelSelectorPopover = ({
                 >
                   <Check
                     className={cn(
-                      "mr-2 h-4 w-4",
+                      "icon-lg mr-2",
                       selectedModels.includes(model.model)
                         ? "opacity-100"
                         : "opacity-0",

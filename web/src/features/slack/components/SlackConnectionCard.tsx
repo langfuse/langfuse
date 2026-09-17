@@ -165,7 +165,7 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
       <CardContent className="space-y-4">
         {/* Connection Status */}
         <div className="flex items-center gap-2">
-          <CheckCircle className="h-4 w-4 text-green-500" />
+          <CheckCircle className="icon-lg text-green-500" />
           <span className="text-sm font-bold">Connected</span>
         </div>
 

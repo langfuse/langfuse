@@ -413,7 +413,7 @@ function MonitorRowActions({
         href={monitorHref(projectId, monitor.id)}
         onClick={(e) => e.stopPropagation()}
       >
-        <SquarePen className="h-4 w-4" aria-hidden="true" />
+        <SquarePen className="icon-lg" aria-hidden="true" />
         {collapsed ? <span className="ml-2">Edit</span> : null}
       </Link>
     </Button>
@@ -461,7 +461,7 @@ function MonitorRowActions({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="xs" variant="ghost" aria-label="Alert actions">
-              <MoreVertical className="h-4 w-4" />
+              <MoreVertical className="icon-lg" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">

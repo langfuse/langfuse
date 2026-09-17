@@ -35,11 +35,11 @@ const meta = preview.meta({
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="text-xs" onSelect={fn()}>
-          <CopyIcon className="mr-2 h-4 w-4" />
+          <CopyIcon className="icon-lg mr-2" />
           Copy Trace ID
         </DropdownMenuItem>
         <DropdownMenuItem className="text-xs" onSelect={fn()}>
-          <CopyIcon className="mr-2 h-4 w-4" />
+          <CopyIcon className="icon-lg mr-2" />
           Copy Observation ID
         </DropdownMenuItem>
       </DropdownMenuContent>

@@ -431,7 +431,7 @@ export function RulesTable({
                   router.push(ruleExecutionsUrl(projectId, row.original.id));
                 }}
               >
-                View traces <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                View traces <ExternalLink className="icon-md ml-1" />
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -441,7 +441,7 @@ export function RulesTable({
                     size="icon-xs"
                     aria-label={`Actions for ${row.original.name}`}
                   >
-                    <MoreVertical className="h-4 w-4" />
+                    <MoreVertical className="icon-lg" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -449,7 +449,7 @@ export function RulesTable({
                     <DropdownMenuItem
                       onClick={() => setEditRuleId(row.original.id)}
                     >
-                      <Pencil className="mr-2 h-4 w-4" />
+                      <Pencil className="icon-lg mr-2" />
                       Edit
                     </DropdownMenuItem>
                   ) : null}
@@ -457,14 +457,14 @@ export function RulesTable({
                     disabled={!hasWriteAccess || navigationAction !== "edit"}
                     onClick={() => setCloneRule(row.original)}
                   >
-                    <Copy className="mr-2 h-4 w-4" />
+                    <Copy className="icon-lg mr-2" />
                     Clone
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     disabled={!hasWriteAccess}
                     onClick={() => setDeleteIds([row.original.id])}
                   >
-                    <Trash2 className="mr-2 h-4 w-4" />
+                    <Trash2 className="icon-lg mr-2" />
                     Delete
                   </DropdownMenuItem>
                 </DropdownMenuContent>

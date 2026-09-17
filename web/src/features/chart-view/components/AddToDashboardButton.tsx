@@ -64,7 +64,7 @@ export const AddToDashboardButton = React.memo(function AddToDashboardButton({
         onClick={() => setOpen(true)}
         disabled={createWidget.isPending}
       >
-        <LayoutDashboard className="h-3.5 w-3.5" />
+        <LayoutDashboard className="icon-md" />
         Add to dashboard
       </Button>
       <SelectDashboardDialog

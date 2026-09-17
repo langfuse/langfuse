@@ -166,7 +166,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
                 {({ getTriggerProps }) => (
                   <InfoIcon
                     {...getTriggerProps()}
-                    className="text-muted-foreground h-3.5 w-3.5"
+                    className="text-muted-foreground icon-md"
                   />
                 )}
               </Tooltip>

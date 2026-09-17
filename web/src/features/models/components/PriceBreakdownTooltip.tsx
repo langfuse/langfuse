@@ -71,7 +71,7 @@ export const PriceBreakdownTooltip = ({
               className="flex cursor-pointer items-center gap-2 pr-4 text-xs"
               onClick={() => setIsOpen(!isOpen)}
             >
-              <InfoIcon className="h-3 w-3" />
+              <InfoIcon className="icon-sm" />
               {Object.keys(prices).length} prices set
             </TooltipTrigger>
             <TooltipContent className="min-w-64 grow p-4">

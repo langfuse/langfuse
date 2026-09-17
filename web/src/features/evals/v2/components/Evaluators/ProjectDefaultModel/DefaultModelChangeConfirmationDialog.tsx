@@ -38,7 +38,7 @@ export function DefaultModelChangeConfirmationDialog({
             >
               {currentModel.provider} / {currentModel.model}
             </span>
-            <ArrowRight className="text-muted-foreground h-4 w-4 shrink-0" />
+            <ArrowRight className="text-muted-foreground icon-lg shrink-0" />
           </>
         ) : null}
         <span

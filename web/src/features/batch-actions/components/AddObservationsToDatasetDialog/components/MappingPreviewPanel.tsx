@@ -255,11 +255,11 @@ export function MappingPreviewPanel({
             <div className="flex items-center gap-1">
               {jsonPathErrors.length > 0 ||
               (hasSchema && !validationResult.isValid) ? (
-                <AlertCircle className="text-destructive h-3.5 w-3.5" />
+                <AlertCircle className="text-destructive icon-md" />
               ) : jsonPathMisses.length > 0 ? (
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-500" />
+                <AlertTriangle className="icon-md text-amber-600 dark:text-amber-500" />
               ) : hasSchema ? (
-                <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                <CheckCircle2 className="icon-md text-green-600" />
               ) : null}
             </div>
           )}

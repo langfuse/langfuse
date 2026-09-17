@@ -41,11 +41,7 @@ const CopyDimensionButton: React.FC<{ value: string }> = ({ value }) => {
         }
       }}
     >
-      {copied ? (
-        <Check className="h-3.5 w-3.5" />
-      ) : (
-        <Copy className="h-3.5 w-3.5" />
-      )}
+      {copied ? <Check className="icon-md" /> : <Copy className="icon-md" />}
     </button>
   );
 };

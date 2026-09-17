@@ -1180,7 +1180,7 @@ export default function ObservationsEventsTable({
       label: "Evaluate",
       description: "Run evaluations on selected observations.",
       customDialog: true,
-      icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
+      icon: <LightbulbIcon className="icon-lg sm:mr-2" />,
       disabled: isSelectAllCountUnavailable,
       disabledReason: selectAllCountUnavailableReason,
       accessCheck: {
@@ -1312,7 +1312,7 @@ export default function ObservationsEventsTable({
           >
             <div className="flex items-center gap-1">
               <span>{usdFormatter(value)}</span>
-              <InfoIcon className="h-3 w-3" />
+              <InfoIcon className="icon-sm" />
             </div>
           </BreakdownTooltip>
         );

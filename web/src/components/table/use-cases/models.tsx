@@ -142,7 +142,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
                 {isLangfuse ? (
                   <LangfuseIcon size={16} />
                 ) : (
-                  <UserCircle2Icon className="h-4 w-4" />
+                  <UserCircle2Icon className="icon-lg" />
                 )}
               </TooltipTrigger>
               <TooltipContent>
@@ -314,7 +314,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
             <UpsertModelFormDialog {...{ projectId, action: "create" }}>
               <ActionButton
                 variant="secondary"
-                icon={<PlusIcon className="h-4 w-4" />}
+                icon={<PlusIcon className="icon-lg" />}
                 hasAccess={hasWriteAccess}
                 trackingEventName="models:new_form_open"
               >

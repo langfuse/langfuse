@@ -72,7 +72,7 @@ export function Callout({
           className="text-muted-foreground hover:text-foreground h-6 w-6 shrink-0 p-0"
           aria-label="Dismiss"
         >
-          <X className="h-4 w-4" />
+          <X className="icon-lg" />
         </Button>
       </div>
     </div>

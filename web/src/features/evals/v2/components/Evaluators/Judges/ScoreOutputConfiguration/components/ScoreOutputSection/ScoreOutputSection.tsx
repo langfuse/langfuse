@@ -210,7 +210,7 @@ export function ScoreOutputSection({
                   disabled={readOnly}
                 >
                   {numericBoundsLabel}
-                  <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                  <ChevronDown className="icon-lg shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-72">
@@ -298,7 +298,7 @@ export function ScoreOutputSection({
                             aria-label={`Warning: ${categoryWarnings[index]}`}
                           >
                             <TriangleAlert
-                              className="h-4 w-4"
+                              className="icon-lg"
                               aria-hidden="true"
                             />
                           </span>
@@ -309,7 +309,7 @@ export function ScoreOutputSection({
                       </Tooltip>
                     ) : null}
                     {!readOnly ? (
-                      <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                      <ChevronDown className="icon-lg shrink-0 opacity-50" />
                     ) : null}
                   </Button>
                 </PopoverTrigger>
@@ -339,7 +339,7 @@ export function ScoreOutputSection({
                     aria-label="Add category"
                     title="Add category"
                   >
-                    <Plus className="h-4 w-4" />
+                    <Plus className="icon-lg" />
                   </Button>
                 </PopoverTrigger>
               </CategoryEditorPopover>

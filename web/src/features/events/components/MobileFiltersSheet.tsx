@@ -87,7 +87,7 @@ export function MobileFiltersSheet({
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 shrink-0 gap-2">
-          <SlidersHorizontal className="h-4 w-4" />
+          <SlidersHorizontal className="icon-lg" />
           <span>Filters</span>
           {activeCount > 0 && (
             <Badge variant="secondary" className="ml-0.5 h-5 px-1.5 text-xs">
@@ -123,7 +123,7 @@ export function MobileFiltersSheet({
                 aria-label="Close filters"
                 className="h-8 w-8 shrink-0"
               >
-                <X className="h-4 w-4" />
+                <X className="icon-lg" />
               </Button>
             </SheetClose>
           </div>

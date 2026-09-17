@@ -203,7 +203,7 @@ export function EvaluatorSelector({
                     {isInvalid && (
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
+                          <AlertCircle className="icon-lg ml-1 text-yellow-500" />
                         </TooltipTrigger>
                         <TooltipContent className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
                           <p>Requires project-level evaluation model</p>
@@ -219,7 +219,7 @@ export function EvaluatorSelector({
                       </Tooltip>
                     )}
                     {template.id === selectedTemplateId && (
-                      <CheckIcon className="ml-auto h-4 w-4" />
+                      <CheckIcon className="icon-lg ml-auto" />
                     )}
                   </InputCommandItem>
                 );
@@ -274,7 +274,7 @@ export function EvaluatorSelector({
                     {isInvalid && (
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
+                          <AlertCircle className="icon-lg ml-1 text-yellow-500" />
                         </TooltipTrigger>
                         <TooltipContent className="max-h-[50dvh] overflow-y-auto text-sm break-normal whitespace-normal">
                           <p>Requires project-level evaluation model</p>
@@ -290,7 +290,7 @@ export function EvaluatorSelector({
                       </Tooltip>
                     )}
                     {template.id === selectedTemplateId && (
-                      <CheckIcon className="ml-auto h-4 w-4" />
+                      <CheckIcon className="icon-lg ml-auto" />
                     )}
                   </InputCommandItem>
                 );

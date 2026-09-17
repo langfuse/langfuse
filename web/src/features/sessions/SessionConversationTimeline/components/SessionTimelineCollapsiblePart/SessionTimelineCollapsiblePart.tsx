@@ -46,16 +46,16 @@ export function SessionTimelineCollapsiblePart({
             {label}
           </span>
           {status === "success" ? (
-            <Check className="h-3 w-3 shrink-0" aria-label="Succeeded" />
+            <Check className="icon-sm shrink-0" aria-label="Succeeded" />
           ) : status === "error" ? (
             <X
-              className="text-destructive h-3 w-3 shrink-0"
+              className="text-destructive icon-sm shrink-0"
               aria-label="Failed"
             />
           ) : null}
           <ChevronDown
             className={cn(
-              "h-3 w-3 shrink-0 transition-transform",
+              "icon-sm shrink-0 transition-transform",
               !isExpanded && "-rotate-90",
             )}
             aria-hidden="true"

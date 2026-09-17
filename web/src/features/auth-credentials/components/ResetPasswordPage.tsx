@@ -178,7 +178,7 @@ export function ResetPasswordPage({
             <div className="mt-2 flex justify-center">
               <Button asChild variant="ghost">
                 <Link href="/auth/sign-in">
-                  <ArrowLeft className="mr-2 h-3 w-3" />
+                  <ArrowLeft className="icon-sm mr-2" />
                   Back to sign in
                 </Link>
               </Button>

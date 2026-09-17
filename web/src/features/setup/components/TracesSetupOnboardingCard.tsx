@@ -50,7 +50,7 @@ function CopyableSnippet({
         className="shrink-0 gap-2"
         onClick={() => handleCopy()}
       >
-        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+        {copied ? <Check className="icon-lg" /> : <Copy className="icon-lg" />}
         {copied ? "Copied" : "Copy prompt"}
       </Button>
     </div>
@@ -124,7 +124,7 @@ export function TracesSetupOnboardingCard({
               ) : (
                 <Button disabled className="self-start">
                   <LockIcon
-                    className="mr-2 -ml-0.5 h-4 w-4"
+                    className="icon-lg mr-2 -ml-0.5"
                     aria-hidden="true"
                   />
                   Create new API key
@@ -143,7 +143,7 @@ export function TracesSetupOnboardingCard({
           title: "Add tracing with your coding agent",
           badge: (
             <Badge variant="tertiary" className="gap-1">
-              <Sparkles className="h-3 w-3" />
+              <Sparkles className="icon-sm" />
               Recommended
             </Badge>
           ),

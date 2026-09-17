@@ -55,7 +55,7 @@ export function SetupPage() {
               )}
             >
               1. Create Organization
-              {stepInt > 1 && <Check className="ml-1 inline-block h-3 w-3" />}
+              {stepInt > 1 && <Check className="icon-sm ml-1 inline-block" />}
             </BreadcrumbPage>
           </BreadcrumbItem>
           <BreadcrumbSeparator />

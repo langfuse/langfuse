@@ -85,7 +85,7 @@ const SupportDrawerContent = ({
               onClick={close}
               aria-label="Close"
             >
-              <X className="h-4 w-4" />
+              <X className="icon-lg" />
             </Button>
           )}
         </div>

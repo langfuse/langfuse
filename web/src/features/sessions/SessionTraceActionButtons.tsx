@@ -114,7 +114,7 @@ export function SessionTraceActionButtons({
                   >
                     {!hasExistingDatasetItems && hasDatasetAccess ? (
                       <PlusIcon
-                        className="mr-1.5 -ml-0.5 h-4 w-4"
+                        className="icon-lg mr-1.5 -ml-0.5"
                         aria-hidden="true"
                       />
                     ) : null}
@@ -122,9 +122,9 @@ export function SessionTraceActionButtons({
                       ? `In ${datasetCount} dataset(s)`
                       : "Add to datasets"}
                     {hasExistingDatasetItems ? (
-                      <ChevronDown className="ml-2 h-3 w-3" />
+                      <ChevronDown className="icon-sm ml-2" />
                     ) : !hasDatasetAccess ? (
-                      <LockIcon className="ml-1.5 h-3 w-3" aria-hidden="true" />
+                      <LockIcon className="icon-sm ml-1.5" aria-hidden="true" />
                     ) : null}
                   </Button>
                 </Anchor>
@@ -157,9 +157,9 @@ export function SessionTraceActionButtons({
               }
             >
               {disabled ? (
-                <LockIcon className="mr-1.5 h-3 w-3" />
+                <LockIcon className="icon-sm mr-1.5" />
               ) : (
-                <SquarePen className="mr-1.5 h-4 w-4" />
+                <SquarePen className="icon-lg mr-1.5" />
               )}
               <span>Annotate</span>
             </Button>
@@ -178,7 +178,7 @@ export function SessionTraceActionButtons({
               className="rounded-l-none rounded-r-md border-l-2"
             >
               <span className="relative mr-1 text-xs">
-                <ChevronDown className="h-3 w-3" />
+                <ChevronDown className="icon-sm" />
                 {totalCount > 0 && (
                   <AnnotationQueueItemCountBadge
                     totalCount={totalCount}
@@ -207,10 +207,10 @@ export function SessionTraceActionButtons({
             className="gap-1"
           >
             {disabled ? (
-              <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+              <MessageSquareOff className="text-muted-foreground icon-lg" />
             ) : (
               <>
-                <MessageSquare className="h-4 w-4" />
+                <MessageSquare className="icon-lg" />
                 <span>Add comment</span>
                 {!!commentCount ? (
                   <ActionButtonCountBadge count={commentCount} />

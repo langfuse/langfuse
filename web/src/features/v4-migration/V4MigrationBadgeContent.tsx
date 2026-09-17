@@ -78,7 +78,7 @@ export function V4MigrationBadgeContent({
           {title}
           {description ? <>&nbsp;{description}.</> : null}
           {showChevron ? (
-            <ChevronRight className="ml-1 h-3 w-3 shrink-0" />
+            <ChevronRight className="icon-sm ml-1 shrink-0" />
           ) : null}
         </span>
       </span>
@@ -108,7 +108,7 @@ export function V4MigrationBadgeContent({
             </span>
           ) : null}
           {showChevron ? (
-            <ChevronRight className="ml-1 h-3 w-3 shrink-0" />
+            <ChevronRight className="icon-sm ml-1 shrink-0" />
           ) : null}
         </span>
       </button>

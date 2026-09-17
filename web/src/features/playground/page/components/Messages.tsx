@@ -73,7 +73,7 @@ const SubmitButton = () => {
             className="h-8 w-8 focus:ring-0 focus:outline-hidden focus-visible:ring-0"
             disabled={isStreaming}
           >
-            <Settings className="h-4 w-4" />
+            <Settings className="icon-lg" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">

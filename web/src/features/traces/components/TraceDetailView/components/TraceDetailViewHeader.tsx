@@ -134,7 +134,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                   title="Options"
                   variant="ghost"
                 >
-                  <EllipsisVertical className="h-4 w-4" />
+                  <EllipsisVertical className="icon-lg" />
                 </Button>
               </Trigger>
             )}
@@ -150,7 +150,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                   aria-label="More actions"
                   className="ml-auto shrink-0"
                 >
-                  <MoreHorizontal className="h-4 w-4" />
+                  <MoreHorizontal className="icon-lg" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent
@@ -204,7 +204,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                           >
                             {hasExistingDatasetItems || hasDatasetAccess ? (
                               <PlusIcon
-                                className="h-4 w-4"
+                                className="icon-lg"
                                 aria-hidden="true"
                               />
                             ) : null}
@@ -214,10 +214,10 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                                 : "Add to datasets"}
                             </span>
                             {hasExistingDatasetItems ? (
-                              <ChevronDown className="ml-auto h-3 w-3" />
+                              <ChevronDown className="icon-sm ml-auto" />
                             ) : !hasDatasetAccess ? (
                               <LockIcon
-                                className="ml-auto h-3 w-3"
+                                className="icon-sm ml-auto"
                                 aria-hidden="true"
                               />
                             ) : null}
@@ -255,9 +255,9 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                           }
                         >
                           {disabled ? (
-                            <LockIcon className="h-3 w-3" />
+                            <LockIcon className="icon-sm" />
                           ) : (
-                            <SquarePen className="h-4 w-4" />
+                            <SquarePen className="icon-lg" />
                           )}
                           <span className="text-sm">Annotate</span>
                         </Button>
@@ -275,7 +275,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                           disabled={disabled !== undefined}
                           className="w-full justify-start gap-2 font-normal"
                         >
-                          <ListPlus className="h-4 w-4" />
+                          <ListPlus className="icon-lg" />
                           <span className="text-sm">Add to queue</span>
                           {totalCount > 0 && (
                             <AnnotationQueueItemCountBadge
@@ -297,9 +297,9 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                   className="w-full justify-start gap-2 font-normal"
                 >
                   {commentDrawerControl.disabled ? (
-                    <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                    <MessageSquareOff className="text-muted-foreground icon-lg" />
                   ) : (
-                    <MessageSquare className="h-4 w-4" />
+                    <MessageSquare className="icon-lg" />
                   )}
                   <span className="text-sm">Add comment</span>
                   {!commentDrawerControl.disabled && commentCount ? (
@@ -354,7 +354,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                       >
                         {!hasExistingDatasetItems && hasDatasetAccess ? (
                           <PlusIcon
-                            className="mr-1.5 -ml-0.5 h-3.5 w-3.5"
+                            className="icon-md mr-1.5 -ml-0.5"
                             aria-hidden="true"
                           />
                         ) : null}
@@ -362,10 +362,10 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                           ? `In ${datasetCount} dataset(s)`
                           : "Add to datasets"}
                         {hasExistingDatasetItems ? (
-                          <ChevronDown className="ml-2 h-3 w-3" />
+                          <ChevronDown className="icon-sm ml-2" />
                         ) : !hasDatasetAccess ? (
                           <LockIcon
-                            className="ml-1.5 h-3 w-3"
+                            className="icon-sm ml-1.5"
                             aria-hidden="true"
                           />
                         ) : null}
@@ -404,9 +404,9 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                       }
                     >
                       {disabled ? (
-                        <LockIcon className="mr-1.5 h-3 w-3" />
+                        <LockIcon className="icon-sm mr-1.5" />
                       ) : (
-                        <SquarePen className="mr-1.5 h-3.5 w-3.5" />
+                        <SquarePen className="icon-md mr-1.5" />
                       )}
                       <span>Annotate</span>
                     </Button>
@@ -425,7 +425,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                       className="rounded-l-none rounded-r-md border-l-2"
                     >
                       <span className="relative mr-1 text-xs">
-                        <ChevronDown className="h-3 w-3" />
+                        <ChevronDown className="icon-sm" />
                         {totalCount > 0 && (
                           <AnnotationQueueItemCountBadge
                             totalCount={totalCount}
@@ -447,10 +447,10 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
               className="gap-1"
             >
               {commentDrawerControl.disabled ? (
-                <MessageSquareOff className="text-muted-foreground h-3.5 w-3.5" />
+                <MessageSquareOff className="text-muted-foreground icon-md" />
               ) : (
                 <>
-                  <MessageSquare className="h-3.5 w-3.5" />
+                  <MessageSquare className="icon-md" />
                   <span>Add comment</span>
                   {!!commentCount ? (
                     <ActionButtonCountBadge count={commentCount} />

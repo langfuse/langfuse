@@ -31,7 +31,7 @@ export const FolderBreadcrumb = ({
               className="cursor-pointer hover:underline"
               onClick={() => navigateToFolder(undefined)}
             >
-              <Home className="h-4 w-4" />
+              <Home className="icon-lg" />
             </BreadcrumbLink>
           </BreadcrumbItem>
           {createBreadcrumbItems(currentFolderPath).flatMap(

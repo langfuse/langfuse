@@ -39,7 +39,7 @@ const ImageErrorDisplay = ({
   return (
     <div className="grid grid-cols-[auto_1fr] items-center gap-2">
       <span title={displayError} className="h-4 w-4">
-        <ImageOff className="h-4 w-4" />
+        <ImageOff className="icon-lg" />
       </span>
       {safeSrc ? (
         <Link
@@ -159,9 +159,9 @@ export const ResizableImage = ({
                 onClick={() => setIsZoomedIn(!isZoomedIn)}
               >
                 {isZoomedIn ? (
-                  <Maximize2 className="h-4 w-4"></Maximize2>
+                  <Maximize2 className="icon-lg"></Maximize2>
                 ) : (
-                  <Minimize2 className="h-4 w-4"></Minimize2>
+                  <Minimize2 className="icon-lg"></Minimize2>
                 )}
               </Button>
             </>
