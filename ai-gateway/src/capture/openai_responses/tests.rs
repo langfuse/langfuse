@@ -454,7 +454,7 @@ async fn upstream_read_timeout_is_logged_as_timeout() {
     .await;
     let context = resolved_request_context_with_mode("provider-secret", "full").await;
     let provider = OpenAiProvider::for_test(
-        format!("{}/v1/responses", upstream.url),
+        format!("{}/v1", upstream.url),
         ProviderLimits {
             active: 1,
             read_timeout: Duration::from_millis(50),
@@ -509,7 +509,7 @@ async fn native_http_relay_logs_once_on_eof_drop_and_unpolled_deadline() {
         .await;
         let context = resolved_request_context_with_mode("provider-secret", "full").await;
         let provider = OpenAiProvider::for_test(
-            format!("{}/v1/responses", upstream.url),
+            format!("{}/v1", upstream.url),
             ProviderLimits {
                 active: 1,
                 execution_timeout: Duration::from_secs(1),
@@ -573,7 +573,7 @@ async fn provider_future_finalizes_on_timeout_and_cancellation_before_headers() 
         .await;
         let context = resolved_request_context_with_mode("provider-secret", "full").await;
         let provider = OpenAiProvider::for_test(
-            format!("{}/v1/responses", upstream.url),
+            format!("{}/v1", upstream.url),
             ProviderLimits {
                 active: 1,
                 headers_timeout: Duration::from_millis(100),
@@ -675,11 +675,9 @@ async fn client_compression_preferences_do_not_disable_capture() {
         )
         .unwrap();
         let context = resolved_request_context_with_mode("provider-secret", "full").await;
-        let provider = OpenAiProvider::for_test(
-            format!("{}/v1/responses", upstream.url),
-            ProviderLimits::default(),
-        )
-        .with_telemetry(telemetry.clone());
+        let provider =
+            OpenAiProvider::for_test(format!("{}/v1", upstream.url), ProviderLimits::default())
+                .with_telemetry(telemetry.clone());
         let mut headers = HeaderMap::new();
         headers.insert(
             header::ACCEPT_ENCODING,

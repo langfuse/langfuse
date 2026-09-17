@@ -7,7 +7,7 @@ use tokio::sync::Notify;
 
 fn provider(server: &FakeServer, active: usize) -> OpenAiProvider {
     OpenAiProvider::for_test(
-        format!("{}/v1/responses", server.url),
+        format!("{}/v1", server.url),
         ProviderLimits {
             active,
             ..ProviderLimits::default()
@@ -534,6 +534,97 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
         assert!(received.try_recv().is_err());
         assert_eq!(sink.calls(), 1);
     }
+}
+
+#[tokio::test]
+async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
+    use crate::{resolution::ControlPlaneConfig, telemetry::Telemetry};
+    use serde_json::Value;
+
+    const COMPACT: &[u8] =
+        br#"{"model":"gpt-4.1","input":[{"encrypted_content":"opaque-ciphertext"}]}"#;
+    const COMPACT_RESPONSE: &str =
+        r#"{"id":"comp_1","output":[{"encrypted_content":"opaque-ciphertext"}]}"#;
+    const MODELS: &str = r#"{"object":"list","data":[{"id":"gpt-4.1","object":"model"}]}"#;
+
+    let (sent, mut received) = tokio::sync::mpsc::channel(2);
+    let sink = FakeServer::start(move |request| {
+        let sent = sent.clone();
+        async move {
+            let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+            sent.send(serde_json::from_slice::<Value>(&bytes).unwrap())
+                .await
+                .unwrap();
+            Response::new(Body::from("{}"))
+        }
+    })
+    .await;
+    let telemetry =
+        Telemetry::new(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap()).unwrap();
+    let upstream = FakeServer::start(|request| async move {
+        let uri = request.uri().to_string();
+        let method = request.method().clone();
+        let body = to_bytes(request.into_body(), 4096).await.unwrap();
+        match (method.as_str(), uri.as_str()) {
+            ("POST", "/v1/responses/compact") => {
+                assert_eq!(body, COMPACT);
+                Response::builder()
+                    .header("content-type", "application/json")
+                    .body(Body::from(COMPACT_RESPONSE))
+                    .unwrap()
+            }
+            ("GET", "/v1/models") => {
+                assert!(body.is_empty());
+                Response::builder()
+                    .header("content-type", "application/json")
+                    .body(Body::from(MODELS))
+                    .unwrap()
+            }
+            other => panic!("unexpected provider request {other:?}"),
+        }
+    })
+    .await;
+    let relay = provider(&upstream, 1).with_telemetry(telemetry.clone());
+    let compact = relay
+        .forward_route(
+            relay.try_admit().unwrap(),
+            resolved_request_context("provider-secret").await,
+            &HeaderMap::new(),
+            Bytes::from_static(COMPACT),
+            OpenAiRoute::ResponsesCompact,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        to_bytes(compact.into_body(), 4096).await.unwrap(),
+        COMPACT_RESPONSE
+    );
+    let payload = tokio::time::timeout(Duration::from_secs(1), received.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["name"],
+        "openai.responses"
+    );
+    let models = relay
+        .forward_route(
+            relay.try_admit().unwrap(),
+            resolved_request_context("provider-secret").await,
+            &HeaderMap::new(),
+            Bytes::new(),
+            OpenAiRoute::Models,
+        )
+        .await
+        .unwrap();
+    assert_eq!(to_bytes(models.into_body(), 4096).await.unwrap(), MODELS);
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert!(received.try_recv().is_err());
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(1))
+        .await;
+    assert_eq!(sink.calls(), 1);
+    assert_eq!(upstream.calls(), 2);
 }
 
 fn assert_completed_upload(payload: &serde_json::Value, streaming: bool) {

@@ -3,7 +3,7 @@ import { homedir } from "os";
 import { join } from "path";
 import { Readable } from "stream";
 
-import type * as ClickhouseModule from "../repositories/clickhouse";
+import type * as ClickhouseModule from "./clickhouse";
 
 /**
  * Golden-SQL recording/diff harness for the query-builder AST refactor.
