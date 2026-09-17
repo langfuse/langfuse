@@ -6,12 +6,18 @@ use axum::{
     http::{HeaderMap, HeaderValue, Response, header},
 };
 use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
+use reqwest_tracing::DisableOtelPropagation;
 use tokio::{
     sync::{OwnedSemaphorePermit, Semaphore},
     time::Instant,
 };
 
-use crate::{resolution::ResolvedRequestContext, transport};
+use crate::{
+    capture::{ExecutionCapture, RelayOutcome},
+    resolution::ResolvedRequestContext,
+    transport,
+};
 
 pub use crate::transport::ProviderError;
 
@@ -36,14 +42,16 @@ impl Default for ProviderLimits {
 /// An admitted execution. Dropping it releases capacity; there is no waiting queue.
 pub struct RequestPermit {
     _permit: OwnedSemaphorePermit,
+    _active: crate::observability::Active,
     deadline: Instant,
 }
 
 /// A pooled client for the official `OpenAI` Responses endpoint.
 pub struct OpenAiProvider {
-    client: Client,
+    client: ClientWithMiddleware,
     capacity: Arc<Semaphore>,
     limits: ProviderLimits,
+    telemetry: Option<crate::telemetry::Telemetry>,
     #[cfg(test)]
     endpoint: String,
 }
@@ -78,12 +86,18 @@ impl OpenAiProvider {
             .build()
             .map_err(|_| ProviderError::Configuration)?;
         Ok(Self {
-            client,
+            client: crate::observability::instrument_client(client, "provider.headers"),
             capacity: Arc::new(Semaphore::new(limits.active)),
             limits,
+            telemetry: None,
             #[cfg(test)]
             endpoint: "https://api.openai.com/v1/responses".to_owned(),
         })
+    }
+
+    pub(crate) fn with_telemetry(mut self, telemetry: crate::telemetry::Telemetry) -> Self {
+        self.telemetry = Some(telemetry);
+        self
     }
 
     /// Reserve capacity for an authenticated request before reading its body.
@@ -91,13 +105,13 @@ impl OpenAiProvider {
     /// # Errors
     /// Returns [`ProviderError::Busy`] immediately when all execution slots are occupied.
     pub fn try_admit(&self) -> Result<RequestPermit, ProviderError> {
-        let permit = self
-            .capacity
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| ProviderError::Busy)?;
+        let permit = self.capacity.clone().try_acquire_owned().map_err(|_| {
+            crate::observability::rejected("execution");
+            ProviderError::Busy
+        })?;
         Ok(RequestPermit {
             _permit: permit,
+            _active: crate::observability::Active::new("execution"),
             deadline: Instant::now() + self.limits.execution_timeout,
         })
     }
@@ -124,30 +138,52 @@ impl OpenAiProvider {
             HeaderValue::from_str(&format!("Bearer {}", context.connection().provider_token()))
                 .map_err(|_| ProviderError::Configuration)?;
         authorization.set_sensitive(true);
+        let mut capture = ExecutionCapture::openai_responses(&context, headers, &body);
+        if let Some(telemetry) = &self.telemetry {
+            capture.deliver_to(telemetry.clone(), &context, headers);
+        }
         let response = tokio::time::timeout_at(
             permit
                 .deadline
                 .min(Instant::now() + self.limits.headers_timeout),
             self.client
                 .post(endpoint)
+                .with_extension(DisableOtelPropagation)
                 .headers(transport::request_headers(headers))
+                // Observe plain JSON/SSE while relaying the provider bytes unchanged.
+                .header(header::ACCEPT_ENCODING, "identity")
                 .header(header::AUTHORIZATION, authorization)
                 .body(body)
                 .send(),
         )
         .await
-        .map_err(|_| ProviderError::Timeout)?
-        .map_err(|error| {
-            if error.is_timeout() {
-                ProviderError::Timeout
-            } else {
-                ProviderError::Transport
+        .map_err(|_| ProviderError::Timeout)
+        .and_then(|result| {
+            result.map_err(|error| {
+                if error.is_timeout() {
+                    ProviderError::Timeout
+                } else {
+                    ProviderError::Transport
+                }
+            })
+        });
+        let response = match response {
+            Ok(response) => response,
+            Err(error) => {
+                capture.finish(if matches!(error, ProviderError::Timeout) {
+                    RelayOutcome::Timeout
+                } else {
+                    RelayOutcome::TransportError
+                });
+                return Err(error);
             }
-        })?;
+        };
+        capture.response(response.status().as_u16(), response.headers());
         let mut downstream = Response::new(Body::empty());
         *downstream.status_mut() = response.status();
         *downstream.headers_mut() = transport::response_headers(response.headers());
-        *downstream.body_mut() = transport::relay(response, permit.deadline, (permit, context));
+        *downstream.body_mut() =
+            transport::relay(response, permit.deadline, (permit, context), capture);
         Ok(downstream)
     }
 

@@ -1,0 +1,112 @@
+---
+name: Release Reminder
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 10,16 * * *"
+      timezone: "Europe/Berlin"
+
+permissions: {}
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout release history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check for unreleased changes
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          release_tag=""
+          released_at=""
+          while IFS=$'\t' read -r candidate_tag candidate_published_at; do
+            if git rev-parse --verify --quiet "refs/tags/${candidate_tag}^{commit}" >/dev/null \
+              && git merge-base --is-ancestor "refs/tags/${candidate_tag}^{commit}" origin/main; then
+              release_tag="$candidate_tag"
+              released_at="$candidate_published_at"
+              break
+            fi
+          done < <(
+            gh api --method GET --paginate "repos/${REPOSITORY}/releases" -f per_page=100 \
+              | jq -r -s '[.[][] | select(.draft == false and .prerelease == false)]
+                | sort_by(.published_at) | reverse[] | [.tag_name, .published_at] | @tsv'
+          )
+
+          if [ -z "$release_tag" ]; then
+            echo "::error::No stable release associated with main was found."
+            exit 1
+          fi
+
+          released_epoch="$(date -u -d "$released_at" +%s)"
+          age_seconds="$(( $(date -u +%s) - released_epoch ))"
+
+          if [ "$age_seconds" -lt $((16 * 60 * 60)) ]; then
+            echo "Latest release ${release_tag} is less than 16 hours old; skipping."
+            echo "notify=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          query="repo:${REPOSITORY} is:pr is:merged base:main merged:>=${released_at}"
+          pull_requests="$(gh api --method GET --paginate search/issues -f q="$query" -f per_page=100 \
+            --jq '[.items[] | select(.title | test("^(feat|fix|perf|security|revert)(\\([^)]*\\))?!?:"))]')"
+          pull_requests="$(jq -s 'add | sort_by(.pull_request.merged_at) | reverse' <<<"$pull_requests")"
+          count="$(jq 'length' <<<"$pull_requests")"
+
+          if [ "$count" -eq 0 ]; then
+            echo "No release-worthy pull requests since ${release_tag}; skipping."
+            echo "notify=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          shown="$(jq -r '.[0:10][] | .title |= (gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;")) | "• <\(.html_url)|#\(.number)> \(.title)"' <<<"$pull_requests")"
+          if [ "$count" -gt 10 ]; then
+            shown="$(printf '%s\n…and %s more' "$shown" "$((count - 10))")"
+          fi
+
+          compare_url="${{ github.server_url }}/${REPOSITORY}/compare/${release_tag}...main"
+          message="$(printf 'The latest release <%s|%s> is more than 16 hours old and %s release-worthy PR(s) have been merged since:\n%s\n\n<%s|View all unreleased changes>' \
+            "${{ github.server_url }}/${REPOSITORY}/releases/tag/${release_tag}" "$release_tag" "$count" "$shown" "$compare_url")"
+
+          delimiter="MESSAGE_EOF_${RANDOM}${RANDOM}"
+          {
+            echo "notify=true"
+            echo "message<<$delimiter"
+            echo "$message"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Notify Slack
+        if: steps.check.outputs.notify == 'true'
+        env:
+          MESSAGE: ${{ steps.check.outputs.message }}
+          SLACK_WEBHOOK: ${{ secrets.SLACK_ENGINEERING_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SLACK_WEBHOOK:-}" ]; then
+            echo "::error::SLACK_ENGINEERING_WEBHOOK_URL is unset."
+            exit 1
+          fi
+
+          response="$(curl -sS -X POST "$SLACK_WEBHOOK" \
+            -H 'Content-type: application/json; charset=utf-8' \
+            --data "$(jq -nc --arg text "$MESSAGE" '{text: $text}')")"
+
+          if [ "$response" != "ok" ]; then
+            echo "::error::Slack post failed: $response"
+            exit 1
+          fi

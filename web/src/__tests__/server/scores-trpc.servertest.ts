@@ -1,15 +1,11 @@
 const {
   mockAddScoreDelete,
   mockAddBatchAction,
-  mockGetEventsGroupedByTraceTags,
-  mockGetEventsGroupedByTraceName,
-  mockGetEventsGroupedByUserId,
+  mockGetEventsExactFilterOptionsForColumns,
 } = vi.hoisted(() => ({
   mockAddScoreDelete: vi.fn(),
   mockAddBatchAction: vi.fn(),
-  mockGetEventsGroupedByTraceTags: vi.fn(async () => []),
-  mockGetEventsGroupedByTraceName: vi.fn(async () => []),
-  mockGetEventsGroupedByUserId: vi.fn(async () => []),
+  mockGetEventsExactFilterOptionsForColumns: vi.fn(async () => []),
 }));
 
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -26,9 +22,8 @@ vi.mock("@langfuse/shared/src/server", async () => {
         add: mockAddBatchAction,
       })),
     },
-    getEventsGroupedByTraceTags: mockGetEventsGroupedByTraceTags,
-    getEventsGroupedByTraceName: mockGetEventsGroupedByTraceName,
-    getEventsGroupedByUserId: mockGetEventsGroupedByUserId,
+    getEventsExactFilterOptionsForColumns:
+      mockGetEventsExactFilterOptionsForColumns,
   };
 });
 
@@ -73,9 +68,7 @@ describe("scores trpc", () => {
     orgId = setup.orgId;
     mockAddScoreDelete.mockClear();
     mockAddBatchAction.mockClear();
-    mockGetEventsGroupedByTraceTags.mockClear();
-    mockGetEventsGroupedByTraceName.mockClear();
-    mockGetEventsGroupedByUserId.mockClear();
+    mockGetEventsExactFilterOptionsForColumns.mockClear();
 
     const session: Session = {
       expires: "1",
@@ -174,6 +167,188 @@ describe("scores trpc", () => {
         );
         expect(count.totalCount, query).toBe(names.length);
       }
+    });
+
+    it("counts v4 scores within a timestamp window, pruning other day-buckets and honoring the exact bound", async () => {
+      // Exercises the FINAL-free count path's date handling: the coarse
+      // toDate(timestamp) prune must drop other day-buckets pre-dedup, while the
+      // exact timestamp bound (re-applied post-dedup) must still exclude an
+      // in-bucket-but-out-of-window row. Regression guard for
+      // buildScoresDatePrune.
+      const from = new Date("2024-06-15T10:00:00.000Z");
+      const to = new Date("2024-06-15T14:00:00.000Z");
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          name: "in-window",
+          timestamp: new Date("2024-06-15T12:00:00.000Z"),
+        }),
+        // Same day (survives the coarse toDate prune) but after `to` — only the
+        // exact post-dedup bound excludes it.
+        createTraceScore({
+          project_id: projectId,
+          name: "same-day-after-window",
+          timestamp: new Date("2024-06-15T20:00:00.000Z"),
+        }),
+        createTraceScore({
+          project_id: projectId,
+          name: "earlier-day",
+          timestamp: new Date("2024-06-10T12:00:00.000Z"),
+        }),
+      ]);
+
+      const payload = {
+        projectId,
+        filter: [
+          {
+            column: "timestamp",
+            type: "datetime" as const,
+            operator: ">=" as const,
+            value: from,
+          },
+          {
+            column: "timestamp",
+            type: "datetime" as const,
+            operator: "<" as const,
+            value: to,
+          },
+        ],
+      };
+      const [rows, count] = await Promise.all([
+        caller.scores.allFromEvents({
+          ...payload,
+          orderBy: { column: "timestamp", order: "DESC" },
+          page: 0,
+          limit: 50,
+        }),
+        caller.scores.countAllFromEvents({ ...payload, orderBy: null }),
+      ]);
+
+      expect(rows.scores.map((score) => score.name)).toEqual(["in-window"]);
+      expect(count.totalCount).toBe(rows.scores.length);
+      expect(count.totalCount).toBe(1);
+    });
+
+    it("reconstructs the latest version of a score id without FINAL", async () => {
+      // Two versions of one score id share the dedup key
+      // (project_id, toDate(timestamp), name, id) and differ only in event_ts.
+      // The FINAL-free rows path (ORDER BY event_ts DESC + LIMIT 1 BY) and count
+      // path (argMax) must both collapse them to the single latest version and
+      // return the whole latest row.
+      const scoreId = randomUUID();
+      const timestamp = new Date("2024-06-15T12:00:00.000Z");
+
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          name: "versioned-score",
+          timestamp,
+          event_ts: new Date("2024-06-15T12:00:00.000Z"),
+          value: 0.1,
+          comment: "stale",
+        }),
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          name: "versioned-score",
+          timestamp,
+          event_ts: new Date("2024-06-15T12:05:00.000Z"),
+          value: 0.9,
+          comment: "latest",
+        }),
+      ]);
+
+      const [rows, count] = await Promise.all([
+        caller.scores.allFromEvents({
+          projectId,
+          filter: [],
+          orderBy: { column: "timestamp", order: "DESC" },
+          page: 0,
+          limit: 50,
+        }),
+        caller.scores.countAllFromEvents({
+          projectId,
+          filter: [],
+          orderBy: null,
+        }),
+      ]);
+
+      expect(rows.scores.map((score) => score.id)).toEqual([scoreId]);
+      expect(rows.scores[0].value).toBe(0.9);
+      expect(rows.scores[0].comment).toBe("latest");
+      expect(count.totalCount).toBe(1);
+    });
+
+    it("filters mutable columns after dedup, never against a stale version", async () => {
+      // value/comment/timestamp/trace_id are mutable across a score's versions,
+      // so a filter must run AFTER dedup. Each id below has a stale version that
+      // disagrees with its latest on `value > 0.5`; filtering the raw rows
+      // pre-dedup would wrongly keep `latest-low` (its stale 0.9) and could drop
+      // `latest-high`. The predicate must be decided on the latest version only.
+      const latestLowId = randomUUID(); // stale 0.9, latest 0.1 -> excluded
+      const latestHighId = randomUUID(); // stale 0.1, latest 0.9 -> included
+      const timestamp = new Date("2024-06-15T12:00:00.000Z");
+
+      await createScoresCh([
+        createTraceScore({
+          id: latestLowId,
+          project_id: projectId,
+          name: "latest-low",
+          timestamp,
+          event_ts: new Date("2024-06-15T12:00:00.000Z"),
+          value: 0.9,
+        }),
+        createTraceScore({
+          id: latestLowId,
+          project_id: projectId,
+          name: "latest-low",
+          timestamp,
+          event_ts: new Date("2024-06-15T12:05:00.000Z"),
+          value: 0.1,
+        }),
+        createTraceScore({
+          id: latestHighId,
+          project_id: projectId,
+          name: "latest-high",
+          timestamp,
+          event_ts: new Date("2024-06-15T12:00:00.000Z"),
+          value: 0.1,
+        }),
+        createTraceScore({
+          id: latestHighId,
+          project_id: projectId,
+          name: "latest-high",
+          timestamp,
+          event_ts: new Date("2024-06-15T12:05:00.000Z"),
+          value: 0.9,
+        }),
+      ]);
+
+      const payload = {
+        projectId,
+        filter: [
+          {
+            column: "value",
+            type: "number" as const,
+            operator: ">" as const,
+            value: 0.5,
+          },
+        ],
+      };
+      const [rows, count] = await Promise.all([
+        caller.scores.allFromEvents({
+          ...payload,
+          orderBy: { column: "timestamp", order: "DESC" },
+          page: 0,
+          limit: 50,
+        }),
+        caller.scores.countAllFromEvents({ ...payload, orderBy: null }),
+      ]);
+
+      expect(rows.scores.map((score) => score.id)).toEqual([latestHighId]);
+      expect(count.totalCount).toBe(1);
     });
 
     it("returns the recorded evaluator and resolves legacy scores by rule assignment and score name", async () => {

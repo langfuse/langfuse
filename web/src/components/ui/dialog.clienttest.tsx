@@ -1,28 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import { DialogController, DialogTitle } from "@/src/components/ui/dialog";
-import { LAYER_ORDER } from "@/src/components/ui/layer";
-
-const installOverlayLayers = () => {
-  const overlayRoot = document.createElement("div");
-  overlayRoot.setAttribute("data-overlay-root", "");
-  for (const layer of LAYER_ORDER) {
-    const layerNode = document.createElement("div");
-    layerNode.setAttribute("data-layer", layer);
-    overlayRoot.appendChild(layerNode);
-  }
-  document.body.appendChild(overlayRoot);
-};
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 describe("DialogController", () => {
-  beforeEach(() => {
-    installOverlayLayers();
-  });
-
-  afterEach(() => {
-    document.querySelector("[data-overlay-root]")?.remove();
-  });
-
   it.each([null, undefined])(
     "keeps %s as active state until closed",
     (state) => {
@@ -49,6 +30,7 @@ describe("DialogController", () => {
             </>
           )}
         </DialogController>,
+        { wrapper: LayerProvider },
       );
 
       expect(screen.queryByText("Stateful dialog")).not.toBeInTheDocument();
@@ -82,6 +64,7 @@ describe("DialogController", () => {
           </button>
         )}
       </DialogController>,
+      { wrapper: LayerProvider },
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
@@ -103,7 +86,9 @@ describe("DialogController", () => {
         {() => null}
       </DialogController>
     );
-    const { rerender } = render(renderController("first"));
+    const { rerender } = render(renderController("first"), {
+      wrapper: LayerProvider,
+    });
 
     expect(screen.getByText("first")).toBeInTheDocument();
     rerender(renderController("second"));

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,6 +19,7 @@ import {
 
 import { reportNonTrpcError } from "@/src/utils/api";
 
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -28,16 +30,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/src/components/ui/alert-dialog";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Textarea } from "@/src/components/ui/textarea";
 import { useEffect, useState } from "react";
@@ -45,7 +37,7 @@ import { useEffect, useState } from "react";
 import { Dropzone } from "@/src/components/design-system/Dropzone/Dropzone";
 import { Trash2 } from "lucide-react";
 import { PYLON_MAX_FILE_SIZE_BYTES } from "./pylon/pylonConstants";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 /** Make RHF generics match the resolver (Zod defaults => input can be undefined) */
 type SupportFormInput = z.input<typeof SupportFormSchema>;
@@ -198,10 +190,6 @@ export function SupportForm({
   // Local submit guard to avoid flicker across multiple mutations
   const [isSubmittingLocal, setIsSubmittingLocal] = useState(false);
 
-  // Sev-1 pages the on-call team, so submission requires an explicit
-  // confirmation step.
-  const [sev1ConfirmOpen, setSev1ConfirmOpen] = useState(false);
-
   const productFeatureTopics = TopicGroups["Product Features"].filter(
     (topic) => topic !== "V4 Migration" || showV4MigrationTopic,
   );
@@ -237,7 +225,10 @@ export function SupportForm({
     }
   }, [selectedSeverity, canSelectHighSeverity, form]);
 
-  const handleFormSubmit = async (values: SupportFormInput) => {
+  const handleFormSubmit = async (
+    values: SupportFormInput,
+    openConfirmationDialog: () => void,
+  ) => {
     const parsed: SupportFormValues = SupportFormSchema.parse(values);
     const msgLen = (parsed.message ?? "").trim().length;
 
@@ -249,7 +240,7 @@ export function SupportForm({
     // Sev-1 pages the on-call team — require explicit confirmation before
     // submitting. The dialog's confirm action calls `submitForm` directly.
     if (parsed.severity === SEVERITY_1) {
-      setSev1ConfirmOpen(true);
+      openConfirmationDialog();
       return;
     }
 
@@ -303,302 +294,294 @@ export function SupportForm({
     warnedShortOnce && (form.getValues("message") ?? "").trim().length < 50;
 
   return (
-    <>
-      <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit(handleFormSubmit)}
-          className="flex flex-col gap-4"
-        >
-          {/* Message Type */}
-          <FormField
-            control={form.control}
-            name="messageType"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Message Type</FormLabel>
-                <FormControl>
-                  <div className="grid grid-cols-3 gap-2">
-                    {MESSAGE_TYPES.map((v) => (
-                      <Button
-                        key={v}
-                        variant={field.value === v ? "default" : "outline"}
-                        className="flex w-full items-center gap-2 text-sm font-normal"
-                        size="default"
-                        onClick={() => field.onChange(v)}
-                      >
-                        <span className="truncate" title={v}>
-                          {v}
-                        </span>
-                      </Button>
-                    ))}
-                  </div>
-                </FormControl>
-                <FormDescription className="sr-only">
-                  Choose the type of your message.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
+    <ConfirmationDialogController
+      title="Confirm Severity 1 (Critical Business Impact)"
+      text="Please confirm that your issue has critical business impact. This means it severely impacts your use of Langfuse in production, such as loss of production data, ingestion issues, or prompt fetching issues."
+      confirmLabel="Confirm & Submit"
+      variant="default"
+      loading={isSubmittingLocal}
+      onConfirm={async () => {
+        await submitForm(form.getValues());
+      }}
+    >
+      {({ openDialog }) => (
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit((values) =>
+              handleFormSubmit(values, openDialog),
             )}
-          />
-
-          {/* Priority (maps to Pylon case_severity). Severity 1 and 2 are
-              gated to Enterprise plans. */}
-          <FormField
-            control={form.control}
-            name="severity"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Priority</FormLabel>
-                <FormControl>
-                  <SelectInput
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    placeholder="Select a priority"
-                    options={SEVERITIES.map((severity) => {
-                      if (
-                        isSeveritySelectable(severity, canSelectHighSeverity)
-                      ) {
-                        return { value: severity, label: severity };
-                      }
-
-                      return {
-                        value: severity,
-                        label: severity,
-                        disabled: true as const,
-                        disabledReason:
-                          severity === SEVERITY_1
-                            ? "Severity 1 is available on the Enterprise plan."
-                            : "Severity 2 is available on the Enterprise plan.",
-                      };
-                    })}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Topic */}
-          <FormField
-            control={form.control}
-            name="topic"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Topic</FormLabel>
-                <FormControl>
-                  <SelectInput
-                    value={field.value ?? undefined}
-                    onValueChange={field.onChange}
-                    placeholder="Select a topic"
-                    options={[
-                      {
-                        type: "group",
-                        id: "product-features",
-                        label: "Product Features",
-                        options: productFeatureTopics.map((t) => ({
-                          value: t,
-                          label: t,
-                        })),
-                      },
-                      {
-                        type: "group",
-                        id: "operations",
-                        label: "Operations",
-                        options: TopicGroups.Operations.map((t) => ({
-                          value: t,
-                          label: t,
-                        })),
-                      },
-                    ]}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Integration Type */}
-          {isProductFeatureTopic && (
+            className="flex flex-col gap-4"
+          >
+            {/* Message Type */}
             <FormField
               control={form.control}
-              name="integrationType"
+              name="messageType"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Integration Type (optional)</FormLabel>
+                  <FormLabel>Message Type</FormLabel>
+                  <FormControl>
+                    <div className="grid grid-cols-3 gap-2">
+                      {MESSAGE_TYPES.map((v) => (
+                        <Button
+                          key={v}
+                          variant={field.value === v ? "default" : "outline"}
+                          className="flex w-full items-center gap-2 text-sm font-normal"
+                          size="default"
+                          onClick={() => field.onChange(v)}
+                        >
+                          <span className="truncate" title={v}>
+                            {v}
+                          </span>
+                        </Button>
+                      ))}
+                    </div>
+                  </FormControl>
+                  <FormDescription className="sr-only">
+                    Choose the type of your message.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Priority (maps to Pylon case_severity). Severity 1 and 2 are
+              gated to Enterprise plans. */}
+            <FormField
+              control={form.control}
+              name="severity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Priority</FormLabel>
                   <FormControl>
                     <SelectInput
-                      value={field.value ?? ""}
+                      value={field.value}
                       onValueChange={field.onChange}
-                      placeholder="Select integration type"
-                      options={INTEGRATION_TYPES.map((integrationType) => ({
-                        value: integrationType,
-                        label: integrationType,
-                      }))}
+                      placeholder="Select a priority"
+                      options={SEVERITIES.map((severity) => {
+                        if (
+                          isSeveritySelectable(severity, canSelectHighSeverity)
+                        ) {
+                          return { value: severity, label: severity };
+                        }
+
+                        return {
+                          value: severity,
+                          label: severity,
+                          disabled: true as const,
+                          disabledReason:
+                            severity === SEVERITY_1
+                              ? "Severity 1 is available on the Enterprise plan."
+                              : "Severity 2 is available on the Enterprise plan.",
+                        };
+                      })}
                     />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-          )}
 
-          {/* Message */}
-          <FormField
-            control={form.control}
-            name="message"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Message</FormLabel>
-                <div className="text-muted-foreground text-xs">
-                  We will email you at your account address. Replies may take up
-                  to one business day.
-                </div>
-                <FormControl>
-                  <div className="relative w-full">
-                    <Textarea
-                      {...field}
-                      rows={8}
-                      placeholder={
-                        isProductFeatureTopic
-                          ? "Please explain as fully as possible what you're aiming to do, and what you'd like help with.\n\nIf your question involves a specific trace, prompt, score, etc. please include a link to it."
-                          : "Please explain as fully as possible what you're aiming to do, and what you'd like help with."
+            {/* Topic */}
+            <FormField
+              control={form.control}
+              name="topic"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Topic</FormLabel>
+                  <FormControl>
+                    <SelectInput
+                      value={field.value ?? undefined}
+                      onValueChange={field.onChange}
+                      placeholder="Select a topic"
+                      options={[
+                        {
+                          type: "group",
+                          id: "product-features",
+                          label: "Product Features",
+                          options: productFeatureTopics.map((t) => ({
+                            value: t,
+                            label: t,
+                          })),
+                        },
+                        {
+                          type: "group",
+                          id: "operations",
+                          label: "Operations",
+                          options: TopicGroups.Operations.map((t) => ({
+                            value: t,
+                            label: t,
+                          })),
+                        },
+                      ]}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Integration Type */}
+            {isProductFeatureTopic && (
+              <FormField
+                control={form.control}
+                name="integrationType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Integration Type (optional)</FormLabel>
+                    <FormControl>
+                      <SelectInput
+                        value={field.value ?? ""}
+                        onValueChange={field.onChange}
+                        placeholder="Select integration type"
+                        options={INTEGRATION_TYPES.map((integrationType) => ({
+                          value: integrationType,
+                          label: integrationType,
+                        }))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {/* Message */}
+            <FormField
+              control={form.control}
+              name="message"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Message</FormLabel>
+                  <div className="text-muted-foreground text-xs">
+                    We will email you at your account address. Replies may take
+                    up to one business day.
+                  </div>
+                  <FormControl>
+                    <div className="relative w-full">
+                      <Textarea
+                        {...field}
+                        rows={8}
+                        placeholder={
+                          isProductFeatureTopic
+                            ? "Please explain as fully as possible what you're aiming to do, and what you'd like help with.\n\nIf your question involves a specific trace, prompt, score, etc. please include a link to it."
+                            : "Please explain as fully as possible what you're aiming to do, and what you'd like help with."
+                        }
+                      />
+                    </div>
+                  </FormControl>
+
+                  {messageIsShortAfterWarning && (
+                    <p
+                      className="mt-2 text-sm text-red-500"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      The message seems short — adding a bit more context can
+                      help us get you a quicker, smarter answer. You can submit
+                      again as is, or add more details.
+                    </p>
+                  )}
+
+                  <FormMessage />
+
+                  <div className="mt-1">
+                    <Dropzone
+                      accept={undefined}
+                      isDisabled={false}
+                      maxFiles={FILE_UPLOAD_CONSTRAINTS.maxFiles}
+                      maxSize={FILE_UPLOAD_CONSTRAINTS.maxFileSizeBytes}
+                      minSize={undefined}
+                      onDrop={(accepted) =>
+                        setFiles((prev) => {
+                          const existing = prev ?? [];
+                          const merged = [...existing, ...accepted];
+                          const maxFiles = FILE_UPLOAD_CONSTRAINTS.maxFiles;
+                          return merged.slice(0, maxFiles);
+                        })
                       }
+                      onError={(error) => {
+                        onFileError(formatFileError(error));
+                      }}
+                      src={files}
+                      variant="compact"
                     />
                   </div>
-                </FormControl>
 
-                {messageIsShortAfterWarning && (
-                  <p
-                    className="mt-2 text-sm text-red-500"
-                    role="status"
-                    aria-live="polite"
-                  >
-                    The message seems short — adding a bit more context can help
-                    us get you a quicker, smarter answer. You can submit again
-                    as is, or add more details.
-                  </p>
-                )}
-
-                <FormMessage />
-
-                <div className="mt-1">
-                  <Dropzone
-                    accept={undefined}
-                    isDisabled={false}
-                    maxFiles={FILE_UPLOAD_CONSTRAINTS.maxFiles}
-                    maxSize={FILE_UPLOAD_CONSTRAINTS.maxFileSizeBytes}
-                    minSize={undefined}
-                    onDrop={(accepted) =>
-                      setFiles((prev) => {
-                        const existing = prev ?? [];
-                        const merged = [...existing, ...accepted];
-                        const maxFiles = FILE_UPLOAD_CONSTRAINTS.maxFiles;
-                        return merged.slice(0, maxFiles);
-                      })
-                    }
-                    onError={(error) => {
-                      onFileError(formatFileError(error));
-                    }}
-                    src={files}
-                    variant="compact"
-                  />
-                </div>
-
-                {files && files.length > 0 && (
-                  <div className="p-0 text-left text-sm font-bold">
-                    <div className="text-muted-foreground mb-2 text-xs font-bold">
-                      Attached files
-                    </div>
-                    {files?.map((file) => (
-                      <div
-                        key={file.name}
-                        className="flex flex-row items-center justify-start gap-2 text-xs"
-                      >
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-xs"
-                          onClick={() =>
-                            setFiles(files.filter((f) => f.name !== file.name))
-                          }
-                          className="p-0"
-                        >
-                          <span className="sr-only">Remove file</span>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                        {file.name}
+                  {files && files.length > 0 && (
+                    <div className="p-0 text-left text-sm font-bold">
+                      <div className="text-muted-foreground mb-2 text-xs font-bold">
+                        Attached files
                       </div>
-                    ))}
-                  </div>
-                )}
-              </FormItem>
-            )}
-          />
-
-          {/* Actions */}
-          <div className="flex flex-row gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setWarnedShortOnce(false);
-                setFiles(undefined);
-                onCancel();
-              }}
-              className="w-full"
-            >
-              Cancel
-            </Button>
-
-            <Button
-              type="submit"
-              disabled={isSubmittingLocal}
-              className="w-full"
-            >
-              {isSubmittingLocal ? (
-                <span className="inline-flex items-center gap-2">
-                  <Spinner size="sm" />
-                  Submitting…
-                </span>
-              ) : messageIsShortAfterWarning ? (
-                "Submit Anyways"
-              ) : (
-                "Submit"
+                      {files?.map((file) => (
+                        <div
+                          key={file.name}
+                          className="flex flex-row items-center justify-start gap-2 text-xs"
+                        >
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            onClick={() =>
+                              setFiles(
+                                files.filter((f) => f.name !== file.name),
+                              )
+                            }
+                            className="p-0"
+                          >
+                            <span className="sr-only">Remove file</span>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                          {file.name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </FormItem>
               )}
-            </Button>
-          </div>
+            />
 
-          {isSubmittingLocal && (
-            <div className="text-muted-foreground text-xs">
-              This can take a few seconds — hang tight while we submit your
-              request.
+            {/* Actions */}
+            <div className="flex flex-row gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setWarnedShortOnce(false);
+                  setFiles(undefined);
+                  onCancel();
+                }}
+                className="w-full"
+              >
+                Cancel
+              </Button>
+
+              <Button
+                type="submit"
+                disabled={isSubmittingLocal}
+                className="w-full"
+              >
+                {isSubmittingLocal ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Spinner size="sm" />
+                    Submitting…
+                  </span>
+                ) : messageIsShortAfterWarning ? (
+                  "Submit Anyways"
+                ) : (
+                  "Submit"
+                )}
+              </Button>
             </div>
-          )}
-        </form>
-      </Form>
 
-      {/* Confirmation gate before a Sev-1 request pages the on-call team. */}
-      <AlertDialog open={sev1ConfirmOpen} onOpenChange={setSev1ConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Confirm Severity 1 (Critical Business Impact)
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Please confirm that your issue has critical business impact. This
-              means it severely impacts your use of Langfuse in production, such
-              as loss of production data, ingestion issues, or prompt fetching
-              issues.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => submitForm(form.getValues())}>
-              Confirm &amp; Submit
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+            {isSubmittingLocal && (
+              <div className="text-muted-foreground text-xs">
+                This can take a few seconds — hang tight while we submit your
+                request.
+              </div>
+            )}
+          </form>
+        </Form>
+      )}
+    </ConfirmationDialogController>
   );
 }

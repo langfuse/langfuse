@@ -1,5 +1,5 @@
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { TrashIcon } from "lucide-react";
+import { PencilIcon, TrashIcon } from "lucide-react";
 import { useState } from "react";
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
@@ -18,7 +18,6 @@ import { type RouterOutput } from "@/src/utils/types";
 type LlmApiKeyRow = RouterOutput["llmApiKey"]["all"]["data"][number];
 
 export function LlmApiKeyList(props: { projectId: string }) {
-  const [editingKeyId, setEditingKeyId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
 
   const hasAccess = useHasProjectAccess({
@@ -47,7 +46,9 @@ export function LlmApiKeyList(props: { projectId: string }) {
     (key) => key.extraHeaderKeys.length > 0,
   );
 
-  const columns: LangfuseColumnDef<LlmApiKeyRow>[] = [
+  const getColumns = (
+    openDialog: (apiKey: LlmApiKeyRow) => void,
+  ): LangfuseColumnDef<LlmApiKeyRow>[] => [
     {
       accessorKey: "provider",
       header: "Provider",
@@ -95,18 +96,14 @@ export function LlmApiKeyList(props: { projectId: string }) {
         return (
           <div data-row-click-ignore className="flex justify-end space-x-2">
             {hasUpdateAccess && (
-              <UpdateLLMApiKeyDialog
-                apiKey={apiKey}
-                projectId={props.projectId}
-                open={editingKeyId === apiKey.id}
-                onOpenChange={(open: boolean) => {
-                  if (open) {
-                    setEditingKeyId(apiKey.id);
-                  } else {
-                    setEditingKeyId(null);
-                  }
-                }}
-              />
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Edit ${apiKey.provider} connection`}
+                onClick={() => openDialog(apiKey)}
+              >
+                <PencilIcon className="h-4 w-4" />
+              </Button>
             )}
             {hasDeleteAccess && (
               <DeleteApiKeyButton
@@ -141,26 +138,32 @@ export function LlmApiKeyList(props: { projectId: string }) {
         Connect your LLM services to enable evaluations and playground features.
         Your provider will charge based on usage.
       </p>
-      <Card className="mb-4 overflow-auto">
-        <SimpleDataTable
-          columns={columns}
-          data={apiKeys.data?.data ?? []}
-          isLoading={apiKeys.isLoading}
-          noResults={
-            apiKeys.isError ? (
-              <span className="text-destructive">
-                Failed to load LLM connections. Please try again.
-              </span>
-            ) : (
-              "None"
-            )
-          }
-          bodyTone="muted"
-          rowVariant="primary-hover-static"
-          onRowClick={(apiKey) => setEditingKeyId(apiKey.id)}
-          getRowLabel={(apiKey) => `Edit ${apiKey.provider} connection`}
-        />
-      </Card>
+      <UpdateLLMApiKeyDialog projectId={props.projectId}>
+        {({ openDialog }) => (
+          <Card className="mb-4 overflow-auto">
+            <SimpleDataTable
+              columns={getColumns(openDialog)}
+              data={apiKeys.data?.data ?? []}
+              isLoading={apiKeys.isLoading}
+              noResults={
+                apiKeys.isError ? (
+                  <span className="text-destructive">
+                    Failed to load LLM connections. Please try again.
+                  </span>
+                ) : (
+                  "None"
+                )
+              }
+              bodyTone="muted"
+              rowVariant="primary-hover-static"
+              onRowClick={(apiKey) => {
+                if (hasUpdateAccess) openDialog(apiKey);
+              }}
+              getRowLabel={(apiKey) => `Edit ${apiKey.provider} connection`}
+            />
+          </Card>
+        )}
+      </UpdateLLMApiKeyDialog>
       <CreateLLMApiKeyDialog open={open} setOpen={setOpen} />
     </div>
   );

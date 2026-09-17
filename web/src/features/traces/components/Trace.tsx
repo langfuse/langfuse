@@ -20,6 +20,7 @@ import {
 } from "@/src/features/traces/contexts/TraceGraphDataContext";
 import { TraceLayoutMobile } from "@/src/features/traces/components/TraceLayoutMobile";
 import { TraceLayoutDesktop } from "@/src/features/traces/components/TraceLayoutDesktop";
+import { TraceSummaryStrip } from "@/src/features/traces/components/TraceSummaryStrip";
 import { TracePanelNavigation } from "@/src/features/traces/components/TracePanelNavigation";
 import { TracePanelDetail } from "@/src/features/traces/components/TracePanelDetail";
 import { TracePanelNavigationLayoutDesktop } from "@/src/features/traces/components/TracePanelNavigationLayoutDesktop/TracePanelNavigationLayoutDesktop";
@@ -196,17 +197,25 @@ function TraceWithSelection({
  */
 function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const isMobile = useIsMobile();
-  const { showGraph } = useViewPreferences();
+  const { isAnnotationMode } = useViewPreferences();
   const { isGraphViewAvailable } = useTraceGraphData();
-  const shouldShowGraph = showGraph && isGraphViewAvailable;
 
-  return isMobile ? (
-    <MobileTraceContent shouldShowGraph={shouldShowGraph} />
+  const panels = isMobile ? (
+    <MobileTraceContent shouldShowGraph={isGraphViewAvailable} />
   ) : (
-    <DesktopTraceContent
-      shouldShowGraph={shouldShowGraph}
-      desktopLayout={desktopLayout}
-    />
+    <DesktopTraceContent desktopLayout={desktopLayout} />
+  );
+
+  // Annotation mode shows no trace-level metadata.
+  if (isAnnotationMode) {
+    return panels;
+  }
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      <TraceSummaryStrip />
+      <div className="min-h-0 flex-1">{panels}</div>
+    </div>
   );
 }
 
@@ -219,18 +228,14 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
  * - Navigation panel (left) + Detail panel (right)
  */
 function DesktopTraceContent({
-  shouldShowGraph,
   desktopLayout,
 }: {
-  shouldShowGraph: boolean;
   desktopLayout: DesktopLayout;
 }) {
   return (
     <TraceLayoutDesktop key={desktopLayout.groupId} {...desktopLayout}>
       <TraceLayoutDesktop.NavigationPanel>
-        <TracePanelNavigationLayoutDesktop
-          secondaryContent={shouldShowGraph ? <TraceGraphView /> : undefined}
-        >
+        <TracePanelNavigationLayoutDesktop>
           <TracePanelNavigation />
         </TracePanelNavigationLayoutDesktop>
       </TraceLayoutDesktop.NavigationPanel>

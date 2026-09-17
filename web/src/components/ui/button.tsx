@@ -5,7 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/src/utils/tailwind";
 
-import { default as SpinnerLib } from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner as SpinnerLib } from "@/src/components/design-system/Spinner/Spinner";
 
 const buttonVariants = cva(
   // No font-* here: buttons follow the text-sm token weight (one weight per

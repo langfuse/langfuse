@@ -1,4 +1,3 @@
-/* eslint-disable boundaries/dependencies */
 "use client";
 
 import * as React from "react";
@@ -8,7 +7,9 @@ import { Check, ChevronDown, Search } from "lucide-react";
 
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { cn } from "@/src/utils/tailwind";
-import { stopScrollPropagation, useLayerContainer } from "../../ui/layer";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
+import { InputControl } from "../internal/InputControl/InputControl";
 
 type MultiSelectOption<V> = {
   value: V;
@@ -50,28 +51,27 @@ function MultiSelectInputInner<V extends string>(
 
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
-      <PopoverPrimitive.Trigger asChild>
-        <button
+      <InputControl contentLayout="spread">
+        <PopoverPrimitive.Trigger
           ref={ref}
           type="button"
           role="combobox"
           aria-controls={listId}
           aria-expanded={open}
-          className={cn(
-            "border-input bg-background ring-offset-background placeholder:text-foreground-tertiary focus:ring-ring disabled:bg-muted/50 flex h-8 w-full items-center justify-between gap-1 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
-            value.length === 0 && "text-muted-foreground",
-          )}
           {...triggerProps}
         >
           <span
-            className="min-w-0 flex-1 truncate text-left"
+            className={cn(
+              "min-w-0 flex-1 truncate text-left",
+              value.length === 0 && "text-muted-foreground",
+            )}
             title={value.length > 0 ? selectedLabel : undefined}
           >
             {value.length > 0 ? selectedLabel : placeholder}
           </span>
           <ChevronDown className="size-4 shrink-0 opacity-50" />
-        </button>
-      </PopoverPrimitive.Trigger>
+        </PopoverPrimitive.Trigger>
+      </InputControl>
       <PopoverPrimitive.Portal container={container}>
         <PopoverPrimitive.Content
           align="start"

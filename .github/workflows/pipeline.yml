@@ -193,7 +193,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install pinned Rust toolchain
-        run: rustup show
+        run: rustup toolchain install --no-self-update
       - name: Check Rust formatting
         run: cargo fmt --all -- --check
       - name: Lint Rust targets
@@ -269,7 +269,11 @@ jobs:
           cp .env.dev.example .env
       - name: lint web
         # Three packages with four ESLint workers leave headroom on 16 vCPUs.
-        run: pnpm turbo run lint --filter=!ai-gateway --concurrency=3 -- --concurrency=4
+        run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3 -- --concurrency=4
+      # Rust packages lint with cargo, which rejects the trailing ESLint flag
+      # above, so they run outside that invocation (ai-gateway in its own job).
+      - name: lint native addon (rustfmt, clippy)
+        run: pnpm --filter @langfuse/native run lint
       - name: typecheck
         run: pnpm run typecheck --filter=!ai-gateway
 
@@ -1377,6 +1381,13 @@ jobs:
           pnpm run db:migrate
           pnpm --filter=shared run ch:up
           pnpm --filter=shared run db:seed
+      # Turbo starts the native addon and AI Gateway builds in parallel. They
+      # may use different workspace-pinned Rust toolchains, so install both
+      # serially before either build can trigger rustup.
+      - name: Install pinned Rust toolchains
+        run: |
+          (cd packages/native && rustup toolchain install --no-self-update)
+          (cd ai-gateway && rustup toolchain install --no-self-update)
       - name: Build
         run: pnpm run build
         env:

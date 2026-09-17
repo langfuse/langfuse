@@ -1,11 +1,24 @@
 // @vitest-environment node
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { stringifyDatasetItemData } from "./datasetItemUtils";
 import {
   isDatasetJsonParseFailure,
   isValidDatasetJson,
   parseDatasetJson,
 } from "./parseDatasetJson";
+
+vi.mock("@/src/features/notifications", () => ({ showErrorToast: vi.fn() }));
+
+describe("dataset item JSON round trip", () => {
+  it.each([0, false, ""])("preserves the scalar %j", (value) => {
+    expect(parseDatasetJson(stringifyDatasetItemData(value))).toEqual(value);
+  });
+
+  it.each([null, undefined])("leaves %s empty", (value) => {
+    expect(stringifyDatasetItemData(value)).toBe("");
+  });
+});
 
 describe("parseDatasetJson", () => {
   it("preserves unsafe JSON numbers as strings", () => {
