@@ -176,7 +176,7 @@ impl OpenAiProvider {
                 .map_err(|_| ProviderError::Configuration)?;
         authorization.set_sensitive(true);
         let mut capture = if route.captures_generation() {
-            let mut capture = ExecutionCapture::openai_responses(&context, headers, &body);
+            let mut capture = ExecutionCapture::for_openai_responses(&context, headers, &body);
             if let Some(telemetry) = &self.telemetry {
                 capture.deliver_to(telemetry.clone(), &context, headers);
             }
@@ -223,7 +223,7 @@ impl OpenAiProvider {
                 return Err(error);
             }
         };
-        capture.response(response.status().as_u16(), response.headers());
+        capture.record_response(response.status().as_u16(), response.headers());
         let mut downstream = Response::new(Body::empty());
         *downstream.status_mut() = response.status();
         *downstream.headers_mut() = transport::response_headers(response.headers());
