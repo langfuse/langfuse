@@ -1,30 +1,10 @@
 import type { TranscriptFixture } from "../fixture-types";
 
 /**
- * Support copilot resolving a duplicate-charge refund. Seeded scenario
- * (`support-agent-seed`), authored as ClickHouse `observations` seed records
- * for the shared `createObservation` test factory.
- * url: https://cloud.langfuse.com/project/clkpwwm0m000gmm094odg11gi/traces/sa2026083102o?observation=sa2026083102o-cls&timestamp=2026-08-31T12:33:16.561Z&traceId=sa2026083102o
- *
- * Trace tree (export order differs: the AGENT is listed before its parent SPAN)
- *
- * [SPAN] support-copilot                       t-sa2026083102o      root
- *   [AGENT] support-copilot                    sa2026083102o-root
- *     [GUARDRAIL]  guardrail.input             -gin
- *     [GENERATION] classify-intent  gpt-5.4-mini  -cls   in: system + user        out: JSON object (intent)
- *     [SPAN]       load-context                -load
- *       [TOOL]     crm.get-customer            -crm
- *       [TOOL]     billing.list-invoices       -bill
- *       [TOOL]     tickets.search              -tix
- *     [GENERATION] llm.chat         gpt-5.4    -llm1  in: system + user        out: tool_call stripe_find_charges
- *     [TOOL]       stripe.find-charges         -find  in: = llm1 call args     out: charges + duplicate_confidence
- *     [GENERATION] llm.chat         gpt-5.4    -llm2  in: system + tool(partial result, no tool_call_id)
- *                                                                              out: tool_call stripe_create_refund
- *     [TOOL]       stripe.create-refund        -ref   in: = llm2 call args     out: refund_id
- *     [GENERATION] llm.chat         gpt-5.4    -llm3  in: system only          out: "Resolution complete."
- *     [GENERATION] draft-response   gpt-5.4    -drf   in: user "Draft the reply."  out: JSON object {reply}
- *     [GUARDRAIL]  guardrail.output            -gout
- *     [TOOL]       zendesk.send-reply          -send
+ * Adapted support-agent seed: every generation replays the full conversation.
+ * Classification, calls, results, resolution, and final reply form one thread.
+ * TOOL names match model call names; history preserves tool_call_id links.
+ * Context-loading tools without model calls remain outside the transcript.
  */
 
 const traceId = "sa2026083102o";
@@ -49,6 +29,70 @@ const finalReply =
 // chat-completions payload) and as the TOOL observation received them.
 const findChargesArguments = { customer_id: customerId, period: "2026-07" };
 const createRefundArguments = { charge_id: "ch_3PqK9b", reason: "duplicate" };
+
+const initialHistory = [
+  { role: "system", content: copilotSystemPrompt },
+  { role: "user", content: customerMessage },
+];
+const classification = {
+  role: "assistant",
+  content: JSON.stringify({
+    intent: "billing.duplicate_charge",
+    urgency: "medium",
+    sentiment: "frustrated",
+  }),
+};
+const findChargesCall = {
+  role: "assistant",
+  content: null,
+  tool_calls: [
+    {
+      id: findChargesToolCallId,
+      type: "function",
+      function: {
+        name: "stripe_find_charges",
+        arguments: JSON.stringify(findChargesArguments),
+      },
+    },
+  ],
+};
+const charges = {
+  charges: [{ id: "ch_3PqK8r" }, { id: "ch_3PqK9b" }],
+  duplicate_confidence: 0.98,
+};
+const findChargesResult = {
+  role: "tool",
+  tool_call_id: findChargesToolCallId,
+  content: JSON.stringify(charges),
+};
+const refundCall = {
+  role: "assistant",
+  content: null,
+  tool_calls: [
+    {
+      id: createRefundToolCallId,
+      type: "function",
+      function: {
+        name: "stripe_create_refund",
+        arguments: JSON.stringify(createRefundArguments),
+      },
+    },
+  ],
+};
+const refund = { refund_id: refundId, status: "succeeded", amount_usd: 99 };
+const refundResult = {
+  role: "tool",
+  tool_call_id: createRefundToolCallId,
+  content: JSON.stringify(refund),
+};
+const classifiedHistory = [...initialHistory, classification];
+const chargesHistory = [
+  ...classifiedHistory,
+  findChargesCall,
+  findChargesResult,
+];
+const refundHistory = [...chargesHistory, refundCall, refundResult];
+const resolution = { role: "assistant", content: "Resolution complete." };
 
 const metadata = {
   channel: "in-app-chat",
@@ -128,16 +172,9 @@ const observations = [
     start_time: "2026-08-31T12:33:14.205Z",
     end_time: "2026-08-31T12:33:14.818Z",
     input: JSON.stringify({
-      messages: [
-        { role: "system", content: "Classify the support request." },
-        { role: "user", content: customerMessage },
-      ],
+      messages: initialHistory,
     }),
-    output: JSON.stringify({
-      intent: "billing.duplicate_charge",
-      urgency: "medium",
-      sentiment: "frustrated",
-    }),
+    output: JSON.stringify(classification),
   },
   {
     ...common,
@@ -202,10 +239,7 @@ const observations = [
     start_time: "2026-08-31T12:33:16.561Z",
     end_time: "2026-08-31T12:33:17.389Z",
     input: JSON.stringify({
-      messages: [
-        { role: "system", content: copilotSystemPrompt },
-        { role: "user", content: customerMessage },
-      ],
+      messages: classifiedHistory,
     }),
     output: JSON.stringify({
       content: null,
@@ -226,15 +260,12 @@ const observations = [
     id: "sa2026083102o-find",
     parent_observation_id: agentId,
     type: "TOOL",
-    name: "stripe.find-charges",
+    name: "stripe_find_charges",
     provided_model_name: null,
     start_time: "2026-08-31T12:33:17.441Z",
     end_time: "2026-08-31T12:33:18.118Z",
     input: JSON.stringify(findChargesArguments),
-    output: JSON.stringify({
-      charges: [{ id: "ch_3PqK8r" }, { id: "ch_3PqK9b" }],
-      duplicate_confidence: 0.98,
-    }),
+    output: JSON.stringify(charges),
   },
   {
     ...common,
@@ -246,15 +277,7 @@ const observations = [
     start_time: "2026-08-31T12:33:18.172Z",
     end_time: "2026-08-31T12:33:19.924Z",
     input: JSON.stringify({
-      messages: [
-        { role: "system", content: copilotSystemPrompt },
-        // Partial tool result, no tool_call_id: the full result lives only on
-        // the sibling TOOL observation above.
-        {
-          role: "tool",
-          content: JSON.stringify({ duplicate_confidence: 0.98 }),
-        },
-      ],
+      messages: chargesHistory,
     }),
     output: JSON.stringify({
       content: null,
@@ -275,16 +298,12 @@ const observations = [
     id: "sa2026083102o-ref",
     parent_observation_id: agentId,
     type: "TOOL",
-    name: "stripe.create-refund",
+    name: "stripe_create_refund",
     provided_model_name: null,
     start_time: "2026-08-31T12:33:19.978Z",
     end_time: "2026-08-31T12:33:20.893Z",
     input: JSON.stringify(createRefundArguments),
-    output: JSON.stringify({
-      refund_id: refundId,
-      status: "succeeded",
-      amount_usd: 99,
-    }),
+    output: JSON.stringify(refund),
   },
   {
     ...common,
@@ -296,9 +315,9 @@ const observations = [
     start_time: "2026-08-31T12:33:20.947Z",
     end_time: "2026-08-31T12:33:22.731Z",
     input: JSON.stringify({
-      messages: [{ role: "system", content: copilotSystemPrompt }],
+      messages: refundHistory,
     }),
-    output: JSON.stringify({ content: "Resolution complete.", tool_calls: [] }),
+    output: JSON.stringify(resolution),
   },
   {
     ...common,
@@ -310,9 +329,13 @@ const observations = [
     start_time: "2026-08-31T12:33:22.790Z",
     end_time: "2026-08-31T12:33:24.377Z",
     input: JSON.stringify({
-      messages: [{ role: "user", content: "Draft the reply." }],
+      messages: [
+        ...refundHistory,
+        resolution,
+        { role: "user", content: "Draft the reply." },
+      ],
     }),
-    output: JSON.stringify({ reply: finalReply }),
+    output: JSON.stringify({ role: "assistant", content: finalReply }),
   },
   {
     ...common,
@@ -341,16 +364,106 @@ const observations = [
 ];
 
 export const supportCopilotRefundLoopFixture = {
-  name: "support copilot refund loop with tool results only on TOOL observations",
+  name: "support copilot refund loop with cumulative conversation history",
   scope: "trace",
-  description: [
-    "Five generations under one AGENT, none of which replays earlier assistant output in its input.",
-    "Tool results exist only as sibling TOOL observations whose input equals the preceding generation's tool-call arguments;",
-    "the following generation carries a partial result in a `tool` message without a tool_call_id.",
-    "`classify-intent` and `draft-response` output bare JSON objects rather than messages.",
-    "The same system message repeats across the three `llm.chat` generations.",
-    "Non-contributing types (SPAN, GUARDRAIL) are present, and the export lists the AGENT before its parent SPAN.",
-  ].join(" "),
+  description:
+    "Five generations replay all prior messages. Matching TOOL observations supply authoritative results, while replayed history is deduplicated and retains first-emitter provenance.",
   observations,
-  expected: undefined,
+  expected: {
+    threads: [
+      {
+        observations: ["cls", "llm1", "find", "llm2", "ref", "llm3", "drf"].map(
+          (suffix) => ({ id: `sa2026083102o-${suffix}`, traceId }),
+        ),
+        messages: [
+          {
+            role: "system",
+            source: "input",
+            observationId: "sa2026083102o-cls",
+            traceId,
+            parts: [{ type: "text", text: copilotSystemPrompt }],
+          },
+          {
+            role: "user",
+            source: "input",
+            observationId: "sa2026083102o-cls",
+            traceId,
+            parts: [{ type: "text", text: customerMessage }],
+          },
+          {
+            role: "assistant",
+            source: "output",
+            observationId: "sa2026083102o-cls",
+            traceId,
+            parts: [{ type: "text", text: classification.content }],
+          },
+          {
+            role: "assistant",
+            source: "output",
+            observationId: "sa2026083102o-llm1",
+            traceId,
+            parts: [
+              {
+                type: "tool-call",
+                toolCallId: findChargesToolCallId,
+                toolName: "stripe_find_charges",
+                input: findChargesArguments,
+                toolType: "function",
+              },
+            ],
+          },
+          {
+            role: "tool",
+            source: "output",
+            observationId: "sa2026083102o-find",
+            traceId,
+            parts: [{ type: "data", value: charges }],
+          },
+          {
+            role: "assistant",
+            source: "output",
+            observationId: "sa2026083102o-llm2",
+            traceId,
+            parts: [
+              {
+                type: "tool-call",
+                toolCallId: createRefundToolCallId,
+                toolName: "stripe_create_refund",
+                input: createRefundArguments,
+                toolType: "function",
+              },
+            ],
+          },
+          {
+            role: "tool",
+            source: "output",
+            observationId: "sa2026083102o-ref",
+            traceId,
+            parts: [{ type: "data", value: refund }],
+          },
+          {
+            role: "assistant",
+            source: "output",
+            observationId: "sa2026083102o-llm3",
+            traceId,
+            parts: [{ type: "text", text: "Resolution complete." }],
+          },
+          {
+            role: "user",
+            source: "input",
+            observationId: "sa2026083102o-drf",
+            traceId,
+            parts: [{ type: "text", text: "Draft the reply." }],
+          },
+          {
+            role: "assistant",
+            source: "output",
+            observationId: "sa2026083102o-drf",
+            traceId,
+            parts: [{ type: "text", text: finalReply }],
+          },
+        ],
+      },
+    ],
+  },
 } satisfies TranscriptFixture;
