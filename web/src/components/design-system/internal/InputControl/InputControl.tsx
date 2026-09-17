@@ -4,7 +4,7 @@ import { type LucideIcon } from "lucide-react";
 import { type ComponentPropsWithoutRef } from "react";
 
 const inputControlVariants = cva(
-  "border-input bg-background ring-offset-background placeholder:text-foreground-tertiary focus-visible:ring-ring disabled:bg-muted/50 h-8 w-full rounded-md border px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-bold focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+  "bg-background ring-offset-background placeholder:text-foreground-tertiary focus-visible:ring-ring disabled:bg-muted/50 h-8 w-full rounded-md border px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-bold focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       contentLayout: {
@@ -15,6 +15,13 @@ const inputControlVariants = cva(
         true: "pr-10",
         false: null,
       },
+      error: {
+        true: "border-destructive [&_svg]:text-destructive",
+        false: "border-input",
+      },
+    },
+    defaultVariants: {
+      error: false,
     },
   },
 );
@@ -24,6 +31,7 @@ type InputControlProps = Omit<
   "className"
 > & {
   contentLayout: "text" | "spread";
+  error?: boolean;
   trailingAction?: {
     label: string;
     icon: LucideIcon;
@@ -41,6 +49,7 @@ type InputControlProps = Omit<
  */
 export function InputControl({
   contentLayout,
+  error,
   trailingAction,
   ...props
 }: InputControlProps) {
@@ -48,6 +57,7 @@ export function InputControl({
     <Slot
       className={inputControlVariants({
         contentLayout,
+        error,
         trailingAction: Boolean(trailingAction),
       })}
       {...props}
@@ -73,7 +83,9 @@ export function InputControl({
       >
         <TrailingActionIcon
           aria-hidden="true"
-          className="text-muted-foreground size-4"
+          className={
+            error ? "text-destructive size-4" : "text-muted-foreground size-4"
+          }
         />
       </button>
     </div>

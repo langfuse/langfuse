@@ -208,6 +208,10 @@ const EVENTS_FIELDS = {
     "if(isNull(e.completion_start_time), NULL, date_diff('millisecond', e.start_time, e.completion_start_time)) as \"time_to_first_token\"",
 } as const;
 
+const EVENTS_FIELD_ORDER_INDEX = new Map(
+  Object.keys(EVENTS_FIELDS).map((key, index) => [key, index]),
+);
+
 /**
  * Predefined field sets for common query patterns
  * Maps set names to arrays of field keys from EVENTS_FIELDS
@@ -1168,9 +1172,17 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
       fieldsToExclude.push("metadata");
     }
 
-    const fieldsToProcess = [...this.selectFields].filter(
-      (f) => !fieldsToExclude.includes(f),
-    );
+    // Canonicalize by EVENTS_FIELDS declaration order so SELECT column order
+    // does not follow caller field-set order. Clustered ClickHouse reads align
+    // result blocks by position; incompatible Map types (cost_details vs
+    // metadata) 500 when those columns swap places.
+    const fieldsToProcess = [...this.selectFields]
+      .filter((f) => !fieldsToExclude.includes(f))
+      .sort(
+        (a, b) =>
+          (EVENTS_FIELD_ORDER_INDEX.get(a) ?? Number.MAX_SAFE_INTEGER) -
+          (EVENTS_FIELD_ORDER_INDEX.get(b) ?? Number.MAX_SAFE_INTEGER),
+      );
 
     const fieldExpressions: string[] = fieldsToProcess.flatMap((fieldKey) => {
       const fieldExpr = EVENTS_FIELDS[fieldKey as keyof typeof EVENTS_FIELDS];

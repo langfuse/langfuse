@@ -39,7 +39,7 @@ import {
   Copy,
   TrashIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
@@ -128,62 +128,65 @@ function DomainsTable({ orgId }: { orgId: string }) {
   const query = api.verifiedDomain.list.useQuery({ orgId });
   const [collapsedRows, setCollapsedRows] = useState<Set<string>>(new Set());
 
-  const columns: LangfuseColumnDef<DomainRowData>[] = [
-    {
-      accessorKey: "domain",
-      header: "Domain",
-      cell: ({ row }) =>
-        !row.original.verifiedAt ? (
-          <button
-            type="button"
-            onClick={() =>
-              setCollapsedRows((current) => {
-                const next = new Set(current);
-                if (next.has(row.original.id)) next.delete(row.original.id);
-                else next.add(row.original.id);
-                return next;
-              })
-            }
-            className="flex items-center gap-1"
-          >
-            <ChevronRight
-              className={`h-3 w-3 transition-transform ${
-                collapsedRows.has(row.original.id) ? "" : "rotate-90"
-              }`}
-            />
-            {row.original.domain}
-          </button>
-        ) : (
-          row.original.domain
+  const columns = useMemo<LangfuseColumnDef<DomainRowData>[]>(
+    () => [
+      {
+        accessorKey: "domain",
+        header: "Domain",
+        cell: ({ row }) =>
+          !row.original.verifiedAt ? (
+            <button
+              type="button"
+              onClick={() =>
+                setCollapsedRows((current) => {
+                  const next = new Set(current);
+                  if (next.has(row.original.id)) next.delete(row.original.id);
+                  else next.add(row.original.id);
+                  return next;
+                })
+              }
+              className="flex items-center gap-1"
+            >
+              <ChevronRight
+                className={`h-3 w-3 transition-transform ${
+                  collapsedRows.has(row.original.id) ? "" : "rotate-90"
+                }`}
+              />
+              {row.original.domain}
+            </button>
+          ) : (
+            row.original.domain
+          ),
+      },
+      {
+        accessorKey: "verifiedAt",
+        header: "Status",
+        cell: ({ row }) =>
+          row.original.verifiedAt ? (
+            <Badge variant="default">Verified</Badge>
+          ) : (
+            <Badge variant="secondary">Pending verification</Badge>
+          ),
+      },
+      {
+        accessorKey: "createdAt",
+        header: "Added",
+        hideBelowMd: true,
+        cell: ({ row }) => row.original.createdAt.toLocaleDateString(),
+      },
+      {
+        accessorKey: "id",
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end gap-2">
+            <DomainActions orgId={orgId} row={row.original} />
+          </div>
         ),
-    },
-    {
-      accessorKey: "verifiedAt",
-      header: "Status",
-      cell: ({ row }) =>
-        row.original.verifiedAt ? (
-          <Badge variant="default">Verified</Badge>
-        ) : (
-          <Badge variant="secondary">Pending verification</Badge>
-        ),
-    },
-    {
-      accessorKey: "createdAt",
-      header: "Added",
-      hideBelowMd: true,
-      cell: ({ row }) => row.original.createdAt.toLocaleDateString(),
-    },
-    {
-      accessorKey: "id",
-      id: "actions",
-      header: "",
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-2">
-          <DomainActions orgId={orgId} row={row.original} />
-        </div>
-      ),
-    },
-  ];
+      },
+    ],
+    [collapsedRows, orgId],
+  );
 
   const renderDetailRow = (row: Row<DomainRowData>) =>
     !row.original.verifiedAt && !collapsedRows.has(row.original.id) ? (

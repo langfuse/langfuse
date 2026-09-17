@@ -10,10 +10,13 @@ use opentelemetry_sdk::{
 };
 use serde::Serialize;
 use serde_json::{Map, Value};
+use sha2::{Digest, Sha256};
 
 const MAX_HEADER_BYTES: usize = 8 * 1024;
 const MAX_FIELD_BYTES: usize = 1024;
 const MAX_ENTRIES: usize = 64;
+const MAX_AGENT_HEADER_BYTES: usize = 8 * 1024;
+const MAX_AGENT_METADATA_BYTES: usize = 4 * 1024;
 const HEADERS: [&str; 8] = [
     "traceparent",
     "tracestate",
@@ -32,6 +35,21 @@ const SCALARS: [(&str, &str, &str); 3] = [
         "langfuse_trace_name",
         "langfuse.trace.name",
     ),
+];
+const AGENT_HEADERS: [&str; 13] = [
+    "user-agent",
+    "x-claude-code-session-id",
+    "x-claude-code-agent-id",
+    "x-claude-code-parent-agent-id",
+    "x-codex-turn-metadata",
+    "x-opencode-project",
+    "x-opencode-session",
+    "x-opencode-request",
+    "x-session-id",
+    "x-session-affinity",
+    "session_id",
+    "x-client-request-id",
+    "x-parent-session-id",
 ];
 
 #[derive(Serialize)]
@@ -106,6 +124,7 @@ impl GenerationContext {
                 result.metadata.insert(key, value.into());
             }
         }
+        result.agent(headers);
         result
     }
 
@@ -150,6 +169,199 @@ impl GenerationContext {
                 .insert("langfuse.trace.tags".into(), Value::Array(tags));
         }
     }
+
+    fn agent(&mut self, headers: &HeaderMap) {
+        let Some(agent) = AgentContext::from_headers(headers) else {
+            return;
+        };
+        for (key, value) in &agent.metadata {
+            self.metadata.insert((*key).into(), value.clone().into());
+        }
+        self.metadata.insert("agent.name".into(), agent.name.into());
+        if let Some(session_id) = &agent.session_id
+            && !self.attributes.contains_key("session.id")
+        {
+            self.attributes.insert(
+                "session.id".into(),
+                format!("{}:{session_id}", agent.name).into(),
+            );
+        }
+        if !self.attributes.contains_key("langfuse.trace.name") {
+            self.attributes
+                .insert("langfuse.trace.name".into(), agent.name.into());
+        }
+        if self.parent_span_id.is_none()
+            && let Some(turn_id) = &agent.turn_id
+        {
+            self.trace_id = agent_trace_id(agent.name, agent.session_id.as_deref(), turn_id);
+        }
+    }
+}
+
+struct AgentContext {
+    name: &'static str,
+    session_id: Option<String>,
+    turn_id: Option<String>,
+    metadata: Vec<(&'static str, String)>,
+}
+
+impl AgentContext {
+    fn from_headers(headers: &HeaderMap) -> Option<Self> {
+        let bytes = AGENT_HEADERS
+            .iter()
+            .flat_map(|name| headers.get_all(*name))
+            .map(|value| value.as_bytes().len())
+            .sum::<usize>();
+        if bytes > MAX_AGENT_HEADER_BYTES {
+            return None;
+        }
+        Self::claude_code(headers)
+            .or_else(|| Self::codex(headers))
+            .or_else(|| Self::opencode(headers))
+            .or_else(|| Self::pi(headers))
+    }
+
+    fn claude_code(headers: &HeaderMap) -> Option<Self> {
+        let session_id = agent_header(headers, "x-claude-code-session-id");
+        let agent_id = agent_header(headers, "x-claude-code-agent-id");
+        let parent_agent_id = agent_header(headers, "x-claude-code-parent-agent-id");
+        if session_id.is_none() && agent_id.is_none() && parent_agent_id.is_none() {
+            return None;
+        }
+        let mut metadata = Vec::new();
+        push_metadata(&mut metadata, "agent.session_id", session_id.as_ref());
+        push_metadata(&mut metadata, "agent.id", agent_id.as_ref());
+        push_metadata(&mut metadata, "agent.parent_id", parent_agent_id.as_ref());
+        Some(Self {
+            name: "claude-code",
+            session_id,
+            turn_id: None,
+            metadata,
+        })
+    }
+
+    fn codex(headers: &HeaderMap) -> Option<Self> {
+        let value = single_header(headers, "x-codex-turn-metadata")?;
+        if value.len() > MAX_AGENT_METADATA_BYTES {
+            return None;
+        }
+        let value = serde_json::from_str::<Value>(value).ok()?;
+        let value = value.as_object()?;
+        let session_id = agent_json_field(value, "session_id");
+        let thread_id = agent_json_field(value, "thread_id");
+        let turn_id = agent_json_field(value, "turn_id");
+        if session_id.is_none() && thread_id.is_none() && turn_id.is_none() {
+            return None;
+        }
+        let mut metadata = Vec::new();
+        push_metadata(&mut metadata, "agent.session_id", session_id.as_ref());
+        push_metadata(&mut metadata, "agent.thread_id", thread_id.as_ref());
+        push_metadata(&mut metadata, "agent.turn_id", turn_id.as_ref());
+        Some(Self {
+            name: "codex",
+            session_id: thread_id,
+            turn_id,
+            metadata,
+        })
+    }
+
+    fn opencode(headers: &HeaderMap) -> Option<Self> {
+        let project_id = agent_header(headers, "x-opencode-project");
+        let direct_session_id = agent_header(headers, "x-opencode-session");
+        let turn_id = agent_header(headers, "x-opencode-request");
+        let parent_session_id = agent_header(headers, "x-parent-session-id");
+        let identified = project_id.is_some()
+            || direct_session_id.is_some()
+            || turn_id.is_some()
+            || user_agent(headers).is_some_and(|value| value.starts_with("opencode/"));
+        if !identified {
+            return None;
+        }
+        let session_id = direct_session_id
+            .or_else(|| agent_header(headers, "x-session-id"))
+            .or_else(|| agent_header(headers, "x-session-affinity"));
+        let mut metadata = Vec::new();
+        push_metadata(&mut metadata, "agent.project_id", project_id.as_ref());
+        push_metadata(&mut metadata, "agent.session_id", session_id.as_ref());
+        push_metadata(&mut metadata, "agent.turn_id", turn_id.as_ref());
+        push_metadata(
+            &mut metadata,
+            "agent.parent_session_id",
+            parent_session_id.as_ref(),
+        );
+        Some(Self {
+            name: "opencode",
+            session_id,
+            turn_id,
+            metadata,
+        })
+    }
+
+    fn pi(headers: &HeaderMap) -> Option<Self> {
+        let identified = user_agent(headers)
+            .is_some_and(|value| value.starts_with("pi/") || value.starts_with("pi ("));
+        if !identified {
+            return None;
+        }
+        let session_id = agent_header(headers, "x-session-id")
+            .or_else(|| agent_header(headers, "session_id"))
+            .or_else(|| agent_header(headers, "x-session-affinity"))
+            .or_else(|| agent_header(headers, "x-client-request-id"));
+        let mut metadata = Vec::new();
+        push_metadata(&mut metadata, "agent.session_id", session_id.as_ref());
+        Some(Self {
+            name: "pi",
+            session_id,
+            turn_id: None,
+            metadata,
+        })
+    }
+}
+
+fn push_metadata(
+    metadata: &mut Vec<(&'static str, String)>,
+    key: &'static str,
+    value: Option<&String>,
+) {
+    if let Some(value) = value {
+        metadata.push((key, value.clone()));
+    }
+}
+
+fn agent_json_field(value: &Map<String, Value>, key: &str) -> Option<String> {
+    clean_agent_field(value.get(key)?.as_str()?)
+}
+
+fn agent_header(headers: &HeaderMap, name: &str) -> Option<String> {
+    clean_agent_field(single_header(headers, name)?)
+}
+
+fn clean_agent_field(value: &str) -> Option<String> {
+    let value = value.trim();
+    valid(value).then(|| value.to_owned())
+}
+
+fn user_agent(headers: &HeaderMap) -> Option<String> {
+    agent_header(headers, "user-agent").map(|value| value.to_ascii_lowercase())
+}
+
+fn agent_trace_id(name: &str, session_id: Option<&str>, turn_id: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"langfuse-agent-turn-v1\0");
+    hasher.update(name.as_bytes());
+    hasher.update(b"\0");
+    if let Some(session_id) = session_id {
+        hasher.update(session_id.as_bytes());
+    }
+    hasher.update(b"\0");
+    hasher.update(turn_id.as_bytes());
+    let digest = hasher.finalize();
+    let mut trace_id = [0; 16];
+    trace_id.copy_from_slice(&digest[..16]);
+    if trace_id.iter().all(|byte| *byte == 0) {
+        trace_id[15] = 1;
+    }
+    opentelemetry::trace::TraceId::from_bytes(trace_id).to_string()
 }
 
 fn list_entries<'a>(headers: &'a HeaderMap, name: &str) -> impl Iterator<Item = &'a str> {
