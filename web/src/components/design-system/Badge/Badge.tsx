@@ -4,18 +4,18 @@ import { type LucideIcon } from "lucide-react";
 import { type ComponentPropsWithoutRef } from "react";
 
 const badgeVariants = cva(
-  "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center gap-1 rounded-xs border border-transparent px-1.5 py-0 text-xs leading-tight font-normal",
+  "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center gap-1 rounded-xs border px-1.5 py-0 text-xs leading-tight font-normal",
   {
     variants: {
       color: {
-        primary: "bg-tertiary text-foreground-secondary",
+        primary: "border-transparent bg-tertiary text-foreground-secondary",
         outline: "border-border bg-transparent text-foreground-secondary",
-        red: "bg-light-red/60 text-dark-red/90 dark:bg-light-red/40 dark:text-dark-red/90",
-        yellow: "bg-light-yellow/80 text-dark-yellow",
-        blue: "bg-light-blue text-dark-blue",
-        violet: "bg-light-violet text-dark-violet",
-        teal: "bg-light-teal text-dark-teal",
-        green: "bg-light-green text-dark-green",
+        red: "border-transparent bg-light-red/60 text-dark-red/90 dark:bg-light-red/40 dark:text-dark-red/90",
+        yellow: "border-transparent bg-light-yellow/80 text-dark-yellow",
+        blue: "border-transparent bg-light-blue text-dark-blue",
+        violet: "border-transparent bg-light-violet text-dark-violet",
+        teal: "border-transparent bg-light-teal text-dark-teal",
+        green: "border-transparent bg-light-green text-dark-green",
       },
     },
     defaultVariants: {
