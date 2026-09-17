@@ -15,7 +15,7 @@ import {
   orderBy,
   paginationZod,
   normalizeOrderByForTable,
-  singleFilter,
+  singleFilterList,
   timeFilter,
   UpdateAnnotationScoreData,
   validateDbScore,
@@ -45,9 +45,7 @@ import {
   getTracesGroupedByTags,
   getTracesGroupedByName,
   getTracesGroupedByUsers,
-  getEventsGroupedByTraceName,
-  getEventsGroupedByTraceTags,
-  getEventsGroupedByUserId,
+  getEventsExactFilterOptionsForColumns,
   tracesTableUiColumnDefinitions,
   upsertScore,
   logger,
@@ -76,7 +74,7 @@ import { toDomainWithStringifiedMetadata } from "@/src/utils/clientSideDomainTyp
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
-  filter: z.array(singleFilter),
+  filter: singleFilterList,
   orderBy: orderBy,
 });
 
@@ -426,32 +424,34 @@ export const scoresRouter = createTRPCRouter({
         toTime: upperBound,
       };
 
-      const [names, tags, traceNames, userIds, stringValues] =
-        await Promise.all([
-          getScoreNames(input.projectId, timestampFilter ?? []),
-          getEventsGroupedByTraceTags(input.projectId, eventsFilter, {
-            scope,
-          }),
-          getEventsGroupedByTraceName(input.projectId, eventsFilter, {
-            scope,
-          }),
-          getEventsGroupedByUserId(input.projectId, eventsFilter, {
-            scope,
-          }),
-          getScoreStringValues(input.projectId, timestampFilter ?? []),
-        ]);
+      const [names, eventFacets, stringValues] = await Promise.all([
+        getScoreNames(input.projectId, timestampFilter ?? []),
+        getEventsExactFilterOptionsForColumns({
+          projectId: input.projectId,
+          filter: eventsFilter,
+          columns: ["traceTags", "traceName", "userId"],
+          scope,
+        }),
+        getScoreStringValues(input.projectId, timestampFilter ?? []),
+      ]);
 
       return {
         name: names.map((i) => ({ value: i.name, count: i.count })),
-        tags: tags.map((t) => ({ value: t.tag })),
-        traceName: traceNames.map((tn) => ({
-          value: tn.traceName,
-          count: Number(tn.count),
-        })),
-        userId: userIds.map((u) => ({
-          value: u.userId,
-          count: Number(u.count),
-        })),
+        tags: eventFacets
+          .filter((row) => row.column === "traceTags")
+          .map((row) => ({ value: row.value })),
+        traceName: eventFacets
+          .filter((row) => row.column === "traceName")
+          .map((row) => ({
+            value: row.value,
+            count: Number(row.count),
+          })),
+        userId: eventFacets
+          .filter((row) => row.column === "userId")
+          .map((row) => ({
+            value: row.value,
+            count: Number(row.count),
+          })),
         stringValue: stringValues,
         booleanValue: BOOLEAN_SCORE_VALUE_OPTIONS,
       };
@@ -1145,7 +1145,7 @@ export const scoresRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        filter: z.array(singleFilter).optional(),
+        filter: singleFilterList.optional(),
         fromTimestamp: z.date().optional(),
         toTimestamp: z.date().optional(),
       }),

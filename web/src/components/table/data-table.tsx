@@ -56,6 +56,7 @@ import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
+
 import { useAnimatedBusy } from "@/src/hooks/useAnimatedBusy";
 import {
   type TableSelectionStoreLike,
@@ -490,6 +491,8 @@ export function DataTable<TData extends object, TValue>({
                           "group p-1 first:pl-2",
                           sortingEnabled && "cursor-pointer",
                           getPinningClasses(header.column),
+                          columnDef.headerClassName,
+                          columnDef.hideBelowMd && "hidden md:table-cell",
                         )}
                         style={{
                           ...getCommonPinningStyles(header.column),
@@ -894,6 +897,8 @@ function TableBodyComponent<TData>({
                     (rowHeight ?? "s") === "s" && "whitespace-nowrap",
                     getPinningClasses(column),
                     getCellBackgroundClassName(columnDef.cellBackground),
+                    columnDef.cellClassName,
+                    columnDef.hideBelowMd && "hidden md:table-cell",
                   )}
                   style={{
                     ...getCommonPinningStyles(column),
@@ -959,6 +964,8 @@ function TableBodyComponent<TData>({
                   isSmallRowHeight && "whitespace-nowrap",
                   getPinningClasses(cell.column),
                   getCellBackgroundClassName(columnDef.cellBackground),
+                  columnDef.cellClassName,
+                  columnDef.hideBelowMd && "hidden md:table-cell",
                 )}
                 style={{
                   ...getCommonPinningStyles(cell.column),

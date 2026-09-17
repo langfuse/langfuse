@@ -1,7 +1,7 @@
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
-import { Dialog, DialogContent } from "@/src/components/ui/dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import {
   DeleteProjectDialog,
   type DeleteProjectDialogProps,
@@ -14,11 +14,12 @@ const meta = preview.meta({
 export default meta;
 
 const renderDialog = (args: DeleteProjectDialogProps) => (
-  <Dialog open onOpenChange={fn()}>
-    <DialogContent className="sm:max-w-[425px]">
-      <DeleteProjectDialog {...args} />
-    </DialogContent>
-  </Dialog>
+  <DialogController
+    initialState={() => true}
+    renderDialog={() => <DeleteProjectDialog {...args} />}
+  >
+    {() => null}
+  </DialogController>
 );
 
 export const Default = meta.story({
@@ -26,24 +27,6 @@ export const Default = meta.story({
     confirmMessage: "acme/my-project",
     isPending: false,
     onSubmit: fn(),
-  },
-  render: renderDialog,
-});
-
-export const Loading = meta.story({
-  args: {
-    confirmMessage: "acme/my-project",
-    isPending: true,
-    onSubmit: fn(),
-  },
-  render: renderDialog,
-});
-
-export const GatewayIngestionProject = meta.story({
-  name: "Gateway ingestion project",
-  args: {
-    blocked: true,
-    onOpenGatewaySettings: fn(),
   },
   render: renderDialog,
 });
@@ -65,7 +48,6 @@ export const ConfirmsDeletion = meta.story({
     );
     await userEvent.click(body.getByRole("button", { name: "Delete project" }));
 
-    if (!("onSubmit" in args)) throw new Error("Expected deletion dialog");
     await expect(args.onSubmit).toHaveBeenCalledOnce();
   },
 });

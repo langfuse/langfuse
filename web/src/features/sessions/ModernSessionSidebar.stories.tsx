@@ -494,6 +494,7 @@ export const TestSelectsFilteredTurnByStableNumber = meta.story({
     const canvas = within(canvasElement);
     await expect(canvas.getByText("3")).toBeInTheDocument();
     await expect(canvas.getByText("Matching observation")).toBeInTheDocument();
+    await expect(canvas.queryByText(/idle$/)).not.toBeInTheDocument();
 
     await userEvent.click(
       canvas.getByRole("button", { name: /Summarize findings/i }),

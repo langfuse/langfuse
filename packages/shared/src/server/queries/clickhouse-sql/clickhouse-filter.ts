@@ -3,6 +3,7 @@ import {
   type FtsMatchOperator,
   filterOperators,
 } from "../../../interfaces/filters";
+import { InvalidRequestError } from "../../../errors";
 import { convertDateToClickhouseDateTime } from "../../clickhouse/client";
 import { clickhouseCompliantRandomCharacters } from "../../repositories";
 import { escapeSqlLikePattern } from "../../utils/sqlLike";
@@ -32,6 +33,14 @@ export type ClickhouseFilter = {
 };
 
 const NGRAM_ACCELERATED_METADATA_OPERATORS = new Set<
+  (typeof filterOperators)["stringObject"][number]
+>(["contains", "starts with", "ends with"]);
+
+// Substring operators with an empty value skip the ngram prefilter and degrade
+// to a full-scan "does this key exist" over the whole time window — a confirmed
+// events_full timeout vector. Callers who want key existence must use the
+// `is set` / `is not set` presence operators instead.
+const NON_EMPTY_VALUE_METADATA_OPERATORS = new Set<
   (typeof filterOperators)["stringObject"][number]
 >(["contains", "starts with", "ends with"]);
 
@@ -359,6 +368,16 @@ export class StringObjectFilter implements Filter {
   }
 
   apply(): ClickhouseFilter {
+    if (
+      this.operator !== FTS_MATCH_OPERATOR &&
+      NON_EMPTY_VALUE_METADATA_OPERATORS.has(this.operator) &&
+      this.value.length === 0
+    ) {
+      throw new InvalidRequestError(
+        `Empty value is not allowed for metadata '${this.operator}' filters. Use the 'is set' / 'is not set' operators to filter on key presence.`,
+      );
+    }
+
     const varKeyName = `stringObjectKeyFilter${clickhouseCompliantRandomCharacters()}`;
     const varValueName = `stringObjectValueFilter${clickhouseCompliantRandomCharacters()}`;
     const prefix = this.tablePrefix ? this.tablePrefix + "." : "";
@@ -410,6 +429,12 @@ export class StringObjectFilter implements Filter {
           break;
         case "ends with":
           query = `${hasKey}${ngramConjunct} AND (endsWith(${valueAccessor}, ${valueParam}))`;
+          break;
+        case "is set":
+          query = hasKey;
+          break;
+        case "is not set":
+          query = `NOT (${hasKey})`;
           break;
         case FTS_MATCH_OPERATOR:
           assertValidFtsMatchFilter({
@@ -467,6 +492,12 @@ export class StringObjectFilter implements Filter {
           break;
         case "ends with":
           query = `${hasKey} AND (endsWith(${valueAccessor}, {${varValueName}: String}))`;
+          break;
+        case "is set":
+          query = hasKey;
+          break;
+        case "is not set":
+          query = `NOT (${hasKey})`;
           break;
         default:
           throw new Error(`Unsupported operator: ${this.operator}`);
@@ -760,6 +791,8 @@ const EVENTS_CORE_TRUNCATION_LIMIT = 200;
 //   - `<>`: boolean not-equal — value is inherently short.
 //   - `is null` / `is not null`: truncation-invariant (metadata_names is not
 //     truncated; emptiness is unaffected).
+//   - `is set` / `is not set`: key-presence over metadata_names only, which is
+//     not truncated.
 // Deliberately excluded (match can live past code point 200): `contains`,
 // `does not contain`, `ends with`, and the FTS `matches` operator (which also
 // needs the events_full-only index).
@@ -773,6 +806,8 @@ const EVENTS_CORE_SAFE_METADATA_OPERATORS = new Set<ClickhouseOperator>([
   "<>",
   "is null",
   "is not null",
+  "is set",
+  "is not set",
 ]);
 
 // Count Unicode code points to mirror ClickHouse leftUTF8, which truncates by

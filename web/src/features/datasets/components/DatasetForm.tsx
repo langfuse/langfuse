@@ -21,7 +21,7 @@ import {
   forwardRef,
   useImperativeHandle,
 } from "react";
-import { Input } from "@/src/components/ui/input";
+import { Input } from "@/src/components/design-system/Input/Input";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import {
   DatasetNameSchema,

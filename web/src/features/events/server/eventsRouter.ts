@@ -9,7 +9,7 @@ import {
   type OrderByState,
   normalizeOrderByForTable,
   paginationZod,
-  singleFilter,
+  singleFilterList,
   timeFilter,
 } from "@langfuse/shared";
 import {
@@ -48,6 +48,10 @@ const GetAllEventsInput = EventsTableOptions.safeExtend({
   ...paginationZod,
 });
 
+const GetSessionEventsInput = GetAllEventsInput.safeExtend({
+  sessionId: zodSchema.string().min(1),
+});
+
 const GetEventsCursorInput = EventsCursorTableOptions.safeExtend({
   limit: paginationZod.limit,
   cursor: zodSchema
@@ -70,7 +74,7 @@ export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 
 const GetEventFilterOptionsInput = zodSchema.object({
   projectId: zodSchema.string(),
-  filter: zodSchema.array(singleFilter).optional(),
+  filter: singleFilterList.optional(),
   startTimeFilter: zodSchema.array(timeFilter).optional(),
   isRootObservation: zodSchema.boolean().optional(),
   hasParentObservation: zodSchema.boolean().optional(),
@@ -159,6 +163,50 @@ export const eventsRouter = createTRPCRouter({
           });
         },
       );
+    }),
+  sessionAll: protectedGetSessionProcedure
+    .input(GetSessionEventsInput)
+    .query(async ({ input, ctx }) => {
+      const filter = ctx.session.projectRole
+        ? (input.filter ?? [])
+        : (input.filter ?? []).filter(
+            ({ column }) =>
+              column !== "commentContent" && column !== "commentCount",
+          );
+
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: filter,
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        objectType: "OBSERVATION",
+      });
+
+      if (hasNoMatches) {
+        return { observations: [], hasMore: false };
+      }
+
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "startTime",
+      });
+
+      return getEventList({
+        projectId: input.projectId,
+        filter: [
+          ...filterState,
+          {
+            column: "sessionId",
+            type: "string",
+            operator: "=",
+            value: input.sessionId,
+          },
+        ],
+        searchQuery: input.searchQuery ?? undefined,
+        searchType: input.searchType,
+        orderBy: normalizedOrderBy,
+        page: input.page,
+        limit: input.limit,
+      });
     }),
   listCursor: protectedProjectProcedure
     .input(GetEventsCursorInput)
