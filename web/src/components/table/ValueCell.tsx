@@ -41,7 +41,6 @@ const ARRAY_PREVIEW_ITEMS = 3;
 const MONO_TEXT_CLASSES = "font-mono text-xs wrap-break-word";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
 
-/** Matches the section header's icon size, color and right axis. */
 const ROW_ACTION_BUTTON_CLASSES =
   "text-muted-foreground absolute top-0 h-5 w-5 rounded-sm p-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:bg-transparent hover:text-foreground";
 /** Differ because the ellipsis paints 5.5px shy of its viewBox, copy 1px. */
