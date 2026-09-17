@@ -136,10 +136,10 @@ export function ChatMessageList({
                     variant="ghost"
                     size="xs"
                     onClick={() => setCollapsed((v) => !v)}
-                    className="text-muted-foreground w-fit"
+                    className="text-muted-foreground w-fit pl-2 underline"
                   >
                     {isCollapsed
-                      ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more ...`
+                      ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more`
                       : "Hide history"}
                   </Button>
                 )}
