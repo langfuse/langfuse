@@ -1,4 +1,5 @@
 import { type GetServerSideProps, type GetServerSidePropsResult } from "next";
+import { CloudConfigSchema } from "@langfuse/shared";
 
 import { env } from "@/src/env.mjs";
 import { getServerAuthSession } from "@/src/server/auth";
@@ -22,11 +23,20 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
           },
           select: {
             id: true,
+            organization: {
+              select: {
+                cloudConfig: true,
+              },
+            },
           },
         })
       : null;
 
-  if (!demoProject) {
+  const isCloudDemoOrg = CloudConfigSchema.safeParse(
+    demoProject?.organization.cloudConfig,
+  ).success;
+
+  if (!demoProject || !isCloudDemoOrg) {
     return redirect("/");
   }
 

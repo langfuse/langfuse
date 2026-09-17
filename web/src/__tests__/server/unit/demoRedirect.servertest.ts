@@ -72,7 +72,9 @@ describe("demo redirect page", () => {
     mockEnv.env.NEXT_PUBLIC_SIGN_UP_DISABLED = "false";
     prismaMock.project.findUnique.mockResolvedValue({
       id: "demo-project",
-      orgId: "demo-org",
+      organization: {
+        cloudConfig: {},
+      },
     });
     prismaMock.organizationMembership.upsert.mockResolvedValue({});
     getServerAuthSessionMock.mockResolvedValue(null);
@@ -94,6 +96,11 @@ describe("demo redirect page", () => {
       },
       select: {
         id: true,
+        organization: {
+          select: {
+            cloudConfig: true,
+          },
+        },
       },
     });
     expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
@@ -234,6 +241,25 @@ describe("demo redirect page", () => {
         permanent: false,
       },
     });
+    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
+  });
+
+  it("falls back to home when the configured demo project is not in a Cloud organization", async () => {
+    getServerAuthSessionMock.mockResolvedValue({ user: { id: "user-1" } });
+    prismaMock.project.findUnique.mockResolvedValue({
+      id: "demo-project",
+      organization: {
+        cloudConfig: null,
+      },
+    });
+
+    await expect(getDemoServerSideProps(makeCtx())).resolves.toEqual({
+      redirect: {
+        destination: "/",
+        permanent: false,
+      },
+    });
+    expect(getServerAuthSessionMock).not.toHaveBeenCalled();
     expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
   });
 });
