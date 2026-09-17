@@ -10,6 +10,8 @@ import {
   StringFilter,
   StringObjectFilter,
 } from "./clickhouse-filter";
+import { createFilterFromFilterState } from "./factory";
+import { experimentItemsTableNativeUiColumnDefinitions } from "../../tableMappings/mapExperimentItemsTable";
 
 // events_core_mv truncates metadata values to leftUTF8(v, 200), so the safety
 // boundary is 200 Unicode code points.
@@ -200,18 +202,35 @@ describe("StringObjectFilter key presence/absence operators", () => {
 
 describe("NullFilter metadata filters on events tables", () => {
   it.each([
-    ["is null", "empty(e.metadata_names)"],
-    ["is not null", "notEmpty(e.metadata_names)"],
-  ] as const)("compiles `%s` against metadata_names", (operator, expected) => {
-    const filter = new NullFilter({
-      clickhouseTable: "events_proto",
-      field: "metadata",
-      operator,
-      tablePrefix: "e",
-    });
+    ["metadata", "metadata_names"],
+    ["experiment_metadata", "experiment_metadata_names"],
+    ["experiment_item_metadata", "experiment_item_metadata_names"],
+  ] as const)(
+    "compiles `%s` null checks against `%s`",
+    (field, namesColumn) => {
+      const isNullFilter = new NullFilter({
+        clickhouseTable: "events_proto",
+        field,
+        operator: "is null",
+        tablePrefix: "e",
+      });
+      const isNotNullFilter = new NullFilter({
+        clickhouseTable: "events_proto",
+        field,
+        operator: "is not null",
+        tablePrefix: "e",
+      });
 
-    expect(filter.apply()).toEqual({ query: expected, params: {} });
-  });
+      expect(isNullFilter.apply()).toEqual({
+        query: `empty(e.${namesColumn})`,
+        params: {},
+      });
+      expect(isNotNullFilter.apply()).toEqual({
+        query: `notEmpty(e.${namesColumn})`,
+        params: {},
+      });
+    },
+  );
 
   it("keeps null filters on legacy map tables unchanged", () => {
     const filter = new NullFilter({
@@ -222,6 +241,30 @@ describe("NullFilter metadata filters on events tables", () => {
 
     expect(filter.apply()).toEqual({
       query: "metadata is null",
+      params: {},
+    });
+  });
+});
+
+describe("NullFilter metadata aliases through table mappings", () => {
+  it("compiles experiment item metadata null filters against its names array", () => {
+    const [filter] = createFilterFromFilterState(
+      [
+        {
+          column: "itemMetadata",
+          operator: "is null",
+          value: "",
+          type: "null",
+        },
+      ],
+      experimentItemsTableNativeUiColumnDefinitions,
+    );
+
+    expect(filter).toBeDefined();
+    if (!filter) throw new Error("expected filter");
+
+    expect(filter.apply()).toEqual({
+      query: "empty(e.experiment_item_metadata_names)",
       params: {},
     });
   });

@@ -8,6 +8,7 @@ import {
   EventsAggregationQueryBuilder,
   EventsQueryBuilder,
   eventsTableUiColumnDefinitions,
+  experimentPreAggCols,
   ExperimentsAggregationQueryBuilder,
 } from "@langfuse/shared/src/server";
 import {
@@ -258,6 +259,28 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(built.query).toContain("empty(e.metadata_names)");
     expect(built.query).not.toContain("e.metadata is null");
     expect(built.query).toContain("FROM events_core e");
+  });
+
+  it("translates experiment metadata null filters through its table mapping", () => {
+    const [filter] = createFilterFromFilterState(
+      [
+        {
+          column: "metadata",
+          operator: "is null",
+          value: "",
+          type: "null",
+        },
+      ],
+      experimentPreAggCols,
+    );
+
+    expect(filter).toBeDefined();
+    if (!filter) throw new Error("expected filter");
+
+    expect(filter.apply()).toEqual({
+      query: "empty(e.experiment_metadata_names)",
+      params: {},
+    });
   });
 
   it("reuses row-selection score dependencies and full-table routing", () => {
