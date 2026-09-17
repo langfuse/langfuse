@@ -3,7 +3,7 @@ import { type FormHTMLAttributes, type ReactNode } from "react";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 
-type FormAction = {
+export type FormAction = {
   id: string;
   text: string;
   variant?: "primary" | "secondary" | "ghost";
@@ -20,15 +20,13 @@ type FormAction = {
     }
 );
 
-function FormRoot({
-  actions,
-  children,
-  onSubmit,
-}: {
+export type FormProps = {
   actions: FormAction[];
   children: ReactNode;
   onSubmit: FormHTMLAttributes<HTMLFormElement>["onSubmit"];
-}) {
+};
+
+function FormRoot({ actions, children, onSubmit }: FormProps) {
   return (
     <form className="space-y-8" onSubmit={onSubmit}>
       <div className="space-y-5">{children}</div>

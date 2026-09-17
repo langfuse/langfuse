@@ -6,13 +6,13 @@ import {
 } from "@langfuse/shared";
 import { ExternalLink } from "lucide-react";
 import { useMemo } from "react";
-import { useForm } from "react-hook-form";
+import { useWatch } from "react-hook-form";
 import { type z } from "zod";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
-import { Form } from "@/src/components/design-system/Form/Form";
+import { createForm } from "@/src/components/design-system/factories/createForm";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
@@ -29,6 +29,12 @@ type PostHogIntegrationFormInput = z.input<typeof posthogIntegrationFormSchema>;
 export type PostHogIntegrationFormValues = z.output<
   typeof posthogIntegrationFormSchema
 >;
+
+const PostHogForm = createForm<
+  PostHogIntegrationFormInput,
+  PostHogIntegrationFormValues
+>();
+const { useForm } = PostHogForm;
 
 type PostHogIntegrationFormProps = {
   actionState: "idle" | "saving" | "resetting";
@@ -77,21 +83,17 @@ export function PostHogIntegrationForm({
       }),
     [configurationState, exportSourceContext],
   );
-
-  const form = useForm<
-    PostHogIntegrationFormInput,
-    undefined,
-    PostHogIntegrationFormValues
-  >({
+  const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues,
   });
-
-  const watchedExportSource = form.watch("exportSource");
-  const watchedValidation =
-    watchedExportSource != null
-      ? validateExportSource(watchedExportSource, exportSourceContext)
-      : ({ ok: true } as const);
+  const exportSource = useWatch({
+    control: form.control,
+    name: "exportSource",
+  });
+  const exportSourceValidation = exportSource
+    ? validateExportSource(exportSource, exportSourceContext)
+    : ({ ok: true } as const);
 
   return (
     <ConfirmationDialogController
@@ -105,8 +107,9 @@ export function PostHogIntegrationForm({
       onConfirm={onReset}
     >
       {({ openDialog }) => (
-        <Form
-          onSubmit={form.handleSubmit(onSubmit)}
+        <PostHogForm
+          form={form}
+          onSubmit={onSubmit}
           actions={[
             {
               id: "save",
@@ -124,8 +127,7 @@ export function PostHogIntegrationForm({
             },
           ]}
         >
-          <Form.Field
-            control={form.control}
+          <PostHogForm.Field
             name="posthogHostname"
             label="Posthog Hostname"
             description="US region: https://us.posthog.com; EU region: https://eu.posthog.com"
@@ -143,9 +145,8 @@ export function PostHogIntegrationForm({
                 error={Boolean(field.error)}
               />
             )}
-          </Form.Field>
-          <Form.Field
-            control={form.control}
+          </PostHogForm.Field>
+          <PostHogForm.Field
             name="posthogProjectApiKey"
             label="Posthog Project API Key"
           >
@@ -167,7 +168,7 @@ export function PostHogIntegrationForm({
                 }
               />
             )}
-          </Form.Field>
+          </PostHogForm.Field>
           {showExportSourceField ? (
             <CustomTooltip
               placement="bottom"
@@ -196,8 +197,7 @@ export function PostHogIntegrationForm({
               }
             >
               {({ getTriggerProps }) => (
-                <Form.Field
-                  control={form.control}
+                <PostHogForm.Field
                   name="exportSource"
                   label="Export Source"
                   registerLabelTooltip={getTriggerProps}
@@ -225,21 +225,23 @@ export function PostHogIntegrationForm({
                       })}
                     />
                   )}
-                </Form.Field>
+                </PostHogForm.Field>
               )}
             </CustomTooltip>
           ) : null}
-          {!watchedValidation.ok ? (
+          {!exportSourceValidation.ok ? (
             <Alert variant="destructive">
               <Alert.Title>
                 Saved export source is no longer available
               </Alert.Title>
               <Alert.Description>
-                {getExportSourceUnavailableMessage(watchedValidation.reason)}
+                {getExportSourceUnavailableMessage(
+                  exportSourceValidation.reason,
+                )}
               </Alert.Description>
             </Alert>
           ) : null}
-          <Form.Field control={form.control} name="enabled" label="Enabled">
+          <PostHogForm.Field name="enabled" label="Enabled">
             {(field) => (
               <Switch
                 id={field.id}
@@ -252,8 +254,8 @@ export function PostHogIntegrationForm({
                 aria-invalid={Boolean(field.error)}
               />
             )}
-          </Form.Field>
-        </Form>
+          </PostHogForm.Field>
+        </PostHogForm>
       )}
     </ConfirmationDialogController>
   );

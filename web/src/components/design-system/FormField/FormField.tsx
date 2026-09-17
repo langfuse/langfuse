@@ -17,18 +17,12 @@ type TooltipTriggerPropsGetter = Parameters<
   ComponentProps<typeof CustomTooltip>["children"]
 >[0]["getTriggerProps"];
 
-export function FormField<
+export type FormFieldProps<
   TFieldValues extends FieldValues,
   TName extends FieldPath<TFieldValues>,
->({
-  control,
-  children,
-  description,
-  label,
-  name,
-  registerLabelTooltip,
-}: {
-  control: Control<TFieldValues>;
+  TTransformedValues extends FieldValues = TFieldValues,
+> = {
+  control: Control<TFieldValues, undefined, TTransformedValues>;
   children: (
     field: ControllerRenderProps<TFieldValues, TName> & {
       error: FieldError | undefined;
@@ -40,7 +34,20 @@ export function FormField<
   label: string;
   name: TName;
   registerLabelTooltip?: TooltipTriggerPropsGetter;
-}) {
+};
+
+export function FormField<
+  TFieldValues extends FieldValues,
+  TName extends FieldPath<TFieldValues>,
+  TTransformedValues extends FieldValues = TFieldValues,
+>({
+  control,
+  children,
+  description,
+  label,
+  name,
+  registerLabelTooltip,
+}: FormFieldProps<TFieldValues, TName, TTransformedValues>) {
   const id = useId();
   const controlId = `${id}-control`;
   const descriptionId = `${id}-description`;
