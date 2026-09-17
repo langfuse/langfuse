@@ -1,7 +1,7 @@
 /* eslint-disable @repo/no-style-props */
 import { api } from "@/src/utils/api";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { type ScoreDataTypeType, type FilterState } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import {
   convertScoreColumnsToAnalyticsData,
@@ -9,7 +9,6 @@ import {
   isBooleanDataType,
   isCategoricalDataType,
   isNumericDataType,
-  MultiSelectKeyValues,
 } from "@/src/features/scores";
 import React, { useMemo } from "react";
 import { Separator } from "@/src/components/ui/separator";
@@ -20,6 +19,7 @@ import DocPopup from "@/src/components/layouts/doc-popup";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { type ViewVersion } from "@langfuse/shared/query";
+import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
 
 export function ScoreAnalytics(props: {
   className?: string;
@@ -73,29 +73,23 @@ export function ScoreAnalytics(props: {
         !scoreKeysAndProps.isPending &&
         !props.isLoading &&
         Boolean(scoreKeysAndProps.data?.scoreColumns.length) && (
-          <MultiSelectKeyValues
-            placeholder="Search score..."
-            onValueChange={(values, changedValueId, selectedValueKeys) => {
-              if (values.length === 0) setSelectedDashboardScoreKeys([]);
+          <div className="w-80 max-w-full">
+            <MultiSelectTagInput
+              value={scoreAnalyticsValues.map(({ key }) => key)}
+              options={scoreAnalyticsOptions.map(({ key }) => {
+                const scoreData = scoreKeyToData.get(key);
 
-              if (changedValueId) {
-                if (selectedValueKeys?.has(changedValueId)) {
-                  setSelectedDashboardScoreKeys([
-                    ...selectedDashboardScoreKeys,
-                    changedValueId,
-                  ]);
-                } else {
-                  setSelectedDashboardScoreKeys(
-                    selectedDashboardScoreKeys.filter(
-                      (key) => key !== changedValueId,
-                    ),
-                  );
-                }
-              }
-            }}
-            values={scoreAnalyticsValues}
-            options={scoreAnalyticsOptions}
-          />
+                return {
+                  value: key,
+                  label: scoreData?.name ?? key,
+                };
+              })}
+              onValueChange={setSelectedDashboardScoreKeys}
+              placeholder="Select scores"
+              searchPlaceholder="Search scores..."
+              emptyMessage="No scores found."
+            />
+          </div>
         )
       }
     >
