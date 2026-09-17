@@ -34,6 +34,16 @@ const defaultRedisOptions: Partial<RedisOptions> = {
 
 const REDIS_SCAN_COUNT = 1000;
 
+// Delay before an ioredis Cluster client reconnects after a failed topology
+// refresh or after losing its last node. The ioredis default retries every
+// 100–300ms with no jitter, so the many cluster clients in one process fail
+// and reconnect in lockstep. Exponential backoff from 200ms to a 5s cap,
+// randomized within [base/2, base]; retries forever.
+export const redisClusterRetryStrategy = (times: number): number => {
+  const base = Math.min(200 * 2 ** Math.max(times - 1, 0), 5000);
+  return Math.floor(base / 2 + Math.random() * (base / 2));
+};
+
 export const redisQueueRetryOptions: Partial<RedisOptions> = {
   retryStrategy: (times: number) => {
     if (times >= 5) {
@@ -158,6 +168,7 @@ const createRedisClusterInstance = (
       ...tlsOptions,
     },
     // Retry configuration for cluster
+    clusterRetryStrategy: redisClusterRetryStrategy,
     retryDelayOnFailover: 100,
   };
 

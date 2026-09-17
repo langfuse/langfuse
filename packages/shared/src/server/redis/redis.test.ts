@@ -10,7 +10,12 @@ vi.mock("../../env", () => ({
 }));
 
 import { env } from "../../env";
-import { safeMultiGet, scanKeys, redisQueueRetryOptions } from "./redis";
+import {
+  safeMultiGet,
+  scanKeys,
+  redisQueueRetryOptions,
+  redisClusterRetryStrategy,
+} from "./redis";
 import { logger } from "../logger";
 import {
   buildRedisErrorContext,
@@ -326,5 +331,36 @@ describe("redisQueueRetryOptions", () => {
       expect(debug).toHaveBeenCalledTimes(1);
       expect(warn).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("redisClusterRetryStrategy", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("retries quickly at first: the first delay is 100–200ms", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    expect(redisClusterRetryStrategy(1)).toBe(100);
+    vi.spyOn(Math, "random").mockReturnValue(1);
+    expect(redisClusterRetryStrategy(1)).toBe(200);
+  });
+
+  it("caps the delay at 5s, never below half the cap, and stays finite for huge attempt counts", () => {
+    vi.spyOn(Math, "random").mockReturnValue(1);
+    expect(redisClusterRetryStrategy(20)).toBe(5000);
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    expect(redisClusterRetryStrategy(20)).toBe(2500);
+    // 2 ** 4999 overflows to Infinity; the cap must still win so the client
+    // keeps retrying instead of receiving a non-number and giving up.
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    expect(redisClusterRetryStrategy(5000)).toBe(3750);
+  });
+
+  it("randomizes the delay so clients do not reconnect in lockstep", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    expect(redisClusterRetryStrategy(4)).toBe(800);
+    vi.spyOn(Math, "random").mockReturnValue(1);
+    expect(redisClusterRetryStrategy(4)).toBe(1600);
   });
 });
