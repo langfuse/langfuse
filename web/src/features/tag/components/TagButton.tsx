@@ -25,9 +25,6 @@ export const TagButton: React.FC<{
     </>
   );
 
-  // A read-only tag is not a control: a disabled button would dim it, drop it
-  // from the tab order and announce as disabled. BadgeShell rather than Badge
-  // because the tag icon leads and Badge only takes a trailing one.
   if (viewOnly) {
     // Badge takes no className, so the width cap lives on a wrapper.
     return (
