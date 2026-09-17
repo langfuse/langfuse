@@ -16,7 +16,10 @@
 
 import { type ReactNode } from "react";
 import { Button } from "@/src/components/ui/button";
-import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
+import {
+  ItemTypeIcon,
+  type LangfuseItemType,
+} from "@/src/components/ItemBadge";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 
@@ -132,7 +135,7 @@ export function VirtualizedTreeNodeWrapper({
         {/* 3. Icon + child connector: fixed width container */}
         <div className="relative flex w-6 shrink-0 flex-col py-1.5">
           <div className="relative z-10 flex h-4 items-center justify-center">
-            <ItemBadge type={nodeType} isSmall className="size-3!" />
+            <ItemTypeIcon type={nodeType} className="size-3" />
           </div>
           {/* Vertical bar downwards if there are expanded children (skipped
               when children render capped at this same indent — the spine
